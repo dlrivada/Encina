@@ -742,7 +742,7 @@ REFERENCE FILES:
 
 1. **XML docs** on every new or changed public API (`<summary>`, `<remarks>` with legal references, `<param>`, `<returns>`, `<example>` for the services)
 2. **Changelog**: `changelog.d/1197-data-subject-representation.added.md` (representation shape, status record, telemetry) and `changelog.d/1197-data-subject-representation.changed.md` (changed event constructors and service signatures in Consent and DSR) — `mechanical-fixer`
-3. **ADR**: `docs/architecture/adr/0NN-data-subject-representation-shape.md` (next free number at implementation time) — shared type placement, acted-for implied by the subject, status aggregate, rules post-1.0 — `docs-writer`
+3. **ADR**: `docs/architecture/adr/042-data-subject-representation-shape.md` (reserved) — shared type placement, acted-for implied by the subject, status aggregate, rules post-1.0 — `docs-writer`
 4. **Package READMEs**: `src/Encina.Compliance.Consent/README.md`, `src/Encina.Compliance.DataSubjectRights/README.md`, `src/Encina.Compliance.GDPR/README.md` — `docs-writer`
 5. **Feature docs**: `docs/features/consent-management.md`, `docs/features/data-subject-rights.md` (representation, status record, "rules are post-1.0") — `docs-writer`
 6. **docs/INVENTORY.md**: new files

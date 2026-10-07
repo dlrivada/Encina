@@ -711,7 +711,7 @@ REFERENCE FILES:
 4. `src/Encina.Compliance.AIAct/README.md`: record-keeping section (registration, retention floor, export).
 5. `docs/features/aiact-compliance.md`: Art. 12 section (what is recorded automatically, explicit API, retention and legal hold adapter, export schema, dates of Reg. (EU) 2026/1744), in the house style (`encina-docs` skill, docs-writer).
 6. `docs/INVENTORY.md`: new files.
-7. ADR: `docs/architecture/adr/0NN-aiact-record-keeping-log.md` recording Design Choices 3, 5 and 6 (append-only per-day streams, fail-closed recording, period-key crypto-shredding).
+7. ADR: `docs/architecture/adr/041-aiact-record-keeping-log.md` (reserved) recording Design Choices 3, 5 and 6 (append-only per-day streams, fail-closed recording, period-key crypto-shredding).
 8. `PublicAPI.Unshipped.txt` complete; `docs/releases/v0.16.0/` notes if the folder exists.
 9. Build `dotnet build Encina.slnx --configuration Release` (0 errors, 0 warnings); `dotnet test`; every coverage flag reaches its manifest target.
 

@@ -671,7 +671,7 @@ REFERENCE FILES:
 1. XML documentation on every new public API (`<summary>`, `<remarks>`, `<param>`, `<returns>`, `<example>`), citing SPEC-002 REQ-051 and the regulations in Research.
 2. `src/Encina.Security.BreakTheGlass/README.md`: what it is, registration, declaring scopes and eligible requests, opening, review, the gates it integrates with, provider stores, what is audited.
 3. `docs/features/break-the-glass.md` (how-to and configuration, one Diátaxis quadrant per page per the `encina-docs` skill) and a reference entry for the error codes in the existing error reference.
-4. ADR "Break-the-glass overrides only definite denials, at the enforcement point, write-ahead audited": the next ADR number neither used nor reserved in `docs/architecture/adr/index.md` (037 on `5b485b12`), reserved in the index by the plan PR.
+4. ADR "Break-the-glass overrides only definite denials, at the enforcement point, write-ahead audited": ADR 039, reserved in `docs/architecture/adr/index.md`.
 5. `changelog.d/1244-break-the-glass.added.md`.
 6. `docs/INVENTORY.md` (new package), `ROADMAP.md` (P-42 in v0.17.0), `docs/releases/` notes if the milestone has a release page.
 7. `PublicAPI.Unshipped.txt` complete in every touched package.
@@ -862,7 +862,7 @@ REFERENCE FILES:
 ## Next Steps
 
 1. The maintainer decides Design Choices 1-7; the orchestrator records the answers in a "Maintainer Decisions" section.
-2. Reserve the ADR number (037 on `5b485b12`) in `docs/architecture/adr/index.md` in the plan PR.
+2. ADR 039 is reserved for this plan in `docs/architecture/adr/index.md`.
 3. Open the deferred issue drafted in `artifacts/issues/plan-1244-breach-event-on-unjustified-review.md`.
 4. Link this plan from #1244 and start Phase 1 once #1705 phase 4 is scheduled (Phases 1-2 do not wait for it).
 5. Each phase is a self-contained commit; the final PR references `Fixes #1244`.
