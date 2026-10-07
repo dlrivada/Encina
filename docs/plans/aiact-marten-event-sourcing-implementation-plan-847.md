@@ -39,7 +39,7 @@ No code outside the package uses `IAISystemRegistry`, `IHumanOversightEnforcer`,
 - **`AISystemComplianceEvaluated` is dropped from the registry stream** (Design Choice 4). One event per pipeline check makes the `AISystemAggregate` stream unbounded; the #842 plan records per-use outcomes in its Art. 12 log instead (comment on #847, 2026-10-06).
 - **EventIds start at 9513**, not 9540-9570: ADR-021 packs ids sequentially; 9513-9539 would be left unused (same comment).
 - **No in-memory default.** The issue keeps the in-memory registry via `TryAdd`; `AGENTS.md` §3 says event-sourced compliance modules have no InMemory stores (Design Choice 5).
-- **ADR number.** The issue asks for "ADR-022"; 022 is `022-provider-agnostic-attestation.md`. The next free number is taken from `docs/architecture/adr/index.md` at implementation time (037 or later today; 026, 032, 033 and 035 are reserved by plans).
+- **ADR number.** The issue asks for "ADR-022"; 022 is `022-provider-agnostic-attestation.md`. The ADR is number 044 (`044-...`), reserved in `docs/architecture/adr/index.md`.
 - **"Test coverage ≥ 85%"** is replaced by the per-flag manifest targets (`AGENTS.md` §9), adding an `integration` target to the AIAct manifest.
 - **Pipeline-triggered oversight requests and the Art. 14 gate** belong to #839 (Design Choice 1); this issue delivers the aggregate and the service they call.
 - **Dates.** Annex III high-risk obligations apply from 2 Dec 2027 and Annex I from 2 Aug 2028 (Reg. (EU) 2026/1744, SPEC-002 §3.2, issue comment). The feature carries no date logic; XML docs and the feature page state the dates.
@@ -98,7 +98,7 @@ We recommend A. Pre-1.0 the best design wins and compatibility layers are forbid
 | Option | Pros | Cons |
 |--------|------|------|
 | **A — Deterministic stream id: UUIDv5 of `(tenantId ?? "", systemId)` in an AIAct namespace; `SystemId` kept as a field** | Lookups by `SystemId` need no query (compute the id, `LoadAsync`/`GetByIdAsync`); duplicate registration across instances is detected by Marten (`MartenErrorCodes.StreamAlreadyExists`, `src/Encina.Marten/MartenAggregateRepository.cs:312-320`) with no lock; tenant-scoped by construction | A new helper (`AIActStreamIds`); a system re-registered after decommissioning needs an explicit `Reactivate` command instead of a new stream |
-| **B — Random `Guid` per registration, lookup by `SystemId` through `IReadModelRepository.QueryAsync`** | Same as most modules (`DefaultApprovedTransferService.cs:507`) | Check-then-create race: two instances auto-registering at startup both see "not registered" and create two streams; every pipeline check runs a query; needs a unique index or a distributed lock |
+| **B — Random `Guid` per registration, lookup by `SystemId` through `IReadModelRepository.QueryAsync`** | Same as most modules (`DefaultApprovedTransferService.cs:81`) | Check-then-create race: two instances auto-registering at startup both see "not registered" and create two streams; every pipeline check runs a query; needs a unique index or a distributed lock |
 | **C — String stream identity (`AggregateBase<string>`, Marten `StreamIdentity.AsString`)** | Stream key is the `SystemId` itself | `StreamIdentity` is store-wide: switching it breaks every other module's `Guid` streams; `IAggregateRepository<T>.LoadAsync` takes a `Guid` (`src/Encina.Marten/IAggregateRepository.cs:19-20`) |
 
 ### Chosen Option: **A — Deterministic UUIDv5 stream id** (recommended, pending the maintainer)
@@ -730,7 +730,7 @@ REFERENCE FILES:
 2. `changelog.d/847-aiact-marten-event-sourcing.changed.md` — AIAct persists its registry and oversight sessions with Marten; `IAISystemRegistry`/`IHumanOversightEnforcer` replaced by `IAISystemService`/`IHumanOversightService`; PostgreSQL (Marten) now required. Never edit `CHANGELOG.md` directly.
 3. `src/Encina.Compliance.AIAct/README.md` — registration with `AddEncinaMarten`, service usage, tenant rules, migration note for the removed types.
 4. `docs/features/aiact-compliance.md` — event-sourcing section: aggregates, events, read models, history query, caching rule, dates (a docs-writer applies the `encina-docs` skill).
-5. ADR (next free number in `docs/architecture/adr/index.md`): deterministic natural-key stream identity for compliance aggregates (Design Choice 3), referencing ADR-019/027; add AIAct to the module list of ADR-019 if it keeps one.
+5. ADR `044-...` (reserved in `docs/architecture/adr/index.md`): deterministic natural-key stream identity for compliance aggregates (Design Choice 3), referencing ADR-019/027; add AIAct to the module list of ADR-019 if it keeps one.
 6. `docs/INVENTORY.md` — new folders and files; `ROADMAP.md` — v0.16.0 AI Act: #847 done.
 7. `PublicAPI.Unshipped.txt` — all new symbols added, removed symbols deleted (RS0016/RS0017 clean).
 8. Delete `docs/plans/aiact-marten-es-migration-plan.md` (superseded by this plan) and update the link in #847's body.
@@ -753,7 +753,7 @@ CONTEXT:
 TASK:
 1. Complete XML docs; write changelog.d/847-aiact-marten-event-sourcing.changed.md.
 2. Update the package README, docs/features/aiact-compliance.md, docs/INVENTORY.md and ROADMAP.md.
-3. Write the ADR for deterministic natural-key stream identity (next free number from the ADR index).
+3. Write the ADR for deterministic natural-key stream identity (`044-...`, reserved in the ADR index).
 4. Reconcile PublicAPI.Unshipped.txt; delete docs/plans/aiact-marten-es-migration-plan.md.
 5. Run the Release build and the full test suite; produce the per-flag coverage and crap-gate tables.
 
@@ -812,7 +812,7 @@ REFERENCE FILES:
 |---------|-------|-------|
 | `Encina.Compliance.AIAct` (#415) | 9500-9512 | In use, `AIActLogMessages.cs:25-157` |
 | **`Encina.Compliance.AIAct` (#847, this plan)** | **9513-9529** | Inside `ComplianceAIAct = (9500, 9599)`; no new range; packed |
-| `Encina.Compliance.AIAct` (#842) | from 9530 | The #842 plan packs right after #847's last id |
+| `Encina.Compliance.AIAct` (#842) | 9530-9547 | The #842 plan packs right after #847's last id |
 
 ### Estimated File Count
 

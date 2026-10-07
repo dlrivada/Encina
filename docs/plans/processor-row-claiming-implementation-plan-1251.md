@@ -120,7 +120,7 @@ If #1251 lands before #718, Phase 5 of this plan must also replace the no-op `Op
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `ClaimedBy` (instance id), `ClaimToken` (one GUID per claimed batch), `ClaimedUntilUtc`** | Fencing per batch, so two overlapping cycles in one process (the background processor plus a manual `OutboxOrchestrator.ProcessPendingMessagesAsync`) cannot complete each other's rows; operators see which instance holds a row | Three columns on 9 tables and one collection |
+| **A) `ClaimedBy` (instance id), `ClaimToken` (one GUID per claimed batch), `ClaimedUntilUtc`** | Fencing per batch, so two overlapping cycles in one process (the background processor plus a manual `OutboxOrchestrator.ProcessPendingMessagesAsync`) cannot complete each other's rows; operators see which instance holds a row | Three columns on the outbox and scheduled-message tables of every provider (12 ADO.NET/Dapper scripts, the three EF Core models and two MongoDB collections) |
 | **B) `ClaimedBy` (unique per process start) and `ClaimedUntilUtc`** | Two columns; matches the issue's wording literally | Two cycles in the same process share the identity, so fencing does not separate them; reclaiming its own expired row is indistinguishable from still holding it |
 | **C) `ClaimToken` and `ClaimedUntilUtc` only** | Minimal; fencing is correct | No operational visibility of which instance holds a stuck lease; the issue asks for claimed-by |
 
@@ -959,7 +959,7 @@ REFERENCE FILES:
    - `changelog.d/1251-processor-row-claiming.added.md`: row claiming with leases on the 10 providers.
    - `changelog.d/1251-processor-row-claiming.changed.md`: `IOutboxStore` and `IScheduledMessageStore` signatures, new columns.
    - `changelog.d/1251-scheduler-ef-outcomes.fixed.md`: only if the scheduler `SaveChangesAsync` defect is not fixed separately first.
-3. **ADR**: `docs/architecture/adr/0NN-processor-row-claiming.md` (next free number; 037 is proposed by the #718 plan). It records lease versus lock versus leader election, fencing, and the per-dialect statements.
+3. **ADR**: `docs/architecture/adr/043-processor-row-claiming.md` (reserved in `docs/architecture/adr/index.md`). It records lease versus lock versus leader election, fencing, and the per-dialect statements.
 4. **Feature page**: new `docs/features/processor-row-claiming.md` (explanation: why and how claims work, sizing `LeaseDuration`, multi-instance guidance); update `docs/features/scheduling.md`. Follow the encina-docs skill and cite figures with covref markers, never by hand.
 5. **READMEs**: `src/Encina.Messaging/README.md` and the READMEs of the 8 provider packages (multi-instance section, new columns).
 6. **`docs/INVENTORY.md`**: new files (`Claiming/`, claim logs, SQL builders, load test).
@@ -986,7 +986,7 @@ CONTEXT:
   src/, figures cited with covref/mutref markers). Changelog: changelog.d fragments only, never CHANGELOG.md.
 
 TASK:
-Write XML docs, the changelog fragments, the ADR (next free number), docs/features/processor-row-claiming.md, the
+Write XML docs, the changelog fragments, ADR 043, docs/features/processor-row-claiming.md, the
 update of docs/features/scheduling.md, the READMEs of Encina.Messaging and the 8 provider packages, INVENTORY.md,
 ROADMAP.md and PublicAPI files; then build with zero warnings, run the tests, measure every coverage flag and the
 CRAP table.
@@ -1054,7 +1054,7 @@ REFERENCE FILES:
 | `Encina.MongoDB` | 3100-3199 | No new IDs; the not-found logs of `OutboxStoreMongoDB` are replaced by the shared claim-lost log |
 | `Encina.ADO.*`, `Encina.Dapper.*`, `Encina.EntityFrameworkCore` | 3000-3499 | No new log messages |
 
-No range is registered: `Messaging` already maps to `Encina.Messaging` (`EncinaEventIdAllocationTests.cs:91`). The 2963-2988 split between #718, #1200 and #1251 was agreed by the coordinator on 2026-10-06, so the three plans can land in any order. 2989-2999 then remain free in the range.
+No range is registered: `Messaging` already maps to `Encina.Messaging` (`EncinaEventIdAllocationTests.cs:91`). The 2963-2988 split between #718, #1200 and #1251 was agreed by the coordinator on 2026-10-06, so the EventIds do not constrain the order (the recommended order stays #718 first). 2989-2999 then remain free in the range.
 
 ### Open Questions to Verify During Implementation
 
@@ -1106,7 +1106,7 @@ Phase 2: LeaseDuration (5 min), LeaseSafetyMargin (30 s), ProcessorInstanceId on
          MessageProcessorIdentity singleton; ValidateOnBuild DI tests
 Phase 3: OutboxBatchProcessor and SchedulerOrchestrator claim, stop before lease expiry, release on stop, fenced
          completion, per-outcome results; decorators, fakes, helpers, fakers
-Phase 4: ClaimedBy/ClaimToken/ClaimedUntilUtc columns and claim indexes on 9 tables and MongoDB; test schemas
+Phase 4: ClaimedBy/ClaimToken/ClaimedUntilUtc columns and claim indexes on the outbox and scheduled-message tables of every provider (12 ADO.NET/Dapper scripts, the three EF Core models and two MongoDB collections); test schemas
 Phase 5: ADO.NET x3: SQL Server CTE UPDATE ... OUTPUT (UPDLOCK, READPAST, ROWLOCK); PostgreSQL UPDATE ... FROM
          (SELECT ... FOR UPDATE SKIP LOCKED) RETURNING; MySQL transaction SELECT FOR UPDATE SKIP LOCKED + UPDATE + SELECT
 Phase 6: Dapper x3: same SQL through CommandDefinition with transaction and cancellation token
