@@ -57,10 +57,40 @@ There is no previous stage. Read instead:
 
 ## Output
 
-`artifacts\knowledge\issues\<n>.md`: the knowledge record itself, in schema-1 (SPEC-003 §3.1, amended by the
-pilot-1 `linked_prs`/split-`outcome` fields — see `.github\scripts\knowledge-records.cs`'s `RecordSchema` for
-the exact field list). `docs\knowledge\issues\1345.md` is a worked example of a complete, passing record.
-Before finishing, run `dotnet run --file .github\scripts\knowledge-records.cs -- --check --dir artifacts\knowledge\issues`
+`artifacts\knowledge\issues\<n>.md`: the knowledge record itself, in the one record schema (`schema: 1`, SPEC-003
+§3.1, amended by the pilot-1 `linked_prs`/split-`outcome` fields; #1765 removed the lenient second schema). See
+`.github\scripts\knowledge-records.cs`'s `RecordSchema` for the exact field list; `docs\knowledge\issues\1345.md` is a
+worked example of a complete, passing record. Every record passes the same strict checks, whatever its age:
+
+- every required field is present: `schema`, `nav_exclude`, `issue`, `title`, `closed`, `state_reason`, `outcome`, `type`,
+  `area`, `review`, the lists `packages`, `prs`, `linked_prs`, `knowledge`, `remediation`, and the `audit` block;
+- lists are block lists (`- item` lines); an empty list is an empty key (`prs:`), never `[]`, and flow syntax such as
+  `packages: [A, B]` is rejected, in the front matter and inside `knowledge`; block scalars (`>-`, `|`) are rejected
+  too, so every value is a quoted single-line string; a top-level key outside the schema is an error;
+- every knowledge item has `kind`, `statement`, `current` and at least one source, and every source is a quoted string
+  that starts with the marker `quote:` or `paraphrase:` and carries a link (a URL or `#<number>`) and its date
+  (`yyyy-MM-dd`);
+- every destination has a `kind` and a `status` of `done` or `planned` (nothing else: no `present`, `n/a` or
+  `planned (#1317)`); `done` needs a `target` that exists in the repository (a single path, optionally with a `#anchor`;
+  an issue number is accepted), `planned` needs a `target` naming the issue or batch; `kind: none` with `status: done` needs no target;
+- an item with `current: yes` has at least one destination other than `none` (REQ-005); an item with no live home is
+  `current: no` or `current: unknown`.
+
+The `audit` block (`checklist`, `date`, `verdict`, `record`) is required and changes as the audit advances:
+
+| Stage | `verdict` | `record` |
+|---|---|---|
+| Archivist (you) | `not-audited`: the result is not known yet, so never write any other verdict | `"not written yet"`: a value that names no file |
+| `audit-done.ps1`, when it publishes the audit | `findings-tracked` when remediation issues were opened, otherwise `conforms` (the script rewrites both lines; it fails when the block lacks either) | `docs/knowledge/audits/issue-<n>.md`, which must exist; no rooted, `artifacts/` or other-issue path |
+| Issue never audited | stays `not-audited` | stays a value that names no file |
+
+A verdict follows the remediation: whenever the audit opened remediation issues it is `findings-tracked` and
+`remediation:` lists their numbers, whatever a shallow result file says. `conforms-with-na` and `code-removed` are
+only for audits that opened none; the orchestrator sets them from the published result, never guessed at the
+archivist stage. A delta audit never rewrites the record's `audit`
+block.
+
+Before finishing, run `dotnet run --file .github\scripts\knowledge-records.cs -- --check --dir artifacts\knowledge\issues --skip-audit-links`
 from the audit worktree and fix every error it reports (#1457: `audit-commit-stage.ps1 -Stage archivist` runs
 the same check and refuses to commit a record that fails it).
 

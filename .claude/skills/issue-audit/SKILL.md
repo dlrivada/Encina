@@ -383,7 +383,7 @@ Refuses when any stage artifact is missing or uncommitted, the verification verd
 still says `Applied: TODO`, the worktree's `knowledge-records --check` fails on `artifacts/knowledge/issues`, or a
 remediation draft is not opened yet (step 5). Otherwise it first **publishes the audit to the repository** (#1735):
 in a temporary worktree it creates the branch `knowledge/audit-<n>` from `origin/main`, puts the record in
-`docs/knowledge/issues/<n>.md` (replacing a fix PR's schema 1 record; its `audit.verdict` becomes
+`docs/knowledge/issues/<n>.md` (replacing a fix PR's record; its `audit.verdict` becomes
 `findings-tracked` when remediation issues were opened, else `conforms`, and `audit.record` becomes
 `docs/knowledge/audits/issue-<n>.md`), the audit result in `docs/knowledge/audits/issue-<n>.md` and the stage
 files in `docs/knowledge/audits/<n>/stages/`, validates the whole `docs/knowledge` tree with

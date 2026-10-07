@@ -23,11 +23,11 @@
 
 ## Coverage
 
-No production code affected; verdict: **not-audited** (spike with documentation outcome, rejected-reasoned).
+No production code affected by the shallow first pass (documentation outcome, rejected-reasoned). The six-stage audit that followed (stages in [18/stages/](18/stages/remediation.md)) found code, test and documentation defects and its verdict is **findings-tracked**.
 
 ## Remediation
 
-None found. Decision documented in `docs/messaging/transports.md` with decision flowchart and transport categorization. Consistent with decisions in #16 (Sagas) and #17 (Event Sourcing).
+The first pass found none (decision documented in `docs/messaging/transports.md` with decision flowchart and transport categorization); the six-stage audit then opened 22 remediation issues, #1608 to #1629 (see the record [issues/18.md](../issues/18.md)). Consistent with decisions in #16 (Sagas) and #17 (Event Sourcing).
 
 ## Notes
 

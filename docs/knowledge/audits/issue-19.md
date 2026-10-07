@@ -23,7 +23,7 @@
 
 ## Coverage
 
-No production code affected; verdict: **not-audited** (rejected-reasoned technical debt issue).
+No production code affected by the shallow first pass (rejected-reasoned technical debt issue). The six-stage audit that followed (stages in [19/stages/](19/stages/remediation.md)) found code, test and documentation defects and its verdict is **findings-tracked**.
 
 ## Decision Record
 
@@ -33,4 +33,4 @@ The per-flag model measures each test type (unit, guard, contract, property, int
 
 ## Remediation
 
-None found. The coverage model transition is complete and documented in CLAUDE.md and the coverage dashboard.
+The first pass found none and judged the coverage model transition complete and documented in CLAUDE.md and the coverage dashboard; the six-stage audit then opened 23 remediation issues, #1651 to #1673 (see the record [issues/19.md](../issues/19.md)).

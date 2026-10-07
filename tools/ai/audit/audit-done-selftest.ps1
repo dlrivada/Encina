@@ -76,7 +76,7 @@ exit 0
     }
     # The archivist's record: not-audited, "not written yet" -- audit-done must rewrite both at publish time.
     function Get-AuditRecord([int]$N) {
-        return "---`nschema: 2`nnav_exclude: true`nissue: $N`ntitle: `"[DEBT] Fixture`"`nclosed: 2025-12-22`nstate_reason: completed`noutcome: delivered`ntype: debt`narea: core`nreview: verified`npackages: [Encina]`nprs: []`nlinked_prs: []`nremediation: [1234]`nknowledge:`n  - kind: decision`n    statement: `"A statement.`"`n    current: `"yes`"`n    sources:`n      - `"paraphrase: fixture (issue #1, 2025-12-22)`"`n    destinations:`n      - kind: adr`n        status: done`n        target: `"fixture`"`naudit:`n  checklist: 1`n  date: 2026-10-05`n  verdict: not-audited`n  record: `"not written yet`"`n---`n`nNEW`n"
+        return "---`nschema: 1`nnav_exclude: true`nissue: $N`ntitle: `"[DEBT] Fixture`"`nclosed: 2025-12-22`nstate_reason: completed`noutcome: delivered`ntype: debt`narea: core`nreview: verified`npackages:`n  - Encina`nprs:`nlinked_prs:`nremediation:`n  - 1234`nknowledge:`n  - kind: decision`n    statement: `"A statement.`"`n    current: yes`n    sources:`n      - `"paraphrase: fixture (issue #1, 2025-12-22)`"`n    destinations:`n      - kind: backlog`n        status: planned`n        target: `"#1735`"`naudit:`n  checklist: 1`n  date: 2026-10-05`n  verdict: not-audited`n  record: `"not written yet`"`n---`n`nNEW`n"
     }
     foreach ($n in 98, 99) { Write-Text (Join-Path $main "docs\knowledge\issues\$n.md") (Get-OldRecord $n) }
     Git -C $main add -A | Out-Null
@@ -140,7 +140,7 @@ exit 0
     $expected = @($expected | Sort-Object)
     Assert-That 'NoPublish branch holds exactly the planned layout' (($diff -join "`n") -ceq ($expected -join "`n")) "`nactual:`n$($diff -join "`n")`nexpected:`n$($expected -join "`n")"
     $published = (Git -C $main show "knowledge/audit-${issue}:docs/knowledge/issues/$issue.md") -join "`n"
-    Assert-That 'the schema 2 record replaced the existing record' ($published -like '*NEW*' -and $published -notlike '*OLD*')
+    Assert-That 'the audit record replaced the existing record' ($published -like '*NEW*' -and $published -notlike '*OLD*')
     Assert-That 'the published record carries the audit outcome (findings-tracked + the result path)' ($published -like '*  verdict: findings-tracked*' -and $published -like "*  record: `"docs/knowledge/audits/issue-$issue.md`"*" -and $published -notlike '*not-audited*') $published
     $result = (Git -C $main show "knowledge/audit-${issue}:docs/knowledge/audits/issue-$issue.md") -join "`n"
     Assert-That 'the missing audit result was generated (verdict, passes, remediation issue, record link)' ($result -like '*Verdict: PASS*' -and $result -like '*1 pass(es)*' -and $result -like '*issues/1234*' -and $result -like '*(../issues/99.md)*') $result
@@ -195,6 +195,16 @@ finally {
         Remove-Item -LiteralPath $base -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
+
+# Set-AuditBlockOutcome directly: the conforms verdict (no remediation issues), the result path, and the refusal
+# when the record has no audit block (#1765).
+. (Join-Path $PSScriptRoot '_audit-lib.ps1')
+$block = "audit:`n  checklist: 1`n  date: 2026-10-05`n  verdict: not-audited`n  record: `"not written yet`"`n"
+$updated = Set-AuditBlockOutcome "---`nissue: 7`n$block---`n" 7 'conforms'
+Assert-That 'Set-AuditBlockOutcome writes the conforms verdict and the result path' ($updated -like '*  verdict: conforms*' -and $updated -like '*  record: "docs/knowledge/audits/issue-7.md"*' -and $updated -notlike '*not-audited*') $updated
+$threw = $false
+try { $null = Set-AuditBlockOutcome "---`nissue: 7`n---`n" 7 'conforms' } catch { $threw = $true }
+Assert-That 'Set-AuditBlockOutcome refuses a record without an audit block' $threw
 
 if ($failures.Count -gt 0) {
     Write-Host "audit-done-selftest: $($failures.Count) assertion(s) failed."

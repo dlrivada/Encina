@@ -6,21 +6,17 @@
 // set (superset of `prs`, which is issue-worker/closing-PR driven). The schema lives in ONE place
 // in this file (see RecordSchema below) so a later amendment is one edit.
 //
-// Schemas (#1735). The front-matter `schema` field selects the rule set; any other value is rejected.
-//   schema 1  the strict shape above: block lists only (flow syntax like `[]` is rejected), every source
-//             marked quote:/paraphrase: with a link and a date (REQ-002), a `done` destination whose target
-//             exists, `current: yes` with a non-`none` destination (REQ-005), `audit` required.
-//   schema 2  the audit pipeline's records (docs/knowledge/issues/1..10 as archived): the same required
-//             fields, enums and block of audit keys, but flow lists (`packages: [A, B]`, `prs: []`) and
-//             block scalars (`>-`) are accepted, `audit` may be absent (never audited), `audit.unit` and
-//             `knowledge_unverified` are allowed, destination statuses are free text (`present`,
-//             `planned (#1317)`), destination targets may be prose, and sources need no link/date marker.
-//             Schema 2 checks structure and enums only; REQ-002/REQ-005 and `done`-target existence are
-//             not applied to it. Unifying both on one schema is future work (see #1735).
-// Both schemas share the audit-result rule: `audit.record` is either exactly docs/knowledge/audits/issue-<n>.md
-// (the record's own issue; the file must exist, rooted or artifacts/ paths fail) or, only when `audit.verdict` is
-// `not-audited`, text that names no file ("not written yet"). Schema 1 also rejects flow lists nested in
-// `knowledge`. Each stage link `[<n>/stages/<file>]` of an audit result must exist.
+// One schema (#1765). The front-matter `schema` field must be 1; any other value is rejected. The shape is strict:
+// block lists only (flow syntax like `[]` is rejected, an empty list is an empty key), no block scalars (`>-`, `|`),
+// no unknown top-level field, every source marked
+// quote:/paraphrase: with a link and a date (REQ-002), a `done` destination whose target exists, a `planned`
+// destination with a target, `current: yes` with a non-`none` destination (REQ-005), and the `audit` block
+// required (checklist, date, verdict, record). Records of issues that were never audited carry verdict
+// `not-audited` and an `audit.record` that names no file ("not written yet"); audit-done.ps1 rewrites verdict and
+// record when it publishes an audit.
+// The audit-result rule: `audit.record` is either exactly docs/knowledge/audits/issue-<n>.md (the record's own
+// issue; the file must exist, rooted or artifacts/ paths fail) or, only when `audit.verdict` is `not-audited`,
+// text that names no file. Each stage link `[<n>/stages/<file>]` of an audit result must exist.
 //
 // Usage:
 //   dotnet run .github/scripts/knowledge-records.cs -- --check [--dir <records-dir>] [--audits-dir <dir>] [--skip-audit-links]
@@ -151,20 +147,27 @@ static List<string> ValidateRecord(string file, string repoRoot, bool skipAuditL
 
     void Err(string msg) => errors.Add($"{name}: {msg}");
 
-    // The schema version selects the rule set; a missing or unknown version gets ONE error and no
-    // further checks, because the other rules cannot be applied to a shape nobody defined.
+    // A missing or unknown version gets ONE error and no further checks, because the other rules cannot be
+    // applied to a shape nobody defined.
     var schemaText = AsScalar(front.GetValueOrDefault("schema"));
     if (string.IsNullOrEmpty(schemaText))
     {
         Err("missing required field 'schema'");
         return errors;
     }
-    if (!int.TryParse(schemaText, out var schemaVersion) || !RecordSchema.SupportedVersions.Contains(schemaVersion))
+    if (!int.TryParse(schemaText, out var schemaVersion) || schemaVersion != RecordSchema.Version)
     {
-        Err($"'schema' must be one of {string.Join(", ", RecordSchema.SupportedVersions)} (found '{schemaText}')");
+        Err($"'schema' must be {RecordSchema.Version} (found '{schemaText}')");
         return errors;
     }
-    var isV2 = schemaVersion == 2;
+
+    if (ContainsBlockScalar(front))
+        Err("front matter contains a block scalar ('>', '>-', '|'); write each value as a quoted single-line string");
+
+    foreach (var key in front.Keys)
+    {
+        if (!RecordSchema.KnownFields.Contains(key)) Err($"unknown field '{key}'");
+    }
 
     // Fields already reported as missing by the loops below are not re-checked for format below:
     // a record missing 'schema' entirely should get ONE error ("missing required field"), not two
@@ -188,8 +191,8 @@ static List<string> ValidateRecord(string file, string repoRoot, bool skipAuditL
     {
         if (!front.TryGetValue(field, out var listVal))
             Err($"missing required field '{field}'");
-        else if (listVal is not List<object?> || (!isV2 && listVal is FlowList))
-            Err($"'{field}' must be a block list (flow syntax like '[]' is only accepted by schema 2; use an empty key)");
+        else if (listVal is not List<object?> || listVal is FlowList)
+            Err($"'{field}' must be a block list (flow syntax like '[]' is not accepted; use an empty key)");
     }
 
     if (front.TryGetValue("nav_exclude", out var nx) && AsScalar(nx) != "true")
@@ -213,15 +216,15 @@ static List<string> ValidateRecord(string file, string repoRoot, bool skipAuditL
             Err($"outcome '{outcome}' requires '{linkField}'");
     }
 
-    // audit: a nested map. Required by schema 1; schema 2 records that were never audited omit it.
+    // audit: a nested map, required for every record (a never-audited one says verdict not-audited).
     if (!front.TryGetValue("audit", out var auditObj) || auditObj is not Dictionary<string, object?> audit)
     {
-        if (!isV2 || front.ContainsKey("audit")) Err("missing required field 'audit'");
+        Err("missing required field 'audit'");
     }
     else
     {
         // SPEC-003 §3.1: the audit unit is the issue itself (§15.4, DECIDED), so no separate
-        // 'unit' field is required (schema 2 allows it); the map is 'checklist', 'date', 'verdict', 'record'.
+        // 'unit' field is required; the map is 'checklist', 'date', 'verdict', 'record'.
         if (!audit.ContainsKey("checklist")) Err("'audit.checklist' is required");
         if (!audit.ContainsKey("date")) Err("'audit.date' is required");
         CheckEnumIn(audit, "verdict", RecordSchema.AuditVerdicts, msg => Err($"audit.{msg}"));
@@ -231,8 +234,7 @@ static List<string> ValidateRecord(string file, string repoRoot, bool skipAuditL
     // knowledge: list of maps.
     if (front.TryGetValue("knowledge", out var knowledgeObj) && knowledgeObj is List<object?> knowledgeList)
     {
-        if (isV2) ValidateKnowledgeV2(knowledgeList, Err);
-        else ValidateKnowledgeV1(knowledgeList, repoRoot, Err);
+        ValidateKnowledge(knowledgeList, repoRoot, Err);
     }
 
     return errors;
@@ -304,35 +306,6 @@ static (List<string> Errors, int Checked) ValidateAudits(string auditsDir, strin
     return (errors, checkedFiles);
 }
 
-// Schema 2 knowledge items (the audit pipeline's records): structure and enums only. The archived records
-// carry prose destination targets, sources without a link or marker, statuses such as 'present' or
-// 'planned (#1317)', and 'current: yes' with only a 'none' destination, so the schema 1 content rules
-// (REQ-002 source markers, REQ-005, done-target existence) are not applied.
-static void ValidateKnowledgeV2(List<object?> knowledgeList, Action<string> err)
-{
-    for (var i = 0; i < knowledgeList.Count; i++)
-    {
-        if (knowledgeList[i] is not Dictionary<string, object?> item) { err($"'knowledge[{i}]' must be a map"); continue; }
-        var where = $"knowledge[{i}]";
-        CheckEnumIn(item, "kind", RecordSchema.KnowledgeKinds, msg => err($"{where}.{msg}"));
-        CheckEnumIn(item, "current", RecordSchema.CurrentValues, msg => err($"{where}.{msg}"));
-        if (string.IsNullOrWhiteSpace(AsScalar(item.GetValueOrDefault("statement")))) err($"{where}.statement is required");
-        var sources = item.GetValueOrDefault("sources") as List<object?>;
-        if (sources is null || sources.Count == 0 || sources.Any(s => string.IsNullOrWhiteSpace(AsScalar(s))))
-            err($"{where}.sources must be a non-empty list of non-empty strings");
-        var destinations = item.GetValueOrDefault("destinations") as List<object?> ?? [];
-        for (var j = 0; j < destinations.Count; j++)
-        {
-            if (destinations[j] is not Dictionary<string, object?> dest) { err($"{where}.destinations[{j}] must be a map"); continue; }
-            var dwhere = $"{where}.destinations[{j}]";
-            CheckEnumIn(dest, "kind", RecordSchema.DestinationKinds, msg => err($"{dwhere}.{msg}"));
-            if (string.IsNullOrWhiteSpace(AsScalar(dest.GetValueOrDefault("status")))) err($"{dwhere}.status is required");
-            if (AsScalar(dest.GetValueOrDefault("kind")) != "none" && string.IsNullOrWhiteSpace(AsScalar(dest.GetValueOrDefault("target"))))
-                err($"{dwhere}.target is required unless the kind is 'none'");
-        }
-    }
-}
-
 static bool ContainsFlowList(object? node) => node switch
 {
     FlowList => true,
@@ -341,9 +314,17 @@ static bool ContainsFlowList(object? node) => node switch
     _ => false
 };
 
-static void ValidateKnowledgeV1(List<object?> knowledgeList, string repoRoot, Action<string> Err)
+static bool ContainsBlockScalar(object? node) => node switch
 {
-    if (ContainsFlowList(knowledgeList)) Err("'knowledge' contains a flow list ('[]' or '[a, b]'), which only schema 2 accepts; use block lists");
+    BlockScalar => true,
+    List<object?> list => list.Any(ContainsBlockScalar),
+    Dictionary<string, object?> map => map.Values.Any(ContainsBlockScalar),
+    _ => false
+};
+
+static void ValidateKnowledge(List<object?> knowledgeList, string repoRoot, Action<string> Err)
+{
+    if (ContainsFlowList(knowledgeList)) Err("'knowledge' contains a flow list ('[]' or '[a, b]'); use block lists");
     {
         for (var i = 0; i < knowledgeList.Count; i++)
         {
@@ -607,8 +588,8 @@ static List<object?> ParseSeq(List<(int Indent, string Content)> lines, ref int 
     return list;
 }
 
-// A flow list ([a, b] or []) is parsed into FlowList so schema 1 can still reject it while schema 2
-// accepts it; a block scalar (>-, |, ...) is folded into one string. Anything else is an unquoted scalar.
+// A flow list ([a, b] or []) is parsed into FlowList and a block scalar (>-, |, ...) into BlockScalar so the
+// validator can reject both. Anything else is an unquoted scalar.
 static object? ParseValue(string val, List<(int Indent, string Content)> lines, ref int pos, int keyIndent)
 {
     if (val is ">" or ">-" or ">+" or "|" or "|-" or "|+")
@@ -620,7 +601,7 @@ static object? ParseValue(string val, List<(int Indent, string Content)> lines, 
             parts.Add(lines[pos].Content);
             pos++;
         }
-        return string.Join(literal ? '\n' : ' ', parts);
+        return new BlockScalar(string.Join(literal ? '\n' : ' ', parts));
     }
     if (val.Length >= 2 && val[0] == '[' && val[^1] == ']')
     {
@@ -742,11 +723,14 @@ static string ToTitle(string kebab)
 
 sealed class FlowList : List<object?>;
 
+// A folded or literal block scalar (">-", "|"): parsed so it can be rejected with a clear error.
+sealed record BlockScalar(string Text);
+
 static class RecordSchema
 {
-    // Schema 1: the strict record shape SPEC-003 §3.1 defines (block lists only, REQ-002 sources, REQ-005,
-    // done-target existence). Schema 2: the audit pipeline's records (#1735), see the header of this file.
-    public static readonly int[] SupportedVersions = [1, 2];
+    // The one record shape SPEC-003 §3.1 defines (block lists only, REQ-002 sources, REQ-005, done-target
+    // existence), see the header of this file (#1765).
+    public const int Version = 1;
 
     // SPEC-003 §3.1 required scalar fields, plus the pilot-1 `linked_prs` amendment.
     public static readonly string[] RequiredScalarFields =
@@ -760,6 +744,10 @@ static class RecordSchema
     [
         "packages", "prs", "linked_prs", "knowledge", "remediation"
     ];
+
+    // Every top-level key a record may carry: the required ones, `audit`, and the optional outcome links.
+    public static readonly string[] KnownFields =
+        [.. RequiredScalarFields, .. RequiredListFields, "audit", "duplicate_of", "superseded_by"];
 
     public static readonly string[] StateReasons = ["completed", "not-planned", "duplicate"];
 

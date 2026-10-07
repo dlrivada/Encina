@@ -28,7 +28,7 @@ The removal was part of a deliberate architectural decision:
 
 ## Verdict
 
-**code-removed** — All files touched by issue #17 have been intentionally removed from the active codebase and archived in `.backup/deprecated-packages/`. No audit items apply.
+**code-removed** in the first pass: all files touched by issue #17 were intentionally removed from the active codebase. The six-stage audit that followed audited the surviving concerns around that removal and opened 11 remediation issues, #1509 to #1519, so the record's verdict is **findings-tracked** (see [issues/17.md](../issues/17.md)).
 
 ## Related Decision
 
