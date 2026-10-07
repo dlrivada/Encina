@@ -52,52 +52,15 @@ try {
     $cwd = if ($payload.cwd) { [string]$payload.cwd } else { (Get-Location).Path }
     $statements = Split-CommandStatements -Text $command -Bash:($payload.tool_name -eq 'Bash')
 
-    # The repository root: walked up from $StartDir looking for .github/ISSUE_TEMPLATE, falling back to
-    # $env:CLAUDE_PROJECT_DIR. Shared by the template lookup and the #1410 local-draft evidence check below,
-    # so both agree on the same root (and the same set of candidate ledger/remediation locations).
-    function Get-RepoRoot([string]$StartDir) {
-        $root = $StartDir
-        while ($root -and -not (Test-Path -LiteralPath (Join-Path $root '.github/ISSUE_TEMPLATE'))) {
-            $parent = Split-Path -Parent $root
-            if (-not $parent -or $parent -eq $root) { $root = $null; break }
-            $root = $parent
-        }
-        if (-not $root -and $env:CLAUDE_PROJECT_DIR) { $root = $env:CLAUDE_PROJECT_DIR }
-        return $root
-    }
-
-    function Get-Templates([string]$Root) {
-        $templates = @{}
-        if (-not $Root) { return $templates }
-        $dir = Join-Path $Root '.github/ISSUE_TEMPLATE'
-        if (-not (Test-Path -LiteralPath $dir)) { return $templates }
-        foreach ($file in Get-ChildItem -LiteralPath $dir -Filter '*.md') {
-            $lines = Get-Content -LiteralPath $file.FullName
-            $titleLine = $lines | Where-Object { $_ -match '^title:\s*"(\[[A-Z]+\])' } | Select-Object -First 1
-            if (-not $titleLine) { continue }
-            $prefix = [regex]::Match($titleLine, '\[[A-Z]+\]').Value
-            $labelLine = $lines | Where-Object { $_ -match '^labels:\s*(.+?)\s*$' } | Select-Object -First 1
-            $defaultLabel = if ($labelLine -and $labelLine -match '^labels:\s*"?(?<l>[^",]+)') { $Matches['l'].Trim() } else { '' }
-            $templates[$prefix] = @{ File = $file.Name; DefaultLabel = $defaultLabel; Headers = @($lines | Where-Object { $_ -cmatch '^## \S' } | ForEach-Object { $_.Trim() }) }
-        }
-        return $templates
-    }
-
-    function Get-Headers([string]$Body) {
-        $headers = [System.Collections.Generic.List[string]]::new()
-        $fence = $null
-        foreach ($line in ($Body -split "`r?`n")) {
-            if ($fence) {
-                if ($line -match "^\s{0,3}$([regex]::Escape($fence.Char)){$($fence.Length),}\s*$") { $fence = $null }
-                continue
-            }
-            # CommonMark: a backtick fence's info string cannot contain a backtick (that line is inline code).
-            $open = [regex]::Match($line, '^\s{0,3}(?<f>`{3,}|~{3,})(?<info>.*)$')
-            if ($open.Success -and $open.Groups['f'].Value[0] -eq '`' -and $open.Groups['info'].Value.Contains('`')) { $open = [System.Text.RegularExpressions.Match]::Empty }
-            if ($open.Success) { $fence = @{ Char = [string]$open.Groups['f'].Value[0]; Length = $open.Groups['f'].Value.Length }; continue }
-            if ($line -cmatch '^## \S') { $headers.Add($line.Trim()) }
-        }
-        return , $headers
+    # Get-RepoRoot, Get-Templates and Get-Headers live in _issue-templates.ps1 (shared with the #1980 spawn
+    # gate). Get-RepoRoot is also used by the #1410 local-draft evidence check below, so both agree on the same
+    # root (and the same set of candidate ledger/remediation locations).
+    # A missing or broken helper denies (it must not fall into the outer catch, which allows): without it no
+    # `gh issue create` could be checked at all.
+    try { . (Join-Path $PSScriptRoot '_issue-templates.ps1') }
+    catch {
+        [Console]::Error.WriteLine("Blocked: check-issue-template.ps1 could not load its shared helper _issue-templates.ps1 ($($_.Exception.Message)), so this gh command cannot be checked. Restore the file.")
+        exit 2
     }
 
     # #1410 local-draft evidence -----------------------------------------------------------------------------
@@ -263,7 +226,8 @@ try {
     # #1926 issue hygiene: an issue is opened complete or not at all (maintainer rule of 2026-10-06). A
     # `gh issue create` needs an existing milestone, the template's default label and one priority label
     # (an [EPIC] needs no priority). Project membership is not checked here (the active token cannot write
-    # projects); the issue-hygiene workflow and the open-issue skill's follow-up step add it.
+    # projects); no workflow writes to the project: the caller adds the issue (open-issue skill step 4,
+    # open-remediation.ps1) and tools/ai/issues/check-project-membership.ps1 finds the ones still missing.
     $PriorityLabels = @('p0-mandatory', 'p1-recommended', 'p2-post-1.0')
 
     # Milestone titles of the repository: a cache file (ENCINA_MILESTONES_CACHE, default

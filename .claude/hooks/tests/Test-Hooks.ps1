@@ -4542,6 +4542,94 @@ The fluent builder chain described in the documentation is fictional. The parame
     catch { $settingsProblems.Add("settings.json is not valid JSON: $($_.Exception.Message)") }
     Test-Wiring 'settings.json wiring' $settingsProblems
 
+    # #1980: check-target-issue-template denies an issue-worker/docs-writer spawn for an issue whose body does
+    # not follow its template. gh is stubbed (ENCINA_ISSUE_GH): the stub prints <ENCINA_STUB_DIR>/<n>.json or
+    # fails when that file does not exist.
+    $targetGate = Join-Path $hooks 'check-target-issue-template.ps1'
+    $stubDir = Join-Path $work 'gh-stub'
+    New-Item -ItemType Directory -Force $stubDir | Out-Null
+    Set-Content (Join-Path $stubDir 'gh-stub.ps1') '$f = Join-Path $env:ENCINA_STUB_DIR "$($args[2]).json"; if (Test-Path -LiteralPath $f) { Get-Content -LiteralPath $f -Raw; exit 0 } else { exit 1 }'
+    function Write-StubIssue([int]$Number, [string]$Title, [string]$Body) {
+        [IO.File]::WriteAllText((Join-Path $stubDir "$Number.json"), (@{ title = $Title; body = $Body } | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+    }
+    function Get-TemplateBody([string]$TemplateFile, [string[]]$Skip = @(), [switch]$Reverse) {
+        $hs = @(Get-Content -LiteralPath (Join-Path $repo ".github/ISSUE_TEMPLATE/$TemplateFile") | Where-Object { $_ -cmatch '^## \S' } | ForEach-Object { $_.Trim() } | Where-Object { $Skip -notcontains $_ })
+        if ($Reverse) { [array]::Reverse($hs) }
+        return (($hs | ForEach-Object { "$_`ntext" }) -join "`n`n")
+    }
+    $debtHeaders = @(Get-Content -LiteralPath (Join-Path $repo '.github/ISSUE_TEMPLATE/technical_debt.md') | Where-Object { $_ -cmatch '^## \S' } | ForEach-Object { $_.Trim() })
+    Write-StubIssue 9001 '[DEBT] compliant' (Get-TemplateBody 'technical_debt.md')
+    Write-StubIssue 9002 '[DEBT] missing header' (Get-TemplateBody 'technical_debt.md' -Skip @($debtHeaders[1]))
+    Write-StubIssue 9003 '[DEBT] out of order' (Get-TemplateBody 'technical_debt.md' -Reverse)
+    Write-StubIssue 9004 'No prefix at all' (Get-TemplateBody 'technical_debt.md')
+    Write-StubIssue 9005 '[FEATURE] compliant feature' (Get-TemplateBody 'feature_request.md')
+    Write-StubIssue 9006 '[FEATURE] feature with a debt body' (Get-TemplateBody 'technical_debt.md')
+    # The stub returns no state: the hook reads only title and body, so a closed issue is checked the same way.
+    $savedStubGh = $env:ENCINA_ISSUE_GH; $savedStubDir = $env:ENCINA_STUB_DIR
+    $env:ENCINA_ISSUE_GH = Join-Path $stubDir 'gh-stub.ps1'; $env:ENCINA_STUB_DIR = $stubDir
+    try {
+        function Invoke-TargetCase([string]$Subagent, [string]$Prompt, [int]$Expected, [string]$Label, [string]$AgentType) {
+            $payloadObject = @{ tool_name = 'Agent'; cwd = $work; tool_input = @{ subagent_type = $Subagent; prompt = $Prompt } }
+            if ($AgentType) { $payloadObject.agent_type = $AgentType }
+            Invoke-HookCase $targetGate ($payloadObject | ConvertTo-Json -Compress) $Expected $Label
+        }
+        Invoke-TargetCase 'issue-worker' 'Issue #9001 (read it). Worktree x.' 0 'spawn gate: compliant body is allowed'
+        Invoke-TargetCase 'docs-writer' 'Issue #9001 (read it). Worktree x.' 0 'spawn gate: compliant body is allowed for docs-writer'
+        Invoke-TargetCase 'issue-worker' 'Issue #9002 (read it).' 2 'spawn gate: a missing header is denied'
+        Invoke-TargetCase 'issue-worker' 'Issue #9003 (read it).' 2 'spawn gate: out-of-order headers are denied'
+        Invoke-TargetCase 'issue-worker' 'Implement the thing in worktree x.' 2 'spawn gate: a brief without "Issue #n" is denied'
+        Invoke-TargetCase 'issue-worker' 'Issue #9999 (read it).' 2 'spawn gate: a gh failure is denied'
+        Invoke-TargetCase 'issue-worker' 'Issue #9004 (read it).' 2 'spawn gate: an unknown title prefix is denied'
+        Invoke-TargetCase 'issue-worker' 'Issue #9005 (read it).' 0 'spawn gate: a [FEATURE] issue is checked against feature_request.md (allowed)'
+        Invoke-TargetCase 'issue-worker' 'Issue #9006 (read it).' 2 'spawn gate: a [FEATURE] issue with a technical-debt body is denied'
+        Invoke-TargetCase 'mechanical-fixer' 'Implement the thing.' 0 'spawn gate: mechanical-fixer is untouched'
+        Invoke-TargetCase 'Explore' 'Issue #9002 look around.' 0 'spawn gate: Explore is untouched'
+        Invoke-TargetCase 'docs-writer' 'Write the page.' 0 'spawn gate: an issue-worker spawning docs-writer is untouched' 'issue-worker'
+        Invoke-TargetCase 'issue-worker' 'Issue #9002 go.' 2 'spawn gate: a general-purpose subagent spawning issue-worker is gated' 'general-purpose'
+        Invoke-TargetCase 'docs-writer' 'Write the page.' 2 'spawn gate: a general-purpose subagent spawning docs-writer is gated' 'general-purpose'
+        Invoke-TargetCase 'issue-worker' 'Issue #9001 go.' 0 'spawn gate: a general-purpose subagent spawning issue-worker on a compliant issue is allowed' 'general-purpose'
+        Invoke-HookCase $targetGate (@{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'gh issue view 1' } } | ConvertTo-Json -Compress) 0 'spawn gate: a non-Agent tool is untouched'
+
+        Invoke-TargetCase 'docs-writer' "Issue #9002 write the page." 2 'spawn gate: an issue-worker spawning docs-writer with a prompt that names an issue is gated' 'issue-worker'
+        Invoke-TargetCase 'issue-worker' "Context: follows up Issue #9001.`nImplement the thing." 2 'spawn gate: an issue number that is not on the first line is not taken'
+        Invoke-TargetCase 'issue-worker' "`nIssue #9001 (leading blank line)`nmore" 0 'spawn gate: the first non-empty line names the issue'
+
+        # A hung gh is denied once the bound passes (settings.json gives the hook 30 s; a hook timeout would allow).
+        Set-Content (Join-Path $stubDir 'gh-slow.ps1') 'Start-Sleep -Seconds 60'
+        $savedSlowGh = $env:ENCINA_ISSUE_GH; $savedLimit = $env:ENCINA_GH_TIMEOUT_SECONDS
+        $env:ENCINA_ISSUE_GH = Join-Path $stubDir 'gh-slow.ps1'; $env:ENCINA_GH_TIMEOUT_SECONDS = '2'
+        try {
+            $slowWatch = [Diagnostics.Stopwatch]::StartNew()
+            Invoke-HookCase $targetGate (@{ tool_name = 'Agent'; cwd = $work; tool_input = @{ subagent_type = 'issue-worker'; prompt = 'Issue #9001 go' } } | ConvertTo-Json -Compress) 2 'spawn gate: a hung gh is denied after the timeout'
+            $slowWatch.Stop()
+            $script:total++
+            # The stub sleeps 60 s: the hook must end near the 2 s limit, never wait for gh (settings.json allows 30 s).
+            if ($slowWatch.Elapsed.TotalSeconds -lt 20) { "PASS spawn gate: the hung-gh denial took $([int]$slowWatch.Elapsed.TotalSeconds) s, not the stub's 60 s" } else { $script:failed++; "FAIL spawn gate: the hung-gh denial took $([int]$slowWatch.Elapsed.TotalSeconds) s" }
+        }
+        finally { $env:ENCINA_ISSUE_GH = $savedSlowGh; $env:ENCINA_GH_TIMEOUT_SECONDS = $savedLimit }
+
+        # check-issue-template.ps1 without its shared helper: a gh command is denied, other commands pass.
+        $isolatedIssueHooks = Join-Path $work 'issue-hook-no-helper'
+        New-Item -ItemType Directory -Force $isolatedIssueHooks | Out-Null
+        foreach ($f in 'check-issue-template.ps1', '_command-text.ps1', '_read-payload.ps1') { Copy-Item (Join-Path $hooks $f) $isolatedIssueHooks }
+        Invoke-HookCase (Join-Path $isolatedIssueHooks 'check-issue-template.ps1') (@{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'gh issue create --title "[DEBT] x" --body-file x.md' } } | ConvertTo-Json -Compress) 2 'check-issue-template: a missing shared helper denies a gh command'
+        Invoke-HookCase (Join-Path $isolatedIssueHooks 'check-issue-template.ps1') (@{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'dotnet build' } } | ConvertTo-Json -Compress) 0 'check-issue-template: a missing shared helper does not affect commands without gh'
+
+        # The gate must stay wired in settings.json, or every case above would pass with a dead gate.
+        $wired = @((Get-Content (Join-Path $repo '.claude\settings.json') -Raw | ConvertFrom-Json).hooks.PreToolUse | Where-Object { 'Agent' -match "^($($_.matcher))$" } | ForEach-Object { $_.hooks.command } | Where-Object { $_ -match 'check-target-issue-template\.ps1' })
+        $script:total++
+        if ($wired.Count -eq 1) { 'PASS settings.json wires check-target-issue-template.ps1 on the Agent matcher' } else { $script:failed++; 'FAIL settings.json does not wire check-target-issue-template.ps1 exactly once on the Agent matcher' }
+
+        $isolatedHooks = Join-Path $work 'gate-no-helper'
+        New-Item -ItemType Directory -Force $isolatedHooks | Out-Null
+        Copy-Item $targetGate $isolatedHooks
+        Copy-Item (Join-Path $hooks '_read-payload.ps1') $isolatedHooks
+        Invoke-HookCase (Join-Path $isolatedHooks 'check-target-issue-template.ps1') (@{ tool_name = 'Agent'; cwd = $work; tool_input = @{ subagent_type = 'issue-worker'; prompt = 'Issue #9001' } } | ConvertTo-Json -Compress) 2 'spawn gate: a missing templates helper denies a gated spawn'
+        Invoke-HookCase (Join-Path $isolatedHooks 'check-target-issue-template.ps1') (@{ tool_name = 'Agent'; cwd = $work; tool_input = @{ subagent_type = 'Explore'; prompt = 'look around' } } | ConvertTo-Json -Compress) 0 'spawn gate: a missing templates helper does not block Explore'
+        Invoke-HookCase (Join-Path $isolatedHooks 'check-target-issue-template.ps1') (@{ tool_name = 'Agent'; cwd = $work; tool_input = @{ subagent_type = 'mechanical-fixer'; prompt = 'fix' } } | ConvertTo-Json -Compress) 0 'spawn gate: a missing templates helper does not block mechanical-fixer'
+    }
+    finally { $env:ENCINA_ISSUE_GH = $savedStubGh; $env:ENCINA_STUB_DIR = $savedStubDir }
+
     # A2: every extension the source-file rule covers is named in issue-worker.md.
     $undocumented = @($hookExtensions | Where-Object { $_ -and $workerDefinition -notmatch "\.$([regex]::Escape($_))\b" })
     $script:total++
