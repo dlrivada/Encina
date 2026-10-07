@@ -228,16 +228,16 @@ The URN prefix is omitted because Encina operates within a single runtime where 
 
 ### Data Type Identifiers
 
-XACML uses full XML Schema URIs for data types. Encina supports both the full URI and short-form identifiers:
+XACML uses full XML Schema URIs for data types. Encina uses the same full URIs, and an `AttributeDesignator` selects only values whose `DataType` equals its own `DataType` exactly (ordinal, case-sensitive); short names such as `integer` match nothing. Use the `XACMLDataTypes` constants:
 
-| XACML Data Type URI | Encina Short Form |
+| XACML Data Type URI | Encina constant |
 |--------------------|-------------------|
-| `http://www.w3.org/2001/XMLSchema#string` | `string` |
-| `http://www.w3.org/2001/XMLSchema#boolean` | `boolean` |
-| `http://www.w3.org/2001/XMLSchema#integer` | `integer` |
-| `http://www.w3.org/2001/XMLSchema#double` | `double` |
-| `http://www.w3.org/2001/XMLSchema#dateTime` | `dateTime` |
-| `http://www.w3.org/2001/XMLSchema#anyURI` | `anyURI` |
+| `http://www.w3.org/2001/XMLSchema#string` | `XACMLDataTypes.String` |
+| `http://www.w3.org/2001/XMLSchema#boolean` | `XACMLDataTypes.Boolean` |
+| `http://www.w3.org/2001/XMLSchema#integer` | `XACMLDataTypes.Integer` |
+| `http://www.w3.org/2001/XMLSchema#double` | `XACMLDataTypes.Double` |
+| `http://www.w3.org/2001/XMLSchema#dateTime` | `XACMLDataTypes.DateTime` |
+| `http://www.w3.org/2001/XMLSchema#anyURI` | `XACMLDataTypes.AnyURI` |
 
 ### Combining Algorithm Identifiers
 
@@ -267,8 +267,8 @@ var condition = new Apply
 {
     FunctionId = "integer-greater-than-or-equal",
     Arguments = [
-        new AttributeDesignator { Category = AttributeCategory.Subject, AttributeId = "clearanceLevel", DataType = "integer" },
-        new AttributeValue { DataType = "integer", Value = 3 }
+        new AttributeDesignator { Category = AttributeCategory.Subject, AttributeId = "clearanceLevel", DataType = XACMLDataTypes.Integer },
+        new AttributeValue { DataType = XACMLDataTypes.Integer, Value = 3 }
     ]
 };
 

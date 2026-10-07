@@ -208,7 +208,7 @@ var designator = new AttributeDesignator
 {
     Category = AttributeCategory.Subject,
     AttributeId = "clearanceLevel",
-    DataType = "integer",
+    DataType = XACMLDataTypes.Integer,
     MustBePresent = true // Missing attribute = Indeterminate, not empty bag
 };
 ```
@@ -351,11 +351,19 @@ public sealed class SecurityAuditObligationHandler : IObligationHandler
         PolicyEvaluationContext context,
         CancellationToken ct)
     {
+        // Each attribute id maps to an AttributeBag; the action category holds "name".
+        var subjectId = context.SubjectAttributes.TryGetValue("userId", out var subjectBag) && subjectBag.Count == 1
+            ? subjectBag.Values[0].Value?.ToString()
+            : null;
+        var actionName = context.ActionAttributes.TryGetValue("name", out var actionBag) && actionBag.Count == 1
+            ? actionBag.Values[0].Value?.ToString()
+            : null;
+
         var entry = new OperationAuditEntry
         {
             TimestampUtc = _timeProvider.GetUtcNow().UtcDateTime,
-            SubjectId = context.SubjectAttributes.GetValueOrDefault("userId")?.ToString(),
-            ResourceType = context.ActionAttributes.GetValueOrDefault("action-id")?.ToString(),
+            SubjectId = subjectId,
+            ResourceType = actionName,
             Decision = obligation.FulfillOn.ToString(),
             Attributes = ExtractRelevantAttributes(context)
         };
@@ -465,10 +473,10 @@ new Match
     {
         Category = AttributeCategory.Subject,
         AttributeId = "clearanceLevel",
-        DataType = "integer",
+        DataType = XACMLDataTypes.Integer,
         MustBePresent = false // A missing clearance = empty bag, not error
     },
-    AttributeValue = new AttributeValue { DataType = "integer", Value = 3 }
+    AttributeValue = new AttributeValue { DataType = XACMLDataTypes.Integer, Value = 3 }
 }
 ```
 

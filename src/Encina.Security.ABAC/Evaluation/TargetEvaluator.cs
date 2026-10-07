@@ -127,44 +127,42 @@ public sealed class TargetEvaluator(IFunctionRegistry functionRegistry)
     }
 
     /// <summary>
-    /// Evaluates a single <see cref="Match"/> element by resolving the attribute
-    /// from the context and applying the comparison function.
+    /// Evaluates a single <see cref="Match"/> element by resolving the bag of the attribute its
+    /// designator names (category, attribute identifier and data type) and applying the
+    /// comparison function to each value.
     /// </summary>
     private Effect EvaluateMatch(Match match, PolicyEvaluationContext context)
     {
-        // Resolve the attribute bag for the designator's category
-        var bag = ResolveCategoryBag(match.AttributeDesignator.Category, context);
+        var bag = AttributeDesignatorResolver.Resolve(match.AttributeDesignator, context);
 
         if (bag.IsEmpty)
         {
-            // If MustBePresent and bag is empty, it's an error
+            // MustBePresent applies to this attribute only: absent is an error when required.
             return match.AttributeDesignator.MustBePresent
                 ? Effect.Indeterminate
                 : Effect.NotApplicable;
         }
 
-        // Get the comparison function
+        // An unknown comparison function cannot decide the match.
         var function = _functionRegistry.GetFunction(match.FunctionId);
-        if (function is null)
-        {
-            return Effect.Indeterminate;
-        }
 
-        // Evaluate the function with the bag value and the literal match value
+        return function is null
+            ? Effect.Indeterminate
+            : MatchAnyValue(function, bag, match.AttributeValue.Value);
+    }
+
+    /// <summary>
+    /// Applies the comparison function to each value of the attribute's bag and the literal match
+    /// value: any value that matches satisfies the match (XACML 3.0 §7.6 bag semantics); a function
+    /// error makes it <see cref="Effect.Indeterminate"/>.
+    /// </summary>
+    private static Effect MatchAnyValue(IXACMLFunction function, AttributeBag bag, object? literal)
+    {
         try
         {
-            // Single value → compare directly
-            if (bag.Count == 1)
-            {
-                var result = function.Evaluate([bag.Values[0].Value, match.AttributeValue.Value]);
-                return result is true ? Effect.Permit : Effect.NotApplicable;
-            }
-
-            // Multi-valued bag → any value must match (XACML bag semantics)
             foreach (var bagValue in bag.Values)
             {
-                var result = function.Evaluate([bagValue.Value, match.AttributeValue.Value]);
-                if (result is true)
+                if (function.Evaluate([bagValue.Value, literal]) is true)
                 {
                     return Effect.Permit;
                 }
@@ -177,20 +175,4 @@ public sealed class TargetEvaluator(IFunctionRegistry functionRegistry)
             return Effect.Indeterminate;
         }
     }
-
-    /// <summary>
-    /// Resolves the <see cref="AttributeBag"/> for the given <see cref="AttributeCategory"/>
-    /// from the evaluation context.
-    /// </summary>
-    private static AttributeBag ResolveCategoryBag(
-        AttributeCategory category,
-        PolicyEvaluationContext context) =>
-        category switch
-        {
-            AttributeCategory.Subject => context.SubjectAttributes,
-            AttributeCategory.Resource => context.ResourceAttributes,
-            AttributeCategory.Environment => context.EnvironmentAttributes,
-            AttributeCategory.Action => context.ActionAttributes,
-            _ => AttributeBag.Empty
-        };
 }

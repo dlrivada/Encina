@@ -28,9 +28,9 @@ namespace Encina.Security.ABAC;
 ///         {
 ///             Category = AttributeCategory.Subject,
 ///             AttributeId = "department",
-///             DataType = "string"
+///             DataType = XACMLDataTypes.String
 ///         },
-///         new AttributeValue { DataType = "string", Value = "Finance" }
+///         new AttributeValue { DataType = XACMLDataTypes.String, Value = "Finance" }
 ///     ]
 /// };
 /// </code>

@@ -20,12 +20,12 @@ namespace Encina.Security.ABAC;
 /// <example>
 /// <code>
 /// // Single-valued attribute bag
-/// var singleBag = AttributeBag.Of(new AttributeValue { DataType = "string", Value = "Finance" });
+/// var singleBag = AttributeBag.Of(new AttributeValue { DataType = XACMLDataTypes.String, Value = "Finance" });
 ///
 /// // Multi-valued attribute bag (user has multiple roles)
 /// var multiBag = AttributeBag.Of(
-///     new AttributeValue { DataType = "string", Value = "Admin" },
-///     new AttributeValue { DataType = "string", Value = "Manager" }
+///     new AttributeValue { DataType = XACMLDataTypes.String, Value = "Admin" },
+///     new AttributeValue { DataType = XACMLDataTypes.String, Value = "Manager" }
 /// );
 ///
 /// // Empty bag (attribute not found)

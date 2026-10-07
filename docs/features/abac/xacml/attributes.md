@@ -127,11 +127,11 @@ The `DataType` property uses the standard XACML data type identifiers defined in
 |----------|-----|----------|
 | `XACMLDataTypes.String` | `http://www.w3.org/2001/XMLSchema#string` | `string` |
 | `XACMLDataTypes.Boolean` | `http://www.w3.org/2001/XMLSchema#boolean` | `bool` |
-| `XACMLDataTypes.Integer` | `http://www.w3.org/2001/XMLSchema#integer` | `int`, `long` |
-| `XACMLDataTypes.Double` | `http://www.w3.org/2001/XMLSchema#double` | `double`, `float` |
-| `XACMLDataTypes.DateTime` | `http://www.w3.org/2001/XMLSchema#dateTime` | `DateTime` |
-| `XACMLDataTypes.Date` | `http://www.w3.org/2001/XMLSchema#date` | `DateTime` |
-| `XACMLDataTypes.Time` | `http://www.w3.org/2001/XMLSchema#time` | `DateTime` |
+| `XACMLDataTypes.Integer` | `http://www.w3.org/2001/XMLSchema#integer` | every integral type (`int`, `long`, ...) |
+| `XACMLDataTypes.Double` | `http://www.w3.org/2001/XMLSchema#double` | `double`, `float`, `decimal` |
+| `XACMLDataTypes.DateTime` | `http://www.w3.org/2001/XMLSchema#dateTime` | `DateTime`, `DateTimeOffset` |
+| `XACMLDataTypes.Date` | `http://www.w3.org/2001/XMLSchema#date` | `DateOnly` |
+| `XACMLDataTypes.Time` | `http://www.w3.org/2001/XMLSchema#time` | `TimeSpan` |
 | `XACMLDataTypes.AnyURI` | `http://www.w3.org/2001/XMLSchema#anyURI` | `Uri` |
 
 Creating typed values:
@@ -211,7 +211,7 @@ flowchart LR
     end
 
     subgraph Builder["AttributeContextBuilder"]
-        TB["ToBag()"]
+        TB["ToAttributeBags()"]
         IT["InferDataType()"]
     end
 
@@ -249,22 +249,23 @@ The resolution pipeline works as follows:
 
 1. The `ABACPipelineBehavior` invokes the registered `IAttributeProvider`.
 2. Each `Get*AttributesAsync()` method returns `IReadOnlyDictionary<string, object>`.
-3. The `AttributeContextBuilder.Build()` method converts dictionaries into `AttributeBag` instances.
+3. The `AttributeContextBuilder.Build()` method converts each dictionary into one single-value `AttributeBag` per dictionary key (the attribute id). A collection value is stored as one value, not expanded into a multi-valued bag. The action category holds one attribute, `"name"`, with the request type name.
 4. Data types are automatically inferred from CLR types (string, int, bool, DateTime, etc.).
 5. The assembled `PolicyEvaluationContext` is passed to `IPolicyDecisionPoint.EvaluatePolicyAsync()` for each policy named by `[RequirePolicy]`.
 
 ## PolicyEvaluationContext
 
-The `PolicyEvaluationContext` carries all resolved attributes organized by category. This is
+The `PolicyEvaluationContext` carries all resolved attributes organized by category and,
+within a category, by attribute id (one `AttributeBag` per attribute). This is
 the primary input to the PDP:
 
 ```csharp
 public sealed record PolicyEvaluationContext
 {
-    public required AttributeBag SubjectAttributes { get; init; }
-    public required AttributeBag ResourceAttributes { get; init; }
-    public required AttributeBag EnvironmentAttributes { get; init; }
-    public required AttributeBag ActionAttributes { get; init; }
+    public required IReadOnlyDictionary<string, AttributeBag> SubjectAttributes { get; init; }
+    public required IReadOnlyDictionary<string, AttributeBag> ResourceAttributes { get; init; }
+    public required IReadOnlyDictionary<string, AttributeBag> EnvironmentAttributes { get; init; }
+    public required IReadOnlyDictionary<string, AttributeBag> ActionAttributes { get; init; }
     public required Type RequestType { get; init; }
     public bool IncludeAdvice { get; init; } = true;
 }
@@ -275,18 +276,46 @@ Building a context manually (useful in tests):
 ```csharp
 var context = new PolicyEvaluationContext
 {
-    SubjectAttributes = AttributeBag.Of(
-        new AttributeValue { DataType = XACMLDataTypes.String, Value = "Finance" },
-        new AttributeValue { DataType = XACMLDataTypes.String, Value = "Manager" }),
-    ResourceAttributes = AttributeBag.Of(
-        new AttributeValue { DataType = XACMLDataTypes.String, Value = "confidential" }),
-    EnvironmentAttributes = AttributeBag.Of(
-        new AttributeValue { DataType = XACMLDataTypes.DateTime, Value = DateTime.UtcNow }),
-    ActionAttributes = AttributeBag.Of(
-        new AttributeValue { DataType = XACMLDataTypes.String, Value = "read" }),
+    SubjectAttributes = new Dictionary<string, AttributeBag>
+    {
+        ["department"] = AttributeBag.Of(
+            new AttributeValue { DataType = XACMLDataTypes.String, Value = "Finance" }),
+        ["role"] = AttributeBag.Of(
+            new AttributeValue { DataType = XACMLDataTypes.String, Value = "Manager" },
+            new AttributeValue { DataType = XACMLDataTypes.String, Value = "Auditor" })
+    },
+    ResourceAttributes = new Dictionary<string, AttributeBag>
+    {
+        ["classification"] = AttributeBag.Of(
+            new AttributeValue { DataType = XACMLDataTypes.String, Value = "confidential" })
+    },
+    EnvironmentAttributes = new Dictionary<string, AttributeBag>
+    {
+        ["currentTime"] = AttributeBag.Of(
+            new AttributeValue { DataType = XACMLDataTypes.DateTime, Value = DateTime.UtcNow })
+    },
+    ActionAttributes = new Dictionary<string, AttributeBag>
+    {
+        ["name"] = AttributeBag.Of(
+            new AttributeValue { DataType = XACMLDataTypes.String, Value = "read" })
+    },
     RequestType = typeof(GetFinancialReportQuery)
 };
 ```
+
+An `AttributeDesignator` selects the bag stored under its category and attribute id, and keeps
+only the values whose data type equals the designator's data type (XACML 3.0 §7.3.5). A value
+of one attribute never satisfies a designator for another. `MustBePresent` applies to that
+attribute only: when it is absent, or has no value of the designator's data type, and `MustBePresent` is set, a target evaluates to
+Indeterminate and a condition fails with `abac.attribute_resolution_failed`; otherwise the
+result is an empty bag (NotApplicable).
+
+> **Warning:** Data types must match exactly. A value of another type is invisible to the
+> designator. With `MustBePresent = false` (the default), a mismatch makes a target `Match`
+> evaluate to NotApplicable and gives an `Apply` an empty bag, so a Deny rule or Deny target
+> whose designator has the wrong `DataType` silently stops applying. Set `MustBePresent = true`
+> on designators that Deny rules depend on, so a missing or mistyped attribute is Indeterminate
+> (which denies).
 
 In production, use `AttributeContextBuilder.Build()` to construct the context from
 `IAttributeProvider` dictionaries with automatic type inference:
