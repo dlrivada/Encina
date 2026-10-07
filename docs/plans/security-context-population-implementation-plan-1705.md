@@ -1335,6 +1335,22 @@ Taken (2026-10-05, not to be revisited):
     - **E3 (SSE detection versus MCP Streamable HTTP).** The connection skip applies only to GET requests whose `Accept` lists `text/event-stream` (classic SSE and `EventSource`). A POST that streams its response keeps its request identity, like any other long request (Design 2 step 1, Phase 3 tasks 1, 5 and 9, entry-point table, docs note).
     - Minors 3 and 5-9 of the review are applied as written, and the two optional suggestions (the declared service name in log 174; Information when application code calls the public `RunInboundAsync`) are applied.
 
+14. Phase 4 re-check, maintainer decisions on #1705 (2026-10-07, after `artifacts/plans/1705-phase4-recheck.md`). This block is authoritative over the Phase 4, 6 and 7 task lists, which are not rewritten:
+    - **N1.** The PEP's "no authenticated caller" error uses the shared `EncinaErrorCodes.AuthorizationUnauthenticated` (`encina.authorization.unauthenticated`); `ABACErrors.UnauthenticatedCaller()` stays as the factory and adds the detail `["gate"] = "abac"`. #1918 uses the same code.
+    - **N2.** `abac.*` definite denials answering 500 (and `abac.policy_not_found` answering 404) in the three host adapters are fixed by a separate [BUG] right after Phase 4; the Phase 4 worker writes the issue file.
+    - **N3.** `IAttributeProvider.GetSubjectAttributesAsync` takes `RequestIdentity` instead of `string userId`; the PEP always adds the built-in attributes `subject-id` and `identity-kind`; roles and permissions stay in follow-up F6.
+    - **N4.** The persistent PAP's `IRequestContextAccessor` becomes required (non-optional constructor parameter, registration with `GetRequiredService`) and the `Guid.NewGuid()` correlation fallback is removed.
+    - **N5.** EventId 9096 becomes the seeding summary (policy set and policy counts) and replaces both ad hoc `LogInformation` calls in `ABACPolicySeedingHostedService`; core EventId 166 marks the start.
+    - **N6.** EventId 9085 ("enforcement disabled") is emitted once at startup by a small hosted check that reads the final `IOptions<ABACOptions>`; #751 later reuses the method for its per-request-type warning.
+    - **N7.** When `RunAsBuiltInAsync` returns `Left` during seeding: `RequestCancelled` becomes `OperationCanceledException`; any other code becomes `InvalidOperationException` carrying the code only (never `EncinaError.Message`).
+    - **N8.** Phase 4 resolves #1704 item 2 in code and adds the `persistent-pap.md` note (HTTP: `UseEncinaContext`; jobs: `RunAsServiceAsync`). #1704 items 1 and 3 land after Phase 4 (same file).
+    - **N9.** #751 starts when Phase 4 merges; the Phase 7 task that updates the #751 plan pointers moves into Phase 4.
+    - **N10.** The in-memory PAP accepting anonymous changes is a separate issue (same actor rule as the persistent PAP); the Phase 4 worker writes the issue file.
+    - **N11.** The PAP records the actor but does not authorize it: (1) Phase 7 docs state that the application must gate its policy-administration path; (2) a separate [FEATURE] with its own plan adds a configurable permission check in the PAP that fails closed. No code in Phase 4.
+    - **N12.** The PAP integration scenario keeps the plan's scope (ADO.NET, Dapper and EF Core on SQL Server); the PR states the MongoDB gap; the MongoDB scenario is added when #1719 is fixed.
+    - **N13.** The lazily created cache connection capturing the seeding scope's ExecutionContext is accepted (the captured holder is invalidated and reads Anonymous); one-line note in the Phase 4 PR.
+    - **Manifests and changelog: per phase.** The Phase 4 PR carries the per-file coverage targets with justifications for the files it touches and its changelog fragment (the Phase 6 and Phase 7 placement in this plan is superseded).
+
 Everything else follows from AGENTS.md (pre-1.0 best design, fail closed with explicit logged opt-outs, registration completeness, pay-for-what-you-use) and was ranked by three independent design reviews; the user-visible consequences (sub-first claim order, authenticated-without-subject becomes anonymous, `abac.unauthenticated_caller`, deferred dispatch anonymous until P-50, deleted `ISecurityContext`/`IPrincipalResolver` API) are recorded in ADR-035 and the changelog fragments.
 
 ---
