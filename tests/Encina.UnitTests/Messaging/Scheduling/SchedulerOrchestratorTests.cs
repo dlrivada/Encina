@@ -469,6 +469,142 @@ public sealed class SchedulerOrchestratorTests
     }
 
     [Fact]
+    public async Task ProcessDueMessagesAsync_WithDueMessages_SavesChangesOnceAfterBatch()
+    {
+        // Arrange
+        var (orchestrator, store, _) = CreateOrchestratorWithDependencies();
+        var first = CreateMockMessage(Guid.NewGuid());
+        first.RequestType.Returns(typeof(TestRequest).AssemblyQualifiedName!);
+        first.Content.Returns("{\"value\":1}");
+        var second = CreateMockMessage(Guid.NewGuid());
+        second.RequestType.Returns(typeof(TestRequest).AssemblyQualifiedName!);
+        second.Content.Returns("{\"value\":2}");
+        store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { first, second }));
+        store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+
+        // Act
+        var result = await orchestrator.ProcessDueMessagesAsync(SuccessCallback());
+
+        // Assert
+        result.RightAsEnumerable().First().ShouldBe(2);
+        await store.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        var secondId = second.Id;
+        Received.InOrder(() =>
+        {
+            store.MarkAsProcessedAsync(secondId, Arg.Any<CancellationToken>());
+            store.SaveChangesAsync(Arg.Any<CancellationToken>());
+        });
+    }
+
+    [Fact]
+    public async Task ProcessDueMessagesAsync_WhenSaveChangesFails_ReturnsLeftWithStoreError()
+    {
+        // Arrange
+        var (orchestrator, store, _) = CreateOrchestratorWithDependencies();
+        var message = CreateMockMessage(Guid.NewGuid());
+        message.RequestType.Returns(typeof(TestRequest).AssemblyQualifiedName!);
+        message.Content.Returns("{\"value\":1}");
+        store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { message }));
+        store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, Unit>(EncinaErrors.Create("scheduling.save_failed", "secret detail")));
+
+        // Act
+        var result = await orchestrator.ProcessDueMessagesAsync(SuccessCallback());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.LeftToArray()[0].GetCode().IfNone("none").ShouldBe("scheduling.save_failed");
+    }
+
+    [Fact]
+    public async Task ProcessDueMessagesAsync_WhenSaveChangesFails_LogsErrorCodeNotMessage()
+    {
+        // Arrange
+        var store = Substitute.For<IScheduledMessageStore>();
+        var logger = new CapturingLogger<SchedulerOrchestrator>();
+        var options = new SchedulingOptions();
+        var orchestrator = new SchedulerOrchestrator(
+            store, options, logger, Substitute.For<IScheduledMessageFactory>(),
+            CreateDefaultRetryPolicy(options), new JsonMessageSerializer());
+        var message = CreateMockMessage(Guid.NewGuid());
+        message.RequestType.Returns(typeof(TestRequest).AssemblyQualifiedName!);
+        message.Content.Returns("{\"value\":1}");
+        store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { message }));
+        store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, Unit>(EncinaErrors.Create("scheduling.save_failed", "secret detail")));
+
+        // Act
+        await orchestrator.ProcessDueMessagesAsync(SuccessCallback());
+
+        // Assert
+        logger.Messages.Where(x => x.Contains("scheduling.save_failed")).Count().ShouldBe(1);
+        logger.Messages.ShouldNotContain(x => x.Contains("secret detail"));
+        logger.EventIds.ShouldContain(2989);
+    }
+
+    [Fact]
+    public async Task ProcessDueMessagesAsync_WhenCancelledMidBatch_SavesOutcomesThenRethrows()
+    {
+        // Arrange
+        var (orchestrator, store, _) = CreateOrchestratorWithDependencies();
+        var first = CreateMockMessage(Guid.NewGuid());
+        first.RequestType.Returns(typeof(TestRequest).AssemblyQualifiedName!);
+        first.Content.Returns("{\"value\":1}");
+        var second = CreateMockMessage(Guid.NewGuid());
+        second.RequestType.Returns(typeof(TestRequest).AssemblyQualifiedName!);
+        second.Content.Returns("{\"value\":2}");
+        store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { first, second }));
+        var calls = 0;
+
+        // Act
+        await Should.ThrowAsync<OperationCanceledException>(() => orchestrator.ProcessDueMessagesAsync((_, _, _, _) =>
+        {
+            if (++calls == 2)
+                throw new OperationCanceledException();
+            return new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(Unit.Default));
+        }));
+
+        // Assert
+        await store.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ProcessDueMessagesAsync_WithNoMessages_DoesNotSaveChanges()
+    {
+        // Arrange
+        var (orchestrator, store, _) = CreateOrchestratorWithDependencies();
+        store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(Enumerable.Empty<IScheduledMessage>()));
+
+        // Act
+        await orchestrator.ProcessDueMessagesAsync(SuccessCallback());
+
+        // Assert
+        await store.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ProcessDueMessagesAsync_WhenRetrievalFails_DoesNotSaveChanges()
+    {
+        // Arrange
+        var (orchestrator, store, _) = CreateOrchestratorWithDependencies();
+        store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IEnumerable<IScheduledMessage>>(EncinaErrors.Create("scheduling.get_due_failed", "x")));
+
+        // Act
+        var result = await orchestrator.ProcessDueMessagesAsync(SuccessCallback());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        await store.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ProcessDueMessagesAsync_WithUnknownRequestType_MarksAsFailed()
     {
         // Arrange
@@ -723,6 +859,28 @@ public sealed class SchedulerOrchestratorTests
     #endregion
 
     #region Helper Methods
+
+    private sealed class CapturingLogger<T> : Microsoft.Extensions.Logging.ILogger<T>
+    {
+        public List<string> Messages { get; } = [];
+
+        public List<int> EventIds { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            Microsoft.Extensions.Logging.LogLevel logLevel,
+            Microsoft.Extensions.Logging.EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Messages.Add(formatter(state, exception));
+            EventIds.Add(eventId.Id);
+        }
+    }
 
     private static ExponentialBackoffRetryPolicy CreateDefaultRetryPolicy(SchedulingOptions? options = null) =>
         new(options ?? new SchedulingOptions());

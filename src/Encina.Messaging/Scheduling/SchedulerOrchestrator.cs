@@ -266,8 +266,9 @@ public sealed class SchedulerOrchestrator
     /// <returns>
     /// On success, the number of messages dispatched successfully in this batch (i.e.
     /// callbacks that returned <c>Right</c>). Failed messages still update the store but
-    /// do not increment the count. On store retrieval failure, returns
-    /// <c>Left(EncinaError)</c>.
+    /// do not increment the count. On store retrieval failure, or when the store fails to
+    /// save the batch outcomes (<see cref="IScheduledMessageStore.SaveChangesAsync"/>),
+    /// returns <c>Left(EncinaError)</c>. When no message is due, nothing is saved.
     /// </returns>
     /// <remarks>
     /// <para>
@@ -299,21 +300,65 @@ public sealed class SchedulerOrchestrator
         if (messagesResult.IsLeft)
             return messagesResult.LeftToArray()[0];
 
-        var messages = messagesResult.Match(Right: m => m, Left: _ => Enumerable.Empty<IScheduledMessage>());
+        var messages = messagesResult.Match(Right: m => m, Left: _ => Enumerable.Empty<IScheduledMessage>()).ToList();
+        if (messages.Count == 0)
+            return 0;
+
+        var processedCount = await ProcessBatchAsync(messages, executeCallback, cancellationToken).ConfigureAwait(false);
+
+        var saveResult = await SaveBatchOutcomesAsync(messages.Count).ConfigureAwait(false);
+        if (saveResult.IsLeft)
+            return saveResult.LeftToArray()[0];
+
+        return processedCount;
+    }
+
+    private async Task<int> ProcessBatchAsync(
+        List<IScheduledMessage> messages,
+        Func<IScheduledMessage, Type, object, CancellationToken, ValueTask<Either<EncinaError, Unit>>> executeCallback,
+        CancellationToken cancellationToken)
+    {
         var processedCount = 0;
 
-        foreach (var message in messages)
+        try
         {
-            if (cancellationToken.IsCancellationRequested)
-                break;
-
-            if (await TryProcessMessageAsync(message, executeCallback, cancellationToken).ConfigureAwait(false))
+            foreach (var message in messages)
             {
-                processedCount++;
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                if (await TryProcessMessageAsync(message, executeCallback, cancellationToken).ConfigureAwait(false))
+                {
+                    processedCount++;
+                }
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled mid-batch: the messages dispatched before it still need their outcomes saved,
+            // otherwise they run again on the next start. The cancellation then propagates.
+            await SaveBatchOutcomesAsync(messages.Count).ConfigureAwait(false);
+            throw;
         }
 
         return processedCount;
+    }
+
+    /// <summary>
+    /// Commits the batch outcomes. They are saved even when the host is stopping: they describe
+    /// dispatches that already happened, and dropping them would run those messages again.
+    /// Stores that write immediately return success without doing anything.
+    /// </summary>
+    private async Task<Either<EncinaError, Unit>> SaveBatchOutcomesAsync(int messageCount)
+    {
+        var saveResult = await _store.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+        if (saveResult.IsLeft)
+        {
+            // Only the error code: EncinaError.Message can carry personal data.
+            Log.StoreSaveChangesFailed(_logger, messageCount, saveResult.LeftToArray()[0].GetCode().IfNone("unknown"));
+        }
+
+        return saveResult;
     }
 
     /// <summary>
@@ -643,4 +688,10 @@ internal static partial class Log
         Level = LogLevel.Error,
         Message = "Failed to update store for message {MessageId} after dispatch failure: error code {StoreErrorCode}")]
     public static partial void StoreMarkAsFailedError(ILogger logger, Guid messageId, string storeErrorCode);
+
+    [LoggerMessage(
+        EventId = 2989,
+        Level = LogLevel.Error,
+        Message = "Failed to save the outcomes of {MessageCount} scheduled messages: error code {StoreErrorCode}")]
+    public static partial void StoreSaveChangesFailed(ILogger logger, int messageCount, string storeErrorCode);
 }
