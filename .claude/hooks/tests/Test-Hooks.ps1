@@ -3793,6 +3793,177 @@ Two SagaStoreADO test classes duplicate the same setup.
     }
     # ---- end #1632 block ----
 
+    # ---- #1863: audit-draft-remediation.ps1 -NotDuplicate and -NoMerge -- a verifier's "not a duplicate" / "do not
+    # merge" correction applied inside the pipeline -- and the comma-separated string form of every list
+    # parameter (-Only, -DuplicateOf, -MergeInto, -NotDuplicate, -NoMerge). Fixture: the #1632 one (code 1..4 on
+    # distinct files, docs 1 sharing code 1's location, docs 2, tests 1). -NoGh except the stubbed-gh evidence case.
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        $remN1863 = 1863
+        $remWt1863 = New-RemediationFixture 'RemediationNotDuplicateWt' $remN1863 `
+            "1. **Major** -- ``src/A.cs:20`` first defect.`n2. **Major** -- ``src/B.cs:30`` second defect.`n3. **Minor** -- ``src/C.cs:40`` third defect.`n4. **Minor** -- ``src/D.cs:50`` fourth defect." `
+            "1. **Minor** -- ``tests/TestsOne.cs:5`` a test gap." `
+            "1. **Minor** -- ``src/A.cs:20`` the first defect seen from the docs side.`n2. **Major** -- ``docs/page-two.md:9`` a docs drift."
+        $remDir1863 = Join-Path $remWt1863 'artifacts\knowledge\remediation'
+        $manifestPath1863 = Join-Path $remDir1863 "_manifest-$remN1863.json"
+        function Get-Tree1863 { (@(Get-ChildItem -LiteralPath $remDir1863 -Recurse -File -ErrorAction SilentlyContinue | Sort-Object FullName | ForEach-Object { "$($_.FullName)=$((Get-FileHash -LiteralPath $_.FullName).Hash)" })) -join '|' }
+        # A clean baseline: no manifest (so no kept overrides), a full -Prepare, and the stage file the drafter writes.
+        function Reset-Base1863 {
+            if (Test-Path -LiteralPath $manifestPath1863) { Remove-Item -LiteralPath $manifestPath1863 -Force }
+            $null = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh')
+            Write-StageFromManifest (Get-RemediationManifest $remWt1863 $remN1863)
+        }
+        Reset-Base1863
+        $baseline1863 = Get-RemediationManifest $remWt1863 $remN1863
+        Test-RemediationCase '#1863 fixture: the baseline merges docs 1 into code 1 by location and has 6 drafts' {
+            (Get-ManifestFinding $baseline1863 'docs 1').remediationLine -eq '- docs 1 (Minor): merged into code 1 (same location)' -and @($baseline1863.findings | Where-Object { $_.draftFile }).Count -eq 6
+        }
+        $before1863 = Get-Tree1863
+
+        # Usage errors stop before any file changes.
+        $cases1863 = @(
+            @{ Label = 'a finding in both -NotDuplicate and -DuplicateOf'; Args = @('-NotDuplicate', 'code 2', '-DuplicateOf', 'code 2=999'); Match = 'both -DuplicateOf and -NotDuplicate' },
+            @{ Label = 'the same conflict inside comma-separated values'; Args = @('-NotDuplicate', 'code 3,code 2', '-DuplicateOf', 'code 4=998,code 2=999'); Match = 'both -DuplicateOf and -NotDuplicate' },
+            @{ Label = 'an unknown -NotDuplicate key'; Args = @('-NotDuplicate', 'code 99'); Match = "-NotDuplicate 'code 99' does not match a finding" },
+            @{ Label = 'an unknown -NoMerge key'; Args = @('-NoMerge', 'docs 1,tests 99'); Match = "-NoMerge 'tests 99' does not match a finding" },
+            @{ Label = 'a malformed -NoMerge value'; Args = @('-NoMerge', 'code'); Match = "-NoMerge value 'code' must be '<stage> <n>'" },
+            @{ Label = 'a -NoMerge finding named by -MergeInto'; Args = @('-NoMerge', 'code 3', '-MergeInto', 'code 2=code 3'); Match = 'keeps out of every merge' }
+        )
+        foreach ($case in $cases1863) {
+            $r = Invoke-Remediation $remWt1863 (@('-Prepare', '-NoGh') + $case.Args)
+            Test-RemediationCase "#1863 $($case.Label) stops with a message and changes no file" { $r.Code -ne 0 -and $r.Output -match [regex]::Escape($case.Match) -and (Get-Tree1863) -eq $before1863 }
+        }
+        # #1863 (review): a list parameter supplied but empty after splitting on commas is a usage error (exit 2).
+        foreach ($emptyParam in @('-Only', '-DuplicateOf', '-MergeInto', '-NotDuplicate', '-NoMerge')) {
+            $emptyRun = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', $emptyParam, ',,,')
+            Test-RemediationCase "#1863 $emptyParam ',,,' exits 2 naming the parameter and changes no file" {
+                $emptyRun.Code -eq 2 -and $emptyRun.Output -match ([regex]::Escape($emptyParam) + ' was supplied but names no finding') -and (Get-Tree1863) -eq $before1863
+            }
+        }
+        $finalize1863 = Invoke-Remediation $remWt1863 @('-Finalize', '-NoMerge', 'docs 1')
+        Test-RemediationCase '#1863 -Finalize with -NoMerge is an error' { $finalize1863.Code -ne 0 -and $finalize1863.Output -match 'apply to -Prepare only' }
+
+        # -NoMerge: a location merge suppressed, in both directions.
+        $noMergeDocs1863 = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', '-NoMerge', 'docs 1')
+        $nmManifest1863 = Get-RemediationManifest $remWt1863 $remN1863
+        $nmDocs1 = Get-ManifestFinding $nmManifest1863 'docs 1'; $nmCode1 = Get-ManifestFinding $nmManifest1863 'code 1'
+        Test-RemediationCase '#1863 -NoMerge docs 1: docs 1 is no longer merged into code 1 by location; each has its own draft and normal line' {
+            $noMergeDocs1863.Code -eq 0 -and $nmDocs1.draftFile -and $nmCode1.draftFile -and $null -eq $nmDocs1.mergedInto -and @($nmCode1.groupMembers).Count -eq 1 -and
+            $nmDocs1.remediationLine -match '^- docs 1 \(Minor\): draft ' -and $null -eq $nmCode1.reportedByLine -and $null -eq $nmDocs1.reportedByLine -and @($nmManifest1863.findings | Where-Object { $_.draftFile }).Count -eq 7
+        }
+        Test-RemediationCase '#1863 -NoMerge docs 1: recorded in the manifest and as a lesson' {
+            (@($nmManifest1863.noMergeOverrides) -join '|') -eq 'docs 1' -and (@($nmManifest1863.lessons) -join '|') -match [regex]::Escape('docs 1: kept out of location merges by manual override')
+        }
+        $noMergeCode1863 = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', '-NoMerge', 'code 1')
+        $nmManifest1863b = Get-RemediationManifest $remWt1863 $remN1863
+        Test-RemediationCase '#1863 -NoMerge code 1 (the primary): both findings are drafted on their own, and the earlier -NoMerge docs 1 is kept' {
+            $noMergeCode1863.Code -eq 0 -and $noMergeCode1863.Output -match "keeping the -NoMerge override 'docs 1'" -and @($nmManifest1863b.findings | Where-Object { $_.draftFile }).Count -eq 7 -and
+            @((Get-ManifestFinding $nmManifest1863b 'code 1').groupMembers).Count -eq 1
+        }
+
+        # -NotDuplicate without gh: the finding is drafted on its own, recorded as a manual not-duplicate.
+        Reset-Base1863
+        $notDup1863 = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', '-NotDuplicate', 'docs 1')
+        $ndManifest1863 = Get-RemediationManifest $remWt1863 $remN1863
+        $ndDocs1 = Get-ManifestFinding $ndManifest1863 'docs 1'
+        Test-RemediationCase '#1863 -NotDuplicate docs 1: own draft, duplicateSource manual not-duplicate, no duplicateOf, the normal draft line' {
+            $notDup1863.Code -eq 0 -and $ndDocs1.draftFile -and $ndDocs1.duplicateSource -eq 'manual not-duplicate' -and $null -eq $ndDocs1.duplicateOf -and $ndDocs1.remediationLine -match '^- docs 1 \(Minor\): draft ' -and
+            (@($ndManifest1863.notDuplicateOverrides) -join '|') -eq 'docs 1' -and (@($ndManifest1863.lessons) -join '|') -match [regex]::Escape('docs 1: recorded as not a duplicate and kept out of location merges by manual override')
+        }
+
+        # -Only combined with the overrides: they apply to the named findings; the group each left is re-prepared too.
+        Reset-Base1863
+        $onlyNm1863 = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', '-Only', 'code 2', '-NoMerge', 'docs 1')
+        $onlyNmManifest1863 = Get-RemediationManifest $remWt1863 $remN1863
+        Test-RemediationCase '#1863 -Only code 2 -NoMerge docs 1: docs 1, code 1 (the group it left) and code 2 are prepared; the rest keep their lines' {
+            $onlyNm1863.Code -eq 0 -and (Get-ManifestFinding $onlyNmManifest1863 'docs 1').regenerate -and (Get-ManifestFinding $onlyNmManifest1863 'code 1').regenerate -and (Get-ManifestFinding $onlyNmManifest1863 'code 2').regenerate -and
+            -not (Get-ManifestFinding $onlyNmManifest1863 'code 3').regenerate -and (Get-ManifestFinding $onlyNmManifest1863 'docs 1').draftFile -and @((Get-ManifestFinding $onlyNmManifest1863 'code 1').groupMembers).Count -eq 1
+        }
+
+        # A -NoMerge split from a group whose remaining members a kept merge moved into its target (code 1 and docs 1
+        # share a location, mergeOverrides holds code 1=code 2): the merge target stays valid and is re-prepared.
+        Reset-Base1863
+        $null = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', '-MergeInto', 'code 1=code 2')
+        Write-StageFromManifest (Get-RemediationManifest $remWt1863 $remN1863)
+        $splitMerge1863 = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', '-Only', 'code 3', '-NoMerge', 'docs 1')
+        $splitMergeManifest1863 = Get-RemediationManifest $remWt1863 $remN1863
+        Test-RemediationCase '#1863 -Only code 3 -NoMerge docs 1 with code 1=code 2 kept: code 1 stays merged into code 2, which is re-prepared without docs 1; docs 1 has its own draft' {
+            $splitMerge1863.Code -eq 0 -and (@($splitMergeManifest1863.mergeOverrides) -join '|') -eq 'code 1=code 2' -and (Get-ManifestFinding $splitMergeManifest1863 'code 2').regenerate -and
+            (Get-ManifestFinding $splitMergeManifest1863 'code 2').draftFile -and (Get-ManifestFinding $splitMergeManifest1863 'docs 1').draftFile -and
+            (@((Get-ManifestFinding $splitMergeManifest1863 'code 2').groupMembers) -join '|') -notmatch 'docs 1'
+        }
+
+        # The comma-separated string form (what `pwsh -File` hands over) for all five list parameters.
+        Reset-Base1863
+        $onlyCsv1863 = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', '-Only', 'code 2,code 3')
+        $onlyCsvManifest1863 = Get-RemediationManifest $remWt1863 $remN1863
+        Test-RemediationCase '#1863 -Only "code 2,code 3" prepares exactly those two findings' {
+            $onlyCsv1863.Code -eq 0 -and (Get-ManifestFinding $onlyCsvManifest1863 'code 2').regenerate -and (Get-ManifestFinding $onlyCsvManifest1863 'code 3').regenerate -and
+            -not (Get-ManifestFinding $onlyCsvManifest1863 'code 4').regenerate -and -not (Get-ManifestFinding $onlyCsvManifest1863 'docs 2').regenerate
+        }
+        Reset-Base1863
+        $dupCsv1863 = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', '-DuplicateOf', 'code 2=999,code 3=998')
+        $dupCsvManifest1863 = Get-RemediationManifest $remWt1863 $remN1863
+        Test-RemediationCase '#1863 -DuplicateOf "code 2=999,code 3=998" records both overrides' {
+            $dupCsv1863.Code -eq 0 -and (Get-ManifestFinding $dupCsvManifest1863 'code 2').duplicateOf -eq '999' -and (Get-ManifestFinding $dupCsvManifest1863 'code 3').duplicateOf -eq '998' -and
+            (Get-ManifestFinding $dupCsvManifest1863 'code 2').remediationLine -eq '- code 2 (Major): duplicate of #999 (manual override)'
+        }
+        Reset-Base1863
+        $mergeCsv1863 = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', '-MergeInto', 'docs 2=code 2,code 4=code 2')
+        $mergeCsvManifest1863 = Get-RemediationManifest $remWt1863 $remN1863
+        Test-RemediationCase '#1863 -MergeInto "docs 2=code 2,code 4=code 2" merges both into code 2' {
+            $mergeCsv1863.Code -eq 0 -and @($mergeCsvManifest1863.mergeOverrides).Count -eq 2 -and (Get-ManifestFinding $mergeCsvManifest1863 'code 2').reportedByLine -eq 'Reported by: code 2, docs 2, code 4.'
+        }
+        Reset-Base1863
+        $ndCsv1863 = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', '-NotDuplicate', 'tests 1,docs 2')
+        $ndCsvManifest1863 = Get-RemediationManifest $remWt1863 $remN1863
+        Test-RemediationCase '#1863 -NotDuplicate "tests 1,docs 2" records both as manual not-duplicate' {
+            $ndCsv1863.Code -eq 0 -and (Get-ManifestFinding $ndCsvManifest1863 'tests 1').duplicateSource -eq 'manual not-duplicate' -and (Get-ManifestFinding $ndCsvManifest1863 'docs 2').duplicateSource -eq 'manual not-duplicate' -and @($ndCsvManifest1863.notDuplicateOverrides).Count -eq 2
+        }
+        Reset-Base1863
+        $nmCsv1863 = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', '-NoMerge', 'docs 1,code 4')
+        $nmCsvManifest1863 = Get-RemediationManifest $remWt1863 $remN1863
+        Test-RemediationCase '#1863 -NoMerge "docs 1,code 4" records both and splits docs 1 from code 1' {
+            $nmCsv1863.Code -eq 0 -and @($nmCsvManifest1863.noMergeOverrides).Count -eq 2 -and (Get-ManifestFinding $nmCsvManifest1863 'docs 1').draftFile
+        }
+        # The in-process array form still binds.
+        Reset-Base1863
+        $arrayScript1863 = Join-Path $remWt1863 'tools\ai\audit\audit-draft-remediation.ps1'
+        $null = & pwsh -NoProfile -Command "& '$arrayScript1863' -Prepare -NoGh -NoMerge @('docs 1','code 4') -NotDuplicate @('tests 1'); exit `$LASTEXITCODE" 2>&1
+        $arrayCode1863 = $LASTEXITCODE
+        $arrayManifest1863 = Get-RemediationManifest $remWt1863 $remN1863
+        Test-RemediationCase '#1863 the in-process array form of -NoMerge and -NotDuplicate binds' {
+            $arrayCode1863 -eq 0 -and (@($arrayManifest1863.noMergeOverrides) -join ',') -eq 'docs 1,code 4' -and (@($arrayManifest1863.notDuplicateOverrides) -join ',') -eq 'tests 1'
+        }
+
+        # An evidence duplicate suppressed by -NotDuplicate (stubbed gh, the #1548 fixture).
+        if ((Test-Path variable:ghStubPath) -and (Test-Path -LiteralPath $ghStubPath)) {
+            $ghRules1863 = Join-Path $work 'gh-stub-rules-1863.json'
+            $cand1170For1863 = @{ title = '[BUG] Store.OpenConnectionAsync is a no-op'; body = "## Location`n`n- **File(s)**: ``src/Encina.Foo/Store.cs```n`n## Current Behavior`n`n``OpenConnectionAsync`` never opens the connection." } | ConvertTo-Json -Compress
+            @(
+                @{ match = 'label list*'; exit = 0; output = "bug`narea-testing`ntechnical-debt" },
+                @{ match = 'issue list*'; exit = 0; output = '[{"number":1170,"title":"[BUG] Store.OpenConnectionAsync is a no-op"}]' },
+                @{ match = 'issue view 1170 *title,body*'; exit = 0; output = $cand1170For1863 }
+            ) | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ghRules1863 -Encoding utf8
+            $env:ENCINA_GH_STUB_RULES = $ghRules1863
+            $ghWt1863 = New-RemediationFixture 'RemediationNotDuplicateGhWt' 1864 "1. **Major** -- ``src/Encina.Foo/Store.cs:10``: ``OpenConnectionAsync`` never opens the connection." '- none' '- none'
+            $null = Invoke-Remediation $ghWt1863 @('-Prepare') $ghStubPath
+            $ghBase1863 = Get-ManifestFinding (Get-RemediationManifest $ghWt1863 1864) 'code 1'
+            $null = Invoke-Remediation $ghWt1863 @('-Prepare', '-NotDuplicate', 'code 1') $ghStubPath
+            $ghNd1863 = Get-ManifestFinding (Get-RemediationManifest $ghWt1863 1864) 'code 1'
+            Test-RemediationCase '#1863 -NotDuplicate overrides a false-positive evidence duplicate: own draft, duplicateSource manual not-duplicate, #1170 kept as related' {
+                $ghBase1863.duplicateOf -eq '1170' -and $ghBase1863.duplicateSource -eq 'evidence' -and $null -eq $ghBase1863.draftFile -and
+                $null -eq $ghNd1863.duplicateOf -and $ghNd1863.duplicateSource -eq 'manual not-duplicate' -and $ghNd1863.draftFile -and $ghNd1863.remediationLine -match '^- code 1 \(Major\): draft ' -and
+                ((@($ghNd1863.partiallyRelated) + @($ghNd1863.possiblyRelated)) -join '|') -match '#1170'
+            }
+            Remove-Item Env:\ENCINA_GH_STUB_RULES -ErrorAction SilentlyContinue
+        }
+        else { $script:failed++; 'FAIL audit-draft-remediation: #1863 the stubbed-gh stub was not defined by the earlier #1548 block' }
+    }
+    else {
+        'SKIP #1863 fixture: git is not on PATH'
+    }
+    # ---- end #1863 block ----
+
     # ---- #1393: tools/ai/audit/_remediation-checks.ps1 -- a candidate counts as the same defect only when it is
     # ABOUT the finding's location and symbol (its title and location sections: Location, Current/Actual
     # Behavior, Code Sample, ...), not when it merely MENTIONS them in its Description, Root Cause, Proposed Fix,
