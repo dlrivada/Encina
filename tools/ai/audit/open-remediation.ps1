@@ -19,9 +19,11 @@
 # issue -> v0.19.0 Providers & Testing; a draft header milestone wins) and one priority label from the draft's own
 # Priority section (High p0-mandatory, Medium p1-recommended, Low p2-post-1.0; a consolidated issue takes the
 # highest of its drafts); only a draft without a Priority section gets its route's default (Hardening
-# p0-mandatory, Documentation and Providers & Testing p1-recommended). Then added to project 1 with the keyring token (GITHUB_TOKEN/GH_TOKEN cleared for that call); a failed
-# project add fails the run loudly (the row is already written, so a re-run does not retry it: add the issue by hand;
-# the weekly issue-hygiene workflow lists any issue missing from the project).
+# p0-mandatory, Documentation and Providers & Testing p1-recommended). Right after each `gh issue create` the issue is
+# added to project 1 with the local keyring credentials (GITHUB_TOKEN/GH_TOKEN cleared for that call; no workflow
+# secret is involved, #1987). A failed project add is reported as a warning naming the issue and the retry command;
+# it does not undo the created issue and does not fail the run (the row is already written, so a re-run does not
+# retry it: run the printed command).
 
 param(
     [Parameter(Mandatory)][int]$Issue,
@@ -91,14 +93,15 @@ function Resolve-RouteMetadata([string]$Route, [string]$DraftMilestone, [string[
 }
 
 # Adds the issue to project 1. The default token cannot write projects, so the call runs with the keyring token
-# (GITHUB_TOKEN and GH_TOKEN cleared for this call only). Fails loudly, never skips.
+# (GITHUB_TOKEN and GH_TOKEN env vars must not override the keyring, so both are cleared for this call only).
+# A failure is a loud warning with the retry command; the created issue is kept.
 function Add-ToProject([string]$Url) {
     $savedG = $env:GITHUB_TOKEN; $savedH = $env:GH_TOKEN
     try {
         $env:GITHUB_TOKEN = $null; $env:GH_TOKEN = $null
         Remove-Item Env:\GITHUB_TOKEN, Env:\GH_TOKEN -ErrorAction SilentlyContinue
-        $out = & gh project item-add 1 --owner dlrivada --url $Url 2>&1
-        if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh project item-add failed for $Url (exit $LASTEXITCODE): $($out -join ' '); the issue exists, add it to project 1 by hand"; exit 1 }
+        $out = try { & gh project item-add 1 --owner dlrivada --url $Url 2>&1 } catch { $global:LASTEXITCODE = 1; $_.Exception.Message }
+        if ($LASTEXITCODE -ne 0) { Write-Warning "open-remediation: gh project item-add failed for $Url (exit $LASTEXITCODE): $($out -join ' '). The issue exists; add it to project 1 with: gh project item-add 1 --owner dlrivada --url $Url"; $global:LASTEXITCODE = 0 }
     }
     finally {
         if ($null -ne $savedG) { $env:GITHUB_TOKEN = $savedG }
