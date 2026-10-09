@@ -12,7 +12,7 @@ namespace Encina.Messaging.Health;
 /// <list type="bullet">
 /// <item><description><b>Healthy</b>: DLQ message count is below warning threshold</description></item>
 /// <item><description><b>Degraded</b>: DLQ message count exceeds warning threshold</description></item>
-/// <item><description><b>Unhealthy</b>: DLQ message count exceeds critical threshold</description></item>
+/// <item><description><b>Unhealthy</b>: DLQ message count exceeds critical threshold, or the store fails (only the error code is reported in <c>error_code</c>)</description></item>
 /// </list>
 /// </remarks>
 public sealed class DeadLetterHealthCheck : EncinaHealthCheck
