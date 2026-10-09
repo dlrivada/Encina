@@ -38,7 +38,7 @@ public sealed record ABACDecisionRecord
     public string? TenantId { get; init; }
 
     /// <summary>The correlation id of the request; it joins this record to the other audit rows of the request.</summary>
-    public string? CorrelationId { get; init; }
+    public required string CorrelationId { get; init; }
 
     /// <summary>The module the request runs in, when module isolation is used.</summary>
     public string? ModuleId { get; init; }

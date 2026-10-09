@@ -20,6 +20,7 @@ public sealed class ABACDecisionAuditModelTests
     {
         DecisionId = Guid.CreateVersion7(),
         IdentityKind = IdentityKind.User,
+        CorrelationId = "corr-1",
         RequestType = typeof(OrderQuery).FullName!,
         EnforcedOutcome = ABACEnforcedOutcome.Granted,
         ReasonCode = ABACDecisionAuditSchema.PermitReasonCode,
@@ -67,7 +68,7 @@ public sealed class ABACDecisionAuditModelTests
         {
             UserId = "service:billing",
             TenantId = "t1",
-            CorrelationId = "c1",
+            CorrelationId = "c2",
             ModuleId = "m1",
             IpAddress = "10.0.0.1",
             UserAgent = "agent",
@@ -84,7 +85,7 @@ public sealed class ABACDecisionAuditModelTests
 
         record.UserId.ShouldBe("service:billing");
         record.TenantId.ShouldBe("t1");
-        record.CorrelationId.ShouldBe("c1");
+        record.CorrelationId.ShouldBe("c2");
         record.ModuleId.ShouldBe("m1");
         record.IpAddress.ShouldBe("10.0.0.1");
         record.UserAgent.ShouldBe("agent");

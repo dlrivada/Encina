@@ -139,6 +139,32 @@ public sealed class XACMLPolicyDecisionPointTraceTests
     }
 
     [Fact]
+    public async Task EvaluateAsync_TraceNotRequested_BuildsNoTraceNodes()
+    {
+        var policies = Enumerable.Range(0, 50).Select(i => MakePolicy($"p{i}", rules: MakeRule($"r{i}", Effect.Permit))).ToList();
+        var pdp = CreatePdp(Pap(policies: policies));
+        var off = Context(trace: false);
+        var on = Context(trace: true);
+
+        // Warm up both paths so JIT and one-time allocations do not count.
+        await pdp.EvaluateAsync(off);
+        await pdp.EvaluateAsync(on);
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var decisionOff = await pdp.EvaluateAsync(off);
+        var offBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        before = GC.GetAllocatedBytesForCurrentThread();
+        var decisionOn = await pdp.EvaluateAsync(on);
+        var onBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        decisionOff.EvaluatedPolicies.ShouldBeEmpty();
+        decisionOff.RuleId.ShouldBeNull();
+        decisionOn.EvaluatedPolicies.Count.ShouldBe(50);
+        offBytes.ShouldBeLessThan(onBytes);
+    }
+
+    [Fact]
     public async Task EvaluateAsync_TraceRequested_RecordsPolicyEffectDecisiveRulesAndRuleId()
     {
         var policy = MakePolicy("p", version: "7", rules: [MakeRule("r-permit", Effect.Permit), MakeRule("r-deny-1", Effect.Deny), MakeRule("r-deny-2", Effect.Deny)]);
