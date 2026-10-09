@@ -471,6 +471,8 @@ REFERENCE FILES:
      - `abac.function_error` — Function evaluation threw an exception
      - `abac.variable_not_found` — VariableReference to undefined VariableDefinition
 
+> Codes renamed by #1984 (2026-10-09): definite denials are encina.authorization.abac_*; admin lookups are abac.policy.not_found and abac.policy_set.not_found.
+
 5. **Constants** (`EnvironmentAttributes.cs`, `XACMLDataTypes.cs`, `XACMLFunctionIds.cs`):
    - `EnvironmentAttributes`: `CurrentTime`, `DayOfWeek`, `IsBusinessHours`, `IpAddress`, `UserAgent`, `TenantId`, `Region`, `RequestPath`, `HttpMethod`
    - `XACMLDataTypes`: `String`, `Boolean`, `Integer`, `Double`, `Date`, `DateTime`, `Time`, `AnyURI`, `HexBinary`, `Base64Binary`, `DayTimeDuration`, `YearMonthDuration`

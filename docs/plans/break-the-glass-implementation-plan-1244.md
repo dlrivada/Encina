@@ -105,7 +105,7 @@ A clinician who is not the treating professional sometimes needs a patient's rec
 ### Rationale
 
 - We recommend A because an override must be exactly as narrow as the denial it overrides: each gate already knows whether its result is a definite deny (`AuthorizationPipelineBehavior` policy or role failure at `:241-320`; `SecurityPipelineBehavior` attribute failure at `:169-173`; ABAC `Effect.Deny` in `HandleDenyAsync` `:285-330`) or something else (no identity, `Indeterminate`, an exception, a missing context), and only the first may be offered to the gate.
-- Overridable denials are listed in the contract: `encina.authorization.forbidden`, `encina.authorization.policy_failed`, `encina.authorization.resource_denied`, the Security codes `InsufficientRoles`, `PermissionDenied`, `ClaimMissing`, `NotOwner`, and the ABAC codes `abac.access_denied` and `abac.condition_not_met` (`src/Encina.Security.ABAC/ABACErrors.cs`). `encina.authorization.unauthenticated`, `abac.missing_context` (renamed `abac.unauthenticated_caller` by #1705), `abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed` and `abac.policy_not_found` (a missing required policy is a configuration error, not a verdict about this caller) are never overridable; the gate implementation rejects them again (defence in depth).
+- Overridable denials are listed in the contract: `encina.authorization.forbidden`, `encina.authorization.policy_failed`, `encina.authorization.resource_denied`, the Security codes `InsufficientRoles`, `PermissionDenied`, `ClaimMissing`, `NotOwner`, and the ABAC codes `encina.authorization.abac_access_denied` and `encina.authorization.abac_condition_not_met` (`src/Encina.Security.ABAC/ABACErrors.cs`, renamed by #1984). `encina.authorization.unauthenticated`, `abac.missing_context` (renamed `abac.unauthenticated_caller` by #1705), `abac.indeterminate`, `abac.evaluation_failed`, `encina.authorization.abac_obligation_failed` and `encina.authorization.abac_policy_not_found` (a missing required policy is a configuration error, not a verdict about this caller) are never overridable; the gate implementation rejects them again (defence in depth). Overridability is decided by exact code, never by the `encina.authorization.` prefix: the overridable ABAC codes and the never-overridable `abac_obligation_failed` and `abac_policy_not_found` share that prefix, so a prefix match would make the latter two overridable.
 - When several gates deny the same request, the first grant is kept in a scoped holder keyed by the correlation id, so the access is audited once (Design Choice 5) and the later gates reuse the grant.
 - The ABAC OnDeny obligations still run before the gate is consulted (XACML §7.18 semantics unchanged); when #751 lands, its decision recorder records the Deny with the elevation id in its metadata.
 
@@ -254,8 +254,8 @@ KEY RULES:
 - Sealed records, XML docs on every public member with <summary>, <remarks> and examples where useful.
 - No subject id, user id or justification in any ToString, error message or exception message.
 - AccessElevationDenials.IsOverridable returns false for encina.authorization.unauthenticated, abac.missing_context /
-  abac.unauthenticated_caller, abac.indeterminate, abac.evaluation_failed, abac.obligation_failed and
-  abac.policy_not_found; true only for the definite denials listed in Design Choice 3.
+  abac.unauthenticated_caller, abac.indeterminate, abac.evaluation_failed, encina.authorization.abac_obligation_failed and
+  encina.authorization.abac_policy_not_found; true only for the exact definite-denial codes listed in Design Choice 3. Match by exact code, never by the `encina.authorization.` prefix.
 - Timestamps are DateTimeOffset with the AtUtc suffix.
 - Every public symbol goes to PublicAPI.Unshipped.txt (RS0016 must not fire).
 
