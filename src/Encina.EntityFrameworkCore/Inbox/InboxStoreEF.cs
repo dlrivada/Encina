@@ -14,10 +14,14 @@ namespace Encina.EntityFrameworkCore.Inbox;
 /// This implementation provides idempotent message processing with EF Core. The writes that record
 /// an attempt (<see cref="AddAsync"/>, <see cref="MarkAsProcessedAsync"/>, <see cref="MarkAsFailedAsync"/>)
 /// are immediate and run on an isolated context built from the injected context's options, so they are
-/// neither flushed with nor rolled back by the request's business transaction, like the ADO.NET, Dapper and
-/// MongoDB stores. On relational providers <see cref="MarkAsFailedAsync"/> increments <c>RetryCount</c> in a
-/// single atomic UPDATE. The context type must expose the standard public constructor taking its
-/// <c>DbContextOptions&lt;TContext&gt;</c>.
+/// neither flushed with nor rolled back by the request's business transaction. On relational providers
+/// <see cref="MarkAsFailedAsync"/> increments <c>RetryCount</c> in a single atomic UPDATE. Requirements and
+/// limits: the context type must expose the standard public constructor taking its
+/// <c>DbContextOptions&lt;TContext&gt;</c>; the context must be configured with a connection string, not a
+/// shared <c>DbConnection</c> instance (that would put the isolated writes in the business transaction); each
+/// write uses a second pooled connection while the business transaction holds its own; and under a
+/// repeatable-read or serializable <c>[Transaction]</c> the lookup lock of the business connection can block
+/// the isolated write.
 /// </para>
 /// </remarks>
 public sealed class InboxStoreEF : IInboxStore
@@ -69,7 +73,7 @@ public sealed class InboxStoreEF : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
-            // Immediate write on an isolated context, like the ADO.NET, Dapper and MongoDB stores:
+            // Immediate write on an isolated context:
             // the inbox record must not depend on, or be rolled back with, the business unit of work.
             await using var isolated = CreateIsolatedContext();
             await isolated.Set<InboxMessage>().AddAsync(efMessage, cancellationToken);
@@ -80,7 +84,7 @@ public sealed class InboxStoreEF : IInboxStore
     // The inbox keeps its own record of every attempt in a unit of work of its own: the request's
     // transaction (TransactionPipelineBehavior) rolls back on a Left, and a failed attempt or a cached
     // response must survive that rollback. The isolated context shares the options (and so the model and
-    // the database) of the injected one, but uses its own connection and never flushes the business changes
+    // the database) of the injected one, but opens its own connection from the connection string and never flushes the business changes
     // the injected context may be tracking. It requires the context type to expose the standard public
     // constructor taking its own DbContextOptions<TContext>.
     private DbContext CreateIsolatedContext()
@@ -90,8 +94,8 @@ public sealed class InboxStoreEF : IInboxStore
     }
 
     // Applies one change to a stored message. Relational providers run a single UPDATE (so RetryCount + 1 is
-    // atomic, like the SQL and MongoDB stores); the non-relational test provider has no concurrent writers,
-    // so it loads, mutates and saves.
+    // atomic, like the SQL and MongoDB stores); any non-relational provider (the in-memory test
+    // provider) loads, mutates and saves, which is not atomic.
     private async Task UpdateIsolatedAsync(
         string messageId,
         Action<UpdateSettersBuilder<InboxMessage>> relational,
