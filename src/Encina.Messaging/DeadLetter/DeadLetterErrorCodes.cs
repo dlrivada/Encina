@@ -49,4 +49,19 @@ public static class DeadLetterErrorCodes
     /// Failed to delete DLQ message(s).
     /// </summary>
     public const string DeleteFailed = "dlq.delete_failed";
+
+    /// <summary>
+    /// Another replay holds the claim on the message, so this replay did not dispatch it.
+    /// </summary>
+    public const string ReplayInProgress = "dlq.replay_in_progress";
+
+    /// <summary>
+    /// A store received a dead letter message of a type it cannot persist.
+    /// </summary>
+    public const string InvalidMessageType = "dlq.invalid_message_type";
+
+    /// <summary>
+    /// Outcome code stored in <c>ReplayResult</c> when a replay succeeded.
+    /// </summary>
+    public const string ReplaySucceeded = "success";
 }
