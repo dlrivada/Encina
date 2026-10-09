@@ -4,7 +4,8 @@ namespace Encina.Security.ABAC;
 /// Factory methods for ABAC-related <see cref="EncinaError"/> instances.
 /// </summary>
 /// <remarks>
-/// Error codes follow the convention <c>abac.{category}</c>, except the definite authorization
+/// Error codes follow the convention <c>abac.{category}</c>, except the invalid decision audit query
+/// (<see cref="InvalidDecisionAuditQueryCode"/>, a <c>validation.*</c> code answered with HTTP 400) and the definite authorization
 /// denials (<see cref="AccessDeniedCode"/>, <see cref="ConditionNotMetCode"/>,
 /// <see cref="ObligationFailedCode"/> and <see cref="RequiredPolicyNotFoundCode"/>) and the tenant denials of the
 /// decision audit reader (<see cref="DecisionAuditTenantRequiredCode"/> and
@@ -113,8 +114,11 @@ public static class ABACErrors
     /// </summary>
     public const string DecisionAuditFailedCode = "abac.decision_audit_failed";
 
-    /// <summary>Error code when a decision audit query has invalid arguments (page size, date range).</summary>
-    public const string InvalidDecisionAuditQueryCode = "abac.invalid_decision_audit_query";
+    /// <summary>
+    /// Error code when a decision audit query has invalid arguments (page size, date range): a client
+    /// input error, so it uses the <c>validation.</c> family that every host adapter answers with HTTP 400.
+    /// </summary>
+    public const string InvalidDecisionAuditQueryCode = "validation.abac_decision_audit_query_invalid";
 
     /// <summary>Error code when the decision audit reader or export finds no <c>IOperationAuditStore</c> registered.</summary>
     public const string DecisionAuditStoreUnavailableCode = "abac.decision_audit_store_unavailable";

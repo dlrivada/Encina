@@ -1,3 +1,6 @@
+using System.Collections.Frozen;
+using System.Text;
+
 namespace Encina.Security.ABAC.DecisionAudit;
 
 /// <summary>
@@ -109,14 +112,14 @@ public sealed record ABACDecisionRecord
     /// the providers supplied; the identity kind is <see cref="IdentityKind"/>.
     /// </summary>
     public IReadOnlyDictionary<AttributeCategory, IReadOnlyList<string>> AttributeNames { get; init; } =
-        new Dictionary<AttributeCategory, IReadOnlyList<string>>();
+        FrozenDictionary<AttributeCategory, IReadOnlyList<string>>.Empty;
 
     /// <summary>
     /// The values of the attributes the application listed for recording, keyed by attribute name.
     /// Empty by default: values are personal data and are recorded only on an explicit allow-list.
     /// </summary>
     public IReadOnlyDictionary<string, string> RecordedValues { get; init; } =
-        new Dictionary<string, string>();
+        FrozenDictionary<string, string>.Empty;
 
     // ── Timing ───────────────────────────────────────────────────────
 
@@ -125,4 +128,17 @@ public sealed record ABACDecisionRecord
 
     /// <summary>When the decision completed: one <see cref="TimeProvider"/> read at the end, also used for the entry timestamp.</summary>
     public required DateTimeOffset CompletedAtUtc { get; init; }
+
+    /// <summary>
+    /// Prints only the decision id, the enforced outcome and the reason code, so the generated
+    /// <c>ToString()</c> never exposes <see cref="UserId"/>, <see cref="TenantId"/>,
+    /// <see cref="IpAddress"/>, <see cref="UserAgent"/> or any recorded value to a log or diagnostic.
+    /// </summary>
+    private bool PrintMembers(StringBuilder builder)
+    {
+        builder.Append("DecisionId = ").Append(DecisionId)
+            .Append(", EnforcedOutcome = ").Append(EnforcedOutcome)
+            .Append(", ReasonCode = ").Append(ReasonCode);
+        return true;
+    }
 }

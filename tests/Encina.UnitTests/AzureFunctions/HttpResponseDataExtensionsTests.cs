@@ -187,6 +187,7 @@ public class HttpResponseDataExtensionsTests
     [InlineData("validation.email")]
     [InlineData("validation.required_field")]
     [InlineData("validation.invalid_format")]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.InvalidDecisionAuditQueryCode)]
     public void MapErrorCodeToStatusCode_ValidationErrors_Return400(string errorCode)
     {
         // Arrange
@@ -212,6 +213,8 @@ public class HttpResponseDataExtensionsTests
     [InlineData(global::Encina.Security.ABAC.ABACErrors.ConditionNotMetCode)]
     [InlineData(global::Encina.Security.ABAC.ABACErrors.ObligationFailedCode)]
     [InlineData(global::Encina.Security.ABAC.ABACErrors.RequiredPolicyNotFoundCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantRequiredCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantMismatchCode)]
     [InlineData("encina.authorization.some_future_denial")]
     public void MapErrorCodeToStatusCode_AuthorizationErrors_Return403(string errorCode)
     {

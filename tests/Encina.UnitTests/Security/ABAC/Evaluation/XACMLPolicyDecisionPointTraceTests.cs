@@ -146,22 +146,30 @@ public sealed class XACMLPolicyDecisionPointTraceTests
         var off = Context(trace: false);
         var on = Context(trace: true);
 
-        // Warm up both paths so JIT and one-time allocations do not count.
-        await pdp.EvaluateAsync(off);
-        await pdp.EvaluateAsync(on);
-
-        var before = GC.GetAllocatedBytesForCurrentThread();
+        PolicyTraceNode.CreatedOnThisThread = 0;
         var decisionOff = await pdp.EvaluateAsync(off);
-        var offBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        var createdWithTraceOff = PolicyTraceNode.CreatedOnThisThread;
 
-        before = GC.GetAllocatedBytesForCurrentThread();
+        PolicyTraceNode.CreatedOnThisThread = 0;
         var decisionOn = await pdp.EvaluateAsync(on);
-        var onBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        var createdWithTraceOn = PolicyTraceNode.CreatedOnThisThread;
 
         decisionOff.EvaluatedPolicies.ShouldBeEmpty();
         decisionOff.RuleId.ShouldBeNull();
+        createdWithTraceOff.ShouldBe(0);
         decisionOn.EvaluatedPolicies.Count.ShouldBe(50);
-        offBytes.ShouldBeLessThan(onBytes);
+        createdWithTraceOn.ShouldBe(51); // the root plus one node per policy
+    }
+
+    [Fact]
+    public async Task EvaluatePolicyAsync_TraceNotRequested_BuildsNoTraceNodes()
+    {
+        var pdp = CreatePdp(Pap(policies: [MakePolicy("wanted", rules: MakeRule("r", Effect.Permit))]));
+
+        PolicyTraceNode.CreatedOnThisThread = 0;
+        await pdp.EvaluatePolicyAsync("wanted", Context(trace: false));
+
+        PolicyTraceNode.CreatedOnThisThread.ShouldBe(0);
     }
 
     [Fact]

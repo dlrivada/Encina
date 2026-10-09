@@ -123,7 +123,8 @@ public sealed class ABACDecisionTraceContractTests
     {
         new[] { ABACErrors.DecisionAuditTenantRequiredCode, ABACErrors.DecisionAuditTenantMismatchCode }
             .ShouldAllBe(code => code.StartsWith(EncinaErrorCodes.AuthorizationPrefix, StringComparison.Ordinal));
-        new[] { ABACErrors.DecisionAuditFailedCode, ABACErrors.InvalidDecisionAuditQueryCode, ABACErrors.DecisionAuditStoreUnavailableCode }
-            .ShouldAllBe(code => !code.StartsWith(EncinaErrorCodes.AuthorizationPrefix, StringComparison.Ordinal));
+        new[] { ABACErrors.DecisionAuditFailedCode, ABACErrors.DecisionAuditStoreUnavailableCode }
+            .ShouldAllBe(code => code.StartsWith("abac.", StringComparison.Ordinal));
+        ABACErrors.InvalidDecisionAuditQueryCode.ShouldStartWith("validation.");
     }
 }

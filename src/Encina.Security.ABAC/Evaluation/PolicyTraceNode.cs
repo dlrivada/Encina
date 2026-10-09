@@ -22,8 +22,16 @@ internal sealed class PolicyTraceNode
     private PolicyTraceReason _reason;
     private IReadOnlyList<string> _decisiveRuleIds = [];
 
+    /// <summary>
+    /// The number of nodes (roots included) created on the current thread. Tests use it to prove that a
+    /// request without a trace creates none.
+    /// </summary>
+    [ThreadStatic]
+    internal static int CreatedOnThisThread;
+
     private PolicyTraceNode(Budget budget, string policyId, bool isPolicySet, string? version)
     {
+        CreatedOnThisThread++;
         _budget = budget;
         _policyId = policyId;
         _isPolicySet = isPolicySet;

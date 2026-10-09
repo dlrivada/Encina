@@ -65,6 +65,8 @@ public sealed class ProblemDetailsExtensionsTests
     [InlineData(global::Encina.Security.ABAC.ABACErrors.ConditionNotMetCode)]
     [InlineData(global::Encina.Security.ABAC.ABACErrors.ObligationFailedCode)]
     [InlineData(global::Encina.Security.ABAC.ABACErrors.RequiredPolicyNotFoundCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantRequiredCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantMismatchCode)]
     [InlineData("encina.authorization.some_future_denial")]
     public void ToProblemDetails_AuthorizationDenial_Returns403(string code)
     {
@@ -73,6 +75,16 @@ public sealed class ProblemDetailsExtensionsTests
 
         var result = error.ToProblemDetails(context);
         result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status403Forbidden);
+    }
+
+    [Fact]
+    public void ToProblemDetails_InvalidDecisionAuditQuery_Returns400()
+    {
+        var error = global::Encina.Security.ABAC.ABACErrors.InvalidDecisionAuditQuery("pageSize");
+        var context = CreateHttpContext();
+
+        var result = error.ToProblemDetails(context);
+        result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status400BadRequest);
     }
 
     [Theory]

@@ -1,6 +1,10 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.DecisionAudit;
 
+using Encina.UnitTests.EntityFrameworkCore.Auditing;
+
+using Microsoft.EntityFrameworkCore;
+
 using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.DecisionAudit;
@@ -193,15 +197,52 @@ public sealed class ABACDecisionAuditModelTests
     }
 
     [Fact]
-    public void Schema_ColumnLimitsMatchTheOperationAuditColumns()
+    public void Schema_ColumnLimitsEqualTheOperationAuditEntityModel()
     {
-        ABACDecisionAuditSchema.UserIdMaxLength.ShouldBe(256);
-        ABACDecisionAuditSchema.TenantIdMaxLength.ShouldBe(128);
-        ABACDecisionAuditSchema.ActionMaxLength.ShouldBe(128);
-        ABACDecisionAuditSchema.ErrorMessageMaxLength.ShouldBe(2048);
-        ABACDecisionAuditSchema.IpAddressMaxLength.ShouldBe(45);
-        ABACDecisionAuditSchema.UserAgentMaxLength.ShouldBe(512);
+        var options = new DbContextOptionsBuilder<OperationAuditTestContext>()
+            .UseInMemoryDatabase(nameof(Schema_ColumnLimitsEqualTheOperationAuditEntityModel))
+            .Options;
+        using var context = new OperationAuditTestContext(options);
+        var entity = context.Model.GetEntityTypes().Single();
+
+        int? Limit(string property) => entity.FindProperty(property)!.GetMaxLength();
+
+        Limit("UserId").ShouldBe(ABACDecisionAuditSchema.UserIdMaxLength);
+        Limit("EntityType").ShouldBe(ABACDecisionAuditSchema.EntityTypeMaxLength);
+        Limit("EntityId").ShouldBe(ABACDecisionAuditSchema.EntityIdMaxLength);
+        Limit("CorrelationId").ShouldBe(ABACDecisionAuditSchema.CorrelationIdMaxLength);
+        Limit("TenantId").ShouldBe(ABACDecisionAuditSchema.TenantIdMaxLength);
+        Limit("Action").ShouldBe(ABACDecisionAuditSchema.ActionMaxLength);
+        Limit("ErrorMessage").ShouldBe(ABACDecisionAuditSchema.ErrorMessageMaxLength);
+        Limit("IpAddress").ShouldBe(ABACDecisionAuditSchema.IpAddressMaxLength);
+        Limit("UserAgent").ShouldBe(ABACDecisionAuditSchema.UserAgentMaxLength);
         ABACDecisionAuditSchema.Action.Length.ShouldBeLessThanOrEqualTo(ABACDecisionAuditSchema.ActionMaxLength);
+    }
+
+    [Fact]
+    public void Record_ToString_NeverPrintsPersonalData()
+    {
+        var record = MinimalRecord() with
+        {
+            UserId = "alice@example.org",
+            TenantId = "tenant-secret",
+            IpAddress = "203.0.113.9",
+            UserAgent = "Mozilla/5.0 private",
+            ResourceId = "patient-42",
+            RecordedValues = new Dictionary<string, string> { ["department"] = "psychiatry" }
+        };
+
+        var text = record.ToString();
+
+        text.ShouldContain(record.DecisionId.ToString());
+        text.ShouldContain(nameof(ABACEnforcedOutcome.Granted));
+        text.ShouldContain(ABACDecisionAuditSchema.PermitReasonCode);
+        text.ShouldNotContain("alice");
+        text.ShouldNotContain("tenant-secret");
+        text.ShouldNotContain("203.0.113.9");
+        text.ShouldNotContain("Mozilla");
+        text.ShouldNotContain("patient-42");
+        text.ShouldNotContain("psychiatry");
     }
 
     // ── ABACErrors (decision audit) ──────────────────────────────────
@@ -227,7 +268,7 @@ public sealed class ABACDecisionAuditModelTests
     {
         var error = ABACErrors.InvalidDecisionAuditQuery("pageSize");
 
-        Code(error).ShouldBe("abac.invalid_decision_audit_query");
+        Code(error).ShouldBe("validation.abac_decision_audit_query_invalid");
         error.Message.ShouldBe("The decision audit query is invalid.");
         Detail(error, "reason").ShouldBe("pageSize");
     }
@@ -256,10 +297,13 @@ public sealed class ABACDecisionAuditModelTests
     }
 
     [Fact]
+    public void InvalidDecisionAuditQueryCode_IsInTheValidationFamily() =>
+        ABACErrors.InvalidDecisionAuditQueryCode.ShouldStartWith("validation.");
+
+    [Fact]
     public void DecisionAuditServerSideCodes_StayInTheAbacFamily()
     {
         ABACErrors.DecisionAuditFailedCode.ShouldStartWith("abac.");
-        ABACErrors.InvalidDecisionAuditQueryCode.ShouldStartWith("abac.");
         ABACErrors.DecisionAuditStoreUnavailableCode.ShouldStartWith("abac.");
     }
 }
