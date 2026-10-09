@@ -103,9 +103,9 @@ public sealed class ABACDecisionTraceContractTests
     }
 
     [Fact]
-    public void TraceReason_KeepsItsFourValues() =>
+    public void TraceReason_KeepsItsFiveValues() =>
         Enum.GetValues<PolicyTraceReason>().ShouldBe(
-            [PolicyTraceReason.Evaluated, PolicyTraceReason.Disabled, PolicyTraceReason.TargetNotMatched, PolicyTraceReason.TargetIndeterminate]);
+            [PolicyTraceReason.Evaluated, PolicyTraceReason.Disabled, PolicyTraceReason.TargetNotMatched, PolicyTraceReason.TargetIndeterminate, PolicyTraceReason.NotEvaluated]);
 
     [Fact]
     public void ResourceIdentity_IsAnInterfaceWithOneReadOnlyMember()

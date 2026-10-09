@@ -1,6 +1,7 @@
 using Encina.Caching;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.CombiningAlgorithms;
+using Encina.Security.ABAC.DecisionAudit;
 using Encina.Security.ABAC.EEL;
 using Encina.Security.ABAC.Evaluation;
 using Encina.Security.ABAC.Health;
@@ -119,6 +120,12 @@ public static class ServiceCollectionExtensions
 
         // Warning 9085 once at startup when the final options disable enforcement.
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ABACEnforcementModeStartupCheck>());
+
+        // ── Decision audit (always registered, idle until DecisionAudit.Enabled) ──
+        // The Policy Enforcement Point needs both for every closed request type; the gate is the
+        // resolved IOptions<ABACOptions>, never the temporary options instance above.
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IABACDecisionRecorder, UnavailableABACDecisionRecorder>();
 
         // ── Function registry (Singleton) ──────────────────────────
         // Register with factory so custom functions from options are loaded

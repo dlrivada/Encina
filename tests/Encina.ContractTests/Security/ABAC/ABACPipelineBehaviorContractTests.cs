@@ -74,6 +74,8 @@ public sealed class ABACPipelineBehaviorContractTests
             oblExec,
             Compiler,
             Options.Create(options ?? new ABACOptions()),
+            Substitute.For<global::Encina.Security.ABAC.DecisionAudit.IABACDecisionRecorder>(),
+            TimeProvider.System,
             NullLogger<ABACPipelineBehavior<TRequest, TResponse>>.Instance);
     }
 

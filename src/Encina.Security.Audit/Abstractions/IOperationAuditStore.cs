@@ -41,7 +41,11 @@ public interface IOperationAuditStore
     /// </returns>
     /// <remarks>
     /// Implementations should handle duplicate IDs gracefully (e.g., update or reject).
-    /// Recording failures should not affect the original request processing.
+    /// A store reports a failed write as <c>Left</c> (or an exception) and never hides it; what a failure
+    /// means for the request belongs to the caller. A caller that records evidence before it lets a
+    /// request proceed (for example the ABAC decision audit, which fails closed by default) denies the
+    /// request when the write fails; a caller that audits a completed operation may log the failure
+    /// and carry on.
     /// </remarks>
     ValueTask<Either<EncinaError, Unit>> RecordAsync(OperationAuditEntry entry, CancellationToken cancellationToken = default);
 

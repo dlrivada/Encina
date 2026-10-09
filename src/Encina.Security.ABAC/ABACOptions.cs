@@ -1,5 +1,7 @@
 using System.Reflection;
 
+using Encina.Security.ABAC.DecisionAudit;
+
 namespace Encina.Security.ABAC;
 
 /// <summary>
@@ -170,6 +172,23 @@ public sealed class ABACOptions
     /// </code>
     /// </example>
     public PolicyCachingOptions PolicyCaching { get; } = new();
+
+    /// <summary>
+    /// Gets the decision audit configuration: whether the Policy Enforcement Point records the
+    /// decisions it enforces, which outcomes and what to do when a record cannot be written.
+    /// </summary>
+    /// <remarks>
+    /// Off by default; see <see cref="ABACDecisionAuditOptions"/>.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaABAC(options =>
+    /// {
+    ///     options.DecisionAudit.Enabled = true;
+    /// });
+    /// </code>
+    /// </example>
+    public ABACDecisionAuditOptions DecisionAudit { get; } = new();
 
     /// <summary>
     /// Gets the list of custom functions to register in the <see cref="IFunctionRegistry"/>

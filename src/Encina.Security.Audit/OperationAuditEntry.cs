@@ -127,11 +127,12 @@ public sealed record OperationAuditEntry
     public required AuditOutcome Outcome { get; init; }
 
     /// <summary>
-    /// Error message when <see cref="Outcome"/> is not <see cref="AuditOutcome.Success"/>.
+    /// The error code (or exception type name) that explains the <see cref="Outcome"/>; never an error message.
     /// </summary>
     /// <remarks>
-    /// Contains the error code (or the exception type name) for failed operations, never the error message.
-    /// <c>null</c> for successful operations.
+    /// Set for failed operations. <c>null</c> for ordinary successful operations; a writer may also store a
+    /// reason code on a <see cref="AuditOutcome.Success"/> row when the success needs one (for example an ABAC
+    /// decision that was denied but not enforced in Warn mode).
     /// </remarks>
     public string? ErrorMessage { get; init; }
 
