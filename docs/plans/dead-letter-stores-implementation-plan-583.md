@@ -858,7 +858,7 @@ REFERENCE FILES:
    - the duplicate source key returns `false` and keeps one row;
    - `MarkAsReplayedAsync` is true once, then false;
    - `DeleteManyAsync` and `DeleteExpiredAsync` remove exactly the matching rows, with the `ExpiresAtUtc == now` boundary;
-   - `GetCountAsync` equals the length of an unbounded `GetMessagesAsync` page.
+   - `GetCountAsync` equals the number of rows read by paging `GetMessagesAsync` (pages of at most `DeadLetterStoreLimits.MaxPageSize`) until a short page; the data set spans more than one page.
 4. **Property tests** (`tests/Encina.PropertyTests/Messaging/DeadLetter/DeadLetterStorePropertyTests.cs`), FsCheck over random sequences of add, replay mark, delete and clock advance on the fake:
    - pages are sorted and disjoint, and their union equals the filtered count;
    - expired deletion never removes a row with `ExpiresAtUtc > now` or `null`;
