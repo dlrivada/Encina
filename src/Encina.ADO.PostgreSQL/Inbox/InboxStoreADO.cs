@@ -15,6 +15,7 @@ public sealed class InboxStoreADO : IInboxStore
     private readonly IDbConnection _connection;
     private readonly string _tableName;
     private readonly TimeProvider _timeProvider;
+    private readonly IDbTransactionAccessor? _transactionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InboxStoreADO"/> class.
@@ -22,16 +23,19 @@ public sealed class InboxStoreADO : IInboxStore
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The inbox table name (default: inboxmessages).</param>
     /// <param name="timeProvider">Optional time provider for UTC time generation (default: <see cref="TimeProvider.System"/>).</param>
+    /// <param name="transactionAccessor">Optional accessor of the business transaction on the shared connection; when a transaction is active the store enlists or leaves it as documented in ADR-048.</param>
     public InboxStoreADO(
         IDbConnection connection,
         string tableName = "inboxmessages",
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IDbTransactionAccessor? transactionAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
 
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _transactionAccessor = transactionAccessor;
     }
 
     /// <inheritdoc />
@@ -41,16 +45,17 @@ public sealed class InboxStoreADO : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
             var sql = $@"
                 SELECT messageid, requesttype, receivedatutc, processedatutc, expiresatutc, response, errormessage, retrycount, nextretryatutc, metadata
                 FROM {_tableName}
                 WHERE messageid = @MessageId";
 
-            using var command = _connection.CreateCommand();
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@MessageId", messageId);
 
-            if (_connection.State != ConnectionState.Open)
+            if (lease.Connection.State != ConnectionState.Open)
                 await OpenConnectionAsync(cancellationToken);
 
             using var reader = await ExecuteReaderAsync(command, cancellationToken);
@@ -93,13 +98,14 @@ public sealed class InboxStoreADO : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
+            using var lease = await DbLease.IndependentAsync(_connection, _transactionAccessor, cancellationToken);
             var sql = $@"
                 INSERT INTO {_tableName}
                 (messageid, requesttype, receivedatutc, processedatutc, expiresatutc, response, errormessage, retrycount, nextretryatutc, metadata)
                 VALUES
                 (@MessageId, @RequestType, @ReceivedAtUtc, @ProcessedAtUtc, @ExpiresAtUtc, @Response, @ErrorMessage, @RetryCount, @NextRetryAtUtc, @Metadata)";
 
-            using var command = _connection.CreateCommand();
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@MessageId", message.MessageId);
             AddParameter(command, "@RequestType", message.RequestType);
@@ -112,7 +118,7 @@ public sealed class InboxStoreADO : IInboxStore
             AddParameter(command, "@NextRetryAtUtc", message.NextRetryAtUtc);
             AddParameter(command, "@Metadata", (message as InboxMessage)?.Metadata);
 
-            if (_connection.State != ConnectionState.Open)
+            if (lease.Connection.State != ConnectionState.Open)
                 await OpenConnectionAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
@@ -129,6 +135,7 @@ public sealed class InboxStoreADO : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
             var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
             var sql = $@"
                 UPDATE {_tableName}
@@ -137,17 +144,49 @@ public sealed class InboxStoreADO : IInboxStore
                     errormessage = NULL
                 WHERE messageid = @MessageId";
 
-            using var command = _connection.CreateCommand();
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@MessageId", messageId);
             AddParameter(command, "@Response", response);
             AddParameter(command, "@NowUtc", nowUtc);
 
-            if (_connection.State != ConnectionState.Open)
+            if (lease.Connection.State != ConnectionState.Open)
                 await OpenConnectionAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "inbox.mark_processed_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, Unit>> CacheHandlerErrorAsync(
+        string messageId,
+        string response,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            using var lease = await DbLease.IndependentAsync(_connection, _transactionAccessor, cancellationToken);
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            var sql = $@"
+                UPDATE {_tableName}
+                SET processedatutc = @NowUtc,
+                    response = @Response,
+                    errormessage = NULL
+                WHERE messageid = @MessageId";
+
+            using var command = lease.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, "@MessageId", messageId);
+            AddParameter(command, "@Response", response);
+            AddParameter(command, "@NowUtc", nowUtc);
+
+            if (lease.Connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
+
+            await ExecuteNonQueryAsync(command, cancellationToken);
+        }, "inbox.cache_handler_error_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -162,6 +201,7 @@ public sealed class InboxStoreADO : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
+            using var lease = await DbLease.IndependentAsync(_connection, _transactionAccessor, cancellationToken);
             var sql = $@"
                 UPDATE {_tableName}
                 SET errormessage = @ErrorMessage,
@@ -169,13 +209,13 @@ public sealed class InboxStoreADO : IInboxStore
                     nextretryatutc = @NextRetryAtUtc
                 WHERE messageid = @MessageId";
 
-            using var command = _connection.CreateCommand();
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@MessageId", messageId);
             AddParameter(command, "@ErrorMessage", errorMessage);
             AddParameter(command, "@NextRetryAtUtc", nextRetryAtUtc);
 
-            if (_connection.State != ConnectionState.Open)
+            if (lease.Connection.State != ConnectionState.Open)
                 await OpenConnectionAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
@@ -192,6 +232,7 @@ public sealed class InboxStoreADO : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
             var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
             var sql = $@"
                 SELECT messageid, requesttype, receivedatutc, processedatutc, expiresatutc, response, errormessage, retrycount, nextretryatutc, metadata
@@ -201,14 +242,14 @@ public sealed class InboxStoreADO : IInboxStore
                 ORDER BY expiresatutc
                 LIMIT @BatchSize";
 
-            using var command = _connection.CreateCommand();
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@BatchSize", batchSize);
             AddParameter(command, "@NowUtc", nowUtc);
 
             var messages = new List<InboxMessage>();
 
-            if (_connection.State != ConnectionState.Open)
+            if (lease.Connection.State != ConnectionState.Open)
                 await OpenConnectionAsync(cancellationToken);
 
             using var reader = await ExecuteReaderAsync(command, cancellationToken);
@@ -254,15 +295,16 @@ public sealed class InboxStoreADO : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
             var idList = string.Join(",", messageIds.Select(id => $"'{id.Replace("'", "''", StringComparison.Ordinal)}'"));
             var sql = $@"
                 DELETE FROM {_tableName}
                 WHERE messageid IN ({idList})";
 
-            using var command = _connection.CreateCommand();
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
 
-            if (_connection.State != ConnectionState.Open)
+            if (lease.Connection.State != ConnectionState.Open)
                 await OpenConnectionAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);

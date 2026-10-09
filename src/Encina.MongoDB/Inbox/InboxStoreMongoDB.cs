@@ -112,6 +112,32 @@ public sealed class InboxStoreMongoDB : IInboxStore
     }
 
     /// <inheritdoc />
+    public async Task<Either<EncinaError, Unit>> CacheHandlerErrorAsync(string messageId, string response, CancellationToken cancellationToken = default)
+    {
+        // MongoDB writes are immediate and have no pipeline transaction to leave, so this is the same write as MarkAsProcessedAsync.
+        ArgumentException.ThrowIfNullOrEmpty(messageId);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
+            var update = Builders<InboxMessage>.Update
+                .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime)
+                .Set(m => m.Response, response);
+
+            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            if (result.ModifiedCount == 0)
+            {
+                Log.InboxMessageNotFoundForProcessed(_logger, messageId);
+            }
+            else
+            {
+                Log.MarkedInboxMessageAsProcessed(_logger, messageId);
+            }
+        }, "inbox.cache_handler_error_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         string messageId,
         string errorMessage,

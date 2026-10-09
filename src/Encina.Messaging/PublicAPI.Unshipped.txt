@@ -157,7 +157,22 @@ static Encina.Messaging.MessagingLog.TransactionStarted(Microsoft.Extensions.Log
 static Encina.Messaging.MessagingLog.TransactionCommitted(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
 static Encina.Messaging.MessagingLog.TransactionRolledBack(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
 Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>
-Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPipelineBehavior(System.Data.IDbConnection! connection) -> void
+Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPipelineBehavior(System.Data.IDbConnection! connection, Encina.Messaging.IDbTransactionAccessor? transactionAccessor = null) -> void
+Encina.Messaging.DbLease
+Encina.Messaging.DbLease.Connection.get -> System.Data.IDbConnection!
+Encina.Messaging.DbLease.CreateCommand() -> System.Data.IDbCommand!
+Encina.Messaging.DbLease.Dispose() -> void
+Encina.Messaging.DbLease.Transaction.get -> System.Data.IDbTransaction?
+static Encina.Messaging.DbLease.Enlisted(System.Data.IDbConnection! connection, Encina.Messaging.IDbTransactionAccessor? accessor) -> Encina.Messaging.DbLease!
+static Encina.Messaging.DbLease.IndependentAsync(System.Data.IDbConnection! connection, Encina.Messaging.IDbTransactionAccessor? accessor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Encina.Messaging.DbLease!>!
+Encina.Messaging.DbTransactionAccessor
+Encina.Messaging.DbTransactionAccessor.Current.get -> System.Data.IDbTransaction?
+Encina.Messaging.DbTransactionAccessor.Current.set -> void
+Encina.Messaging.DbTransactionAccessor.DbTransactionAccessor() -> void
+Encina.Messaging.IDbTransactionAccessor
+Encina.Messaging.IDbTransactionAccessor.Current.get -> System.Data.IDbTransaction?
+Encina.Messaging.IDbTransactionAccessor.Current.set -> void
+Encina.Messaging.Inbox.IInboxStore.CacheHandlerErrorAsync(string! messageId, string! response, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
 Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 static Encina.Messaging.MessagingServiceCollectionExtensions.AddMessagingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Encina.Messaging.MessagingConfiguration! config) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Messaging.MessagingServiceCollectionExtensions.AddMessagingServicesCore<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TOutboxProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Encina.Messaging.MessagingConfiguration! config) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

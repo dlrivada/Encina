@@ -127,6 +127,24 @@ public sealed class FakeInboxStore : IInboxStore
     }
 
     /// <inheritdoc />
+    public Task<Either<EncinaError, Unit>> CacheHandlerErrorAsync(string messageId, string response, CancellationToken cancellationToken = default)
+    {
+        if (_messages.TryGetValue(messageId, out var message))
+        {
+            message.ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            message.Response = response;
+            message.ErrorMessage = null;
+
+            lock (_lock)
+            {
+                _processedMessageIds.Add(messageId);
+            }
+        }
+
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
+    }
+
+    /// <inheritdoc />
     public Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         string messageId,
         string errorMessage,

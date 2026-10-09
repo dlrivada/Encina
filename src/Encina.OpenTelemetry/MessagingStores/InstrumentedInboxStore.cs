@@ -72,6 +72,19 @@ internal sealed class InstrumentedInboxStore : IInboxStore
     }
 
     /// <inheritdoc />
+    public async Task<Either<EncinaError, Unit>> CacheHandlerErrorAsync(
+        string messageId,
+        string response,
+        CancellationToken cancellationToken = default)
+    {
+        using var activity = StartCacheHandlerError(messageId);
+        var result = await _inner.CacheHandlerErrorAsync(messageId, response, cancellationToken).ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
+    }
+
+    /// <inheritdoc />
     public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         string messageId,
         string errorMessage,
@@ -152,6 +165,18 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         }
 
         var activity = Source.StartActivity("encina.inbox.mark_processed", ActivityKind.Internal);
+        activity?.SetTag("inbox.message_id", messageId);
+        return activity;
+    }
+
+    private static Activity? StartCacheHandlerError(string messageId)
+    {
+        if (!Source.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = Source.StartActivity("encina.inbox.cache_handler_error", ActivityKind.Internal);
         activity?.SetTag("inbox.message_id", messageId);
         return activity;
     }
