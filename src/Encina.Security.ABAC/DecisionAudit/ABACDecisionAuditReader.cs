@@ -26,23 +26,19 @@ internal sealed class ABACDecisionAuditReader : IABACDecisionAuditReader
 
     private readonly IServiceProvider _serviceProvider;
     private readonly IOptions<ABACOptions> _options;
-    private readonly TimeProvider _timeProvider;
     private readonly ILogger<ABACDecisionAuditReader> _logger;
 
     public ABACDecisionAuditReader(
         IServiceProvider serviceProvider,
         IOptions<ABACOptions> options,
-        TimeProvider timeProvider,
         ILogger<ABACDecisionAuditReader> logger)
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
         _serviceProvider = serviceProvider;
         _options = options;
-        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -83,14 +79,10 @@ internal sealed class ABACDecisionAuditReader : IABACDecisionAuditReader
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(destination);
 
-        // The end of the range is pinned before the first page, so decisions recorded while the
-        // export runs cannot shift the pages; the tenant gate runs (and logs) once per export.
-        var pinned = query with
-        {
-            PageNumber = 1,
-            PageSize = OperationAuditQuery.MaxPageSize,
-            ToUtc = query.ToUtc ?? _timeProvider.GetUtcNow().UtcDateTime
-        };
+        // The tenant gate runs (and logs) once per export. The range is not pinned here: the Marten
+        // store rejects a UTC DateTime filter (follow-up issue), so a caller that needs a stable
+        // export under live writes sets ToUtc itself.
+        var pinned = query with { PageNumber = 1, PageSize = OperationAuditQuery.MaxPageSize };
 
         return await Validate(pinned)
             .Bind(_ => ResolveTenant(pinned.TenantId))

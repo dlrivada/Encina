@@ -63,7 +63,6 @@ public sealed class ABACDecisionAuditReaderTests
         return new ABACDecisionAuditReader(
             services.BuildServiceProvider().CreateScope().ServiceProvider,
             Options.Create(options),
-            new Microsoft.Extensions.Time.Testing.FakeTimeProvider(Base.AddHours(1)),
             new FakeLogger<ABACDecisionAuditReader>(_logs));
     }
 
@@ -366,18 +365,6 @@ public sealed class ABACDecisionAuditReaderTests
         first.RootElement.GetProperty("outcome").GetString().ShouldBe("Success");
         first.RootElement.GetProperty("requestType").GetString().ShouldBe("GetOrderQuery");
         lines.Select(line => JsonDocument.Parse(line).RootElement.GetProperty("decisionId").GetGuid()).Distinct().Count().ShouldBe(total);
-    }
-
-    [Fact]
-    public async Task ExportAsync_WithoutAnEnd_StopsAtTheMomentItStarts()
-    {
-        await SeedAsync(null, minutes: 0);
-        await SeedAsync(null, minutes: 120); // after the reader's clock (Base + 1 h)
-        using var stream = new MemoryStream();
-
-        var result = await Reader().ExportAsync(new ABACDecisionAuditQuery(), stream);
-
-        result.Match(Right: count => count, Left: _ => -1).ShouldBe(1);
     }
 
     [Fact]

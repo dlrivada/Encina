@@ -46,8 +46,8 @@ public interface IABACDecisionAuditReader
     /// <paramref name="destination"/> as JSON Lines (UTF-8, one <see cref="ABACDecisionAuditRecord"/>
     /// per line, schema <see cref="ABACDecisionAuditSchema.SchemaVersion"/>), reading pages of
     /// <see cref="OperationAuditQuery.MaxPageSize"/>. The paging of <paramref name="query"/> is ignored.
-    /// When <see cref="ABACDecisionAuditQuery.ToUtc"/> is not set, the export ends at the moment it
-    /// starts, so decisions recorded while it runs cannot shift the pages.
+    /// Pages are read newest first: set <see cref="ABACDecisionAuditQuery.ToUtc"/> to export a stable
+    /// range while decisions are still being recorded, or a new decision can shift a page and repeat a line.
     /// </summary>
     /// <param name="query">The filters.</param>
     /// <param name="destination">The writable stream that receives the lines; it is not closed.</param>

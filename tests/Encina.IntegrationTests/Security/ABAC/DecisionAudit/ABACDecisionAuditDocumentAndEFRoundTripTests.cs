@@ -126,7 +126,10 @@ public sealed class ABACDecisionAuditMartenRoundTripTests(MartenFixture fixture)
             new ConfigureMartenOperationAuditProjections(_auditOptions, NullLoggerFactory.Instance).Configure(options);
         });
 
+        // A clean schema with every table the store and the projection use created up front, so a
+        // read never races the projection's lazy table creation.
         await _store.Advanced.Clean.CompletelyRemoveAllAsync();
+        await _store.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
         _daemon = await _store.BuildProjectionDaemonAsync();
         await _daemon.StartAllAsync();
     }
