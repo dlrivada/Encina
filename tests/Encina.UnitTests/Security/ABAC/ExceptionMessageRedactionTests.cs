@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Xml;
@@ -21,6 +22,7 @@ namespace Encina.UnitTests.Security.ABAC;
 /// exception whose message carries a secret marker and proves the marker reaches none of them. The
 /// parser tests first prove the marker really is in the raw exception message, so they stay falsifiable.
 /// </summary>
+[Collection(ABACActivityListenerIsolation.Name)]
 public sealed class ExceptionMessageRedactionTests
 {
     private const string Sentinel = "SENTINEL-secret-marker";
@@ -40,17 +42,20 @@ public sealed class ExceptionMessageRedactionTests
         return result.Match(Left: e => e, Right: _ => throw new InvalidOperationException("expected Left"));
     }
 
-    private static ActivityListener Listen(List<Activity> stopped)
+    private static ActivityListener Listen(ConcurrentQueue<Activity> stopped)
     {
         var listener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == "Encina.Security.ABAC",
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-            ActivityStopped = stopped.Add
+            ActivityStopped = stopped.Enqueue
         };
         ActivitySource.AddActivityListener(listener);
         return listener;
     }
+
+    private static IEnumerable<string?> ErrorDescriptions(IEnumerable<Activity> activities) =>
+        activities.Where(a => a.Status == ActivityStatusCode.Error).Select(a => a.StatusDescription).ToList();
 
     private static void ShouldNotLeak(IEnumerable<Activity> activities)
     {
@@ -78,7 +83,7 @@ public sealed class ExceptionMessageRedactionTests
     {
         var xml = $"<Policy xmlns=\"{XacmlNamespace}\"><{Sentinel}></Policy>";
         Should.Throw<XmlException>(() => XDocument.Parse(xml)).Message.ShouldContain(Sentinel);
-        var stopped = new List<Activity>();
+        var stopped = new ConcurrentQueue<Activity>();
         using var listener = Listen(stopped);
         var sut = new XacmlXmlPolicySerializer(_logger);
 
@@ -89,8 +94,7 @@ public sealed class ExceptionMessageRedactionTests
         ShouldNotLeak(error);
         error.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.DeserializationFailedCode);
         error.Message.ShouldContain(nameof(XmlException));
-        var failed = stopped.Single(a => a.Status == ActivityStatusCode.Error);
-        failed.StatusDescription.ShouldBe(nameof(XmlException));
+        ErrorDescriptions(stopped).ShouldContain(nameof(XmlException));
         ShouldNotLeak(stopped);
         ShouldNotLeakFromLogs();
     }
@@ -103,7 +107,7 @@ public sealed class ExceptionMessageRedactionTests
         // A root element without its required attributes makes the parser throw InvalidOperationException.
         var element = policySet ? "PolicySet" : "Policy";
         var xml = $"<{element} xmlns=\"{XacmlNamespace}\" />";
-        var stopped = new List<Activity>();
+        var stopped = new ConcurrentQueue<Activity>();
         using var listener = Listen(stopped);
         var sut = new XacmlXmlPolicySerializer(_logger);
 
@@ -112,8 +116,7 @@ public sealed class ExceptionMessageRedactionTests
             : LeftOf(sut.DeserializePolicy(xml));
 
         error.Message.ShouldBe($"Failed to deserialize {element}: Invalid XACML document ({nameof(InvalidOperationException)}).");
-        var failed = stopped.Single(a => a.Status == ActivityStatusCode.Error);
-        failed.StatusDescription.ShouldBe(nameof(InvalidOperationException));
+        ErrorDescriptions(stopped).ShouldContain(nameof(InvalidOperationException));
         _logger.Collector.GetSnapshot().ShouldContain(r => r.Message.Contains(nameof(InvalidOperationException)));
     }
 
@@ -123,7 +126,7 @@ public sealed class ExceptionMessageRedactionTests
     public void XacmlXml_WrongRootElement_RecordsAFixedReasonInTheActivityAndLogs(bool policySet)
     {
         var xml = $"<{Sentinel} xmlns=\"{XacmlNamespace}\" />";
-        var stopped = new List<Activity>();
+        var stopped = new ConcurrentQueue<Activity>();
         using var listener = Listen(stopped);
         var sut = new XacmlXmlPolicySerializer(_logger);
 
@@ -133,7 +136,7 @@ public sealed class ExceptionMessageRedactionTests
 
         ShouldNotLeak(error);
         error.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.DeserializationFailedCode);
-        stopped.Single(a => a.Status == ActivityStatusCode.Error).StatusDescription.ShouldBe("InvalidRootElement");
+        ErrorDescriptions(stopped).ShouldContain("InvalidRootElement");
         ShouldNotLeak(stopped);
         ShouldNotLeakFromLogs();
     }

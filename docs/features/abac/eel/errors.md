@@ -68,7 +68,7 @@ Details:
 
 Runtime errors occur when a compiled expression executes against an `EELGlobals` instance.
 The `EELCompiler.EvaluateAsync` method wraps any exception thrown during `runner.Invoke`
-into `ABACErrors.InvalidCondition(expression, $"Evaluation failed: {ex.Message}")`.
+into `ABACErrors.InvalidCondition(expression, $"Evaluation failed ({ex.GetType().Name}).")`. Only the exception type name is recorded; the exception message is never copied into the error, because it can contain attribute values.
 
 The ABAC pipeline behavior does not call `EvaluateAsync`: it compiles each `[RequireCondition]` expression with `EELCompiler.CompileAsync`, invokes the cached delegate itself and catches the exception. A compile or runtime error there makes the decision Indeterminate, and the request is denied with `abac.indeterminate` in every enforcement mode, `Warn` included.
 
@@ -80,13 +80,11 @@ The ABAC pipeline behavior does not call `EvaluateAsync`: it compiles each `[Req
 
 ```
 Code:    abac.invalid_condition
-Message: Condition expression is invalid: Evaluation failed: 'System.Dynamic.ExpandoObject'
-         does not contain a definition for 'nonExistent'
+Message: Condition expression is invalid: Evaluation failed (RuntimeBinderException).
 Details:
   stage:      abac
   expression: user.nonExistent == "x"
-  reason:     Evaluation failed: 'System.Dynamic.ExpandoObject' does not contain a
-              definition for 'nonExistent'
+  reason:     Evaluation failed (RuntimeBinderException).
 ```
 
 ### Common Runtime Exception Types
@@ -151,8 +149,10 @@ EEL expressions:
 
 ## Debugging Tips
 
-1. **Read the `reason` field.** Every `abac.invalid_condition` error includes the Roslyn
-   diagnostic or exception message in `Details["reason"]`.
+1. **Read the `reason` field.** For a compilation error it carries the Roslyn diagnostic
+   with its position. For a runtime error it carries only the exception type name
+   (for example `Evaluation failed (RuntimeBinderException).`), never the exception
+   message; match the type against the table above to find the cause.
 
 2. **Check the `expression` field.** The full expression string is preserved in
    `Details["expression"]` for logging and diagnostics.
