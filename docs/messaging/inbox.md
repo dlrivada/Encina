@@ -95,7 +95,7 @@ The EF Core MySQL variant has its integration tests skipped until Pomelo support
 
 ## The inbox and the business transaction
 
-A request can run inside a business transaction (the Transaction pattern: `TransactionPipelineBehavior`, registered before the inbox behavior), which rolls back on a `Left` or an exception. `IInboxStore` therefore splits its writes in two kinds, so that the processed mark follows the business effect while the failure records survive the rollback ([ADR-048](../architecture/adr/048-inbox-record-vs-business-transaction.md)):
+A request can run inside a business transaction (the Transaction pattern: `TransactionPipelineBehavior`, registered before the inbox behavior in `AddMessagingServices`, `AddMessagingServicesCore` and the EF Core registration), which rolls back on a `Left` or an exception. `IInboxStore` therefore splits its writes in two kinds, so that the processed mark follows the business effect while the failure records survive the rollback ([ADR-048](../architecture/adr/048-inbox-record-vs-business-transaction.md)):
 
 | Kind | `IInboxStore` methods | Behavior |
 |---|---|---|
@@ -106,7 +106,7 @@ A request can run inside a business transaction (the Transaction pattern: `Trans
 
 | Family | Mechanism |
 |---|---|
-| ADO.NET, Dapper | The store reads the open transaction from `IDbTransactionAccessor` through `DbLease`. Enlisted writes use it; independent writes use the shared connection when no transaction is open and otherwise an opened clone of the connection. The connection must implement `ICloneable` (`SqlConnection`, `NpgsqlConnection` and `MySqlConnection` do); a wrapper that does not makes the independent write fail with a `Left`. |
+| ADO.NET, Dapper | The store reads the open transaction from `IDbTransactionAccessor` through `DbLease`. Enlisted writes use it; independent writes use the shared connection when no transaction is open and otherwise an opened clone of the connection. A connection that decorates another one implements `IWrappedDbConnection` and exposes it as `InnerConnection` (the module-isolation `SchemaValidatingConnection` does); `DbLease` follows the chain to find the business transaction and clones the innermost connection. The innermost connection must implement `ICloneable` (`SqlConnection`, `NpgsqlConnection` and `MySqlConnection` do) and every decorator must implement `IWrappedDbConnection`; otherwise the independent write fails with a `Left`. |
 | EF Core | Independent writes run on an isolated `DbContext` built from the injected context's options, with its own connection. `MarkAsProcessedAsync` runs on the injected context and joins its current transaction. Relational providers use `ExecuteUpdate`, so `RetryCount + 1` is atomic. |
 | MongoDB | The pipeline has no business transaction, so every write is immediate. |
 
