@@ -80,6 +80,10 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             RequestTypeName = typeof(TRequest).Name
         };
 
+        // Matched to this very request (reference or value), so an outer behavior that re-enters the
+        // pipeline keeps one chain while a nested send of another request never inherits it.
+        var redispatch = DelayedRetryRedispatch.For(request);
+
         // Try initial execution + immediate retries
         var result = await ExecuteWithImmediateRetriesAsync(
             recoverabilityContext,
@@ -92,54 +96,101 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             return result;
         }
 
+        return await HandleFailureAsync(request, context.CorrelationId, result, recoverabilityContext, redispatch, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> HandleFailureAsync(
+        TRequest request,
+        string correlationId,
+        Either<EncinaError, TResponse> result,
+        RecoverabilityContext recoverabilityContext,
+        DelayedRetryRedispatch? redispatch,
+        CancellationToken cancellationToken)
+    {
+        // A delayed-retry re-dispatch starts no new chain: the processor decides attempt N+1 or
+        // permanent failure from the outcome and the classification reported here (#2083).
+        if (redispatch is not null)
+        {
+            redispatch.Report(recoverabilityContext);
+            return result;
+        }
+
         // If error is permanent, skip delayed retries
         if (recoverabilityContext.LastClassification == ErrorClassification.Permanent)
         {
-            RecoverabilityLog.PermanentErrorDetected(
-                _logger,
-                context.CorrelationId,
-                typeof(TRequest).Name,
-                recoverabilityContext.LastError?.GetCode().IfNone(RecoverabilityConstants.Unknown) ?? RecoverabilityConstants.Unknown);
-
+            LogPermanentErrorDetected(correlationId, recoverabilityContext);
             await HandlePermanentFailureAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
             return result;
         }
 
         // Schedule delayed retry if enabled and scheduler is available
-        if (_options.EnableDelayedRetries && _delayedRetryScheduler is not null && _options.DelayedRetries.Length > 0)
+        if (_delayedRetryScheduler is not null && CanScheduleDelayedRetry
+            && await ScheduleFirstDelayedRetryAsync(_delayedRetryScheduler, request, recoverabilityContext, cancellationToken).ConfigureAwait(false))
         {
-            var firstDelayedRetryDelay = GetDelayWithJitter(_options.DelayedRetries[0]);
+            // Return error but note that delayed retry is scheduled
+            return Either<EncinaError, TResponse>.Left(
+                EncinaError.New($"[{RecoverabilityErrorCodes.DelayedRetryScheduled}] Immediate retries exhausted. Delayed retry scheduled."));
+        }
 
-            RecoverabilityLog.SchedulingDelayedRetry(
-                _logger,
-                context.CorrelationId,
-                typeof(TRequest).Name,
-                1,
-                _options.DelayedRetries.Length,
-                firstDelayedRetryDelay);
+        // Not scheduled (disabled, or the schedule failed so the message would be lost): fail permanently.
 
-            var scheduleResult = await _delayedRetryScheduler.ScheduleRetryAsync(
+        // No delayed retries - permanent failure
+        await HandlePermanentFailureAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
+        return result;
+    }
+
+    private void LogPermanentErrorDetected(string correlationId, RecoverabilityContext recoverabilityContext) =>
+        RecoverabilityLog.PermanentErrorDetected(
+            _logger,
+            correlationId,
+            typeof(TRequest).Name,
+            recoverabilityContext.LastError?.GetCode().IfNone(RecoverabilityConstants.Unknown) ?? RecoverabilityConstants.Unknown);
+
+    private bool CanScheduleDelayedRetry => _options.EnableDelayedRetries && _options.DelayedRetries.Length > 0;
+
+    private async ValueTask<bool> ScheduleFirstDelayedRetryAsync(
+        IDelayedRetryScheduler scheduler,
+        TRequest request,
+        RecoverabilityContext recoverabilityContext,
+        CancellationToken cancellationToken)
+    {
+        var correlationId = recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown;
+        var firstDelayedRetryDelay = GetDelayWithJitter(_options.DelayedRetries[0]);
+
+        RecoverabilityLog.SchedulingDelayedRetry(
+            _logger,
+            correlationId,
+            typeof(TRequest).Name,
+            1,
+            _options.DelayedRetries.Length,
+            firstDelayedRetryDelay);
+
+        Either<EncinaError, Unit> scheduleResult;
+        try
+        {
+            scheduleResult = await scheduler.ScheduleRetryAsync(
                 request,
                 recoverabilityContext,
                 firstDelayedRetryDelay,
                 0,
                 cancellationToken).ConfigureAwait(false);
-
-            scheduleResult.IfLeft(error =>
-                RecoverabilityLog.SchedulingDelayedRetryFailed(
-                    _logger,
-                    recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
-                    typeof(TRequest).Name,
-                    error.GetCode().IfNone(RecoverabilityConstants.Unknown)));
-
-            // Return error but note that delayed retry is scheduled
-            return Either<EncinaError, TResponse>.Left(
-                EncinaError.New($"[{RecoverabilityErrorCodes.DelayedRetryScheduled}] Immediate retries exhausted. Delayed retry scheduled in {firstDelayedRetryDelay.TotalSeconds:F0}s."));
+        }
+        catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
+        {
+            // A throwing scheduler is a failed schedule, never a silent loss. Only the exception
+            // type is kept: its message can carry personal data.
+            RecoverabilityLog.SchedulingDelayedRetryThrew(_logger, ex.ForLogging(), correlationId, typeof(TRequest).Name);
+            return false;
         }
 
-        // No delayed retries - permanent failure
-        await HandlePermanentFailureAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
-        return result;
+        scheduleResult.IfLeft(error =>
+            RecoverabilityLog.SchedulingDelayedRetryFailed(
+                _logger,
+                correlationId,
+                typeof(TRequest).Name,
+                error.GetCode().IfNone(RecoverabilityConstants.Unknown)));
+
+        return scheduleResult.IsRight;
     }
 
     private async ValueTask<Either<EncinaError, TResponse>> ExecuteWithImmediateRetriesAsync(
@@ -267,7 +318,8 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         int attempt)
     {
         var duration = _timeProvider.GetUtcNow().UtcDateTime - startTime;
-        var error = EncinaError.New(ex, $"[{RecoverabilityErrorCodes.ExceptionThrown}] {ex.Message}");
+        // Only the exception type: its message can carry personal data (AGENTS.md section 3).
+        var error = EncinaErrors.Create(RecoverabilityErrorCodes.ExceptionThrown, ex.GetType().Name, ex);
         var classification = _errorClassifier.Classify(error, ex);
 
         recoverabilityContext.RecordFailedAttempt(error, ex, classification, duration);
@@ -523,4 +575,11 @@ internal static partial class RecoverabilityLog
         Message = "[{CorrelationId}] {RequestType} failed to schedule delayed retry: {ErrorCode}")]
     public static partial void SchedulingDelayedRetryFailed(
         ILogger logger, string correlationId, string requestType, string errorCode);
+
+    [LoggerMessage(
+        EventId = 5452,
+        Level = LogLevel.Error,
+        Message = "[{CorrelationId}] {RequestType} scheduling the delayed retry threw")]
+    public static partial void SchedulingDelayedRetryThrew(
+        ILogger logger, Exception ex, string correlationId, string requestType);
 }

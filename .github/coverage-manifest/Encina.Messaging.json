@@ -661,7 +661,27 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 85, "guard": 5 },
+      "justifications": {
+        "unit": "Chain tests drive the processor through every delayed retry and a permanent error (measured 90%); the reflection scheduling fallbacks for an unresolvable type stay uncovered.",
+        "guard": "Only the constructor guards exist for this type; the processing loop takes no caller parameters (measured 6%)."
+      }
+    },
+    "Recoverability/DelayedRetryRedispatch.cs": {
+      "defaultTests": [
+        "unit",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal ambient marker for a delayed-retry re-dispatch",
+      "targets": { "unit": 95, "property": 95, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "Chain and marker tests execute every line (measured 100%).",
+        "property": "FsCheck properties cover marker binding, reporting and disposal (measured 100%).",
+        "guard": "Internal type; GuardTests has no InternalsVisibleTo for this package and Begin's null check is exercised by the unit tests.",
+        "contract": "Internal type with no public contract."
+      }
     },
     "Recoverability/DelayedRetryScheduler.cs": {
       "defaultTests": [
@@ -703,7 +723,14 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "contract": 70, "property": 45, "guard": 0 },
+      "justifications": {
+        "unit": "Every line runs through the behavior, processor and chain tests (measured 100%).",
+        "contract": "Contract tests exercise the public surface (measured 74%).",
+        "property": "A property covers RestoreChain and the delayed counter; the rest is unit-tested (measured 48%).",
+        "guard": "The only public constructor parameter is an optional TimeProvider; RestoreChain is internal, so no guard applies."
+      }
     },
     "Recoverability/RecoverabilityOptions.cs": {
       "defaultTests": [
@@ -719,7 +746,13 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 95, "guard": 5, "contract": 65 },
+      "justifications": {
+        "unit": "Unit tests cover immediate retries, delayed scheduling, permanent failure and the re-dispatch marker (measured 100%).",
+        "guard": "Only constructor guards exist (measured 6%); Handle takes the pipeline-supplied arguments.",
+        "contract": "Contract tests cover the pipeline behavior contract (measured 67%)."
+      }
     },
     "Recoverability/RecoverabilityServiceCollectionExtensions.cs": {
       "defaultTests": [
