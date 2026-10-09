@@ -91,25 +91,9 @@ public sealed class InboxStoreMongoDB : IInboxStore
     {
         ArgumentException.ThrowIfNullOrEmpty(messageId);
 
-        return await EitherHelpers.TryAsync(async () =>
-        {
-            var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
-            var update = Builders<InboxMessage>.Update
-                .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime)
-                .Set(m => m.Response, response)
-                .Unset(m => m.ErrorMessage);
-
-            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-            if (result.ModifiedCount == 0)
-            {
-                Log.InboxMessageNotFoundForProcessed(_logger, messageId);
-            }
-            else
-            {
-                Log.MarkedInboxMessageAsProcessed(_logger, messageId);
-            }
-        }, "inbox.mark_processed_failed").ConfigureAwait(false);
+        return await EitherHelpers.TryAsync(
+            async () => await SetProcessedAsync(messageId, response, cancellationToken).ConfigureAwait(false),
+            "inbox.mark_processed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -118,25 +102,9 @@ public sealed class InboxStoreMongoDB : IInboxStore
         // MongoDB writes are immediate and have no pipeline transaction to leave, so this is the same write as MarkAsProcessedAsync.
         ArgumentException.ThrowIfNullOrEmpty(messageId);
 
-        return await EitherHelpers.TryAsync(async () =>
-        {
-            var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
-            var update = Builders<InboxMessage>.Update
-                .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime)
-                .Set(m => m.Response, response)
-                .Unset(m => m.ErrorMessage);
-
-            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-            if (result.ModifiedCount == 0)
-            {
-                Log.InboxMessageNotFoundForProcessed(_logger, messageId);
-            }
-            else
-            {
-                Log.MarkedInboxMessageAsProcessed(_logger, messageId);
-            }
-        }, "inbox.cache_handler_error_failed").ConfigureAwait(false);
+        return await EitherHelpers.TryAsync(
+            async () => await SetProcessedAsync(messageId, response, cancellationToken).ConfigureAwait(false),
+            "inbox.cache_handler_error_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -218,5 +186,29 @@ public sealed class InboxStoreMongoDB : IInboxStore
     {
         // MongoDB operations are immediately persisted, no SaveChanges needed
         return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+    }
+
+    /// <summary>
+    /// Marks the message as processed with its response and clears any recorded error.
+    /// Shared by <see cref="MarkAsProcessedAsync"/> and <see cref="CacheHandlerErrorAsync"/>.
+    /// </summary>
+    private async Task SetProcessedAsync(string messageId, string response, CancellationToken cancellationToken)
+    {
+        var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
+        var update = Builders<InboxMessage>.Update
+            .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime)
+            .Set(m => m.Response, response)
+            .Unset(m => m.ErrorMessage);
+
+        var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        if (result.ModifiedCount == 0)
+        {
+            Log.InboxMessageNotFoundForProcessed(_logger, messageId);
+        }
+        else
+        {
+            Log.MarkedInboxMessageAsProcessed(_logger, messageId);
+        }
     }
 }

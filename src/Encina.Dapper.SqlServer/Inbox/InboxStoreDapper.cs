@@ -54,7 +54,7 @@ public sealed class InboxStoreDapper : IInboxStore
                 WHERE MessageId = @MessageId";
 
             using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
-            var result = await lease.Connection.QuerySingleOrDefaultAsync<InboxMessage>(sql, new { MessageId = messageId }, lease.Transaction);
+            var result = await lease.Connection.QuerySingleOrDefaultAsync<InboxMessage>(new CommandDefinition(sql, new { MessageId = messageId }, lease.Transaction, cancellationToken: cancellationToken));
 
             return result is not null
                 ? Option<IInboxMessage>.Some(result)
@@ -77,7 +77,7 @@ public sealed class InboxStoreDapper : IInboxStore
                 (@MessageId, @RequestType, @ReceivedAtUtc, @ProcessedAtUtc, @ExpiresAtUtc, @Response, @ErrorMessage, @RetryCount, @NextRetryAtUtc, @Metadata)";
 
             using var lease = await DbLease.IndependentAsync(_connection, _transactionAccessor, cancellationToken);
-            await lease.Connection.ExecuteAsync(sql, message, lease.Transaction);
+            await lease.Connection.ExecuteAsync(new CommandDefinition(sql, message, lease.Transaction, cancellationToken: cancellationToken));
         }, "inbox.add_failed").ConfigureAwait(false);
     }
 
@@ -101,7 +101,7 @@ public sealed class InboxStoreDapper : IInboxStore
                 WHERE MessageId = @MessageId";
 
             using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
-            await lease.Connection.ExecuteAsync(sql, new { MessageId = messageId, Response = response, NowUtc = nowUtc }, lease.Transaction);
+            await lease.Connection.ExecuteAsync(new CommandDefinition(sql, new { MessageId = messageId, Response = response, NowUtc = nowUtc }, lease.Transaction, cancellationToken: cancellationToken));
         }, "inbox.mark_processed_failed").ConfigureAwait(false);
     }
 
@@ -124,7 +124,7 @@ public sealed class InboxStoreDapper : IInboxStore
                 WHERE MessageId = @MessageId";
 
             using var lease = await DbLease.IndependentAsync(_connection, _transactionAccessor, cancellationToken);
-            await lease.Connection.ExecuteAsync(sql, new { MessageId = messageId, Response = response, NowUtc = nowUtc }, lease.Transaction);
+            await lease.Connection.ExecuteAsync(new CommandDefinition(sql, new { MessageId = messageId, Response = response, NowUtc = nowUtc }, lease.Transaction, cancellationToken: cancellationToken));
         }, "inbox.cache_handler_error_failed").ConfigureAwait(false);
     }
 
@@ -149,7 +149,7 @@ public sealed class InboxStoreDapper : IInboxStore
                 WHERE MessageId = @MessageId";
 
             using var lease = await DbLease.IndependentAsync(_connection, _transactionAccessor, cancellationToken);
-            await lease.Connection.ExecuteAsync(
+            await lease.Connection.ExecuteAsync(new CommandDefinition(
                 sql,
                 new
                 {
@@ -157,7 +157,8 @@ public sealed class InboxStoreDapper : IInboxStore
                     ErrorMessage = errorMessage,
                     NextRetryAtUtc = nextRetryAtUtc
                 },
-                lease.Transaction);
+                lease.Transaction,
+                cancellationToken: cancellationToken));
         }, "inbox.mark_failed_failed").ConfigureAwait(false);
     }
 
@@ -180,7 +181,7 @@ public sealed class InboxStoreDapper : IInboxStore
                 ORDER BY ExpiresAtUtc";
 
             using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
-            var messages = await lease.Connection.QueryAsync<InboxMessage>(sql, new { BatchSize = batchSize, NowUtc = nowUtc }, lease.Transaction);
+            var messages = await lease.Connection.QueryAsync<InboxMessage>(new CommandDefinition(sql, new { BatchSize = batchSize, NowUtc = nowUtc }, lease.Transaction, cancellationToken: cancellationToken));
             return messages.Cast<IInboxMessage>();
         }, "inbox.get_expired_failed").ConfigureAwait(false);
     }
@@ -204,7 +205,7 @@ public sealed class InboxStoreDapper : IInboxStore
                 WHERE MessageId IN @MessageIds";
 
             using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
-            await lease.Connection.ExecuteAsync(sql, new { MessageIds = messageIds }, lease.Transaction);
+            await lease.Connection.ExecuteAsync(new CommandDefinition(sql, new { MessageIds = messageIds }, lease.Transaction, cancellationToken: cancellationToken));
         }, "inbox.remove_expired_failed").ConfigureAwait(false);
     }
 
