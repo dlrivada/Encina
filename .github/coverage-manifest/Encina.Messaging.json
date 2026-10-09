@@ -127,7 +127,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Background processor that deletes expired dead letter messages on an interval",
+      "targets": {
+        "unit": 92,
+        "guard": 14
+      },
+      "justifications": {
+        "unit": "Unit tests drive the interval loop, the disabled and enabled paths, the cleanup metrics and the store-error branch against a mocked orchestrator (measured 94.5% line coverage).",
+        "guard": "Guard tests reach the constructor null checks only; the loop body is covered by the unit flag (measured 16.4%)."
+      }
     },
     "DeadLetter/DeadLetterErrorCodes.cs": {
       "defaultTests": [],
