@@ -345,25 +345,28 @@ internal sealed class ABACRequirementEvaluator
             return (ConditionTraceId(failedCondition), null);
         }
 
-        var deciding = kind switch
-        {
-            RequirementVerdictKind.Permit => policies.FirstOrDefault(policy => policy.Outcome.Effect == Effect.Permit),
-            RequirementVerdictKind.PolicyDenied => policies.FirstOrDefault(
-                policy => policy.Outcome.Effect is Effect.Deny or Effect.NotApplicable),
-            RequirementVerdictKind.PolicyNotFound => policies.FirstOrDefault(policy => policy.Decision is null),
-            _ => policies.FirstOrDefault(policy => policy.Outcome.Effect == Effect.Indeterminate)
-        };
+        var deciding = FirstDeciding(kind, policies);
 
-        if (deciding is not null)
-        {
-            return (deciding.Outcome.PolicyId, deciding.Decision?.RuleId);
-        }
-
-        // An Indeterminate verdict without a policy comes from a condition that failed to run.
-        return (kind == RequirementVerdictKind.Indeterminate && failedCondition >= 0
-            ? ConditionTraceId(failedCondition)
-            : null, null);
+        return deciding is null
+            ? (ConditionFallback(kind, failedCondition), null)
+            : (deciding.Outcome.PolicyId, deciding.Decision?.RuleId);
     }
+
+    // An Indeterminate verdict without a policy comes from a condition that failed to run.
+    private static string? ConditionFallback(RequirementVerdictKind kind, int failedCondition) =>
+        kind == RequirementVerdictKind.Indeterminate && failedCondition >= 0
+            ? ConditionTraceId(failedCondition)
+            : null;
+
+    // crap-exempt: single-question switch — the first policy, in declaration order, that decided each kind of verdict.
+    private static EvaluatedPolicy? FirstDeciding(RequirementVerdictKind kind, List<EvaluatedPolicy> policies) => kind switch
+    {
+        RequirementVerdictKind.Permit => policies.Find(policy => policy.Outcome.Effect == Effect.Permit),
+        RequirementVerdictKind.PolicyDenied => policies.Find(
+            policy => policy.Outcome.Effect is Effect.Deny or Effect.NotApplicable),
+        RequirementVerdictKind.PolicyNotFound => policies.Find(policy => policy.Decision is null),
+        _ => policies.Find(policy => policy.Outcome.Effect == Effect.Indeterminate)
+    };
 
     private static ABACRequirementVerdict VerdictFor(
         RequirementVerdictKind kind,

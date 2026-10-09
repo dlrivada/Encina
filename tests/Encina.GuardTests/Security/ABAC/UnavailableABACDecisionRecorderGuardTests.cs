@@ -24,4 +24,26 @@ public sealed class UnavailableABACDecisionRecorderGuardTests
 
         thrown.ParamName.ShouldBe("record");
     }
+
+    [Fact]
+    public async Task RecordAsync_ValidRecord_DoesNotThrowAndReturnsTheStoreUnavailableError()
+    {
+        var recorder = Resolve();
+        var record = new ABACDecisionRecord
+        {
+            DecisionId = Guid.CreateVersion7(),
+            IdentityKind = IdentityKind.User,
+            CorrelationId = "guard",
+            RequestType = "GuardRequest",
+            EnforcedOutcome = ABACEnforcedOutcome.Granted,
+            ReasonCode = ABACDecisionAuditSchema.PermitReasonCode,
+            EnforcementMode = ABACEnforcementMode.Block,
+            StartedAtUtc = DateTimeOffset.UnixEpoch,
+            CompletedAtUtc = DateTimeOffset.UnixEpoch
+        };
+
+        var result = await recorder.RecordAsync(record);
+
+        result.IsLeft.ShouldBeTrue();
+    }
 }

@@ -45,59 +45,72 @@ internal static class ABACDecisionRecordFactory
     private const string IpAddressKey = "Encina.Audit.IpAddress";
     private const string UserAgentKey = "Encina.Audit.UserAgent";
 
-    public static ABACDecisionRecord Create(ABACDecisionInputs inputs)
-    {
-        var requirement = inputs.Requirement;
-        var decision = requirement?.Decision;
+    public static ABACDecisionRecord Create(ABACDecisionInputs inputs) =>
+        WithRequest(WithDecision(WithCaller(inputs), inputs.Requirement), inputs);
 
-        return new ABACDecisionRecord
-        {
-            DecisionId = Guid.CreateVersion7(inputs.StartedAtUtc),
-            UserId = inputs.Caller?.UserId,
-            IdentityKind = inputs.Caller?.Kind ?? IdentityKind.Anonymous,
-            TenantId = inputs.Context.TenantId,
-            CorrelationId = inputs.Context.CorrelationId,
-            ModuleId = inputs.Context.GetModuleName(),
-            IpAddress = MetadataText(inputs.Context, IpAddressKey),
-            UserAgent = MetadataText(inputs.Context, UserAgentKey),
-            RequestType = inputs.RequestType.Name,
-            ResourceId = ResolveResourceId(inputs),
-            EnforcedOutcome = inputs.Verdict.Enforced,
-            ReasonCode = inputs.Verdict.ReasonCode,
-            EnforcementMode = inputs.EnforcementMode,
-            Effect = decision?.Effect,
-            PolicyId = requirement?.DecidingPolicyId,
-            RuleId = requirement?.DecidingRuleId,
-            EvaluatedPolicies = requirement?.Trace ?? [],
-            TraceTruncated = requirement?.TraceTruncated ?? false,
-            ObligationIds = decision is null ? [] : decision.Obligations.Select(obligation => obligation.Id).ToList(),
-            AdviceIds = decision is null ? [] : decision.Advice.Select(advice => advice.Id).ToList(),
-            AttributeNames = AttributeNamesOf(inputs.Attributes),
-            RecordedValues = RecordedValuesOf(inputs.Attributes, inputs.Audit.RecordedAttributeValues),
-            StartedAtUtc = inputs.StartedAtUtc,
-            CompletedAtUtc = inputs.CompletedAtUtc
-        };
-    }
+    // Who asked and from where.
+    private static ABACDecisionRecord WithCaller(ABACDecisionInputs inputs) => new()
+    {
+        DecisionId = Guid.CreateVersion7(inputs.StartedAtUtc),
+        UserId = inputs.Caller?.UserId,
+        IdentityKind = KindOf(inputs.Caller),
+        TenantId = inputs.Context.TenantId,
+        CorrelationId = inputs.Context.CorrelationId,
+        ModuleId = inputs.Context.GetModuleName(),
+        IpAddress = MetadataText(inputs.Context, IpAddressKey),
+        UserAgent = MetadataText(inputs.Context, UserAgentKey),
+        RequestType = inputs.RequestType.Name,
+        EnforcedOutcome = inputs.Verdict.Enforced,
+        ReasonCode = inputs.Verdict.ReasonCode,
+        EnforcementMode = inputs.EnforcementMode,
+        StartedAtUtc = inputs.StartedAtUtc,
+        CompletedAtUtc = inputs.CompletedAtUtc
+    };
+
+    // What was asked of the resource: its id and the attribute names and allow-listed values.
+    private static ABACDecisionRecord WithRequest(ABACDecisionRecord record, ABACDecisionInputs inputs) => record with
+    {
+        ResourceId = ResolveResourceId(inputs),
+        AttributeNames = AttributeNamesOf(inputs.Attributes),
+        RecordedValues = RecordedValuesOf(inputs.Attributes, inputs.Audit.RecordedAttributeValues)
+    };
+
+    // What the requirement evaluation answered; nothing when no evaluation was reached.
+    private static ABACDecisionRecord WithDecision(ABACDecisionRecord record, ABACRequirementVerdict? requirement) =>
+        requirement is null
+            ? record
+            : record with
+            {
+                Effect = requirement.Decision.Effect,
+                PolicyId = requirement.DecidingPolicyId,
+                RuleId = requirement.DecidingRuleId,
+                EvaluatedPolicies = requirement.Trace,
+                TraceTruncated = requirement.TraceTruncated,
+                ObligationIds = requirement.Decision.Obligations.Select(obligation => obligation.Id).ToList(),
+                AdviceIds = requirement.Decision.Advice.Select(advice => advice.Id).ToList()
+            };
+
+    private static IdentityKind KindOf(RequestIdentity? caller) => caller?.Kind ?? IdentityKind.Anonymous;
 
     private static string? MetadataText(IRequestContext context, string key) =>
         context.Metadata.TryGetValue(key, out var value) ? value as string : null;
 
     // Only explicit ids: the request's own declaration first, then the configured resource attribute.
-    private static string? ResolveResourceId(ABACDecisionInputs inputs)
+    private static string? ResolveResourceId(ABACDecisionInputs inputs) =>
+        DeclaredResourceId(inputs.Request) ?? AttributeResourceId(inputs.Attributes, inputs.Audit.ResourceIdAttributeName);
+
+    private static string? DeclaredResourceId(object request) =>
+        request is IABACResourceIdentity { ResourceId: { Length: > 0 } declared } ? declared : null;
+
+    private static string? AttributeResourceId(ABACCollectedAttributes? attributes, string attributeName)
     {
-        if (inputs.Request is IABACResourceIdentity { ResourceId: { Length: > 0 } declared })
+        if (attributes is null || !attributes.Resource.TryGetValue(attributeName, out var value))
         {
-            return declared;
+            return null;
         }
 
-        if (inputs.Attributes is not null
-            && inputs.Attributes.Resource.TryGetValue(inputs.Audit.ResourceIdAttributeName, out var attributeValue))
-        {
-            var text = Convert.ToString(attributeValue, CultureInfo.InvariantCulture);
-            return string.IsNullOrEmpty(text) ? null : text;
-        }
-
-        return null;
+        var text = Convert.ToString(value, CultureInfo.InvariantCulture);
+        return string.IsNullOrEmpty(text) ? null : text;
     }
 
     // The names the providers supplied, per category. The built-in subject-id and identity-kind are

@@ -150,7 +150,7 @@ public sealed class ABACPipelineBehaviorTests
             Options.Create(abacOptions ?? new ABACOptions { EnforcementMode = mode }),
             recorder ?? Substitute.For<IABACDecisionRecorder>(),
             timeProvider ?? TimeProvider.System,
-            logger ??NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
+            logger ?? NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
     }
 
     /// <summary>A request context whose caller is the authenticated user <paramref name="userId"/>.</summary>
