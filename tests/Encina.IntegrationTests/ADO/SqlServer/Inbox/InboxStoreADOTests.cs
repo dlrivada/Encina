@@ -264,6 +264,22 @@ public sealed class InboxStoreADOTests : IAsyncLifetime
 
     #endregion
 
+    #region Orchestrator retry contract (#2084)
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public Task Orchestrator_HandlerAlwaysThrows_RunsHandlerMaxRetriesTimesThenRejects(int maxRetries) =>
+        global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerRunsMaxRetriesTimesAsync(
+            _store, new InboxMessageFactory(), maxRetries);
+
+    [Fact]
+    public Task Orchestrator_HandlerLeft_IsCachedAndNotRerun() =>
+        global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerLeftIsCachedAsync(
+            _store, new InboxMessageFactory());
+
+    #endregion
+
     #region MarkAsFailedAsync Tests
 
     [Fact]

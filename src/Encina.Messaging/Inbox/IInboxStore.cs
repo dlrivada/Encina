@@ -48,8 +48,11 @@ public interface IInboxStore
     Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(string messageId, string response, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Marks a message as failed.
+    /// Marks a message as failed and increments its retry count by exactly one.
     /// </summary>
+    /// <remarks>
+    /// This is the only place where <c>RetryCount</c> grows: one call per failed handler attempt.
+    /// </remarks>
     /// <param name="messageId">The message ID.</param>
     /// <param name="errorMessage">The error message.</param>
     /// <param name="nextRetryAtUtc">When to retry next (UTC).</param>

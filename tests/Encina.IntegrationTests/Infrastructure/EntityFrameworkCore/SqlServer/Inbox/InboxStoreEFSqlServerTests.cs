@@ -31,6 +31,30 @@ public sealed class InboxStoreEFSqlServerTests : IAsyncLifetime
         await _fixture.ClearAllDataAsync();
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task Orchestrator_HandlerAlwaysThrows_RunsHandlerMaxRetriesTimesThenRejects(int maxRetries)
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        var store = new InboxStoreEF(context);
+
+        await global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerRunsMaxRetriesTimesAsync(
+            store, new InboxMessageFactory(), maxRetries, () => context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task Orchestrator_HandlerLeft_IsCachedAndNotRerun()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        var store = new InboxStoreEF(context);
+
+        await global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerLeftIsCachedAsync(
+            store, new InboxMessageFactory(), () => context.SaveChangesAsync());
+    }
+
     [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()
     {

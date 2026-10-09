@@ -10,8 +10,16 @@ namespace Encina.Messaging.Inbox;
 public sealed class InboxOptions
 {
     /// <summary>
-    /// Gets or sets the maximum number of retries for failed messages.
+    /// Gets or sets the maximum number of handler attempts for a message.
     /// </summary>
+    /// <remarks>
+    /// The handler runs at most <c>MaxRetries</c> times: each attempt that throws increments the
+    /// message's <c>RetryCount</c> once (in <c>IInboxStore.MarkAsFailedAsync</c>), and when
+    /// <c>RetryCount</c> reaches <c>MaxRetries</c> the next delivery is rejected with
+    /// <c>inbox.max_retries_exceeded</c> without running the handler. With the default of 3 the handler
+    /// runs 3 times. A handler that returns a <c>Left</c> is a business outcome (ADR-001): the result is
+    /// cached as the processed response and does not consume attempts.
+    /// </remarks>
     /// <value>Default: 3</value>
     public int MaxRetries { get; set; } = 3;
 

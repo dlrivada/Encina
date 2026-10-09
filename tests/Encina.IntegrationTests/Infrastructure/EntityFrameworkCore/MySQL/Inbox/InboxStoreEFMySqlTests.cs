@@ -30,6 +30,34 @@ public sealed class InboxStoreEFMySqlTests : IAsyncLifetime
         await _fixture.ClearAllDataAsync();
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task Orchestrator_HandlerAlwaysThrows_RunsHandlerMaxRetriesTimesThenRejects(int maxRetries)
+    {
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        var store = new InboxStoreEF(context);
+
+        await global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerRunsMaxRetriesTimesAsync(
+            store, new InboxMessageFactory(), maxRetries, () => context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task Orchestrator_HandlerLeft_IsCachedAndNotRerun()
+    {
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        var store = new InboxStoreEF(context);
+
+        await global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerLeftIsCachedAsync(
+            store, new InboxMessageFactory(), () => context.SaveChangesAsync());
+    }
+
     [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()
     {

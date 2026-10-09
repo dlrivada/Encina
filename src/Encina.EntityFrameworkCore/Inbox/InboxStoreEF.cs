@@ -64,6 +64,15 @@ public sealed class InboxStoreEF : IInboxStore
         }, "inbox.add_failed").ConfigureAwait(false);
     }
 
+    // AddAsync only tracks the entity (the caller owns SaveChanges), so a query alone would not see a
+    // message added earlier in the same unit of work: the tracked entity is looked up first.
+    private async Task<InboxMessage?> FindAsync(string messageId, CancellationToken cancellationToken)
+    {
+        var set = _dbContext.Set<InboxMessage>();
+        return set.Local.FirstOrDefault(m => m.MessageId == messageId)
+            ?? await set.FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
+    }
+
     /// <inheritdoc/>
     public async Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(string messageId, string response, CancellationToken cancellationToken = default)
     {
@@ -72,8 +81,7 @@ public sealed class InboxStoreEF : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
-            var message = await _dbContext.Set<InboxMessage>()
-                .FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
+            var message = await FindAsync(messageId, cancellationToken);
 
             if (message == null)
                 return;
@@ -96,8 +104,7 @@ public sealed class InboxStoreEF : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
-            var message = await _dbContext.Set<InboxMessage>()
-                .FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
+            var message = await FindAsync(messageId, cancellationToken);
 
             if (message == null)
                 return;
