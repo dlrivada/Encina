@@ -44,14 +44,14 @@ Every metadata value is a string, so relational JSON columns, MongoDB and Marten
 | `abac.effect` | The effect the PDP answered (when an evaluation was reached) |
 | `abac.policy_id` | The deciding policy id (`condition:<index>` for an unmet condition) |
 | `abac.rule_id` | The representative decisive rule id |
-| `abac.module_id` | The module id (there is no queryable module column) |
+| `abac.module_id` | The module id (there is no queryable module column); hashed beyond 256 characters |
 | `abac.trace` | The evaluation trace as JSON (`IncludeEvaluationTrace`, at most `MaxTraceEntries` nodes) |
 | `abac.trace_truncated` | `true` when the trace is incomplete |
-| `abac.obligations`, `abac.advice` | The obligation or advice ids, each a JSON array of strings (ids chosen by policy authors may contain any character) |
+| `abac.obligations`, `abac.advice` | The obligation or advice ids, each a JSON array of strings (ids chosen by policy authors may contain any character). At most `ABACDecisionAuditSchema.MaxListedIds` (64) ids are kept per key; an id beyond 256 characters is stored as its `sha256:<64 hex>` hash |
 | `abac.attribute_names` | The attribute names by category, as JSON |
 | `abac.attr.<name>` | The value of an attribute listed in `RecordedAttributeValues` |
 | `abac.started_at_utc`, `abac.completed_at_utc` | Round-trip (`O`) timestamps of the decision |
-| `abac.hashed_fields`, `abac.dropped_fields`, `abac.truncated_fields` | Comma-separated names of the fields the [column-limit rule](#column-limit-rule) changed |
+| `abac.hashed_fields`, `abac.dropped_fields`, `abac.truncated_fields` | The names of the fields the [column-limit rule](#column-limit-rule) changed, each marker a JSON array of strings (a name containing a comma stays one entry) |
 
 ### Outcome mapping
 
@@ -80,7 +80,9 @@ A value never fails the insert. The mapper (`ABACDecisionAuditEntryMapper`) boun
 | `UserAgent` | 512 | Truncated | `abac.truncated_fields` |
 | Attribute names (`abac.attribute_names`) | 128 names in total | The list is cut | `abac.truncated_fields` |
 | Recorded attribute value (`abac.attr.<name>`) | 256 | Truncated | `abac.truncated_fields` |
-| `abac.policy_id`, `abac.rule_id` | 256 | Replaced by `sha256:<64 hex>` | `abac.hashed_fields` (named by the metadata key) |
+| `abac.policy_id`, `abac.rule_id`, `abac.module_id` | 256 | Replaced by `sha256:<64 hex>` | `abac.hashed_fields` (named by the metadata key) |
+| `abac.obligations`, `abac.advice` | 64 ids per key | The list is cut | `abac.truncated_fields` (names the key) |
+| Each id in `abac.obligations`, `abac.advice` | 256 | Replaced by `sha256:<64 hex>` | `abac.hashed_fields` (names the key) |
 | `ErrorMessage` (reason code) | 2048 | Replaced by `sha256:<64 hex>` | `abac.hashed_fields` |
 
 The reader applies the same rule to its filters, so a subject, request type, resource or tenant stored as a hash is still found by its original value.
@@ -94,7 +96,8 @@ The reader applies the same rule to its filters, so a subject, request type, res
 | Isolation | Each write runs in its own DI scope under `TransactionScope(Suppress)`, so a denied request that rolls back its unit of work keeps its record. |
 | Cancellation | The client's token is never linked to the write: a disconnect must not erase the evidence of a denied attempt. |
 | Bound | `ABACDecisionAuditOptions.WriteTimeout` (default 5 seconds, must be greater than zero, validated when the application starts). The write is also raced against the bound, so a store that ignores its token cannot hold the request. A store that observes the bound token and answers with a `Left` after the bound fired is treated as the same timeout as one that ignores the token. |
-| Idempotent re-check | When the write returns `Left`, throws or times out, the recorder looks the entry up by correlation id and decision id from a fresh scope, under a second bound of the same length. A committed entry counts as written (logged with EventId 9089). A failed write therefore holds the request for at most twice `WriteTimeout`. |
+| Idempotent re-check | When the write returns `Left`, throws or times out, the recorder looks the entry up by correlation id and decision id from a fresh scope, under a second bound of the same length. A committed entry counts as written (logged with EventId 9089). A failed write therefore holds the request for at most twice `WriteTimeout`. When the look-up fails too, the write stays unconfirmed and is logged as Debug EventId 9099 (error codes and exception types only). |
+| Abandoned write | A write abandoned at the timeout keeps running after the recorder returns and its scope is disposed. It may fail late (for example with `ObjectDisposedException` on a scoped `DbContext`; the fault is observed) or commit after the request was denied. The decision id identifies such a row. |
 | Failure result | A store `Left` is returned with the store's code and a fixed message, never the store's message or exception. An exception is rethrown for the PEP to log in its redacted form. |
 | No store | No `IOperationAuditStore` registered returns `abac.decision_audit_store_unavailable`. |
 
@@ -120,7 +123,9 @@ Marten caveat: the Marten store reads through an asynchronous projection, so the
 
 A stored entry whose metadata cannot be read back makes `QueryAsync` and `ExportAsync` return a `Left` with `abac.decision_audit_record_unreadable` (logged with EventId 9098, exception type and stack trace only), never an exception.
 
-`ExportAsync` ignores the paging of the query and reads pages of `OperationAuditQuery.MaxPageSize`. Pages are read newest first: set `ToUtc` to export a stable range while decisions are still being recorded, or a new decision can shift a page and repeat a line. Lines already written stay written when a later page fails.
+`ExportAsync` ignores the paging of the query and reads pages of `OperationAuditQuery.MaxPageSize`. Pages are read newest first: set `ToUtc` to export a stable range while decisions are still being recorded, or a new decision can shift a page and repeat a line. A failure before the first line returns its own error and writes nothing. A failure after lines were written returns `abac.decision_audit_export_incomplete` (`ABACErrors.DecisionAuditExportIncompleteCode`), whose details give `linesWritten` and `cause` (the code of the failing page): the destination holds a partial file that must be discarded.
+
+The operation audit stores order pages by timestamp only, so two decisions with the same timestamp can swap across a page boundary (one line repeated, another missing) until the stores add a unique tiebreaker (#2135). This sits beside the Marten limit in [Providers](#providers) and the live-write caveat above.
 
 `reader` below is an injected `IABACDecisionAuditReader`; `AuditOutcome` is in `Encina.Security.Audit`, the query in `Encina.Security.ABAC.DecisionAudit`. Both calls return `Either<EncinaError, T>`.
 

@@ -103,6 +103,29 @@ public sealed class ABACDecisionAuditStoreGuardTests
         Should.Throw<ArgumentNullException>(() => new ABACOptionsValidator().Validate(null, null!))
             .ParamName.ShouldBe("options");
 
+    // ── ABACErrors (decision audit reader) ───────────────────────────
+
+    [Fact]
+    public void Errors_DecisionAuditRecordUnreadable_NullCause_Throws() =>
+        Should.Throw<ArgumentNullException>(() => ABACErrors.DecisionAuditRecordUnreadable(null!))
+            .ParamName.ShouldBe("cause");
+
+    [Fact]
+    public void Errors_DecisionAuditExportIncomplete_NullCause_Throws() =>
+        Should.Throw<ArgumentNullException>(() => ABACErrors.DecisionAuditExportIncomplete(3, null!))
+            .ParamName.ShouldBe("causeCode");
+
+    [Fact]
+    public void Errors_DecisionAuditReaderFactories_ValidArguments_CarryOnlyCodes()
+    {
+        ABACErrors.DecisionAuditRecordUnreadable("JsonException").GetCode().IfNone(string.Empty)
+            .ShouldBe(ABACErrors.DecisionAuditRecordUnreadableCode);
+
+        var incomplete = ABACErrors.DecisionAuditExportIncomplete(3, "store.down");
+        incomplete.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.DecisionAuditExportIncompleteCode);
+        incomplete.GetDetails()["linesWritten"].ShouldBe(3);
+    }
+
     // ── ABACDecisionAuditEntryMapper ─────────────────────────────────
 
     [Fact]

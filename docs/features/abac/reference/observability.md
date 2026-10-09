@@ -120,7 +120,7 @@ ABACDiagnostics.RecordIndeterminate(activity, reason);
 
 ## Structured Logging
 
-All log messages use compile-time source generation via `[LoggerMessage]` for zero-allocation logging when the log level is disabled. Event IDs occupy the `9000-9099` range reserved for ABAC diagnostics. The package's EventIds are allocated inside 9000-9098; the unused ids to reuse first are 9006-9007, 9016-9019, 9023-9029, 9041-9049, 9056-9057 and 9099; 9084, 9086 and 9087 of the 9079-9090 block reserved for #751 are not allocated yet (decision audit startup check). Ids 9094-9097 come from `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096).
+All log messages use compile-time source generation via `[LoggerMessage]` for zero-allocation logging when the log level is disabled. Event IDs occupy the `9000-9099` range reserved for ABAC diagnostics. The package's EventIds are allocated inside 9000-9099 (9098 and 9099 are both used); the unused ids to reuse first are 9006-9007, 9016-9019, 9023-9029, 9041-9049 and 9056-9057; 9084, 9086 and 9087 of the 9079-9090 block reserved for #751 are not allocated yet (decision audit startup check). Ids 9094-9097 come from `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096).
 
 ### Pipeline Messages (9000-9005, 9008-9009)
 
@@ -193,6 +193,7 @@ Emitted by the Policy Enforcement Point, `AuditStoreABACDecisionRecorder` and th
 | 9089 | `Debug` | `The write of ABAC decision {DecisionId} reported a failure ({FailureCode}) but the entry is stored; the record counts as written` | `decisionId`, `failureCode` |
 | 9090 | `Warning` | `A decision audit query ran without a tenant in a multi-tenant application (AllowCrossTenantQueries is set)` | none |
 | 9098 | `Error` | `A stored ABAC decision audit entry could not be read; the query fails` | `exception` (through `ForLogging()`: type and stack trace) |
+| 9099 | `Debug` | `The write of ABAC decision {DecisionId} failed ({FailureCode}) and the look-up that would confirm it failed too ({LookupFailure}); the write stays unconfirmed` | `decisionId`, `failureCode`, `lookupFailure` (an error code or an exception type) |
 
 ### Policy Administration Messages (9094-9097)
 
@@ -376,5 +377,5 @@ abac_obligation_no_handler
 | File | Purpose |
 |------|---------|
 | `src/Encina.Security.ABAC/Diagnostics/ABACDiagnostics.cs` | Activity source, meter, counters, histograms, tag constants, recording helpers |
-| `src/Encina.Security.ABAC/Diagnostics/ABACLogMessages.cs` | `[LoggerMessage]` source-generated structured log methods (EventIds allocated inside 9000-9098, unused ids 9006-9007, 9016-9019, 9023-9029, 9041-9049, 9056-9057 and 9099; 9079-9083, 9088-9090 and 9098 are the ABAC decision audit trail (#751), 9084, 9086 and 9087 of that block are not allocated; 9094-9097 come from `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096); see [Structured Logging](#structured-logging)) |
+| `src/Encina.Security.ABAC/Diagnostics/ABACLogMessages.cs` | `[LoggerMessage]` source-generated structured log methods (EventIds allocated inside 9000-9099, unused ids 9006-9007, 9016-9019, 9023-9029, 9041-9049 and 9056-9057; 9079-9083, 9088-9090, 9098 and 9099 are the ABAC decision audit trail (#751), 9084, 9086 and 9087 of that block are not allocated; 9094-9097 come from `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096); see [Structured Logging](#structured-logging)) |
 | `src/Encina.Security.ABAC/Health/ABACHealthCheck.cs` | `IHealthCheck` implementation for PAP policy verification |
