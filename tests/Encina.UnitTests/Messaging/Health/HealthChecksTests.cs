@@ -488,6 +488,24 @@ public sealed class HealthChecksTests
     }
 
     [Fact]
+    public async Task DeadLetterHealthCheck_WhenErrorHasNoCode_ReportsUnknownCode()
+    {
+        // Arrange
+        var store = Substitute.For<IDeadLetterStore>();
+        store.GetCountAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, int>(EncinaError.New("secret detail")));
+        var healthCheck = new DeadLetterHealthCheck(store);
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Data["error_code"].ShouldBe("encina.unknown");
+        result.Description!.ShouldNotContain("secret detail");
+    }
+
+    [Fact]
     public async Task DeadLetterHealthCheck_WhenOldMessageCheckDisabled_DoesNotQueryMessages()
     {
         // Arrange

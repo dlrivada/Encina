@@ -1,6 +1,5 @@
 using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Health;
-
 using Encina.Testing.Fakes.Stores;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -58,6 +57,60 @@ public sealed class DeadLetterHealthCheckRegistrationTests
         checks.OfType<BeforeHealthCheck>().ShouldHaveSingleItem();
         checks.OfType<AfterHealthCheck>().ShouldHaveSingleItem();
         checks.OfType<DeadLetterHealthCheck>().ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public void AddEncinaDeadLetterQueue_WithHealthCheckOptions_RegistersOptionsUsedByHealthCheck()
+    {
+        // Arrange
+        var healthOptions = new DeadLetterHealthCheckOptions { PendingMessageWarningThreshold = 3 };
+        var services = new ServiceCollection();
+        services.AddEncinaDeadLetterQueue<FakeDeadLetterStore, StubFactory>(null, healthOptions);
+
+        // Act
+        using var provider = Build(services);
+        using var scope = provider.CreateScope();
+
+        // Assert
+        scope.ServiceProvider.GetRequiredService<DeadLetterHealthCheckOptions>().ShouldBeSameAs(healthOptions);
+    }
+
+    [Fact]
+    public void AddEncinaDeadLetterQueue_WithNullHealthCheckOptions_DoesNotRegisterOptions()
+    {
+        var services = new ServiceCollection();
+        services.AddEncinaDeadLetterQueue<FakeDeadLetterStore, StubFactory>(null, null);
+
+        services.Any(d => d.ServiceType == typeof(DeadLetterHealthCheckOptions)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void AddEncinaDeadLetterQueue_WithCleanupEnabled_RegistersCleanupProcessor()
+    {
+        var services = new ServiceCollection();
+        services.AddEncinaDeadLetterQueue<FakeDeadLetterStore, StubFactory>(o =>
+        {
+            o.EnableAutomaticCleanup = true;
+            o.RetentionPeriod = TimeSpan.FromDays(1);
+        });
+
+        services.Any(d => d.ImplementationType == typeof(DeadLetterCleanupProcessor)).ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void AddEncinaDeadLetterQueue_WithCleanupDisabledOrNoRetention_DoesNotRegisterCleanupProcessor(
+        bool enabled, bool hasRetention)
+    {
+        var services = new ServiceCollection();
+        services.AddEncinaDeadLetterQueue<FakeDeadLetterStore, StubFactory>(o =>
+        {
+            o.EnableAutomaticCleanup = enabled;
+            o.RetentionPeriod = hasRetention ? TimeSpan.FromDays(1) : null;
+        });
+
+        services.Any(d => d.ImplementationType == typeof(DeadLetterCleanupProcessor)).ShouldBeFalse();
     }
 
     [Fact]

@@ -23,6 +23,8 @@ public static class DeadLetterServiceCollectionExtensions
         where TStore : class, IDeadLetterStore
         where TFactory : class, IDeadLetterMessageFactory
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         var options = new DeadLetterOptions();
         configure?.Invoke(options);
 
