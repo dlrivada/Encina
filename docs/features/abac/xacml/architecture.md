@@ -203,7 +203,7 @@ public interface IPolicyDecisionPoint
 }
 ```
 
-`EvaluatePolicyAsync` looks the name up among the top-level policy sets first, then among the standalone policies (those contained in no policy set). A name that exists only nested inside a policy set is not found and the PEP denies with `encina.authorization.abac_policy_not_found`; to require a nested policy, name its parent set, so that the set's target, enabled flag, combining algorithm and obligations apply. When a set and a standalone policy share a name, the set is evaluated. A PDP `Left` with a code other than `abac.policy_not_found` is treated as Indeterminate. The PDP's `abac.policy_not_found` is an administrative lookup code; the PEP converts it into the denial `encina.authorization.abac_policy_not_found` and never returns it to the caller.
+`EvaluatePolicyAsync` looks the name up among the top-level policy sets first, then among the standalone policies (those contained in no policy set). A name that exists only nested inside a policy set is not found and the PEP denies with `encina.authorization.abac_policy_not_found`; to require a nested policy, name its parent set, so that the set's target, enabled flag, combining algorithm and obligations apply. When a set and a standalone policy share a name, the set is evaluated. A PDP `Left` with a code other than `abac.policy.not_found` is treated as Indeterminate. The PDP's `abac.policy.not_found` is an administrative lookup code; the PEP converts it into the denial `encina.authorization.abac_policy_not_found` and never returns it to the caller.
 
 ### Evaluation Algorithm (XACML 3.0 sections 7.12-7.14)
 
@@ -530,7 +530,7 @@ sequenceDiagram
     end
 
     alt Nothing matched
-        PDP-->>PEP: Either.Left(abac.policy_not_found)
+        PDP-->>PEP: Either.Left(abac.policy.not_found)
     else A store read returned Left or evaluation threw
         PDP-->>PEP: Either.Right(PolicyDecision with Effect.Indeterminate)
     else Evaluated

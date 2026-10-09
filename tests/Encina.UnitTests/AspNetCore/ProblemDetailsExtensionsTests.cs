@@ -75,6 +75,18 @@ public sealed class ProblemDetailsExtensionsTests
         result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status403Forbidden);
     }
 
+    [Theory]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode)]
+    public void ToProblemDetails_AbacAdministrativeNotFound_Returns404(string code)
+    {
+        var error = EncinaErrors.Create(code, "Not found");
+        var context = CreateHttpContext();
+
+        var result = error.ToProblemDetails(context);
+        result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status404NotFound);
+    }
+
     [Fact]
     public void ToProblemDetails_NotFound_Returns404()
     {

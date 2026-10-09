@@ -226,6 +226,8 @@ public class HttpResponseDataExtensionsTests
     }
 
     [Theory]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode)]
     [InlineData("order.not_found")]
     [InlineData("product.not_found")]
     [InlineData("customer.not_found")]

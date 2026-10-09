@@ -22,9 +22,9 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 |------------|----------|---------------|------------|----------------|
 | `encina.authorization.abac_access_denied` | `AccessDeniedCode` | `AccessDenied` | `Type requestType, string? policyId = null` | A policy named by `[RequirePolicy]` returned Deny or NotApplicable (an explicitly required policy that does not apply cannot authorize). |
 | `abac.indeterminate` | `IndeterminateCode` | `Indeterminate` | `Type requestType, string? reason = null` | A required policy or a `[RequireCondition]` expression could not produce a definitive result (evaluation error, expression that does not compile). |
-| `abac.policy_not_found` | `PolicyNotFoundCode` | `PolicyNotFound` | `string policyId` | An administrative lookup, not a request denial: a PAP operation (update or remove) or `EvaluatePolicyAsync` on the PDP names a policy that does not exist. The PEP never returns this code to the caller. |
+| `abac.policy.not_found` | `PolicyNotFoundCode` | `PolicyNotFound` | `string policyId` | An administrative lookup, not a request denial: a PAP operation (update or remove) or `EvaluatePolicyAsync` on the PDP names a policy that does not exist. The PEP never returns this code to the caller. |
 | `encina.authorization.abac_policy_not_found` | `RequiredPolicyNotFoundCode` | `RequiredPolicyNotFound` | `Type requestType, string policyName` | A request denial: `[RequirePolicy("name")]` names no top-level policy set or standalone policy in the store (a policy that exists only nested inside a set is not found; name its parent set). The message is fixed and the name is only in the details. |
-| `abac.policy_set_not_found` | `PolicySetNotFoundCode` | `PolicySetNotFound` | `string policySetId` | A referenced policy set does not exist in the PAP. |
+| `abac.policy_set.not_found` | `PolicySetNotFoundCode` | `PolicySetNotFound` | `string policySetId` | A referenced policy set does not exist in the PAP. |
 | `abac.evaluation_failed` | `EvaluationFailedCode` | `EvaluationFailed` | `Type requestType, Exception exception` | An unhandled exception occurred during policy evaluation. The message is fixed (`Policy evaluation failed for '<RequestType>'. Access denied.`); only the exception type is recorded, in `details["exceptionType"]`, never the exception message. |
 | `abac.attribute_resolution_failed` | `AttributeResolutionFailedCode` | `AttributeResolutionFailed` | `string attributeId, AttributeCategory category` | A required attribute (MustBePresent = true) could not be resolved. |
 | `abac.invalid_policy` | `InvalidPolicyCode` | `InvalidPolicy` | `string policyId, string reason` | A policy definition is structurally invalid. |
@@ -45,7 +45,7 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 
 ## HTTP Mapping
 
-The four definite denials start with `encina.authorization.`, so the ASP.NET Core, Azure Functions and AWS Lambda adapters answer them with HTTP 403 through their existing `encina.authorization.` prefix rule; there is no ABAC-specific mapping table. The other `abac.*` codes keep the mapping the adapters already give them.
+The four definite denials start with `encina.authorization.`, so the ASP.NET Core, Azure Functions and AWS Lambda adapters answer them with HTTP 403 through their existing `encina.authorization.` prefix rule; there is no ABAC-specific mapping table. The other `abac.*` codes keep the mapping the adapters already give them. The two administrative lookup codes `abac.policy.not_found` and `abac.policy_set.not_found` end in `.not_found`, so the adapters answer them with HTTP 404. `abac.function_not_found` and `abac.variable_not_found` do not end in `.not_found`; they are policy configuration errors raised while a policy is evaluated and stay HTTP 500.
 
 ## Error Metadata
 
@@ -261,7 +261,7 @@ Error: A condition required by the request was not met. Access denied.
 Error: A policy required by the request was not found in the policy store. Access denied.
 ```
 
-**Resolution:** Read `policyId` in the error details, then seed or create the policy set or policy with that id. The PEP does not fall back to evaluating the rest of the store. This is a request denial; `abac.policy_not_found` (`PolicyNotFoundCode`) is a different code, returned only by administrative lookups and `EvaluatePolicyAsync`, never by the PEP.
+**Resolution:** Read `policyId` in the error details, then seed or create the policy set or policy with that id. The PEP does not fall back to evaluating the rest of the store. This is a request denial; `abac.policy.not_found` (`PolicyNotFoundCode`) is a different code, returned only by administrative lookups and `EvaluatePolicyAsync`, never by the PEP.
 
 ### 13. Obligation Handler Exception (abac.obligation_handler_exception)
 

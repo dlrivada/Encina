@@ -111,10 +111,10 @@ errors may appear in the broader policy evaluation pipeline:
 | `abac.evaluation_failed`          | Policy evaluation threw an unhandled exception             |
 | `encina.authorization.abac_access_denied` | Policy evaluation produced a Deny decision (HTTP 403) |
 | `abac.indeterminate`              | Evaluation could not reach Permit or Deny                  |
-| `abac.policy_not_found`           | Administrative lookup: a PAP operation or `EvaluatePolicyAsync` names a policy ID that does not exist (never returned by the PEP) |
+| `abac.policy.not_found`           | Administrative lookup: a PAP operation or `EvaluatePolicyAsync` names a policy ID that does not exist (never returned by the PEP) |
 | `encina.authorization.abac_policy_not_found` | A `[RequirePolicy]` name matches no top-level policy set or standalone policy (HTTP 403) |
 | `encina.authorization.abac_condition_not_met` | A `[RequireCondition]` expression evaluated to `false` (HTTP 403) |
-| `abac.policy_set_not_found`       | Referenced policy set ID does not exist in the store       |
+| `abac.policy_set.not_found`       | Referenced policy set ID does not exist in the store       |
 | `abac.attribute_resolution_failed`| Required attribute (MustBePresent) could not be resolved   |
 | `abac.invalid_policy`             | Policy definition is structurally invalid                  |
 | `abac.invalid_policy_set`         | Policy set definition is structurally invalid              |

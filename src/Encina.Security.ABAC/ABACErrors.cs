@@ -27,10 +27,11 @@ public static class ABACErrors
 
     /// <summary>
     /// Error code when an administrative or lookup operation references a policy that does not exist
-    /// (a missing resource, not an authorization denial). A request denied because a required policy
+    /// (a missing resource, not an authorization denial; the <c>.not_found</c> suffix makes the host
+    /// adapters answer HTTP 404). A request denied because a required policy
     /// is missing uses <see cref="RequiredPolicyNotFoundCode"/> instead.
     /// </summary>
-    public const string PolicyNotFoundCode = "abac.policy_not_found";
+    public const string PolicyNotFoundCode = "abac.policy.not_found";
 
     /// <summary>
     /// Error code when a request is denied because a policy it requires is missing from the policy
@@ -38,8 +39,8 @@ public static class ABACErrors
     /// </summary>
     public const string RequiredPolicyNotFoundCode = "encina.authorization.abac_policy_not_found";
 
-    /// <summary>Error code when the referenced policy set does not exist.</summary>
-    public const string PolicySetNotFoundCode = "abac.policy_set_not_found";
+    /// <summary>Error code when the referenced policy set does not exist (HTTP 404 in the host adapters).</summary>
+    public const string PolicySetNotFoundCode = "abac.policy_set.not_found";
 
     /// <summary>Error code when policy evaluation threw an exception.</summary>
     public const string EvaluationFailedCode = "abac.evaluation_failed";

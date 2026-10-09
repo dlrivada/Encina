@@ -252,6 +252,8 @@ public class ApiGatewayResponseExtensionsTests
     [InlineData(global::Encina.Security.ABAC.ABACErrors.ObligationFailedCode, 403)]
     [InlineData(global::Encina.Security.ABAC.ABACErrors.RequiredPolicyNotFoundCode, 403)]
     [InlineData("encina.authorization.some_future_denial", 403)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode, 404)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode, 404)]
     [InlineData("entity.not_found", 404)]
     [InlineData("entity.missing", 404)]
     [InlineData("encina.request.handler_missing", 404)]

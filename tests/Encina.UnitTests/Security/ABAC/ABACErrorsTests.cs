@@ -6,7 +6,7 @@ namespace Encina.UnitTests.Security.ABAC;
 
 /// <summary>
 /// Unit tests for <see cref="ABACErrors"/> factory methods.
-/// Verifies all 17 error codes and factory methods produce correct error instances.
+/// Verifies the error code constants and that each factory method produces the matching error.
 /// </summary>
 public sealed class ABACErrorsTests
 {
@@ -14,8 +14,8 @@ public sealed class ABACErrorsTests
 
     [Theory]
     [InlineData(nameof(ABACErrors.IndeterminateCode), "abac.indeterminate")]
-    [InlineData(nameof(ABACErrors.PolicyNotFoundCode), "abac.policy_not_found")]
-    [InlineData(nameof(ABACErrors.PolicySetNotFoundCode), "abac.policy_set_not_found")]
+    [InlineData(nameof(ABACErrors.PolicyNotFoundCode), "abac.policy.not_found")]
+    [InlineData(nameof(ABACErrors.PolicySetNotFoundCode), "abac.policy_set.not_found")]
     [InlineData(nameof(ABACErrors.EvaluationFailedCode), "abac.evaluation_failed")]
     [InlineData(nameof(ABACErrors.AttributeResolutionFailedCode), "abac.attribute_resolution_failed")]
     [InlineData(nameof(ABACErrors.InvalidPolicyCode), "abac.invalid_policy")]
@@ -52,7 +52,7 @@ public sealed class ABACErrorsTests
     [Fact]
     public void PolicyNotFoundCode_StaysAnAdministrativeLookupCode()
     {
-        ABACErrors.PolicyNotFoundCode.ShouldBe("abac.policy_not_found");
+        ABACErrors.PolicyNotFoundCode.ShouldBe("abac.policy.not_found");
         ABACErrors.PolicyNotFoundCode.ShouldNotStartWith(EncinaErrorCodes.AuthorizationPrefix);
     }
 

@@ -141,9 +141,9 @@ user.isAdmin == true || user.department == "security"
 |------|-------------|
 | `encina.authorization.abac_access_denied` | Policy evaluation resulted in Deny (HTTP 403) |
 | `abac.indeterminate` | Evaluation error (missing attribute, function failure) |
-| `abac.policy_not_found` | Administrative lookup (PAP update/remove, `EvaluatePolicyAsync`) on a policy that does not exist; never returned by the PEP |
+| `abac.policy.not_found` | Administrative lookup (PAP update/remove, `EvaluatePolicyAsync`) on a policy that does not exist; never returned by the PEP |
 | `encina.authorization.abac_policy_not_found` | A `[RequirePolicy]` name is not in the policy store (HTTP 403) |
-| `abac.policy_set_not_found` | Referenced policy set does not exist |
+| `abac.policy_set.not_found` | Referenced policy set does not exist |
 | `abac.evaluation_failed` | Exception during evaluation |
 | `abac.attribute_resolution_failed` | Required attribute unresolvable (MustBePresent) |
 | `abac.invalid_policy` | Policy definition is invalid |
