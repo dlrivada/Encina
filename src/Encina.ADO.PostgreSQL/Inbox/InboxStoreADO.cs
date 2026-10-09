@@ -269,28 +269,6 @@ public sealed class InboxStoreADO : IInboxStore
         }, "inbox.remove_expired_failed").ConfigureAwait(false);
     }
 
-    /// <inheritdoc />
-    public async Task<Either<EncinaError, Unit>> IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
-
-        return await EitherHelpers.TryAsync(async () =>
-        {
-            var sql = $@"
-                UPDATE {_tableName}
-                SET retrycount = retrycount + 1
-                WHERE messageid = @MessageId";
-
-            using var command = _connection.CreateCommand();
-            command.CommandText = sql;
-            AddParameter(command, "@MessageId", messageId);
-
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
-
-            await ExecuteNonQueryAsync(command, cancellationToken);
-        }, "inbox.increment_retry_failed").ConfigureAwait(false);
-    }
 
     /// <inheritdoc />
     public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)

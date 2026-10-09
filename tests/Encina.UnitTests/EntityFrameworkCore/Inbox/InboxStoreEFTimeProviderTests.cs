@@ -182,13 +182,6 @@ public class InboxStoreEFTimeProviderTests : IDisposable
         afterFail!.RetryCount.ShouldBe(1);
         afterFail.ErrorMessage.ShouldBe("Timeout");
 
-        // Act - Increment retry
-        (await _store.IncrementRetryCountAsync("lifecycle-1")).ShouldBeRight();
-        (await _store.SaveChangesAsync()).ShouldBeRight();
-
-        var afterIncrement = await _dbContext.InboxMessages.FindAsync("lifecycle-1");
-        afterIncrement!.RetryCount.ShouldBe(2);
-
         // Act - Finally process successfully
         (await _store.MarkAsProcessedAsync("lifecycle-1", "{\"orderId\":\"123\"}")).ShouldBeRight();
         (await _store.SaveChangesAsync()).ShouldBeRight();

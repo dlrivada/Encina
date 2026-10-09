@@ -70,17 +70,6 @@ public sealed class InstrumentedInboxStoreTests
     }
 
     [Fact]
-    public async Task IncrementRetryCountAsync_DelegatesToInner()
-    {
-        _inner.IncrementRetryCountAsync("msg-1", Arg.Any<CancellationToken>())
-            .Returns(Either<EncinaError, Unit>.Right(Unit.Default));
-
-        var result = await _sut.IncrementRetryCountAsync("msg-1");
-
-        result.ShouldBeSuccess();
-    }
-
-    [Fact]
     public async Task GetExpiredMessagesAsync_DelegatesToInner()
     {
         var messages = new List<IInboxMessage>();

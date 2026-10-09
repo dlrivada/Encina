@@ -261,29 +261,6 @@ public sealed class StoreImplementationContractTests : IDisposable
     }
 
     [Fact]
-    public async Task InboxStore_IncrementRetryCount_ShouldIncrement()
-    {
-        // Exercises: InboxStoreEF.IncrementRetryCountAsync (lines 112-126)
-        var store = new InboxStoreEF(_dbContext, _timeProvider);
-        var messageId = $"inbox-retry-{Guid.NewGuid()}";
-        _dbContext.InboxMessages.Add(new InboxMessage
-        {
-            MessageId = messageId,
-            RequestType = "TestCmd",
-            ReceivedAtUtc = _timeProvider.GetUtcNow().UtcDateTime,
-            ExpiresAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(7),
-            RetryCount = 2,
-        });
-        await _dbContext.SaveChangesAsync();
-
-        (await store.IncrementRetryCountAsync(messageId)).ShouldBeRight();
-        (await store.SaveChangesAsync()).ShouldBeRight();
-
-        var updated = await _dbContext.InboxMessages.FindAsync(messageId);
-        updated!.RetryCount.ShouldBe(3);
-    }
-
-    [Fact]
     public async Task InboxStore_GetExpiredMessages_ShouldReturnExpired()
     {
         // Exercises: InboxStoreEF.GetExpiredMessagesAsync (lines 129-145)

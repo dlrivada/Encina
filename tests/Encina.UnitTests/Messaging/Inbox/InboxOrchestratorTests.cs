@@ -306,8 +306,6 @@ public sealed class InboxOrchestratorTests
         result.Match(
             Right: value => value.ShouldBe(expectedResponse),
             Left: _ => throw new InvalidOperationException("Expected Right"));
-
-        await _store.Received(1).IncrementRetryCountAsync(messageId, Arg.Any<CancellationToken>());
     }
 
     [Fact]

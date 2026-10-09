@@ -165,22 +165,6 @@ public sealed class InboxStoreDapper : IInboxStore
     }
 
     /// <inheritdoc />
-    public async Task<Either<EncinaError, Unit>> IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
-
-        return await EitherHelpers.TryAsync(async () =>
-        {
-            var sql = $@"
-                UPDATE {_tableName}
-                SET RetryCount = RetryCount + 1
-                WHERE MessageId = @MessageId";
-
-            await _connection.ExecuteAsync(sql, new { MessageId = messageId });
-        }, "inbox.increment_retry_failed").ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
     public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // Dapper executes SQL immediately, no need for SaveChanges

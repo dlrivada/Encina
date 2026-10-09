@@ -262,34 +262,6 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task IncrementRetryCountAsync_ShouldIncrementCount()
-    {
-
-        // Arrange
-        var collection = GetCollection();
-        var messageId = Guid.NewGuid().ToString();
-        var message = new InboxMessage
-        {
-            MessageId = messageId,
-            RequestType = "Test",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
-            RetryCount = 2
-        };
-
-        await collection.InsertOneAsync(message);
-
-        var store = CreateStore();
-
-        // Act
-        await store.IncrementRetryCountAsync(messageId);
-
-        // Assert
-        var updated = await collection.Find(m => m.MessageId == messageId).FirstOrDefaultAsync();
-        updated!.RetryCount.ShouldBe(3);
-    }
-
-    [Fact]
     public async Task EdgeCase_NullProcessedAtUtc_ShouldBeStoredCorrectly()
     {
 

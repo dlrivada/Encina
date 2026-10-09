@@ -62,14 +62,6 @@ public interface IInboxStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Increments the retry count for a message.
-    /// </summary>
-    /// <param name="messageId">The message ID.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
-    Task<Either<EncinaError, Unit>> IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Gets expired messages that can be cleaned up.
     /// </summary>
     /// <param name="batchSize">Maximum number of messages to retrieve.</param>

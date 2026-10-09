@@ -109,23 +109,6 @@ public sealed class InboxStoreEF : IInboxStore
     }
 
     /// <inheritdoc/>
-    public async Task<Either<EncinaError, Unit>> IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(messageId);
-
-        return await EitherHelpers.TryAsync(async () =>
-        {
-            var message = await _dbContext.Set<InboxMessage>()
-                .FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
-
-            if (message != null)
-            {
-                message.RetryCount++;
-            }
-        }, "inbox.increment_retry_failed").ConfigureAwait(false);
-    }
-
-    /// <inheritdoc/>
     public async Task<Either<EncinaError, IEnumerable<IInboxMessage>>> GetExpiredMessagesAsync(
         int batchSize,
         CancellationToken cancellationToken = default)

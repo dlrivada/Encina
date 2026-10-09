@@ -214,21 +214,6 @@ public sealed class InstrumentedStoreMethodGuardTests
     }
 
     [Fact]
-    public async Task InboxStore_IncrementRetryCountAsync_DelegatesToInner()
-    {
-        var inner = Substitute.For<IInboxStore>();
-        inner.IncrementRetryCountAsync("msg-1", Arg.Any<CancellationToken>())
-            .Returns(Prelude.Right<EncinaError, Unit>(Unit.Default));
-
-        var sut = new InstrumentedInboxStore(inner);
-
-        var result = await sut.IncrementRetryCountAsync("msg-1");
-
-        result.IsRight.ShouldBeTrue();
-        await inner.Received(1).IncrementRetryCountAsync("msg-1", Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
     public async Task InboxStore_GetExpiredMessagesAsync_DelegatesToInner()
     {
         var inner = Substitute.For<IInboxStore>();

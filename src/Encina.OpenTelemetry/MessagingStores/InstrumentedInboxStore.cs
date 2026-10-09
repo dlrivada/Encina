@@ -87,16 +87,6 @@ internal sealed class InstrumentedInboxStore : IInboxStore
     }
 
     /// <inheritdoc />
-    public async Task<Either<EncinaError, Unit>> IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
-    {
-        using var activity = StartIncrementRetry(messageId);
-        var result = await _inner.IncrementRetryCountAsync(messageId, cancellationToken).ConfigureAwait(false);
-        result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
-        return result;
-    }
-
-    /// <inheritdoc />
     public async Task<Either<EncinaError, IEnumerable<IInboxMessage>>> GetExpiredMessagesAsync(
         int batchSize,
         CancellationToken cancellationToken = default)
@@ -174,18 +164,6 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         }
 
         var activity = Source.StartActivity("encina.inbox.mark_failed", ActivityKind.Internal);
-        activity?.SetTag("inbox.message_id", messageId);
-        return activity;
-    }
-
-    private static Activity? StartIncrementRetry(string messageId)
-    {
-        if (!Source.HasListeners())
-        {
-            return null;
-        }
-
-        var activity = Source.StartActivity("encina.inbox.increment_retry", ActivityKind.Internal);
         activity?.SetTag("inbox.message_id", messageId);
         return activity;
     }

@@ -204,25 +204,6 @@ public sealed class InboxStoreDapperTests
 
     #endregion
 
-    #region IncrementRetryCountAsync Validation Tests
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public async Task IncrementRetryCountAsync_InvalidMessageId_ThrowsArgumentException(string? messageId)
-    {
-        // Arrange
-        var connection = Substitute.For<IDbConnection>();
-        var store = new InboxStoreDapper(connection);
-
-        // Act & Assert
-        await Should.ThrowAsync<ArgumentException>(async () =>
-            await store.IncrementRetryCountAsync(messageId!));
-    }
-
-    #endregion
-
     #region SaveChangesAsync Tests
 
     [Fact]
