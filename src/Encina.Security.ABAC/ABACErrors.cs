@@ -472,12 +472,12 @@ public static class ABACErrors
     /// Creates an error when function evaluation threw an exception.
     /// </summary>
     /// <param name="functionId">The identifier of the function that failed.</param>
-    /// <param name="exception">The exception that occurred during function evaluation.</param>
-    /// <returns>An error indicating function evaluation failure.</returns>
+    /// <param name="exception">The exception that occurred during function evaluation; its message is never recorded.</param>
+    /// <returns>An error indicating function evaluation failure, with a fixed message and the exception type in the details.</returns>
     public static EncinaError FunctionError(string functionId, Exception exception) =>
         EncinaErrors.Create(
             code: FunctionErrorCode,
-            message: $"Function '{functionId}' evaluation failed: {exception.Message}",
+            message: $"Function '{functionId}' evaluation failed.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyStage] = MetadataStageAbac,

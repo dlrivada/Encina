@@ -38,7 +38,7 @@ internal static class RegexFunctions
                 catch (ArgumentException ex)
                 {
                     throw new InvalidOperationException(
-                        $"'{XACMLFunctionIds.StringRegexpMatch}': invalid regex pattern '{pattern}': {ex.Message}",
+                        $"'{XACMLFunctionIds.StringRegexpMatch}': invalid regex pattern '{pattern}' ({ex.GetType().Name}).",
                         ex);
                 }
             });
