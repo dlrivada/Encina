@@ -265,7 +265,11 @@ public sealed class DeadLetterOrchestrator
     private string? AmbientTenantId()
     {
         var tenantId = _requestContextAccessor.RequestContext?.TenantId;
-        return string.IsNullOrEmpty(tenantId) ? null : tenantId;
+        if (string.IsNullOrEmpty(tenantId))
+            return null;
+
+        DeadLetterInputs.RequireTrimmed(tenantId, nameof(tenantId));
+        return tenantId;
     }
 
     private static (string? Type, string? StackTrace) DescribeException(Exception? exception)

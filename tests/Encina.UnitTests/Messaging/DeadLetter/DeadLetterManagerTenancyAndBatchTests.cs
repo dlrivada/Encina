@@ -389,6 +389,115 @@ public sealed class DeadLetterManagerTenancyAndBatchTests
         batch.Results.Single(r => r.MessageId == bad).ErrorMessage.ShouldBe(DeadLetterErrorCodes.DeserializationFailed);
     }
 
+    [Fact]
+    public async Task ReplayAllAsync_AnExpiredMessage_IsAPerMessageFailureAndTheBatchContinues()
+    {
+        var rig = NewRig(tenancy: false);
+        var expired = Guid.NewGuid();
+        var good = Guid.NewGuid();
+        ArrangePage(rig, Message(expired, expired: true), Message(good));
+        ArrangeEncina(rig);
+
+        var batch = (await rig.Manager.ReplayAllAsync(DeadLetterFilter.All)).ShouldBeRight();
+
+        batch.SuccessCount.ShouldBe(1);
+        batch.Results.Single(r => r.MessageId == expired).ErrorMessage.ShouldBe(DeadLetterErrorCodes.Expired);
+    }
+
+    [Fact]
+    public async Task ReplayAllAsync_WhenTheStoreThrowsWhileRecordingTheOutcome_PropagatesInsteadOfRecordingAFailedReplay()
+    {
+        var rig = NewRig(tenancy: false);
+        ArrangePage(rig, Message(Guid.NewGuid()));
+        ArrangeEncina(rig);
+        rig.Store.MarkAsReplayedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<Task<Either<EncinaError, bool>>>(_ => throw new InvalidOperationException("connection lost"));
+
+        await Should.ThrowAsync<InvalidOperationException>(() => rig.Manager.ReplayAllAsync(DeadLetterFilter.All));
+
+        await rig.Store.Received(1).MarkAsReplayedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ReplayAllAsync_WhenTheCallerCancelsBetweenMessages_ThrowsInsteadOfReportingASuccess()
+    {
+        var rig = NewRig(tenancy: false);
+        using var cts = new CancellationTokenSource();
+        ArrangePage(rig, Message(Guid.NewGuid()), Message(Guid.NewGuid()));
+        var encina = Substitute.For<IEncina>();
+        encina.Send(Arg.Any<IRequest<int>>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                cts.Cancel();
+                return new ValueTask<Either<EncinaError, int>>(Right<EncinaError, int>(1));
+            });
+        rig.ServiceProvider.GetService(typeof(IEncina)).Returns(encina);
+
+        await Should.ThrowAsync<OperationCanceledException>(() => rig.Manager.ReplayAllAsync(DeadLetterFilter.All, 100, cts.Token));
+    }
+
+    // ------------------------------------------------------------------ gate edge cases
+
+    [Fact]
+    public async Task GetMessagesAsync_TenancyInUseAndEmptyTenantId_IsDeniedLikeNoTenant()
+    {
+        var rig = NewRig(tenancy: true);
+
+        var result = await rig.Manager.GetMessagesAsync(new DeadLetterFilter { TenantId = "" });
+
+        result.ShouldBeErrorWithCode(DeadLetterErrorCodes.TenantRequired);
+    }
+
+    [Fact]
+    public async Task GetMessagesAsync_AmbientTenantWithTrailingSpace_Throws()
+    {
+        var rig = NewRig(tenancy: true, ambientTenant: "tenant-a ");
+
+        await Should.ThrowAsync<ArgumentException>(() => rig.Manager.GetMessagesAsync());
+    }
+
+    [Fact]
+    public async Task AddAsync_AmbientTenantWithTrailingSpace_Throws()
+    {
+        var rig = NewRig(tenancy: false, ambientTenant: "tenant-a ");
+        var orchestrator = new DeadLetterOrchestrator(
+            rig.Store,
+            Substitute.For<IDeadLetterMessageFactory>(),
+            new DeadLetterOptions(),
+            NullLogger<DeadLetterOrchestrator>.Instance,
+            new JsonMessageSerializer(),
+            AccessorFor("tenant-a "));
+
+        await Should.ThrowAsync<ArgumentException>(() => orchestrator.AddAsync(
+            new BatchCommand(1),
+            new DeadLetterContext(EncinaErrors.Create("x", "y"), null, "Outbox", 1, FixedUtcNow, SourceMessageId: "m-1")));
+    }
+
+    private static IRequestContextAccessor AccessorFor(string tenantId)
+    {
+        var context = Substitute.For<IRequestContext>();
+        context.TenantId.Returns(tenantId);
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(context);
+        return accessor;
+    }
+
+    [Fact]
+    public async Task ReplayAsync_WhenThePayloadCannotBeDeserialized_IsAFailedReplayWithTheOutcomeRecorded()
+    {
+        var rig = NewRig(tenancy: false);
+        var id = Guid.NewGuid();
+        var message = Message(id, content: "not json");
+        rig.Store.GetAsync(id, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Option<IDeadLetterMessage>>(Option<IDeadLetterMessage>.Some(message)));
+        ArrangeEncina(rig);
+
+        var result = await rig.Manager.ReplayAsync(id);
+
+        result.IsLeft.ShouldBeTrue();
+        await rig.Store.Received(1).MarkAsReplayedAsync(id, DeadLetterErrorCodes.ReplayFailed, Arg.Any<CancellationToken>());
+    }
+
     // ------------------------------------------------------------------ cancellation
 
     [Fact]

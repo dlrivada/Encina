@@ -101,7 +101,12 @@ public sealed class DeadLetterManager : IDeadLetterManager
     private string? AmbientTenantId()
     {
         var tenantId = _requestContextAccessor.RequestContext?.TenantId;
-        return string.IsNullOrEmpty(tenantId) ? null : tenantId;
+        if (string.IsNullOrEmpty(tenantId))
+            return null;
+
+        // A padded tenant id would be one tenant on SQL Server and MySQL and another on PostgreSQL and MongoDB.
+        DeadLetterInputs.RequireTrimmed(tenantId, "tenantId");
+        return tenantId;
     }
 
     private DateTime UtcNow() => _timeProvider.GetUtcNow().UtcDateTime;
@@ -128,7 +133,8 @@ public sealed class DeadLetterManager : IDeadLetterManager
     // False when the operation must be denied: tenancy in use, no tenant named, no ambient tenant, no opt-out.
     private bool TryResolveTenant(DeadLetterFilter source, string operation, out string? tenantId)
     {
-        tenantId = source.TenantId;
+        // An empty tenant id names no tenant (the stores skip it), so it cannot satisfy the gate.
+        tenantId = string.IsNullOrEmpty(source.TenantId) ? null : source.TenantId;
         if (tenantId is not null)
             return true;
 
@@ -235,21 +241,10 @@ public sealed class DeadLetterManager : IDeadLetterManager
 
         DeadLetterLog.ReplayingMessage(_logger, messageId, message.RequestType);
 
-        try
-        {
-            return await ReplayStoredMessageAsync(message, messageId, cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (!IsCallerCancellation(ex, cancellationToken))
-        {
-            DeadLetterLog.MessageReplayException(_logger, ex.ForLogging(), messageId);
-
-            var errorMessage = $"[{DeadLetterErrorCodes.ReplayFailed}] Exception during replay: {ex.GetType().FullName}";
-            return new ReplayStep(await FinishReplayAsync(
-                messageId,
-                ReplayResult.Failed(messageId, errorMessage),
-                DeadLetterErrorCodes.ReplayFailed,
-                cancellationToken).ConfigureAwait(false));
-        }
+        // Only the handler and the payload preparation turn an exception into a failed replay (below); an
+        // exception thrown by the store is a store failure and propagates, so it cannot be recorded as a
+        // handler failure of a replay that ran.
+        return await ReplayStoredMessageAsync(message, messageId, cancellationToken).ConfigureAwait(false);
     }
 
     private static bool IsNotReplayable(IDeadLetterMessage message, Guid messageId, DateTime now, out EncinaError rejection)
@@ -342,6 +337,19 @@ public sealed class DeadLetterManager : IDeadLetterManager
     /// (and the other members are not) when the message cannot be replayed.
     /// </summary>
     private ReplayPlan PrepareReplay(IDeadLetterMessage message)
+    {
+        try
+        {
+            return PrepareReplayCore(message);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            DeadLetterLog.MessageReplayException(_logger, ex.ForLogging(), message.Id);
+            return ReplayPlan.Rejected(DeadLetterErrorCodes.ReplayFailed, $"Exception during replay: {ex.GetType().FullName}");
+        }
+    }
+
+    private ReplayPlan PrepareReplayCore(IDeadLetterMessage message)
     {
         // Deserialize the request
         var requestType = Type.GetType(message.RequestType);
@@ -440,8 +448,8 @@ public sealed class DeadLetterManager : IDeadLetterManager
 
         foreach (var message in messages)
         {
-            if (cancellationToken.IsCancellationRequested)
-                break;
+            // The caller's cancellation propagates, between messages as well as inside one.
+            cancellationToken.ThrowIfCancellationRequested();
 
             var step = await ReplayOneOfBatchAsync(message, cancellationToken).ConfigureAwait(false);
 
