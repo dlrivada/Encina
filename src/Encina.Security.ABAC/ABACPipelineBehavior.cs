@@ -240,31 +240,24 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
             verdict = DecideFailed(ex, startTimestamp);
         }
 
-        return _options.DecisionAudit.Enabled
-            ? WithRecord(verdict, request, context, caller, attributes, requirement, startedAtUtc, startTimestamp)
+        // Only a selected outcome is captured, so nothing is built for an outcome the filter drops.
+        return _options.DecisionAudit.Enabled && IsSelected(verdict)
+            ? verdict with
+            {
+                Capture = new ABACDecisionInputs
+                {
+                    Audit = _options.DecisionAudit,
+                    EnforcementMode = _options.EnforcementMode,
+                    RequestType = typeof(TRequest),
+                    Request = request,
+                    Context = context,
+                    Caller = caller,
+                    Attributes = attributes,
+                    Requirement = requirement,
+                    StartedAtUtc = startedAtUtc
+                }
+            }
             : verdict;
-    }
-
-    // A record that cannot be built (a throwing resource-id getter, an unusable option) is an
-    // evaluation failure: the request is denied rather than escaping as an exception.
-    private ABACEnforcementVerdict WithRecord(
-        ABACEnforcementVerdict verdict,
-        TRequest request,
-        IRequestContext context,
-        RequestIdentity? caller,
-        ABACCollectedAttributes? attributes,
-        ABACRequirementVerdict? requirement,
-        DateTimeOffset startedAtUtc,
-        long startTimestamp)
-    {
-        try
-        {
-            return verdict with { Record = BuildRecord(request, context, caller, attributes, requirement, verdict, startedAtUtc) };
-        }
-        catch (Exception ex)
-        {
-            return DecideFailed(ex, startTimestamp);
-        }
     }
 
     // The requirement verdict is Permit, Deny or Indeterminate; a required policy that is
@@ -548,45 +541,26 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
     // ── Record (write-ahead) ────────────────────────────────────────
 
-    private ABACDecisionRecord BuildRecord(
-        TRequest request,
-        IRequestContext context,
-        RequestIdentity? caller,
-        ABACCollectedAttributes? attributes,
-        ABACRequirementVerdict? requirement,
-        ABACEnforcementVerdict verdict,
-        DateTimeOffset startedAtUtc)
+    // Builds the record of a selected outcome. One clock read: the same instant is the completion
+    // time and the timestamp of the entry (A9).
+    private ABACDecisionRecord BuildRecord(ABACDecisionInputs capture, ABACEnforcementVerdict verdict)
     {
-        if (requirement is { TraceTruncated: true })
+        if (capture.Requirement is { TraceTruncated: true })
         {
             ABACLogMessages.EvaluationTraceTruncated(_logger, typeof(TRequest).Name, _options.DecisionAudit.MaxTraceEntries);
         }
 
-        return ABACDecisionRecordFactory.Create(new ABACDecisionInputs
-        {
-            Audit = _options.DecisionAudit,
-            EnforcementMode = _options.EnforcementMode,
-            RequestType = typeof(TRequest),
-            Request = request,
-            Context = context,
-            Caller = caller,
-            Attributes = attributes,
-            Requirement = requirement,
-            Verdict = verdict,
-            StartedAtUtc = startedAtUtc,
-            // One read: the same instant is the completion time and the timestamp of the entry (A9).
-            CompletedAtUtc = _timeProvider.GetUtcNow()
-        });
+        return ABACDecisionRecordFactory.Create(capture, verdict, _timeProvider.GetUtcNow());
     }
 
-    // Writes the record when the audit is enabled and the outcome is selected, and returns the error
-    // the request must be denied with, or null when it proceeds.
+    // Writes the record of a selected outcome and returns the error the request must be denied with,
+    // or null when it proceeds. A record that cannot be built is an audit failure like a failed write.
     private async ValueTask<EncinaError?> RecordAsync(
         ABACEnforcementVerdict verdict,
         string requestTypeName,
         CancellationToken cancellationToken)
     {
-        if (verdict.Record is not { } record || !IsSelected(verdict))
+        if (verdict.Capture is not { } capture)
         {
             return verdict.Error;
         }
@@ -594,7 +568,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         // A caller that is already gone gets no write; one that leaves during the write does not
         // abort it (the write is never linked to the client's token, A3).
         cancellationToken.ThrowIfCancellationRequested();
-        var failure = await WriteAsync(record, requestTypeName).ConfigureAwait(false);
+        var failure = await BuildAndWriteAsync(capture, verdict, requestTypeName).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
 
         if (failure is null)
@@ -618,7 +592,25 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     };
 
     // Returns null when the record was written, otherwise the error code (or exception type name) of
-    // the failure: never a message. A recorder that throws is a failed write, not a crash.
+    // the failure: never a message. A recorder that throws is a failed write, not a crash, and a
+    // record that cannot be built (a throwing resource-id getter, an unusable option) is the same.
+    private async ValueTask<string?> BuildAndWriteAsync(
+        ABACDecisionInputs capture, ABACEnforcementVerdict verdict, string requestTypeName)
+    {
+        ABACDecisionRecord record;
+
+        try
+        {
+            record = BuildRecord(capture, verdict);
+        }
+        catch (Exception ex)
+        {
+            return ex.GetType().Name;
+        }
+
+        return await WriteAsync(record, requestTypeName).ConfigureAwait(false);
+    }
+
     private async ValueTask<string?> WriteAsync(ABACDecisionRecord record, string requestTypeName)
     {
         try

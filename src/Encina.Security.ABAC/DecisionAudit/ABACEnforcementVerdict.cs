@@ -32,8 +32,11 @@ internal sealed record ABACEnforcementVerdict(
     bool AlwaysRecorded,
     ABACOutcomeTelemetry Telemetry)
 {
-    /// <summary>The record of the decision; <c>null</c> when the decision audit is disabled.</summary>
-    public ABACDecisionRecord? Record { get; init; }
+    /// <summary>
+    /// What the record of the decision is built from; <c>null</c> when the decision audit is disabled or
+    /// the outcome is not selected, so nothing is built for an outcome that is not recorded.
+    /// </summary>
+    internal ABACDecisionInputs? Capture { get; init; }
 
     /// <summary>The request is permitted.</summary>
     public static ABACEnforcementVerdict Granted(string? policyId) =>

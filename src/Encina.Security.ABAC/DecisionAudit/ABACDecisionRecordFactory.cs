@@ -29,11 +29,7 @@ internal sealed class ABACDecisionInputs
     /// <summary>The verdict of the requirement evaluation; <c>null</c> when none was reached.</summary>
     public ABACRequirementVerdict? Requirement { get; init; }
 
-    public required ABACEnforcementVerdict Verdict { get; init; }
-
     public required DateTimeOffset StartedAtUtc { get; init; }
-
-    public required DateTimeOffset CompletedAtUtc { get; init; }
 }
 
 /// <summary>
@@ -45,11 +41,13 @@ internal static class ABACDecisionRecordFactory
     private const string IpAddressKey = "Encina.Audit.IpAddress";
     private const string UserAgentKey = "Encina.Audit.UserAgent";
 
-    public static ABACDecisionRecord Create(ABACDecisionInputs inputs) =>
-        WithRequest(WithDecision(WithCaller(inputs), inputs.Requirement), inputs);
+    public static ABACDecisionRecord Create(
+        ABACDecisionInputs inputs, ABACEnforcementVerdict verdict, DateTimeOffset completedAtUtc) =>
+        WithRequest(WithDecision(WithCaller(inputs, verdict, completedAtUtc), inputs.Requirement), inputs);
 
     // Who asked and from where.
-    private static ABACDecisionRecord WithCaller(ABACDecisionInputs inputs) => new()
+    private static ABACDecisionRecord WithCaller(
+        ABACDecisionInputs inputs, ABACEnforcementVerdict verdict, DateTimeOffset completedAtUtc) => new()
     {
         DecisionId = Guid.CreateVersion7(inputs.StartedAtUtc),
         UserId = inputs.Caller?.UserId,
@@ -60,11 +58,11 @@ internal static class ABACDecisionRecordFactory
         IpAddress = MetadataText(inputs.Context, IpAddressKey),
         UserAgent = MetadataText(inputs.Context, UserAgentKey),
         RequestType = inputs.RequestType.Name,
-        EnforcedOutcome = inputs.Verdict.Enforced,
-        ReasonCode = inputs.Verdict.ReasonCode,
+        EnforcedOutcome = verdict.Enforced,
+        ReasonCode = verdict.ReasonCode,
         EnforcementMode = inputs.EnforcementMode,
         StartedAtUtc = inputs.StartedAtUtc,
-        CompletedAtUtc = inputs.CompletedAtUtc
+        CompletedAtUtc = completedAtUtc
     };
 
     // What was asked of the resource: its id and the attribute names and allow-listed values.

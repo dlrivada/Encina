@@ -464,7 +464,7 @@ public sealed class ABACPipelineDecisionAuditTests
     }
 
     [Fact]
-    public async Task ARecordThatCannotBeBuilt_DeniesAsAnEvaluationFailureInsteadOfEscaping()
+    public async Task ARecordThatCannotBeBuilt_UnderFailClosed_DeniesAsAnAuditFailureInsteadOfEscaping()
     {
         var recorder = new RecordingRecorder();
         var behavior = Behavior<ThrowingResourceRequest>(Pdp(Effect.Permit), Options(), recorder);
@@ -472,7 +472,52 @@ public sealed class ABACPipelineDecisionAuditTests
         var (result, next) = await SendAsync(behavior, new ThrowingResourceRequest());
 
         next.ShouldBeFalse();
-        Code(result).ShouldBe(ABACErrors.EvaluationFailedCode);
+        Code(result).ShouldBe(ABACErrors.DecisionAuditFailedCode);
+        result.IfLeft(error => error.GetDetails()["cause"].ShouldBe(nameof(InvalidOperationException)));
+        recorder.Records.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task ARecordThatCannotBeBuilt_UnderBestEffort_LogsAndLetsTheRequestProceed()
+    {
+        var logger = new FakeLogger<ABACPipelineBehavior<ThrowingResourceRequest, string>>();
+        var behavior = Behavior<ThrowingResourceRequest>(
+            Pdp(Effect.Permit),
+            Options(failureMode: ABACDecisionAuditFailureMode.BestEffort),
+            new RecordingRecorder(),
+            logger: logger);
+
+        var (result, next) = await SendAsync(behavior, new ThrowingResourceRequest());
+
+        next.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue();
+        logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 9081);
+    }
+
+    [Fact]
+    public async Task ARecordThatCannotBeBuiltForADeniedRequest_KeepsTheOriginalDenialAndLogsIt()
+    {
+        var logger = new FakeLogger<ABACPipelineBehavior<ThrowingResourceRequest, string>>();
+        var behavior = Behavior<ThrowingResourceRequest>(Pdp(Effect.Deny), Options(), new RecordingRecorder(), logger: logger);
+
+        var (result, next) = await SendAsync(behavior, new ThrowingResourceRequest());
+
+        next.ShouldBeFalse();
+        Code(result).ShouldBe(ABACErrors.AccessDeniedCode);
+        logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 9082);
+    }
+
+    [Fact]
+    public async Task AnOutcomeTheFilterDrops_IsNeverBuiltSoABuildFailureCannotDenyIt()
+    {
+        var recorder = new RecordingRecorder();
+        var behavior = Behavior<ThrowingResourceRequest>(
+            Pdp(Effect.Permit), Options(outcomes: ABACDecisionAuditOutcomes.Denied), recorder);
+
+        var (result, next) = await SendAsync(behavior, new ThrowingResourceRequest());
+
+        next.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue();
         recorder.Records.ShouldBeEmpty();
     }
 
