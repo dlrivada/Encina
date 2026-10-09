@@ -69,6 +69,7 @@ public sealed class InboxStoreEFIsolationTests
 
         result.IsLeft.ShouldBeTrue();
         result.LeftToArray()[0].GetCode().IfNone(string.Empty).ShouldBe("inbox.add_failed");
+        result.LeftToArray()[0].Message.ShouldContain("shared DbConnection");
     }
 
     [Fact]
@@ -86,9 +87,50 @@ public sealed class InboxStoreEFIsolationTests
         result.LeftToArray()[0].GetCode().IfNone(string.Empty).ShouldBe("inbox.mark_failed_failed");
     }
 
+    [Fact]
+    public async Task IndependentWrites_OnTheInMemoryProvider_PersistOnAnIsolatedContext()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var options = new DbContextOptionsBuilder<WellFormedContext>().UseInMemoryDatabase(databaseName).Options;
+        await using var context = new WellFormedContext(options);
+        var store = new InboxStoreEF(context);
+
+        (await store.AddAsync(new InboxMessage
+        {
+            MessageId = "iso-1",
+            RequestType = "Req",
+            ReceivedAtUtc = DateTime.UtcNow,
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(1)
+        })).IsRight.ShouldBeTrue();
+        (await store.MarkAsFailedAsync("iso-1", "boom", null)).IsRight.ShouldBeTrue();
+        (await store.CacheHandlerErrorAsync("iso-1", "cached-left")).IsRight.ShouldBeTrue();
+
+        // Nothing was tracked or saved by the injected context: the isolated one wrote everything.
+        context.ChangeTracker.Entries().ShouldBeEmpty();
+        await using var verify = new WellFormedContext(options);
+        var stored = await verify.Set<InboxMessage>().AsNoTracking().SingleAsync(m => m.MessageId == "iso-1");
+        stored.RetryCount.ShouldBe(1);
+        stored.Response.ShouldBe("cached-left");
+        stored.IsProcessed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task CacheHandlerErrorAsync_NullArguments_Throw()
+    {
+        var options = new DbContextOptionsBuilder<WellFormedContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        await using var context = new WellFormedContext(options);
+        var store = new InboxStoreEF(context);
+
+        await Should.ThrowAsync<ArgumentNullException>(() => store.CacheHandlerErrorAsync(null!, "r"));
+        await Should.ThrowAsync<ArgumentNullException>(() => store.CacheHandlerErrorAsync("id", null!));
+    }
+
     private sealed class WellFormedContext(DbContextOptions<WellFormedContext> options) : DbContext(options)
     {
         public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder) =>
+            modelBuilder.Entity<InboxMessage>().HasKey(m => m.MessageId);
     }
 
     // No constructor taking the context's options: the isolated context cannot be created from them.

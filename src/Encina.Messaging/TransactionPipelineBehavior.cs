@@ -41,7 +41,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
     where TRequest : IRequest<TResponse>
 {
     private readonly IDbConnection _connection;
-    private readonly IDbTransactionAccessor? _transactionAccessor;
+    private readonly IDbTransactionAccessor _transactionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/> class.
@@ -56,7 +56,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
-        _transactionAccessor = transactionAccessor;
+        _transactionAccessor = transactionAccessor ?? new DbTransactionAccessor();
     }
 
     /// <inheritdoc />
@@ -88,10 +88,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
             ? await dbConnection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false)
             : _connection.BeginTransaction();
 
-        if (_transactionAccessor is not null)
-        {
-            _transactionAccessor.Current = transaction;
-        }
+        _transactionAccessor.Current = transaction;
 
         try
         {
@@ -115,10 +112,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         }
         finally
         {
-            if (_transactionAccessor is not null)
-            {
-                _transactionAccessor.Current = null;
-            }
+            _transactionAccessor.Current = null;
 
             if (transaction is DbTransaction dbTransaction)
             {

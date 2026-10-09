@@ -48,6 +48,18 @@ public sealed class InstrumentedInboxStoreTests
     }
 
     [Fact]
+    public async Task CacheHandlerErrorAsync_DelegatesToInner()
+    {
+        _inner.CacheHandlerErrorAsync("msg-1", "err", Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, Unit>.Right(Unit.Default));
+
+        var result = await _sut.CacheHandlerErrorAsync("msg-1", "err");
+
+        result.ShouldBeSuccess();
+        await _inner.Received(1).CacheHandlerErrorAsync("msg-1", "err", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task MarkAsProcessedAsync_DelegatesToInner()
     {
         _inner.MarkAsProcessedAsync("msg-1", "ok", Arg.Any<CancellationToken>())

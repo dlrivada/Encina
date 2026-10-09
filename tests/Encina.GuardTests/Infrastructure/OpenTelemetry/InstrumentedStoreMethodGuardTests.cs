@@ -198,6 +198,35 @@ public sealed class InstrumentedStoreMethodGuardTests
     }
 
     [Fact]
+    public async Task InboxStore_CacheHandlerErrorAsync_DelegatesToInner()
+    {
+        var inner = Substitute.For<IInboxStore>();
+        inner.CacheHandlerErrorAsync("msg-1", "err-response", Arg.Any<CancellationToken>())
+            .Returns(Prelude.Right<EncinaError, Unit>(Unit.Default));
+
+        var sut = new InstrumentedInboxStore(inner);
+
+        var result = await sut.CacheHandlerErrorAsync("msg-1", "err-response");
+
+        result.IsRight.ShouldBeTrue();
+        await inner.Received(1).CacheHandlerErrorAsync("msg-1", "err-response", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InboxStore_CacheHandlerErrorAsync_InnerLeft_ReturnsTheLeft()
+    {
+        var inner = Substitute.For<IInboxStore>();
+        inner.CacheHandlerErrorAsync("msg-1", "err-response", Arg.Any<CancellationToken>())
+            .Returns(Prelude.Left<EncinaError, Unit>(EncinaErrors.Create("test.fail", "fail")));
+
+        var sut = new InstrumentedInboxStore(inner);
+
+        var result = await sut.CacheHandlerErrorAsync("msg-1", "err-response");
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task InboxStore_MarkAsFailedAsync_DelegatesToInner()
     {
         var inner = Substitute.For<IInboxStore>();

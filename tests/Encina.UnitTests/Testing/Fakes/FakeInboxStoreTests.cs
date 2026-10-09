@@ -9,6 +9,20 @@ namespace Encina.UnitTests.Testing.Fakes;
 public sealed class FakeInboxStoreTests
 {
     [Fact]
+    public async Task CacheHandlerErrorAsync_MarksTheMessageProcessedWithTheResponse()
+    {
+        var store = new FakeInboxStore();
+        await store.AddAsync(new FakeInboxMessage { MessageId = "m1", RequestType = "Req" });
+
+        (await store.CacheHandlerErrorAsync("m1", "cached")).IsRight.ShouldBeTrue();
+
+        var message = store.GetMessages().Single();
+        message.Response.ShouldBe("cached");
+        message.IsProcessed.ShouldBeTrue();
+        store.GetProcessedMessageIds().ShouldContain("m1");
+    }
+
+    [Fact]
     public async Task MarkAsFailedAsync_EachCallIncrementsRetryCountByOne()
     {
         var store = new FakeInboxStore();
