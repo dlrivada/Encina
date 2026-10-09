@@ -58,7 +58,7 @@ A message is stored in a `DeadLetterMessages` table (a `dead_letter_messages` co
 
 ## 1. Switch the queue on
 
-The queue is opt-in. Set `UseDeadLetterQueue` in the same configuration action you already pass to the provider. The registration adds the store, the message factory, `DeadLetterOrchestrator`, `IDeadLetterManager`, `DeadLetterHealthCheck` and, when `EnableAutomaticCleanup` is `true` and `RetentionPeriod` is set, the `DeadLetterCleanupProcessor` hosted service.
+The queue is opt-in. Set `UseDeadLetterQueue` in the same configuration action you already pass to the provider. Registration is first-wins: the store, the factory and `DeadLetterOptions` keep the values of the first call, so a later `AddEncinaDeadLetterQueue` after a provider registered the queue with `UseDeadLetterQueue` does not replace the options. Configure the queue in the first call. The registration adds the store, the message factory, `DeadLetterOrchestrator`, `IDeadLetterManager`, `DeadLetterHealthCheck` and, when `EnableAutomaticCleanup` is `true` and `RetentionPeriod` is set, the `DeadLetterCleanupProcessor` hosted service.
 
 ADO.NET and Dapper (SQL Server shown; PostgreSQL and MySQL use the same call from their own namespace):
 
@@ -144,7 +144,7 @@ The collection name is `EncinaMongoDbOptions.Collections.DeadLetterMessages` (de
 
 ## 3. Capture a failed message
 
-Resolve `DeadLetterOrchestrator` from a scope and pass the failed request with a `DeadLetterContext`. Give it `SourceMessageId` when the failed item has a stable identifier, so that a retry of the same item does not create a second dead letter.
+Resolve `DeadLetterOrchestrator` from a scope and pass the failed request with a `DeadLetterContext`. `SourceMessageId` is required: it is the idempotency key, and every store throws `ArgumentException` for an empty one, so a retry of the same item does not create a second dead letter. It must be unique per `SourcePattern` across tenants, because the unique key has no tenant: if two tenants dead-letter the same source id, the second capture returns the first tenant's message. Use a globally unique id such as a GUID or an inbox message id, as the built-in sources do.
 
 ```csharp
 using Encina.Messaging.DeadLetter;
@@ -220,7 +220,8 @@ All 10 providers of the database matrix are covered ([AGENTS.md section 5](https
 
 - **Order.** `GetMessagesAsync` returns the oldest first (`DeadLetteredAtUtc`, then `Id`); `newestFirst: true` reverses it on the store. The `DeadLetteredAtUtc` order is the contract. The `Id` tie-break is stable within one provider only, because providers compare GUIDs in different byte orders.
 - **Tenants.** A store returns every tenant unless `DeadLetterFilter.TenantId` names one. `IDeadLetterManager` reads, replays and deletes default to the ambient `IRequestContext.TenantId` when there is one; an explicit `TenantId` on the filter wins over the ambient tenant, and `AllTenants = true` opts out for operator tooling. The cleanup processor and the health check work across the whole deployment. See "Multi-tenancy fails closed" below for what happens when no tenant is resolved.
-- **Expiry.** A message is expired when `ExpiresAtUtc <= now`, with "now" taken from `TimeProvider`.
+- **Expiry.** A message is expired when `ExpiresAtUtc <= now`, with "now" taken from `TimeProvider`. The store contract tests this boundary under a non-UTC PostgreSQL session time zone as well.
+- **Duplicates.** A repeated capture of the same `(SourcePattern, SourceMessageId)` is not an error. The PostgreSQL ADO.NET and Dapper stores insert with `ON CONFLICT ("SourcePattern", "SourceMessageId") DO NOTHING`, so no server error is raised and the capture is safe inside an open transaction.
 - **Errors.** Every store failure comes back as a `Left`; nothing is reported as "not found" or "not deleted" to hide it. `DeadLetterHealthCheck` reports Unhealthy when the store fails.
 - **Limits.** `take` is at most `DeadLetterStoreLimits.MaxPageSize`; the other lengths in `DeadLetterStoreLimits` are checked before any I/O.
 
