@@ -832,8 +832,31 @@ static Encina.Messaging.MessagingLog.OutboxExhaustedMessagesRequeued(Microsoft.E
 static Encina.Messaging.MessagingLog.OutboxBatchSaveFailed(Microsoft.Extensions.Logging.ILogger! logger, int messageCount, string! errorCode) -> void
 static Encina.Messaging.MessagingLog.OutboxMessageOutcomeNotRecorded(Microsoft.Extensions.Logging.ILogger! logger, string! operation, System.Guid messageId, string! errorCode) -> void
 static Encina.Messaging.MessagingLog.OutboxBatchCancelled(Microsoft.Extensions.Logging.ILogger! logger, System.Guid messageId) -> void
-Encina.Messaging.DeadLetter.DeadLetterOrchestrator.DeadLetterOrchestrator(Encina.Messaging.DeadLetter.IDeadLetterStore! store, Encina.Messaging.DeadLetter.IDeadLetterMessageFactory! messageFactory, Encina.Messaging.DeadLetter.DeadLetterOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.DeadLetter.DeadLetterOrchestrator!>! logger, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, System.TimeProvider? timeProvider = null) -> void
-Encina.Messaging.DeadLetter.DeadLetterManager.DeadLetterManager(Encina.Messaging.DeadLetter.IDeadLetterStore! store, Encina.Messaging.DeadLetter.DeadLetterOrchestrator! orchestrator, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.DeadLetter.DeadLetterManager!>! logger, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer) -> void
+Encina.Messaging.DeadLetter.DeadLetterOrchestrator.DeadLetterOrchestrator(Encina.Messaging.DeadLetter.IDeadLetterStore! store, Encina.Messaging.DeadLetter.IDeadLetterMessageFactory! messageFactory, Encina.Messaging.DeadLetter.DeadLetterOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.DeadLetter.DeadLetterOrchestrator!>! logger, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, Encina.IRequestContextAccessor! requestContextAccessor, System.TimeProvider? timeProvider = null) -> void
+Encina.Messaging.DeadLetter.DeadLetterManager.DeadLetterManager(Encina.Messaging.DeadLetter.IDeadLetterStore! store, Encina.Messaging.DeadLetter.DeadLetterOrchestrator! orchestrator, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.DeadLetter.DeadLetterManager!>! logger, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, Encina.Messaging.DeadLetter.DeadLetterOptions! options, Encina.IRequestContextAccessor! requestContextAccessor, System.TimeProvider? timeProvider = null) -> void
+Encina.Messaging.DeadLetter.DeadLetterFilter.AllTenants.get -> bool
+Encina.Messaging.DeadLetter.DeadLetterFilter.AllTenants.init -> void
+Encina.Messaging.DeadLetter.DeadLetterFilter.TenantId.get -> string?
+Encina.Messaging.DeadLetter.DeadLetterFilter.TenantId.set -> void
+Encina.Messaging.DeadLetter.DeadLetterFilter.SourceMessageId.get -> string?
+Encina.Messaging.DeadLetter.DeadLetterFilter.SourceMessageId.set -> void
+Encina.Messaging.DeadLetter.DeadLetterFilter.ExpiresAtOrBeforeUtc.get -> System.DateTime?
+Encina.Messaging.DeadLetter.DeadLetterFilter.ExpiresAtOrBeforeUtc.set -> void
+Encina.Messaging.DeadLetter.DeadLetterOptions.ReplayClaimTimeout.get -> System.TimeSpan
+Encina.Messaging.DeadLetter.DeadLetterOptions.ReplayClaimTimeout.set -> void
+Encina.Messaging.DeadLetter.DeadLetterStoreLimits
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.MaxPageSize = 1000 -> int
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.SourcePatternMaxLength = 64 -> int
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.SourceMessageIdMaxLength = 256 -> int
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.RequestTypeMaxLength = 1000 -> int
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.ErrorCodeMaxLength = 256 -> int
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.TenantIdMaxLength = 128 -> int
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.CorrelationIdMaxLength = 256 -> int
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.ReplayResultMaxLength = 256 -> int
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.InvalidMessageType = "dlq.invalid_message_type" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.ReplayInProgress = "dlq.replay_in_progress" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.ReplaySucceeded = "success" -> string!
+static Encina.Messaging.MessagingServiceCollectionExtensions.AddDeadLetterQueueServices<TStore, TFactory>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, bool useDeadLetterQueue, Encina.Messaging.DeadLetter.DeadLetterOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Encina.Messaging.Sagas.SagaOrchestrator.SagaOrchestrator(Encina.Messaging.Sagas.ISagaStore! store, Encina.Messaging.Sagas.SagaOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Sagas.SagaOrchestrator!>! logger, Encina.Messaging.Sagas.ISagaStateFactory! stateFactory, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, System.TimeProvider? timeProvider = null) -> void
 Encina.Messaging.Scheduling.SchedulerOrchestrator.SchedulerOrchestrator(Encina.Messaging.Scheduling.IScheduledMessageStore! store, Encina.Messaging.Scheduling.SchedulingOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Scheduling.SchedulerOrchestrator!>! logger, Encina.Messaging.Scheduling.IScheduledMessageFactory! messageFactory, Encina.Messaging.Scheduling.IScheduledMessageRetryPolicy! retryPolicy, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, Encina.Messaging.Scheduling.ICronParser? cronParser = null, System.TimeProvider? timeProvider = null) -> void
 static Encina.Messaging.MessagingServiceCollectionExtensions.TryAddDefaultMessageSerializer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
