@@ -330,9 +330,9 @@ internal static partial class ABACLogMessages
     internal static partial void StoreEvaluationFailed(
         ILogger logger, Exception exception);
 
-    // ── Decision Audit (9079-9083, 9088) ─────────────────────────────
-    // Event IDs: 9079-9083 and 9088 (see EventIdRanges.SecurityABAC; 9084 and 9086-9089 are the
-    // rest of the block reserved for the decision audit trail of #751). Codes and exception types
+    // ── Decision Audit (9079-9083, 9088-9090) ────────────────────────
+    // Event IDs: 9079-9083 and 9088-9090 (see EventIdRanges.SecurityABAC; 9084, 9086 and 9087 are
+    // the rest of the block reserved for the decision audit trail of #751). Codes and exception types
     // only: never a subject, a tenant, an attribute value, an error message or an exception message.
 
     [LoggerMessage(
