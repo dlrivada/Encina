@@ -76,7 +76,7 @@ A value never fails the insert. The mapper (`ABACDecisionAuditEntryMapper`) boun
 |-------|-------|--------------------------------|--------|
 | `UserId`, `EntityType`, `EntityId`, `CorrelationId` | 256 | Replaced by `sha256:<64 hex>` (SHA-256 of the UTF-8 bytes, lowercase hex) | `abac.hashed_fields` |
 | `TenantId` | 128 | Replaced by `sha256:<64 hex>` | `abac.hashed_fields` |
-| `IpAddress` | 45 | Stored as `null` when longer or when it does not parse as an address | `abac.dropped_fields` |
+| `IpAddress` | 45 | Kept only as canonical IPv4 or IPv6 text; otherwise stored as `null` (longer than the limit, short forms such as `123`, zone ids such as `fe80::1%eth0`, anything that does not read back as itself) | `abac.dropped_fields` |
 | `UserAgent` | 512 | Truncated | `abac.truncated_fields` |
 | Attribute names (`abac.attribute_names`) | 128 names in total | The list is cut | `abac.truncated_fields` |
 | Recorded attribute value (`abac.attr.<name>`) | 256 | Truncated | `abac.truncated_fields` |
@@ -93,7 +93,7 @@ The reader applies the same rule to its filters, so a subject, request type, res
 |----------|--------|
 | Isolation | Each write runs in its own DI scope under `TransactionScope(Suppress)`, so a denied request that rolls back its unit of work keeps its record. |
 | Cancellation | The client's token is never linked to the write: a disconnect must not erase the evidence of a denied attempt. |
-| Bound | `ABACDecisionAuditOptions.WriteTimeout` (default 5 seconds, must be greater than zero, validated when the application starts). The write is also raced against the bound, so a store that ignores its token cannot hold the request. |
+| Bound | `ABACDecisionAuditOptions.WriteTimeout` (default 5 seconds, must be greater than zero, validated when the application starts). The write is also raced against the bound, so a store that ignores its token cannot hold the request. A store that observes the bound token and answers with a `Left` after the bound fired is treated as the same timeout as one that ignores the token. |
 | Idempotent re-check | When the write returns `Left`, throws or times out, the recorder looks the entry up by correlation id and decision id from a fresh scope, under a second bound of the same length. A committed entry counts as written (logged with EventId 9089). A failed write therefore holds the request for at most twice `WriteTimeout`. |
 | Failure result | A store `Left` is returned with the store's code and a fixed message, never the store's message or exception. An exception is rethrown for the PEP to log in its redacted form. |
 | No store | No `IOperationAuditStore` registered returns `abac.decision_audit_store_unavailable`. |
@@ -117,6 +117,8 @@ Marten caveat: the Marten store reads through an asynchronous projection, so the
 |--------|---------|
 | `QueryAsync(ABACDecisionAuditQuery, CancellationToken)` | `Either<EncinaError, PagedResult<ABACDecisionAuditRecord>>`, newest first |
 | `ExportAsync(ABACDecisionAuditQuery, Stream, CancellationToken)` | `Either<EncinaError, int>`: the number of decisions written as JSON Lines (UTF-8, one `ABACDecisionAuditRecord` per line, schema `encina.abac.decision/1`). The stream is not closed. |
+
+A stored entry whose metadata cannot be read back makes `QueryAsync` and `ExportAsync` return a `Left` with `abac.decision_audit_record_unreadable` (logged with EventId 9098, exception type and stack trace only), never an exception.
 
 `ExportAsync` ignores the paging of the query and reads pages of `OperationAuditQuery.MaxPageSize`. Pages are read newest first: set `ToUtc` to export a stable range while decisions are still being recorded, or a new decision can shift a page and repeat a line. Lines already written stay written when a later page fails.
 

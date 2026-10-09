@@ -220,3 +220,4 @@ user.isAdmin == true || user.department == "security"
 | 9095 | Exception during a policy change audit write |
 | 9096 | System actor scope opened for startup seeding |
 | 9097 | Policy changes applied without an audit store (Warning, once per PAP instance) |
+| 9098 | A stored decision audit entry could not be read; the query fails (Error) |
