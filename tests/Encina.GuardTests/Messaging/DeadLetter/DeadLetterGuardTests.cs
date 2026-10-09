@@ -314,6 +314,37 @@ public class DeadLetterGuardTests
         (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("filter");
     }
 
+    [Fact]
+    public async Task ReplayAllAsync_NonPositiveMaxMessages_ThrowsArgumentOutOfRangeException()
+    {
+        var manager = CreateManager();
+
+        var act = async () => await manager.ReplayAllAsync(new DeadLetterFilter(), maxMessages: 0);
+
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(act);
+    }
+
+    [Fact]
+    public async Task ReplayAllAsync_FilterInstantWithoutUtcKind_ThrowsArgumentException()
+    {
+        var manager = CreateManager();
+        var filter = new DeadLetterFilter { DeadLetteredAfterUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Unspecified) };
+
+        var act = async () => await manager.ReplayAllAsync(filter);
+
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("DeadLetteredAfterUtc");
+    }
+
+    [Fact]
+    public async Task GetMessagesAsync_FilterIdentityWithTrailingSpace_ThrowsArgumentException()
+    {
+        var manager = CreateManager();
+
+        var act = async () => await manager.GetMessagesAsync(new DeadLetterFilter { SourceMessageId = "order-1 " });
+
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("SourceMessageId");
+    }
+
     #endregion
 
     #region DeadLetterManager.DeleteAllAsync
