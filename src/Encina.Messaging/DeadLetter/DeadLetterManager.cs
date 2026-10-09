@@ -72,7 +72,12 @@ public sealed class DeadLetterManager : IDeadLetterManager
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    private string? AmbientTenantId() => _requestContextAccessor.RequestContext?.TenantId;
+    // An empty tenant id is no tenant.
+    private string? AmbientTenantId()
+    {
+        var tenantId = _requestContextAccessor.RequestContext?.TenantId;
+        return string.IsNullOrEmpty(tenantId) ? null : tenantId;
+    }
 
     private DateTime UtcNow() => _timeProvider.GetUtcNow().UtcDateTime;
 
@@ -137,7 +142,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
     }
 
     private static EncinaError NotFoundError(Guid messageId)
-        => EncinaError.New($"[{DeadLetterErrorCodes.NotFound}] Dead letter message {messageId} not found");
+        => EncinaErrors.Create(DeadLetterErrorCodes.NotFound, $"Dead letter message {messageId} not found");
 
     private async Task<Either<EncinaError, ReplayResult>> ReplayLoadedAsync(
         IDeadLetterMessage message,
@@ -187,13 +192,13 @@ public sealed class DeadLetterManager : IDeadLetterManager
     {
         if (message.IsReplayed)
         {
-            rejection = EncinaError.New($"[{DeadLetterErrorCodes.AlreadyReplayed}] Message {messageId} has already been replayed");
+            rejection = EncinaErrors.Create(DeadLetterErrorCodes.AlreadyReplayed, $"Message {messageId} has already been replayed");
             return true;
         }
 
         if (message.IsExpiredAt(now))
         {
-            rejection = EncinaError.New($"[{DeadLetterErrorCodes.Expired}] Message {messageId} has expired");
+            rejection = EncinaErrors.Create(DeadLetterErrorCodes.Expired, $"Message {messageId} has expired");
             return true;
         }
 
@@ -254,7 +259,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
             if (recorded.IsLeft)
                 return recorded.LeftToArray()[0];
 
-            return EncinaError.New($"[{plan.ErrorCode}] {plan.ErrorText}");
+            return EncinaErrors.Create(plan.ErrorCode, plan.ErrorText!);
         }
 
         // Replay through IEncina.Send, typed by the request's runtime type

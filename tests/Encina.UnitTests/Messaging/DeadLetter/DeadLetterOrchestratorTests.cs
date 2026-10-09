@@ -4,6 +4,7 @@ using Encina.Messaging.Serialization;
 using Encina.Testing.Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Shouldly;
 using static LanguageExt.Prelude;
@@ -22,11 +23,17 @@ public sealed class DeadLetterOrchestratorTests
     private readonly DeadLetterOptions _options;
     private readonly ILogger<DeadLetterOrchestrator> _logger;
     private readonly IMessageSerializer _messageSerializer;
+    private readonly IRequestContextAccessor _accessor;
     private readonly DeadLetterOrchestrator _orchestrator;
 
     public DeadLetterOrchestratorTests()
     {
+        _accessor = Substitute.For<IRequestContextAccessor>();
         _store = Substitute.For<IDeadLetterStore>();
+        _store.AddAsync(Arg.Any<IDeadLetterMessage>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, bool>(true));
+        _store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(unit));
         _messageFactory = Substitute.For<IDeadLetterMessageFactory>();
         _options = new DeadLetterOptions
         {
@@ -37,7 +44,7 @@ public sealed class DeadLetterOrchestratorTests
         _logger = Substitute.For<ILogger<DeadLetterOrchestrator>>();
         _messageSerializer = new JsonMessageSerializer();
 
-        _orchestrator = new DeadLetterOrchestrator(_store, _messageFactory, _options, _logger, _messageSerializer);
+        _orchestrator = new DeadLetterOrchestrator(_store, _messageFactory, _options, _logger, _messageSerializer, _accessor);
     }
 
     #region Constructor Tests
@@ -45,7 +52,7 @@ public sealed class DeadLetterOrchestratorTests
     [Fact]
     public void Constructor_NullStore_ThrowsArgumentNullException()
     {
-        var act = () => new DeadLetterOrchestrator(null!, _messageFactory, _options, _logger, _messageSerializer);
+        var act = () => new DeadLetterOrchestrator(null!, _messageFactory, _options, _logger, _messageSerializer, _accessor);
 
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("store");
     }
@@ -53,7 +60,7 @@ public sealed class DeadLetterOrchestratorTests
     [Fact]
     public void Constructor_NullMessageFactory_ThrowsArgumentNullException()
     {
-        var act = () => new DeadLetterOrchestrator(_store, null!, _options, _logger, _messageSerializer);
+        var act = () => new DeadLetterOrchestrator(_store, null!, _options, _logger, _messageSerializer, _accessor);
 
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("messageFactory");
     }
@@ -61,7 +68,7 @@ public sealed class DeadLetterOrchestratorTests
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
-        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, null!, _logger, _messageSerializer);
+        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, null!, _logger, _messageSerializer, _accessor);
 
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("options");
     }
@@ -69,7 +76,7 @@ public sealed class DeadLetterOrchestratorTests
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
-        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, _options, null!, _messageSerializer);
+        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, _options, null!, _messageSerializer, _accessor);
 
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("logger");
     }
@@ -77,9 +84,17 @@ public sealed class DeadLetterOrchestratorTests
     [Fact]
     public void Constructor_NullMessageSerializer_ThrowsArgumentNullException()
     {
-        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, _options, _logger, null!);
+        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, _options, _logger, null!, _accessor);
 
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("messageSerializer");
+    }
+
+    [Fact]
+    public void Constructor_NullRequestContextAccessor_ThrowsArgumentNullException()
+    {
+        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, _options, _logger, _messageSerializer, null!);
+
+        act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("requestContextAccessor");
     }
 
     #endregion
@@ -156,12 +171,11 @@ public sealed class DeadLetterOrchestratorTests
 
         _messageFactory.Create(Arg.Is<DeadLetterData>(d =>
             d.RequestType == expectedRequestType &&
-            d.ErrorMessage == "test.error" &&
+            d.ErrorCode == "test.error" &&
             d.SourcePattern == sourcePattern &&
             d.TotalRetryAttempts == retryCount &&
             d.FirstFailedAtUtc == firstFailedAt &&
-            d.ExceptionType == typeof(InvalidOperationException).FullName &&
-            d.ExceptionMessage == null))
+            d.ExceptionType == typeof(InvalidOperationException).FullName))
             .Returns(expectedMessage);
 
         // Act
@@ -171,14 +185,13 @@ public sealed class DeadLetterOrchestratorTests
         // Assert
         _messageFactory.Received(1).Create(Arg.Is<DeadLetterData>(d =>
             d.RequestType == expectedRequestType &&
-            d.ErrorMessage == "test.error" &&
-            d.ErrorMessage != "Test error" &&
+            d.ErrorCode == "test.error" &&
+            d.ErrorCode != "Test error" &&
             d.SourcePattern == sourcePattern &&
             d.TotalRetryAttempts == retryCount &&
             d.FirstFailedAtUtc == firstFailedAt &&
             d.ExceptionType == typeof(InvalidOperationException).FullName &&
-            d.ExceptionMessage == null &&
-            d.ExceptionMessage != "Something went wrong"));
+            d.ExceptionStackTrace == null));
     }
 
     [Fact]
@@ -200,7 +213,7 @@ public sealed class DeadLetterOrchestratorTests
         };
 
         var orchestrator = new DeadLetterOrchestrator(
-            _store, _messageFactory, optionsWithCallback, _logger, _messageSerializer);
+            _store, _messageFactory, optionsWithCallback, _logger, _messageSerializer, _accessor);
 
         var request = new TestDeadLetterRequest { Id = Guid.NewGuid() };
         var error = EncinaErrors.Create("test.error", "Test error");
@@ -229,7 +242,7 @@ public sealed class DeadLetterOrchestratorTests
         };
 
         var orchestrator = new DeadLetterOrchestrator(
-            _store, _messageFactory, optionsWithCallback, _logger, _messageSerializer);
+            _store, _messageFactory, optionsWithCallback, _logger, _messageSerializer, _accessor);
 
         var request = new TestDeadLetterRequest { Id = Guid.NewGuid() };
         var error = EncinaErrors.Create("test.error", "Test error");
@@ -391,22 +404,17 @@ public sealed class DeadLetterOrchestratorTests
     public async Task GetStatisticsAsync_ReturnsCorrectStatistics()
     {
         // Arrange
-        _store.GetCountAsync(null, Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, int>(100));
-        _store.GetCountAsync(
-            Arg.Is<DeadLetterFilter>(f => f.ExcludeReplayed == true),
-            Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, int>(80));
-        _store.GetCountAsync(
-            Arg.Is<DeadLetterFilter>(f => f.ExcludeReplayed == false),
-            Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, int>(100));
+        ArrangeStatisticsCounts(total: 100, pending: 80, expired: 5);
+        var oldest = CreateTestDeadLetterMessage(Guid.NewGuid());
+        oldest.DeadLetteredAtUtc = FixedUtcNow.AddDays(-3);
+        var newest = CreateTestDeadLetterMessage(Guid.NewGuid());
+        newest.DeadLetteredAtUtc = FixedUtcNow;
         _store.GetMessagesAsync(
-            Arg.Any<DeadLetterFilter>(),
-            Arg.Any<int>(),
-            Arg.Any<int>(),
-            Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
+            Arg.Any<DeadLetterFilter>(), 0, 1, false, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(new IDeadLetterMessage[] { oldest }));
+        _store.GetMessagesAsync(
+            Arg.Any<DeadLetterFilter>(), 0, 1, true, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(new IDeadLetterMessage[] { newest }));
 
         // Act
         var result = await _orchestrator.GetStatisticsAsync();
@@ -416,11 +424,285 @@ public sealed class DeadLetterOrchestratorTests
         statistics.TotalCount.ShouldBe(100);
         statistics.PendingCount.ShouldBe(80);
         statistics.ReplayedCount.ShouldBe(20);
+        statistics.ExpiredCount.ShouldBe(5);
+        statistics.OldestPendingAtUtc.ShouldBe(oldest.DeadLetteredAtUtc);
+        statistics.NewestPendingAtUtc.ShouldBe(newest.DeadLetteredAtUtc);
+    }
+
+    [Fact]
+    public async Task GetStatisticsAsync_NeverLoadsTheQueue_ReadsOnlySingleRows()
+    {
+        ArrangeStatisticsCounts(total: 10, pending: 4, expired: 1);
+        _store.GetMessagesAsync(
+            Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
+
+        await _orchestrator.GetStatisticsAsync();
+
+        await _store.DidNotReceive().GetMessagesAsync(
+            Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Is<int>(take => take != 1), Arg.Any<bool>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetStatisticsAsync_CountsExpiredRowsInTheStoreAtTheProvidedInstant()
+    {
+        var now = new DateTimeOffset(FixedUtcNow);
+        var orchestrator = new DeadLetterOrchestrator(
+            _store, _messageFactory, _options, _logger, _messageSerializer, _accessor, new FakeTimeProvider(now));
+        ArrangeStatisticsCounts(total: 3, pending: 3, expired: 2);
+        _store.GetMessagesAsync(
+            Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
+
+        var statistics = (await orchestrator.GetStatisticsAsync()).ShouldBeRight();
+
+        statistics.ExpiredCount.ShouldBe(2);
+        await _store.Received().GetCountAsync(
+            Arg.Is<DeadLetterFilter>(f => f.ExpiresAtOrBeforeUtc == FixedUtcNow && f.ExcludeReplayed == true),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetStatisticsAsync_AmbientTenant_ScopesEveryRead()
+    {
+        UseAmbientTenant("tenant-a");
+        ArrangeStatisticsCounts(total: 1, pending: 1, expired: 0);
+        _store.GetMessagesAsync(
+            Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
+
+        await _orchestrator.GetStatisticsAsync();
+
+        await _store.DidNotReceive().GetCountAsync(
+            Arg.Is<DeadLetterFilter>(f => f.TenantId != "tenant-a"), Arg.Any<CancellationToken>());
+        await _store.DidNotReceive().GetMessagesAsync(
+            Arg.Is<DeadLetterFilter>(f => f.TenantId != "tenant-a"), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetStatisticsAsync_CountFails_ReturnsTheLeft()
+    {
+        _store.GetCountAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, int>(EncinaErrors.Create("db.down", "down")));
+
+        var result = await _orchestrator.GetStatisticsAsync();
+
+        result.ShouldBeError();
+    }
+
+    [Fact]
+    public async Task GetStatisticsAsync_PendingReadFails_ReturnsTheLeft()
+    {
+        ArrangeStatisticsCounts(total: 1, pending: 1, expired: 0);
+        _store.GetMessagesAsync(
+            Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IEnumerable<IDeadLetterMessage>>(EncinaErrors.Create("db.down", "down")));
+
+        var result = await _orchestrator.GetStatisticsAsync();
+
+        result.ShouldBeError();
+    }
+
+    #endregion
+
+    #region Capture Tests (idempotency, tenant, store failures)
+
+    [Fact]
+    public async Task AddAsync_DuplicateSource_ReturnsExistingAndSkipsCallbackAndSave()
+    {
+        var callbacks = 0;
+        var options = new DeadLetterOptions { OnDeadLetter = (_, _) => { callbacks++; return Task.CompletedTask; } };
+        var orchestrator = new DeadLetterOrchestrator(
+            _store, _messageFactory, options, _logger, _messageSerializer, _accessor);
+        var incoming = CreateTestDeadLetterMessage(Guid.NewGuid());
+        var existing = CreateTestDeadLetterMessage(Guid.NewGuid());
+        _messageFactory.Create(Arg.Any<DeadLetterData>()).Returns(incoming);
+        _store.AddAsync(incoming, Arg.Any<CancellationToken>()).Returns(Right<EncinaError, bool>(false));
+        _store.GetMessagesAsync(
+            Arg.Is<DeadLetterFilter>(f => f.SourcePattern == "Outbox" && f.SourceMessageId == "src-1"),
+            0, 1, false, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(new IDeadLetterMessage[] { existing }));
+
+        var context = new DeadLetterContext(
+            EncinaErrors.Create("e", "m"), null, "Outbox", 1, FixedUtcNow, SourceMessageId: "src-1");
+        var result = await orchestrator.AddAsync(new TestDeadLetterRequest(), context);
+
+        result.ShouldBeRight().ShouldBe(existing);
+        callbacks.ShouldBe(0);
+        await _store.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AddAsync_DuplicateWhoseOriginalWasDeleted_ReturnsStoreFailedError()
+    {
+        var incoming = CreateTestDeadLetterMessage(Guid.NewGuid());
+        _messageFactory.Create(Arg.Any<DeadLetterData>()).Returns(incoming);
+        _store.AddAsync(incoming, Arg.Any<CancellationToken>()).Returns(Right<EncinaError, bool>(false));
+        _store.GetMessagesAsync(
+            Arg.Any<DeadLetterFilter>(), 0, 1, false, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
+
+        var context = new DeadLetterContext(EncinaErrors.Create("e", "m"), null, "Outbox", 1, FixedUtcNow);
+        var result = await _orchestrator.AddAsync(new TestDeadLetterRequest(), context);
+
+        result.ShouldBeError();
+    }
+
+    [Fact]
+    public async Task AddAsync_DuplicateLookupFails_ReturnsTheLeft()
+    {
+        var incoming = CreateTestDeadLetterMessage(Guid.NewGuid());
+        _messageFactory.Create(Arg.Any<DeadLetterData>()).Returns(incoming);
+        _store.AddAsync(incoming, Arg.Any<CancellationToken>()).Returns(Right<EncinaError, bool>(false));
+        _store.GetMessagesAsync(
+            Arg.Any<DeadLetterFilter>(), 0, 1, false, Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IEnumerable<IDeadLetterMessage>>(EncinaErrors.Create("db.down", "down")));
+
+        var context = new DeadLetterContext(EncinaErrors.Create("e", "m"), null, "Outbox", 1, FixedUtcNow);
+        var result = await _orchestrator.AddAsync(new TestDeadLetterRequest(), context);
+
+        result.ShouldBeError();
+    }
+
+    [Fact]
+    public async Task AddAsync_StoreAddFails_ReturnsTheLeftWithoutSaving()
+    {
+        var message = CreateTestDeadLetterMessage(Guid.NewGuid());
+        _messageFactory.Create(Arg.Any<DeadLetterData>()).Returns(message);
+        _store.AddAsync(message, Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, bool>(EncinaErrors.Create("db.down", "down")));
+
+        var context = new DeadLetterContext(EncinaErrors.Create("e", "m"), null, "Outbox", 1, FixedUtcNow);
+        var result = await _orchestrator.AddAsync(new TestDeadLetterRequest(), context);
+
+        result.ShouldBeError();
+        await _store.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AddAsync_SaveFails_ReturnsTheLeft()
+    {
+        var message = CreateTestDeadLetterMessage(Guid.NewGuid());
+        _messageFactory.Create(Arg.Any<DeadLetterData>()).Returns(message);
+        _store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, Unit>(EncinaErrors.Create("db.down", "down")));
+
+        var context = new DeadLetterContext(EncinaErrors.Create("e", "m"), null, "Outbox", 1, FixedUtcNow);
+        var result = await _orchestrator.AddAsync(new TestDeadLetterRequest(), context);
+
+        result.ShouldBeError();
+    }
+
+    [Fact]
+    public async Task AddAsync_NoSourceMessageId_UsesTheNewDeadLetterIdAndAmbientTenant()
+    {
+        UseAmbientTenant("tenant-a");
+        _messageFactory.Create(Arg.Any<DeadLetterData>()).Returns(CreateTestDeadLetterMessage(Guid.NewGuid()));
+
+        var context = new DeadLetterContext(EncinaErrors.Create("e", "m"), null, "Outbox", 1, FixedUtcNow);
+        await _orchestrator.AddAsync(new TestDeadLetterRequest(), context);
+
+        _messageFactory.Received(1).Create(Arg.Is<DeadLetterData>(d =>
+            d.SourceMessageId == d.Id.ToString("D") && d.TenantId == "tenant-a"));
+    }
+
+    [Fact]
+    public async Task AddAsync_ContextOverrides_WinOverTheAmbientTenant()
+    {
+        UseAmbientTenant("tenant-a");
+        _messageFactory.Create(Arg.Any<DeadLetterData>()).Returns(CreateTestDeadLetterMessage(Guid.NewGuid()));
+
+        var context = new DeadLetterContext(
+            EncinaErrors.Create("e", "m"), null, "Outbox", 1, FixedUtcNow, SourceMessageId: "src-9", TenantId: "tenant-b");
+        await _orchestrator.AddAsync(new TestDeadLetterRequest(), context);
+
+        _messageFactory.Received(1).Create(Arg.Is<DeadLetterData>(d =>
+            d.SourceMessageId == "src-9" && d.TenantId == "tenant-b"));
+    }
+
+    [Fact]
+    public async Task AddFromFailedMessageAsync_UsesTheFailedMessageIdAsSourceMessageId()
+    {
+        var failedId = Guid.NewGuid();
+        var failed = new global::Encina.Messaging.Recoverability.FailedMessage
+        {
+            Id = failedId,
+            Request = new TestDeadLetterRequest(),
+            RequestType = typeof(TestDeadLetterRequest).AssemblyQualifiedName!,
+            Error = EncinaErrors.Create("e", "m"),
+            TotalAttempts = 2,
+            ImmediateRetryAttempts = 1,
+            DelayedRetryAttempts = 1,
+            FirstAttemptAtUtc = FixedUtcNow,
+            FailedAtUtc = FixedUtcNow
+        };
+        _messageFactory.Create(Arg.Any<DeadLetterData>()).Returns(CreateTestDeadLetterMessage(Guid.NewGuid()));
+
+        var result = await _orchestrator.AddFromFailedMessageAsync(failed, DeadLetterSourcePatterns.Recoverability);
+
+        result.ShouldBeRight();
+        _messageFactory.Received(1).Create(Arg.Is<DeadLetterData>(d =>
+            d.SourceMessageId == failedId.ToString("D") && d.ErrorCode == "e"));
+    }
+
+    [Fact]
+    public async Task AddAsync_ComputesExpiryFromTheTimeProvider()
+    {
+        var orchestrator = new DeadLetterOrchestrator(
+            _store, _messageFactory, _options, _logger, _messageSerializer, _accessor,
+            new FakeTimeProvider(new DateTimeOffset(FixedUtcNow)));
+        _messageFactory.Create(Arg.Any<DeadLetterData>()).Returns(CreateTestDeadLetterMessage(Guid.NewGuid()));
+
+        var context = new DeadLetterContext(EncinaErrors.Create("e", "m"), null, "Outbox", 1, FixedUtcNow);
+        await orchestrator.AddAsync(new TestDeadLetterRequest(), context);
+
+        _messageFactory.Received(1).Create(Arg.Is<DeadLetterData>(d =>
+            d.DeadLetteredAtUtc == FixedUtcNow && d.ExpiresAtUtc == FixedUtcNow.AddDays(7)));
+    }
+
+    [Fact]
+    public async Task AddAsync_NoRetentionPeriod_LeavesExpiryNull()
+    {
+        var options = new DeadLetterOptions { RetentionPeriod = null };
+        var orchestrator = new DeadLetterOrchestrator(
+            _store, _messageFactory, options, _logger, _messageSerializer, _accessor);
+        _messageFactory.Create(Arg.Any<DeadLetterData>()).Returns(CreateTestDeadLetterMessage(Guid.NewGuid()));
+
+        var context = new DeadLetterContext(EncinaErrors.Create("e", "m"), null, "Outbox", 1, FixedUtcNow);
+        await orchestrator.AddAsync(new TestDeadLetterRequest(), context);
+
+        _messageFactory.Received(1).Create(Arg.Is<DeadLetterData>(d => d.ExpiresAtUtc == null));
     }
 
     #endregion
 
     #region Helpers
+
+    private void UseAmbientTenant(string tenantId)
+    {
+        var context = Substitute.For<IRequestContext>();
+        context.TenantId.Returns(tenantId);
+        _accessor.RequestContext.Returns(context);
+    }
+
+    // total = every row; pending = ExcludeReplayed; expired = ExpiresAtOrBeforeUtc set. Per-source counts are 0.
+    private void ArrangeStatisticsCounts(int total, int pending, int expired)
+    {
+        _store.GetCountAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(0));
+        _store.GetCountAsync(
+            Arg.Is<DeadLetterFilter>(f => f.ExcludeReplayed == null && f.SourcePattern == null),
+            Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(total));
+        _store.GetCountAsync(
+            Arg.Is<DeadLetterFilter>(f => f.ExcludeReplayed == true && f.SourcePattern == null && f.ExpiresAtOrBeforeUtc == null),
+            Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(pending));
+        _store.GetCountAsync(
+            Arg.Is<DeadLetterFilter>(f => f.ExpiresAtOrBeforeUtc != null),
+            Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(expired));
+    }
 
     private static TestDeadLetterMessage CreateTestDeadLetterMessage(Guid id)
     {
@@ -429,7 +711,8 @@ public sealed class DeadLetterOrchestratorTests
             Id = id,
             RequestType = typeof(TestDeadLetterRequest).AssemblyQualifiedName!,
             RequestContent = "{}",
-            ErrorMessage = "Test error",
+            ErrorCode = "test.error",
+            SourceMessageId = id.ToString("D"),
             SourcePattern = DeadLetterSourcePatterns.Recoverability,
             TotalRetryAttempts = 3,
             FirstFailedAtUtc = FixedUtcNow.AddMinutes(-5),
@@ -468,35 +751,25 @@ public sealed class DerivedDeadLetterRequest : BaseDeadLetterRequest
 /// </summary>
 internal sealed class TestDeadLetterMessage : IDeadLetterMessage
 {
-    /// <summary>
-    /// Fixed UTC time used for deterministic testing (2026-01-01 12:00:00 UTC).
-    /// </summary>
-    private static readonly DateTime DefaultFixedUtcNow = new(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
-
     public Guid Id { get; set; }
     public string RequestType { get; set; } = string.Empty;
     public string RequestContent { get; set; } = string.Empty;
-    public string ErrorMessage { get; set; } = string.Empty;
+    public string ErrorCode { get; set; } = string.Empty;
     public string? ExceptionType { get; set; }
-    public string? ExceptionMessage { get; set; }
     public string? ExceptionStackTrace { get; set; }
     public string? CorrelationId { get; set; }
     public string SourcePattern { get; set; } = string.Empty;
+    public string SourceMessageId { get; set; } = string.Empty;
+    public string? TenantId { get; set; }
     public int TotalRetryAttempts { get; set; }
     public DateTime FirstFailedAtUtc { get; set; }
     public DateTime DeadLetteredAtUtc { get; set; }
     public DateTime? ExpiresAtUtc { get; set; }
+    public DateTime? ReplayClaimedAtUtc { get; set; }
     public DateTime? ReplayedAtUtc { get; set; }
     public string? ReplayResult { get; set; }
 
-    /// <summary>
-    /// Time provider for deterministic testing. Defaults to 2026-01-01 12:00:00 UTC
-    /// for predictable <see cref="IsExpired"/> behavior.
-    /// Override in tests that require real-time behavior or specific time scenarios.
-    /// </summary>
-    public Func<DateTime> NowProvider { get; set; } = () => DefaultFixedUtcNow;
-
     public bool IsReplayed => ReplayedAtUtc.HasValue;
-    public bool IsExpired => ExpiresAtUtc.HasValue && ExpiresAtUtc.Value <= NowProvider();
+    public bool IsExpiredAt(DateTime utcNow) => ExpiresAtUtc is { } expiresAtUtc && expiresAtUtc <= utcNow;
 }
 

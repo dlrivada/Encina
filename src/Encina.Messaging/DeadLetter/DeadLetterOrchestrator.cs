@@ -225,7 +225,12 @@ public sealed class DeadLetterOrchestrator
             TenantId: tenantId ?? AmbientTenantId());
     }
 
-    private string? AmbientTenantId() => _requestContextAccessor.RequestContext?.TenantId;
+    // An empty tenant id is no tenant.
+    private string? AmbientTenantId()
+    {
+        var tenantId = _requestContextAccessor.RequestContext?.TenantId;
+        return string.IsNullOrEmpty(tenantId) ? null : tenantId;
+    }
 
     private static (string? Type, string? StackTrace) DescribeException(Exception? exception)
         => (exception?.GetType().FullName, exception?.StackTrace);
@@ -400,8 +405,8 @@ public sealed class DeadLetterOrchestrator
             ReplayedCount = total - pending,
             ExpiredCount = expiredCount.RightToArray()[0],
             CountBySource = countBySource.RightToArray()[0],
-            OldestPendingAtUtc = oldest.RightToArray()[0],
-            NewestPendingAtUtc = newest.RightToArray()[0]
+            OldestPendingAtUtc = ToNullable(oldest.RightToArray()[0]),
+            NewestPendingAtUtc = ToNullable(newest.RightToArray()[0])
         };
     }
 
@@ -443,7 +448,7 @@ public sealed class DeadLetterOrchestrator
     }
 
     // The first row of the defined order: the oldest pending, or the newest pending when newestFirst.
-    private async Task<Either<EncinaError, DateTime?>> PendingTimestampAsync(
+    private async Task<Either<EncinaError, Option<DateTime>>> PendingTimestampAsync(
         string? tenantId,
         bool newestFirst,
         CancellationToken cancellationToken)
@@ -457,9 +462,12 @@ public sealed class DeadLetterOrchestrator
         if (result.IsLeft)
             return result.LeftToArray()[0];
 
-        DateTime? timestamp = result.RightToArray()[0].FirstOrDefault()?.DeadLetteredAtUtc;
-        return timestamp;
+        var first = result.RightToArray()[0].FirstOrDefault();
+        return first is null ? Option<DateTime>.None : Option<DateTime>.Some(first.DeadLetteredAtUtc);
     }
+
+    private static DateTime? ToNullable(Option<DateTime> timestamp)
+        => timestamp.IsSome ? timestamp.IfNone(default(DateTime)) : null;
 
     /// <summary>
     /// Cleans up expired messages.

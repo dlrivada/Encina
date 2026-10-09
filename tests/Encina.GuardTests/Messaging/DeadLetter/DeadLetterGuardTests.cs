@@ -19,7 +19,8 @@ public class DeadLetterGuardTests
             Substitute.For<IDeadLetterMessageFactory>(),
             new DeadLetterOptions(),
             NullLogger<DeadLetterOrchestrator>.Instance,
-            new JsonMessageSerializer());
+            new JsonMessageSerializer(),
+            Substitute.For<IRequestContextAccessor>());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
@@ -32,7 +33,8 @@ public class DeadLetterGuardTests
             null!,
             new DeadLetterOptions(),
             NullLogger<DeadLetterOrchestrator>.Instance,
-            new JsonMessageSerializer());
+            new JsonMessageSerializer(),
+            Substitute.For<IRequestContextAccessor>());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("messageFactory");
     }
@@ -45,7 +47,8 @@ public class DeadLetterGuardTests
             Substitute.For<IDeadLetterMessageFactory>(),
             null!,
             NullLogger<DeadLetterOrchestrator>.Instance,
-            new JsonMessageSerializer());
+            new JsonMessageSerializer(),
+            Substitute.For<IRequestContextAccessor>());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
@@ -58,7 +61,8 @@ public class DeadLetterGuardTests
             Substitute.For<IDeadLetterMessageFactory>(),
             new DeadLetterOptions(),
             null!,
-            new JsonMessageSerializer());
+            new JsonMessageSerializer(),
+            Substitute.For<IRequestContextAccessor>());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
@@ -71,9 +75,24 @@ public class DeadLetterGuardTests
             Substitute.For<IDeadLetterMessageFactory>(),
             new DeadLetterOptions(),
             NullLogger<DeadLetterOrchestrator>.Instance,
-            null!);
+            null!,
+            Substitute.For<IRequestContextAccessor>());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("messageSerializer");
+    }
+
+    [Fact]
+    public void DeadLetterOrchestrator_NullRequestContextAccessor_ThrowsArgumentNullException()
+    {
+        var act = () => new DeadLetterOrchestrator(
+            Substitute.For<IDeadLetterStore>(),
+            Substitute.For<IDeadLetterMessageFactory>(),
+            new DeadLetterOptions(),
+            NullLogger<DeadLetterOrchestrator>.Instance,
+            new JsonMessageSerializer(),
+            null!);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("requestContextAccessor");
     }
 
     #endregion
@@ -184,7 +203,9 @@ public class DeadLetterGuardTests
             CreateOrchestrator(),
             Substitute.For<IServiceProvider>(),
             NullLogger<DeadLetterManager>.Instance,
-            new JsonMessageSerializer());
+            new JsonMessageSerializer(),
+            new DeadLetterOptions(),
+            Substitute.For<IRequestContextAccessor>());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
@@ -197,7 +218,9 @@ public class DeadLetterGuardTests
             null!,
             Substitute.For<IServiceProvider>(),
             NullLogger<DeadLetterManager>.Instance,
-            new JsonMessageSerializer());
+            new JsonMessageSerializer(),
+            new DeadLetterOptions(),
+            Substitute.For<IRequestContextAccessor>());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("orchestrator");
     }
@@ -210,7 +233,9 @@ public class DeadLetterGuardTests
             CreateOrchestrator(),
             null!,
             NullLogger<DeadLetterManager>.Instance,
-            new JsonMessageSerializer());
+            new JsonMessageSerializer(),
+            new DeadLetterOptions(),
+            Substitute.For<IRequestContextAccessor>());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("serviceProvider");
     }
@@ -223,7 +248,9 @@ public class DeadLetterGuardTests
             CreateOrchestrator(),
             Substitute.For<IServiceProvider>(),
             null!,
-            new JsonMessageSerializer());
+            new JsonMessageSerializer(),
+            new DeadLetterOptions(),
+            Substitute.For<IRequestContextAccessor>());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
@@ -236,9 +263,41 @@ public class DeadLetterGuardTests
             CreateOrchestrator(),
             Substitute.For<IServiceProvider>(),
             NullLogger<DeadLetterManager>.Instance,
-            null!);
+            null!,
+            new DeadLetterOptions(),
+            Substitute.For<IRequestContextAccessor>());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("messageSerializer");
+    }
+
+    [Fact]
+    public void DeadLetterManager_NullOptions_ThrowsArgumentNullException()
+    {
+        var act = () => new DeadLetterManager(
+            Substitute.For<IDeadLetterStore>(),
+            CreateOrchestrator(),
+            Substitute.For<IServiceProvider>(),
+            NullLogger<DeadLetterManager>.Instance,
+            new JsonMessageSerializer(),
+            null!,
+            Substitute.For<IRequestContextAccessor>());
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
+    }
+
+    [Fact]
+    public void DeadLetterManager_NullRequestContextAccessor_ThrowsArgumentNullException()
+    {
+        var act = () => new DeadLetterManager(
+            Substitute.For<IDeadLetterStore>(),
+            CreateOrchestrator(),
+            Substitute.For<IServiceProvider>(),
+            NullLogger<DeadLetterManager>.Instance,
+            new JsonMessageSerializer(),
+            new DeadLetterOptions(),
+            null!);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("requestContextAccessor");
     }
 
     #endregion
@@ -308,6 +367,45 @@ public class DeadLetterGuardTests
 
     #endregion
 
+    #region DeadLetterOptions
+
+    [Fact]
+    public void DeadLetterOptions_NonPositiveRetentionPeriod_ThrowsArgumentOutOfRangeException()
+    {
+        var options = new DeadLetterOptions();
+
+        Should.Throw<ArgumentOutOfRangeException>(() => options.RetentionPeriod = TimeSpan.Zero)
+            .ParamName.ShouldBe("RetentionPeriod");
+    }
+
+    [Fact]
+    public void DeadLetterOptions_NullRetentionPeriod_IsAllowed()
+    {
+        var options = new DeadLetterOptions { RetentionPeriod = null };
+
+        options.RetentionPeriod.ShouldBeNull();
+    }
+
+    [Fact]
+    public void DeadLetterOptions_NonPositiveCleanupInterval_ThrowsArgumentOutOfRangeException()
+    {
+        var options = new DeadLetterOptions();
+
+        Should.Throw<ArgumentOutOfRangeException>(() => options.CleanupInterval = TimeSpan.FromSeconds(-1))
+            .ParamName.ShouldBe("CleanupInterval");
+    }
+
+    [Fact]
+    public void DeadLetterOptions_NonPositiveReplayClaimTimeout_ThrowsArgumentOutOfRangeException()
+    {
+        var options = new DeadLetterOptions();
+
+        Should.Throw<ArgumentOutOfRangeException>(() => options.ReplayClaimTimeout = TimeSpan.Zero)
+            .ParamName.ShouldBe("ReplayClaimTimeout");
+    }
+
+    #endregion
+
     #region Helpers
 
     private static DeadLetterOrchestrator CreateOrchestrator()
@@ -317,7 +415,8 @@ public class DeadLetterGuardTests
             Substitute.For<IDeadLetterMessageFactory>(),
             new DeadLetterOptions(),
             NullLogger<DeadLetterOrchestrator>.Instance,
-            new JsonMessageSerializer());
+            new JsonMessageSerializer(),
+            Substitute.For<IRequestContextAccessor>());
     }
 
     private static DeadLetterManager CreateManager()
@@ -327,7 +426,9 @@ public class DeadLetterGuardTests
             CreateOrchestrator(),
             Substitute.For<IServiceProvider>(),
             NullLogger<DeadLetterManager>.Instance,
-            new JsonMessageSerializer());
+            new JsonMessageSerializer(),
+            new DeadLetterOptions(),
+            Substitute.For<IRequestContextAccessor>());
     }
 
     #endregion
