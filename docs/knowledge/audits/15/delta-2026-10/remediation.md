@@ -1,0 +1,17 @@
+Remediation for #15:
+- tests 1 (Minor): draft 15-delta-2026-10-tests-1-github-coverage-manifest-encina-marten-json-238-servicecolle.md
+- tests 2 (Minor): draft 15-delta-2026-10-tests-2-tests-encina-unittests-marten-eventpublishingpipelinebehavio.md
+- docs 1 (Minor): duplicate of #1894 (manual override)
+- docs 2 (Minor): duplicate of #1894 (manual override)
+- docs 3 (Minor): duplicate of #1894 (manual override)
+- docs 4 (Major): duplicate of #1894 (manual override)
+
+## Lessons for the pipeline
+- docs 1: recorded as duplicate of #1894 by manual override
+- docs 2: recorded as duplicate of #1894 by manual override
+- docs 3: recorded as duplicate of #1894 by manual override
+- docs 4: recorded as duplicate of #1894 by manual override
+- (tests 1, 2) The per-file values are proposals derived from the tests stage's measured line counts and from reading the code; the stage ran no manifest check after proposing them and the integration target is provisional 0 until a run with Docker, so the drafts keep the "derived" and "provisional" labels. The ceil arithmetic was recomputed from the covered and coverable counts and matches the stage: ceil(0.95 x 71) = 68, ceil(0.09 x 71) = 7, ceil(0.90 x 48) = 44, ceil(0.15 x 48) = 8, ceil(0.35 x 48) = 17. (Keep derived/provisional labels on targets the tests stage did not run.)
+- (tests 1, 2) The Related Issues lines are written as "#N: description" with no other issue number in the text: the manifest titles of #1894, #1908, #1915, #1975, #1976 and #1847 each contain another issue number and were replaced by number-free descriptions of what the findings say about them; this agent cannot read the live issue bodies. #1348 appears in tests 1 because the finding names it. (Never copy a manifest title that contains another issue number.)
+- (tests 1, 2) Source facts were re-read in the audit worktree: `ServiceCollectionExtensions.cs:17` and the seven `ThrowIfNull` lines (39, 40, 105, 121, 198, 299, 346), `Encina.Marten.json:5-9, 49-57, 238-245`, `EventPublishingPipelineBehavior.cs:35-38, 94-105, 113-119`, the four `Handle_*` tests and the failing-publish pattern at `EventPublishingPipelineBehaviorTests.cs:77-169`, `EncinaMartenConfigurationIntegrationTests.cs:38-39`, `MartenInlineProjectionIntegrationTests.cs:46`, and `MartenCollection` and `MartenFixture` at `MartenFixture.cs:13, 110-112`. The absence of an `integration` key in the package targets was read from the manifest itself (`Encina.Marten.json:5-9`). (Re-read source facts in the audit worktree before drafting.)
+- (tests 1) Pass 2 after a verifier FAIL rewrote only this draft (not on disk when the run started): the Infrastructure option "Real database (specify: SQL Server / PostgreSQL / MySQL / MongoDB)" is ticked verbatim from the template with PostgreSQL named in the text below it, and Related Issues follow the corrected tests stage (#1908 and #1975 never mention `ServiceCollectionExtensions.cs`, #1894 mentions it once at `:296`, #1915 and #1976 cite it as line references, none sets a manifest value). The registration facts were re-read in the audit worktree (`ServiceCollectionExtensions.cs:17, :24, :35, :39-40, :103-105, :118-121, :194-198, :296-299, :343-346`, `Encina.Marten.json:5-9, :238-245`, `MartenFixture.cs:13, :35, :110-118`, the two integration classes' `AddEncinaMarten` lines). (Copy a template option verbatim and name the specific value in the text; describe other issues only as the corrected stage records them.)
