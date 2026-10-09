@@ -13,13 +13,54 @@ public sealed class DeadLetterOptions
     /// Gets or sets how long dead letter messages are retained before automatic cleanup.
     /// </summary>
     /// <value>Default: 7 days. Set to null to disable automatic expiration.</value>
-    public TimeSpan? RetentionPeriod { get; set; } = TimeSpan.FromDays(7);
+    /// <exception cref="ArgumentOutOfRangeException">The value is set and not greater than zero.</exception>
+    public TimeSpan? RetentionPeriod
+    {
+        get;
+        set
+        {
+            if (value is { } period)
+            {
+                ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(period, TimeSpan.Zero, nameof(RetentionPeriod));
+            }
+
+            field = value;
+        }
+    } = TimeSpan.FromDays(7);
 
     /// <summary>
     /// Gets or sets the interval at which expired messages are cleaned up.
     /// </summary>
     /// <value>Default: 1 hour.</value>
-    public TimeSpan CleanupInterval { get; set; } = TimeSpan.FromHours(1);
+    /// <exception cref="ArgumentOutOfRangeException">The value is not greater than zero.</exception>
+    public TimeSpan CleanupInterval
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero, nameof(CleanupInterval));
+            field = value;
+        }
+    } = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// Gets or sets how long a replay claim excludes other replays of the same message.
+    /// </summary>
+    /// <remarks>
+    /// A replay first claims the message (<c>ReplayClaimedAtUtc</c>); a claim older than this timeout is
+    /// treated as abandoned by a crashed host and can be taken over.
+    /// </remarks>
+    /// <value>Default: 5 minutes.</value>
+    /// <exception cref="ArgumentOutOfRangeException">The value is not greater than zero.</exception>
+    public TimeSpan ReplayClaimTimeout
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero, nameof(ReplayClaimTimeout));
+            field = value;
+        }
+    } = TimeSpan.FromMinutes(5);
 
     /// <summary>
     /// Gets or sets whether to enable automatic cleanup of expired messages.

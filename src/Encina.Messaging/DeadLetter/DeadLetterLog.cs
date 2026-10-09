@@ -8,6 +8,7 @@ namespace Encina.Messaging.DeadLetter;
 /// </summary>
 /// <remarks>
 /// This class uses source generators to create optimized logging methods.
+/// Event IDs: 2945-2957 and 2990-2992 (see EventIdRanges.Messaging).
 /// Excluded from code coverage as the generated code is boilerplate.
 /// </remarks>
 [ExcludeFromCodeCoverage]
@@ -129,16 +130,7 @@ internal static partial class DeadLetterLog
 
     [LoggerMessage(
         EventId = 2990,
-        Level = LogLevel.Information,
-        Message = "Source message already dead-lettered as {MessageId} (Source: {SourcePattern}); duplicate ignored")]
-    public static partial void DuplicateIgnored(
-        ILogger logger,
-        Guid messageId,
-        string sourcePattern);
-
-    [LoggerMessage(
-        EventId = 2991,
-        Level = LogLevel.Error,
+        Level = LogLevel.Warning,
         Message = "Dead letter store write failed. Source: {SourcePattern}, ErrorCode: {ErrorCode}")]
     public static partial void StoreWriteFailed(
         ILogger logger,
@@ -146,8 +138,17 @@ internal static partial class DeadLetterLog
         string errorCode);
 
     [LoggerMessage(
+        EventId = 2991,
+        Level = LogLevel.Debug,
+        Message = "Source message already dead-lettered as {MessageId} (Source: {SourcePattern}); duplicate ignored")]
+    public static partial void DuplicateIgnored(
+        ILogger logger,
+        Guid messageId,
+        string sourcePattern);
+
+    [LoggerMessage(
         EventId = 2992,
-        Level = LogLevel.Error,
+        Level = LogLevel.Warning,
         Message = "Replay outcome of dead letter message {MessageId} was not recorded. ErrorCode: {ErrorCode}")]
     public static partial void ReplayOutcomeNotRecorded(
         ILogger logger,

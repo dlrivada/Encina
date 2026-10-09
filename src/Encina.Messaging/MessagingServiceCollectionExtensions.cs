@@ -392,6 +392,66 @@ public static class MessagingServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers the Dead Letter Queue pattern's store, factory, orchestrator, manager, health check and
+    /// cleanup processor when <paramref name="useDeadLetterQueue"/> is enabled; registers nothing otherwise.
+    /// </summary>
+    /// <typeparam name="TStore">The dead letter store implementation type.</typeparam>
+    /// <typeparam name="TFactory">The dead letter message factory implementation type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="useDeadLetterQueue">Whether to register the Dead Letter Queue pattern.</param>
+    /// <param name="options">The Dead Letter Queue options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Called by every provider registration (ADO.NET, Dapper, EF Core, MongoDB) with the flag and
+    /// options of its configuration, and by <c>AddEncinaDeadLetterQueue</c>. The store and the factory use
+    /// <c>TryAdd</c>, so a store registered by the application first (or the testing fake) is kept; a
+    /// provider registered first is not replaced by a later call with other types.
+    /// </para>
+    /// <para>
+    /// Every dependency the orchestrator, manager, health check and cleanup processor resolve is
+    /// registered here: <see cref="DeadLetterOptions"/>, <see cref="DeadLetterHealthCheckOptions"/>,
+    /// <see cref="TimeProvider"/>, <see cref="IRequestContextAccessor"/> and <see cref="IMessageSerializer"/>.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddDeadLetterQueueServices<TStore, TFactory>(
+        this IServiceCollection services,
+        bool useDeadLetterQueue,
+        DeadLetterOptions options)
+        where TStore : class, IDeadLetterStore
+        where TFactory : class, IDeadLetterMessageFactory
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
+
+        if (!useDeadLetterQueue) return services;
+
+        services.AddSingleton(options);
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
+        // DeadLetterOrchestrator and DeadLetterManager serialize the request payload through
+        // IMessageSerializer (so encryption applies to dead-lettered content).
+        services.TryAddDefaultMessageSerializer();
+
+        services.TryAddScoped<IDeadLetterStore, TStore>();
+        services.TryAddScoped<IDeadLetterMessageFactory, TFactory>();
+        services.TryAddScoped<DeadLetterOrchestrator>();
+        services.TryAddScoped<IDeadLetterManager, DeadLetterManager>();
+
+        // TryAddEnumerable so the health check coexists with other IEncinaHealthCheck registrations in any order.
+        services.TryAddSingleton(new DeadLetterHealthCheckOptions());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IEncinaHealthCheck, DeadLetterHealthCheck>());
+
+        if (options.EnableAutomaticCleanup && options.RetentionPeriod.HasValue)
+        {
+            services.AddHostedService<DeadLetterCleanupProcessor>();
+        }
+
+        return services;
+    }
+
+    /// <summary>
     /// Registers <see cref="JsonMessageSerializer"/> as the <see cref="IMessageSerializer"/>
     /// unless a serializer is already registered.
     /// </summary>
