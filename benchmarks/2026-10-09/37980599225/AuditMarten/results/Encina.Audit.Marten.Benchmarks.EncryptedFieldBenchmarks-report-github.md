@@ -1,0 +1,23 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 4.51GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+
+Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+
+```
+| Method                       | Mean           | Error          | StdDev      | Ratio  | RatioSD | Rank | Gen0     | Gen1     | Gen2     | Allocated | Alloc Ratio |
+|----------------------------- |---------------:|---------------:|------------:|-------:|--------:|-----:|---------:|---------:|---------:|----------:|------------:|
+| Encrypt_Medium_256B          |  3,174.3728 ns |    506.7876 ns |  27.7787 ns |  1.187 |    0.01 |    2 |   0.4501 |   0.0076 |        - |    7568 B |        5.06 |
+| Encrypt_VeryLong_64KB        | 75,185.9351 ns | 17,170.2356 ns | 941.1586 ns | 28.112 |    0.35 |    4 | 137.8174 | 137.8174 | 137.8174 |  569669 B |      380.79 |
+| Decrypt_Medium_256B          |  2,488.1470 ns |     95.5252 ns |   5.2361 ns |  0.930 |    0.01 |    2 |   0.0763 |        - |        - |    1312 B |        0.88 |
+| Decrypt_Long_4KB             |  4,109.2581 ns |     59.3022 ns |   3.2506 ns |  1.536 |    0.01 |    3 |   0.9918 |        - |        - |   16672 B |       11.14 |
+| DecryptOrPlaceholder_NullKey |      0.5070 ns |      1.6420 ns |   0.0900 ns |  0.000 |    0.00 |    1 |        - |        - |        - |         - |        0.00 |
+| Decrypt_Short_16B            |  2,295.2213 ns |    149.5208 ns |   8.1957 ns |  0.858 |    0.01 |    2 |   0.0191 |        - |        - |     344 B |        0.23 |
+| Decrypt_VeryLong_64KB        | 67,975.8053 ns |  6,863.5322 ns | 376.2134 ns | 25.416 |    0.20 |    4 |  41.6260 |  41.6260 |  41.6260 |  262483 B |      175.46 |
+| Encrypt_Long_4KB             |  4,748.1562 ns |  2,601.6623 ns | 142.6059 ns |  1.775 |    0.05 |    3 |   2.2125 |   0.0839 |        - |   37112 B |       24.81 |
+| Encrypt_Short_16B            |  2,674.5915 ns |    346.6829 ns |  19.0029 ns |  1.000 |    0.01 |    2 |   0.0877 |        - |        - |    1496 B |        1.00 |
