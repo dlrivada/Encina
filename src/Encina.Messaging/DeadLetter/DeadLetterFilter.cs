@@ -78,6 +78,24 @@ public sealed class DeadLetterFilter
     public bool AllTenants { get; init; }
 
     /// <summary>
+    /// Returns a copy of this filter with another tenant and replay state; the caller's instance is never changed.
+    /// </summary>
+    internal DeadLetterFilter CopyWith(string? tenantId, bool? excludeReplayed) => new()
+    {
+        SourcePattern = SourcePattern,
+        RequestType = RequestType,
+        ErrorCode = ErrorCode,
+        CorrelationId = CorrelationId,
+        ExcludeReplayed = excludeReplayed,
+        DeadLetteredAfterUtc = DeadLetteredAfterUtc,
+        DeadLetteredBeforeUtc = DeadLetteredBeforeUtc,
+        TenantId = tenantId,
+        SourceMessageId = SourceMessageId,
+        ExpiresAtOrBeforeUtc = ExpiresAtOrBeforeUtc,
+        AllTenants = AllTenants
+    };
+
+    /// <summary>
     /// Creates an empty filter (returns all messages).
     /// </summary>
     public static DeadLetterFilter All => new();

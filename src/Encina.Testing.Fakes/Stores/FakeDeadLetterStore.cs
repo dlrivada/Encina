@@ -243,9 +243,15 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
 
     private static bool MatchesState(FakeDeadLetterMessage m, DeadLetterFilter filter)
         => ReplayStateMatches(filter.ExcludeReplayed, m)
-           && (filter.DeadLetteredAfterUtc is not { } after || m.DeadLetteredAtUtc >= after)
-           && (filter.DeadLetteredBeforeUtc is not { } before || m.DeadLetteredAtUtc <= before)
-           && (filter.ExpiresAtOrBeforeUtc is not { } expiresBy || m.IsExpiredAt(expiresBy));
+           && InWindow(m.DeadLetteredAtUtc, filter.DeadLetteredAfterUtc, filter.DeadLetteredBeforeUtc)
+           && ExpiryMatches(filter.ExpiresAtOrBeforeUtc, m);
+
+    private static bool InWindow(DateTime deadLetteredAtUtc, DateTime? after, DateTime? before)
+        => (after is not { } from || deadLetteredAtUtc >= from)
+           && (before is not { } to || deadLetteredAtUtc <= to);
+
+    private static bool ExpiryMatches(DateTime? expiresAtOrBeforeUtc, FakeDeadLetterMessage m)
+        => expiresAtOrBeforeUtc is not { } expiresBy || m.IsExpiredAt(expiresBy);
 
     // A null or empty filter value matches everything.
     private static bool Equal(string? filterValue, string? actual)

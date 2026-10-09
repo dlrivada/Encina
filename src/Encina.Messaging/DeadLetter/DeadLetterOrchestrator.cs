@@ -375,23 +375,57 @@ public sealed class DeadLetterOrchestrator
     {
         var tenantId = AmbientTenantId();
 
-        var totalCount = await CountAsync(tenantId, null, null, cancellationToken).ConfigureAwait(false);
-        if (totalCount.IsLeft)
-            return totalCount.LeftToArray()[0];
-
-        var pendingCount = await CountAsync(tenantId, true, null, cancellationToken).ConfigureAwait(false);
-        if (pendingCount.IsLeft)
-            return pendingCount.LeftToArray()[0];
-
-        var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var expiredCount = await CountAsync(tenantId, true, now, cancellationToken).ConfigureAwait(false);
-        if (expiredCount.IsLeft)
-            return expiredCount.LeftToArray()[0];
+        var counts = await TotalsAsync(tenantId, cancellationToken).ConfigureAwait(false);
+        if (counts.IsLeft)
+            return counts.LeftToArray()[0];
 
         var countBySource = await CountBySourceAsync(tenantId, cancellationToken).ConfigureAwait(false);
         if (countBySource.IsLeft)
             return countBySource.LeftToArray()[0];
 
+        var bounds = await PendingBoundsAsync(tenantId, cancellationToken).ConfigureAwait(false);
+        if (bounds.IsLeft)
+            return bounds.LeftToArray()[0];
+
+        var (total, pending, expired) = counts.RightToArray()[0];
+        var (oldest, newest) = bounds.RightToArray()[0];
+
+        return new DeadLetterStatistics
+        {
+            TotalCount = total,
+            PendingCount = pending,
+            ReplayedCount = total - pending,
+            ExpiredCount = expired,
+            CountBySource = countBySource.RightToArray()[0],
+            OldestPendingAtUtc = ToNullable(oldest),
+            NewestPendingAtUtc = ToNullable(newest)
+        };
+    }
+
+    private async Task<Either<EncinaError, (int Total, int Pending, int Expired)>> TotalsAsync(
+        string? tenantId,
+        CancellationToken cancellationToken)
+    {
+        var total = await CountAsync(tenantId, null, null, cancellationToken).ConfigureAwait(false);
+        if (total.IsLeft)
+            return total.LeftToArray()[0];
+
+        var pending = await CountAsync(tenantId, true, null, cancellationToken).ConfigureAwait(false);
+        if (pending.IsLeft)
+            return pending.LeftToArray()[0];
+
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        var expired = await CountAsync(tenantId, true, now, cancellationToken).ConfigureAwait(false);
+        if (expired.IsLeft)
+            return expired.LeftToArray()[0];
+
+        return (total.RightToArray()[0], pending.RightToArray()[0], expired.RightToArray()[0]);
+    }
+
+    private async Task<Either<EncinaError, (Option<DateTime> Oldest, Option<DateTime> Newest)>> PendingBoundsAsync(
+        string? tenantId,
+        CancellationToken cancellationToken)
+    {
         var oldest = await PendingTimestampAsync(tenantId, newestFirst: false, cancellationToken).ConfigureAwait(false);
         if (oldest.IsLeft)
             return oldest.LeftToArray()[0];
@@ -400,19 +434,7 @@ public sealed class DeadLetterOrchestrator
         if (newest.IsLeft)
             return newest.LeftToArray()[0];
 
-        var total = totalCount.RightToArray()[0];
-        var pending = pendingCount.RightToArray()[0];
-
-        return new DeadLetterStatistics
-        {
-            TotalCount = total,
-            PendingCount = pending,
-            ReplayedCount = total - pending,
-            ExpiredCount = expiredCount.RightToArray()[0],
-            CountBySource = countBySource.RightToArray()[0],
-            OldestPendingAtUtc = ToNullable(oldest.RightToArray()[0]),
-            NewestPendingAtUtc = ToNullable(newest.RightToArray()[0])
-        };
+        return (oldest.RightToArray()[0], newest.RightToArray()[0]);
     }
 
     private Task<Either<EncinaError, int>> CountAsync(

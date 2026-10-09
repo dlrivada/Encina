@@ -88,26 +88,14 @@ public sealed class DeadLetterManager : IDeadLetterManager
     /// </summary>
     private DeadLetterFilter Scoped(DeadLetterFilter? filter, bool? excludeReplayed = null)
     {
-        var tenantId = filter?.TenantId;
-        if (tenantId is null && filter?.AllTenants != true)
+        var source = filter ?? new DeadLetterFilter();
+        var tenantId = source.TenantId;
+        if (tenantId is null && !source.AllTenants)
         {
             tenantId = AmbientTenantId();
         }
 
-        return new DeadLetterFilter
-        {
-            SourcePattern = filter?.SourcePattern,
-            RequestType = filter?.RequestType,
-            ErrorCode = filter?.ErrorCode,
-            CorrelationId = filter?.CorrelationId,
-            ExcludeReplayed = excludeReplayed ?? filter?.ExcludeReplayed,
-            DeadLetteredAfterUtc = filter?.DeadLetteredAfterUtc,
-            DeadLetteredBeforeUtc = filter?.DeadLetteredBeforeUtc,
-            TenantId = tenantId,
-            SourceMessageId = filter?.SourceMessageId,
-            ExpiresAtOrBeforeUtc = filter?.ExpiresAtOrBeforeUtc,
-            AllTenants = filter?.AllTenants ?? false
-        };
+        return source.CopyWith(tenantId, excludeReplayed ?? source.ExcludeReplayed);
     }
 
     private bool BelongsToAmbientTenant(IDeadLetterMessage message)
