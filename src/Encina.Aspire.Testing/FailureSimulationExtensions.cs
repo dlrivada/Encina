@@ -184,7 +184,7 @@ public static class FailureSimulationExtensions
     /// <param name="requestType">The type of the original request.</param>
     /// <param name="requestContent">The request content.</param>
     /// <param name="sourcePattern">The source pattern (e.g., "Outbox", "Inbox").</param>
-    /// <param name="errorMessage">The error that caused dead lettering.</param>
+    /// <param name="errorMessage">The failure description, stored as the error code of the dead letter.</param>
     /// <param name="totalRetryAttempts">The number of retry attempts.</param>
     /// <returns>The ID of the created dead letter message.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="app"/> is null.</exception>
@@ -208,7 +208,7 @@ public static class FailureSimulationExtensions
             RequestType = requestType,
             RequestContent = requestContent,
             SourcePattern = sourcePattern,
-            ErrorMessage = errorMessage,
+            ErrorCode = errorMessage,
             TotalRetryAttempts = totalRetryAttempts,
             FirstFailedAtUtc = now,
             DeadLetteredAtUtc = now

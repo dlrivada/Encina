@@ -126,4 +126,31 @@ internal static partial class DeadLetterLog
     public static partial void CleanupError(
         ILogger logger,
         Exception exception);
+
+    [LoggerMessage(
+        EventId = 2990,
+        Level = LogLevel.Information,
+        Message = "Source message already dead-lettered as {MessageId} (Source: {SourcePattern}); duplicate ignored")]
+    public static partial void DuplicateIgnored(
+        ILogger logger,
+        Guid messageId,
+        string sourcePattern);
+
+    [LoggerMessage(
+        EventId = 2991,
+        Level = LogLevel.Error,
+        Message = "Dead letter store write failed. Source: {SourcePattern}, ErrorCode: {ErrorCode}")]
+    public static partial void StoreWriteFailed(
+        ILogger logger,
+        string sourcePattern,
+        string errorCode);
+
+    [LoggerMessage(
+        EventId = 2992,
+        Level = LogLevel.Error,
+        Message = "Replay outcome of dead letter message {MessageId} was not recorded. ErrorCode: {ErrorCode}")]
+    public static partial void ReplayOutcomeNotRecorded(
+        ILogger logger,
+        Guid messageId,
+        string errorCode);
 }
