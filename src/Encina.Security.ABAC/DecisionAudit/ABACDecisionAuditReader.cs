@@ -26,19 +26,23 @@ internal sealed class ABACDecisionAuditReader : IABACDecisionAuditReader
 
     private readonly IServiceProvider _serviceProvider;
     private readonly IOptions<ABACOptions> _options;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<ABACDecisionAuditReader> _logger;
 
     public ABACDecisionAuditReader(
         IServiceProvider serviceProvider,
         IOptions<ABACOptions> options,
+        TimeProvider timeProvider,
         ILogger<ABACDecisionAuditReader> logger)
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
         _serviceProvider = serviceProvider;
         _options = options;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -79,12 +83,31 @@ internal sealed class ABACDecisionAuditReader : IABACDecisionAuditReader
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(destination);
 
+        // The end of the range is pinned before the first page, so decisions recorded while the
+        // export runs cannot shift the pages; the tenant gate runs (and logs) once per export.
+        var pinned = query with
+        {
+            PageNumber = 1,
+            PageSize = OperationAuditQuery.MaxPageSize,
+            ToUtc = query.ToUtc ?? _timeProvider.GetUtcNow().UtcDateTime
+        };
+
+        return await Validate(pinned)
+            .Bind(_ => ResolveTenant(pinned.TenantId))
+            .MatchAsync(
+                RightAsync: tenant => ExportPagesAsync(ToStoreQuery(pinned, tenant.TenantId), destination, cancellationToken),
+                Left: error => (Either<EncinaError, int>)error)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<Either<EncinaError, int>> ExportPagesAsync(
+        OperationAuditQuery storeQuery, Stream destination, CancellationToken cancellationToken)
+    {
         var written = 0;
-        var pageQuery = query with { PageNumber = 1, PageSize = OperationAuditQuery.MaxPageSize };
 
         while (true)
         {
-            var page = await QueryAsync(pageQuery, cancellationToken).ConfigureAwait(false);
+            var page = await RunQueryAsync(storeQuery, cancellationToken).ConfigureAwait(false);
             if (page.IsLeft)
             {
                 return page.Map(_ => written);
@@ -99,7 +122,7 @@ internal sealed class ABACDecisionAuditReader : IABACDecisionAuditReader
                 return written;
             }
 
-            pageQuery = pageQuery with { PageNumber = pageQuery.PageNumber + 1 };
+            storeQuery = storeQuery with { PageNumber = storeQuery.PageNumber + 1 };
         }
     }
 
@@ -126,8 +149,15 @@ internal sealed class ABACDecisionAuditReader : IABACDecisionAuditReader
     // multi-tenant application denies unless the operator opt-out is set; a single-tenant one passes.
     private Either<EncinaError, TenantFilter> ResolveTenant(string? requested)
     {
+        // A blank tenant is no tenant: stores ignore a whitespace tenant filter, so treating it as a
+        // tenant would read every tenant's trail.
         var ambient = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext?.TenantId;
-        if (!string.IsNullOrEmpty(ambient))
+        if (requested is not null && string.IsNullOrWhiteSpace(requested))
+        {
+            return ABACErrors.InvalidDecisionAuditQuery("tenantId");
+        }
+
+        if (!string.IsNullOrWhiteSpace(ambient))
         {
             return requested is null || string.Equals(requested, ambient, StringComparison.Ordinal)
                 ? new TenantFilter(ambient)

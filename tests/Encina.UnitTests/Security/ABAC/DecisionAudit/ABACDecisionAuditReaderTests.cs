@@ -63,6 +63,7 @@ public sealed class ABACDecisionAuditReaderTests
         return new ABACDecisionAuditReader(
             services.BuildServiceProvider().CreateScope().ServiceProvider,
             Options.Create(options),
+            new Microsoft.Extensions.Time.Testing.FakeTimeProvider(Base.AddHours(1)),
             new FakeLogger<ABACDecisionAuditReader>(_logs));
     }
 
@@ -155,6 +156,33 @@ public sealed class ABACDecisionAuditReaderTests
         var result = await Reader(ambientTenant: "tenant-a", multiTenant: true).QueryAsync(new ABACDecisionAuditQuery { TenantId = "tenant-b" });
 
         Code(result).ShouldBe(ABACErrors.DecisionAuditTenantMismatchCode);
+    }
+
+    [Fact]
+    public async Task QueryAsync_ExplicitTenantOtherThanTheAmbientOneWithoutTheMarker_IsStillDenied()
+    {
+        var result = await Reader(ambientTenant: "tenant-a").QueryAsync(new ABACDecisionAuditQuery { TenantId = "tenant-b" });
+
+        Code(result).ShouldBe(ABACErrors.DecisionAuditTenantMismatchCode);
+    }
+
+    [Fact]
+    public async Task QueryAsync_BlankAmbientTenantInAMultiTenantApplication_CountsAsNoTenant()
+    {
+        await SeedAsync("tenant-a");
+
+        var result = await Reader(ambientTenant: "   ", multiTenant: true).QueryAsync(new ABACDecisionAuditQuery());
+
+        Code(result).ShouldBe(ABACErrors.DecisionAuditTenantRequiredCode);
+    }
+
+    [Fact]
+    public async Task QueryAsync_BlankTenantFilter_IsRejectedRatherThanIgnoredByTheStore()
+    {
+        var result = await Reader().QueryAsync(new ABACDecisionAuditQuery { TenantId = " " });
+
+        Code(result).ShouldBe(ABACErrors.InvalidDecisionAuditQueryCode);
+        result.IfLeft(error => error.GetDetails()["reason"].ShouldBe("tenantId"));
     }
 
     [Fact]
@@ -324,7 +352,7 @@ public sealed class ABACDecisionAuditReaderTests
         var total = OperationAuditQuery.MaxPageSize + 2;
         for (var i = 0; i < total; i++)
         {
-            await SeedAsync(null, minutes: i);
+            await SeedAsync(null, minutes: i % 50);
         }
 
         using var stream = new MemoryStream();
@@ -338,6 +366,44 @@ public sealed class ABACDecisionAuditReaderTests
         first.RootElement.GetProperty("outcome").GetString().ShouldBe("Success");
         first.RootElement.GetProperty("requestType").GetString().ShouldBe("GetOrderQuery");
         lines.Select(line => JsonDocument.Parse(line).RootElement.GetProperty("decisionId").GetGuid()).Distinct().Count().ShouldBe(total);
+    }
+
+    [Fact]
+    public async Task ExportAsync_WithoutAnEnd_StopsAtTheMomentItStarts()
+    {
+        await SeedAsync(null, minutes: 0);
+        await SeedAsync(null, minutes: 120); // after the reader's clock (Base + 1 h)
+        using var stream = new MemoryStream();
+
+        var result = await Reader().ExportAsync(new ABACDecisionAuditQuery(), stream);
+
+        result.Match(Right: count => count, Left: _ => -1).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task ExportAsync_CrossTenantOptOut_LogsTheOptOutOncePerExport()
+    {
+        for (var i = 0; i < OperationAuditQuery.MaxPageSize + 1; i++)
+        {
+            await SeedAsync($"tenant-{i % 2}", minutes: i % 50);
+        }
+
+        using var stream = new MemoryStream();
+        var result = await Reader(multiTenant: true, allowCrossTenant: true).ExportAsync(new ABACDecisionAuditQuery(), stream);
+
+        result.Match(Right: count => count, Left: _ => -1).ShouldBe(OperationAuditQuery.MaxPageSize + 1);
+        _logs.GetSnapshot().Count(log => log.Id.Id == 9090).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task ExportAsync_StoreFails_ReturnsTheStoreError()
+    {
+        var store = Substitute.For<IOperationAuditStore>();
+        store.QueryAsync(Arg.Any<OperationAuditQuery>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Left<EncinaError, PagedResult<OperationAuditEntry>>(EncinaErrors.Create("store.down", "x"))));
+        using var stream = new MemoryStream();
+
+        Code(await Reader(store: store).ExportAsync(new ABACDecisionAuditQuery(), stream)).ShouldBe("store.down");
     }
 
     [Fact]

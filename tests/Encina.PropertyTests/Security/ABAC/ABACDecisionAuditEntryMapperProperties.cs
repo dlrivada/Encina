@@ -1,3 +1,5 @@
+#pragma warning disable CA2012 // Use ValueTasks correctly -- NSubstitute mock setup pattern
+
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.DecisionAudit;
 using Encina.Security.Audit;
@@ -5,6 +7,10 @@ using Encina.Security.Audit;
 using FsCheck;
 using FsCheck.Fluent;
 using FsCheck.Xunit;
+
+using Microsoft.Extensions.DependencyInjection;
+
+using NSubstitute;
 
 namespace Encina.PropertyTests.Security.ABAC;
 
@@ -104,19 +110,32 @@ public sealed class ABACDecisionAuditEntryMapperProperties
                 : entry.IpAddress is null && dropped.SequenceEqual(IpAddressOnly);
         });
 
-    [Property(MaxTest = 100)]
-    public Property AStatusMessageOrErrorTextInTheRecord_NeverReachesTheEntry() =>
-        Prop.ForAll(Gen.Elements("Secret patient Alice", "ex: connection string=pwd", "Object reference not set").ToArbitrary(), message =>
+    [Property(MaxTest = 50)]
+    public Property AStoreErrorMessage_NeverLeavesTheRecorder() =>
+        Prop.ForAll(Gen.Elements("Secret patient Alice", "connection string=pwd", "Object reference not set").ToArbitrary(), message =>
         {
-            // The record has no message member: only codes go in. The reason code is a constant, so
-            // whatever text an evaluation produced cannot appear in any column or metadata value.
-            var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record(5, 5, 5, 5, 5, 5));
+            var store = NSubstitute.Substitute.For<IOperationAuditStore>();
+            store.RecordAsync(NSubstitute.Arg.Any<OperationAuditEntry>(), NSubstitute.Arg.Any<CancellationToken>())
+                .Returns(ValueTask.FromResult(LanguageExt.Prelude.Left<EncinaError, LanguageExt.Unit>(
+                    EncinaErrors.Create("store.down", message, new InvalidOperationException(message)))));
+            store.GetByCorrelationIdAsync(NSubstitute.Arg.Any<string>(), NSubstitute.Arg.Any<CancellationToken>())
+                .Returns(ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, IReadOnlyList<OperationAuditEntry>>([])));
+            var scopes = new Microsoft.Extensions.DependencyInjection.ServiceCollection()
+                .AddScoped(_ => store)
+                .BuildServiceProvider()
+                .GetRequiredService<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>();
+            var recorder = new AuditStoreABACDecisionRecorder(
+                scopes,
+                Microsoft.Extensions.Options.Options.Create(new ABACOptions()),
+                TimeProvider.System,
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<AuditStoreABACDecisionRecorder>.Instance);
 
-            var values = entry.Metadata.Values.OfType<string>()
-                .Concat([entry.ErrorMessage, entry.UserId, entry.EntityId, entry.EntityType, entry.TenantId, entry.UserAgent])
-                .OfType<string>();
+            var result = recorder.RecordAsync(Record(5, 5, 5, 5, 5, 5)).AsTask().GetAwaiter().GetResult();
 
-            return values.All(value => !value.Contains(message, StringComparison.Ordinal));
+            return result.Match(
+                Right: _ => false,
+                Left: error => !error.Message.Contains(message, StringComparison.Ordinal)
+                    && !error.Exception.Map(exception => exception.ToString()).IfNone(string.Empty).Contains(message, StringComparison.Ordinal));
         });
 
     [Property(MaxTest = 100)]

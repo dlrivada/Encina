@@ -66,10 +66,10 @@ public static class ABACDecisionAuditSchema
     /// <summary>Metadata key: <c>true</c> when the trace is incomplete.</summary>
     public const string MetadataTraceTruncated = "abac.trace_truncated";
 
-    /// <summary>Metadata key: the obligation ids, comma separated.</summary>
+    /// <summary>Metadata key: the obligation ids, as a JSON array of strings.</summary>
     public const string MetadataObligations = "abac.obligations";
 
-    /// <summary>Metadata key: the advice ids, comma separated.</summary>
+    /// <summary>Metadata key: the advice ids, as a JSON array of strings.</summary>
     public const string MetadataAdvice = "abac.advice";
 
     /// <summary>Metadata key: the attribute names by category, as a JSON string.</summary>

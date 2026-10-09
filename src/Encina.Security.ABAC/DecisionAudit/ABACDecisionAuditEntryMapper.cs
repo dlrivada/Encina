@@ -130,8 +130,8 @@ public static class ABACDecisionAuditEntryMapper
             RuleId = metadata.Text(ABACDecisionAuditSchema.MetadataRuleId),
             EvaluatedPolicies = metadata.Trace(),
             TraceTruncated = metadata.Text(ABACDecisionAuditSchema.MetadataTraceTruncated) == "true",
-            ObligationIds = metadata.List(ABACDecisionAuditSchema.MetadataObligations),
-            AdviceIds = metadata.List(ABACDecisionAuditSchema.MetadataAdvice),
+            ObligationIds = metadata.JsonList(ABACDecisionAuditSchema.MetadataObligations),
+            AdviceIds = metadata.JsonList(ABACDecisionAuditSchema.MetadataAdvice),
             AttributeNames = metadata.AttributeNames(),
             RecordedValues = metadata.RecordedValues(),
             IpAddress = entry.IpAddress,
@@ -173,8 +173,17 @@ public static class ABACDecisionAuditEntryMapper
         AddIfPresent(metadata, ABACDecisionAuditSchema.MetadataRuleId,
             bounds.Identifier(ABACDecisionAuditSchema.MetadataRuleId, record.RuleId, ABACDecisionAuditSchema.MaxAttributeValueLength));
         AddIfPresent(metadata, ABACDecisionAuditSchema.MetadataModuleId, record.ModuleId);
-        AddList(metadata, ABACDecisionAuditSchema.MetadataObligations, record.ObligationIds);
-        AddList(metadata, ABACDecisionAuditSchema.MetadataAdvice, record.AdviceIds);
+        AddJsonList(metadata, ABACDecisionAuditSchema.MetadataObligations, record.ObligationIds);
+        AddJsonList(metadata, ABACDecisionAuditSchema.MetadataAdvice, record.AdviceIds);
+    }
+
+    // Ids chosen by policy authors may contain any character, so they are stored as a JSON array.
+    private static void AddJsonList(Dictionary<string, object?> metadata, string key, IReadOnlyList<string> values)
+    {
+        if (values.Count > 0)
+        {
+            metadata[key] = JsonSerializer.Serialize(values.ToList(), ABACDecisionAuditJsonContext.Default.ListString);
+        }
     }
 
     private static void AddTrace(Dictionary<string, object?> metadata, ABACDecisionRecord record)
@@ -251,7 +260,10 @@ public static class ABACDecisionAuditEntryMapper
             }
 
             _truncated.Add(field);
-            return value[..maxLength];
+
+            // Never split a surrogate pair: the cut lands before its high half.
+            var cut = char.IsHighSurrogate(value[maxLength - 1]) ? maxLength - 1 : maxLength;
+            return value[..cut];
         }
 
         // A hash cannot fit 45 characters and a truncated address is a different address, so an
@@ -313,6 +325,11 @@ public static class ABACDecisionAuditEntryMapper
 
         public string[] List(string key) =>
             Text(key) is { Length: > 0 } text ? text.Split(ListSeparator) : [];
+
+        public List<string> JsonList(string key) =>
+            Text(key) is { Length: > 0 } json
+                ? JsonSerializer.Deserialize(json, ABACDecisionAuditJsonContext.Default.ListString) ?? []
+                : [];
 
         public List<PolicyEvaluationTrace> Trace() =>
             Text(ABACDecisionAuditSchema.MetadataTrace) is { Length: > 0 } json

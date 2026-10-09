@@ -201,6 +201,11 @@ public sealed class AuditStoreABACDecisionRecorderTests
         var result = await Recorder(store).RecordAsync(Record());
 
         Code(result).ShouldBe("store.down");
+        result.IfLeft(error =>
+        {
+            error.Message.ShouldNotContain("Secret detail");
+            error.Exception.Map(exception => exception.ToString()).IfNone(string.Empty).ShouldNotContain("Secret detail");
+        });
     }
 
     [Fact]
@@ -285,7 +290,13 @@ public sealed class AuditStoreABACDecisionRecorderTests
 
         _time.Advance(Timeout);
         await lookupStarted.Task;
-        _time.Advance(Timeout);
+
+        // The lookup's timer is registered right after the lookup call returns: advance until it fires.
+        for (var attempt = 0; attempt < 100 && !pending.IsCompleted; attempt++)
+        {
+            _time.Advance(Timeout);
+            await Task.WhenAny(pending, Task.Delay(TimeSpan.FromMilliseconds(20), TimeProvider.System));
+        }
 
         await Should.ThrowAsync<TimeoutException>(pending);
         hung.SetException(new InvalidOperationException("late fault is observed, not unobserved"));

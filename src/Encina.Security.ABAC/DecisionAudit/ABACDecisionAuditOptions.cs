@@ -83,9 +83,10 @@ public sealed class ABACDecisionAuditOptions
     /// <remarks>
     /// <para>
     /// The bound holds even for a store that ignores its cancellation token: the write is raced
-    /// against this timeout. A write that times out is checked once more (within the same bound) for
-    /// a committed entry with the decision id, so a slow store that did persist the record does not
-    /// deny the request; otherwise it is a failed write and <see cref="FailureMode"/> applies.
+    /// against this timeout. A write that fails or times out is checked once more, under a second bound
+    /// of the same length, for a committed entry with the decision id, so a slow store that did persist
+    /// the record does not deny the request; otherwise it is a failed write and <see cref="FailureMode"/>
+    /// applies. A failed write therefore holds the request for at most twice this value.
     /// </para>
     /// <para>
     /// The value must be greater than zero and is validated when the application starts.

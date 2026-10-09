@@ -29,14 +29,15 @@ namespace Encina.Security.ABAC.DecisionAudit;
 /// </para>
 /// <para>
 /// <b>Idempotent outcome</b>: the entry id is the decision id. When the write fails, throws or times
-/// out, the recorder looks the entry up by correlation id (bounded by the same timeout) and treats a
-/// committed entry with that id as written. On stores whose reads lag behind writes (Marten's
+/// out, the recorder looks the entry up by correlation id, from a fresh scope and under a bound of its
+/// own (so a failed write takes at most twice <see cref="ABACDecisionAuditOptions.WriteTimeout"/>), and
+/// treats a committed entry with that id as written. On stores whose reads lag behind writes (Marten's
 /// asynchronous projection) the entry may not be visible yet; the failure then stands, so the result
 /// is never a false success.
 /// </para>
 /// <para>
-/// <b>Failures</b>: a store <c>Left</c> is returned as is (the Policy Enforcement Point keeps only
-/// its code); an exception, including <see cref="TimeoutException"/> for a write over the bound, is
+/// <b>Failures</b>: a store <c>Left</c> is returned with the store's code and a fixed message (never
+/// the store's message or exception); an exception, including <see cref="TimeoutException"/> for a write over the bound, is
 /// rethrown for the Policy Enforcement Point to log through its redacted form. No
 /// <see cref="IOperationAuditStore"/> registered gives <see cref="ABACErrors.DecisionAuditStoreUnavailable"/>.
 /// </para>
@@ -113,7 +114,7 @@ public sealed class AuditStoreABACDecisionRecorder : IABACDecisionRecorder
         }
         catch (Exception ex)
         {
-            if (await IsStoredAsync(store, entry, timeout, ex.GetType().Name).ConfigureAwait(false))
+            if (await IsStoredAsync(entry, timeout, ex.GetType().Name).ConfigureAwait(false))
             {
                 return Unit.Default;
             }
@@ -121,18 +122,30 @@ public sealed class AuditStoreABACDecisionRecorder : IABACDecisionRecorder
             throw;
         }
 
-        return written.IsRight || !await IsStoredAsync(store, entry, timeout, CodeOf(written)).ConfigureAwait(false)
-            ? written
-            : Unit.Default;
+        if (written.IsRight)
+        {
+            return written;
+        }
+
+        var code = CodeOf(written);
+        return await IsStoredAsync(entry, timeout, code).ConfigureAwait(false)
+            ? Unit.Default
+            : StoreFailed(code);
     }
 
+    // The store's own error may carry a message or an exception; only its code leaves the recorder.
+    private static EncinaError StoreFailed(string code) =>
+        EncinaErrors.Create(code: code, message: "The operation audit store did not record the decision.");
+
     // An ambiguous failure (the store reported one, threw or timed out after committing) is settled
-    // by looking for the entry with the decision id. A failed lookup confirms nothing.
-    private async ValueTask<bool> IsStoredAsync(
-        IOperationAuditStore store, OperationAuditEntry entry, TimeSpan timeout, string failureCode)
+    // by looking for the entry with the decision id, through a store of a fresh scope: the first one
+    // may still be busy with an abandoned write. A failed lookup confirms nothing.
+    private async ValueTask<bool> IsStoredAsync(OperationAuditEntry entry, TimeSpan timeout, string failureCode)
     {
         try
         {
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var store = scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
             var found = await TimeBoundedCall.RunAsync(
                 bound => store.GetByCorrelationIdAsync(entry.CorrelationId, bound), timeout, _timeProvider).ConfigureAwait(false);
             var stored = found.Match(Right: entries => entries.Any(candidate => candidate.Id == entry.Id), Left: _ => false);

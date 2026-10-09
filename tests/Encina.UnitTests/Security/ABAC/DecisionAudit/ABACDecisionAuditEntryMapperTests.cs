@@ -102,8 +102,8 @@ public sealed class ABACDecisionAuditEntryMapperTests
         Meta(entry, ABACDecisionAuditSchema.MetadataPolicyId).ShouldBe("orders-policy");
         Meta(entry, ABACDecisionAuditSchema.MetadataRuleId).ShouldBe("rule-1");
         Meta(entry, ABACDecisionAuditSchema.MetadataModuleId).ShouldBe("orders");
-        Meta(entry, ABACDecisionAuditSchema.MetadataObligations).ShouldBe("o1,o2");
-        Meta(entry, ABACDecisionAuditSchema.MetadataAdvice).ShouldBe("a1");
+        Meta(entry, ABACDecisionAuditSchema.MetadataObligations).ShouldBe("""["o1","o2"]""");
+        Meta(entry, ABACDecisionAuditSchema.MetadataAdvice).ShouldBe("""["a1"]""");
         Meta(entry, ABACDecisionAuditSchema.MetadataTraceTruncated).ShouldBe("true");
         Meta(entry, ABACDecisionAuditSchema.MetadataStartedAtUtc).ShouldBe(Started.ToString("O"));
         Meta(entry, ABACDecisionAuditSchema.MetadataCompletedAtUtc).ShouldBe(Completed.ToString("O"));
@@ -313,6 +313,28 @@ public sealed class ABACDecisionAuditEntryMapperTests
 
         entry.UserAgent.ShouldBe(longValue[..ABACDecisionAuditSchema.UserAgentMaxLength]);
         Meta(entry, ABACDecisionAuditSchema.MetadataTruncatedFields).ShouldBe("UserAgent");
+    }
+
+    [Fact]
+    public void ToOperationAuditEntry_TruncationAtASurrogatePair_NeverSplitsIt()
+    {
+        var value = new string('a', ABACDecisionAuditSchema.UserAgentMaxLength - 1) + "\U0001F600" + "tail";
+
+        var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with { UserAgent = value });
+
+        entry.UserAgent!.Length.ShouldBe(ABACDecisionAuditSchema.UserAgentMaxLength - 1);
+        char.IsHighSurrogate(entry.UserAgent[^1]).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ToOperationAuditEntry_IdsWithCommas_RoundTripIntact()
+    {
+        var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with { ObligationIds = ["notify,manager"], AdviceIds = ["a,b", "c"] });
+
+        var read = ABACDecisionAuditEntryMapper.ToDecisionAuditRecord(entry);
+
+        read.ObligationIds.ShouldBe(["notify,manager"]);
+        read.AdviceIds.ShouldBe(["a,b", "c"]);
     }
 
     [Fact]

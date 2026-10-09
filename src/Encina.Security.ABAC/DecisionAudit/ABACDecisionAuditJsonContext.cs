@@ -15,6 +15,7 @@ namespace Encina.Security.ABAC.DecisionAudit;
     UseStringEnumConverter = true,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(List<PolicyEvaluationTrace>))]
+[JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, List<string>>))]
 [JsonSerializable(typeof(ABACDecisionAuditRecord))]
 internal sealed partial class ABACDecisionAuditJsonContext : JsonSerializerContext;
