@@ -229,6 +229,7 @@ public sealed class StoreImplementationContractTests : IDisposable
         (await store.MarkAsProcessedAsync(messageId, "{\"result\":\"ok\"}")).ShouldBeRight();
         (await store.SaveChangesAsync()).ShouldBeRight();
 
+        _dbContext.ChangeTracker.Clear(); // the inbox store writes through its own context
         var updated = await _dbContext.InboxMessages.FindAsync(messageId);
         updated!.ProcessedAtUtc.ShouldNotBeNull();
         updated.Response.ShouldBe("{\"result\":\"ok\"}");
@@ -254,6 +255,7 @@ public sealed class StoreImplementationContractTests : IDisposable
         (await store.MarkAsFailedAsync(messageId, "Timeout", retryAt)).ShouldBeRight();
         (await store.SaveChangesAsync()).ShouldBeRight();
 
+        _dbContext.ChangeTracker.Clear(); // the inbox store writes through its own context
         var updated = await _dbContext.InboxMessages.FindAsync(messageId);
         updated!.ErrorMessage.ShouldBe("Timeout");
         updated.RetryCount.ShouldBe(1);

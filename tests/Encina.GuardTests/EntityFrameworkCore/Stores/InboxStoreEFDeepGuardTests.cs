@@ -155,6 +155,7 @@ public sealed class InboxStoreEFDeepGuardTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
+        dbContext.ChangeTracker.Clear(); // the inbox store writes through its own context
         var updated = await dbContext.Set<InboxMessage>().FirstAsync(m => m.MessageId == "process-msg");
         updated.Response.ShouldBe("{\"result\":\"ok\"}");
         updated.ProcessedAtUtc.ShouldBe(new DateTime(2026, 3, 15, 10, 0, 0, DateTimeKind.Utc));
@@ -185,6 +186,7 @@ public sealed class InboxStoreEFDeepGuardTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
+        dbContext.ChangeTracker.Clear(); // the inbox store writes through its own context
         var updated = await dbContext.Set<InboxMessage>().FirstAsync(m => m.MessageId == "fail-msg");
         updated.ErrorMessage.ShouldBe("Connection timeout");
         updated.RetryCount.ShouldBe(3);

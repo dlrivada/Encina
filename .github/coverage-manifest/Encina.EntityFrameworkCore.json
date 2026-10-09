@@ -445,12 +445,12 @@
       ],
       "defaultRule": "*StoreEF.cs",
       "reason": "EF Core store — needs real DbContext",
-      "targets": { "unit": 95, "guard": 95, "contract": 90, "integration": 90 },
+      "targets": { "unit": 92, "guard": 92, "contract": 90, "integration": 83 },
       "justifications": {
-        "unit": "Store logic with a mocked DbContext covers the state transitions without a database.",
-        "guard": "Every public store method checks its arguments, and the guard tests reach all of them.",
-        "contract": "Contract tests pin the IInboxStore behaviour of the EF Core implementation.",
-        "integration": "Real EF Core round trips cover the unit-of-work lookup and the provider-specific queries."
+        "unit": "The non-relational test-provider branch of the isolated update and the guards are unit-covered; the relational UPDATE branch needs a real database.",
+        "guard": "Argument checks of every public method are guard-covered; the isolated-context paths are not guard-reachable.",
+        "contract": "The store contract tests drive add, mark processed, mark failed, expiry and removal.",
+        "integration": "Real SQL Server and PostgreSQL runs cover the relational UPDATE branch and the pipeline scenarios; the non-relational fallback and the EF MySQL variant (skipped, #2086) are not reachable there."
       }
     },
     "ITransactionalCommand.cs": {
