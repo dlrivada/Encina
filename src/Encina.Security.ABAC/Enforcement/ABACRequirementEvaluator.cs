@@ -24,7 +24,23 @@ internal sealed record ABACCollectedAttributes(
 /// The decision the Policy Enforcement Point enforces for one request, plus the specific error
 /// to return when the decision is a denial that is not an ordinary policy Deny.
 /// </summary>
-internal sealed record ABACRequirementVerdict(PolicyDecision Decision, EncinaError? DenyError);
+internal sealed record ABACRequirementVerdict(PolicyDecision Decision, EncinaError? DenyError)
+{
+    /// <summary>
+    /// The deciding policy: the first policy in declaration order that decided the verdict, the missing
+    /// policy name, or <c>condition:&lt;index&gt;</c> for a condition; never the expression text.
+    /// </summary>
+    public string? DecidingPolicyId { get; init; }
+
+    /// <summary>The representative decisive rule of <see cref="DecidingPolicyId"/>, when traced.</summary>
+    public string? DecidingRuleId { get; init; }
+
+    /// <summary>The evaluation trace of the whole verdict, empty when the context did not ask for one.</summary>
+    public IReadOnlyList<PolicyEvaluationTrace> Trace { get; init; } = [];
+
+    /// <summary>Whether the trace dropped nodes because the entry limit was reached.</summary>
+    public bool TraceTruncated { get; init; }
+}
 
 /// <summary>
 /// Evaluates the <see cref="RequirePolicyAttribute"/> and <see cref="RequireConditionAttribute"/>
@@ -63,7 +79,12 @@ internal sealed class ABACRequirementEvaluator
     {
         var startTimestamp = Stopwatch.GetTimestamp();
 
-        var policies = await EvaluatePoliciesAsync(info.PolicyAttributes, attributes.Context, requestType, cancellationToken)
+        // One trace for the whole record: each PDP call gets the budget that remains.
+        var trace = attributes.Context.IncludeEvaluationTrace
+            ? new ABACRecordTrace(attributes.Context.MaxTraceEntries)
+            : null;
+
+        var policies = await EvaluatePoliciesAsync(info.PolicyAttributes, attributes.Context, requestType, trace, cancellationToken)
             .ConfigureAwait(false);
 
         var policyOutcomes = policies.ConvertAll(policy => policy.Outcome);
@@ -74,11 +95,17 @@ internal sealed class ABACRequirementEvaluator
                 .ConfigureAwait(false)
             : [];
 
+        AddConditionNodes(trace, conditionOutcomes, info.ConditionAttributes.Count);
+
         // The verdict comes from the same rule the property tests check (#1634).
         var kind = ABACRequirementCombiner.Combine(policyOutcomes, conditionOutcomes);
 
         // EvaluateConditionsAsync stops at the first condition that is not true, so it is the last one.
-        return BuildVerdict(kind, policies, conditionOutcomes.Count - 1, requestType, Stopwatch.GetElapsedTime(startTimestamp));
+        var verdict = BuildVerdict(kind, policies, conditionOutcomes.Count - 1, requestType, Stopwatch.GetElapsedTime(startTimestamp));
+
+        return trace is null
+            ? verdict
+            : verdict with { Trace = trace.Nodes, TraceTruncated = trace.Truncated };
     }
 
     // ── Required policies ───────────────────────────────────────────
@@ -87,6 +114,7 @@ internal sealed class ABACRequirementEvaluator
         IReadOnlyList<RequirePolicyAttribute> required,
         PolicyEvaluationContext context,
         Type requestType,
+        ABACRecordTrace? trace,
         CancellationToken cancellationToken)
     {
         var results = new List<EvaluatedPolicy>(required.Count);
@@ -95,7 +123,7 @@ internal sealed class ABACRequirementEvaluator
         {
             // The attribute constructor does not reject null; a null name is a missing policy.
             var policyName = attribute.PolicyName ?? string.Empty;
-            var decision = await EvaluatePolicyAsync(policyName, context, requestType, cancellationToken)
+            var decision = await EvaluatePolicyAsync(policyName, context, requestType, trace, cancellationToken)
                 .ConfigureAwait(false);
 
             results.Add(new EvaluatedPolicy(
@@ -110,26 +138,76 @@ internal sealed class ABACRequirementEvaluator
         string policyName,
         PolicyEvaluationContext context,
         Type requestType,
+        ABACRecordTrace? trace,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(policyName))
         {
-            return NotFound(policyName, requestType);
+            return NotFound(policyName, requestType, trace);
         }
 
-        var result = await _pdp.EvaluatePolicyAsync(policyName, context, cancellationToken).ConfigureAwait(false);
+        // The PDP traces within what is left of the record's budget.
+        var callContext = trace is null ? context : context with { MaxTraceEntries = trace.Remaining };
+        var result = await _pdp.EvaluatePolicyAsync(policyName, callContext, cancellationToken).ConfigureAwait(false);
 
         // MatchUnsafe: a missing policy is represented by null.
         return result.MatchUnsafe(
-            Right: decision => decision,
+            Right: decision => Traced(decision, trace),
             Left: error => error.GetCode().IfNone(string.Empty) == ABACErrors.PolicyNotFoundCode
-                ? NotFound(policyName, requestType)
-                : Decision(Effect.Indeterminate, policyName, [], [], IndeterminateReason, TimeSpan.Zero));
+                ? NotFound(policyName, requestType, trace)
+                : Unreadable(policyName, trace));
     }
 
-    private PolicyDecision? NotFound(string policyName, Type requestType)
+    private static PolicyDecision Traced(PolicyDecision decision, ABACRecordTrace? trace)
+    {
+        trace?.AddDecision(decision);
+        return decision;
+    }
+
+    private static PolicyDecision Unreadable(string policyName, ABACRecordTrace? trace)
+    {
+        trace?.AddLeaf(policyName, Effect.Indeterminate, PolicyTraceReason.NotEvaluated);
+        return Decision(Effect.Indeterminate, policyName, [], [], IndeterminateReason, TimeSpan.Zero);
+    }
+
+    // ── Condition trace nodes ───────────────────────────────────────
+
+    internal static string ConditionTraceId(int index) => $"condition:{index}";
+
+    // One node per declared condition, in declaration order: the evaluated ones with their outcome,
+    // then the ones skipped because an earlier requirement already decided (short-circuit).
+    private static void AddConditionNodes(ABACRecordTrace? trace, List<ConditionOutcome> evaluated, int declared)
+    {
+        if (trace is null)
+        {
+            return;
+        }
+
+        for (var index = 0; index < declared; index++)
+        {
+            if (index < evaluated.Count)
+            {
+                trace.AddLeaf(ConditionTraceId(index), ConditionEffect(evaluated[index]), PolicyTraceReason.Evaluated);
+            }
+            else
+            {
+                trace.AddLeaf(ConditionTraceId(index), Effect.NotApplicable, PolicyTraceReason.NotEvaluated);
+            }
+        }
+    }
+
+    // crap-exempt: single-question switch — the effect each condition outcome stands for in the trace.
+    private static Effect ConditionEffect(ConditionOutcome outcome) => outcome switch
+    {
+        ConditionOutcome.True => Effect.Permit,
+        ConditionOutcome.False => Effect.Deny,
+        _ => Effect.Indeterminate
+    };
+
+    private PolicyDecision? NotFound(string policyName, Type requestType, ABACRecordTrace? trace)
     {
         ABACLogMessages.RequiredPolicyNotFound(_logger, policyName, requestType.Name);
+        trace?.AddLeaf(policyName, Effect.NotApplicable, PolicyTraceReason.NotEvaluated);
         return null;
     }
 
@@ -243,6 +321,51 @@ internal sealed class ABACRequirementEvaluator
     // ── Verdict ─────────────────────────────────────────────────────
 
     private static ABACRequirementVerdict BuildVerdict(
+        RequirementVerdictKind kind,
+        List<EvaluatedPolicy> policies,
+        int failedCondition,
+        Type requestType,
+        TimeSpan elapsed)
+    {
+        var verdict = VerdictFor(kind, policies, failedCondition, requestType, elapsed);
+        var (policyId, ruleId) = DecidingPolicy(kind, policies, failedCondition);
+
+        return verdict with { DecidingPolicyId = policyId, DecidingRuleId = ruleId };
+    }
+
+    // The policy a record names as the decider: the first in declaration order (the full list of
+    // deciding policies is in the trace). A condition is named by its declaration index, never its text.
+    private static (string? PolicyId, string? RuleId) DecidingPolicy(
+        RequirementVerdictKind kind,
+        List<EvaluatedPolicy> policies,
+        int failedCondition)
+    {
+        if (kind == RequirementVerdictKind.ConditionNotMet)
+        {
+            return (ConditionTraceId(failedCondition), null);
+        }
+
+        var deciding = kind switch
+        {
+            RequirementVerdictKind.Permit => policies.FirstOrDefault(policy => policy.Outcome.Effect == Effect.Permit),
+            RequirementVerdictKind.PolicyDenied => policies.FirstOrDefault(
+                policy => policy.Outcome.Effect is Effect.Deny or Effect.NotApplicable),
+            RequirementVerdictKind.PolicyNotFound => policies.FirstOrDefault(policy => policy.Decision is null),
+            _ => policies.FirstOrDefault(policy => policy.Outcome.Effect == Effect.Indeterminate)
+        };
+
+        if (deciding is not null)
+        {
+            return (deciding.Outcome.PolicyId, deciding.Decision?.RuleId);
+        }
+
+        // An Indeterminate verdict without a policy comes from a condition that failed to run.
+        return (kind == RequirementVerdictKind.Indeterminate && failedCondition >= 0
+            ? ConditionTraceId(failedCondition)
+            : null, null);
+    }
+
+    private static ABACRequirementVerdict VerdictFor(
         RequirementVerdictKind kind,
         List<EvaluatedPolicy> policies,
         int failedCondition,
