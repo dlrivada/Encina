@@ -169,9 +169,9 @@
       ],
       "defaultRule": "*Store.cs",
       "reason": "Abstract/base store with mockeable deps",
-      "targets": { "unit": 69, "guard": 74 },
+      "targets": { "unit": 88, "guard": 74 },
       "justifications": {
-        "unit": "Instrumentation wrapper verified with a fake inner store, so tags and metrics are covered without a database.",
+        "unit": "Every store call, its error path (activity status carries only the error code) and the activity start helpers are unit-driven; the uncovered remainder is the no-listener fast path of a few helpers.",
         "guard": "Constructor and argument null checks are guard-reachable for every instrumented method."
       }
     },

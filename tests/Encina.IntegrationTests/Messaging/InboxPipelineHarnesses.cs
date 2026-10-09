@@ -1,9 +1,9 @@
 using System.Data;
 using System.Data.Common;
 using Encina.EntityFrameworkCore;
-using Encina.Modules.Isolation;
 using Encina.Messaging;
 using Encina.Messaging.Inbox;
+using Encina.Modules.Isolation;
 using Encina.TestInfrastructure.Fixtures;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 using LanguageExt;
