@@ -23,6 +23,8 @@ public static class DeadLetterServiceCollectionExtensions
         where TStore : class, IDeadLetterStore
         where TFactory : class, IDeadLetterMessageFactory
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         var options = new DeadLetterOptions();
         configure?.Invoke(options);
 
@@ -41,8 +43,8 @@ public static class DeadLetterServiceCollectionExtensions
         services.TryAddScoped<IDeadLetterManager, DeadLetterManager>();
 
         // Register health check
-        services.TryAddScoped<DeadLetterHealthCheck>();
-        services.TryAddScoped<IEncinaHealthCheck>(sp => sp.GetRequiredService<DeadLetterHealthCheck>());
+        // TryAddEnumerable so it coexists with other IEncinaHealthCheck registrations in any order.
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IEncinaHealthCheck, DeadLetterHealthCheck>());
 
         // Register cleanup processor if enabled
         if (options.EnableAutomaticCleanup && options.RetentionPeriod.HasValue)

@@ -181,7 +181,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 95, "guard": 15 },
+      "justifications": {
+        "unit": "DI tests cover both overloads, the health-check registration, the options registration and every cleanup-processor condition; the whole file is reachable from unit tests.",
+        "guard": "Guard tests cover the null services check of both overloads, which is the only guard in the file (about 16% of its lines)."
+      }
     },
     "DeadLetter/DeadLetterSourcePatterns.cs": {
       "defaultTests": [
@@ -345,7 +350,12 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": { "unit": 98, "guard": 8 },
+      "justifications": {
+        "unit": "Unit tests drive every branch (store Left on count and old-messages query, missing error code, old-message degrade, critical, warning, healthy, disabled old-message check); the target leaves no real gap because only the awaited-state-machine lines could differ.",
+        "guard": "Only the constructor null check is a guard; the check logic belongs to unit tests, so a guard share near 10% is the realistic ceiling."
+      }
     },
     "Health/EncinaHealthCheck.cs": {
       "defaultTests": [
