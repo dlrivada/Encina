@@ -1,0 +1,29 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  Job-IAMMPO : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+
+InvocationCount=1  UnrollFactor=1  
+
+```
+| Method                              | Job        | IterationCount | LaunchCount | WarmupCount | Mean       | Error        | StdDev    | Median     | Ratio | RatioSD | Allocated | Alloc Ratio |
+|------------------------------------ |----------- |--------------- |------------ |------------ |-----------:|-------------:|----------:|-----------:|------:|--------:|----------:|------------:|
+| RecordFailure                       | Job-IAMMPO | 15             | Default     | 5           |   564.5 ns |     33.83 ns |  26.41 ns |   561.5 ns |  0.16 |    0.01 |         - |        0.00 |
+| GetState                            | Job-IAMMPO | 15             | Default     | 5           |   512.7 ns |     74.12 ns |  65.70 ns |   486.5 ns |  0.15 |    0.02 |         - |        0.00 |
+| AcquireAndRecordSuccess_Combined    | Job-IAMMPO | 15             | Default     | 5           | 3,800.1 ns |    101.93 ns |  90.36 ns | 3,772.0 ns |  1.10 |    0.04 |     336 B |        0.76 |
+| AcquireAndRecordFailure_Combined    | Job-IAMMPO | 15             | Default     | 5           | 3,871.3 ns |    148.93 ns | 139.31 ns | 3,827.5 ns |  1.12 |    0.05 |     336 B |        0.76 |
+| AcquireAsync_WithAdaptiveThrottling | Job-IAMMPO | 15             | Default     | 5           | 3,473.0 ns |     57.59 ns |  48.09 ns | 3,471.5 ns |  1.01 |    0.03 |     440 B |        1.00 |
+| RecordSuccess                       | Job-IAMMPO | 15             | Default     | 5           |   529.8 ns |     22.77 ns |  17.78 ns |   535.5 ns |  0.15 |    0.01 |         - |        0.00 |
+| AcquireAsync_SimpleRateLimiting     | Job-IAMMPO | 15             | Default     | 5           | 3,451.4 ns |    106.70 ns |  94.59 ns | 3,462.0 ns |  1.00 |    0.04 |     440 B |        1.00 |
+|                                     |            |                |             |             |            |              |           |            |       |         |           |             |
+| RecordFailure                       | ShortRun   | 3              | 1           | 3           |   576.7 ns |  2,220.22 ns | 121.70 ns |   557.0 ns |  0.12 |    0.02 |         - |        0.00 |
+| GetState                            | ShortRun   | 3              | 1           | 3           |   567.0 ns |  1,029.92 ns |  56.45 ns |   550.0 ns |  0.12 |    0.01 |         - |        0.00 |
+| AcquireAndRecordSuccess_Combined    | ShortRun   | 3              | 1           | 3           | 3,987.0 ns |    482.68 ns |  26.46 ns | 3,997.0 ns |  0.85 |    0.06 |     336 B |        0.76 |
+| AcquireAndRecordFailure_Combined    | ShortRun   | 3              | 1           | 3           | 4,034.2 ns |  2,971.23 ns | 162.86 ns | 4,117.5 ns |  0.86 |    0.07 |     336 B |        0.76 |
+| AcquireAsync_WithAdaptiveThrottling | ShortRun   | 3              | 1           | 3           | 3,696.0 ns |  4,920.77 ns | 269.72 ns | 3,837.0 ns |  0.79 |    0.07 |     440 B |        1.00 |
+| RecordSuccess                       | ShortRun   | 3              | 1           | 3           | 1,068.7 ns | 16,861.64 ns | 924.24 ns |   591.0 ns |  0.23 |    0.17 |         - |        0.00 |
+| AcquireAsync_SimpleRateLimiting     | ShortRun   | 3              | 1           | 3           | 4,693.0 ns |  6,511.94 ns | 356.94 ns | 4,730.0 ns |  1.00 |    0.09 |     440 B |        1.00 |
