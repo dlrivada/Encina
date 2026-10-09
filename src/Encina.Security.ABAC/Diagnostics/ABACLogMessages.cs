@@ -183,13 +183,6 @@ internal static partial class ABACLogMessages
         ILogger logger, string entityType, string entityId, double durationMs);
 
     [LoggerMessage(
-        EventId = 9036,
-        Level = LogLevel.Error,
-        Message = "PAP {Operation} operation failed for {EntityType}: {ErrorMessage}")]
-    internal static partial void PapOperationFailed(
-        ILogger logger, string operation, string entityType, string errorMessage);
-
-    [LoggerMessage(
         EventId = 9037,
         Level = LogLevel.Error,
         Message = "PAP {Operation} operation failed for {EntityType} '{EntityId}'")]
@@ -209,13 +202,6 @@ internal static partial class ABACLogMessages
         Message = "Persistent PAP store connectivity verified ({PolicySetCount} policy sets, {PolicyCount} standalone policies)")]
     internal static partial void PapStoreConnectivityVerified(
         ILogger logger, int policySetCount, int policyCount);
-
-    [LoggerMessage(
-        EventId = 9040,
-        Level = LogLevel.Warning,
-        Message = "Persistent PAP store connectivity check failed: {ErrorMessage}")]
-    internal static partial void PapStoreConnectivityFailed(
-        ILogger logger, string errorMessage);
 
     // ── XACML XML Serialization Messages (9050-9059) ─────────────────
 

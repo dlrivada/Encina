@@ -446,7 +446,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 90,
+        "guard": 85
+      },
+      "justifications": {
+        "unit": "Unit tests compile and evaluate expressions through the real Roslyn script engine, including the runtime-failure path that must return a fixed error carrying only the exception type",
+        "guard": "Guard tests call every public method with null and invalid arguments and exercise the compile cache"
+      }
     },
     "EEL/EELExpressionDiscovery.cs": {
       "defaultTests": [
@@ -706,7 +714,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 85,
+        "guard": 85
+      },
+      "justifications": {
+        "unit": "Unit tests evaluate string-regexp-match through the real registry for match, no match and invalid pattern; only the 5-second timeout branch is not reached because it would need a catastrophic pattern",
+        "guard": "Guard tests call the registered function with wrong argument counts and types"
+      }
     },
     "Functions/Standard/SetFunctions.cs": {
       "defaultTests": [
@@ -1114,7 +1130,17 @@
         "property"
       ],
       "defaultRule": "*Serializer.cs",
-      "reason": "Serialization with round-trip invariant"
+      "reason": "Serialization with round-trip invariant",
+      "targets": {
+        "unit": 90,
+        "guard": 90,
+        "property": 80
+      },
+      "justifications": {
+        "unit": "Unit tests round-trip policies and policy sets and feed malformed JSON to prove the error carries the exception type and never its message",
+        "guard": "Guard tests call every method with null, empty and malformed input",
+        "property": "Property tests check the serialize/deserialize round-trip invariant over generated policies"
+      }
     },
     "Persistence/ExpressionJsonConverter.cs": {
       "defaultTests": [
@@ -1213,7 +1239,17 @@
         "property"
       ],
       "defaultRule": "*Serializer.cs",
-      "reason": "Serialization with round-trip invariant"
+      "reason": "Serialization with round-trip invariant",
+      "targets": {
+        "unit": 90,
+        "guard": 80,
+        "property": 35
+      },
+      "justifications": {
+        "unit": "Unit tests deserialize valid, malformed and wrong-root XACML documents and prove the error, the activity status and the log never carry the XML parser message",
+        "guard": "Guard tests call every public method with null, empty and malformed documents and cover most element parsers",
+        "property": "Property tests cover the XML round-trip invariant for generated policies; the many element parsers reached only by rich documents keep the target modest"
+      }
     },
     "PolicyCachingOptions.cs": {
       "defaultTests": [

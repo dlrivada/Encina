@@ -1,0 +1,1 @@
+- `Encina.Security.ABAC`: `FunctionError`, the regex function, `DefaultPolicySerializer` and EEL runtime evaluation no longer embed exception messages in their errors, and the unused PAP log messages `PapOperationFailed` (9036) and `PapStoreConnectivityFailed` (9040) are removed (#1700).
