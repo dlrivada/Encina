@@ -330,6 +330,26 @@ public sealed class DelayedRetryChainTests
         error.Message.ShouldNotContain("12345");
     }
 
+    private sealed class OddFailureException(string message) : Exception(message);
+
+    [Theory]
+    [InlineData("connection reset by peer")]
+    [InlineData("invalid state of the thing")]
+    public void ThrownException_IsClassifiedExactlyAsBeforeTheMessageWasDropped(string exceptionMessage)
+    {
+        // The default classifier ignores message patterns for an error that has a cause (documented
+        // contract of DefaultErrorClassifier), so building the error without the exception's message
+        // changes no classification: a thrown exception is classified by its type, then by code.
+        var ex = new OddFailureException(exceptionMessage);
+        var classifier = new DefaultErrorClassifier();
+
+        var before = classifier.Classify(EncinaError.New(ex, $"[{RecoverabilityErrorCodes.ExceptionThrown}] {ex.Message}"), ex);
+        var after = classifier.Classify(EncinaErrors.Create(RecoverabilityErrorCodes.ExceptionThrown, ex.GetType().Name, ex), ex);
+
+        after.ShouldBe(before);
+        after.ShouldBe(ErrorClassification.Unknown);
+    }
+
     [Fact]
     public async Task SchedulerThrowingForTheNextAttempt_EndsTheChainThroughThePermanentFailurePath_Once()
     {
