@@ -104,7 +104,7 @@ Source: `artifacts/pr-review/1775.md` (verdict merge after fixes; 5 major, 6 min
 
 ## Review log (Phase 2 scope shape)
 
-Sources, all from PR [#1849](https://github.com/dlrivada/Encina/pull/1849) (the design record, not edited): section 7 of `docs/plans/request-identity-phase2-scope-shape-1705.md` (25 plan edits, "S7-n"), the pr-reviewer review `artifacts/pr-review/1849.md` (F1-F11) and the adversarial review `artifacts/pr-review/1849-adversarial.md` (majors A-M1 to A-M4, minors A-m1 to A-m12), plus the maintainer decisions on #1705 of 2026-10-05. Every `src/` citation was re-checked on `origin/main` 61d5dc3d; the plan and the Phase 1 files are unchanged since `c3626ed`, so the section 7 line numbers held. The historical review tables above keep the `Begin*` names they were written with; M6 supersedes them.
+Sources, all from PR [#1849](https://github.com/dlrivada/Encina/pull/1849) (the design record; body not rewritten, one header note added 2026-10-09): section 7 of [`docs/plans/request-identity-phase2-scope-shape-1705.md`](../request-identity-phase2-scope-shape-1705.md) (25 plan edits, "S7-n"), the pr-reviewer review `artifacts/pr-review/1849.md` (F1-F11) and the adversarial review `artifacts/pr-review/1849-adversarial.md` (majors A-M1 to A-M4, minors A-m1 to A-m12), plus the maintainer decisions on #1705 of 2026-10-05. Every `src/` citation was re-checked on `origin/main` 61d5dc3d; the plan and the Phase 1 files are unchanged since `c3626ed`, so the section 7 line numbers held. The historical review tables above keep the `Begin*` names they were written with; M6 supersedes them.
 
 ### Section 7 edits
 
