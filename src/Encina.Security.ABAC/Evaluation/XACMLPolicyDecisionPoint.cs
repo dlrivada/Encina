@@ -379,17 +379,7 @@ public sealed class XACMLPolicyDecisionPoint(
             : Effect.NotApplicable;
 
         // Collect rule-level obligations/advice matching the combined effect
-        var obligations = new List<Obligation>();
-        var advice = new List<AdviceExpression>();
-
-        foreach (var ruleResult in ruleResults)
-        {
-            if (ruleResult.Effect == combinedEffect)
-            {
-                obligations.AddRange(ruleResult.Obligations);
-                advice.AddRange(ruleResult.Advice);
-            }
-        }
+        var (obligations, advice) = CollectRuleExtras(ruleResults, combinedEffect);
 
         // Add policy-level obligations/advice matching the combined effect
         CollectObligations(policy.Obligations, combinedEffect, obligations);
@@ -404,6 +394,25 @@ public sealed class XACMLPolicyDecisionPoint(
         };
 
         return (evaluated, PolicyTraceReason.Evaluated, traced ? DecisiveRuleIds(ruleResults, combinedEffect) : null);
+    }
+
+    private static (List<Obligation> Obligations, List<AdviceExpression> Advice) CollectRuleExtras(
+        IReadOnlyList<RuleEvaluationResult> ruleResults,
+        Effect combinedEffect)
+    {
+        var obligations = new List<Obligation>();
+        var advice = new List<AdviceExpression>();
+
+        foreach (var ruleResult in ruleResults)
+        {
+            if (ruleResult.Effect == combinedEffect)
+            {
+                obligations.AddRange(ruleResult.Obligations);
+                advice.AddRange(ruleResult.Advice);
+            }
+        }
+
+        return (obligations, advice);
     }
 
     /// <summary>
