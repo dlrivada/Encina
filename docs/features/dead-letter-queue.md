@@ -234,7 +234,7 @@ When `AddEncinaTenancy` is registered (it registers the `TenancyInUse` marker) a
 | `ReplayAsync`, `GetMessageAsync`, `DeleteAsync` (by message id), `GetStatisticsAsync` | Denied: there is no filter to opt out with |
 | `CleanupExpiredAsync` | Not gated: it is retention maintenance across the deployment |
 
-A denial returns the error code `encina.authorization.dlq_tenant_required` (`DeadLetterErrorCodes.TenantRequired`). It is an `encina.authorization.*` code, which `Encina.AspNetCore` maps to HTTP 403. Whether the by-id operations and the statistics should get an opt-out is an open question tracked as a follow-up.
+A denial returns the error code `encina.authorization.dlq_tenant_required` (`DeadLetterErrorCodes.TenantRequired`). It is an `encina.authorization.*` code, which `Encina.AspNetCore` maps to HTTP 403. Whether the by-id operations and the statistics should get an opt-out is an open question tracked in [#2080](https://github.com/dlrivada/Encina/issues/2080).
 
 Every use of `AllTenants` while tenancy is in use is logged as a warning (EventId 2993), and every denial is logged (EventId 2994); neither records the tenant id (2993 carries the operation; 2994 carries the operation and the error code). Without `AddEncinaTenancy` nothing changes: no ambient tenant means the whole queue.
 
