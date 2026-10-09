@@ -97,7 +97,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 85,
+        "guard": 80
+      },
+      "justifications": {
+        "unit": "Unit tests register the fakes and resolve each one, so every registration branch of the file is reached.",
+        "guard": "Guard tests cover the null-argument checks of the registration methods, which are the public entry points of the file."
+      }
     },
     "Stores/FakeCdcDeadLetterStore.cs": {
       "defaultTests": [
