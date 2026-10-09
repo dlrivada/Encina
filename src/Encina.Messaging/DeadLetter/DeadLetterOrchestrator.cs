@@ -331,6 +331,8 @@ public sealed class DeadLetterOrchestrator
         return error;
     }
 
+    // The lookup is by (SourcePattern, SourceMessageId) only, like the unique key: a source message id must be
+    // unique per source pattern across tenants (see IDeadLetterMessage.SourceMessageId).
     private async Task<Either<EncinaError, IDeadLetterMessage>> ExistingAsync(
         DeadLetterData data,
         CancellationToken cancellationToken)

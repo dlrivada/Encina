@@ -404,9 +404,10 @@ public static class MessagingServiceCollectionExtensions
     /// <remarks>
     /// <para>
     /// Called by every provider registration (ADO.NET, Dapper, EF Core, MongoDB) with the flag and
-    /// options of its configuration, and by <c>AddEncinaDeadLetterQueue</c>. The store and the factory use
-    /// <c>TryAdd</c>, so a store registered by the application first (or the testing fake) is kept; a
-    /// provider registered first is not replaced by a later call with other types.
+    /// options of its configuration, and by <c>AddEncinaDeadLetterQueue</c>. The options, the store and the
+    /// factory use <c>TryAdd</c>: the first registration wins, so a store registered by the application first
+    /// (or the testing fake) is kept, a provider registered first is not replaced by a later call with other
+    /// types, and the options of a later call are ignored (configure the queue in the first call).
     /// </para>
     /// <para>
     /// Every dependency the orchestrator, manager, health check and cleanup processor resolve is
@@ -426,7 +427,9 @@ public static class MessagingServiceCollectionExtensions
 
         if (!useDeadLetterQueue) return services;
 
-        services.AddSingleton(options);
+        // First registration wins, like the store: a later call (for example AddEncinaDeadLetterQueue after a
+        // provider registered with UseDeadLetterQueue) never swaps the options under a store it kept.
+        services.TryAddSingleton(options);
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
 

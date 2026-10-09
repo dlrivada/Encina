@@ -202,12 +202,14 @@ public static class FailureSimulationExtensions
 
         var store = app.Services.GetRequiredService<FakeDeadLetterStore>();
         var now = TimeProvider.System.GetUtcNow().UtcDateTime;
+        var id = Guid.NewGuid();
         var deadLetterMessage = new FakeDeadLetterMessage
         {
-            Id = Guid.NewGuid(),
+            Id = id,
             RequestType = requestType,
             RequestContent = requestContent,
             SourcePattern = sourcePattern,
+            SourceMessageId = id.ToString("D"),
             ErrorCode = errorMessage,
             TotalRetryAttempts = totalRetryAttempts,
             FirstFailedAtUtc = now,
@@ -215,6 +217,6 @@ public static class FailureSimulationExtensions
         };
 
         await store.AddAsync(deadLetterMessage);
-        return deadLetterMessage.Id;
+        return id;
     }
 }

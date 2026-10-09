@@ -1,5 +1,6 @@
 using Encina.ContractTests.Messaging.DeadLetter;
 using Encina.Dapper.PostgreSQL.DeadLetter;
+using Encina.IntegrationTests.Messaging.DeadLetter;
 using Encina.Messaging.DeadLetter;
 using Encina.TestInfrastructure.Fixtures;
 
@@ -21,11 +22,17 @@ public sealed class DeadLetterStoreDapperTests : DeadLetterStoreContract
         _fixture = fixture;
     }
 
+    private System.Data.IDbConnection? _storeConnection;
+
     protected override async Task<IDeadLetterStore> CreateStoreAsync(TimeProvider timeProvider)
     {
         await _fixture.ClearAllDataAsync();
-        return new DeadLetterStoreDapper(_fixture.CreateConnection(), timeProvider: timeProvider);
+        _storeConnection = _fixture.CreateConnection();
+        return new DeadLetterStoreDapper(_storeConnection, timeProvider: timeProvider);
     }
+
+    protected override Task ApplyNonUtcSessionTimeZoneAsync()
+        => PostgreSqlSessionTimeZone.ApplyAsync(_storeConnection!);
 
     protected override IDeadLetterStore CreateSecondStore()
         => new DeadLetterStoreDapper(_fixture.CreateConnection(), timeProvider: Clock);

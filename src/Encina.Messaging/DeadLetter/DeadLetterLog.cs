@@ -56,11 +56,11 @@ internal static partial class DeadLetterLog
     [LoggerMessage(
         EventId = 2949,
         Level = LogLevel.Warning,
-        Message = "Message {MessageId} replay failed. Error: {ErrorMessage}")]
+        Message = "Message {MessageId} replay failed. ErrorCode: {ErrorCode}")]
     public static partial void MessageReplayFailed(
         ILogger logger,
         Guid messageId,
-        string errorMessage);
+        string errorCode);
 
     [LoggerMessage(
         EventId = 2950,

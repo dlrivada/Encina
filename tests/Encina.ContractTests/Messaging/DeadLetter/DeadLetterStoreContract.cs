@@ -424,6 +424,42 @@ public abstract class DeadLetterStoreContract : IAsyncLifetime
         (await Store.DeleteExpiredAsync()).ShouldBeRight().ShouldBe(1);
     }
 
+    /// <summary>
+    /// Puts the store's own database session in a non-UTC time zone, where the provider has one (PostgreSQL:
+    /// <c>SET TIME ZONE</c>); a no-op for the others. The boundary facts below run after it, so that a
+    /// <c>TIMESTAMPTZ</c> comparison that depends on the session zone cannot go unnoticed (maintainer decision B4).
+    /// </summary>
+    protected virtual Task ApplyNonUtcSessionTimeZoneAsync() => Task.CompletedTask;
+
+    [Fact]
+    public async Task DeleteExpired_AtTheBoundaryUnderANonUtcSessionTimeZone_RemovesRowsExpiredAtOrBeforeNowOnly()
+    {
+        await ApplyNonUtcSessionTimeZoneAsync();
+        var expired = Data(expiresAtUtc: Start.AddMinutes(-1));
+        var expiresNow = Data(expiresAtUtc: Start);
+        var future = Data(expiresAtUtc: Start.AddSeconds(1));
+        await AddAsync(expired);
+        await AddAsync(expiresNow);
+        await AddAsync(future);
+
+        (await Store.DeleteExpiredAsync()).ShouldBeRight().ShouldBe(2);
+
+        (await ListAsync(null)).Select(m => m.Id).ShouldBe(new[] { future.Id });
+        var stored = await GetRequiredAsync(future.Id);
+        stored.ExpiresAtUtc.ShouldBe(Start.AddSeconds(1));
+    }
+
+    [Fact]
+    public async Task CountExpiringAtOrBefore_UnderANonUtcSessionTimeZone_UsesTheUtcInstant()
+    {
+        await ApplyNonUtcSessionTimeZoneAsync();
+        await AddAsync(Data(expiresAtUtc: Start));
+        await AddAsync(Data(expiresAtUtc: Start.AddSeconds(1)));
+
+        (await CountAsync(new DeadLetterFilter { ExpiresAtOrBeforeUtc = Start })).ShouldBe(1);
+        (await CountAsync(new DeadLetterFilter { ExpiresAtOrBeforeUtc = Start.AddSeconds(1) })).ShouldBe(2);
+    }
+
     [Fact]
     public async Task SaveChanges_WithNothingPending_ReturnsRight()
     {
@@ -447,6 +483,16 @@ public abstract class DeadLetterStoreContract : IAsyncLifetime
         await Should.ThrowAsync<ArgumentException>(async () => await Store.DeleteAsync(Guid.Empty));
         await Should.ThrowAsync<ArgumentException>(async () => await Store.TryClaimForReplayAsync(Guid.Empty, Start));
         await Should.ThrowAsync<ArgumentException>(async () => await Store.MarkAsReplayedAsync(Guid.Empty, "success"));
+    }
+
+    [Fact]
+    public async Task Add_EmptySourceMessageId_ThrowsBeforeAnyWrite()
+    {
+        var data = Data(sourceId: "");
+
+        await Should.ThrowAsync<ArgumentException>(async () => await Store.AddAsync(CreateMessage(data)));
+
+        (await CountAsync(DeadLetterFilter.All)).ShouldBe(0);
     }
 
     [Fact]

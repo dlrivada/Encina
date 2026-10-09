@@ -115,12 +115,13 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
     /// <inheritdoc />
     /// <remarks>
     /// A message whose timestamps are still at their default is stamped from the store's
-    /// <see cref="TimeProvider"/>, and an empty <c>SourceMessageId</c> becomes the message id, so
-    /// hand-built messages never collide on the unique source key.
+    /// <see cref="TimeProvider"/>. An empty <c>SourceMessageId</c> throws <see cref="ArgumentException"/>, like the
+    /// persistent stores: it is the idempotency key, so a hand-built message must name it.
     /// </remarks>
     public Task<Either<EncinaError, bool>> AddAsync(IDeadLetterMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
+        ArgumentException.ThrowIfNullOrEmpty(message.SourceMessageId);
 
         var fakeMessage = message as FakeDeadLetterMessage ?? CopyOf(message);
         Stamp(fakeMessage);
@@ -152,11 +153,6 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
         if (message.FirstFailedAtUtc == default)
         {
             message.FirstFailedAtUtc = message.DeadLetteredAtUtc;
-        }
-
-        if (string.IsNullOrEmpty(message.SourceMessageId))
-        {
-            message.SourceMessageId = message.Id.ToString("D");
         }
     }
 

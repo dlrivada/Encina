@@ -1,7 +1,9 @@
 using Encina.ContractTests.Messaging.DeadLetter;
 using Encina.EntityFrameworkCore.DeadLetter;
+using Encina.IntegrationTests.Messaging.DeadLetter;
 using Encina.Messaging.DeadLetter;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 
 namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.PostgreSQL.DeadLetter;
 
@@ -30,6 +32,10 @@ public sealed class DeadLetterStoreEFPostgreSqlTests : DeadLetterStoreContract
     }
 
     protected override IDeadLetterStore CreateSecondStore() => NewStore(Clock);
+
+    // The store under test uses the first context created (CreateStoreAsync).
+    protected override Task ApplyNonUtcSessionTimeZoneAsync()
+        => PostgreSqlSessionTimeZone.ApplyAsync(_contexts[0].Database.GetDbConnection());
 
     protected override IDeadLetterMessage CreateMessage(DeadLetterData data)
         => new DeadLetterMessageFactory().Create(data);

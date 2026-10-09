@@ -76,6 +76,20 @@ public sealed class AddDeadLetterQueueServicesTests
     }
 
     [Fact]
+    public void OptionsOfTheFirstCall_AreKeptByALaterCall()
+    {
+        var first = new DeadLetterOptions { RetentionPeriod = TimeSpan.FromDays(3) };
+        var services = new ServiceCollection();
+        services.AddDeadLetterQueueServices<FakeDeadLetterStore, StubFactory>(true, first);
+
+        services.AddDeadLetterQueueServices<OtherStore, StubFactory>(true, new DeadLetterOptions { RetentionPeriod = TimeSpan.FromDays(9) });
+
+        using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<DeadLetterOptions>().ShouldBeSameAs(first);
+        services.Count(d => d.ImplementationType == typeof(DeadLetterCleanupProcessor)).ShouldBe(1);
+    }
+
+    [Fact]
     public void NullServices_Throws()
     {
         Should.Throw<ArgumentNullException>(

@@ -72,7 +72,11 @@ public interface IDeadLetterMessage
     /// <remarks>
     /// Together with <see cref="SourcePattern"/> it is the idempotency key of the queue: a store
     /// holds at most one dead letter per <c>(SourcePattern, SourceMessageId)</c>. When the caller
-    /// has no source identifier, the orchestrator uses the dead letter <see cref="Id"/>.
+    /// has no source identifier, the orchestrator uses the dead letter <see cref="Id"/>. It must not be empty
+    /// (stores throw <see cref="ArgumentException"/>), and it must be unique per <see cref="SourcePattern"/>
+    /// across tenants: the key has no tenant, so two tenants dead-lettering the same source id would collide and
+    /// the second capture would return the first tenant's message. The built-in sources use globally unique ids
+    /// (GUIDs, inbox message ids).
     /// </remarks>
     string SourceMessageId { get; set; }
 

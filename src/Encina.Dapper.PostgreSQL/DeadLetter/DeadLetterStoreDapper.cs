@@ -66,22 +66,19 @@ public sealed class DeadLetterStoreDapper : IDeadLetterStore
     public async Task<Either<EncinaError, bool>> AddAsync(IDeadLetterMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
+        ArgumentException.ThrowIfNullOrEmpty(message.SourceMessageId);
 
         return await EitherHelpers.TryAsync(async () =>
         {
             var sql = $@"INSERT INTO {_table} ({Columns})
                    VALUES (@Id, @RequestType, @RequestContent, @ErrorCode, @ExceptionType, @ExceptionStackTrace, @CorrelationId,
                            @SourcePattern, @SourceMessageId, @TenantId, @TotalRetryAttempts, @FirstFailedAtUtc, @DeadLetteredAtUtc,
-                           @ExpiresAtUtc, @ReplayClaimedAtUtc, @ReplayedAtUtc, @ReplayResult)";
-            try
-            {
-                return await ExecuteAsync(sql, ToParameters(message), cancellationToken).ConfigureAwait(false) == 1;
-            }
-            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
-            {
-                return false;
-            }
-        }, DeadLetterErrorCodes.StoreFailed).ConfigureAwait(false);
+                           @ExpiresAtUtc, @ReplayClaimedAtUtc, @ReplayedAtUtc, @ReplayResult)
+                   ON CONFLICT (""SourcePattern"", ""SourceMessageId"") DO NOTHING";
+
+            // One row inserted, or none when the source message was already captured (no server error is raised).
+            return await ExecuteAsync(sql, ToParameters(message), cancellationToken).ConfigureAwait(false) == 1;
+        },DeadLetterErrorCodes.StoreFailed).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

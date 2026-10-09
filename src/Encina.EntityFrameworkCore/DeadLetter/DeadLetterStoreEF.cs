@@ -50,6 +50,7 @@ public sealed class DeadLetterStoreEF : IDeadLetterStore
     public async Task<Either<EncinaError, bool>> AddAsync(IDeadLetterMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
+        ArgumentException.ThrowIfNullOrEmpty(message.SourceMessageId);
 
         if (message is not DeadLetterMessage entity)
         {

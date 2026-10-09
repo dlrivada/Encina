@@ -293,6 +293,7 @@ public sealed class DeadLetterManagerTests
             RequestType = typeof(ReplayedCommand).AssemblyQualifiedName!,
             RequestContent = "{\"value\":5}",
             SourcePattern = "Outbox",
+            SourceMessageId = "source-1",
             DeadLetteredAtUtc = FixedUtcNow
         };
         await store.AddAsync(message);
@@ -316,6 +317,7 @@ public sealed class DeadLetterManagerTests
             RequestType = typeof(ReplayedCommand).AssemblyQualifiedName!,
             RequestContent = "{\"value\":5}",
             SourcePattern = "Outbox",
+            SourceMessageId = "source-1",
             DeadLetteredAtUtc = FixedUtcNow,
             ReplayClaimedAtUtc = FixedUtcNow.AddMinutes(-1)
         };
@@ -338,6 +340,7 @@ public sealed class DeadLetterManagerTests
             RequestType = typeof(ReplayedCommand).AssemblyQualifiedName!,
             RequestContent = "{\"value\":5}",
             SourcePattern = "Outbox",
+            SourceMessageId = "source-1",
             DeadLetteredAtUtc = FixedUtcNow,
             ReplayClaimedAtUtc = FixedUtcNow.AddMinutes(-10)
         };
