@@ -1,0 +1,27 @@
+Verdict: PASS
+## Verified claims
+Delta `rules-2026-10` (rules (a) and (b) only), pass 2. Branch `audit/14` at `ad31a356`; `git merge-base --is-ancestor 45b8c29f HEAD` is true. `git diff --stat 45b8c29f HEAD -- src tests docs .github` is empty, so the pass-1 measurements (all four flags re-run and reproduced exactly) and every pass-1 source and page citation carry forward. The diff since pass 1 touches only `artifacts/knowledge/stages/` (`.authors.json`, `remediation.md` +1 line, `tests.md` 1 line, the pass-1 `verification.md`).
+
+**Correction 2 (tests 1, property justification): closed.**
+- `git diff --unified=0` of `tests.md` shows exactly one changed line, finding 1. The old phrase "Generated products already execute all 9 lines" now appears only inside the pass-1 verification text (a grep over stages and the 6 `14-delta-2026-10-*` drafts finds no other hit).
+- The new text holds against `tests\Encina.PropertyTests\Validation\MiniValidator\ValidationInvariantProperties.cs`: `[EncinaProperty]` generated tests at `:114`, `:159`, `:225`, `:290`; `[Fact]` `ValidateAsync_FieldLevelErrors_IncludePropertyName` at `:180-192` (asserts `Errors.ShouldContain(e => e.PropertyName == "Name")` for `Name = ""`) and `ValidateAsync_AllErrorsHaveMessages` at `:194-206` (asserts `ShouldAllBe(e => !string.IsNullOrEmpty(e.ErrorMessage))`); `AddMiniValidation_RegistersValidationOrchestrator` at `:369-379`. `EncinaPropertyAttribute` exists in `src/Encina.Testing.FsCheck/PropertyTestBase.cs:80`. The coverage figures (9/9, 5/5) and every target are unchanged.
+- The regenerated draft `14-delta-2026-10-tests-1-...md` (written 12:04:57, after the tests stage 12:03:42) carries the same sentence verbatim; its 8 headers equal `test_implementation.md` (`-ceq`, 8 vs 8); ticked boxes are Unit, Property, Guard and None (real options); milestone empty; label `area-testing`; no emoji; the numbers in the draft table (9/9, 5/5, 0/9, 0/5, 3 of 14, ceil arithmetic) match `tests.md`.
+- Duplicate search re-run for tests 1 (`MiniValidator per-file targets`, `MiniValidationProvider coverage manifest`): #1850 is the #7 delta umbrella (its body has no MiniValidator provider or `Encina.MiniValidator.json` target item), #1389 is the generic guard-gap tracker (lists `Encina.MiniValidator 0,0% / 25%` in a table, no per-file targets or justifications), #1338 (OPEN, guard tests) is cited as related and does not propose the manifest change. No duplicate. Issues created since 10:00Z today: none.
+
+**Correction 1 (docs 1, the "#2014 partially related" line): disposition acceptable.**
+- The line is still in the docs 1 draft (`14-delta-2026-10-docs-1-...md`, last Related Issues bullet-set, written 11:51:34, not regenerated) and is still false: `gh issue view 2014` body has no hit for Mix, combin, different validation or `Skip(1)` (re-run: `hit:false`); it is the #11 delta umbrella (FluentValidation README items).
+- The tooling gap is real and recorded: #1863 (OPEN) carries a 2026-10-09T10:03:25Z comment describing the missing `-NotRelated` override and stating that the orchestrator removes the line from the opened issue body by hand until then; `stages/remediation.md:24` records it in the lessons. The current `_manifest-14-delta-2026-10.json` holds `partiallyRelated: []` for docs 1 (no `2014` string anywhere in it), so the stale line lives only in the draft file; the remediation stage cannot delete a manifest-given line, and a verifier-required correction that no stage can apply would otherwise loop the pipeline forever.
+- Acceptance condition (not a correction): after `open-remediation.ps1` opens the consolidated issue, the orchestrator must confirm with `gh issue view <new> --json body` that no "#2014 - partially related" line remains in the docs 1 section. docs 4 keeps its #2014 line, which is accurate (README of the FluentValidation package: Encina.Send/usings).
+
+**Unchanged from pass 1 and re-confirmed by command**
+- 6 drafts in `artifacts\knowledge\remediation\14-delta-2026-10-*.md` (docs 1-4 `[DEBT]`, tests 1-2 `[TEST]`); titles and prefixes match the finding kinds; milestone empty on all six; headers of the 4 docs drafts are the 10 `technical_debt.md` headers and of the 2 tests drafts the 8 `test_implementation.md` headers (listed by command above); `remediation.md` still lists 10 findings once each (6 drafts + docs 5, 6, 7 duplicates of #1850 + docs 8 duplicate of #1330).
+- Issue states re-run this pass: #1338 OPEN, #1863 OPEN, #2014 OPEN, #1850 OPEN; the pass-1 states of #1877, #898, #1825, #1337, #1339, #945, #1177, #1330 (OPEN), #1826 (MERGED) and #1319 (CLOSED) are unchanged (no related events; issues created since 10:00Z: none).
+
+## Corrections
+
+none
+
+## Lessons for the pipeline
+- A verifier correction that no stage can apply (a tooling gap such as a missing `-NotRelated` override) should be closed as an explicit orchestrator action with a check on the opened issue body, recorded in the verification as an acceptance condition and in the tooling issue (#1863), instead of looping the pipeline.
+- A `-Prepare -Only <finding>` run rewrites the manifest entries of the other findings (docs 1 `partiallyRelated` became empty) while their draft files keep the old lines; compare the draft's Related Issues with the manifest before assuming `-Finalize` will re-add a line.
+- The shared helper-name trap from pass 1 (`H` is `Get-History`) still applies: print the compared header lists, not only the equality result.
