@@ -42,10 +42,12 @@ flowchart TD
     D -- no --> E{RetryCount >= MaxRetries?}
     E -- yes --> X[Return inbox.max_retries_exceeded, handler not run]
     E -- no --> H
-    H -- returns Right or Left --> P[MarkAsProcessedAsync caches the result]
+    H -- returns Right --> P[MarkAsProcessedAsync caches the result]
+    H -- returns Left --> Q[CacheHandlerErrorAsync caches the error code]
     H -- throws --> F[MarkAsFailedAsync, RetryCount + 1]
     F --> Y[Return inbox.processing_failed]
     P -- Left --> L
+    Q -- Left --> L
     F -- Left --> L
 ```
 
@@ -74,7 +76,7 @@ Encina uses Railway Oriented Programming: operations return `Either<EncinaError,
 
 ## Store errors
 
-Every call the orchestrator makes to `IInboxStore` (`GetMessageAsync`, `AddAsync`, `MarkAsProcessedAsync`, `MarkAsFailedAsync`) returns an `Either`. A `Left` from any of them fails the operation and is returned to the caller as that same `Left`. The orchestrator never reports success when the store failed.
+Every call the orchestrator makes to `IInboxStore` (`GetMessageAsync`, `AddAsync`, `MarkAsProcessedAsync`, `CacheHandlerErrorAsync`, `MarkAsFailedAsync`) returns an `Either`. A `Left` from any of them fails the operation and is returned to the caller as that same `Left`. The orchestrator never reports success when the store failed.
 
 ## Providers
 
@@ -89,17 +91,36 @@ The inbox behaves the same on all 10 database providers, because they share the 
 
 Switching provider means changing the DI registration; the inbox options (`InboxOptions`) stay the same.
 
-Two provider caveats apply:
+The EF Core MySQL variant has its integration tests skipped until Pomelo supports EF Core 10 (issue [#2086](https://github.com/dlrivada/Encina/issues/2086)), so it is verified only by the shared EF Core store code and the other EF Core providers.
 
-- The EF Core store (`InboxStoreEF`) writes `AddAsync`, `MarkAsProcessedAsync` and `MarkAsFailedAsync` immediately, on an isolated `DbContext` created from the options of the injected context. The inbox record is therefore neither flushed with nor rolled back by the request's business transaction (`TransactionPipelineBehavior`). On relational providers `MarkAsFailedAsync` increments `RetryCount` in one atomic `UPDATE`. Requirement: your `DbContext` type must expose the standard public constructor taking `DbContextOptions<TContext>`. No ADR records this design; it was decided in issue [#2084](https://github.com/dlrivada/Encina/issues/2084).
+## The inbox and the business transaction
 
-  Limits of `InboxStoreEF`:
+A request can run inside a business transaction (the Transaction pattern: `TransactionPipelineBehavior`, registered before the inbox behavior), which rolls back on a `Left` or an exception. `IInboxStore` therefore splits its writes in two kinds, so that the processed mark follows the business effect while the failure records survive the rollback ([ADR-048](../architecture/adr/048-inbox-record-vs-business-transaction.md)):
 
-  - The `DbContext` must be configured with a connection string, not a shared `DbConnection` instance; otherwise the isolated writes join the business transaction.
-  - Each inbox write uses a second pooled connection while the business transaction holds its own, so size the connection pool for it.
-  - Under a repeatable-read or serializable `[Transaction]`, the row lock taken by the inbox lookup on the business connection can block the isolated write until the command timeout.
-  - The cached response is committed before the business transaction commits. If that commit then fails, the redelivery returns the cached success (an at-least-once caveat).
-- The EF Core MySQL variant has its integration tests skipped until Pomelo supports EF Core 10 (issue [#2086](https://github.com/dlrivada/Encina/issues/2086)), so it is verified only by the shared EF Core store code and the other EF Core providers.
+| Kind | `IInboxStore` methods | Behavior |
+|---|---|---|
+| Enlisted | `MarkAsProcessedAsync`, `GetMessageAsync`, `GetExpiredMessagesAsync`, `RemoveExpiredMessagesAsync` | Join the active business transaction. |
+| Independent | `AddAsync`, `MarkAsFailedAsync`, `CacheHandlerErrorAsync` | Commit on their own, outside the business transaction. |
+
+`InboxOrchestrator` sends a handler `Right` to `MarkAsProcessedAsync`, a handler `Left` to `CacheHandlerErrorAsync` and a thrown exception to `MarkAsFailedAsync`. If the business commit fails after a successful handler, the processed mark rolls back with it: the message stays unprocessed and the redelivery runs the handler again. The entry and the failure records are never lost.
+
+| Family | Mechanism |
+|---|---|
+| ADO.NET, Dapper | The store reads the open transaction from `IDbTransactionAccessor` through `DbLease`. Enlisted writes use it; independent writes use the shared connection when no transaction is open and otherwise an opened clone of the connection. The connection must implement `ICloneable` (`SqlConnection`, `NpgsqlConnection` and `MySqlConnection` do); a wrapper that does not makes the independent write fail with a `Left`. |
+| EF Core | Independent writes run on an isolated `DbContext` built from the injected context's options, with its own connection. `MarkAsProcessedAsync` runs on the injected context and joins its current transaction. Relational providers use `ExecuteUpdate`, so `RetryCount + 1` is atomic. |
+| MongoDB | The pipeline has no business transaction, so every write is immediate. |
+
+EF Core requirements:
+
+- The `DbContext` type has a public constructor taking `DbContextOptions<TContext>`; `InboxStoreEF.ValidateContextType` checks it at registration.
+- The `DbContext` is configured with a connection string, not a shared `DbConnection` instance; otherwise the first inbox write fails with a `Left`.
+
+Limits:
+
+- While a business transaction is open, each independent write uses a second pooled connection, so size the connection pool for it.
+- Under a repeatable-read or serializable `[Transaction]`, the lock taken by the lookup on the business connection can block an independent write until the command timeout.
+- The ADO.NET and Dapper `UnitOfWork` (an explicit `IUnitOfWork` transaction) is not visible to the inbox.
+- Concurrent redeliveries of one message are not serialized; `MaxRetries` holds for sequential deliveries.
 
 ## Reference
 
