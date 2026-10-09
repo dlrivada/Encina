@@ -1051,13 +1051,15 @@ public sealed class ABACPipelineDecisionAuditTests
     #region Registration
 
     [Fact]
-    public void UnavailableRecorder_AlwaysFailsSoAnEnabledAuditWithoutADurableRecorderFailsClosed()
+    public void RegisteredRecorder_WithoutAnOperationAuditStore_FailsSoAnEnabledAuditFailsClosed()
     {
         var provider = new Microsoft.Extensions.DependencyInjection.ServiceCollection()
+            .AddLogging()
             .AddEncinaABAC()
             .BuildServiceProvider();
 
         var recorder = provider.GetRequiredService<IABACDecisionRecorder>();
+        recorder.ShouldBeOfType<AuditStoreABACDecisionRecorder>();
         var record = new ABACDecisionRecord
         {
             DecisionId = Guid.CreateVersion7(),

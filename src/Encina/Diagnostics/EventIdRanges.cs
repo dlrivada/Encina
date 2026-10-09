@@ -355,9 +355,9 @@ public static class EventIdRanges
 
     /// <summary>
     /// Encina.Security.ABAC — attribute-based access control.
-    /// The ABAC [LoggerMessage] ids are allocated inside 9000-9097 (see ABACLogMessages.cs, PersistentPolicyAdministrationPoint.cs and ABACPolicySeedingHostedService.cs).
-    /// Unused ids to reuse first: 9006-9007, 9016-9019, 9023-9029, 9041-9049, 9056-9057, 9098-9099.
-    /// Reserved: 9079-9090 for #751.
+    /// The ABAC [LoggerMessage] ids are allocated inside 9000-9099 (see ABACLogMessages.cs, PersistentPolicyAdministrationPoint.cs and ABACPolicySeedingHostedService.cs).
+    /// Unused ids to reuse first: 9006-9007, 9016-9019, 9023-9029, 9041-9049, 9056-9057.
+    /// Reserved: 9079-9090 for #751 (9084, 9086 and 9087 still unallocated: the decision audit startup check).
     /// </summary>
     public static readonly (int Min, int Max) SecurityABAC = (9000, 9099);
 

@@ -988,13 +988,109 @@ const Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditSchema.HashPrefix = "s
 const Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditSchema.HashedValueLength = 71 -> int
 const Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditSchema.MaxAttributeNames = 128 -> int
 const Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditSchema.MaxAttributeValueLength = 256 -> int
+const Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditSchema.MaxListedIds = 64 -> int
 const Encina.Security.ABAC.ABACErrors.DecisionAuditFailedCode = "abac.decision_audit_failed" -> string!
 const Encina.Security.ABAC.ABACErrors.InvalidDecisionAuditQueryCode = "validation.abac_decision_audit_query_invalid" -> string!
 const Encina.Security.ABAC.ABACErrors.DecisionAuditStoreUnavailableCode = "abac.decision_audit_store_unavailable" -> string!
+const Encina.Security.ABAC.ABACErrors.DecisionAuditRecordUnreadableCode = "abac.decision_audit_record_unreadable" -> string!
+const Encina.Security.ABAC.ABACErrors.DecisionAuditExportIncompleteCode = "abac.decision_audit_export_incomplete" -> string!
 const Encina.Security.ABAC.ABACErrors.DecisionAuditTenantRequiredCode = "encina.authorization.abac_audit_tenant_required" -> string!
 const Encina.Security.ABAC.ABACErrors.DecisionAuditTenantMismatchCode = "encina.authorization.abac_audit_tenant_mismatch" -> string!
 static Encina.Security.ABAC.ABACErrors.DecisionAuditFailed(System.Type! requestType, string? storeErrorCode) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.InvalidDecisionAuditQuery(string! reason) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.DecisionAuditStoreUnavailable() -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.DecisionAuditRecordUnreadable(string! cause) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.DecisionAuditExportIncomplete(int linesWritten, string! causeCode) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.DecisionAuditTenantRequired() -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.DecisionAuditTenantMismatch() -> Encina.EncinaError
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOptions.WriteTimeout.get -> System.TimeSpan
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOptions.WriteTimeout.set -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOptions.AllowCrossTenantQueries.get -> bool
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOptions.AllowCrossTenantQueries.set -> void
+Encina.Security.ABAC.DecisionAudit.AuditStoreABACDecisionRecorder
+Encina.Security.ABAC.DecisionAudit.AuditStoreABACDecisionRecorder.AuditStoreABACDecisionRecorder(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Options.IOptions<Encina.Security.ABAC.ABACOptions!>! options, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.DecisionAudit.AuditStoreABACDecisionRecorder!>! logger) -> void
+Encina.Security.ABAC.DecisionAudit.AuditStoreABACDecisionRecorder.RecordAsync(Encina.Security.ABAC.DecisionAudit.ABACDecisionRecord! record, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditEntryMapper
+static Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Encina.Security.ABAC.DecisionAudit.ABACDecisionRecord! record) -> Encina.Security.Audit.OperationAuditEntry!
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.UserId.get -> string?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.UserId.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.TenantId.get -> string?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.TenantId.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.RequestType.get -> string?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.RequestType.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.ResourceId.get -> string?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.ResourceId.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.Outcome.get -> Encina.Security.Audit.AuditOutcome?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.Outcome.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.CorrelationId.get -> string?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.CorrelationId.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.FromUtc.get -> System.DateTime?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.FromUtc.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.ToUtc.get -> System.DateTime?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.ToUtc.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.PageNumber.get -> int
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.PageNumber.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.PageSize.get -> int
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery.PageSize.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.Schema.get -> string!
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.DecisionId.get -> System.Guid
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.DecisionId.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.CorrelationId.get -> string!
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.CorrelationId.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.UserId.get -> string?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.UserId.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.IdentityKind.get -> Encina.IdentityKind?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.IdentityKind.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.TenantId.get -> string?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.TenantId.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.ModuleId.get -> string?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.ModuleId.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.RequestType.get -> string!
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.RequestType.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.ResourceId.get -> string?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.ResourceId.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.Outcome.get -> Encina.Security.Audit.AuditOutcome
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.Outcome.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.ReasonCode.get -> string?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.ReasonCode.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.Enforced.get -> bool
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.Enforced.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.EnforcementMode.get -> Encina.Security.ABAC.ABACEnforcementMode?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.EnforcementMode.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.Effect.get -> Encina.Security.ABAC.Effect?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.Effect.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.PolicyId.get -> string?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.PolicyId.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.RuleId.get -> string?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.RuleId.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.EvaluatedPolicies.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicyEvaluationTrace!>!
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.EvaluatedPolicies.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.TraceTruncated.get -> bool
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.TraceTruncated.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.ObligationIds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.ObligationIds.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.AdviceIds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.AdviceIds.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.AttributeNames.get -> System.Collections.Generic.IReadOnlyDictionary<string!, System.Collections.Generic.IReadOnlyList<string!>!>!
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.AttributeNames.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.RecordedValues.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.RecordedValues.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.IpAddress.get -> string?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.IpAddress.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.UserAgent.get -> string?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.UserAgent.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.HashedFields.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.HashedFields.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.DroppedFields.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.DroppedFields.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.TruncatedFields.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.TruncatedFields.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.StartedAtUtc.get -> System.DateTimeOffset
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.StartedAtUtc.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.CompletedAtUtc.get -> System.DateTimeOffset
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.CompletedAtUtc.init -> void
+Encina.Security.ABAC.DecisionAudit.IABACDecisionAuditReader
+Encina.Security.ABAC.DecisionAudit.IABACDecisionAuditReader.QueryAsync(Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery! query, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Security.Audit.PagedResult<Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord!>!>>
+Encina.Security.ABAC.DecisionAudit.IABACDecisionAuditReader.ExportAsync(Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery! query, System.IO.Stream! destination, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
