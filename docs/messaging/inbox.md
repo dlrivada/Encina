@@ -22,11 +22,13 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 });
 ```
 
-`UseInbox` and `InboxOptions` belong to `MessagingConfiguration`, which each persistence provider's registration method passes to your callback (the example uses the EF Core one). `InboxOptions` is a read-only property; you set its members, you do not replace it.
+`UseInbox` and `InboxOptions` belong to `MessagingConfiguration`, which the ADO.NET, Dapper and EF Core registration methods pass to your callback (the example uses the EF Core one). The MongoDB provider declares the same two members on `EncinaMongoDbOptions`. `InboxOptions` is a read-only property; you set its members, you do not replace it.
+
+A request enters the inbox when its type implements the marker interface `IIdempotentRequest` and the `IRequestContext` carries an `IdempotencyKey`; that key is the `MessageId`. `InboxPipelineBehavior<TRequest, TResponse>` does the work: a request without the marker skips the inbox, a marked request with no `IdempotencyKey` fails with `inbox.missing_message_id`, and a marked request sent from inside another dispatch without a key of its own runs without an inbox entry, covered by the entry point's one.
 
 ## How a delivery is processed
 
-`InboxOrchestrator.ProcessAsync` takes the `MessageId`, the request type and a callback that runs your handler. It asks `IInboxStore` for the message and then follows one of three paths.
+The pipeline behavior calls `InboxOrchestrator.ProcessAsync`, which takes the `MessageId`, the request type, a correlation id, optional `InboxMetadata`, a callback that runs your handler and a `CancellationToken`. It asks `IInboxStore` for the message and then follows one of three paths.
 
 ```mermaid
 flowchart TD
@@ -66,8 +68,9 @@ Timeline for `MaxRetries = 3` when the handler throws every time:
 
 Encina uses Railway Oriented Programming: operations return `Either<EncinaError, T>` and a business failure is a `Left`, not an exception ([ADR-001](../architecture/adr/001-railway-oriented-programming.md), [ADR-006](../architecture/adr/006-pure-rop-exception-handling.md)).
 
-- A handler that **returns a `Left`** has finished its work with a business outcome. The inbox caches it as the processed response and does not run the handler again on redelivery. It does not consume attempts. Only the error code is cached, never the error message, because the message can carry personal data. On redelivery the caller receives a `Left` with the code `inbox.cached_error`, whose message is the original error code. A cached `Right` whose value equals `default(T)` (for example `0` or `false`) is returned the same way.
+- A handler that **returns a `Left`** has finished its work with a business outcome. The inbox caches it as the processed response and does not run the handler again on redelivery. It does not consume attempts. Only the error code is cached, never the error message, because the message can carry personal data. On redelivery the caller receives a `Left` with the code `inbox.cached_error`, whose message is the original error code. A cached `Right` whose value equals `default(T)` (for example `0`, `false` or `Unit`) is still a success: on redelivery it is returned as that `Right`, not as `inbox.cached_error`.
 - A handler that **throws** has failed. The attempt is recorded and counts towards `MaxRetries`. The returned error has the code `inbox.processing_failed`, and only the exception type is stored.
+- A **cancellation requested by the caller's `CancellationToken`** is not a failed attempt: the `OperationCanceledException` is rethrown, nothing is recorded and `RetryCount` does not change. An `OperationCanceledException` that the caller's token did not cause (for example an internal timeout) is treated like any other exception and counts as a failed attempt.
 
 ## Store errors
 
@@ -84,11 +87,11 @@ The inbox behaves the same on all 10 database providers, because they share the 
 | EF Core | SqlServer, PostgreSQL, MySQL |
 | MongoDB | MongoDB |
 
-Switching provider means changing the DI registration, not the inbox configuration.
+Switching provider means changing the DI registration; the inbox options (`InboxOptions`) stay the same.
 
 Two provider caveats apply:
 
-- The EF Core stores only change tracked entities; the application owns `SaveChanges` and the unit of work. The failure record (`RetryCount`) is therefore persisted only when the unit of work is saved, and a transaction that rolls back on a `Left` discards it.
+- The EF Core store (`InboxStoreEF`) writes `AddAsync`, `MarkAsProcessedAsync` and `MarkAsFailedAsync` immediately, on an isolated `DbContext` created from the options of the injected context. The inbox record is therefore neither flushed with nor rolled back by the request's business transaction (`TransactionPipelineBehavior`), as on the other nine providers. On relational providers `MarkAsFailedAsync` increments `RetryCount` in one atomic `UPDATE`. Requirement: your `DbContext` type must expose the standard public constructor taking `DbContextOptions<TContext>`. No ADR records this design; it was decided in issue [#2084](https://github.com/dlrivada/Encina/issues/2084).
 - The EF Core MySQL variant has its integration tests skipped until Pomelo supports EF Core 10 (issue [#2086](https://github.com/dlrivada/Encina/issues/2086)), so it is verified only by the shared EF Core store code and the other EF Core providers.
 
 ## Reference
@@ -107,10 +110,10 @@ Two provider caveats apply:
 
 | Code | Constant | Meaning |
 |---|---|---|
-| `inbox.missing_message_id` | `MissingMessageId` | An idempotent request arrived without a `MessageId`. |
+| `inbox.missing_message_id` | `MissingMessageId` | An `IIdempotentRequest` arrived with no `IdempotencyKey` in its `IRequestContext`. |
 | `inbox.max_retries_exceeded` | `MaxRetriesExceeded` | `RetryCount` reached `MaxRetries`; the handler was not run. |
 | `inbox.deserialization_failed` | `DeserializationFailed` | The cached response could not be deserialized. |
-| `inbox.cached_error` | `CachedError` | Redelivery of a message whose cached response was a `Left`, or a `Right` equal to `default(T)`. |
+| `inbox.cached_error` | `CachedError` | Redelivery of a message whose cached response was a `Left`. |
 | `inbox.processing_failed` | none (literal in `InboxOrchestrator`) | The handler threw; the attempt was recorded. |
 
 ## See also
