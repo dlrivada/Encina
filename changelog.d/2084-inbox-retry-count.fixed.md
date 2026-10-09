@@ -1,0 +1,3 @@
+- The inbox now runs a message handler exactly `InboxOptions.MaxRetries` times (attempts) before rejecting it with `inbox.max_retries_exceeded`: the retry count is incremented once per failed attempt, in `IInboxStore.MarkAsFailedAsync`, on all 10 providers. The redundant `IInboxStore.IncrementRetryCountAsync` was removed.
+- `InboxOrchestrator` returns the store error when `MarkAsProcessedAsync` or `MarkAsFailedAsync` fails instead of reporting the message as processed or failed.
+- The EF Core inbox store now finds a message added earlier in the same unit of work when marking it processed or failed.

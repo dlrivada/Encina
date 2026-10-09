@@ -438,10 +438,20 @@
     },
     "Inbox/InboxStoreEF.cs": {
       "defaultTests": [
-        "integration"
+        "integration",
+        "unit",
+        "guard",
+        "contract"
       ],
       "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
+      "reason": "EF Core store — needs real DbContext",
+      "targets": { "unit": 95, "guard": 95, "contract": 90, "integration": 90 },
+      "justifications": {
+        "unit": "Store logic with a mocked DbContext covers the state transitions without a database.",
+        "guard": "Every public store method checks its arguments, and the guard tests reach all of them.",
+        "contract": "Contract tests pin the IInboxStore behaviour of the EF Core implementation.",
+        "integration": "Real EF Core round trips cover the unit-of-work lookup and the provider-specific queries."
+      }
     },
     "ITransactionalCommand.cs": {
       "defaultTests": [

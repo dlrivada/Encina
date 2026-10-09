@@ -457,14 +457,32 @@
       "reason": "Interfaces have no implementation to test"
     },
     "Inbox/InboxOptions.cs": {
-      "defaultTests": [],
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
       "defaultRule": "*Options.cs",
-      "reason": "Interface — no implementation"
+      "reason": "Interface — no implementation",
+      "targets": { "unit": 100, "guard": 100 },
+      "justifications": {
+        "unit": "Options defaults and MaxRetries validation are plain properties, fully reachable without a database.",
+        "guard": "Every option property is reached by the guard tests through the options contract, so the guard flag covers the whole file."
+      }
     },
     "Inbox/InboxOrchestrator.cs": {
-      "defaultTests": [],
+      "defaultTests": [
+        "unit",
+        "guard",
+        "integration"
+      ],
       "defaultRule": "*.cs",
-      "reason": "Interface — no implementation"
+      "reason": "Orchestrator with injectable store, factory and serializer",
+      "targets": { "unit": 95, "guard": 15, "integration": 75 },
+      "justifications": {
+        "unit": "Pure-logic part covered without a database; the orchestration paths run against a fake store.",
+        "guard": "Only the constructor and argument checks are guard-reachable.",
+        "integration": "Real-database retry contract tests drive the store through the orchestrator; the uncovered lines are provider error branches."
+      }
     },
     "Inbox/InboxPipelineBehavior.cs": {
       "defaultTests": [

@@ -200,10 +200,18 @@
     },
     "Inbox/InboxStoreMongoDB.cs": {
       "defaultTests": [
-        "integration"
+        "integration",
+        "unit",
+        "guard"
       ],
       "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "reason": "MongoDB store — needs real MongoDB",
+      "targets": { "integration": 88, "unit": 10, "guard": 12 },
+      "justifications": {
+        "integration": "Real-database retry contract tests drive the store through the orchestrator; the uncovered lines are provider error branches.",
+        "unit": "Pure-logic part covered without a database; driver paths need the integration flag.",
+        "guard": "Only the argument checks are guard-reachable."
+      }
     },
     "Log.cs": {
       "defaultTests": [],

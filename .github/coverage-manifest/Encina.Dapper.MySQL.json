@@ -105,10 +105,18 @@
     },
     "Inbox/InboxStoreDapper.cs": {
       "defaultTests": [
-        "integration"
+        "integration",
+        "unit",
+        "guard"
       ],
       "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
+      "reason": "Dapper store with raw SQL — needs real database",
+      "targets": { "integration": 95, "unit": 25, "guard": 18 },
+      "justifications": {
+        "integration": "Real-database retry contract tests drive the store through the orchestrator; the uncovered lines are provider error branches.",
+        "unit": "Pure-logic part covered without a database; SQL paths need the integration flag.",
+        "guard": "Only the argument checks are guard-reachable."
+      }
     },
     "Modules/ModuleAwareConnectionFactory.cs": {
       "defaultTests": [

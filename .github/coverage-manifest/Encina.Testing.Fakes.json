@@ -109,7 +109,12 @@
         "guard"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": { "unit": 80, "guard": 40 },
+      "justifications": {
+        "unit": "In-memory fake store behaviour is fully exercised by unit tests without a database.",
+        "guard": "Only the argument checks of the fake store are guard-reachable."
+      }
     },
     "Stores/FakeOutboxStore.cs": {
       "defaultTests": [
