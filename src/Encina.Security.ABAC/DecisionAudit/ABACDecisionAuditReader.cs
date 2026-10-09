@@ -120,42 +120,48 @@ internal sealed class ABACDecisionAuditReader : IABACDecisionAuditReader
 
     // ── Validation and tenant gate ───────────────────────────────────
 
-    private static Either<EncinaError, Unit> Validate(ABACDecisionAuditQuery query)
+    private static Either<EncinaError, Unit> Validate(ABACDecisionAuditQuery query) =>
+        ValidatePaging(query).Bind(_ => ValidateRange(query));
+
+    private static Either<EncinaError, Unit> ValidatePaging(ABACDecisionAuditQuery query)
     {
         if (query.PageNumber < 1)
         {
             return ABACErrors.InvalidDecisionAuditQuery("pageNumber");
         }
 
-        if (query.PageSize is < 1 or > OperationAuditQuery.MaxPageSize)
-        {
-            return ABACErrors.InvalidDecisionAuditQuery("pageSize");
-        }
-
-        return query.FromUtc > query.ToUtc
-            ? ABACErrors.InvalidDecisionAuditQuery("dateRange")
+        return query.PageSize is < 1 or > OperationAuditQuery.MaxPageSize
+            ? ABACErrors.InvalidDecisionAuditQuery("pageSize")
             : Unit.Default;
     }
 
+    private static Either<EncinaError, Unit> ValidateRange(ABACDecisionAuditQuery query) =>
+        query is { FromUtc: { } from, ToUtc: { } to } && from > to
+            ? ABACErrors.InvalidDecisionAuditQuery("dateRange")
+            : Unit.Default;
+
     // The tenant filter the store query runs with. The ambient tenant always wins; without one, a
     // multi-tenant application denies unless the operator opt-out is set; a single-tenant one passes.
+    // A blank tenant is no tenant: stores ignore a whitespace tenant filter, so treating it as a
+    // tenant would read every tenant's trail.
     private Either<EncinaError, TenantFilter> ResolveTenant(string? requested)
     {
-        // A blank tenant is no tenant: stores ignore a whitespace tenant filter, so treating it as a
-        // tenant would read every tenant's trail.
-        var ambient = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext?.TenantId;
         if (requested is not null && string.IsNullOrWhiteSpace(requested))
         {
             return ABACErrors.InvalidDecisionAuditQuery("tenantId");
         }
 
-        if (!string.IsNullOrWhiteSpace(ambient))
-        {
-            return requested is null || string.Equals(requested, ambient, StringComparison.Ordinal)
-                ? new TenantFilter(ambient)
-                : ABACErrors.DecisionAuditTenantMismatch();
-        }
+        var ambient = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext?.TenantId;
+        return string.IsNullOrWhiteSpace(ambient) ? WithoutAmbientTenant(requested) : WithAmbientTenant(ambient, requested);
+    }
 
+    private static Either<EncinaError, TenantFilter> WithAmbientTenant(string ambient, string? requested) =>
+        requested is null || string.Equals(requested, ambient, StringComparison.Ordinal)
+            ? new TenantFilter(ambient)
+            : ABACErrors.DecisionAuditTenantMismatch();
+
+    private Either<EncinaError, TenantFilter> WithoutAmbientTenant(string? requested)
+    {
         if (!IsMultiTenant())
         {
             return new TenantFilter(requested);
