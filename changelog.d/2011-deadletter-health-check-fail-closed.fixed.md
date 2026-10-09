@@ -1,0 +1,2 @@
+- `DeadLetterHealthCheck` now reports Unhealthy, with only the error code in its data, when the dead letter store fails, instead of treating the failure as an empty queue (#2011).
+- `AddEncinaDeadLetterQueue` registers its health check with `TryAddEnumerable`, so it coexists with other `IEncinaHealthCheck` implementations registered before or after it (#2011).

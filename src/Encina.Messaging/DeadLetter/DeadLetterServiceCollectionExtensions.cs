@@ -41,8 +41,8 @@ public static class DeadLetterServiceCollectionExtensions
         services.TryAddScoped<IDeadLetterManager, DeadLetterManager>();
 
         // Register health check
-        services.TryAddScoped<DeadLetterHealthCheck>();
-        services.TryAddScoped<IEncinaHealthCheck>(sp => sp.GetRequiredService<DeadLetterHealthCheck>());
+        // TryAddEnumerable so it coexists with other IEncinaHealthCheck registrations in any order.
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IEncinaHealthCheck, DeadLetterHealthCheck>());
 
         // Register cleanup processor if enabled
         if (options.EnableAutomaticCleanup && options.RetentionPeriod.HasValue)

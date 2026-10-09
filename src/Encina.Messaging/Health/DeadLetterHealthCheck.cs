@@ -48,9 +48,12 @@ public sealed class DeadLetterHealthCheck : EncinaHealthCheck
             new DeadLetterFilter { ExcludeReplayed = true },
             cancellationToken);
 
-        var pendingCount = pendingCountResult.Match(
-            Right: count => count,
-            Left: _ => 0);
+        if (pendingCountResult.IsLeft)
+        {
+            return StoreFailure(pendingCountResult.LeftToArray()[0]);
+        }
+
+        var pendingCount = pendingCountResult.RightToArray()[0];
 
         var data = new Dictionary<string, object>
         {
@@ -60,32 +63,55 @@ public sealed class DeadLetterHealthCheck : EncinaHealthCheck
         };
 
         // Check for old messages
-        if (_options.OldMessageThreshold.HasValue)
+        if (_options.OldMessageThreshold is { } threshold)
         {
-            var oldMessagesResult = await _store.GetMessagesAsync(
-                new DeadLetterFilter
-                {
-                    ExcludeReplayed = true,
-                    DeadLetteredBeforeUtc = _timeProvider.GetUtcNow().UtcDateTime.Subtract(_options.OldMessageThreshold.Value)
-                },
-                skip: 0,
-                take: 1,
-                cancellationToken);
-
-            var hasOldMessages = oldMessagesResult.Match(
-                Right: messages => messages.Any(),
-                Left: _ => false);
-            data["has_old_messages"] = hasOldMessages;
-            data["old_message_threshold"] = _options.OldMessageThreshold.Value.ToString();
-
-            if (hasOldMessages && pendingCount < _options.PendingMessageWarningThreshold)
+            var oldMessagesOutcome = await CheckOldMessagesAsync(pendingCount, threshold, data, cancellationToken);
+            if (oldMessagesOutcome is not null)
             {
-                return HealthCheckResult.Degraded(
-                    $"DLQ contains messages older than {_options.OldMessageThreshold.Value}",
-                    data: data);
+                return oldMessagesOutcome.Value;
             }
         }
 
+        return ClassifyByCount(pendingCount, data);
+    }
+
+    private async Task<HealthCheckResult?> CheckOldMessagesAsync(
+        int pendingCount,
+        TimeSpan threshold,
+        Dictionary<string, object> data,
+        CancellationToken cancellationToken)
+    {
+        var oldMessagesResult = await _store.GetMessagesAsync(
+            new DeadLetterFilter
+            {
+                ExcludeReplayed = true,
+                DeadLetteredBeforeUtc = _timeProvider.GetUtcNow().UtcDateTime.Subtract(threshold)
+            },
+            skip: 0,
+            take: 1,
+            cancellationToken);
+
+        if (oldMessagesResult.IsLeft)
+        {
+            return StoreFailure(oldMessagesResult.LeftToArray()[0]);
+        }
+
+        var hasOldMessages = oldMessagesResult.RightToArray()[0].Any();
+        data["has_old_messages"] = hasOldMessages;
+        data["old_message_threshold"] = threshold.ToString();
+
+        if (hasOldMessages && pendingCount < _options.PendingMessageWarningThreshold)
+        {
+            return HealthCheckResult.Degraded(
+                $"DLQ contains messages older than {threshold}",
+                data: data);
+        }
+
+        return null;
+    }
+
+    private HealthCheckResult ClassifyByCount(int pendingCount, Dictionary<string, object> data)
+    {
         if (pendingCount >= _options.PendingMessageCriticalThreshold)
         {
             return HealthCheckResult.Unhealthy(
@@ -105,6 +131,16 @@ public sealed class DeadLetterHealthCheck : EncinaHealthCheck
                 ? "DLQ is empty"
                 : $"DLQ has {pendingCount} pending messages",
             data: data);
+    }
+
+    // Fail closed: a store error is Unhealthy. Only the error code is reported, never the
+    // error message (AGENTS.md §3, #1168).
+    private static HealthCheckResult StoreFailure(EncinaError error)
+    {
+        var code = error.GetCode().IfNone("encina.unknown");
+        return HealthCheckResult.Unhealthy(
+            $"DLQ store failed: {code}",
+            data: new Dictionary<string, object> { ["error_code"] = code });
     }
 }
 

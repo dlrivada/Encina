@@ -181,7 +181,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 65, "guard": 0 },
+      "justifications": {
+        "unit": "DI tests build the provider with ValidateOnBuild and ValidateScopes for the health-check registration; the options overload and the cleanup-processor branch are covered elsewhere (measured 67%).",
+        "guard": "No guard test exists for the registration extensions in this PR; null-argument checks are not part of this change (0 by design)."
+      }
     },
     "DeadLetter/DeadLetterSourcePatterns.cs": {
       "defaultTests": [
@@ -345,7 +350,12 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": { "unit": 95, "guard": 5 },
+      "justifications": {
+        "unit": "Unit tests drive every branch (store Left on count and on the old-messages query, old-message degrade, critical, warning, healthy, disabled old-message check); measured 100%.",
+        "guard": "The only guarded entry point is the constructor null check; the health-check logic is covered by unit tests (measured about 10%)."
+      }
     },
     "Health/EncinaHealthCheck.cs": {
       "defaultTests": [
