@@ -96,6 +96,7 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
         "System.TimeProvider|System.TimeProvider+SystemTimeProvider|Singleton",
         "Encina.IRequestContextAccessor|Encina.RequestContextAccessor|Singleton",
         "Encina.Messaging.Serialization.IMessageSerializer|Encina.Messaging.Serialization.JsonMessageSerializer|Singleton",
+        "Encina.Messaging.IDbTransactionAccessor|Encina.Messaging.DbTransactionAccessor|Scoped",
         "Encina.IPipelineBehavior`2[TRequest,TResponse]|Encina.Messaging.TransactionPipelineBehavior`2[TRequest,TResponse]|Scoped",
         "Encina.Messaging.Outbox.OutboxOptions|Encina.Messaging.Outbox.OutboxOptions|Singleton",
         "Encina.Messaging.Outbox.IOutboxStore|Encina.Testing.Fakes.Stores.FakeOutboxStore|Scoped",
@@ -134,6 +135,7 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
         "System.TimeProvider|System.TimeProvider+SystemTimeProvider|Singleton",
         "Encina.IRequestContextAccessor|Encina.RequestContextAccessor|Singleton",
         "Encina.Messaging.Serialization.IMessageSerializer|Encina.Messaging.Serialization.JsonMessageSerializer|Singleton",
+        "Encina.Messaging.IDbTransactionAccessor|Encina.Messaging.DbTransactionAccessor|Scoped",
     ];
 
     #region Stub Types (minimal implementations for generic constraints)

@@ -68,6 +68,36 @@ public sealed class InboxOrchestratorRetryTests
         runs.ShouldBe(1);
         store.Message!.RetryCount.ShouldBe(0);
         store.Message.IsProcessed.ShouldBeTrue();
+
+        // A Left is cached outside the business transaction; only a Right is marked processed with it (ADR-048).
+        store.CachedErrorCalls.ShouldBe(1);
+        store.MarkProcessedCalls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_HandlerRight_IsMarkedProcessedNotCachedAsError()
+    {
+        var store = new StatefulInboxStore();
+
+        var (result, _) = await RunSuccessHandlerAsync(store);
+
+        result.IsRight.ShouldBeTrue();
+        store.MarkProcessedCalls.ShouldBe(1);
+        store.CachedErrorCalls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_CacheHandlerErrorLeft_ReturnsStoreError()
+    {
+        var store = new StatefulInboxStore { FailCacheError = true };
+        var orchestrator = CreateOrchestrator(store, 3);
+
+        var result = await orchestrator.ProcessAsync<string>(
+            MessageId, "Req", "corr", null,
+            () => ValueTask.FromResult<Either<EncinaError, string>>(EncinaErrors.Create("biz.rule", "business rule")));
+
+        result.IsLeft.ShouldBeTrue();
+        result.LeftToArray()[0].GetCode().IfNone(string.Empty).ShouldBe("test.cache_error");
     }
 
     [Fact]
@@ -203,6 +233,8 @@ public sealed class InboxOrchestratorRetryTests
         public bool FailAdd { get; init; }
         public bool FailMarkProcessed { get; init; }
         public bool FailMarkFailed { get; init; }
+        public bool FailCacheError { get; init; }
+        public int MarkProcessedCalls { get; private set; }
 
         public Task<Either<EncinaError, Option<IInboxMessage>>> GetMessageAsync(string messageId, CancellationToken cancellationToken = default)
         {
@@ -224,8 +256,24 @@ public sealed class InboxOrchestratorRetryTests
 
         public Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(string messageId, string response, CancellationToken cancellationToken = default)
         {
+            MarkProcessedCalls++;
+
             if (FailMarkProcessed)
                 return Task.FromResult<Either<EncinaError, Unit>>(EncinaErrors.Create("test.mark_processed", "mark processed"));
+
+            Message!.Response = response;
+            Message.ProcessedAtUtc = DateTime.UtcNow;
+            return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+        }
+
+        public int CachedErrorCalls { get; private set; }
+
+        public Task<Either<EncinaError, Unit>> CacheHandlerErrorAsync(string messageId, string response, CancellationToken cancellationToken = default)
+        {
+            CachedErrorCalls++;
+
+            if (FailCacheError)
+                return Task.FromResult<Either<EncinaError, Unit>>(EncinaErrors.Create("test.cache_error", "cache error"));
 
             Message!.Response = response;
             Message.ProcessedAtUtc = DateTime.UtcNow;

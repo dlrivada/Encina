@@ -136,6 +136,13 @@ public static class ServiceCollectionExtensions
         var config = new MessagingConfiguration();
         configure(config);
 
+        // The inbox writes its attempt records on an isolated context created from the injected one's
+        // options (ADR-048): fail at registration when the context type cannot be created that way.
+        if (config.UseInbox)
+        {
+            InboxStoreEF.ValidateContextType(typeof(TDbContext));
+        }
+
         // Register TimeProvider for consistent timestamps across all EF Core components
         services.TryAddSingleton(TimeProvider.System);
 

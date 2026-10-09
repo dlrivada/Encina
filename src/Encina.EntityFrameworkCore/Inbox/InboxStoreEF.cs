@@ -11,17 +11,18 @@ namespace Encina.EntityFrameworkCore.Inbox;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This implementation provides idempotent message processing with EF Core. The writes that record
-/// an attempt (<see cref="AddAsync"/>, <see cref="MarkAsProcessedAsync"/>, <see cref="MarkAsFailedAsync"/>)
-/// are immediate and run on an isolated context built from the injected context's options, so they are
-/// neither flushed with nor rolled back by the request's business transaction. On relational providers
-/// <see cref="MarkAsFailedAsync"/> increments <c>RetryCount</c> in a single atomic UPDATE. Requirements and
-/// limits: the context type must expose the standard public constructor taking its
-/// <c>DbContextOptions&lt;TContext&gt;</c>; the context must be configured with a connection string, not a
-/// shared <c>DbConnection</c> instance (that would put the isolated writes in the business transaction); each
+/// This implementation provides idempotent message processing with EF Core (ADR-048). Writes that must
+/// survive the rollback of the business transaction (<see cref="AddAsync"/>, <see cref="MarkAsFailedAsync"/>,
+/// <see cref="CacheHandlerErrorAsync"/>) are immediate and run on an isolated context built from the injected
+/// context's options, so they are neither flushed with nor rolled back by the business unit of work.
+/// <see cref="MarkAsProcessedAsync"/> runs on the injected context, so it commits atomically with the business
+/// transaction when one is open. On relational providers the updates are single atomic UPDATE statements
+/// (<c>RetryCount + 1</c> included). Requirements and limits: the context type must expose the standard public
+/// constructor taking its <c>DbContextOptions&lt;TContext&gt;</c>; the context must be configured with a
+/// connection string, not a shared <c>DbConnection</c> instance (refused at the first write); each independent
 /// write uses a second pooled connection while the business transaction holds its own; and under a
 /// repeatable-read or serializable <c>[Transaction]</c> the lookup lock of the business connection can block
-/// the isolated write.
+/// an independent write.
 /// </para>
 /// </remarks>
 public sealed class InboxStoreEF : IInboxStore
@@ -40,6 +41,26 @@ public sealed class InboxStoreEF : IInboxStore
         ArgumentNullException.ThrowIfNull(dbContext);
         _dbContext = dbContext;
         _timeProvider = timeProvider ?? TimeProvider.System;
+    }
+
+    /// <summary>
+    /// Verifies that <paramref name="contextType"/> can be instantiated from its own
+    /// <see cref="DbContextOptions{TContext}"/>, which the inbox needs to create its isolated context.
+    /// </summary>
+    /// <param name="contextType">The application's DbContext type.</param>
+    /// <exception cref="InvalidOperationException">
+    /// <paramref name="contextType"/> has no public constructor taking <c>DbContextOptions&lt;TContext&gt;</c>.
+    /// </exception>
+    public static void ValidateContextType(Type contextType)
+    {
+        ArgumentNullException.ThrowIfNull(contextType);
+
+        var optionsType = typeof(DbContextOptions<>).MakeGenericType(contextType);
+        if (contextType.GetConstructor([optionsType]) is null)
+        {
+            throw new InvalidOperationException(
+                $"{contextType.Name} must expose a public constructor taking DbContextOptions<{contextType.Name}> to use the inbox: the inbox records attempts on an isolated context created from those options (ADR-048).");
+        }
     }
 
     /// <inheritdoc/>
@@ -90,12 +111,53 @@ public sealed class InboxStoreEF : IInboxStore
     private DbContext CreateIsolatedContext()
     {
         var options = ((IInfrastructure<IServiceProvider>)_dbContext).GetService<IDbContextOptions>();
+
+        // A DbConnection instance handed to UseSqlServer/UseNpgsql/... is shared by every context built from
+        // these options, so the "isolated" writes would join the business transaction: refuse instead of
+        // silently losing the inbox record on rollback.
+        if (options.Extensions.OfType<RelationalOptionsExtension>().Any(e => e.Connection is not null))
+        {
+            throw new InvalidOperationException(
+                "The inbox cannot isolate its writes from the business transaction because the DbContext is configured with a shared DbConnection instance; configure it with a connection string.");
+        }
+
         return (DbContext)Activator.CreateInstance(_dbContext.GetType(), options)!;
     }
 
-    // Applies one change to a stored message. Relational providers run a single UPDATE (so RetryCount + 1 is
-    // atomic, like the SQL and MongoDB stores); any non-relational provider (the in-memory test
-    // provider) loads, mutates and saves, which is not atomic.
+    // Applies one change to a stored message on the given context. Relational providers run a single UPDATE (so
+    // RetryCount + 1 is atomic, like the SQL and MongoDB stores) that joins the context's current transaction, if
+    // any; any non-relational provider (the in-memory test provider) loads the tracked-or-stored entity and
+    // mutates it, which is not atomic and is saved by the caller (the isolated flavour saves immediately).
+    private static async Task UpdateAsync(
+        DbContext context,
+        string messageId,
+        Action<UpdateSettersBuilder<InboxMessage>> relational,
+        Action<InboxMessage> tracked,
+        bool saveImmediately,
+        CancellationToken cancellationToken)
+    {
+        var set = context.Set<InboxMessage>();
+
+        if (context.Database.IsRelational())
+        {
+            await set.Where(m => m.MessageId == messageId).ExecuteUpdateAsync(relational, cancellationToken);
+            return;
+        }
+
+        var message = set.Local.FirstOrDefault(m => m.MessageId == messageId)
+            ?? await set.FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
+        if (message is null)
+            return;
+
+        tracked(message);
+
+        if (saveImmediately)
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    // Independent write: survives the rollback of the business transaction (own context, own connection).
     private async Task UpdateIsolatedAsync(
         string messageId,
         Action<UpdateSettersBuilder<InboxMessage>> relational,
@@ -103,20 +165,7 @@ public sealed class InboxStoreEF : IInboxStore
         CancellationToken cancellationToken)
     {
         await using var isolated = CreateIsolatedContext();
-        var set = isolated.Set<InboxMessage>();
-
-        if (isolated.Database.IsRelational())
-        {
-            await set.Where(m => m.MessageId == messageId).ExecuteUpdateAsync(relational, cancellationToken);
-            return;
-        }
-
-        var message = await set.FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
-        if (message is null)
-            return;
-
-        tracked(message);
-        await isolated.SaveChangesAsync(cancellationToken);
+        await UpdateAsync(isolated, messageId, relational, tracked, saveImmediately: true, cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -129,19 +178,46 @@ public sealed class InboxStoreEF : IInboxStore
         {
             var processedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-            await UpdateIsolatedAsync(
+            // Enlisted: the UPDATE runs on the injected context, so it joins the business transaction when
+            // one is open (committed or rolled back with the business effect) and is immediate otherwise.
+            await UpdateAsync(
+                _dbContext,
                 messageId,
-                s => s.SetProperty(m => m.Response, response)
-                    .SetProperty(m => m.ProcessedAtUtc, processedAtUtc)
-                    .SetProperty(m => m.ErrorMessage, (string?)null),
-                m =>
-                {
-                    m.Response = response;
-                    m.ProcessedAtUtc = processedAtUtc;
-                    m.ErrorMessage = null;
-                },
+                s => ProcessedSetters(s, response, processedAtUtc),
+                m => ApplyProcessed(m, response, processedAtUtc),
+                saveImmediately: false,
                 cancellationToken);
         }, "inbox.mark_processed_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, Unit>> CacheHandlerErrorAsync(string messageId, string response, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageId);
+        ArgumentNullException.ThrowIfNull(response);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var processedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
+            await UpdateIsolatedAsync(
+                messageId,
+                s => ProcessedSetters(s, response, processedAtUtc),
+                m => ApplyProcessed(m, response, processedAtUtc),
+                cancellationToken);
+        }, "inbox.cache_handler_error_failed").ConfigureAwait(false);
+    }
+
+    private static void ProcessedSetters(UpdateSettersBuilder<InboxMessage> s, string response, DateTime processedAtUtc) =>
+        s.SetProperty(m => m.Response, response)
+            .SetProperty(m => m.ProcessedAtUtc, processedAtUtc)
+            .SetProperty(m => m.ErrorMessage, (string?)null);
+
+    private static void ApplyProcessed(InboxMessage m, string response, DateTime processedAtUtc)
+    {
+        m.Response = response;
+        m.ProcessedAtUtc = processedAtUtc;
+        m.ErrorMessage = null;
     }
 
     /// <inheritdoc/>

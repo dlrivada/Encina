@@ -37,16 +37,9 @@ public sealed class InboxStoreEFSqlServerTests : IAsyncLifetime
     [InlineData(3, false)]
     public async Task Pipeline_ThrowingHandler_PersistsRetryCountAndRunsMaxRetriesTimes(int maxRetries, bool transactional)
     {
-        await using (var context = _fixture.CreateDbContext<TestEFDbContext>())
-        {
-            await context.Database.EnsureCreatedAsync();
-        }
-
+        await EnsureSchemaAsync();
         await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertThrowingHandlerRunsMaxRetriesTimesAsync(
-            o => o.UseSqlServer(_fixture.ConnectionString),
-            () => _fixture.CreateDbContext<TestEFDbContext>(),
-            maxRetries,
-            transactional);
+            Harness(), maxRetries, transactional);
     }
 
     [Theory]
@@ -54,29 +47,34 @@ public sealed class InboxStoreEFSqlServerTests : IAsyncLifetime
     [InlineData(false)]
     public async Task Pipeline_HandlerLeft_IsCachedEvenWhenTheTransactionRollsBack(bool transactional)
     {
-        await using (var context = _fixture.CreateDbContext<TestEFDbContext>())
-        {
-            await context.Database.EnsureCreatedAsync();
-        }
-
+        await EnsureSchemaAsync();
         await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertHandlerLeftIsCachedAfterRollbackAsync(
-            o => o.UseSqlServer(_fixture.ConnectionString),
-            () => _fixture.CreateDbContext<TestEFDbContext>(),
-            transactional);
+            Harness(), transactional);
     }
 
     [Fact]
     public async Task Pipeline_SuccessfulHandler_IsCachedAndCommitted()
     {
-        await using (var context = _fixture.CreateDbContext<TestEFDbContext>())
-        {
-            await context.Database.EnsureCreatedAsync();
-        }
-
+        await EnsureSchemaAsync();
         await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertSuccessIsCachedAsync(
-            o => o.UseSqlServer(_fixture.ConnectionString),
-            () => _fixture.CreateDbContext<TestEFDbContext>(),
-            transactional: true);
+            Harness(), transactional: true);
+    }
+
+    [Fact]
+    public async Task Pipeline_FailedBusinessCommit_LeavesMessageUnprocessed()
+    {
+        await EnsureSchemaAsync();
+        await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertFailedBusinessCommitLeavesMessageUnprocessedAsync(
+            Harness());
+    }
+
+    private global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.Harness Harness() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineHarnesses.EfSqlServer<TestEFDbContext>(_fixture);
+
+    private async Task EnsureSchemaAsync()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
     }
 
     [Theory]

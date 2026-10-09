@@ -41,16 +41,22 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
     where TRequest : IRequest<TResponse>
 {
     private readonly IDbConnection _connection;
+    private readonly IDbTransactionAccessor? _transactionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
     /// <param name="connection">The database connection to use for transactions.</param>
+    /// <param name="transactionAccessor">
+    /// Optional accessor through which stores sharing <paramref name="connection"/> find the open transaction
+    /// and enlist in it.
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
-    public TransactionPipelineBehavior(IDbConnection connection)
+    public TransactionPipelineBehavior(IDbConnection connection, IDbTransactionAccessor? transactionAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
+        _transactionAccessor = transactionAccessor;
     }
 
     /// <inheritdoc />
@@ -82,6 +88,11 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
             ? await dbConnection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false)
             : _connection.BeginTransaction();
 
+        if (_transactionAccessor is not null)
+        {
+            _transactionAccessor.Current = transaction;
+        }
+
         try
         {
             var result = await nextStep().ConfigureAwait(false);
@@ -104,6 +115,11 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         }
         finally
         {
+            if (_transactionAccessor is not null)
+            {
+                _transactionAccessor.Current = null;
+            }
+
             if (transaction is DbTransaction dbTransaction)
             {
                 await dbTransaction.DisposeAsync().ConfigureAwait(false);

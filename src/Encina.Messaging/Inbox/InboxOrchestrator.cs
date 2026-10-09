@@ -212,8 +212,12 @@ public sealed class InboxOrchestrator
         }
 
         // A handler Left is a business outcome (ADR-001): it is cached as the processed response and
-        // does not consume retries. A store Left fails the operation instead of reporting success.
-        var processed = await _store.MarkAsProcessedAsync(messageId, serializedResponse, cancellationToken).ConfigureAwait(false);
+        // does not consume retries. The business transaction rolls back on a Left, so the cached Left is
+        // written outside it; a Right is marked processed atomically with the business effect (ADR-048).
+        // A store Left fails the operation instead of reporting success.
+        var processed = result.IsRight
+            ? await _store.MarkAsProcessedAsync(messageId, serializedResponse, cancellationToken).ConfigureAwait(false)
+            : await _store.CacheHandlerErrorAsync(messageId, serializedResponse, cancellationToken).ConfigureAwait(false);
         if (processed.IsLeft)
             return processed.LeftToArray()[0];
 

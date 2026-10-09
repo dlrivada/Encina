@@ -37,26 +37,27 @@ public sealed class InboxStoreEFPostgreSqlTests : IAsyncLifetime
     [InlineData(3, false)]
     public Task Pipeline_ThrowingHandler_PersistsRetryCountAndRunsMaxRetriesTimes(int maxRetries, bool transactional) =>
         global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertThrowingHandlerRunsMaxRetriesTimesAsync(
-            o => o.UseNpgsql(_fixture.ConnectionString),
-            () => _fixture.CreateDbContext<TestPostgreSqlDbContext>(),
-            maxRetries,
-            transactional);
+            Harness(), maxRetries, transactional);
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public Task Pipeline_HandlerLeft_IsCachedEvenWhenTheTransactionRollsBack(bool transactional) =>
         global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertHandlerLeftIsCachedAfterRollbackAsync(
-            o => o.UseNpgsql(_fixture.ConnectionString),
-            () => _fixture.CreateDbContext<TestPostgreSqlDbContext>(),
-            transactional);
+            Harness(), transactional);
 
     [Fact]
     public Task Pipeline_SuccessfulHandler_IsCachedAndCommitted() =>
         global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertSuccessIsCachedAsync(
-            o => o.UseNpgsql(_fixture.ConnectionString),
-            () => _fixture.CreateDbContext<TestPostgreSqlDbContext>(),
-            transactional: true);
+            Harness(), transactional: true);
+
+    [Fact]
+    public Task Pipeline_FailedBusinessCommit_LeavesMessageUnprocessed() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertFailedBusinessCommitLeavesMessageUnprocessedAsync(
+            Harness());
+
+    private global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.Harness Harness() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineHarnesses.EfPostgreSql<TestPostgreSqlDbContext>(_fixture);
 
     [Theory]
     [InlineData(1)]

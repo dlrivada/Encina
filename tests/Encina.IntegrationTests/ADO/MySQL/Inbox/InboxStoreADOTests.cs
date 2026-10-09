@@ -264,6 +264,38 @@ public sealed class InboxStoreADOTests : IAsyncLifetime
 
     #endregion
 
+    #region Pipeline inbox boundary (#2084, ADR-048)
+
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(3, true)]
+    [InlineData(3, false)]
+    public Task Pipeline_ThrowingHandler_PersistsRetryCountAndRunsMaxRetriesTimes(int maxRetries, bool transactional) =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertThrowingHandlerRunsMaxRetriesTimesAsync(
+            Harness(), maxRetries, transactional);
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public Task Pipeline_HandlerLeft_IsCachedEvenWhenTheTransactionRollsBack(bool transactional) =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertHandlerLeftIsCachedAfterRollbackAsync(
+            Harness(), transactional);
+
+    [Fact]
+    public Task Pipeline_SuccessfulHandler_IsCachedAndCommitted() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertSuccessIsCachedAsync(
+            Harness(), transactional: true);
+
+    [Fact]
+    public Task Pipeline_FailedBusinessCommit_LeavesMessageUnprocessed() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertFailedBusinessCommitLeavesMessageUnprocessedAsync(
+            Harness());
+
+    private global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.Harness Harness() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineHarnesses.AdoMySql(_fixture);
+
+    #endregion
+
     #region Orchestrator retry contract (#2084)
 
     [Theory]

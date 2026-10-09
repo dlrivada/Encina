@@ -238,6 +238,10 @@ public static class MessagingServiceCollectionExtensions
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
 
+        // The business transaction the ADO.NET/Dapper TransactionPipelineBehavior opens, visible to stores
+        // sharing the scoped connection (inbox enlisting, ADR-048).
+        services.TryAddScoped<IDbTransactionAccessor, DbTransactionAccessor>();
+
         RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, useOutbox, outboxOptions);
         RegisterInbox<TInboxStore, TInboxFactory>(services, useInbox, inboxOptions);
         RegisterSagas<TSagaStore, TSagaFactory>(services, useSagas, sagaOptions);
@@ -378,6 +382,10 @@ public static class MessagingServiceCollectionExtensions
         // Outbox, inbox, saga and scheduling components take IMessageSerializer as a required
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
+
+        // The business transaction the TransactionPipelineBehavior opens, visible to stores sharing the
+        // scoped connection (inbox enlisting, ADR-048).
+        services.TryAddScoped<IDbTransactionAccessor, DbTransactionAccessor>();
 
         RegisterTransactions(services, config.UseTransactions);
         RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, config.UseOutbox, config.OutboxOptions);
