@@ -212,8 +212,29 @@ public sealed class DeadLetterStoreEF : IDeadLetterStore
     public async Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return await EitherHelpers.TryAsync(
-            async () => { await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false); },
+            async () =>
+            {
+                try
+                {
+                    await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // A rejected insert (for example a lost race on the unique source key) must not stay tracked,
+                    // or every later save of this scoped context would fail again.
+                    DetachPendingInserts();
+                    throw;
+                }
+            },
             DeadLetterErrorCodes.StoreFailed).ConfigureAwait(false);
+    }
+
+    private void DetachPendingInserts()
+    {
+        foreach (var entry in _dbContext.ChangeTracker.Entries<DeadLetterMessage>().Where(e => e.State == EntityState.Added).ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
     }
 
     private static void ValidateMessageId(Guid messageId)

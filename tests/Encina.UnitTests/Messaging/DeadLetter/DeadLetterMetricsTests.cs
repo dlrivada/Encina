@@ -190,16 +190,45 @@ public sealed class DeadLetterMetricsTests : IDisposable
         failures[0].Tags["operation"].ShouldBe("mark_replayed");
     }
 
+    [Fact]
+    public async Task AddAsync_OversizedIdentityValue_ThrowsBeforeAnyStoreCall()
+    {
+        var (orchestrator, store) = CreateOrchestrator();
+        var context = Context("limits") with { SourceMessageId = new string('x', DeadLetterStoreLimits.SourceMessageIdMaxLength + 1) };
+
+        await Should.ThrowAsync<ArgumentException>(() => orchestrator.AddAsync(new TestRequest(1), context));
+
+        await store.DidNotReceive().AddAsync(Arg.Any<IDeadLetterMessage>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AddAsync_OversizedDiagnosticValues_AreCutToTheColumnSize()
+    {
+        var created = new List<DeadLetterData>();
+        var (orchestrator, store) = CreateOrchestrator(created: created);
+        store.AddAsync(Arg.Any<IDeadLetterMessage>(), Arg.Any<CancellationToken>()).Returns(Right<EncinaError, bool>(true));
+        var context = Context("limits-cut") with
+        {
+            CorrelationId = new string('c', 1000),
+            Exception = new InvalidOperationException()
+        };
+
+        (await orchestrator.AddAsync(new TestRequest(1), context)).ShouldBeRight();
+
+        created.Single().CorrelationId!.Length.ShouldBe(DeadLetterStoreLimits.CorrelationIdMaxLength);
+    }
+
     private static DeadLetterContext Context(string sourcePattern)
         => new(EncinaErrors.Create("test.error", "boom"), null, sourcePattern, 3, FixedUtcNow);
 
-    private static (DeadLetterOrchestrator Orchestrator, IDeadLetterStore Store) CreateOrchestrator(string? tenantId = null)
+    private static (DeadLetterOrchestrator Orchestrator, IDeadLetterStore Store) CreateOrchestrator(string? tenantId = null, List<DeadLetterData>? created = null)
     {
         var store = Substitute.For<IDeadLetterStore>();
         store.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Right<EncinaError, Unit>(unit));
         var factory = Substitute.For<IDeadLetterMessageFactory>();
         factory.Create(Arg.Any<DeadLetterData>()).Returns(call =>
         {
+            created?.Add(call.Arg<DeadLetterData>());
             var message = Substitute.For<IDeadLetterMessage>();
             message.Id.Returns(call.Arg<DeadLetterData>().Id);
             return message;

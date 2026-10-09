@@ -62,6 +62,8 @@ public sealed class DeadLetterOrchestrator
         DeadLetterSourcePatterns.Choreography
     ];
 
+    private const int ExceptionTypeMaxLength = 512;
+
     private readonly IDeadLetterStore _store;
     private readonly IDeadLetterMessageFactory _messageFactory;
     private readonly DeadLetterOptions _options;
@@ -206,6 +208,16 @@ public sealed class DeadLetterOrchestrator
         string? exceptionType,
         string? exceptionStackTrace)
     {
+        // Identity values are never truncated (a cut value would collide with, or point at, another row);
+        // diagnostic values are cut to the column size so that an oversized one cannot lose the dead letter.
+        RequireWithin(requestType, DeadLetterStoreLimits.RequestTypeMaxLength, nameof(requestType));
+        RequireWithin(sourcePattern, DeadLetterStoreLimits.SourcePatternMaxLength, nameof(sourcePattern));
+        RequireWithin(sourceMessageId, DeadLetterStoreLimits.SourceMessageIdMaxLength, nameof(sourceMessageId));
+        RequireWithin(tenantId, DeadLetterStoreLimits.TenantIdMaxLength, nameof(tenantId));
+        errorCode = Cut(errorCode, DeadLetterStoreLimits.ErrorCodeMaxLength)!;
+        correlationId = Cut(correlationId, DeadLetterStoreLimits.CorrelationIdMaxLength);
+        exceptionType = Cut(exceptionType, ExceptionTypeMaxLength);
+
         var id = Guid.NewGuid();
         var now = _timeProvider.GetUtcNow().UtcDateTime;
 
@@ -225,6 +237,17 @@ public sealed class DeadLetterOrchestrator
             ExceptionStackTrace: exceptionStackTrace,
             TenantId: tenantId ?? AmbientTenantId());
     }
+
+    private static void RequireWithin(string? value, int maxLength, string name)
+    {
+        if (value is not null && value.Length > maxLength)
+        {
+            throw new ArgumentException($"The value is longer than the {maxLength} characters the dead letter queue stores.", name);
+        }
+    }
+
+    private static string? Cut(string? value, int maxLength)
+        => value is not null && value.Length > maxLength ? value[..maxLength] : value;
 
     // An empty tenant id is no tenant.
     private string? AmbientTenantId()
