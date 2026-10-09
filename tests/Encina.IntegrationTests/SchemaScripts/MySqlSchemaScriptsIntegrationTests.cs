@@ -4,12 +4,12 @@ using MySqlConnector;
 using Xunit;
 using AdoDeadLetterFactory = Encina.ADO.MySQL.DeadLetter.DeadLetterMessageFactory;
 using AdoDeadLetterStore = Encina.ADO.MySQL.DeadLetter.DeadLetterStoreADO;
-using DapperDeadLetterFactory = Encina.Dapper.MySQL.DeadLetter.DeadLetterMessageFactory;
-using DapperDeadLetterStore = Encina.Dapper.MySQL.DeadLetter.DeadLetterStoreDapper;
 using AdoOutboxMessage = Encina.ADO.MySQL.Outbox.OutboxMessage;
 using AdoOutboxStore = Encina.ADO.MySQL.Outbox.OutboxStoreADO;
 using AdoSagaState = Encina.ADO.MySQL.Sagas.SagaState;
 using AdoSagaStore = Encina.ADO.MySQL.Sagas.SagaStoreADO;
+using DapperDeadLetterFactory = Encina.Dapper.MySQL.DeadLetter.DeadLetterMessageFactory;
+using DapperDeadLetterStore = Encina.Dapper.MySQL.DeadLetter.DeadLetterStoreDapper;
 using DapperOutboxMessage = Encina.Dapper.MySQL.Outbox.OutboxMessage;
 using DapperOutboxStore = Encina.Dapper.MySQL.Outbox.OutboxStoreDapper;
 

@@ -4,12 +4,12 @@ using Npgsql;
 using Xunit;
 using AdoDeadLetterFactory = Encina.ADO.PostgreSQL.DeadLetter.DeadLetterMessageFactory;
 using AdoDeadLetterStore = Encina.ADO.PostgreSQL.DeadLetter.DeadLetterStoreADO;
-using DapperDeadLetterFactory = Encina.Dapper.PostgreSQL.DeadLetter.DeadLetterMessageFactory;
-using DapperDeadLetterStore = Encina.Dapper.PostgreSQL.DeadLetter.DeadLetterStoreDapper;
 using AdoOutboxMessage = Encina.ADO.PostgreSQL.Outbox.OutboxMessage;
 using AdoOutboxStore = Encina.ADO.PostgreSQL.Outbox.OutboxStoreADO;
 using AdoSagaState = Encina.ADO.PostgreSQL.Sagas.SagaState;
 using AdoSagaStore = Encina.ADO.PostgreSQL.Sagas.SagaStoreADO;
+using DapperDeadLetterFactory = Encina.Dapper.PostgreSQL.DeadLetter.DeadLetterMessageFactory;
+using DapperDeadLetterStore = Encina.Dapper.PostgreSQL.DeadLetter.DeadLetterStoreDapper;
 using DapperOutboxMessage = Encina.Dapper.PostgreSQL.Outbox.OutboxMessage;
 using DapperOutboxStore = Encina.Dapper.PostgreSQL.Outbox.OutboxStoreDapper;
 

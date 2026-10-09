@@ -1,4 +1,5 @@
 using Encina.Messaging.DeadLetter;
+using Encina.Messaging.Health;
 using Encina.MongoDB;
 
 using Microsoft.Data.SqlClient;
@@ -212,6 +213,29 @@ public sealed class MongoDbDeadLetterStoreGuardTests : DeadLetterStoreGuardTests
     [Fact]
     public void Constructor_NullLogger_Throws()
         => Should.Throw<ArgumentNullException>(() => new MongoStore(Substitute.For<IMongoClient>(), Options.Create(new EncinaMongoDbOptions()), null!));
+}
+
+/// <summary>The dead letter health check rejects a null store and answers for a healthy empty queue.</summary>
+public sealed class DeadLetterHealthCheckGuardTests
+{
+    [Fact]
+    public void Constructor_NullStore_ThrowsArgumentNullException()
+        => Should.Throw<ArgumentNullException>(() => new DeadLetterHealthCheck(null!));
+
+    [Fact]
+    public async Task CheckHealthAsync_EmptyQueue_IsHealthy()
+    {
+        var store = Substitute.For<IDeadLetterStore>();
+        store.GetCountAsync(Arg.Any<DeadLetterFilter?>(), Arg.Any<CancellationToken>())
+            .Returns(LanguageExt.Prelude.Right<EncinaError, int>(0));
+        store.GetMessagesAsync(Arg.Any<DeadLetterFilter?>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(LanguageExt.Prelude.Right<EncinaError, IEnumerable<IDeadLetterMessage>>(Array.Empty<IDeadLetterMessage>()));
+        var check = new DeadLetterHealthCheck(store);
+
+        var result = await check.CheckHealthAsync();
+
+        result.Status.ShouldBe(HealthStatus.Healthy);
+    }
 }
 
 /// <summary>Every provider factory rejects a null <see cref="DeadLetterData"/>.</summary>
