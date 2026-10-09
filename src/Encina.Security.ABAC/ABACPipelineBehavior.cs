@@ -238,8 +238,31 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         }
 
         return _options.DecisionAudit.Enabled
-            ? verdict with { Record = BuildRecord(request, context, caller, attributes, requirement, verdict, startedAtUtc) }
+            ? WithRecord(verdict, request, context, caller, attributes, requirement, startedAtUtc, startTimestamp, activity)
             : verdict;
+    }
+
+    // A record that cannot be built (a throwing resource-id getter, an unusable option) is an
+    // evaluation failure: the request is denied rather than escaping as an exception.
+    private ABACEnforcementVerdict WithRecord(
+        ABACEnforcementVerdict verdict,
+        TRequest request,
+        IRequestContext context,
+        RequestIdentity? caller,
+        ABACCollectedAttributes? attributes,
+        ABACRequirementVerdict? requirement,
+        DateTimeOffset startedAtUtc,
+        long startTimestamp,
+        Activity? activity)
+    {
+        try
+        {
+            return verdict with { Record = BuildRecord(request, context, caller, attributes, requirement, verdict, startedAtUtc) };
+        }
+        catch (Exception ex)
+        {
+            return DecideFailed(ex, startTimestamp, activity);
+        }
     }
 
     // The requirement verdict is Permit, Deny or Indeterminate; a required policy that is

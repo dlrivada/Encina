@@ -69,11 +69,14 @@ public sealed class ABACPipelineDecisionAuditTests
     {
         public List<ABACDecisionRecord> Records { get; } = [];
 
+        public List<CancellationToken> Tokens { get; } = [];
+
         public Func<ABACDecisionRecord, ValueTask<Either<EncinaError, Unit>>>? Behavior { get; set; }
 
         public ValueTask<Either<EncinaError, Unit>> RecordAsync(ABACDecisionRecord record, CancellationToken cancellationToken = default)
         {
             Records.Add(record);
+            Tokens.Add(cancellationToken);
             return Behavior?.Invoke(record) ?? ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
         }
     }
@@ -424,6 +427,53 @@ public sealed class ABACPipelineDecisionAuditTests
 
         recorder.Records.Count.ShouldBe(1);
         nextCalled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task TheWrite_IsNeverLinkedToTheClientToken()
+    {
+        using var cts = new CancellationTokenSource();
+        var recorder = new RecordingRecorder();
+        var behavior = Behavior<PolicyARequest>(Pdp(Effect.Permit), Options(), recorder);
+
+        await SendAsync(behavior, new PolicyARequest(), cancellationToken: cts.Token);
+
+        recorder.Tokens.Single().CanBeCanceled.ShouldBeFalse();
+    }
+
+    [RequirePolicy("or-1", AllMustPass = false)]
+    [RequirePolicy("and-1")]
+    private sealed record MixedGroupsRequest : IRequest<string>;
+
+    [Fact]
+    public async Task DenyFromMixedGroups_NamesTheFirstDenyingPolicyOfTheAllMustPassGroup()
+    {
+        var recorder = new RecordingRecorder();
+        var behavior = Behavior<MixedGroupsRequest>(
+            Pdp(("or-1", Decision(Effect.Deny)), ("and-1", Decision(Effect.Deny))), Options(), recorder);
+
+        await SendAsync(behavior, new MixedGroupsRequest());
+
+        Single(recorder).PolicyId.ShouldBe("and-1");
+    }
+
+    [RequirePolicy("policy-a")]
+    private sealed class ThrowingResourceRequest : IRequest<string>, IABACResourceIdentity
+    {
+        public string? ResourceId => throw new InvalidOperationException("resource id broke");
+    }
+
+    [Fact]
+    public async Task ARecordThatCannotBeBuilt_DeniesAsAnEvaluationFailureInsteadOfEscaping()
+    {
+        var recorder = new RecordingRecorder();
+        var behavior = Behavior<ThrowingResourceRequest>(Pdp(Effect.Permit), Options(), recorder);
+
+        var (result, next) = await SendAsync(behavior, new ThrowingResourceRequest());
+
+        next.ShouldBeFalse();
+        Code(result).ShouldBe(ABACErrors.EvaluationFailedCode);
+        recorder.Records.ShouldBeEmpty();
     }
 
     #endregion

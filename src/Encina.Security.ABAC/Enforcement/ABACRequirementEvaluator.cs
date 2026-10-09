@@ -362,10 +362,12 @@ internal sealed class ABACRequirementEvaluator
     private static EvaluatedPolicy? FirstDeciding(RequirementVerdictKind kind, List<EvaluatedPolicy> policies) => kind switch
     {
         RequirementVerdictKind.Permit => policies.Find(policy => policy.Outcome.Effect == Effect.Permit),
-        RequirementVerdictKind.PolicyDenied => policies.Find(
-            policy => policy.Outcome.Effect is Effect.Deny or Effect.NotApplicable),
+        RequirementVerdictKind.PolicyDenied =>
+            policies.Find(policy => policy.Outcome.AllMustPass && policy.Outcome.Effect is Effect.Deny or Effect.NotApplicable)
+            ?? policies.Find(policy => policy.Outcome.Effect is Effect.Deny or Effect.NotApplicable),
         RequirementVerdictKind.PolicyNotFound => policies.Find(policy => policy.Decision is null),
-        _ => policies.Find(policy => policy.Outcome.Effect == Effect.Indeterminate)
+        _ => policies.Find(policy => policy.Outcome.AllMustPass && policy.Outcome.Effect == Effect.Indeterminate)
+            ?? policies.Find(policy => policy.Outcome.Effect == Effect.Indeterminate)
     };
 
     private static ABACRequirementVerdict VerdictFor(
