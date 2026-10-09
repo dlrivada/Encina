@@ -170,6 +170,27 @@ public sealed class RecoverabilityContext
     }
 
     /// <summary>
+    /// Adopts the real failure of a delayed-retry re-dispatch (its last error, exception, classification,
+    /// immediate retries and history) into the restored chain context. Internal: only the delayed retry
+    /// processor does this.
+    /// </summary>
+    internal void AbsorbRedispatch(RecoverabilityContext redispatch)
+    {
+        ArgumentNullException.ThrowIfNull(redispatch);
+
+        var history = redispatch.RetryHistory;
+
+        lock (_lock)
+        {
+            LastError = redispatch.LastError;
+            LastException = redispatch.LastException;
+            LastClassification = redispatch.LastClassification;
+            ImmediateRetryCount += redispatch.ImmediateRetryCount;
+            _retryHistory.AddRange(history);
+        }
+    }
+
+    /// <summary>
     /// Creates a <see cref="FailedMessage"/> from the current context.
     /// </summary>
     /// <param name="request">The original request.</param>

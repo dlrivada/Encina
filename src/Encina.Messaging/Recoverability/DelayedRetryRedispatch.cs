@@ -7,68 +7,72 @@ namespace Encina.Messaging.Recoverability;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The marker is ambient (an <see cref="AsyncLocal{T}"/>) for the duration of the processor's dispatch
-/// and is bound to the runtime request type, not to the request instance, so it also works for value
-/// type requests (a boxed value has no stable reference identity). The first
-/// <see cref="RecoverabilityPipelineBehavior{TRequest, TResponse}"/> invocation for that request type
-/// consumes it; a handler that sends the same type again, or another type, does not inherit it.
+/// The marker is ambient (an <see cref="AsyncLocal{T}"/>) for the whole dispatch of the re-dispatched
+/// request and is matched to that request: by reference for a reference type, by value equality for a
+/// value type (a boxed value has no stable reference identity). Every
+/// <see cref="RecoverabilityPipelineBehavior{TRequest, TResponse}"/> invocation for that request sees
+/// it, so an outer behavior that re-enters the pipeline (a retry or resilience behavior calling the next
+/// step twice) keeps one chain. A handler that sends another request, or another instance of the same
+/// type, is not matched and starts its own chain; a handler that sends an equal value-type request is
+/// treated as the same request.
 /// </para>
 /// <para>
 /// It is internal: application code cannot set it, so it cannot skip recoverability by accident, and
 /// a request with no marker (a first-time failure) always schedules delayed retry attempt 0.
 /// </para>
 /// <para>
-/// The behavior reports the classification of the last error back through
-/// <see cref="Classification"/>, so a permanent error goes straight to the permanent-failure path.
+/// The behavior reports its own <see cref="RecoverabilityContext"/> back through <see cref="Report"/>,
+/// so the processor sees the real classification, error, exception and history of the failure.
 /// </para>
 /// </remarks>
 internal sealed class DelayedRetryRedispatch
 {
     private static readonly AsyncLocal<DelayedRetryRedispatch?> Current = new();
 
-    private int _consumed;
-
-    private DelayedRetryRedispatch(Type requestType)
+    private DelayedRetryRedispatch(object request)
     {
-        RequestType = requestType;
+        Request = request;
     }
 
-    /// <summary>Gets the runtime type of the request being re-dispatched.</summary>
-    public Type RequestType { get; }
+    /// <summary>Gets the request being re-dispatched.</summary>
+    public object Request { get; }
+
+    /// <summary>
+    /// Gets the recoverability context of the last invocation that reported, or <see langword="null"/>
+    /// when the dispatch did not pass through the behavior.
+    /// </summary>
+    public RecoverabilityContext? Attempt { get; private set; }
 
     /// <summary>
     /// Gets the classification of the last error the behavior saw, <see cref="ErrorClassification.Unknown"/>
     /// when the dispatch did not pass through the behavior.
     /// </summary>
-    public ErrorClassification Classification { get; private set; } = ErrorClassification.Unknown;
+    public ErrorClassification Classification => Attempt?.LastClassification ?? ErrorClassification.Unknown;
 
     /// <summary>
-    /// Marks the dispatch of a request of type <paramref name="requestType"/> as a delayed retry until
-    /// the returned scope is disposed.
+    /// Marks the dispatch of <paramref name="request"/> as a delayed retry until the returned scope is disposed.
     /// </summary>
-    public static Scope Begin(Type requestType)
+    public static Scope Begin(object request)
     {
-        ArgumentNullException.ThrowIfNull(requestType);
+        ArgumentNullException.ThrowIfNull(request);
 
-        var marker = new DelayedRetryRedispatch(requestType);
+        var marker = new DelayedRetryRedispatch(request);
         Current.Value = marker;
         return new Scope(marker);
     }
 
     /// <summary>
-    /// Takes the marker when the dispatch in flight is a re-dispatch of <paramref name="requestType"/>
-    /// and nobody has taken it yet; <see langword="null"/> for a first-time failure, any other request
-    /// type, or a nested send after the re-dispatched request's behavior has run.
+    /// Gets the marker when <paramref name="request"/> is the request being re-dispatched;
+    /// <see langword="null"/> for a first-time failure or any other request.
     /// </summary>
-    public static DelayedRetryRedispatch? Consume(Type requestType) =>
-        Current.Value is { } marker
-        && marker.RequestType == requestType
-        && Interlocked.Exchange(ref marker._consumed, 1) == 0
-            ? marker
-            : null;
+    public static DelayedRetryRedispatch? For(object request) =>
+        Current.Value is { } marker && marker.Matches(request) ? marker : null;
 
-    /// <summary>Records the classification of the last error of the dispatch.</summary>
-    public void Report(ErrorClassification classification) => Classification = classification;
+    /// <summary>Records the recoverability context of the dispatch's last invocation.</summary>
+    public void Report(RecoverabilityContext attempt) => Attempt = attempt;
+
+    private bool Matches(object request) =>
+        ReferenceEquals(Request, request) || (request.GetType().IsValueType && Request.Equals(request));
 
     /// <summary>Ends the marker on disposal.</summary>
     public readonly struct Scope : IDisposable

@@ -63,6 +63,20 @@ public sealed class DelayedRetryChainTests
         private readonly object _gate = new();
         private readonly List<FakeRow> _rows = [];
 
+        private TaskCompletionSource? _pollWaiter;
+        private int _pollTarget;
+
+        // Completes once the processor has polled the store `additional` more times.
+        public Task WaitForPollsAsync(int additional)
+        {
+            lock (_gate)
+            {
+                _pollTarget = PendingCountPerPoll.Count + additional;
+                _pollWaiter = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                return _pollWaiter.Task;
+            }
+        }
+
         public List<int> PendingCountPerPoll { get; } = [];
         public int FailedCount { get { lock (_gate) { return _rows.Count(r => r.ErrorMessage is not null); } } }
         public List<int> AttemptsAdded { get; } = [];
@@ -88,6 +102,11 @@ public sealed class DelayedRetryChainTests
                 // The chain invariant: whenever the processor polls, exactly one row is pending.
                 var pending = _rows.Where(r => r.IsPending).Cast<IDelayedRetryMessage>().ToList();
                 PendingCountPerPoll.Add(pending.Count);
+                if (_pollWaiter is not null && PendingCountPerPoll.Count >= _pollTarget)
+                {
+                    _pollWaiter.TrySetResult();
+                }
+
                 return Task.FromResult<IEnumerable<IDelayedRetryMessage>>(pending);
             }
         }
@@ -141,6 +160,112 @@ public sealed class DelayedRetryChainTests
         fixture.Store.PendingCountPerPoll.ShouldAllBe(count => count <= 1);
         fixture.PermanentFailures.Count.ShouldBe(1);
         fixture.PermanentFailures[0].Id.ShouldBe(fixture.Store.ContextIdsAdded[0]);
+
+        // The callback gets the real failure of the last re-dispatch, and the count of retries that ran.
+        var failed = fixture.PermanentFailures[0];
+        failed.Error.Message.ShouldBe("transient failure");
+        failed.DelayedRetryAttempts.ShouldBe(3);
+        failed.RetryHistory.ShouldNotBeEmpty();
+        failed.RetryHistory.ShouldAllBe(attempt => attempt.Error.Message == "transient failure");
+    }
+
+    private static FakeRow CreateRow(string requestType, string requestContent) => new(new DelayedRetryMessageData(
+        Guid.NewGuid(),
+        Guid.NewGuid(),
+        requestType,
+        requestContent,
+        "{\"id\":\"00000000-0000-0000-0000-000000000000\",\"immediateRetryCount\":0,\"delayedRetryCount\":0}",
+        0,
+        DateTime.UtcNow,
+        DateTime.UtcNow,
+        "chain-correlation"));
+
+    // Runs the processor over one row that never reaches a handler and returns what OnPermanentFailure got.
+    private static async Task<List<FailedMessage>> RunRowToPermanentFailureAsync(FakeRow row, IMessageSerializer? serializer)
+    {
+        var store = new FakeStore();
+        await store.AddAsync(row);
+
+        var failures = new List<FailedMessage>();
+        var failed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var options = new RecoverabilityOptions
+        {
+            DelayedRetries = [TimeSpan.FromMilliseconds(1)],
+            OnPermanentFailure = (message, _) => { failures.Add(message); failed.TrySetResult(); return Task.CompletedTask; }
+        };
+
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
+        serviceProvider.GetService(typeof(IEncina)).Returns(Substitute.For<IEncina>());
+        serviceProvider.GetService(typeof(IMessageSerializer)).Returns(serializer);
+        var scope = Substitute.For<IServiceScope>();
+        scope.ServiceProvider.Returns(serviceProvider);
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        scopeFactory.CreateScope().Returns(scope);
+        var processor = new DelayedRetryProcessor(scopeFactory, options, NullLogger<DelayedRetryProcessor>.Instance)
+        {
+            ProcessingInterval = TimeSpan.FromMilliseconds(5)
+        };
+
+        using var cts = new CancellationTokenSource();
+        await processor.StartAsync(cts.Token);
+        try
+        {
+            await failed.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            await store.WaitForPollsAsync(2).WaitAsync(TimeSpan.FromSeconds(20));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(default);
+        }
+
+        return failures;
+    }
+
+    [Fact]
+    public async Task UnknownRequestType_TakesThePermanentFailurePath_Once()
+    {
+        // Arrange
+        var row = CreateRow("No.Such.Type, NoSuchAssembly", "{}");
+
+        // Act
+        var failures = await RunRowToPermanentFailureAsync(row, serializer: null);
+
+        // Assert
+        failures.Count.ShouldBe(1);
+        failures[0].RequestType.ShouldBe("No.Such.Type, NoSuchAssembly");
+        row.IsPending.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task RequestThatDeserializesToNull_TakesThePermanentFailurePath_Once()
+    {
+        // Arrange
+        var row = CreateRow(typeof(ChainCommand).AssemblyQualifiedName!, "null");
+
+        // Act
+        var failures = await RunRowToPermanentFailureAsync(row, serializer: null);
+
+        // Assert
+        failures.Count.ShouldBe(1);
+        row.IsPending.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task UnexpectedExceptionBeforeTheDispatch_TakesThePermanentFailurePath_Once()
+    {
+        // Arrange - the serializer throws while reading the request.
+        var serializer = Substitute.For<IMessageSerializer>();
+        serializer.Deserialize(Arg.Any<string>(), Arg.Any<Type>()).Returns(_ => throw new InvalidOperationException("patient 12345"));
+        var row = CreateRow(typeof(ChainCommand).AssemblyQualifiedName!, "{\"value\":1}");
+
+        // Act
+        var failures = await RunRowToPermanentFailureAsync(row, serializer);
+
+        // Assert
+        failures.Count.ShouldBe(1);
+        row.ErrorMessage.ShouldBe(typeof(InvalidOperationException).FullName);
     }
 
     [Fact]
@@ -191,30 +316,96 @@ public sealed class DelayedRetryChainTests
     }
 
     [Fact]
-    public void DelayedRetryRedispatch_IsConsumedOnce_AndOnlyForItsRequestType()
+    public void DelayedRetryRedispatch_MatchesTheReDispatchedClassInstanceOnly_AndEveryTimeItIsAsked()
     {
         // Arrange
-        using var scope = DelayedRetryRedispatch.Begin(typeof(ChainCommand));
+        var request = new ChainCommand(1);
+        using var scope = DelayedRetryRedispatch.Begin(request);
 
-        // Act & Assert - another type never takes it; the first behavior takes it; a nested send does not.
-        DelayedRetryRedispatch.Consume(typeof(StructCommand)).ShouldBeNull();
-        DelayedRetryRedispatch.Consume(typeof(ChainCommand)).ShouldBeSameAs(scope.Marker);
-        DelayedRetryRedispatch.Consume(typeof(ChainCommand)).ShouldBeNull();
+        // Act & Assert - an outer behavior that re-enters the pipeline sees it again; another instance
+        // (even an equal one, a nested send) and another type never do.
+        DelayedRetryRedispatch.For(request).ShouldBeSameAs(scope.Marker);
+        DelayedRetryRedispatch.For(request).ShouldBeSameAs(scope.Marker);
+        DelayedRetryRedispatch.For(new ChainCommand(1)).ShouldBeNull();
+        DelayedRetryRedispatch.For(new StructCommand(1)).ShouldBeNull();
     }
 
     [Fact]
-    public void DelayedRetryRedispatch_AfterDispose_IsNoLongerMarked()
+    public void DelayedRetryRedispatch_MatchesAStructRequestByValue()
     {
         // Arrange
-        var scope = DelayedRetryRedispatch.Begin(typeof(ChainCommand));
+        using var scope = DelayedRetryRedispatch.Begin(new StructCommand(1));
+
+        // Act & Assert - a boxed struct has no stable reference, so equal values match.
+        DelayedRetryRedispatch.For(new StructCommand(1)).ShouldBeSameAs(scope.Marker);
+        DelayedRetryRedispatch.For(new StructCommand(2)).ShouldBeNull();
+    }
+
+    [Fact]
+    public void DelayedRetryRedispatch_AfterDispose_IsNoLongerMarked_AndKeepsTheReportedAttempt()
+    {
+        // Arrange
+        var request = new ChainCommand(1);
+        var scope = DelayedRetryRedispatch.Begin(request);
+        var attempt = new RecoverabilityContext();
+        attempt.RecordFailedAttempt(EncinaError.New("permanent failure"), null, ErrorClassification.Permanent);
 
         // Act
-        scope.Marker.Report(ErrorClassification.Permanent);
+        scope.Marker.Report(attempt);
         scope.Dispose();
 
         // Assert
         scope.Marker.Classification.ShouldBe(ErrorClassification.Permanent);
-        DelayedRetryRedispatch.Consume(typeof(ChainCommand)).ShouldBeNull();
+        scope.Marker.Attempt.ShouldBeSameAs(attempt);
+        DelayedRetryRedispatch.For(request).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task OuterBehaviorReEnteringThePipeline_KeepsOneChain()
+    {
+        // Arrange - a retrying outer behavior calls the Recoverability behavior twice for the same request.
+        var failures = new List<FailedMessage>();
+        var scheduler = Substitute.For<IDelayedRetryScheduler>();
+        var behavior = CreateBehavior<ChainCommand>(BehaviorOptions(failures), scheduler);
+        var request = new ChainCommand(1);
+        using var scope = DelayedRetryRedispatch.Begin(request);
+
+        // Act
+        for (var entry = 0; entry < 2; entry++)
+        {
+            await behavior.Handle(
+                request,
+                CreateRequestContext(),
+                () => ValueTask.FromResult(Either<EncinaError, int>.Left(EncinaError.New("transient failure"))),
+                CancellationToken.None);
+        }
+
+        // Assert - neither entry scheduled a chain of its own or failed the message.
+        _ = scheduler.DidNotReceiveWithAnyArgs().ScheduleRetryAsync<ChainCommand>(default!, default!, default, default, default);
+        failures.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task NestedSendOfAnotherInstanceOfTheSameType_StartsItsOwnChain()
+    {
+        // Arrange - the handler of the re-dispatched request sends another ChainCommand.
+        var failures = new List<FailedMessage>();
+        var scheduler = Substitute.For<IDelayedRetryScheduler>();
+        scheduler.ScheduleRetryAsync(Arg.Any<ChainCommand>(), Arg.Any<RecoverabilityContext>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
+        var behavior = CreateBehavior<ChainCommand>(BehaviorOptions(failures), scheduler);
+        using var scope = DelayedRetryRedispatch.Begin(new ChainCommand(1));
+
+        // Act
+        var result = await behavior.Handle(
+            new ChainCommand(1),
+            CreateRequestContext(),
+            () => ValueTask.FromResult(Either<EncinaError, int>.Left(EncinaError.New("transient failure"))),
+            CancellationToken.None);
+
+        // Assert - the nested send is a first-time failure: it scheduled attempt 0.
+        result.IsLeft.ShouldBeTrue();
+        _ = scheduler.Received(1).ScheduleRetryAsync(Arg.Any<ChainCommand>(), Arg.Any<RecoverabilityContext>(), Arg.Any<TimeSpan>(), 0, Arg.Any<CancellationToken>());
     }
 
     /// <summary>A value-type request: a boxed value has no stable reference identity.</summary>
@@ -250,7 +441,7 @@ public sealed class DelayedRetryChainTests
         var failures = new List<FailedMessage>();
         var scheduler = Substitute.For<IDelayedRetryScheduler>();
         var behavior = CreateBehavior<StructCommand>(BehaviorOptions(failures), scheduler);
-        using var scope = DelayedRetryRedispatch.Begin(typeof(StructCommand));
+        using var scope = DelayedRetryRedispatch.Begin(new StructCommand(1));
 
         // Act
         var result = await behavior.Handle(
@@ -567,8 +758,8 @@ public sealed class DelayedRetryChainTests
             try
             {
                 await _permanentlyFailed.Task.WaitAsync(TimeSpan.FromSeconds(20));
-                // Let any further (wrong) processing cycle show up before asserting.
-                await Task.Delay(100);
+                // Let two further processing cycles run, so a wrongly scheduled row would be polled.
+                await Store.WaitForPollsAsync(2).WaitAsync(TimeSpan.FromSeconds(20));
             }
             finally
             {

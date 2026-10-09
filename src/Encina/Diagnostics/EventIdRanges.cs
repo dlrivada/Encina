@@ -283,6 +283,16 @@ public static class EventIdRanges
     public static readonly (int Min, int Max) CdcMySql = (5400, 5449);
 
     // ═══════════════════════════════════════════════════════════════════════
+    // Messaging recoverability (5450-5499)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Encina.Messaging — delayed-retry processor and recoverability pipeline diagnostics added after
+    /// the original recoverability ids (2845-2871, inside <see cref="Messaging"/>).
+    /// </summary>
+    public static readonly (int Min, int Max) MessagingRecoverability = (5450, 5499);
+
+    // ═══════════════════════════════════════════════════════════════════════
     // Observability (7000-7099)
     // ═══════════════════════════════════════════════════════════════════════
 

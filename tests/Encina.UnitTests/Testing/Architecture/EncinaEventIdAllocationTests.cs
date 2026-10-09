@@ -88,7 +88,7 @@ public sealed class EncinaEventIdAllocationTests
             ["Encina.Kafka"] = [nameof(EventIdRanges.Kafka)],
             ["Encina.Marten"] = [nameof(EventIdRanges.Marten)],
             ["Encina.Marten.GDPR"] = [nameof(EventIdRanges.MartenGDPRCryptoShredding)],
-            ["Encina.Messaging"] = [nameof(EventIdRanges.MessagingOutbox), nameof(EventIdRanges.MessagingInbox), nameof(EventIdRanges.MessagingSaga), nameof(EventIdRanges.MessagingScheduling), nameof(EventIdRanges.Messaging)],
+            ["Encina.Messaging"] = [nameof(EventIdRanges.MessagingOutbox), nameof(EventIdRanges.MessagingInbox), nameof(EventIdRanges.MessagingSaga), nameof(EventIdRanges.MessagingScheduling), nameof(EventIdRanges.Messaging), nameof(EventIdRanges.MessagingRecoverability)],
             ["Encina.Messaging.Encryption"] = [nameof(EventIdRanges.MessagingEncryption)],
             ["Encina.Messaging.Encryption.AwsKms"] = [nameof(EventIdRanges.MessagingEncryption)],
             ["Encina.Messaging.Encryption.AzureKeyVault"] = [nameof(EventIdRanges.MessagingEncryption)],

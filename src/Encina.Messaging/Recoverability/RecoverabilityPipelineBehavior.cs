@@ -80,8 +80,9 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             RequestTypeName = typeof(TRequest).Name
         };
 
-        // Taken before the handler runs, so a nested send of the same request type never inherits it.
-        var redispatch = DelayedRetryRedispatch.Consume(typeof(TRequest));
+        // Matched to this very request (reference or value), so an outer behavior that re-enters the
+        // pipeline keeps one chain while a nested send of another request never inherits it.
+        var redispatch = DelayedRetryRedispatch.For(request);
 
         // Try initial execution + immediate retries
         var result = await ExecuteWithImmediateRetriesAsync(
@@ -110,7 +111,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         // permanent failure from the outcome and the classification reported here (#2083).
         if (redispatch is not null)
         {
-            redispatch.Report(recoverabilityContext.LastClassification);
+            redispatch.Report(recoverabilityContext);
             return result;
         }
 
@@ -576,7 +577,7 @@ internal static partial class RecoverabilityLog
         ILogger logger, string correlationId, string requestType, string errorCode);
 
     [LoggerMessage(
-        EventId = 2965,
+        EventId = 5452,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} scheduling the delayed retry threw")]
     public static partial void SchedulingDelayedRetryThrew(
