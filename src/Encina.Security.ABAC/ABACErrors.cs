@@ -658,14 +658,15 @@ public static class ABACErrors
     }
 
     /// <summary>
-    /// Creates an error when the decision audit reader or export needs an <c>IOperationAuditStore</c>
-    /// and none is registered.
+    /// Creates an error when the decision audit recorder, reader or export needs an
+    /// <c>IOperationAuditStore</c> and none is registered. The same cause and code serve the write
+    /// and the read path, so the message names neither alone.
     /// </summary>
     /// <returns>An error with code <see cref="DecisionAuditStoreUnavailableCode"/> and a fixed message.</returns>
     public static EncinaError DecisionAuditStoreUnavailable() =>
         EncinaErrors.Create(
             code: DecisionAuditStoreUnavailableCode,
-            message: "No operation audit store is registered, so the decision audit trail cannot be read.",
+            message: "No operation audit store is registered, so the decision audit trail cannot be written or read.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyStage] = MetadataStageAbac,

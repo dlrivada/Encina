@@ -569,6 +569,114 @@ public sealed class ABACPipelineDecisionAuditTests
 
     #endregion
 
+    #region Telemetry follows the enforced outcome
+
+    private sealed record Observed(Activity? Evaluate, long Permitted, long Denied, long Indeterminate);
+
+    // Runs the action while listening to the ABAC evaluation span and its outcome counters.
+    private static async Task<Observed> ObserveAsync(Func<Task> action)
+    {
+        var activities = new List<Activity>();
+        long permitted = 0, denied = 0, indeterminate = 0;
+
+        using var activityListener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Encina.Security.ABAC",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activities.Add
+        };
+        ActivitySource.AddActivityListener(activityListener);
+
+        using var meterListener = new System.Diagnostics.Metrics.MeterListener();
+        meterListener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (instrument.Meter.Name == "Encina.Security.ABAC" && instrument.Name.StartsWith("abac.evaluation.", StringComparison.Ordinal))
+            {
+                listener.EnableMeasurementEvents(instrument);
+            }
+        };
+        meterListener.SetMeasurementEventCallback<long>((instrument, value, _, _) =>
+        {
+            switch (instrument.Name)
+            {
+                case "abac.evaluation.permitted": permitted += value; break;
+                case "abac.evaluation.denied": denied += value; break;
+                case "abac.evaluation.indeterminate": indeterminate += value; break;
+            }
+        });
+        meterListener.Start();
+
+        await action();
+
+        return new Observed(activities.SingleOrDefault(a => a.OperationName == "ABAC.Evaluate"), permitted, denied, indeterminate);
+    }
+
+    [Fact]
+    public async Task APermitThatTheAuditWriteDenies_ReportsADenialWithTheAuditFailureReason()
+    {
+        var behavior = Behavior<PolicyARequest>(Pdp(Effect.Permit), Options(), FailingRecorder());
+
+        var observed = await ObserveAsync(() => SendAsync(behavior, new PolicyARequest()));
+
+        observed.Evaluate.ShouldNotBeNull();
+        observed.Evaluate.GetTagItem("abac.effect").ShouldBe("deny");
+        observed.Evaluate.Status.ShouldBe(ActivityStatusCode.Error);
+        observed.Evaluate.StatusDescription.ShouldBe(ABACErrors.DecisionAuditFailedCode);
+        (observed.Permitted, observed.Denied).ShouldBe((0L, 1L));
+    }
+
+    [Fact]
+    public async Task AWarnPassThroughThatTheAuditWriteDenies_ReportsADenial()
+    {
+        var logger = new FakeLogger<ABACPipelineBehavior<PolicyARequest, string>>();
+        var behavior = Behavior<PolicyARequest>(Pdp(Effect.Deny), Options(ABACEnforcementMode.Warn), FailingRecorder(), logger: logger);
+
+        var observed = await ObserveAsync(() => SendAsync(behavior, new PolicyARequest()));
+
+        observed.Evaluate!.StatusDescription.ShouldBe(ABACErrors.DecisionAuditFailedCode);
+        (observed.Permitted, observed.Denied).ShouldBe((0L, 1L));
+        logger.Collector.GetSnapshot().ShouldNotContain(r => r.Message.Contains("proceeds in Warn", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task APermitThatIsRecordedOrWrittenBestEffort_StaysAPermit()
+    {
+        var recorded = Behavior<PolicyARequest>(Pdp(Effect.Permit), Options(), new RecordingRecorder());
+        var bestEffort = Behavior<PolicyARequest>(
+            Pdp(Effect.Permit), Options(failureMode: ABACDecisionAuditFailureMode.BestEffort), FailingRecorder());
+
+        var first = await ObserveAsync(() => SendAsync(recorded, new PolicyARequest()));
+        var second = await ObserveAsync(() => SendAsync(bestEffort, new PolicyARequest()));
+
+        first.Evaluate!.GetTagItem("abac.effect").ShouldBe("permit");
+        second.Evaluate!.GetTagItem("abac.effect").ShouldBe("permit");
+        (first.Permitted, first.Denied, second.Permitted, second.Denied).ShouldBe((1L, 0L, 1L, 0L));
+    }
+
+    [Fact]
+    public async Task AnIndeterminateDecision_IsCountedAsIndeterminateAfterTheRecordStep()
+    {
+        var behavior = Behavior<PolicyARequest>(Pdp(Effect.Indeterminate), Options(), new RecordingRecorder());
+
+        var observed = await ObserveAsync(() => SendAsync(behavior, new PolicyARequest()));
+
+        observed.Evaluate!.GetTagItem("abac.effect").ShouldBe("indeterminate");
+        (observed.Permitted, observed.Denied, observed.Indeterminate).ShouldBe((0L, 0L, 1L));
+    }
+
+    [Fact]
+    public async Task ADeniedRequestWhoseAuditWriteFails_KeepsTheOriginalDenialInTelemetry()
+    {
+        var behavior = Behavior<PolicyARequest>(Pdp(Effect.Deny), Options(), FailingRecorder());
+
+        var observed = await ObserveAsync(() => SendAsync(behavior, new PolicyARequest()));
+
+        observed.Evaluate!.StatusDescription.ShouldBe("A required policy did not permit the request.");
+        (observed.Denied).ShouldBe(1L);
+    }
+
+    #endregion
+
     #region Filters, ordering and the clock
 
     [Theory]

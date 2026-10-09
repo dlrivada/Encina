@@ -173,13 +173,17 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         // ── 4. Decide (never calls the next step) ───────────────────
         // The clock is read only when the audit is enabled: StartedAtUtc here, CompletedAtUtc once at the end.
         var startedAtUtc = _options.DecisionAudit.Enabled ? _timeProvider.GetUtcNow() : default;
-        var verdict = await DecideAsync(request, context, startedAtUtc, startTimestamp, activity, cancellationToken)
+        var verdict = await DecideAsync(request, context, startedAtUtc, startTimestamp, cancellationToken)
             .ConfigureAwait(false);
 
         // ── 5. Record (write-ahead) ─────────────────────────────────
         var denial = await RecordAsync(verdict, requestTypeName, cancellationToken).ConfigureAwait(false);
 
-        // ── 6. Enforce: the handler runs here, outside any try/catch ─
+        // ── 6. Report the enforced outcome, then enforce ────────────
+        // Span status and counters follow the final outcome: a request the audit write denies is a denial.
+        ReportOutcome(verdict, denial, requestTypeName, startTimestamp, activity);
+
+        // The handler runs here, outside any try/catch.
         return denial is { } error
             ? Either<EncinaError, TResponse>.Left(error)
             : await nextStep().ConfigureAwait(false);
@@ -194,7 +198,6 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         IRequestContext context,
         DateTimeOffset startedAtUtc,
         long startTimestamp,
-        Activity? activity,
         CancellationToken cancellationToken)
     {
         // The identity is read once (#1892): the record and the subject attributes share this snapshot.
@@ -209,7 +212,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
             if (caller is null)
             {
-                verdict = DecideUnauthenticated(startTimestamp, activity);
+                verdict = DecideUnauthenticated();
             }
             else
             {
@@ -224,7 +227,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
                     requirement.Decision.PolicyId,
                     requirement.Decision.EvaluationDuration.TotalMilliseconds);
 
-                verdict = await ProcessDecisionAsync(requirement, attributes.Context, startTimestamp, activity, cancellationToken)
+                verdict = await ProcessDecisionAsync(requirement, attributes.Context, cancellationToken)
                     .ConfigureAwait(false);
             }
         }
@@ -234,11 +237,11 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         }
         catch (Exception ex)
         {
-            verdict = DecideFailed(ex, startTimestamp, activity);
+            verdict = DecideFailed(ex, startTimestamp);
         }
 
         return _options.DecisionAudit.Enabled
-            ? WithRecord(verdict, request, context, caller, attributes, requirement, startedAtUtc, startTimestamp, activity)
+            ? WithRecord(verdict, request, context, caller, attributes, requirement, startedAtUtc, startTimestamp)
             : verdict;
     }
 
@@ -252,8 +255,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         ABACCollectedAttributes? attributes,
         ABACRequirementVerdict? requirement,
         DateTimeOffset startedAtUtc,
-        long startTimestamp,
-        Activity? activity)
+        long startTimestamp)
     {
         try
         {
@@ -261,7 +263,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         }
         catch (Exception ex)
         {
-            return DecideFailed(ex, startTimestamp, activity);
+            return DecideFailed(ex, startTimestamp);
         }
     }
 
@@ -270,21 +272,17 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     private async ValueTask<ABACEnforcementVerdict> ProcessDecisionAsync(
         ABACRequirementVerdict verdict,
         PolicyEvaluationContext evaluationContext,
-        long startTimestamp,
-        Activity? activity,
         CancellationToken cancellationToken)
     {
         return verdict.Decision.Effect switch
         {
-            Effect.Permit => await DecidePermitAsync(
-                verdict.Decision, evaluationContext, startTimestamp, activity, cancellationToken)
+            Effect.Permit => await DecidePermitAsync(verdict.Decision, evaluationContext, cancellationToken)
                 .ConfigureAwait(false),
 
-            Effect.Deny => await DecideDenyAsync(
-                verdict, evaluationContext, startTimestamp, activity, cancellationToken)
+            Effect.Deny => await DecideDenyAsync(verdict, evaluationContext, cancellationToken)
                 .ConfigureAwait(false),
 
-            _ => DecideIndeterminate(verdict.Decision, startTimestamp, activity)
+            _ => DecideIndeterminate(verdict.Decision)
         };
     }
 
@@ -293,8 +291,6 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     private async ValueTask<ABACEnforcementVerdict> DecidePermitAsync(
         PolicyDecision decision,
         PolicyEvaluationContext evaluationContext,
-        long startTimestamp,
-        Activity? activity,
         CancellationToken cancellationToken)
     {
         var requestTypeName = typeof(TRequest).Name;
@@ -316,15 +312,11 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
         if (obligationFailed)
         {
-            RecordCompletion(startTimestamp, activity, Effect.Deny, decision.PolicyId,
-                "Obligation execution failed");
-
-            ABACDiagnostics.EvaluationDenied.Add(1,
-                new KeyValuePair<string, object?>(ABACDiagnostics.TagRequestType, requestTypeName));
-
-            return ABACEnforcementVerdict.Denied(ABACErrors.ObligationFailed(
-                "permit-obligations",
-                "One or more mandatory obligations could not be fulfilled. Access denied per XACML §7.18."));
+            return ABACEnforcementVerdict.Denied(
+                ABACErrors.ObligationFailed(
+                    "permit-obligations",
+                    "One or more mandatory obligations could not be fulfilled. Access denied per XACML §7.18."),
+                new(Effect.Deny, decision.PolicyId, "Obligation execution failed"));
         }
 
         // Execute advice (best-effort — failures don't affect decision)
@@ -335,14 +327,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
                 .ConfigureAwait(false);
         }
 
-        RecordCompletion(startTimestamp, activity, Effect.Permit, decision.PolicyId, null);
-
-        ABACDiagnostics.EvaluationPermitted.Add(1,
-            new KeyValuePair<string, object?>(ABACDiagnostics.TagRequestType, requestTypeName));
-
-        ABACLogMessages.EvaluationPermitted(_logger, requestTypeName);
-
-        return ABACEnforcementVerdict.Granted();
+        return ABACEnforcementVerdict.Granted(decision.PolicyId);
     }
 
     // ── Deny ────────────────────────────────────────────────────────
@@ -350,8 +335,6 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     private async ValueTask<ABACEnforcementVerdict> DecideDenyAsync(
         ABACRequirementVerdict verdict,
         PolicyEvaluationContext evaluationContext,
-        long startTimestamp,
-        Activity? activity,
         CancellationToken cancellationToken)
     {
         var decision = verdict.Decision;
@@ -382,15 +365,10 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
                 .ConfigureAwait(false);
         }
 
-        RecordCompletion(startTimestamp, activity, Effect.Deny, decision.PolicyId, reason);
-
-        ABACDiagnostics.EvaluationDenied.Add(1,
-            new KeyValuePair<string, object?>(ABACDiagnostics.TagRequestType, requestTypeName));
-
         // A missing policy or an unmet condition carries its own error code.
         var error = verdict.DenyError ?? ABACErrors.AccessDenied(typeof(TRequest), decision.PolicyId);
 
-        return ApplyEnforcement(error, requestTypeName);
+        return ApplyEnforcement(error, requestTypeName, new(Effect.Deny, decision.PolicyId, reason));
     }
 
     // ── Indeterminate ───────────────────────────────────────────────
@@ -399,18 +377,10 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     // policy store failure, a PDP error), not a definite verdict: it denies in every enforcement
     // mode, like an exception from the PDP or the attribute provider, and is always recorded.
     // Warn mode relaxes only definite denials (see ApplyEnforcement).
-    private ABACEnforcementVerdict DecideIndeterminate(
-        PolicyDecision decision,
-        long startTimestamp,
-        Activity? activity)
+    private ABACEnforcementVerdict DecideIndeterminate(PolicyDecision decision)
     {
         var requestTypeName = typeof(TRequest).Name;
         var reason = decision.Reason ?? "Policy evaluation produced an indeterminate result.";
-
-        RecordCompletion(startTimestamp, activity, Effect.Indeterminate, decision.PolicyId, reason);
-
-        ABACDiagnostics.EvaluationIndeterminate.Add(1,
-            new KeyValuePair<string, object?>(ABACDiagnostics.TagRequestType, requestTypeName));
 
         ABACLogMessages.EvaluationIndeterminate(_logger,
             requestTypeName,
@@ -418,7 +388,10 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
         ABACLogMessages.EnforcementDenied(_logger, requestTypeName);
 
-        return ABACEnforcementVerdict.Denied(ABACErrors.Indeterminate(typeof(TRequest), reason), alwaysRecorded: true);
+        return ABACEnforcementVerdict.Denied(
+            ABACErrors.Indeterminate(typeof(TRequest), reason),
+            new(Effect.Indeterminate, decision.PolicyId, reason),
+            alwaysRecorded: true);
     }
 
     // ── Evaluation failure ──────────────────────────────────────────
@@ -426,23 +399,16 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     // An exception while collecting attributes or evaluating is not a verdict: it denies in every
     // enforcement mode and is always recorded. The exception type only reaches telemetry; its
     // message can carry data and never reaches a tag.
-    private ABACEnforcementVerdict DecideFailed(Exception ex, long startTimestamp, Activity? activity)
+    private ABACEnforcementVerdict DecideFailed(Exception ex, long startTimestamp)
     {
-        var requestTypeName = typeof(TRequest).Name;
-        var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
-
         ABACLogMessages.EvaluationFailed(_logger, ex.ForLogging(),
-            requestTypeName,
-            elapsed.TotalMilliseconds);
+            typeof(TRequest).Name,
+            Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
 
-        ABACDiagnostics.EvaluationDuration.Record(elapsed.TotalMilliseconds);
-
-        ABACDiagnostics.RecordIndeterminate(activity, ex.GetType().Name);
-
-        ABACDiagnostics.EvaluationIndeterminate.Add(1,
-            new KeyValuePair<string, object?>(ABACDiagnostics.TagRequestType, requestTypeName));
-
-        return ABACEnforcementVerdict.Denied(ABACErrors.EvaluationFailed(typeof(TRequest), ex), alwaysRecorded: true);
+        return ABACEnforcementVerdict.Denied(
+            ABACErrors.EvaluationFailed(typeof(TRequest), ex),
+            new(Effect.Indeterminate, null, ex.GetType().Name),
+            alwaysRecorded: true);
     }
 
     // ── Unauthenticated Caller ──────────────────────────────────────
@@ -457,19 +423,17 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     // An unauthenticated caller is not a definite policy verdict, so it denies in every
     // enforcement mode, before any attribute is collected: nothing is ever evaluated for an
     // anonymous caller (#1676, #1705; AGENTS.md "compliance and security gates fail closed").
-    private ABACEnforcementVerdict DecideUnauthenticated(long startTimestamp, Activity? activity)
+    private ABACEnforcementVerdict DecideUnauthenticated()
     {
         var requestTypeName = typeof(TRequest).Name;
-
-        RecordCompletion(startTimestamp, activity, Effect.Deny, null, EncinaErrorCodes.AuthorizationUnauthenticated);
-
-        ABACDiagnostics.EvaluationDenied.Add(1,
-            new KeyValuePair<string, object?>(ABACDiagnostics.TagRequestType, requestTypeName));
 
         ABACLogMessages.UnauthenticatedCaller(_logger, requestTypeName, EncinaErrorCodes.AuthorizationUnauthenticated);
         ABACLogMessages.EnforcementDenied(_logger, requestTypeName);
 
-        return ABACEnforcementVerdict.Denied(ABACErrors.UnauthenticatedCaller(typeof(TRequest)), alwaysRecorded: true);
+        return ABACEnforcementVerdict.Denied(
+            ABACErrors.UnauthenticatedCaller(typeof(TRequest)),
+            new(Effect.Deny, null, EncinaErrorCodes.AuthorizationUnauthenticated),
+            alwaysRecorded: true);
     }
 
     // ── Attribute Collection ────────────────────────────────────────
@@ -516,20 +480,70 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
     // Called only for definite denials (a Deny, a required policy that is NotApplicable or not
     // found, a condition that evaluates to false): Warn mode logs them and lets the request proceed.
-    private ABACEnforcementVerdict ApplyEnforcement(EncinaError error, string requestTypeName)
+    private ABACEnforcementVerdict ApplyEnforcement(EncinaError error, string requestTypeName, ABACOutcomeTelemetry telemetry)
     {
         if (_options.EnforcementMode == ABACEnforcementMode.Warn)
         {
-            ABACLogMessages.EnforcementWarnMode(_logger,
-                requestTypeName,
-                error.GetCode().IfNone("encina.unknown"));
-
-            return ABACEnforcementVerdict.NotEnforced(error);
+            // The "proceeding" log follows the final outcome (see ReportOutcome).
+            return ABACEnforcementVerdict.NotEnforced(error, telemetry);
         }
 
         ABACLogMessages.EnforcementDenied(_logger, requestTypeName);
 
-        return ABACEnforcementVerdict.Denied(error);
+        return ABACEnforcementVerdict.Denied(error, telemetry);
+    }
+
+    // ── Report the enforced outcome ─────────────────────────────────
+
+    // Span status, counters and the permitted/proceeding logs describe what the PEP finally did. A
+    // request the decision audit denies (FailClosed write failure) is a denial with the audit-failure
+    // reason, not the permit or Warn-mode pass-through the decision reached before the write.
+    private void ReportOutcome(
+        ABACEnforcementVerdict verdict,
+        EncinaError? denial,
+        string requestTypeName,
+        long startTimestamp,
+        Activity? activity)
+    {
+        var auditDenied = denial is not null && verdict.Allow;
+        var telemetry = auditDenied
+            ? new ABACOutcomeTelemetry(Effect.Deny, verdict.Telemetry.PolicyId, ABACErrors.DecisionAuditFailedCode)
+            : verdict.Telemetry;
+
+        RecordCompletion(startTimestamp, activity, telemetry.Effect, telemetry.PolicyId, telemetry.Reason);
+        CountOutcome(telemetry.Effect, requestTypeName);
+
+        if (auditDenied)
+        {
+            ABACLogMessages.EnforcementDenied(_logger, requestTypeName);
+        }
+        else if (verdict.Enforced == ABACEnforcedOutcome.Granted)
+        {
+            ABACLogMessages.EvaluationPermitted(_logger, requestTypeName);
+        }
+        else if (verdict.Enforced == ABACEnforcedOutcome.DeniedNotEnforced)
+        {
+            ABACLogMessages.EnforcementWarnMode(_logger, requestTypeName, verdict.ReasonCode);
+        }
+    }
+
+    // crap-exempt: single-question switch — the counter each final effect increments.
+    private static void CountOutcome(Effect effect, string requestTypeName)
+    {
+        var tag = new KeyValuePair<string, object?>(ABACDiagnostics.TagRequestType, requestTypeName);
+
+        switch (effect)
+        {
+            case Effect.Permit:
+                ABACDiagnostics.EvaluationPermitted.Add(1, tag);
+                break;
+            case Effect.Deny:
+                ABACDiagnostics.EvaluationDenied.Add(1, tag);
+                break;
+            default:
+                ABACDiagnostics.EvaluationIndeterminate.Add(1, tag);
+                break;
+        }
     }
 
     // ── Record (write-ahead) ────────────────────────────────────────
