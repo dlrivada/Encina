@@ -113,6 +113,56 @@ public sealed class DbLeaseTests
         clone.Received(1).Dispose();
     }
 
+    // Public so the mock proxy generator can implement it.
+    public interface IWrapper : IDbConnection, IWrappedDbConnection;
+
+    [Fact]
+    public void Enlisted_DecoratedConnection_FindsTheTransactionOfTheInnerConnection()
+    {
+        var (inner, transaction, accessor) = ActiveTransaction();
+        var wrapper = Substitute.For<IWrapper>();
+        wrapper.InnerConnection.Returns(inner);
+        var command = Substitute.For<IDbCommand>();
+        wrapper.CreateCommand().Returns(command);
+
+        using var lease = DbLease.Enlisted(wrapper, accessor);
+        lease.CreateCommand();
+
+        lease.Transaction.ShouldBeSameAs(transaction);
+        command.Transaction.ShouldBeSameAs(transaction);
+    }
+
+    [Fact]
+    public async Task Independent_DecoratedConnection_ClonesTheInnerConnection()
+    {
+        var (inner, _, accessor) = ActiveTransaction();
+        var wrapper = Substitute.For<IWrapper>();
+        wrapper.InnerConnection.Returns(inner);
+        var clone = Substitute.For<IDbConnection>();
+        ((ICloneable)inner).Clone().Returns(clone);
+
+        using var lease = await DbLease.IndependentAsync(wrapper, accessor, CancellationToken.None);
+
+        lease.Connection.ShouldBeSameAs(clone);
+        lease.Transaction.ShouldBeNull();
+        clone.Received(1).Open();
+    }
+
+    [Fact]
+    public async Task Independent_DecoratedNonCloneableInnerConnection_Throws()
+    {
+        var inner = Substitute.For<IDbConnection>();
+        var transaction = Substitute.For<IDbTransaction>();
+        transaction.Connection.Returns(inner);
+        var accessor = new DbTransactionAccessor { Current = transaction };
+        var wrapper = Substitute.For<IWrapper>();
+        wrapper.InnerConnection.Returns(inner);
+
+        var act = async () => await DbLease.IndependentAsync(wrapper, accessor, CancellationToken.None);
+
+        await act.ShouldThrowAsync<InvalidOperationException>();
+    }
+
     [Fact]
     public void Guards_NullConnection_Throw()
     {

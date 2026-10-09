@@ -80,7 +80,7 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         using var activity = StartCacheHandlerError(messageId);
         var result = await _inner.CacheHandlerErrorAsync(messageId, response, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, err.GetCode().IfNone("encina.unknown"))); // the code, never EncinaError.Message
         return result;
     }
 

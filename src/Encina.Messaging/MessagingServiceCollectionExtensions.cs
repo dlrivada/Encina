@@ -57,13 +57,17 @@ public static class MessagingServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(config);
 
+        // Pipeline behaviors run in registration order, first registered outermost: the transaction behavior
+        // must be registered before the inbox behavior so the inbox runs inside the business transaction and
+        // can enlist its processed mark in it (ADR-048).
+        RegisterTransactions(services, config.UseTransactions);
+
         services.AddOutboxInboxSagaSchedulingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
             config.UseOutbox, config.OutboxOptions,
             config.UseInbox, config.InboxOptions,
             config.UseSagas, config.SagaOptions,
             config.UseScheduling, config.SchedulingOptions);
 
-        RegisterTransactions(services, config.UseTransactions);
         RegisterRoutingSlips(services, config);
         RegisterRecoverability(services, config);
         RegisterContentRouter(services, config);

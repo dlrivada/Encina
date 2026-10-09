@@ -67,10 +67,12 @@ public sealed class DbLease : IDisposable
             return new DbLease(connection, transaction: null, ownedConnection: null);
         }
 
-        if (connection is not ICloneable cloneable)
+        // A decorating connection (module isolation) is not cloneable itself: clone the connection it wraps.
+        var source = Innermost(connection);
+        if (source is not ICloneable cloneable)
         {
             throw new InvalidOperationException(
-                $"{connection.GetType().Name} cannot be cloned, so a write that must survive the business transaction's rollback has no connection of its own.");
+                $"{source.GetType().Name} cannot be cloned, so a write that must survive the business transaction's rollback has no connection of its own.");
         }
 
         var clone = (IDbConnection)cloneable.Clone();
@@ -109,9 +111,33 @@ public sealed class DbLease : IDisposable
     /// <inheritdoc />
     public void Dispose() => _ownedConnection?.Dispose();
 
+    // The transaction belongs to this connection when it runs on it or on any connection it decorates.
     private static IDbTransaction? ActiveTransactionOn(IDbConnection connection, IDbTransactionAccessor? accessor)
     {
         var current = accessor?.Current;
-        return current is not null && ReferenceEquals(current.Connection, connection) ? current : null;
+        if (current is null)
+        {
+            return null;
+        }
+
+        for (var candidate = connection; candidate is not null; candidate = (candidate as IWrappedDbConnection)?.InnerConnection)
+        {
+            if (ReferenceEquals(current.Connection, candidate))
+            {
+                return current;
+            }
+        }
+
+        return null;
+    }
+
+    private static IDbConnection Innermost(IDbConnection connection)
+    {
+        while (connection is IWrappedDbConnection wrapper)
+        {
+            connection = wrapper.InnerConnection;
+        }
+
+        return connection;
     }
 }

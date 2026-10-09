@@ -44,7 +44,7 @@ public static class InboxPipelineScenario
     /// <summary>A provider family under test.</summary>
     public sealed class Harness
     {
-        /// <summary>Registers database, Encina, the inbox and (when requested) the transaction behavior followed by the sabotage behavior.</summary>
+        /// <summary>Registers database, Encina, the inbox and (when requested) the provider's transaction behavior through the provider's own <c>AddEncina*</c> registration.</summary>
         public required Action<IServiceCollection, Setup> Register { get; init; }
 
         /// <summary>Reads the inbox row of a message on a fresh connection, or null when there is none.</summary>
@@ -68,22 +68,24 @@ public static class InboxPipelineScenario
     }
 
     /// <summary>
-    /// Pipeline behavior registered between the transaction behavior and the inbox behavior: after the inbox
-    /// has marked the message processed inside the business transaction it breaks the transaction, so the
-    /// commit that follows fails.
+    /// Decorator over the registered inbox store: right after the store marked the message processed (inside the
+    /// business transaction) it breaks the transaction of the request scope when the switch is armed, so the
+    /// commit that follows fails. It sits at exactly that point whatever the provider's registration order is.
     /// </summary>
-    public sealed class CommitSabotageBehavior<TRequest, TResponse>(CommitSabotage sabotage, IServiceProvider scope)
-        : IPipelineBehavior<TRequest, TResponse>
-        where TRequest : IRequest<TResponse>
+    public sealed class SabotagingInboxStore(IInboxStore inner, CommitSabotage sabotage, IServiceProvider scope) : IInboxStore
     {
         /// <inheritdoc />
-        public async ValueTask<Either<EncinaError, TResponse>> Handle(
-            TRequest request,
-            IRequestContext context,
-            RequestHandlerCallback<TResponse> nextStep,
-            CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Option<IInboxMessage>>> GetMessageAsync(string messageId, CancellationToken cancellationToken = default) =>
+            inner.GetMessageAsync(messageId, cancellationToken);
+
+        /// <inheritdoc />
+        public Task<Either<EncinaError, Unit>> AddAsync(IInboxMessage message, CancellationToken cancellationToken = default) =>
+            inner.AddAsync(message, cancellationToken);
+
+        /// <inheritdoc />
+        public async Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(string messageId, string response, CancellationToken cancellationToken = default)
         {
-            var result = await nextStep();
+            var result = await inner.MarkAsProcessedAsync(messageId, response, cancellationToken);
 
             if (sabotage.Armed && result.IsRight)
             {
@@ -92,6 +94,40 @@ public static class InboxPipelineScenario
 
             return result;
         }
+
+        /// <inheritdoc />
+        public Task<Either<EncinaError, Unit>> CacheHandlerErrorAsync(string messageId, string response, CancellationToken cancellationToken = default) =>
+            inner.CacheHandlerErrorAsync(messageId, response, cancellationToken);
+
+        /// <inheritdoc />
+        public Task<Either<EncinaError, Unit>> MarkAsFailedAsync(string messageId, string errorMessage, DateTime? nextRetryAtUtc, CancellationToken cancellationToken = default) =>
+            inner.MarkAsFailedAsync(messageId, errorMessage, nextRetryAtUtc, cancellationToken);
+
+        /// <inheritdoc />
+        public Task<Either<EncinaError, IEnumerable<IInboxMessage>>> GetExpiredMessagesAsync(int batchSize, CancellationToken cancellationToken = default) =>
+            inner.GetExpiredMessagesAsync(batchSize, cancellationToken);
+
+        /// <inheritdoc />
+        public Task<Either<EncinaError, Unit>> RemoveExpiredMessagesAsync(IEnumerable<string> messageIds, CancellationToken cancellationToken = default) =>
+            inner.RemoveExpiredMessagesAsync(messageIds, cancellationToken);
+
+        /// <inheritdoc />
+        public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            inner.SaveChangesAsync(cancellationToken);
+    }
+
+    // Replaces the provider's IInboxStore registration with the sabotaging decorator around the same implementation.
+    private static void InstallSabotage(IServiceCollection services)
+    {
+        var descriptor = services.Last(d => d.ServiceType == typeof(IInboxStore));
+        services.Remove(descriptor);
+        services.Add(new ServiceDescriptor(
+            typeof(IInboxStore),
+            sp => new SabotagingInboxStore(
+                (IInboxStore)ActivatorUtilities.CreateInstance(sp, descriptor.ImplementationType!),
+                sp.GetRequiredService<CommitSabotage>(),
+                sp),
+            descriptor.Lifetime));
     }
 
     /// <summary>Idempotent command that runs inside EF Core's transaction behavior.</summary>
@@ -213,16 +249,18 @@ public static class InboxPipelineScenario
         var key = Guid.NewGuid().ToString();
 
         sabotage.Armed = true;
+        var lostCommitSucceeded = false;
         try
         {
-            var lost = await SendAsync(provider, key, Mode.ReturnRight, transactional: true);
-            lost.IsLeft.ShouldBeTrue();
+            lostCommitSucceeded = (await SendAsync(provider, key, Mode.ReturnRight, transactional: true)).IsRight;
         }
         catch (Exception)
         {
             // A provider may surface the broken transaction as an exception instead of a Left: either way
             // the request did not succeed, which is what matters here.
         }
+
+        lostCommitSucceeded.ShouldBeFalse();
 
         counter.Runs.ShouldBe(1);
 
@@ -256,6 +294,7 @@ public static class InboxPipelineScenario
         services.AddTransient<IRequestHandler<PlainCommand, string>, PlainHandler>();
 
         harness.Register(services, new Setup(maxRetries, transactional && harness.HasBusinessTransaction, sabotage));
+        InstallSabotage(services);
         return services.BuildServiceProvider();
     }
 

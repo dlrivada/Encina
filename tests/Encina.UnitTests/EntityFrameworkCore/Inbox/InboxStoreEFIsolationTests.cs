@@ -42,6 +42,27 @@ public sealed class InboxStoreEFIsolationTests
     }
 
     [Fact]
+    public void AddEncinaEntityFrameworkCore_TransactionsAndInbox_RegistersTransactionBehaviorBeforeInboxBehavior()
+    {
+        var services = new ServiceCollection();
+        services.AddEncinaEntityFrameworkCore<WellFormedContext>(c =>
+        {
+            c.UseTransactions = true;
+            c.UseInbox = true;
+        });
+
+        var behaviors = services
+            .Where(sd => sd.ServiceType == typeof(IPipelineBehavior<,>))
+            .Select(sd => sd.ImplementationType)
+            .ToList();
+
+        var transaction = behaviors.IndexOf(typeof(TransactionPipelineBehavior<,>));
+        var inbox = behaviors.IndexOf(typeof(global::Encina.Messaging.Inbox.InboxPipelineBehavior<,>));
+        transaction.ShouldBeGreaterThanOrEqualTo(0);
+        inbox.ShouldBeGreaterThan(transaction);
+    }
+
+    [Fact]
     public void AddEncinaEntityFrameworkCore_NoInbox_DoesNotRequireTheConstructor()
     {
         var services = new ServiceCollection();

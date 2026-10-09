@@ -31,20 +31,6 @@ public static class InboxPipelineHarnesses
             },
             TaskScheduler.Default);
 
-    private static void AddTransactionBehaviors(IServiceCollection services, Setup setup, Type transactionBehavior)
-    {
-        if (!setup.Transactions)
-        {
-            return;
-        }
-
-        // Order matters: the transaction behavior is the outermost, the sabotage sits between it and the inbox
-        // behavior (registered by the provider's AddEncina*), so it runs after the inbox marked the message
-        // processed and before the commit.
-        services.AddScoped(typeof(IPipelineBehavior<,>), transactionBehavior);
-        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(CommitSabotageBehavior<,>));
-    }
-
     private static Task CloseScopedConnection(IServiceProvider scope)
     {
         scope.GetRequiredService<IDbConnection>().Close();
@@ -57,7 +43,6 @@ public static class InboxPipelineHarnesses
         Register = (s, setup) =>
         {
             s.AddScoped<IDbConnection>(_ => f.CreateConnection());
-            AddTransactionBehaviors(s, setup, typeof(global::Encina.Messaging.TransactionPipelineBehavior<,>));
             global::Encina.ADO.SqlServer.ServiceCollectionExtensions.AddEncinaADO(s, c => Configure(c, setup));
         },
         ReadRow = id => ToRowAsync(new global::Encina.ADO.SqlServer.Inbox.InboxStoreADO(f.CreateConnection()).GetMessageAsync(id)),
@@ -70,7 +55,6 @@ public static class InboxPipelineHarnesses
         Register = (s, setup) =>
         {
             s.AddScoped<IDbConnection>(_ => f.CreateConnection());
-            AddTransactionBehaviors(s, setup, typeof(global::Encina.Messaging.TransactionPipelineBehavior<,>));
             global::Encina.ADO.PostgreSQL.ServiceCollectionExtensions.AddEncinaADO(s, c => Configure(c, setup));
         },
         ReadRow = id => ToRowAsync(new global::Encina.ADO.PostgreSQL.Inbox.InboxStoreADO(f.CreateConnection()).GetMessageAsync(id)),
@@ -83,7 +67,6 @@ public static class InboxPipelineHarnesses
         Register = (s, setup) =>
         {
             s.AddScoped<IDbConnection>(_ => f.CreateConnection());
-            AddTransactionBehaviors(s, setup, typeof(global::Encina.Messaging.TransactionPipelineBehavior<,>));
             global::Encina.ADO.MySQL.ServiceCollectionExtensions.AddEncinaADO(s, c => Configure(c, setup));
         },
         ReadRow = id => ToRowAsync(new global::Encina.ADO.MySQL.Inbox.InboxStoreADO(f.CreateConnection()).GetMessageAsync(id)),
@@ -96,7 +79,6 @@ public static class InboxPipelineHarnesses
         Register = (s, setup) =>
         {
             s.AddScoped<IDbConnection>(_ => f.CreateConnection());
-            AddTransactionBehaviors(s, setup, typeof(global::Encina.Messaging.TransactionPipelineBehavior<,>));
             global::Encina.Dapper.SqlServer.ServiceCollectionExtensions.AddEncinaDapper(s, c => Configure(c, setup));
         },
         ReadRow = id => ToRowAsync(new global::Encina.Dapper.SqlServer.Inbox.InboxStoreDapper(f.CreateConnection()).GetMessageAsync(id)),
@@ -109,7 +91,6 @@ public static class InboxPipelineHarnesses
         Register = (s, setup) =>
         {
             s.AddScoped<IDbConnection>(_ => f.CreateConnection());
-            AddTransactionBehaviors(s, setup, typeof(global::Encina.Messaging.TransactionPipelineBehavior<,>));
             global::Encina.Dapper.PostgreSQL.ServiceCollectionExtensions.AddEncinaDapper(s, c => Configure(c, setup));
         },
         ReadRow = id => ToRowAsync(new global::Encina.Dapper.PostgreSQL.Inbox.InboxStoreDapper(f.CreateConnection()).GetMessageAsync(id)),
@@ -122,7 +103,6 @@ public static class InboxPipelineHarnesses
         Register = (s, setup) =>
         {
             s.AddScoped<IDbConnection>(_ => f.CreateConnection());
-            AddTransactionBehaviors(s, setup, typeof(global::Encina.Messaging.TransactionPipelineBehavior<,>));
             global::Encina.Dapper.MySQL.ServiceCollectionExtensions.AddEncinaDapper(s, c => Configure(c, setup));
         },
         ReadRow = id => ToRowAsync(new global::Encina.Dapper.MySQL.Inbox.InboxStoreDapper(f.CreateConnection()).GetMessageAsync(id)),
@@ -147,7 +127,6 @@ public static class InboxPipelineHarnesses
         Register = (s, setup) =>
         {
             s.AddDbContext<TContext>(o => useDatabase(o, connectionString));
-            AddTransactionBehaviors(s, setup, typeof(global::Encina.EntityFrameworkCore.TransactionPipelineBehavior<,>));
             s.AddEncinaEntityFrameworkCore<TContext>(c => Configure(c, setup));
         },
         ReadRow = async id =>
@@ -191,10 +170,9 @@ public static class InboxPipelineHarnesses
 
     private static void Configure(MessagingConfiguration config, Setup setup)
     {
+        // The provider's own registration decides the behavior order, as in a real application.
         config.UseInbox = true;
-
-        // The transaction behavior is registered by the harness (ahead of the sabotage behavior), never by the provider.
-        config.UseTransactions = false;
+        config.UseTransactions = setup.Transactions;
         config.InboxOptions.MaxRetries = setup.MaxRetries;
     }
 }

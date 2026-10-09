@@ -36,6 +36,24 @@ public sealed class MessagingServiceCollectionExtensionsRecoverabilityTests
     }
 
     [Fact]
+    public void AddMessagingServices_TransactionsAndInbox_RegistersTransactionBehaviorBeforeInboxBehavior()
+    {
+        // Behaviors run in registration order, first registered outermost: the inbox must run inside the
+        // business transaction to enlist its processed mark in it (ADR-048).
+        var services = AddMessagingServices(new MessagingConfiguration { UseTransactions = true, UseInbox = true });
+
+        var behaviors = services
+            .Where(sd => sd.ServiceType == typeof(IPipelineBehavior<,>))
+            .Select(sd => sd.ImplementationType)
+            .ToList();
+
+        var transaction = behaviors.IndexOf(typeof(TransactionPipelineBehavior<,>));
+        var inbox = behaviors.IndexOf(typeof(InboxPipelineBehavior<,>));
+        transaction.ShouldBeGreaterThanOrEqualTo(0);
+        inbox.ShouldBeGreaterThan(transaction);
+    }
+
+    [Fact]
     public void AddMessagingServices_UseRecoverabilityFalse_DoesNotRegisterRecoverabilityBehavior()
     {
         var services = AddMessagingServices(new MessagingConfiguration { UseRecoverability = false });

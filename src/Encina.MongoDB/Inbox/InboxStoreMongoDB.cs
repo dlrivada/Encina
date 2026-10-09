@@ -96,7 +96,8 @@ public sealed class InboxStoreMongoDB : IInboxStore
             var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
             var update = Builders<InboxMessage>.Update
                 .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime)
-                .Set(m => m.Response, response);
+                .Set(m => m.Response, response)
+                .Unset(m => m.ErrorMessage);
 
             var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 
@@ -122,7 +123,8 @@ public sealed class InboxStoreMongoDB : IInboxStore
             var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
             var update = Builders<InboxMessage>.Update
                 .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime)
-                .Set(m => m.Response, response);
+                .Set(m => m.Response, response)
+                .Unset(m => m.ErrorMessage);
 
             var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 
