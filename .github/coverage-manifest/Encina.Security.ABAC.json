@@ -101,10 +101,10 @@
         "property": 70
       },
       "justifications": {
-        "unit": "Unit tests cover every decision, the unauthenticated-caller denial, the built-in attributes and the error paths (measured 96.7%).",
-        "guard": "Guard tests run the constructor guards and every named-policy decision (measured 90.2%).",
-        "contract": "Contract tests run the PEP contract for users, services and anonymous callers (measured 90.8%).",
-        "property": "Identity properties run the PEP for anonymous and authenticated callers in Block and Warn (measured 78.3%)."
+        "unit": "Unit tests cover every decision, the unauthenticated-caller denial, the built-in attributes, the audit record, write failures and the error paths.",
+        "guard": "Guard tests run the constructor guards, every named-policy decision and the enabled-audit paths (write failures, anonymous caller, cancellation).",
+        "contract": "Contract tests run the PEP contract for users, services and anonymous callers and the one-record-per-request, write-before-handler and fail-closed contract of the decision audit.",
+        "property": "Identity and decision-audit properties run the PEP for anonymous and authenticated callers, in Block and Warn, across write outcomes and the Outcomes filter."
       }
     },
     "ABACPolicySeedingHostedService.cs": {
@@ -615,7 +615,7 @@
         "unit": 95
       },
       "justifications": {
-        "unit": "The enforcement and designator-agreement unit tests run every policy, condition and verdict path (measured 100%)."
+        "unit": "The enforcement and designator-agreement unit tests run every policy, condition and verdict path."
       }
     },
     "EnvironmentAttributes.cs": {
@@ -1384,8 +1384,8 @@
         "guard": 60
       },
       "justifications": {
-        "unit": "Registration tests build the validated provider, the persistent PAP, caching and seeding paths (measured 79.5%).",
-        "guard": "Guard tests call AddEncinaABAC with each option set (measured 68.7%)."
+        "unit": "Registration tests build the validated provider, the persistent PAP, caching and seeding paths.",
+        "guard": "Guard tests call AddEncinaABAC with each option set."
       }
     },
     "Testing/EELTestHelper.cs": {
