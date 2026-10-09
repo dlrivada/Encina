@@ -1,6 +1,7 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly -- NSubstitute mock setup pattern
 
 using Encina.Security.ABAC;
+using Encina.Security.ABAC.DecisionAudit;
 using Encina.Security.ABAC.EEL;
 using Encina.Testing.Identity;
 using LanguageExt;
@@ -36,6 +37,8 @@ public class ABACPipelineBehaviorGuardTests
             CreateObligationExecutor(),
             Compiler,
             Options.Create(new ABACOptions()),
+            Substitute.For<IABACDecisionRecorder>(),
+            TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
         Should.Throw<ArgumentNullException>(act)
@@ -51,6 +54,8 @@ public class ABACPipelineBehaviorGuardTests
             CreateObligationExecutor(),
             Compiler,
             Options.Create(new ABACOptions()),
+            Substitute.For<IABACDecisionRecorder>(),
+            TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
         Should.Throw<ArgumentNullException>(act)
@@ -66,6 +71,8 @@ public class ABACPipelineBehaviorGuardTests
             null!,
             Compiler,
             Options.Create(new ABACOptions()),
+            Substitute.For<IABACDecisionRecorder>(),
+            TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
         Should.Throw<ArgumentNullException>(act)
@@ -81,6 +88,8 @@ public class ABACPipelineBehaviorGuardTests
             CreateObligationExecutor(),
             null!,
             Options.Create(new ABACOptions()),
+            Substitute.For<IABACDecisionRecorder>(),
+            TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
         Should.Throw<ArgumentNullException>(act)
@@ -96,10 +105,46 @@ public class ABACPipelineBehaviorGuardTests
             CreateObligationExecutor(),
             Compiler,
             null!,
+            Substitute.For<IABACDecisionRecorder>(),
+            TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("options");
+    }
+
+    [Fact]
+    public void Constructor_NullDecisionRecorder_ThrowsArgumentNullException()
+    {
+        var act = () => new ABACPipelineBehavior<TestRequest, string>(
+            Substitute.For<IPolicyDecisionPoint>(),
+            Substitute.For<IAttributeProvider>(),
+            CreateObligationExecutor(),
+            Compiler,
+            Options.Create(new ABACOptions()),
+            null!,
+            TimeProvider.System,
+            NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
+
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("decisionRecorder");
+    }
+
+    [Fact]
+    public void Constructor_NullTimeProvider_ThrowsArgumentNullException()
+    {
+        var act = () => new ABACPipelineBehavior<TestRequest, string>(
+            Substitute.For<IPolicyDecisionPoint>(),
+            Substitute.For<IAttributeProvider>(),
+            CreateObligationExecutor(),
+            Compiler,
+            Options.Create(new ABACOptions()),
+            Substitute.For<IABACDecisionRecorder>(),
+            null!,
+            NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
+
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -111,6 +156,8 @@ public class ABACPipelineBehaviorGuardTests
             CreateObligationExecutor(),
             Compiler,
             Options.Create(new ABACOptions()),
+            Substitute.For<IABACDecisionRecorder>(),
+            TimeProvider.System,
             null!);
 
         Should.Throw<ArgumentNullException>(act)
@@ -278,7 +325,8 @@ public class ABACPipelineBehaviorGuardTests
         var logger = NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>();
 
         return new ABACPipelineBehavior<TestRequest, string>(
-            pdp, attributeProvider, obligationExecutor, Compiler, options, logger);
+            pdp, attributeProvider, obligationExecutor, Compiler, options,
+            Substitute.For<IABACDecisionRecorder>(), TimeProvider.System, logger);
     }
 
     private static IAttributeProvider CreateDefaultAttributeProvider()

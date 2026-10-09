@@ -3,6 +3,7 @@
 using System.Diagnostics;
 
 using Encina.Security.ABAC;
+using Encina.Security.ABAC.DecisionAudit;
 using Encina.Security.ABAC.EEL;
 using Encina.Testing.Identity;
 
@@ -117,9 +118,17 @@ public sealed class ABACPipelineBehaviorTests
         ObligationExecutor? obligationExecutor = null,
         ILogger<ABACPipelineBehavior<TRequest, string>>? logger = null,
         Func<TRequest, IReadOnlyDictionary<string, object>>? resourceOf = null,
-        IAttributeProvider? attributeProvider = null)
+        IAttributeProvider? attributeProvider = null,
+        ABACOptions? abacOptions = null,
+        IABACDecisionRecorder? recorder = null,
+        TimeProvider? timeProvider = null)
         where TRequest : IRequest<string>
     {
+        if (abacOptions is not null)
+        {
+            abacOptions.EnforcementMode = mode;
+        }
+
         if (attributeProvider is null)
         {
             attributeProvider = Substitute.For<IAttributeProvider>();
@@ -138,8 +147,10 @@ public sealed class ABACPipelineBehaviorTests
             attributeProvider,
             obligationExecutor ?? Executor(),
             Compiler,
-            Options.Create(new ABACOptions { EnforcementMode = mode }),
-            logger ?? NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
+            Options.Create(abacOptions ?? new ABACOptions { EnforcementMode = mode }),
+            recorder ?? Substitute.For<IABACDecisionRecorder>(),
+            timeProvider ?? TimeProvider.System,
+            logger ??NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
     }
 
     /// <summary>A request context whose caller is the authenticated user <paramref name="userId"/>.</summary>
@@ -691,6 +702,8 @@ public sealed class ABACPipelineBehaviorTests
             Executor(),
             freshCompiler,
             Options.Create(new ABACOptions()),
+            Substitute.For<IABACDecisionRecorder>(),
+            TimeProvider.System,
             NullLogger<ABACPipelineBehavior<HrConditionRequest, string>>.Instance);
 
         await Should.ThrowAsync<OperationCanceledException>(() => SendAsync(behavior, new HrConditionRequest(), cancellationToken: cts.Token));
@@ -1033,6 +1046,8 @@ public sealed class ABACPipelineBehaviorTests
             Executor(),
             null!,
             Options.Create(new ABACOptions()),
+            Substitute.For<IABACDecisionRecorder>(),
+            TimeProvider.System,
             NullLogger<ABACPipelineBehavior<PolicyARequest, string>>.Instance);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("eelCompiler");

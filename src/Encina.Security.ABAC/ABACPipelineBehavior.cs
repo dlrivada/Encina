@@ -198,13 +198,15 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         CancellationToken cancellationToken)
     {
         // The identity is read once (#1892): the record and the subject attributes share this snapshot.
-        var caller = ResolveCaller(context);
+        RequestIdentity? caller = null;
         ABACCollectedAttributes? attributes = null;
         ABACRequirementVerdict? requirement = null;
         ABACEnforcementVerdict verdict;
 
         try
         {
+            caller = ResolveCaller(context);
+
             if (caller is null)
             {
                 verdict = DecideUnauthenticated(startTimestamp, activity);
@@ -586,7 +588,8 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         {
             var result = await _decisionRecorder.RecordAsync(record, CancellationToken.None).ConfigureAwait(false);
 
-            return result.Match<string?>(
+            // MatchUnsafe: a written record is represented by null.
+            return result.MatchUnsafe<string?>(
                 Left: error => error.GetCode().IfNone("encina.unknown"),
                 Right: _ => null);
         }
