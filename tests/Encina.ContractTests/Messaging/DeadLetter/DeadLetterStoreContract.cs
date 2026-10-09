@@ -1,6 +1,8 @@
 using Encina.Messaging.DeadLetter;
+using Encina.Messaging.Serialization;
 using Encina.Testing.Shouldly;
 using LanguageExt;
+using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Xunit;
 
@@ -459,6 +461,106 @@ public abstract class DeadLetterStoreContract : IAsyncLifetime
     {
         await Should.ThrowAsync<ArgumentNullException>(async () => await Store.AddAsync(null!));
         await Should.ThrowAsync<ArgumentNullException>(async () => await Store.DeleteManyAsync(null!));
+    }
+
+    // ---------------------------------------------------------------- UTC instants and trimmed identity values
+
+    [Fact]
+    public async Task Get_ReturnsEveryInstantWithUtcKind()
+    {
+        var data = Data(expiresAtUtc: Start.AddDays(1));
+        await AddAsync(data);
+        (await Store.TryClaimForReplayAsync(data.Id, Start.AddMinutes(-1))).ShouldBeRight().ShouldBeTrue();
+        await SaveAsync();
+        (await Store.MarkAsReplayedAsync(data.Id, "success")).ShouldBeRight().ShouldBeTrue();
+        await SaveAsync();
+
+        var stored = await GetRequiredAsync(data.Id);
+
+        stored.FirstFailedAtUtc.Kind.ShouldBe(DateTimeKind.Utc);
+        stored.DeadLetteredAtUtc.Kind.ShouldBe(DateTimeKind.Utc);
+        stored.ExpiresAtUtc!.Value.Kind.ShouldBe(DateTimeKind.Utc);
+        stored.ReplayClaimedAtUtc!.Value.Kind.ShouldBe(DateTimeKind.Utc);
+        stored.ReplayedAtUtc!.Value.Kind.ShouldBe(DateTimeKind.Utc);
+    }
+
+    [Theory]
+    [InlineData(DateTimeKind.Local)]
+    [InlineData(DateTimeKind.Unspecified)]
+    public async Task Capture_FirstFailedAtWithoutUtcKind_IsRejectedBeforeAnyWrite(DateTimeKind kind)
+    {
+        var orchestrator = NewOrchestrator();
+        var instant = DateTime.SpecifyKind(Start, kind);
+
+        await Should.ThrowAsync<ArgumentException>(
+            async () => await orchestrator.AddAsync(new CapturedRequest(1), ContextFor("utc-kind", instant)));
+
+        (await CountAsync(DeadLetterFilter.All)).ShouldBe(0);
+    }
+
+    [Theory]
+    [InlineData(" order-1")]
+    [InlineData("order-1 ")]
+    [InlineData("order-1\t")]
+    public async Task Capture_SourceMessageIdWithEdgeWhiteSpace_IsRejectedBeforeAnyWrite(string sourceMessageId)
+    {
+        var orchestrator = NewOrchestrator();
+
+        await Should.ThrowAsync<ArgumentException>(
+            async () => await orchestrator.AddAsync(new CapturedRequest(1), ContextFor(sourceMessageId, Start)));
+
+        (await CountAsync(DeadLetterFilter.All)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Capture_SourceMessageIdsDifferingByTrailingSpace_CannotBecomeOneOrTwoCapturesDependingOnTheProvider()
+    {
+        var orchestrator = NewOrchestrator();
+        (await orchestrator.AddAsync(new CapturedRequest(1), ContextFor("order-1", Start))).ShouldBeRight();
+
+        await Should.ThrowAsync<ArgumentException>(
+            async () => await orchestrator.AddAsync(new CapturedRequest(1), ContextFor("order-1 ", Start)));
+
+        (await CountAsync(DeadLetterFilter.All)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Capture_ThroughTheOrchestrator_StoresUtcInstantsAndKeepsTheKind()
+    {
+        var orchestrator = NewOrchestrator();
+
+        var captured = (await orchestrator.AddAsync(new CapturedRequest(1), ContextFor("ok-1", Start))).ShouldBeRight();
+
+        var stored = await GetRequiredAsync(captured.Id);
+        stored.FirstFailedAtUtc.ShouldBe(Start);
+        stored.FirstFailedAtUtc.Kind.ShouldBe(DateTimeKind.Utc);
+        stored.DeadLetteredAtUtc.ShouldBe(Start);
+    }
+
+    private sealed record CapturedRequest(int Value);
+
+    private DeadLetterOrchestrator NewOrchestrator()
+        => new(
+            Store,
+            new DelegateFactory(CreateMessage),
+            new DeadLetterOptions(),
+            NullLogger<DeadLetterOrchestrator>.Instance,
+            new JsonMessageSerializer(),
+            new RequestContextAccessor(),
+            Clock);
+
+    private static DeadLetterContext ContextFor(string sourceMessageId, DateTime firstFailedAtUtc)
+        => new(
+            EncinaErrors.Create("contract.failed", "failure"),
+            Exception: null,
+            SourcePattern: "Outbox",
+            TotalRetryAttempts: 1,
+            FirstFailedAtUtc: firstFailedAtUtc,
+            SourceMessageId: sourceMessageId);
+
+    private sealed class DelegateFactory(Func<DeadLetterData, IDeadLetterMessage> create) : IDeadLetterMessageFactory
+    {
+        public IDeadLetterMessage Create(DeadLetterData data) => create(data);
     }
 
     // ---------------------------------------------------------------- helpers

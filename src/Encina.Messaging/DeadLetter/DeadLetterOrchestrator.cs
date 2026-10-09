@@ -13,11 +13,16 @@ namespace Encina.Messaging.DeadLetter;
 /// <param name="Exception">The exception, if any.</param>
 /// <param name="SourcePattern">The source pattern (e.g., Recoverability, Outbox).</param>
 /// <param name="TotalRetryAttempts">Total retry attempts made before dead-lettering.</param>
-/// <param name="FirstFailedAtUtc">When the message first failed.</param>
+/// <param name="FirstFailedAtUtc">
+/// When the message first failed; its <see cref="DateTime.Kind"/> must be <see cref="DateTimeKind.Utc"/>
+/// (capture throws <see cref="ArgumentException"/> otherwise, for every provider).
+/// </param>
 /// <param name="CorrelationId">Optional correlation ID for tracing.</param>
 /// <param name="SourceMessageId">
 /// Optional identifier of the source message; with <paramref name="SourcePattern"/> it makes the capture
-/// idempotent. Defaults to the new dead letter id, which never blocks unrelated messages.
+/// idempotent. Defaults to the new dead letter id, which never blocks unrelated messages. It must not start
+/// or end with white space (capture throws <see cref="ArgumentException"/>), because providers compare
+/// trailing spaces differently.
 /// </param>
 /// <param name="TenantId">
 /// Optional tenant override, for sources that restore a persisted tenant. Defaults to the ambient
@@ -214,6 +219,13 @@ public sealed class DeadLetterOrchestrator
         RequireWithin(sourcePattern, DeadLetterStoreLimits.SourcePatternMaxLength, nameof(sourcePattern));
         RequireWithin(sourceMessageId, DeadLetterStoreLimits.SourceMessageIdMaxLength, nameof(sourceMessageId));
         RequireWithin(tenantId, DeadLetterStoreLimits.TenantIdMaxLength, nameof(tenantId));
+
+        // The same input rules on all ten providers: trimmed identity values, UTC instants (DeadLetterInputs).
+        DeadLetterInputs.RequireTrimmed(requestType, nameof(requestType));
+        DeadLetterInputs.RequireTrimmed(sourcePattern, nameof(sourcePattern));
+        DeadLetterInputs.RequireTrimmed(sourceMessageId, nameof(sourceMessageId));
+        DeadLetterInputs.RequireTrimmed(tenantId, nameof(tenantId));
+        DeadLetterInputs.RequireUtc(firstFailedAtUtc, nameof(firstFailedAtUtc));
         errorCode = Cut(errorCode, DeadLetterStoreLimits.ErrorCodeMaxLength)!;
         correlationId = Cut(correlationId, DeadLetterStoreLimits.CorrelationIdMaxLength);
         exceptionType = Cut(exceptionType, ExceptionTypeMaxLength);

@@ -1,6 +1,7 @@
 using Encina.Messaging.DeadLetter;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Encina.EntityFrameworkCore.DeadLetter;
 
@@ -34,6 +35,12 @@ public sealed class DeadLetterMessageConfiguration : IEntityTypeConfiguration<De
     public const string MySqlBinaryCollation = "utf8mb4_bin";
 
     private const int ExceptionTypeMaxLength = 512;
+
+    // Every instant is written as UTC and read back with Kind.Utc, like the other nine stores: SQL Server and MySQL
+    // return Kind.Unspecified, and Npgsql rejects Kind.Unspecified for timestamptz.
+    private static readonly ValueConverter<DateTime, DateTime> UtcConverter = new(
+        value => value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : DateTime.SpecifyKind(value, DateTimeKind.Utc),
+        value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
 
     private readonly string? _filterColumnCollation;
 
@@ -97,11 +104,11 @@ public sealed class DeadLetterMessageConfiguration : IEntityTypeConfiguration<De
         builder.Property(x => x.SourceMessageId).IsRequired().HasMaxLength(DeadLetterStoreLimits.SourceMessageIdMaxLength);
         builder.Property(x => x.TenantId).IsRequired(false).HasMaxLength(DeadLetterStoreLimits.TenantIdMaxLength);
         builder.Property(x => x.TotalRetryAttempts).IsRequired();
-        builder.Property(x => x.FirstFailedAtUtc).IsRequired();
-        builder.Property(x => x.DeadLetteredAtUtc).IsRequired();
-        builder.Property(x => x.ExpiresAtUtc).IsRequired(false);
-        builder.Property(x => x.ReplayClaimedAtUtc).IsRequired(false);
-        builder.Property(x => x.ReplayedAtUtc).IsRequired(false);
+        builder.Property(x => x.FirstFailedAtUtc).IsRequired().HasConversion(UtcConverter);
+        builder.Property(x => x.DeadLetteredAtUtc).IsRequired().HasConversion(UtcConverter);
+        builder.Property(x => x.ExpiresAtUtc).IsRequired(false).HasConversion(UtcConverter);
+        builder.Property(x => x.ReplayClaimedAtUtc).IsRequired(false).HasConversion(UtcConverter);
+        builder.Property(x => x.ReplayedAtUtc).IsRequired(false).HasConversion(UtcConverter);
         builder.Property(x => x.ReplayResult).IsRequired(false).HasMaxLength(DeadLetterStoreLimits.ReplayResultMaxLength);
     }
 

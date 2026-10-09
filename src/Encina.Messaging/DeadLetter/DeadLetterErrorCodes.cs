@@ -81,6 +81,13 @@ public static class DeadLetterErrorCodes
     public const string MarkReplayedFailed = "dlq.mark_replayed_failed";
 
     /// <summary>
+    /// Multi-tenancy is in use, no tenant is resolved and the caller did not set
+    /// <see cref="DeadLetterFilter.AllTenants"/>, so <see cref="IDeadLetterManager"/> denied the operation.
+    /// An <c>encina.authorization.*</c> code: transports map it to 403.
+    /// </summary>
+    public const string TenantRequired = "encina.authorization.dlq_tenant_required";
+
+    /// <summary>
     /// Outcome code stored in <c>ReplayResult</c> when a replay succeeded.
     /// </summary>
     public const string ReplaySucceeded = "success";

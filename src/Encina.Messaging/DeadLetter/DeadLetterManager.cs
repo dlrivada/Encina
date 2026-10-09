@@ -1,6 +1,7 @@
 using Encina.Diagnostics;
 using Encina.Messaging.Diagnostics;
 using Encina.Messaging.Serialization;
+using Encina.Messaging.Tenancy;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -16,8 +17,15 @@ namespace Encina.Messaging.DeadLetter;
 /// </para>
 /// <para>
 /// Reads, replays and deletes default to the ambient <c>IRequestContext.TenantId</c> when there is one;
-/// <see cref="DeadLetterFilter.AllTenants"/> opts out for operator tooling. With no ambient tenant the
-/// manager works across the whole queue.
+/// <see cref="DeadLetterFilter.AllTenants"/> opts out for operator tooling (logged by event, never silent).
+/// </para>
+/// <para>
+/// Tenancy fails closed: when multi-tenancy is in use (<see cref="TenancyInUse"/> is registered, which
+/// <c>AddEncinaTenancy</c> does) and no tenant is resolved, an operation that names no tenant and does not set
+/// <see cref="DeadLetterFilter.AllTenants"/> is denied with <see cref="DeadLetterErrorCodes.TenantRequired"/>
+/// (an <c>encina.authorization.*</c> code, 403). Operations by message id and
+/// <see cref="GetStatisticsAsync"/> have no filter to opt out with, so they are denied too. With no tenancy
+/// registered the manager works across the whole queue when there is no ambient tenant.
 /// </para>
 /// </remarks>
 public sealed class DeadLetterManager : IDeadLetterManager
@@ -30,6 +38,16 @@ public sealed class DeadLetterManager : IDeadLetterManager
     private readonly DeadLetterOptions _options;
     private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly TimeProvider _timeProvider;
+    private readonly TenancyInUse? _tenancy;
+
+    private const string OpReplay = "replay";
+    private const string OpReplayAll = "replay_all";
+    private const string OpGet = "get";
+    private const string OpGetMessages = "get_messages";
+    private const string OpCount = "count";
+    private const string OpStatistics = "statistics";
+    private const string OpDelete = "delete";
+    private const string OpDeleteAll = "delete_all";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DeadLetterManager"/> class.
@@ -45,6 +63,10 @@ public sealed class DeadLetterManager : IDeadLetterManager
     /// <param name="options">The DLQ options (supplies <see cref="DeadLetterOptions.ReplayClaimTimeout"/>).</param>
     /// <param name="requestContextAccessor">The ambient request context accessor (tenant default).</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
+    /// <param name="tenancy">
+    /// The multi-tenancy marker, present when <c>AddEncinaTenancy</c> ran; when it is, a missing tenant denies
+    /// (see the class remarks).
+    /// </param>
     public DeadLetterManager(
         IDeadLetterStore store,
         DeadLetterOrchestrator orchestrator,
@@ -53,7 +75,8 @@ public sealed class DeadLetterManager : IDeadLetterManager
         IMessageSerializer messageSerializer,
         DeadLetterOptions options,
         IRequestContextAccessor requestContextAccessor,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        TenancyInUse? tenancy = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(orchestrator);
@@ -71,6 +94,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
         _options = options;
         _requestContextAccessor = requestContextAccessor;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _tenancy = tenancy;
     }
 
     // An empty tenant id is no tenant.
@@ -84,18 +108,53 @@ public sealed class DeadLetterManager : IDeadLetterManager
 
     /// <summary>
     /// Returns a copy of <paramref name="filter"/> (never the caller's instance) with the ambient tenant
-    /// applied when the filter names no tenant, does not opt out and an ambient tenant exists.
+    /// applied when the filter names no tenant, does not opt out and an ambient tenant exists; denies when
+    /// tenancy is in use and no tenant is resolved. Throws <see cref="ArgumentException"/> for a non-UTC
+    /// instant or an identity value with edge white space.
     /// </summary>
-    private DeadLetterFilter Scoped(DeadLetterFilter? filter, bool? excludeReplayed = null)
+    private Either<EncinaError, DeadLetterFilter> Scoped(DeadLetterFilter? filter, string operation, bool? excludeReplayed = null)
     {
         var source = filter ?? new DeadLetterFilter();
-        var tenantId = source.TenantId;
-        if (tenantId is null && !source.AllTenants)
+        DeadLetterInputs.ValidateFilter(source);
+
+        if (!TryResolveTenant(source, operation, out var tenantId))
         {
-            tenantId = AmbientTenantId();
+            return DenyTenantRequired(operation);
         }
 
         return source.CopyWith(tenantId, excludeReplayed ?? source.ExcludeReplayed);
+    }
+
+    // False when the operation must be denied: tenancy in use, no tenant named, no ambient tenant, no opt-out.
+    private bool TryResolveTenant(DeadLetterFilter source, string operation, out string? tenantId)
+    {
+        tenantId = source.TenantId;
+        if (tenantId is not null)
+            return true;
+
+        if (source.AllTenants)
+        {
+            if (_tenancy is not null)
+            {
+                DeadLetterLog.AllTenantsOptOut(_logger, operation);
+            }
+
+            return true;
+        }
+
+        tenantId = AmbientTenantId();
+        return tenantId is not null || _tenancy is null;
+    }
+
+    // Operations by id and the statistics have no filter to opt out with.
+    private bool TenantMissing() => _tenancy is not null && AmbientTenantId() is null;
+
+    private EncinaError DenyTenantRequired(string operation)
+    {
+        DeadLetterLog.TenantRequiredDenied(_logger, operation, DeadLetterErrorCodes.TenantRequired);
+        return EncinaErrors.Create(
+            DeadLetterErrorCodes.TenantRequired,
+            "Multi-tenancy is in use and no tenant is resolved");
     }
 
     private bool BelongsToAmbientTenant(IDeadLetterMessage message)
@@ -109,6 +168,9 @@ public sealed class DeadLetterManager : IDeadLetterManager
         Guid messageId,
         CancellationToken cancellationToken = default)
     {
+        if (TenantMissing())
+            return DenyTenantRequired(OpReplay);
+
         var messageResult = await _store.GetAsync(messageId, cancellationToken).ConfigureAwait(false);
         if (messageResult.IsLeft)
             return messageResult.LeftToArray()[0];
@@ -127,35 +189,48 @@ public sealed class DeadLetterManager : IDeadLetterManager
             return NotFoundError(messageId);
         }
 
-        return await ReplayLoadedAsync(message, cancellationToken).ConfigureAwait(false);
+        var now = UtcNow();
+        if (IsNotReplayable(message, message.Id, now, out var rejection))
+        {
+            return rejection;
+        }
+
+        return (await ClaimAndReplayAsync(message, now, cancellationToken).ConfigureAwait(false)).Outcome;
     }
 
     private static EncinaError NotFoundError(Guid messageId)
         => EncinaErrors.Create(DeadLetterErrorCodes.NotFound, $"Dead letter message {messageId} not found");
 
-    private async Task<Either<EncinaError, ReplayResult>> ReplayLoadedAsync(
+    /// <summary>
+    /// The outcome of claiming and replaying one message. <c>MessageRejected</c> marks a <c>Left</c> that
+    /// describes the message (it cannot be deserialized, there is no <c>IEncina</c>); any other <c>Left</c>
+    /// is a store failure.
+    /// </summary>
+    private readonly record struct ReplayStep(Either<EncinaError, ReplayResult> Outcome, bool MessageRejected = false);
+
+    // True when the exception is the caller's own cancellation; any other exception (including an
+    // OperationCanceledException raised by the handler itself) is a failed replay.
+    private static bool IsCallerCancellation(Exception ex, CancellationToken cancellationToken)
+        => ex is OperationCanceledException && cancellationToken.IsCancellationRequested;
+
+    private async Task<ReplayStep> ClaimAndReplayAsync(
         IDeadLetterMessage message,
+        DateTime now,
         CancellationToken cancellationToken)
     {
         var messageId = message.Id;
-        var now = UtcNow();
-
-        if (IsNotReplayable(message, messageId, now, out var rejection))
-        {
-            return rejection;
-        }
 
         var claim = await _store.TryClaimForReplayAsync(
             messageId,
             now - _options.ReplayClaimTimeout,
             cancellationToken).ConfigureAwait(false);
         if (claim.IsLeft)
-            return claim.LeftToArray()[0];
+            return new ReplayStep(claim.LeftToArray()[0]);
 
         // Another replay holds the claim: do not dispatch a second time.
         if (!claim.RightToArray()[0])
         {
-            return ReplayResult.Failed(messageId, DeadLetterErrorCodes.ReplayInProgress);
+            return new ReplayStep(ReplayResult.Failed(messageId, DeadLetterErrorCodes.ReplayInProgress));
         }
 
         DeadLetterLog.ReplayingMessage(_logger, messageId, message.RequestType);
@@ -164,16 +239,16 @@ public sealed class DeadLetterManager : IDeadLetterManager
         {
             return await ReplayStoredMessageAsync(message, messageId, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!IsCallerCancellation(ex, cancellationToken))
         {
             DeadLetterLog.MessageReplayException(_logger, ex.ForLogging(), messageId);
 
             var errorMessage = $"[{DeadLetterErrorCodes.ReplayFailed}] Exception during replay: {ex.GetType().FullName}";
-            return await FinishReplayAsync(
+            return new ReplayStep(await FinishReplayAsync(
                 messageId,
                 ReplayResult.Failed(messageId, errorMessage),
                 DeadLetterErrorCodes.ReplayFailed,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken).ConfigureAwait(false));
         }
     }
 
@@ -240,7 +315,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
         return result;
     }
 
-    private async Task<Either<EncinaError, ReplayResult>> ReplayStoredMessageAsync(
+    private async Task<ReplayStep> ReplayStoredMessageAsync(
         IDeadLetterMessage message,
         Guid messageId,
         CancellationToken cancellationToken)
@@ -250,16 +325,16 @@ public sealed class DeadLetterManager : IDeadLetterManager
         {
             var recorded = await RecordReplayOutcomeAsync(messageId, plan.ErrorCode, cancellationToken).ConfigureAwait(false);
             if (recorded.IsLeft)
-                return recorded.LeftToArray()[0];
+                return new ReplayStep(recorded.LeftToArray()[0]);
 
             DeadLetterMetrics.RecordReplayed(succeeded: false);
-            return EncinaErrors.Create(plan.ErrorCode, plan.ErrorText!);
+            return new ReplayStep(EncinaErrors.Create(plan.ErrorCode, plan.ErrorText!), MessageRejected: true);
         }
 
         // Replay through IEncina.Send, typed by the request's runtime type
         var attempt = await ReplayRequestAsync(plan.Encina!, plan.Request!, messageId, cancellationToken).ConfigureAwait(false);
 
-        return await FinishReplayAsync(messageId, attempt.Result, attempt.OutcomeCode, cancellationToken).ConfigureAwait(false);
+        return new ReplayStep(await FinishReplayAsync(messageId, attempt.Result, attempt.OutcomeCode, cancellationToken).ConfigureAwait(false));
     }
 
     /// <summary>
@@ -320,7 +395,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
             DeadLetterLog.MessageReplayedSuccessfully(_logger, messageId);
             return new ReplayAttempt(ReplayResult.Succeeded(messageId), DeadLetterErrorCodes.ReplaySucceeded);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!IsCallerCancellation(ex, cancellationToken))
         {
             var innerException = ex.InnerException ?? ex;
             return FailedAttempt(messageId, $"Replay failed: {innerException.GetType().FullName}", DeadLetterErrorCodes.ReplayFailed);
@@ -348,10 +423,13 @@ public sealed class DeadLetterManager : IDeadLetterManager
         ArgumentOutOfRangeException.ThrowIfLessThan(maxMessages, 1);
 
         // Only non-replayed messages; the caller's filter is copied, never mutated.
-        var scoped = Scoped(filter, excludeReplayed: true);
+        var scoped = Scoped(filter, OpReplayAll, excludeReplayed: true);
+        if (scoped.IsLeft)
+            return scoped.LeftToArray()[0];
+
         var take = Math.Min(maxMessages, DeadLetterStoreLimits.MaxPageSize);
 
-        var messagesResult = await _store.GetMessagesAsync(scoped, 0, take, false, cancellationToken).ConfigureAwait(false);
+        var messagesResult = await _store.GetMessagesAsync(scoped.RightToArray()[0], 0, take, false, cancellationToken).ConfigureAwait(false);
         if (messagesResult.IsLeft)
             return messagesResult.LeftToArray()[0];
 
@@ -365,8 +443,23 @@ public sealed class DeadLetterManager : IDeadLetterManager
             if (cancellationToken.IsCancellationRequested)
                 break;
 
-            var result = await ReplayLoadedAsync(message, cancellationToken).ConfigureAwait(false);
-            results.Add(result.Match(
+            var step = await ReplayOneOfBatchAsync(message, cancellationToken).ConfigureAwait(false);
+
+            // A store failure is not a per-message result: it fails the whole operation with that error,
+            // after the messages already replayed (their outcomes are recorded) are logged.
+            if (step.Outcome.IsLeft && !step.MessageRejected)
+            {
+                var error = step.Outcome.LeftToArray()[0];
+                DeadLetterLog.BatchReplayAborted(
+                    _logger,
+                    results.Count,
+                    results.Count(r => r.Success),
+                    results.Count(r => !r.Success),
+                    error.GetCode().IfNone(DeadLetterErrorCodes.ReplayFailed));
+                return error;
+            }
+
+            results.Add(step.Outcome.Match(
                 Right: r => r,
                 // Only the error code: EncinaError.Message can carry personal data (#1259 review).
                 Left: error => ReplayResult.Failed(message.Id, error.GetCode().IfNone(DeadLetterErrorCodes.ReplayFailed))));
@@ -385,11 +478,23 @@ public sealed class DeadLetterManager : IDeadLetterManager
         return batchResult;
     }
 
+    // A message that is already replayed or expired is a per-message rejection in a batch, like any other.
+    private async Task<ReplayStep> ReplayOneOfBatchAsync(IDeadLetterMessage message, CancellationToken cancellationToken)
+    {
+        var now = UtcNow();
+        return IsNotReplayable(message, message.Id, now, out var rejection)
+            ? new ReplayStep(rejection, MessageRejected: true)
+            : await ClaimAndReplayAsync(message, now, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <inheritdoc />
     public async Task<Either<EncinaError, Option<IDeadLetterMessage>>> GetMessageAsync(
         Guid messageId,
         CancellationToken cancellationToken = default)
     {
+        if (TenantMissing())
+            return DenyTenantRequired(OpGet);
+
         var result = await _store.GetAsync(messageId, cancellationToken).ConfigureAwait(false);
 
         // A message of another tenant reads as not found.
@@ -403,7 +508,11 @@ public sealed class DeadLetterManager : IDeadLetterManager
         int take = 100,
         CancellationToken cancellationToken = default)
     {
-        return await _store.GetMessagesAsync(Scoped(filter), skip, take, false, cancellationToken).ConfigureAwait(false);
+        var scoped = Scoped(filter, OpGetMessages);
+        if (scoped.IsLeft)
+            return scoped.LeftToArray()[0];
+
+        return await _store.GetMessagesAsync(scoped.RightToArray()[0], skip, take, false, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -411,13 +520,22 @@ public sealed class DeadLetterManager : IDeadLetterManager
         DeadLetterFilter? filter = null,
         CancellationToken cancellationToken = default)
     {
-        return await _store.GetCountAsync(Scoped(filter), cancellationToken).ConfigureAwait(false);
+        var scoped = Scoped(filter, OpCount);
+        if (scoped.IsLeft)
+            return scoped.LeftToArray()[0];
+
+        return await _store.GetCountAsync(scoped.RightToArray()[0], cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
     public Task<Either<EncinaError, DeadLetterStatistics>> GetStatisticsAsync(
         CancellationToken cancellationToken = default)
     {
+        if (TenantMissing())
+        {
+            return Task.FromResult<Either<EncinaError, DeadLetterStatistics>>(DenyTenantRequired(OpStatistics));
+        }
+
         return _orchestrator.GetStatisticsAsync(cancellationToken);
     }
 
@@ -426,6 +544,9 @@ public sealed class DeadLetterManager : IDeadLetterManager
         Guid messageId,
         CancellationToken cancellationToken = default)
     {
+        if (TenantMissing())
+            return DenyTenantRequired(OpDelete);
+
         var visible = await IsVisibleAsync(messageId, cancellationToken).ConfigureAwait(false);
         if (visible.IsLeft)
             return visible.LeftToArray()[0];
@@ -470,7 +591,11 @@ public sealed class DeadLetterManager : IDeadLetterManager
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        var deleted = await _store.DeleteManyAsync(Scoped(filter), cancellationToken).ConfigureAwait(false);
+        var scoped = Scoped(filter, OpDeleteAll);
+        if (scoped.IsLeft)
+            return scoped.LeftToArray()[0];
+
+        var deleted = await _store.DeleteManyAsync(scoped.RightToArray()[0], cancellationToken).ConfigureAwait(false);
         if (deleted.IsLeft)
             return deleted.LeftToArray()[0];
 

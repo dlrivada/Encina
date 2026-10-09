@@ -74,6 +74,9 @@ public sealed class DeadLetterFilter
     /// </summary>
     /// <remarks>
     /// Read by <see cref="IDeadLetterManager"/> only; stores ignore it and filter solely by <see cref="TenantId"/>.
+    /// When multi-tenancy is in use and no tenant is resolved, this is the only way to read, replay or delete
+    /// without naming <see cref="TenantId"/>; every use is logged (the manager otherwise denies with
+    /// <see cref="DeadLetterErrorCodes.TenantRequired"/>).
     /// </remarks>
     public bool AllTenants { get; init; }
 

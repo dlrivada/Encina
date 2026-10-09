@@ -103,6 +103,10 @@ public static class ServiceCollectionExtensions
                     "If using a custom ITenantStore, inject ITenantStore instead.");
         });
 
+        // Tells messaging services (dead letter manager) that multi-tenancy is in use, so they fail closed
+        // when no tenant is resolved.
+        services.TryAddSingleton(global::Encina.Messaging.Tenancy.TenancyInUse.Instance);
+
         // Register tenant provider as scoped (reads the ambient request context from the core accessor)
         services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
         services.TryAddScoped<ITenantProvider, DefaultTenantProvider>();
