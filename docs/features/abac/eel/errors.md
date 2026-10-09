@@ -106,7 +106,7 @@ errors may appear in the broader policy evaluation pipeline:
 
 | Error Code                        | Trigger                                                    |
 |-----------------------------------|------------------------------------------------------------|
-| `abac.evaluation_failed`          | Policy evaluation threw an unhandled exception             |
+| `abac.evaluation_failed`          | Policy evaluation threw an unhandled exception. The error message never includes the exception message; the exception type is in the details |
 | `encina.authorization.abac_access_denied` | Policy evaluation produced a Deny decision (HTTP 403) |
 | `abac.indeterminate`              | Evaluation could not reach Permit or Deny                  |
 | `abac.policy.not_found`           | Administrative lookup: a PAP operation or `EvaluatePolicyAsync` names a policy ID that does not exist (never returned by the PEP) |
@@ -122,7 +122,7 @@ errors may appear in the broader policy evaluation pipeline:
 | `abac.missing_context`            | No authenticated security context with a user              |
 | `encina.authorization.abac_obligation_failed` | Mandatory obligation handler failed (access denied per XACML; HTTP 403) |
 | `abac.function_not_found`         | Referenced function not in the function registry           |
-| `abac.function_error`             | Custom function threw an exception during evaluation       |
+| `abac.function_error`             | Custom function threw an exception during evaluation. The error message never includes the exception message; the exception type is in `details["exceptionType"]` |
 | `abac.variable_not_found`         | VariableReference targets an undefined VariableDefinition  |
 
 ---
@@ -152,7 +152,7 @@ EEL expressions:
 1. **Read the `reason` field.** For a compilation error it carries the Roslyn diagnostic
    with its position. For a runtime error it carries only the exception type name
    (for example `Evaluation failed (RuntimeBinderException).`), never the exception
-   message; match the type against the table above to find the cause.
+   message; use the type to narrow the cause with the table above, then check the `expression` field.
 
 2. **Check the `expression` field.** The full expression string is preserved in
    `Details["expression"]` for logging and diagnostics.
