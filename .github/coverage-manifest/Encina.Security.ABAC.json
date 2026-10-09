@@ -76,7 +76,15 @@
         "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 80,
+        "guard": 95
+      },
+      "justifications": {
+        "unit": "The unit tests configure the options through AddEncinaABAC and the decision audit tests; the XACML serializer switches are covered by registration tests.",
+        "guard": "The guard suite exercises every property accessor and the argument checks of the fluent methods."
+      }
     },
     "ABACPipelineBehavior.cs": {
       "defaultTests": [
@@ -372,7 +380,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "An enum has no executable line; the unit tests exercise both modes.",
+        "guard": "An enum has no executable line and no parameter to guard."
+      }
     },
     "DecisionAudit/ABACDecisionAuditOptions.cs": {
       "defaultTests": [
@@ -380,7 +396,15 @@
         "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 95,
+        "guard": 95
+      },
+      "justifications": {
+        "unit": "Unit tests read and set every option and its default through the decision audit tests of the PEP, so each accessor runs.",
+        "guard": "The options have no parameters or guard clauses; the guard suite reads and sets every option through the PEP guard tests, so each accessor runs."
+      }
     },
     "DecisionAudit/ABACDecisionAuditOutcomes.cs": {
       "defaultTests": [
@@ -388,7 +412,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "An enum has no executable line; the unit tests pin its flag values through the outcome filter tests.",
+        "guard": "An enum has no executable line and no parameter to guard."
+      }
     },
     "DecisionAudit/ABACDecisionAuditSchema.cs": {
       "defaultTests": [
@@ -426,7 +458,15 @@
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Factory with creation logic",
+      "targets": {
+        "unit": 95,
+        "guard": 70
+      },
+      "justifications": {
+        "unit": "The unit tests build records for every path of the decision-path table: identity, context, resource id from the request or the attribute, attribute names and allow-listed values, trace and deciding policy.",
+        "guard": "The factory is internal and reached through the PEP; the guard suite runs the enabled-audit paths (permit, deny, indeterminate, anonymous, write failures) but not every optional branch (allow-listed values, resource attribute)."
+      }
     },
     "DecisionAudit/ABACEnforcedOutcome.cs": {
       "defaultTests": [
@@ -448,7 +488,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 90
+      },
+      "justifications": {
+        "unit": "The unit tests run Granted, Denied and NotEnforced for every row of the decision-path table.",
+        "guard": "The guard suite runs the permit, deny and anonymous verdicts through the PEP."
+      }
     },
     "DecisionAudit/IABACDecisionRecorder.cs": {
       "defaultTests": [],
@@ -472,7 +520,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 90
+      },
+      "justifications": {
+        "unit": "The registration unit test calls the recorder and checks it fails with the store-unavailable code.",
+        "guard": "The guard test passes a null record and checks the ArgumentNullException."
+      }
     },
     "Diagnostics/ABACDiagnostics.cs": {
       "defaultTests": [
@@ -531,7 +587,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 45
+      },
+      "justifications": {
+        "unit": "The unit tests drive the budget through PDP traces, condition leaves, skipped conditions and an exhausted budget.",
+        "guard": "The collector is internal and the guard suite reaches only the paths of the enabled-audit PEP tests (no condition leaves with an exhausted budget)."
+      }
     },
     "Enforcement/ABACRequirementCombiner.cs": {
       "defaultTests": [
@@ -1101,7 +1165,7 @@
         "unit": 0
       },
       "justifications": {
-        "unit": "An enum has no executable line; the contract test pins its four values."
+        "unit": "An enum has no executable line; the contract test pins its five values."
       }
     },
     "Model/Rule.cs": {
