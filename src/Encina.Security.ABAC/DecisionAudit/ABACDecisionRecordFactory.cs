@@ -48,22 +48,22 @@ internal static class ABACDecisionRecordFactory
     // Who asked and from where.
     private static ABACDecisionRecord WithCaller(
         ABACDecisionInputs inputs, ABACEnforcementVerdict verdict, DateTimeOffset completedAtUtc) => new()
-    {
-        DecisionId = Guid.CreateVersion7(inputs.StartedAtUtc),
-        UserId = inputs.Caller?.UserId,
-        IdentityKind = KindOf(inputs.Caller),
-        TenantId = inputs.Context.TenantId,
-        CorrelationId = inputs.Context.CorrelationId,
-        ModuleId = inputs.Context.GetModuleName(),
-        IpAddress = MetadataText(inputs.Context, IpAddressKey),
-        UserAgent = MetadataText(inputs.Context, UserAgentKey),
-        RequestType = inputs.RequestType.Name,
-        EnforcedOutcome = verdict.Enforced,
-        ReasonCode = verdict.ReasonCode,
-        EnforcementMode = inputs.EnforcementMode,
-        StartedAtUtc = inputs.StartedAtUtc,
-        CompletedAtUtc = completedAtUtc
-    };
+        {
+            DecisionId = Guid.CreateVersion7(inputs.StartedAtUtc),
+            UserId = inputs.Caller?.UserId,
+            IdentityKind = KindOf(inputs.Caller),
+            TenantId = inputs.Context.TenantId,
+            CorrelationId = inputs.Context.CorrelationId,
+            ModuleId = inputs.Context.GetModuleName(),
+            IpAddress = MetadataText(inputs.Context, IpAddressKey),
+            UserAgent = MetadataText(inputs.Context, UserAgentKey),
+            RequestType = inputs.RequestType.Name,
+            EnforcedOutcome = verdict.Enforced,
+            ReasonCode = verdict.ReasonCode,
+            EnforcementMode = inputs.EnforcementMode,
+            StartedAtUtc = inputs.StartedAtUtc,
+            CompletedAtUtc = completedAtUtc
+        };
 
     // What was asked of the resource: its id and the attribute names and allow-listed values.
     private static ABACDecisionRecord WithRequest(ABACDecisionRecord record, ABACDecisionInputs inputs) => record with
