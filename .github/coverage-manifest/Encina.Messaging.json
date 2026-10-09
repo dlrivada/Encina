@@ -121,6 +121,30 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "DbLease.cs": {
+      "defaultTests": [
+        "unit",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Connection and transaction lease for stores sharing the request connection",
+      "targets": { "unit": 95, "integration": 78 },
+      "justifications": {
+        "unit": "Enlist/independent/clone/dispose branches are driven with substitute connections.",
+        "integration": "Real ADO.NET and Dapper pipeline runs exercise the clone path on three databases; driver-specific clone failures are not reachable."
+      }
+    },
+    "IDbTransactionAccessor.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Accessor interface and its scoped default holder",
+      "targets": { "unit": 100 },
+      "justifications": {
+        "unit": "A property holder driven by the transaction behavior tests."
+      }
+    },
     "DeadLetter/DeadLetterCleanupProcessor.cs": {
       "defaultTests": [
         "unit",
@@ -511,10 +535,17 @@
     "MessagingServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 95, "guard": 60, "integration": 35 },
+      "justifications": {
+        "unit": "Registration snapshots and DI tests cover every pattern flag.",
+        "guard": "Argument checks of the public registration methods.",
+        "integration": "Provider package registrations run it end to end; per-flag branches are unit-covered."
+      }
     },
     "Outbox/IOutboxMessage.cs": {
       "defaultTests": [],
@@ -1181,10 +1212,18 @@
       "defaultTests": [
         "unit",
         "guard",
-        "contract"
+        "contract",
+        "integration"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 95, "guard": 15, "contract": 70, "integration": 65 },
+      "justifications": {
+        "unit": "Commit, rollback, cancellation, open-connection and accessor publication branches use substitute connections.",
+        "guard": "Only the argument checks are guard-reachable.",
+        "contract": "The behavior contract tests drive commit and rollback.",
+        "integration": "Real database pipeline runs cover the DbConnection path; the plain IDbConnection branch needs substitutes."
+      }
     }
   }
 }

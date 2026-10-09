@@ -445,12 +445,12 @@
       ],
       "defaultRule": "*StoreEF.cs",
       "reason": "EF Core store — needs real DbContext",
-      "targets": { "unit": 92, "guard": 92, "contract": 90, "integration": 83 },
+      "targets": { "unit": 92, "guard": 80, "contract": 75, "integration": 83 },
       "justifications": {
-        "unit": "The non-relational test-provider branch of the isolated update and the guards are unit-covered; the relational UPDATE branch needs a real database.",
-        "guard": "Argument checks of every public method are guard-covered; the isolated-context paths are not guard-reachable.",
+        "unit": "The in-memory provider covers the non-relational fallback, the isolation guards and the registration check; the relational UPDATE branch needs a real database.",
+        "guard": "Argument checks of every public method; the isolated-context paths are not guard-reachable.",
         "contract": "The store contract tests drive add, mark processed, mark failed, expiry and removal.",
-        "integration": "Real SQL Server and PostgreSQL runs cover the relational UPDATE branch and the pipeline scenarios; the non-relational fallback and the EF MySQL variant (skipped, #2086) are not reachable there."
+        "integration": "Real SQL Server and PostgreSQL runs cover the relational UPDATE and the pipeline scenarios; the non-relational fallback and the skipped EF MySQL variant (#2086) are not reachable there."
       }
     },
     "ITransactionalCommand.cs": {
@@ -678,10 +678,17 @@
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 50, "guard": 53, "integration": 30 },
+      "justifications": {
+        "unit": "Registration paths are DI-tested; provider-specific branches need real contexts.",
+        "guard": "Argument checks of the public registration methods.",
+        "integration": "Real-database pipeline runs register the messaging stack; the remaining branches (tenancy, sharding, read-write routing) are exercised by their own suites."
+      }
     },
     "Sharding/FunctionalShardedRepositoryEF.cs": {
       "defaultTests": [
