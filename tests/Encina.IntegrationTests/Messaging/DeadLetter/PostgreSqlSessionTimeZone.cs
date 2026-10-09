@@ -11,6 +11,23 @@ internal static class PostgreSqlSessionTimeZone
 {
     private const string Zone = "America/Los_Angeles";
 
+    /// <summary>
+    /// Puts the session back to the server default, so that the zone cannot leak to the next test through the
+    /// connection pool.
+    /// </summary>
+    public static async Task ResetAsync(IDbConnection connection)
+    {
+        var db = (DbConnection)connection;
+        if (db.State != ConnectionState.Open)
+        {
+            return;
+        }
+
+        await using var reset = db.CreateCommand();
+        reset.CommandText = "RESET TIME ZONE";
+        await reset.ExecuteNonQueryAsync();
+    }
+
     /// <summary>Sets the zone on <paramref name="connection"/> and checks that the session reports it.</summary>
     public static async Task ApplyAsync(IDbConnection connection)
     {

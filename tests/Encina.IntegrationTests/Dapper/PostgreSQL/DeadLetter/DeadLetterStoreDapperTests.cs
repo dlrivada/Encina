@@ -27,15 +27,30 @@ public sealed class DeadLetterStoreDapperTests : DeadLetterStoreContract
     protected override async Task<IDeadLetterStore> CreateStoreAsync(TimeProvider timeProvider)
     {
         await _fixture.ClearAllDataAsync();
-        _storeConnection = _fixture.CreateConnection();
+        _storeConnection = Track(_fixture.CreateConnection());
         return new DeadLetterStoreDapper(_storeConnection, timeProvider: timeProvider);
     }
 
-    protected override Task ApplyNonUtcSessionTimeZoneAsync()
-        => PostgreSqlSessionTimeZone.ApplyAsync(_storeConnection!);
+    private bool _zoneApplied;
+
+    protected override async Task ApplyNonUtcSessionTimeZoneAsync()
+    {
+        _zoneApplied = true;
+        await PostgreSqlSessionTimeZone.ApplyAsync(_storeConnection!);
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        if (_zoneApplied && _storeConnection is not null)
+        {
+            await PostgreSqlSessionTimeZone.ResetAsync(_storeConnection);
+        }
+
+        await base.DisposeAsync();
+    }
 
     protected override IDeadLetterStore CreateSecondStore()
-        => new DeadLetterStoreDapper(_fixture.CreateConnection(), timeProvider: Clock);
+        => new DeadLetterStoreDapper(Track(_fixture.CreateConnection()), timeProvider: Clock);
 
     protected override IDeadLetterMessage CreateMessage(DeadLetterData data)
         => new DeadLetterMessageFactory().Create(data);

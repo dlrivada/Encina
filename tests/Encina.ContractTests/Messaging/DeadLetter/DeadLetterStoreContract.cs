@@ -45,8 +45,31 @@ public abstract class DeadLetterStoreContract : IAsyncLifetime
     /// <inheritdoc />
     public async ValueTask InitializeAsync() => Store = await CreateStoreAsync(Clock);
 
+    private readonly List<IDisposable> _tracked = [];
+
+    /// <summary>
+    /// Registers a connection (or any disposable) created for a store of this test, so that
+    /// <see cref="DisposeAsync"/> releases it; a test that leaks one connection per store exhausts the pool of
+    /// the shared database collection and times out the tests that run after it.
+    /// </summary>
+    protected T Track<T>(T disposable)
+        where T : IDisposable
+    {
+        _tracked.Add(disposable);
+        return disposable;
+    }
+
     /// <inheritdoc />
-    public virtual ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public virtual ValueTask DisposeAsync()
+    {
+        foreach (var disposable in _tracked)
+        {
+            disposable.Dispose();
+        }
+
+        _tracked.Clear();
+        return ValueTask.CompletedTask;
+    }
 
     // ---------------------------------------------------------------- add, get
 

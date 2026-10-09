@@ -616,7 +616,6 @@ public static class PostgreSqlSchema
             DELETE FROM orders;
             DELETE FROM testrepositoryentities;
             DELETE FROM scheduledmessages;
-            DELETE FROM "DeadLetterMessages";
             DELETE FROM sagastates;
             DELETE FROM inboxmessages;
             DELETE FROM outboxmessages;
@@ -624,8 +623,14 @@ public static class PostgreSqlSchema
             -- OperationAuditEntries / ReadAuditEntries are created on demand by the EF Core audit integration
             -- tests (AuditTestDbContext), not by CreateSchemaAsync, so an unconditional DELETE would fail with
             -- "relation does not exist" for every other test sharing this fixture's container (#1128).
+            -- DeadLetterMessages is created by the base schema, or by the EF model on the EF Core fixture, which
+            -- leaves it out of the base schema.
             DO $$
             BEGIN
+                IF to_regclass('"DeadLetterMessages"') IS NOT NULL THEN
+                    DELETE FROM "DeadLetterMessages";
+                END IF;
+
                 IF to_regclass('"OperationAuditEntries"') IS NOT NULL THEN
                     DELETE FROM "OperationAuditEntries";
                 END IF;

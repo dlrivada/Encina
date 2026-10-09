@@ -34,14 +34,24 @@ public sealed class DeadLetterStoreEFPostgreSqlTests : DeadLetterStoreContract
     protected override IDeadLetterStore CreateSecondStore() => NewStore(Clock);
 
     // The store under test uses the first context created (CreateStoreAsync).
-    protected override Task ApplyNonUtcSessionTimeZoneAsync()
-        => PostgreSqlSessionTimeZone.ApplyAsync(_contexts[0].Database.GetDbConnection());
+    private bool _zoneApplied;
+
+    protected override async Task ApplyNonUtcSessionTimeZoneAsync()
+    {
+        _zoneApplied = true;
+        await PostgreSqlSessionTimeZone.ApplyAsync(_contexts[0].Database.GetDbConnection());
+    }
 
     protected override IDeadLetterMessage CreateMessage(DeadLetterData data)
         => new DeadLetterMessageFactory().Create(data);
 
     public override async ValueTask DisposeAsync()
     {
+        if (_zoneApplied && _contexts.Count > 0)
+        {
+            await PostgreSqlSessionTimeZone.ResetAsync(_contexts[0].Database.GetDbConnection());
+        }
+
         foreach (var context in _contexts)
         {
             await context.DisposeAsync();

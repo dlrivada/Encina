@@ -26,7 +26,8 @@ public sealed class DeadLetterEndToEndADOTests
     {
         await _fixture.ClearAllDataAsync();
         var (services, clock, encina) = DeadLetterEndToEndScenario.NewServices();
-        services.AddSingleton<System.Data.IDbConnection>(_fixture.CreateConnection());
+        using var connection = _fixture.CreateConnection();
+        services.AddSingleton<System.Data.IDbConnection>(connection);
         services.AddEncinaADO(config => config.UseDeadLetterQueue = true);
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });

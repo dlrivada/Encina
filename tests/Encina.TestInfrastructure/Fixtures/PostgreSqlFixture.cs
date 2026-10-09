@@ -11,7 +11,29 @@ namespace Encina.TestInfrastructure.Fixtures;
 /// </summary>
 public sealed class PostgreSqlFixture : DatabaseFixture<PostgreSqlContainer>
 {
+    private readonly bool _includeDeadLetterSchema;
     private PostgreSqlContainer? _container;
+
+    /// <summary>
+    /// Initializes the fixture with the complete base schema.
+    /// </summary>
+    public PostgreSqlFixture()
+        : this(includeDeadLetterSchema: true)
+    {
+    }
+
+    /// <summary>
+    /// Initializes the fixture.
+    /// </summary>
+    /// <param name="includeDeadLetterSchema">
+    /// <c>false</c> leaves the <c>DeadLetterMessages</c> table out of the base schema. The EF Core fixture uses
+    /// it: the EF model creates that table itself (with its own indexes), and a base-schema table of the same name
+    /// would make <c>EFCoreSchema.CreateTablesAsync</c> roll back every other table of the model.
+    /// </param>
+    internal PostgreSqlFixture(bool includeDeadLetterSchema)
+    {
+        _includeDeadLetterSchema = includeDeadLetterSchema;
+    }
 
     /// <inheritdoc />
     public override string ConnectionString => _container?.GetConnectionString() ?? string.Empty;
@@ -45,7 +67,11 @@ public sealed class PostgreSqlFixture : DatabaseFixture<PostgreSqlContainer>
         await PostgreSqlSchema.CreateInboxSchemaAsync(npgsqlConnection);
         await PostgreSqlSchema.CreateSagaSchemaAsync(npgsqlConnection);
         await PostgreSqlSchema.CreateSchedulingSchemaAsync(npgsqlConnection);
-        await PostgreSqlSchema.CreateDeadLetterSchemaAsync(npgsqlConnection);
+        if (_includeDeadLetterSchema)
+        {
+            await PostgreSqlSchema.CreateDeadLetterSchemaAsync(npgsqlConnection);
+        }
+
         await PostgreSqlSchema.CreateTestRepositorySchemaAsync(npgsqlConnection);
         await PostgreSqlSchema.CreateOrdersSchemaAsync(npgsqlConnection);
         await PostgreSqlSchema.CreateTenantTestSchemaAsync(npgsqlConnection);

@@ -24,11 +24,11 @@ public sealed class DeadLetterStoreDapperTests : DeadLetterStoreContract
     protected override async Task<IDeadLetterStore> CreateStoreAsync(TimeProvider timeProvider)
     {
         await _fixture.ClearAllDataAsync();
-        return new DeadLetterStoreDapper(_fixture.CreateConnection(), timeProvider: timeProvider);
+        return new DeadLetterStoreDapper(Track(_fixture.CreateConnection()), timeProvider: timeProvider);
     }
 
     protected override IDeadLetterStore CreateSecondStore()
-        => new DeadLetterStoreDapper(_fixture.CreateConnection(), timeProvider: Clock);
+        => new DeadLetterStoreDapper(Track(_fixture.CreateConnection()), timeProvider: Clock);
 
     protected override IDeadLetterMessage CreateMessage(DeadLetterData data)
         => new DeadLetterMessageFactory().Create(data);
