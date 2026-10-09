@@ -9,7 +9,7 @@ grand_parent: Architecture
 
 ## Status
 
-**Accepted** - decided by the maintainer on 2026-10-09 (Design Choices 1, 5, 6 and 7 and decisions B3, B7 and B9 of the [plan for #583](../../plans/dead-letter-stores-implementation-plan-583.md#maintainer-decisions)), plus four decisions added the same day while the stores were being finished (listed under "Decisions added during implementation").
+**Accepted** - decided by the maintainer on 2026-10-09 (Design Choices 1, 5, 6 and 7 and decisions B3, B7 and B9 of the [plan for #583](../../plans/dead-letter-stores-implementation-plan-583.md#maintainer-decisions)), plus four decisions added the same day while the stores were being finished (listed under "Decisions added during implementation"), and four more after the stores were finished (listed under "Decisions added after the stores were finished").
 
 ## Context
 
@@ -53,6 +53,15 @@ A unique index on `(SourcePattern, SourceMessageId)` exists from table creation,
 3. **The stores require a `DbConnection`.** The ADO.NET and Dapper stores take an `IDbConnection` but reject one that does not derive from `DbConnection`, so every call is asynchronous with a `CancellationToken` and no synchronous fallback exists (AGENTS.md section 3).
 4. **The `Id` tie-break is not part of the cross-provider contract.** Providers compare GUIDs in different byte orders, so rows with the same `DeadLetteredAtUtc` can come in a different order on another provider. The tie-break is stable within one provider, which is what paging within a provider needs; consumers must not depend on it across providers.
 
+### Decisions added after the stores were finished (2026-10-09)
+
+These continue the numbering above. Decision 5 refines the tenant paragraph above: the store is unchanged, and the manager now denies when tenancy is in use and no tenant is resolved.
+
+- **Decision 5: tenancy fails closed in `DeadLetterManager`.** When `AddEncinaTenancy` is registered (it registers the `TenancyInUse` marker) and no tenant is resolved, `GetMessagesAsync`, `GetCountAsync`, `ReplayAllAsync` and `DeleteAllAsync` are denied unless the filter sets `AllTenants = true` or names a `TenantId` (an empty one counts as none). Operations by message id and `GetStatisticsAsync` have no filter to opt out with and are denied too; whether they need an opt-out is an open question tracked as a follow-up. `CleanupExpiredAsync` is retention maintenance and is not gated. The denial is the code `encina.authorization.dlq_tenant_required`, which `Encina.AspNetCore` maps to 403. Every `AllTenants` use under tenancy is logged (EventId 2993) and every denial (2994), by operation and error code only. Without `AddEncinaTenancy` behavior is unchanged. This follows the fail-closed rule for compliance gates (AGENTS.md section 3, SPEC-002 DEC-006) and refines the earlier decision to leave the store open: the store still returns every tenant; the gate lives in the manager, so the cleanup processor and health check keep working without a tenant.
+- **Decision 6: input rules are enforced once, in the orchestrator and manager.** Instants (`FirstFailedAtUtc`, `FirstAttemptAtUtc`, the filter instants) must be `DateTimeKind.Utc` and are rejected, not converted, because an `Unspecified` value has no defined instant and `ToUniversalTime` would guess the server's zone while providers disagreed on what they stored. `SourceMessageId`, `SourcePattern`, `RequestType` and `TenantId` must not start or end with white space, because SQL Server and MySQL ignore trailing spaces in comparisons and PostgreSQL and MongoDB do not. Stores return instants with `Kind.Utc` (a UTC value converter on EF Core).
+- **Decision 7: a store error aborts `ReplayAllAsync`.** A `Left` from the store for one message fails the whole operation with that error (earlier replays stay recorded; EventId 2995). Per-message problems remain per-message failed results; a store exception propagates; a handler's own `OperationCanceledException` is a failed replay and only the caller's cancellation propagates.
+- **Decision 8: test support.** `AddFakeDeadLetterStore` takes the container's `TimeProvider` (`TimeProvider.System` otherwise), and the SQL Server `029` script has an integration test like the PostgreSQL and MySQL scripts.
+
 ## Alternatives rejected
 
 - **Persist the interface as it was, plus `TenantId`** (Choice 1, B): 10 schemas would carry a misnamed column and a column that must stay empty forever, and nothing would identify the source message.
@@ -61,14 +70,15 @@ A unique index on `(SourcePattern, SourceMessageId)` exists from table creation,
 - **A store-side grouped `GetStatisticsAsync`** (Choice 5, C): a grouped query per dialect and a MongoDB aggregation for an operator screen; the indexed counts of option A are enough.
 - **Defer the source key to #1991** (Choice 6, B): the 10 schemas would change twice before 1.0.
 - **No deduplication** (Choice 6, C): duplicate dead letters on every retry of a source that keeps its row, and a replay of both dispatches twice.
-- **Implicit tenant scoping inside the store, failing closed** (Choice 7, B): the DLQ is an operator tool and the cleanup processor has no tenant, so every background call would need an opt-out.
+- **Implicit tenant scoping inside the store, failing closed** (Choice 7, B): the DLQ is an operator tool and the cleanup processor has no tenant, so every background call would need an opt-out. Decision 5 puts the fail-closed gate in the manager instead.
+- **Converting non-UTC instants** (decision 6): `Unspecified` has no defined instant, so any conversion is a guess.
 - **No tenant column now** (Choice 7, C): exactly the post-1.0 retrofit SPEC-000 section 2 warns against.
 - **A default collation (or a compatibility overload) on `DeadLetterMessageConfiguration`**: see decision 2 above.
 
 ## Consequences
 
 - **Positive**: the queue survives restarts on all 10 providers; `OnDeadLetter` runs once per source message; statistics, cleanup and bulk delete are set-based; #1991 (wiring the five `IntegrateWith*` sources) and the post-1.0 store families #584-#589 implement a fixed contract, and the record needs no schema change for them.
-- **Negative**: every store implements two more predicates and three more methods than before; EF Core detects duplicates with a query before tracking, so a race between two hosts surfaces as a unique-violation `Left`; applications on SQL Server and MySQL must pass the collation when they apply the EF configuration.
+- **Negative**: every store implements two more predicates and three more methods than before; EF Core detects duplicates with a query before tracking, so a race between two hosts surfaces as a unique-violation `Left`; applications on SQL Server and MySQL must pass the collation when they apply the EF configuration; under `AddEncinaTenancy`, a manager call with no resolved tenant is denied (403) unless the filter opts out (decision 5).
 - **Neutral**: the tie-break order differs between providers; the older messaging tables keep their unquoted PostgreSQL identifiers, while the DLQ uses quoted PascalCase so ADO.NET, Dapper and EF Core share one table (plan Choice 9).
 
 ## Related

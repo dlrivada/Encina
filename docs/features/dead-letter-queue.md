@@ -219,10 +219,48 @@ All 10 providers of the database matrix are covered ([AGENTS.md section 5](https
 ## Behavior to know
 
 - **Order.** `GetMessagesAsync` returns the oldest first (`DeadLetteredAtUtc`, then `Id`); `newestFirst: true` reverses it on the store. The `DeadLetteredAtUtc` order is the contract. The `Id` tie-break is stable within one provider only, because providers compare GUIDs in different byte orders.
-- **Tenants.** A store returns every tenant unless `DeadLetterFilter.TenantId` names one. `IDeadLetterManager` reads, replays and deletes default to the ambient `IRequestContext.TenantId` when there is one; set `AllTenants = true` on the filter for operator tooling. The cleanup processor and the health check work across the whole deployment.
+- **Tenants.** A store returns every tenant unless `DeadLetterFilter.TenantId` names one. `IDeadLetterManager` reads, replays and deletes default to the ambient `IRequestContext.TenantId` when there is one; an explicit `TenantId` on the filter wins over the ambient tenant, and `AllTenants = true` opts out for operator tooling. The cleanup processor and the health check work across the whole deployment. See "Multi-tenancy fails closed" below for what happens when no tenant is resolved.
 - **Expiry.** A message is expired when `ExpiresAtUtc <= now`, with "now" taken from `TimeProvider`.
 - **Errors.** Every store failure comes back as a `Left`; nothing is reported as "not found" or "not deleted" to hide it. `DeadLetterHealthCheck` reports Unhealthy when the store fails.
 - **Limits.** `take` is at most `DeadLetterStoreLimits.MaxPageSize`; the other lengths in `DeadLetterStoreLimits` are checked before any I/O.
+
+### Multi-tenancy fails closed
+
+When `AddEncinaTenancy` is registered (it registers the `TenancyInUse` marker) and no tenant is resolved, `DeadLetterManager` denies the operation instead of working across the whole queue. An empty `TenantId` counts as no tenant.
+
+| Operation | With tenancy in use and no tenant resolved |
+| --- | --- |
+| `GetMessagesAsync`, `GetCountAsync`, `ReplayAllAsync`, `DeleteAllAsync` | Denied, unless the filter sets `AllTenants = true` or names a `TenantId` |
+| `ReplayAsync`, `GetMessageAsync`, `DeleteAsync` (by message id), `GetStatisticsAsync` | Denied: there is no filter to opt out with |
+| `CleanupExpiredAsync` | Not gated: it is retention maintenance across the deployment |
+
+A denial returns the error code `encina.authorization.dlq_tenant_required` (`DeadLetterErrorCodes.TenantRequired`). It is an `encina.authorization.*` code, which `Encina.AspNetCore` maps to HTTP 403. Whether the by-id operations and the statistics should get an opt-out is an open question tracked as a follow-up.
+
+Every use of `AllTenants` while tenancy is in use is logged as a warning (EventId 2993), and every denial is logged (EventId 2994); neither records the tenant id (2993 carries the operation; 2994 carries the operation and the error code). Without `AddEncinaTenancy` nothing changes: no ambient tenant means the whole queue.
+
+### Input rules
+
+The orchestrator and the manager enforce these before any store call, so all 10 providers behave the same. A violation throws `ArgumentException`.
+
+- Instants must have `DateTimeKind.Utc`: `DeadLetterContext.FirstFailedAtUtc`, `FailedMessage.FirstAttemptAtUtc` and the filter instants `DeadLetteredAfterUtc`, `DeadLetteredBeforeUtc` and `ExpiresAtOrBeforeUtc`. `Local` and `Unspecified` are rejected, not converted: an `Unspecified` value has no defined instant, so converting it would guess the server's time zone.
+- `SourceMessageId`, `SourcePattern`, `RequestType` and `TenantId` (in the context, in the filter, and the ambient tenant id) must not start or end with white space. SQL Server and MySQL ignore trailing spaces when they compare strings; PostgreSQL and MongoDB do not.
+- Every store returns instants with `DateTimeKind.Utc` (the EF Core mapping has a UTC value converter).
+
+### Replay of a batch
+
+`ReplayAllAsync` handles failures by kind:
+
+| Situation | Result |
+| --- | --- |
+| A store returns a `Left` for one message | The whole operation fails with that error. Messages already replayed stay recorded; the abort is logged (EventId 2995) |
+| The store throws | The exception propagates |
+| Already replayed, expired, payload cannot be deserialized, handler failure, claim held by another replay | A failed `ReplayResult` for that message; the batch continues |
+| The handler throws `OperationCanceledException` | A failed replay of that message |
+| The caller's `CancellationToken` is cancelled (also between messages) | The cancellation propagates |
+
+## Testing
+
+`AddFakeDeadLetterStore` (`Encina.Testing.Fakes`) uses the `TimeProvider` registered in the container, so a `FakeTimeProvider` drives claim expiry and retention; without one it uses `TimeProvider.System`. The SQL Server `029` schema script is covered by an integration test, like the PostgreSQL and MySQL ones.
 
 ## Telemetry
 
