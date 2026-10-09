@@ -290,6 +290,19 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
         global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertFailedBusinessCommitLeavesMessageUnprocessedAsync(
             Harness());
 
+    [Fact]
+    public async Task Pipeline_ModuleIsolation_ThrowingHandler_RunsMaxRetriesTimes()
+    {
+        var harness = global::Encina.IntegrationTests.Messaging.InboxPipelineHarnesses.DapperPostgreSqlModuleIsolation(_fixture);
+        await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertThrowingHandlerRunsMaxRetriesTimesAsync(harness, 3, transactional: true);
+        await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertHandlerLeftIsCachedAfterRollbackAsync(harness, transactional: true);
+    }
+
+    [Fact]
+    public Task Pipeline_ModuleIsolation_FailedBusinessCommit_LeavesMessageUnprocessed() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertFailedBusinessCommitLeavesMessageUnprocessedAsync(
+            global::Encina.IntegrationTests.Messaging.InboxPipelineHarnesses.DapperPostgreSqlModuleIsolation(_fixture));
+
     private global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.Harness Harness() =>
         global::Encina.IntegrationTests.Messaging.InboxPipelineHarnesses.DapperPostgreSql(_fixture);
 

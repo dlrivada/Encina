@@ -1,5 +1,7 @@
 using System.Data;
+using System.Data.Common;
 using Encina.EntityFrameworkCore;
+using Encina.Modules.Isolation;
 using Encina.Messaging;
 using Encina.Messaging.Inbox;
 using Encina.TestInfrastructure.Fixtures;
@@ -108,6 +110,90 @@ public static class InboxPipelineHarnesses
         ReadRow = id => ToRowAsync(new global::Encina.Dapper.MySQL.Inbox.InboxStoreDapper(f.CreateConnection()).GetMessageAsync(id)),
         BreakTransaction = CloseScopedConnection
     };
+
+    // Module isolation (DevelopmentValidationOnly): the scoped IDbConnection is the real SchemaValidatingConnection
+    // decorator of the package around a fresh connection; its transaction belongs to the inner connection, and its
+    // commands are SchemaValidatingCommand wrappers.
+    private static DbConnection Decorate<TConnection>(
+        Func<IDbConnection> create,
+        Func<DbConnection, IModuleExecutionContext, IModuleSchemaRegistry, ModuleIsolationOptions, TConnection> wrap)
+        where TConnection : DbConnection
+    {
+        var options = new ModuleIsolationOptions();
+        return wrap((DbConnection)create(), new ModuleExecutionContext(), new ModuleSchemaRegistry(options), options);
+    }
+
+    /// <summary>ADO.NET over SQL Server with module isolation enabled.</summary>
+    public static Harness AdoSqlServerModuleIsolation(SqlServerFixture f)
+    {
+        var harness = AdoSqlServer(f);
+        return new Harness
+        {
+            Register = (s, setup) =>
+            {
+                s.AddScoped<IDbConnection>(_ => Decorate(
+                    f.CreateConnection,
+                    (c, m, r, o) => new global::Encina.ADO.SqlServer.Modules.SchemaValidatingConnection(c, m, r, o)));
+                global::Encina.ADO.SqlServer.ServiceCollectionExtensions.AddEncinaADO(s, c => Configure(c, setup));
+            },
+            ReadRow = harness.ReadRow,
+            BreakTransaction = harness.BreakTransaction
+        };
+    }
+
+    /// <summary>ADO.NET over PostgreSQL with module isolation enabled.</summary>
+    public static Harness AdoPostgreSqlModuleIsolation(PostgreSqlFixture f)
+    {
+        var harness = AdoPostgreSql(f);
+        return new Harness
+        {
+            Register = (s, setup) =>
+            {
+                s.AddScoped<IDbConnection>(_ => Decorate(
+                    f.CreateConnection,
+                    (c, m, r, o) => new global::Encina.ADO.PostgreSQL.Modules.SchemaValidatingConnection(c, m, r, o)));
+                global::Encina.ADO.PostgreSQL.ServiceCollectionExtensions.AddEncinaADO(s, c => Configure(c, setup));
+            },
+            ReadRow = harness.ReadRow,
+            BreakTransaction = harness.BreakTransaction
+        };
+    }
+
+    /// <summary>Dapper over SQL Server with module isolation enabled.</summary>
+    public static Harness DapperSqlServerModuleIsolation(SqlServerFixture f)
+    {
+        var harness = DapperSqlServer(f);
+        return new Harness
+        {
+            Register = (s, setup) =>
+            {
+                s.AddScoped<IDbConnection>(_ => Decorate(
+                    f.CreateConnection,
+                    (c, m, r, o) => new global::Encina.Dapper.SqlServer.Modules.SchemaValidatingConnection(c, m, r, o)));
+                global::Encina.Dapper.SqlServer.ServiceCollectionExtensions.AddEncinaDapper(s, c => Configure(c, setup));
+            },
+            ReadRow = harness.ReadRow,
+            BreakTransaction = harness.BreakTransaction
+        };
+    }
+
+    /// <summary>Dapper over PostgreSQL with module isolation enabled.</summary>
+    public static Harness DapperPostgreSqlModuleIsolation(PostgreSqlFixture f)
+    {
+        var harness = DapperPostgreSql(f);
+        return new Harness
+        {
+            Register = (s, setup) =>
+            {
+                s.AddScoped<IDbConnection>(_ => Decorate(
+                    f.CreateConnection,
+                    (c, m, r, o) => new global::Encina.Dapper.PostgreSQL.Modules.SchemaValidatingConnection(c, m, r, o)));
+                global::Encina.Dapper.PostgreSQL.ServiceCollectionExtensions.AddEncinaDapper(s, c => Configure(c, setup));
+            },
+            ReadRow = harness.ReadRow,
+            BreakTransaction = harness.BreakTransaction
+        };
+    }
 
     /// <summary>EF Core over SQL Server.</summary>
     public static Harness EfSqlServer<TContext>(EFCoreSqlServerFixture f)

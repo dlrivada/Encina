@@ -44,7 +44,7 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         result.IfRight(opt => opt.Match(
             Some: _ => CompleteDuplicateFound(activity),
             None: () => Complete(activity)));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, err));
         return result;
     }
 
@@ -54,7 +54,7 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         using var activity = StartReceive(message.RequestType, message.MessageId);
         var result = await _inner.AddAsync(message, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, err));
         return result;
     }
 
@@ -67,7 +67,7 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         using var activity = StartMarkProcessed(messageId);
         var result = await _inner.MarkAsProcessedAsync(messageId, response, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, err));
         return result;
     }
 
@@ -80,7 +80,7 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         using var activity = StartCacheHandlerError(messageId);
         var result = await _inner.CacheHandlerErrorAsync(messageId, response, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.GetCode().IfNone("encina.unknown"))); // the code, never EncinaError.Message
+        result.IfLeft(err => Failed(activity, err));
         return result;
     }
 
@@ -95,7 +95,7 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         var result = await _inner.MarkAsFailedAsync(messageId, errorMessage, nextRetryAtUtc, cancellationToken)
             .ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, err));
         return result;
     }
 
@@ -112,7 +112,7 @@ internal sealed class InstrumentedInboxStore : IInboxStore
             var count = messages is ICollection<IInboxMessage> col ? col.Count : messages.Count();
             CompleteBatch(activity, count);
         });
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, err));
         return result;
     }
 
@@ -124,7 +124,7 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         using var activity = StartRemoveExpired();
         var result = await _inner.RemoveExpiredMessagesAsync(messageIds, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, err));
         return result;
     }
 
@@ -242,8 +242,9 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         activity.SetStatus(ActivityStatusCode.Ok);
     }
 
-    private static void Failed(Activity? activity, string? errorMessage)
+    // Only the error code reaches the activity: EncinaError.Message can carry personal data (AGENTS.md section 3).
+    private static void Failed(Activity? activity, EncinaError error)
     {
-        activity?.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity?.SetStatus(ActivityStatusCode.Error, error.GetCode().IfNone("encina.unknown"));
     }
 }
