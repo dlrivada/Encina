@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Encina.Diagnostics;
 using Encina.Messaging.Serialization;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -200,25 +201,34 @@ public sealed class DelayedRetryProcessor : BackgroundService
             return;
         }
 
-        // Check if there are more delayed retries available
-        var nextDelayedRetryAttempt = message.DelayedRetryAttempt + 1;
-        if (nextDelayedRetryAttempt < _options.DelayedRetries.Length)
+        if (await TryScheduleNextAsync(message, request, result, cancellationToken).ConfigureAwait(false))
         {
-            // Schedule next delayed retry
-            await ScheduleNextDelayedRetryAsync(
-                message,
-                request,
-                nextDelayedRetryAttempt,
-                cancellationToken).ConfigureAwait(false);
-
             await store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        // All delayed retries exhausted - permanent failure
+        // All delayed retries exhausted, a permanent error, or no next attempt could be scheduled
         var errorMessage = result.ErrorMessage ?? "Unknown error";
         await store.MarkAsFailedAsync(message.Id, errorMessage, cancellationToken).ConfigureAwait(false);
         await HandlePermanentFailureAsync(message, request, errorMessage, cancellationToken).ConfigureAwait(false);
+    }
+
+    // Only this processor decides attempt N+1 or permanent failure: the re-dispatch ran without
+    // starting a chain of its own. A permanent error ends the chain at once; so does a failure to
+    // schedule the next attempt (never reported as success).
+    private async Task<bool> TryScheduleNextAsync(
+        IDelayedRetryMessage message,
+        object request,
+        DispatchResult result,
+        CancellationToken cancellationToken)
+    {
+        var nextDelayedRetryAttempt = message.DelayedRetryAttempt + 1;
+        if (result.IsPermanent || nextDelayedRetryAttempt >= _options.DelayedRetries.Length)
+        {
+            return false;
+        }
+
+        return await ScheduleNextDelayedRetryAsync(message, request, nextDelayedRetryAttempt, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<DispatchResult> DispatchRequestAsync(
@@ -226,22 +236,27 @@ public sealed class DelayedRetryProcessor : BackgroundService
         object request,
         CancellationToken cancellationToken)
     {
+        // The marker tells RecoverabilityPipelineBehavior this is a delayed-retry re-dispatch: it
+        // runs the handler with its immediate retries but starts no retry chain (#2083).
+        using var redispatch = DelayedRetryRedispatch.Begin(request);
+
         try
         {
             var outcome = await RuntimeTypeRequestDispatcher.SendAsync(encina, request, cancellationToken).ConfigureAwait(false);
+            var isPermanent = redispatch.Marker.Classification == ErrorClassification.Permanent;
 
             return outcome.Match(
-                Right: _ => new DispatchResult(true, null),
+                Right: _ => new DispatchResult(true, null, false),
                 // Only the error code: EncinaError.Message can carry personal data (#1259 review).
-                Left: error => new DispatchResult(false, error.GetCode().IfNone("encina.unknown")));
+                Left: error => new DispatchResult(false, error.GetCode().IfNone("encina.unknown"), isPermanent));
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            return new DispatchResult(false, ex.GetType().FullName ?? ex.GetType().Name);
+            return new DispatchResult(false, ex.GetType().FullName ?? ex.GetType().Name, false);
         }
     }
 
-    private async Task ScheduleNextDelayedRetryAsync(
+    private async Task<bool> ScheduleNextDelayedRetryAsync(
         IDelayedRetryMessage originalMessage,
         object request,
         int nextDelayedRetryAttempt,
@@ -253,7 +268,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         if (scheduler is null)
         {
             DelayedRetryProcessorLog.SchedulerNotConfigured(_logger);
-            return;
+            return false;
         }
 
         // Reconstruct context from the serialized data
@@ -272,46 +287,46 @@ public sealed class DelayedRetryProcessor : BackgroundService
 
         // Use reflection to call generic ScheduleRetryAsync
         var requestType = Type.GetType(originalMessage.RequestType);
-        if (requestType is null)
-        {
-            return;
-        }
-
         var scheduleMethod = typeof(IDelayedRetryScheduler)
             .GetMethod(nameof(IDelayedRetryScheduler.ScheduleRetryAsync));
 
-        if (scheduleMethod is null)
+        if (requestType is null || scheduleMethod is null)
         {
-            return;
+            return false;
         }
 
         var genericMethod = scheduleMethod.MakeGenericMethod(requestType);
-        var task = (Task?)genericMethod.Invoke(scheduler, [request, context, delay, nextDelayedRetryAttempt, cancellationToken]);
+        var task = (Task<Either<EncinaError, Unit>>)genericMethod.Invoke(scheduler, [request, context, delay, nextDelayedRetryAttempt, cancellationToken])!;
+        var scheduled = await task.ConfigureAwait(false);
 
-        if (task is not null)
-        {
-            await task.ConfigureAwait(false);
-        }
+        return scheduled.IsRight;
     }
 
     private static RecoverabilityContext DeserializeContext(string contextContent)
     {
-        var serializable = JsonSerializer.Deserialize<SerializableRecoverabilityContext>(contextContent, JsonOptions);
+        var serializable = JsonSerializer.Deserialize<SerializableRecoverabilityContext>(contextContent, JsonOptions)
+            ?? new SerializableRecoverabilityContext();
 
         var context = new RecoverabilityContext
         {
-            CorrelationId = serializable?.CorrelationId,
-            IdempotencyKey = serializable?.IdempotencyKey,
-            RequestTypeName = serializable?.RequestTypeName
+            CorrelationId = serializable.CorrelationId,
+            IdempotencyKey = serializable.IdempotencyKey,
+            RequestTypeName = serializable.RequestTypeName
         };
 
+        // The logical message keeps its original id and start time across the whole chain.
+        if (serializable.Id != Guid.Empty)
+        {
+            context.RestoreChain(serializable.Id, serializable.StartedAtUtc);
+        }
+
         // Restore retry counts
-        for (var i = 0; i < (serializable?.ImmediateRetryCount ?? 0); i++)
+        for (var i = 0; i < serializable.ImmediateRetryCount; i++)
         {
             context.IncrementImmediateRetry();
         }
 
-        for (var i = 0; i < (serializable?.DelayedRetryCount ?? 0); i++)
+        for (var i = 0; i < serializable.DelayedRetryCount; i++)
         {
             context.IncrementDelayedRetry();
         }
@@ -356,7 +371,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         }
     }
 
-    private sealed record DispatchResult(bool IsSuccess, string? ErrorMessage);
+    private sealed record DispatchResult(bool IsSuccess, string? ErrorMessage, bool IsPermanent);
 }
 
 /// <summary>

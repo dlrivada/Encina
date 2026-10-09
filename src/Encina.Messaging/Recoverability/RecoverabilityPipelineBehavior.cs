@@ -92,15 +92,28 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             return result;
         }
 
+        return await HandleFailureAsync(request, context.CorrelationId, result, recoverabilityContext, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> HandleFailureAsync(
+        TRequest request,
+        string correlationId,
+        Either<EncinaError, TResponse> result,
+        RecoverabilityContext recoverabilityContext,
+        CancellationToken cancellationToken)
+    {
+        // A delayed-retry re-dispatch starts no new chain: the processor decides attempt N+1 or
+        // permanent failure from the outcome and the classification reported here (#2083).
+        if (DelayedRetryRedispatch.For(request) is { } redispatch)
+        {
+            redispatch.Report(recoverabilityContext.LastClassification);
+            return result;
+        }
+
         // If error is permanent, skip delayed retries
         if (recoverabilityContext.LastClassification == ErrorClassification.Permanent)
         {
-            RecoverabilityLog.PermanentErrorDetected(
-                _logger,
-                context.CorrelationId,
-                typeof(TRequest).Name,
-                recoverabilityContext.LastError?.GetCode().IfNone(RecoverabilityConstants.Unknown) ?? RecoverabilityConstants.Unknown);
-
+            LogPermanentErrorDetected(correlationId, recoverabilityContext);
             await HandlePermanentFailureAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
             return result;
         }
@@ -108,38 +121,56 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         // Schedule delayed retry if enabled and scheduler is available
         if (_options.EnableDelayedRetries && _delayedRetryScheduler is not null && _options.DelayedRetries.Length > 0)
         {
-            var firstDelayedRetryDelay = GetDelayWithJitter(_options.DelayedRetries[0]);
-
-            RecoverabilityLog.SchedulingDelayedRetry(
-                _logger,
-                context.CorrelationId,
-                typeof(TRequest).Name,
-                1,
-                _options.DelayedRetries.Length,
-                firstDelayedRetryDelay);
-
-            var scheduleResult = await _delayedRetryScheduler.ScheduleRetryAsync(
-                request,
-                recoverabilityContext,
-                firstDelayedRetryDelay,
-                0,
-                cancellationToken).ConfigureAwait(false);
-
-            scheduleResult.IfLeft(error =>
-                RecoverabilityLog.SchedulingDelayedRetryFailed(
-                    _logger,
-                    recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
-                    typeof(TRequest).Name,
-                    error.GetCode().IfNone(RecoverabilityConstants.Unknown)));
-
-            // Return error but note that delayed retry is scheduled
-            return Either<EncinaError, TResponse>.Left(
-                EncinaError.New($"[{RecoverabilityErrorCodes.DelayedRetryScheduled}] Immediate retries exhausted. Delayed retry scheduled in {firstDelayedRetryDelay.TotalSeconds:F0}s."));
+            return await ScheduleFirstDelayedRetryAsync(
+                _delayedRetryScheduler, request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
         }
 
         // No delayed retries - permanent failure
         await HandlePermanentFailureAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
         return result;
+    }
+
+    private void LogPermanentErrorDetected(string correlationId, RecoverabilityContext recoverabilityContext) =>
+        RecoverabilityLog.PermanentErrorDetected(
+            _logger,
+            correlationId,
+            typeof(TRequest).Name,
+            recoverabilityContext.LastError?.GetCode().IfNone(RecoverabilityConstants.Unknown) ?? RecoverabilityConstants.Unknown);
+
+    private async ValueTask<Either<EncinaError, TResponse>> ScheduleFirstDelayedRetryAsync(
+        IDelayedRetryScheduler scheduler,
+        TRequest request,
+        RecoverabilityContext recoverabilityContext,
+        CancellationToken cancellationToken)
+    {
+        var correlationId = recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown;
+        var firstDelayedRetryDelay = GetDelayWithJitter(_options.DelayedRetries[0]);
+
+        RecoverabilityLog.SchedulingDelayedRetry(
+            _logger,
+            correlationId,
+            typeof(TRequest).Name,
+            1,
+            _options.DelayedRetries.Length,
+            firstDelayedRetryDelay);
+
+        var scheduleResult = await scheduler.ScheduleRetryAsync(
+            request,
+            recoverabilityContext,
+            firstDelayedRetryDelay,
+            0,
+            cancellationToken).ConfigureAwait(false);
+
+        scheduleResult.IfLeft(error =>
+            RecoverabilityLog.SchedulingDelayedRetryFailed(
+                _logger,
+                correlationId,
+                typeof(TRequest).Name,
+                error.GetCode().IfNone(RecoverabilityConstants.Unknown)));
+
+        // Return error but note that delayed retry is scheduled
+        return Either<EncinaError, TResponse>.Left(
+            EncinaError.New($"[{RecoverabilityErrorCodes.DelayedRetryScheduled}] Immediate retries exhausted. Delayed retry scheduled in {firstDelayedRetryDelay.TotalSeconds:F0}s."));
     }
 
     private async ValueTask<Either<EncinaError, TResponse>> ExecuteWithImmediateRetriesAsync(

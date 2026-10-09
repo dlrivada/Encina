@@ -27,14 +27,26 @@ public sealed class RecoverabilityContext
     }
 
     /// <summary>
-    /// Gets the unique identifier for this processing attempt.
+    /// Gets the unique identifier of the logical message's retry chain. It stays the same across
+    /// every delayed retry of the message.
     /// </summary>
-    public Guid Id { get; } = Guid.NewGuid();
+    public Guid Id { get; private set; } = Guid.NewGuid();
 
     /// <summary>
     /// Gets the timestamp when processing first started (UTC).
     /// </summary>
-    public DateTime StartedAtUtc { get; }
+    public DateTime StartedAtUtc { get; private set; }
+
+    /// <summary>
+    /// Restores the identity of a persisted retry chain, so a delayed retry continues the logical
+    /// message's chain under its original id and start time. Internal: only the delayed retry
+    /// processor restores a chain.
+    /// </summary>
+    internal void RestoreChain(Guid id, DateTime startedAtUtc)
+    {
+        Id = id;
+        StartedAtUtc = startedAtUtc;
+    }
 
     /// <summary>
     /// Gets or sets the current immediate retry attempt count (0-based).
