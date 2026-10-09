@@ -91,7 +91,14 @@ Switching provider means changing the DI registration; the inbox options (`Inbox
 
 Two provider caveats apply:
 
-- The EF Core store (`InboxStoreEF`) writes `AddAsync`, `MarkAsProcessedAsync` and `MarkAsFailedAsync` immediately, on an isolated `DbContext` created from the options of the injected context. The inbox record is therefore neither flushed with nor rolled back by the request's business transaction (`TransactionPipelineBehavior`), as on the other nine providers. On relational providers `MarkAsFailedAsync` increments `RetryCount` in one atomic `UPDATE`. Requirement: your `DbContext` type must expose the standard public constructor taking `DbContextOptions<TContext>`. No ADR records this design; it was decided in issue [#2084](https://github.com/dlrivada/Encina/issues/2084).
+- The EF Core store (`InboxStoreEF`) writes `AddAsync`, `MarkAsProcessedAsync` and `MarkAsFailedAsync` immediately, on an isolated `DbContext` created from the options of the injected context. The inbox record is therefore neither flushed with nor rolled back by the request's business transaction (`TransactionPipelineBehavior`). On relational providers `MarkAsFailedAsync` increments `RetryCount` in one atomic `UPDATE`. Requirement: your `DbContext` type must expose the standard public constructor taking `DbContextOptions<TContext>`. No ADR records this design; it was decided in issue [#2084](https://github.com/dlrivada/Encina/issues/2084).
+
+  Limits of `InboxStoreEF`:
+
+  - The `DbContext` must be configured with a connection string, not a shared `DbConnection` instance; otherwise the isolated writes join the business transaction.
+  - Each inbox write uses a second pooled connection while the business transaction holds its own, so size the connection pool for it.
+  - Under a repeatable-read or serializable `[Transaction]`, the row lock taken by the inbox lookup on the business connection can block the isolated write until the command timeout.
+  - The cached response is committed before the business transaction commits. If that commit then fails, the redelivery returns the cached success (an at-least-once caveat).
 - The EF Core MySQL variant has its integration tests skipped until Pomelo supports EF Core 10 (issue [#2086](https://github.com/dlrivada/Encina/issues/2086)), so it is verified only by the shared EF Core store code and the other EF Core providers.
 
 ## Reference
