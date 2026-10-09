@@ -124,6 +124,45 @@ public static class PostgreSqlSchema
     }
 
     /// <summary>
+    /// Creates the DeadLetterMessages table schema (same shape as <c>029_CreateDeadLetterMessagesTable.sql</c>:
+    /// quoted PascalCase identifiers and TIMESTAMPTZ columns).
+    /// </summary>
+    public static async Task CreateDeadLetterSchemaAsync(NpgsqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS "DeadLetterMessages" (
+                "Id"                  UUID           NOT NULL PRIMARY KEY,
+                "RequestType"         VARCHAR(1000)  NOT NULL,
+                "RequestContent"      TEXT           NOT NULL,
+                "ErrorCode"           VARCHAR(256)   NOT NULL,
+                "ExceptionType"       VARCHAR(512)   NULL,
+                "ExceptionStackTrace" TEXT           NULL,
+                "CorrelationId"       VARCHAR(256)   NULL,
+                "SourcePattern"       VARCHAR(64)    NOT NULL,
+                "SourceMessageId"     VARCHAR(256)   NOT NULL,
+                "TenantId"            VARCHAR(128)   NULL,
+                "TotalRetryAttempts"  INTEGER        NOT NULL,
+                "FirstFailedAtUtc"    TIMESTAMPTZ    NOT NULL,
+                "DeadLetteredAtUtc"   TIMESTAMPTZ    NOT NULL,
+                "ExpiresAtUtc"        TIMESTAMPTZ    NULL,
+                "ReplayClaimedAtUtc"  TIMESTAMPTZ    NULL,
+                "ReplayedAtUtc"       TIMESTAMPTZ    NULL,
+                "ReplayResult"        VARCHAR(256)   NULL
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS "UX_DeadLetterMessages_Source" ON "DeadLetterMessages" ("SourcePattern", "SourceMessageId");
+            CREATE INDEX IF NOT EXISTS "IX_DeadLetterMessages_DeadLetteredAt" ON "DeadLetterMessages" ("DeadLetteredAtUtc", "Id");
+            CREATE INDEX IF NOT EXISTS "IX_DeadLetterMessages_Pending" ON "DeadLetterMessages" ("ReplayedAtUtc", "SourcePattern", "DeadLetteredAtUtc");
+            CREATE INDEX IF NOT EXISTS "IX_DeadLetterMessages_ExpiresAt" ON "DeadLetterMessages" ("ExpiresAtUtc");
+            CREATE INDEX IF NOT EXISTS "IX_DeadLetterMessages_CorrelationId" ON "DeadLetterMessages" ("CorrelationId");
+            CREATE INDEX IF NOT EXISTS "IX_DeadLetterMessages_Tenant" ON "DeadLetterMessages" ("TenantId", "DeadLetteredAtUtc");
+            """;
+
+        using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Creates the Orders table schema for immutable update integration tests.
     /// </summary>
     public static async Task CreateOrdersSchemaAsync(NpgsqlConnection connection)
@@ -465,6 +504,7 @@ public static class PostgreSqlSchema
             DROP TABLE IF EXISTS orders CASCADE;
             DROP TABLE IF EXISTS testrepositoryentities CASCADE;
             DROP TABLE IF EXISTS scheduledmessages CASCADE;
+            DROP TABLE IF EXISTS "DeadLetterMessages" CASCADE;
             DROP TABLE IF EXISTS sagastates CASCADE;
             DROP TABLE IF EXISTS inboxmessages CASCADE;
             DROP TABLE IF EXISTS outboxmessages CASCADE;
@@ -576,6 +616,7 @@ public static class PostgreSqlSchema
             DELETE FROM orders;
             DELETE FROM testrepositoryentities;
             DELETE FROM scheduledmessages;
+            DELETE FROM "DeadLetterMessages";
             DELETE FROM sagastates;
             DELETE FROM inboxmessages;
             DELETE FROM outboxmessages;

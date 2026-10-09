@@ -123,6 +123,45 @@ public static class SqlServerSchema
     }
 
     /// <summary>
+    /// Creates the DeadLetterMessages table schema (same shape as <c>029_CreateDeadLetterMessagesTable.sql</c>,
+    /// with binary collations on the filter columns).
+    /// </summary>
+    public static async Task CreateDeadLetterSchemaAsync(SqlConnection connection, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            DROP TABLE IF EXISTS DeadLetterMessages;
+            CREATE TABLE DeadLetterMessages (
+                Id                  UNIQUEIDENTIFIER NOT NULL,
+                RequestType         NVARCHAR(1000)   COLLATE Latin1_General_100_BIN2 NOT NULL,
+                RequestContent      NVARCHAR(MAX)    NOT NULL,
+                ErrorCode           NVARCHAR(256)    COLLATE Latin1_General_100_BIN2 NOT NULL,
+                ExceptionType       NVARCHAR(512)    NULL,
+                ExceptionStackTrace NVARCHAR(MAX)    NULL,
+                CorrelationId       NVARCHAR(256)    COLLATE Latin1_General_100_BIN2 NULL,
+                SourcePattern       NVARCHAR(64)     COLLATE Latin1_General_100_BIN2 NOT NULL,
+                SourceMessageId     NVARCHAR(256)    COLLATE Latin1_General_100_BIN2 NOT NULL,
+                TenantId            NVARCHAR(128)    COLLATE Latin1_General_100_BIN2 NULL,
+                TotalRetryAttempts  INT              NOT NULL,
+                FirstFailedAtUtc    DATETIME2(7)     NOT NULL,
+                DeadLetteredAtUtc   DATETIME2(7)     NOT NULL,
+                ExpiresAtUtc        DATETIME2(7)     NULL,
+                ReplayClaimedAtUtc  DATETIME2(7)     NULL,
+                ReplayedAtUtc       DATETIME2(7)     NULL,
+                ReplayResult        NVARCHAR(256)    NULL,
+                CONSTRAINT PK_DeadLetterMessages PRIMARY KEY CLUSTERED (Id),
+                INDEX UX_DeadLetterMessages_Source UNIQUE (SourcePattern, SourceMessageId),
+                INDEX IX_DeadLetterMessages_DeadLetteredAt (DeadLetteredAtUtc, Id),
+                INDEX IX_DeadLetterMessages_Pending (ReplayedAtUtc, SourcePattern, DeadLetteredAtUtc),
+                INDEX IX_DeadLetterMessages_ExpiresAt (ExpiresAtUtc),
+                INDEX IX_DeadLetterMessages_CorrelationId (CorrelationId),
+                INDEX IX_DeadLetterMessages_Tenant (TenantId, DeadLetteredAtUtc)
+            );
+            """;
+
+        await ExecuteInTransactionAsync(connection, sql, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Creates the Orders table schema for immutable update integration tests.
     /// </summary>
     public static async Task CreateOrdersSchemaAsync(SqlConnection connection, CancellationToken cancellationToken = default)
@@ -469,6 +508,7 @@ public static class SqlServerSchema
             DROP TABLE IF EXISTS TestEntities;
             DROP TABLE IF EXISTS ImmutableAggregates;
             DROP TABLE IF EXISTS ScheduledMessages;
+            DROP TABLE IF EXISTS DeadLetterMessages;
             DROP TABLE IF EXISTS SagaStates;
             DROP TABLE IF EXISTS InboxMessages;
             DROP TABLE IF EXISTS OutboxMessages;
@@ -528,6 +568,7 @@ public static class SqlServerSchema
             IF OBJECT_ID('TestEntities', 'U') IS NOT NULL DELETE FROM TestEntities;
             IF OBJECT_ID('ImmutableAggregates', 'U') IS NOT NULL DELETE FROM ImmutableAggregates;
             IF OBJECT_ID('ScheduledMessages', 'U') IS NOT NULL DELETE FROM ScheduledMessages;
+            IF OBJECT_ID('DeadLetterMessages', 'U') IS NOT NULL DELETE FROM DeadLetterMessages;
             IF OBJECT_ID('SagaStates', 'U') IS NOT NULL DELETE FROM SagaStates;
             IF OBJECT_ID('InboxMessages', 'U') IS NOT NULL DELETE FROM InboxMessages;
             IF OBJECT_ID('OutboxMessages', 'U') IS NOT NULL DELETE FROM OutboxMessages;

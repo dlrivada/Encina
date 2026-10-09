@@ -112,6 +112,45 @@ public static class MySqlSchema
     }
 
     /// <summary>
+    /// Creates the DeadLetterMessages table schema (same shape as <c>029_CreateDeadLetterMessagesTable.sql</c>,
+    /// with binary collations on the filter columns).
+    /// </summary>
+    public static async Task CreateDeadLetterSchemaAsync(MySqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS DeadLetterMessages (
+                Id                  CHAR(36)       NOT NULL,
+                RequestType         VARCHAR(1000)  COLLATE utf8mb4_bin NOT NULL,
+                RequestContent      LONGTEXT       NOT NULL,
+                ErrorCode           VARCHAR(256)   COLLATE utf8mb4_bin NOT NULL,
+                ExceptionType       VARCHAR(512)   NULL,
+                ExceptionStackTrace LONGTEXT       NULL,
+                CorrelationId       VARCHAR(256)   COLLATE utf8mb4_bin NULL,
+                SourcePattern       VARCHAR(64)    COLLATE utf8mb4_bin NOT NULL,
+                SourceMessageId     VARCHAR(256)   COLLATE utf8mb4_bin NOT NULL,
+                TenantId            VARCHAR(128)   COLLATE utf8mb4_bin NULL,
+                TotalRetryAttempts  INT            NOT NULL,
+                FirstFailedAtUtc    DATETIME(6)    NOT NULL,
+                DeadLetteredAtUtc   DATETIME(6)    NOT NULL,
+                ExpiresAtUtc        DATETIME(6)    NULL,
+                ReplayClaimedAtUtc  DATETIME(6)    NULL,
+                ReplayedAtUtc       DATETIME(6)    NULL,
+                ReplayResult        VARCHAR(256)   NULL,
+                PRIMARY KEY (Id),
+                UNIQUE INDEX UX_DeadLetterMessages_Source (SourcePattern, SourceMessageId),
+                INDEX IX_DeadLetterMessages_DeadLetteredAt (DeadLetteredAtUtc, Id),
+                INDEX IX_DeadLetterMessages_Pending (ReplayedAtUtc, SourcePattern, DeadLetteredAtUtc),
+                INDEX IX_DeadLetterMessages_ExpiresAt (ExpiresAtUtc),
+                INDEX IX_DeadLetterMessages_CorrelationId (CorrelationId),
+                INDEX IX_DeadLetterMessages_Tenant (TenantId, DeadLetteredAtUtc)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """;
+
+        using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Creates the Orders table schema for immutable update integration tests.
     /// </summary>
     public static async Task CreateOrdersSchemaAsync(MySqlConnection connection)
@@ -324,6 +363,7 @@ public static class MySqlSchema
             DROP TABLE IF EXISTS `Orders`;
             DROP TABLE IF EXISTS `TestRepositoryEntities`;
             DROP TABLE IF EXISTS ScheduledMessages;
+            DROP TABLE IF EXISTS DeadLetterMessages;
             DROP TABLE IF EXISTS SagaStates;
             DROP TABLE IF EXISTS InboxMessages;
             DROP TABLE IF EXISTS OutboxMessages;
@@ -423,6 +463,7 @@ public static class MySqlSchema
             DELETE FROM `Orders`;
             DELETE FROM `TestRepositoryEntities`;
             DELETE FROM ScheduledMessages;
+            DELETE FROM DeadLetterMessages;
             DELETE FROM SagaStates;
             DELETE FROM InboxMessages;
             DELETE FROM OutboxMessages;

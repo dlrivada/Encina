@@ -184,6 +184,8 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
     /// <inheritdoc />
     public Task<Either<EncinaError, Option<IDeadLetterMessage>>> GetAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
+        ArgumentOutOfRangeException.ThrowIfEqual(messageId, Guid.Empty);
+
         _messages.TryGetValue(messageId, out var message);
         var option = message is not null
             ? Option<IDeadLetterMessage>.Some(message)
