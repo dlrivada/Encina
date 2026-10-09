@@ -4,17 +4,18 @@
 -- Lengths come from Encina.Messaging.DeadLetter.DeadLetterStoreLimits.
 -- =============================================
 
+-- String filter columns use a binary collation so that SourcePattern/SourceMessageId (the unique idempotency key) and the other filter columns compare case-sensitively, like PostgreSQL and MongoDB.
 CREATE TABLE IF NOT EXISTS `DeadLetterMessages` (
     `Id`                  CHAR(36)       NOT NULL,
-    `RequestType`         VARCHAR(1000)  NOT NULL,
+    `RequestType`         VARCHAR(1000)  COLLATE utf8mb4_bin NOT NULL,
     `RequestContent`      LONGTEXT       NOT NULL,
-    `ErrorCode`           VARCHAR(256)   NOT NULL,
+    `ErrorCode`           VARCHAR(256)   COLLATE utf8mb4_bin NOT NULL,
     `ExceptionType`       VARCHAR(512)   NULL,
     `ExceptionStackTrace` LONGTEXT       NULL,
-    `CorrelationId`       VARCHAR(256)   NULL,
-    `SourcePattern`       VARCHAR(64)    NOT NULL,
-    `SourceMessageId`     VARCHAR(256)   NOT NULL,
-    `TenantId`            VARCHAR(128)   NULL,
+    `CorrelationId`       VARCHAR(256)   COLLATE utf8mb4_bin NULL,
+    `SourcePattern`       VARCHAR(64)    COLLATE utf8mb4_bin NOT NULL,
+    `SourceMessageId`     VARCHAR(256)   COLLATE utf8mb4_bin NOT NULL,
+    `TenantId`            VARCHAR(128)   COLLATE utf8mb4_bin NULL,
     `TotalRetryAttempts`  INT            NOT NULL,
     `FirstFailedAtUtc`    DATETIME(6)    NOT NULL,
     `DeadLetteredAtUtc`   DATETIME(6)    NOT NULL,
