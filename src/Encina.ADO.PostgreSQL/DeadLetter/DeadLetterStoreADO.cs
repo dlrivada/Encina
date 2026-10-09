@@ -81,7 +81,7 @@ public sealed class DeadLetterStoreADO : IDeadLetterStore
 
             // One row inserted, or none when the source message was already captured (no server error is raised).
             return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
-        },DeadLetterErrorCodes.StoreFailed).ConfigureAwait(false);
+        }, DeadLetterErrorCodes.StoreFailed).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

@@ -78,7 +78,7 @@ public sealed class DeadLetterStoreDapper : IDeadLetterStore
 
             // One row inserted, or none when the source message was already captured (no server error is raised).
             return await ExecuteAsync(sql, ToParameters(message), cancellationToken).ConfigureAwait(false) == 1;
-        },DeadLetterErrorCodes.StoreFailed).ConfigureAwait(false);
+        }, DeadLetterErrorCodes.StoreFailed).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
