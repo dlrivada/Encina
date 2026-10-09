@@ -220,7 +220,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 90,
+        "guard": 90
+      },
+      "justifications": {
+        "unit": "Unit tests construct the attribute through the pipeline enforcement tests and read its properties (measured 100%).",
+        "guard": "Guard tests build the attribute with its arguments and check the constructor guards (measured 100%)."
+      }
     },
     "Builders/AdviceBuilder.cs": {
       "defaultTests": [
@@ -620,7 +628,15 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "unit": 90,
+        "guard": 9
+      },
+      "justifications": {
+        "unit": "Unit tests drive every branch of the health check with a mocked PAP (measured 98.1%).",
+        "guard": "Guard tests cover only the constructor and argument guards; behavior is covered by unit tests (measured 9.6%)."
+      }
     },
     "Model/ABACEnforcementMode.cs": {
       "defaultTests": [
