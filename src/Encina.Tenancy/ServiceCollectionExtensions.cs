@@ -22,6 +22,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="ITenantProvider"/> - For accessing current tenant context</item>
     /// <item><see cref="ITenantStore"/> - For tenant metadata (defaults to <see cref="InMemoryTenantStore"/>)</item>
     /// <item><see cref="TenancyOptions"/> - Configuration via IOptions pattern</item>
+    /// <item><see cref="MultiTenancyMarker"/> - The signal that multi-tenancy is enabled, which tenant-aware components of other packages check</item>
     /// </list>
     /// <para>
     /// For ASP.NET Core applications, also call <c>AddEncinaTenancyAspNetCore()</c> from
@@ -102,6 +103,10 @@ public static class ServiceCollectionExtensions
                     "InMemoryTenantStore is not registered. " +
                     "If using a custom ITenantStore, inject ITenantStore instead.");
         });
+
+        // Signal to every package that multi-tenancy is enabled, so tenant-aware readers fail
+        // closed when a request carries no tenant (checked through IServiceProviderIsService).
+        services.TryAddSingleton<MultiTenancyMarker>();
 
         // Register tenant provider as scoped (reads the ambient request context from the core accessor)
         services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();

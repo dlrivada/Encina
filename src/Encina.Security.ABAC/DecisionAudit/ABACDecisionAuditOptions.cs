@@ -75,4 +75,36 @@ public sealed class ABACDecisionAuditOptions
     /// attribute names only, because values are personal data.
     /// </summary>
     public HashSet<string> RecordedAttributeValues { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets or sets how long one decision record write may take before it counts as failed.
+    /// Default is 5 seconds.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The bound holds even for a store that ignores its cancellation token: the write is raced
+    /// against this timeout. A write that times out is checked once more (within the same bound) for
+    /// a committed entry with the decision id, so a slow store that did persist the record does not
+    /// deny the request; otherwise it is a failed write and <see cref="FailureMode"/> applies.
+    /// </para>
+    /// <para>
+    /// The value must be greater than zero and is validated when the application starts.
+    /// </para>
+    /// </remarks>
+    public TimeSpan WriteTimeout { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Gets or sets whether the decision audit reader may run without a tenant in a multi-tenant
+    /// application. Default is <c>false</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When multi-tenancy is enabled (a multi-tenancy package registered
+    /// <see cref="MultiTenancyMarker"/>) and the request carries no tenant, the reader denies the
+    /// query. This option is the explicit opt-out for operator tooling that reads the trail of every
+    /// tenant; each query it lets through is logged. An ambient tenant is always forced, whatever
+    /// this option says. Single-tenant applications need no configuration.
+    /// </para>
+    /// </remarks>
+    public bool AllowCrossTenantQueries { get; set; }
 }

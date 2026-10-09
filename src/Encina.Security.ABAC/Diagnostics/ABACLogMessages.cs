@@ -376,4 +376,26 @@ internal static partial class ABACLogMessages
         Message = "The evaluation trace of the ABAC decision for {RequestType} reached the limit of {MaxTraceEntries} entries and is truncated")]
     internal static partial void EvaluationTraceTruncated(
         ILogger logger, string requestType, int maxTraceEntries);
+
+    /// <summary>
+    /// The write of a decision record failed or timed out, but the entry with its decision id was
+    /// found committed, so the record counts as written (Event IDs 9079-9090, see EventIdRanges.SecurityABAC).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 9089,
+        Level = LogLevel.Debug,
+        Message = "The write of ABAC decision {DecisionId} reported a failure ({FailureCode}) but the entry is stored; the record counts as written")]
+    internal static partial void DecisionAlreadyStored(
+        ILogger logger, Guid decisionId, string failureCode);
+
+    /// <summary>
+    /// A decision audit query ran without a tenant in a multi-tenant application because
+    /// <c>AllowCrossTenantQueries</c> is set: the logged opt-out of the reader's tenant gate
+    /// (Event IDs 9079-9090, see EventIdRanges.SecurityABAC).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 9090,
+        Level = LogLevel.Warning,
+        Message = "A decision audit query ran without a tenant in a multi-tenant application (AllowCrossTenantQueries is set)")]
+    internal static partial void DecisionAuditCrossTenantQuery(ILogger logger);
 }

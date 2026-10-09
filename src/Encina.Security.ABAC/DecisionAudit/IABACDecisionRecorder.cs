@@ -15,9 +15,14 @@ namespace Encina.Security.ABAC.DecisionAudit;
 /// <para>
 /// An implementation must be safe to share across requests, must not link the write to the client's
 /// cancellation (a disconnect must not erase the evidence of a denied attempt), must return in a
-/// bounded time of its own (the Policy Enforcement Point does not yet bound the call; that bound
-/// arrives with the operation-audit-store recorder) and must never put an error or exception
-/// message in the returned error.
+/// bounded time of its own (the Policy Enforcement Point awaits it without a bound of its own) and
+/// must never put an error or exception message in the returned error.
+/// </para>
+/// <para>
+/// The registered implementation is <see cref="AuditStoreABACDecisionRecorder"/>: it writes through
+/// the application's <c>IOperationAuditStore</c> in an isolated scope, bounded by
+/// <see cref="ABACDecisionAuditOptions.WriteTimeout"/>, and returns
+/// <see cref="ABACErrors.DecisionAuditStoreUnavailable"/> when no store is registered.
 /// </para>
 /// </remarks>
 public interface IABACDecisionRecorder
