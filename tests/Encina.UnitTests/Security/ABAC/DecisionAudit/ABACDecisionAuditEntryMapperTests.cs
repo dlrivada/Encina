@@ -44,6 +44,13 @@ public sealed class ABACDecisionAuditEntryMapperTests
     private static string? Meta(OperationAuditEntry entry, string key) =>
         entry.Metadata.TryGetValue(key, out var value) ? (string?)value : null;
 
+    // A marker is stored as a JSON array of strings; joined with commas here for compact assertions.
+    private static string? Markers(OperationAuditEntry entry, string key) =>
+        Meta(entry, key) is { } json ? string.Join(",", JsonSerializer.Deserialize<List<string>>(json)!) : null;
+
+    private static List<string> JsonArray(OperationAuditEntry entry, string key) =>
+        JsonSerializer.Deserialize<List<string>>(Meta(entry, key)!)!;
+
     [Fact]
     public void ToOperationAuditEntry_Null_Throws() =>
         Should.Throw<ArgumentNullException>(() => ABACDecisionAuditEntryMapper.ToOperationAuditEntry(null!));
@@ -193,7 +200,7 @@ public sealed class ABACDecisionAuditEntryMapperTests
         var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with { UserId = longValue });
 
         ShouldBeHash(entry.UserId, longValue);
-        Meta(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe("UserId");
+        Markers(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe("UserId");
     }
 
     [Fact]
@@ -215,7 +222,7 @@ public sealed class ABACDecisionAuditEntryMapperTests
         var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with { RequestType = longValue });
 
         ShouldBeHash(entry.EntityType, longValue);
-        Meta(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe("EntityType");
+        Markers(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe("EntityType");
     }
 
     [Fact]
@@ -226,7 +233,7 @@ public sealed class ABACDecisionAuditEntryMapperTests
         var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with { ResourceId = longValue });
 
         ShouldBeHash(entry.EntityId, longValue);
-        Meta(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe("EntityId");
+        Markers(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe("EntityId");
     }
 
     [Fact]
@@ -237,7 +244,7 @@ public sealed class ABACDecisionAuditEntryMapperTests
         var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with { CorrelationId = longValue });
 
         ShouldBeHash(entry.CorrelationId, longValue);
-        Meta(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe("CorrelationId");
+        Markers(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe("CorrelationId");
     }
 
     [Fact]
@@ -248,7 +255,7 @@ public sealed class ABACDecisionAuditEntryMapperTests
         var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with { TenantId = longValue });
 
         ShouldBeHash(entry.TenantId, longValue);
-        Meta(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe("TenantId");
+        Markers(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe("TenantId");
     }
 
     [Fact]
@@ -259,7 +266,7 @@ public sealed class ABACDecisionAuditEntryMapperTests
         var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with { ReasonCode = longValue });
 
         ShouldBeHash(entry.ErrorMessage, longValue);
-        Meta(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe("ErrorMessage");
+        Markers(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe("ErrorMessage");
     }
 
     [Fact]
@@ -272,7 +279,7 @@ public sealed class ABACDecisionAuditEntryMapperTests
 
         ShouldBeHash(Meta(entry, ABACDecisionAuditSchema.MetadataPolicyId), longPolicy);
         ShouldBeHash(Meta(entry, ABACDecisionAuditSchema.MetadataRuleId), longRule);
-        Meta(entry, ABACDecisionAuditSchema.MetadataHashedFields)
+        Markers(entry, ABACDecisionAuditSchema.MetadataHashedFields)
             .ShouldBe($"{ABACDecisionAuditSchema.MetadataPolicyId},{ABACDecisionAuditSchema.MetadataRuleId}");
     }
 
@@ -283,7 +290,7 @@ public sealed class ABACDecisionAuditEntryMapperTests
             Record() with { IpAddress = new string('1', ABACDecisionAuditSchema.IpAddressMaxLength + 1) });
 
         entry.IpAddress.ShouldBeNull();
-        Meta(entry, ABACDecisionAuditSchema.MetadataDroppedFields).ShouldBe("IpAddress");
+        Markers(entry, ABACDecisionAuditSchema.MetadataDroppedFields).ShouldBe("IpAddress");
     }
 
     [Fact]
@@ -292,7 +299,7 @@ public sealed class ABACDecisionAuditEntryMapperTests
         var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with { IpAddress = "not-an-address" });
 
         entry.IpAddress.ShouldBeNull();
-        Meta(entry, ABACDecisionAuditSchema.MetadataDroppedFields).ShouldBe("IpAddress");
+        Markers(entry, ABACDecisionAuditSchema.MetadataDroppedFields).ShouldBe("IpAddress");
     }
 
     [Theory]
@@ -308,7 +315,7 @@ public sealed class ABACDecisionAuditEntryMapperTests
         var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with { IpAddress = address });
 
         entry.IpAddress.ShouldBeNull();
-        Meta(entry, ABACDecisionAuditSchema.MetadataDroppedFields).ShouldBe("IpAddress");
+        Markers(entry, ABACDecisionAuditSchema.MetadataDroppedFields).ShouldBe("IpAddress");
     }
 
     [Theory]
@@ -341,7 +348,7 @@ public sealed class ABACDecisionAuditEntryMapperTests
         var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with { UserAgent = longValue });
 
         entry.UserAgent.ShouldBe(longValue[..ABACDecisionAuditSchema.UserAgentMaxLength]);
-        Meta(entry, ABACDecisionAuditSchema.MetadataTruncatedFields).ShouldBe("UserAgent");
+        Markers(entry, ABACDecisionAuditSchema.MetadataTruncatedFields).ShouldBe("UserAgent");
     }
 
     [Fact]
@@ -353,6 +360,64 @@ public sealed class ABACDecisionAuditEntryMapperTests
 
         entry.UserAgent!.Length.ShouldBe(ABACDecisionAuditSchema.UserAgentMaxLength - 1);
         char.IsHighSurrogate(entry.UserAgent[^1]).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ToOperationAuditEntry_ModuleIdOverTheValueLimit_IsHashedAndMarked()
+    {
+        var longModule = new string('m', ABACDecisionAuditSchema.MaxAttributeValueLength + 1);
+
+        var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with { ModuleId = longModule });
+
+        ShouldBeHash(Meta(entry, ABACDecisionAuditSchema.MetadataModuleId), longModule);
+        Markers(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe(ABACDecisionAuditSchema.MetadataModuleId);
+    }
+
+    [Theory]
+    [InlineData(ABACDecisionAuditSchema.MetadataObligations)]
+    [InlineData(ABACDecisionAuditSchema.MetadataAdvice)]
+    public void ToOperationAuditEntry_IdListOverTheCount_KeepsTheFirstIdsAndIsMarkedTruncated(string key)
+    {
+        var ids = Enumerable.Range(0, ABACDecisionAuditSchema.MaxListedIds + 6).Select(i => $"id-{i}").ToList();
+        var record = key == ABACDecisionAuditSchema.MetadataObligations ? Record() with { ObligationIds = ids } : Record() with { AdviceIds = ids };
+
+        var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(record);
+
+        JsonArray(entry, key).ShouldBe(ids.Take(ABACDecisionAuditSchema.MaxListedIds));
+        Markers(entry, ABACDecisionAuditSchema.MetadataTruncatedFields).ShouldBe(key);
+        entry.Metadata.ShouldNotContainKey(ABACDecisionAuditSchema.MetadataHashedFields);
+    }
+
+    [Theory]
+    [InlineData(ABACDecisionAuditSchema.MetadataObligations)]
+    [InlineData(ABACDecisionAuditSchema.MetadataAdvice)]
+    public void ToOperationAuditEntry_IdOverTheValueLimit_IsHashedAndMarked(string key)
+    {
+        var longId = new string('o', ABACDecisionAuditSchema.MaxAttributeValueLength + 1);
+        List<string> ids = ["short", longId];
+        var record = key == ABACDecisionAuditSchema.MetadataObligations ? Record() with { ObligationIds = ids } : Record() with { AdviceIds = ids };
+
+        var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(record);
+
+        var stored = JsonArray(entry, key);
+        stored[0].ShouldBe("short");
+        ShouldBeHash(stored[1], longId);
+        Markers(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe(key);
+        entry.Metadata.ShouldNotContainKey(ABACDecisionAuditSchema.MetadataTruncatedFields);
+    }
+
+    [Fact]
+    public void ToOperationAuditEntry_MarkedNameWithAComma_StaysOneMarkerEntry()
+    {
+        var key = ABACDecisionAuditSchema.MetadataAttributeValuePrefix + "unit,floor";
+
+        var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with
+        {
+            RecordedValues = new Dictionary<string, string> { ["unit,floor"] = new string('v', ABACDecisionAuditSchema.MaxAttributeValueLength + 1) }
+        });
+
+        JsonArray(entry, ABACDecisionAuditSchema.MetadataTruncatedFields).ShouldBe([key]);
+        ABACDecisionAuditEntryMapper.ToDecisionAuditRecord(entry).TruncatedFields.ShouldBe([key]);
     }
 
     [Fact]
@@ -382,7 +447,7 @@ public sealed class ABACDecisionAuditEntryMapperTests
 
         var stored = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(Meta(entry, ABACDecisionAuditSchema.MetadataAttributeNames)!)!;
         stored.Values.Sum(list => list.Count).ShouldBe(ABACDecisionAuditSchema.MaxAttributeNames);
-        Meta(entry, ABACDecisionAuditSchema.MetadataTruncatedFields).ShouldBe(ABACDecisionAuditSchema.MetadataAttributeNames);
+        Markers(entry, ABACDecisionAuditSchema.MetadataTruncatedFields).ShouldBe(ABACDecisionAuditSchema.MetadataAttributeNames);
     }
 
     [Fact]
@@ -398,7 +463,7 @@ public sealed class ABACDecisionAuditEntryMapperTests
 
         Meta(entry, key)!.Length.ShouldBe(ABACDecisionAuditSchema.MaxAttributeValueLength);
         Meta(entry, ABACDecisionAuditSchema.MetadataAttributeValuePrefix + "role").ShouldBe("nurse");
-        Meta(entry, ABACDecisionAuditSchema.MetadataTruncatedFields).ShouldBe(key);
+        Markers(entry, ABACDecisionAuditSchema.MetadataTruncatedFields).ShouldBe(key);
     }
 
     [Fact]
@@ -412,9 +477,9 @@ public sealed class ABACDecisionAuditEntryMapperTests
             UserAgent = new string('a', 600)
         });
 
-        Meta(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe("UserId,TenantId");
-        Meta(entry, ABACDecisionAuditSchema.MetadataDroppedFields).ShouldBe("IpAddress");
-        Meta(entry, ABACDecisionAuditSchema.MetadataTruncatedFields).ShouldBe("UserAgent");
+        Markers(entry, ABACDecisionAuditSchema.MetadataHashedFields).ShouldBe("UserId,TenantId");
+        Markers(entry, ABACDecisionAuditSchema.MetadataDroppedFields).ShouldBe("IpAddress");
+        Markers(entry, ABACDecisionAuditSchema.MetadataTruncatedFields).ShouldBe("UserAgent");
     }
 
     // ── Read-back ────────────────────────────────────────────────────

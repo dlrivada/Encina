@@ -119,7 +119,7 @@ internal sealed class ABACDecisionAuditReader : IABACDecisionAuditReader
             var page = await RunQueryAsync(storeQuery, cancellationToken).ConfigureAwait(false);
             if (page.IsLeft)
             {
-                return page.Map(_ => written);
+                return page.MapLeft(error => Incomplete(error, written)).Map(_ => written);
             }
 
             var records = page.IfLeft(PagedResult<ABACDecisionAuditRecord>.Empty());
@@ -134,6 +134,13 @@ internal sealed class ABACDecisionAuditReader : IABACDecisionAuditReader
             storeQuery = storeQuery with { PageNumber = storeQuery.PageNumber + 1 };
         }
     }
+
+    // A failure before any line was written leaves the destination untouched and keeps its own
+    // error; after that, the caller must learn that the output is partial and must be discarded.
+    private static EncinaError Incomplete(EncinaError error, int written) =>
+        written == 0
+            ? error
+            : ABACErrors.DecisionAuditExportIncomplete(written, error.GetCode().IfNone("encina.unknown"));
 
     // ── Validation and tenant gate ───────────────────────────────────
 

@@ -409,4 +409,16 @@ internal static partial class ABACLogMessages
         Level = LogLevel.Error,
         Message = "A stored ABAC decision audit entry could not be read; the query fails")]
     internal static partial void DecisionAuditRecordUnreadable(ILogger logger, Exception exception);
+
+    /// <summary>
+    /// The write of a decision record failed and the look-up that would confirm a committed entry
+    /// failed too (a store error code or an exception type, never a message), so the write stays
+    /// unconfirmed (Event ID 9099, see EventIdRanges.SecurityABAC).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 9099,
+        Level = LogLevel.Debug,
+        Message = "The write of ABAC decision {DecisionId} failed ({FailureCode}) and the look-up that would confirm it failed too ({LookupFailure}); the write stays unconfirmed")]
+    internal static partial void DecisionStoredCheckFailed(
+        ILogger logger, Guid decisionId, string failureCode, string lookupFailure);
 }

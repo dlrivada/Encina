@@ -33,7 +33,16 @@ namespace Encina.Security.ABAC.DecisionAudit;
 /// own (so a failed write takes at most twice <see cref="ABACDecisionAuditOptions.WriteTimeout"/>), and
 /// treats a committed entry with that id as written. On stores whose reads lag behind writes (Marten's
 /// asynchronous projection) the entry may not be visible yet; the failure then stands, so the result
-/// is never a false success.
+/// is never a false success. A lookup that fails (a <c>Left</c>, an exception or its own timeout) is
+/// logged (Debug 9099, codes and exception types only) so an unconfirmed write can be told from a
+/// plain failure.
+/// </para>
+/// <para>
+/// <b>Abandoned writes</b>: a write that times out is abandoned, not cancelled by force. It keeps
+/// running after the recorder returns and the write's DI scope is disposed, so it may then fail (for
+/// example with <see cref="ObjectDisposedException"/> on a scoped <c>DbContext</c>; that late fault is
+/// observed, never left unobserved) or, if it commits first, land after the request was already
+/// denied. The decision id makes such a late row identifiable.
 /// </para>
 /// <para>
 /// <b>Failures</b>: a store <c>Left</c> is returned with the store's code and a fixed message (never
@@ -148,25 +157,36 @@ public sealed class AuditStoreABACDecisionRecorder : IABACDecisionRecorder
             var store = scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
             var found = await TimeBoundedCall.RunAsync(
                 bound => store.GetByCorrelationIdAsync(entry.CorrelationId, bound), timeout, _timeProvider).ConfigureAwait(false);
-            var stored = found.Match(Right: entries => entries.Any(candidate => candidate.Id == entry.Id), Left: _ => false);
-            LogIfStored(stored, entry.Id, failureCode);
-            return stored;
+
+            return found.Match(
+                Right: entries => Confirmed(entries.Any(candidate => candidate.Id == entry.Id), entry.Id, failureCode),
+                Left: error => LookupFailed(entry.Id, failureCode, CodeOf(error)));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // The lookup is a best-effort confirmation; the original failure is what gets reported.
-            return false;
+            return LookupFailed(entry.Id, failureCode, ex.GetType().Name);
         }
     }
 
-    private void LogIfStored(bool stored, Guid decisionId, string failureCode)
+    private bool Confirmed(bool stored, Guid decisionId, string failureCode)
     {
         if (stored)
         {
             ABACLogMessages.DecisionAlreadyStored(_logger, decisionId, failureCode);
         }
+
+        return stored;
+    }
+
+    private bool LookupFailed(Guid decisionId, string failureCode, string lookupFailure)
+    {
+        ABACLogMessages.DecisionStoredCheckFailed(_logger, decisionId, failureCode, lookupFailure);
+        return false;
     }
 
     private static string CodeOf(Either<EncinaError, Unit> result) =>
-        result.Match(Right: _ => string.Empty, Left: error => error.GetCode().IfNone("encina.unknown"));
+        result.Match(Right: _ => string.Empty, Left: CodeOf);
+
+    private static string CodeOf(EncinaError error) => error.GetCode().IfNone("encina.unknown");
 }

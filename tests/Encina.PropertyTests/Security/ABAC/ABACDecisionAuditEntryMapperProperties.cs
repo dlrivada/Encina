@@ -62,7 +62,9 @@ public sealed class ABACDecisionAuditEntryMapperProperties
         && value[ABACDecisionAuditSchema.HashPrefix.Length..].All(c => Hex.Contains(c));
 
     private static string[] Marker(OperationAuditEntry entry, string key) =>
-        entry.Metadata.TryGetValue(key, out var value) && value is string text ? text.Split(',') : [];
+        entry.Metadata.TryGetValue(key, out var value) && value is string json
+            ? System.Text.Json.JsonSerializer.Deserialize<string[]>(json)!
+            : [];
 
     [Property(MaxTest = 200)]
     public Property EveryBoundedColumn_FitsItsLimit_AndTheMarkersListExactlyTheModifiedFields() =>

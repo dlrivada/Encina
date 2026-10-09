@@ -48,11 +48,20 @@ public interface IABACDecisionAuditReader
     /// <see cref="OperationAuditQuery.MaxPageSize"/>. The paging of <paramref name="query"/> is ignored.
     /// Pages are read newest first: set <see cref="ABACDecisionAuditQuery.ToUtc"/> to export a stable
     /// range while decisions are still being recorded, or a new decision can shift a page and repeat a line.
+    /// The operation audit stores order a page by timestamp only, so two decisions with the same
+    /// timestamp can swap across a page boundary (one line repeated, another missing) until the stores
+    /// sort by a unique tiebreaker (#2135).
     /// </summary>
     /// <param name="query">The filters.</param>
     /// <param name="destination">The writable stream that receives the lines; it is not closed.</param>
     /// <param name="cancellationToken">A token to cancel the export.</param>
-    /// <returns>The number of decisions written, or <c>Left</c> with the denial or failure (lines already written stay written).</returns>
+    /// <returns>
+    /// The number of decisions written, or <c>Left</c> with the denial or failure. A failure before
+    /// the first line keeps its own error and leaves <paramref name="destination"/> untouched; a failure
+    /// after lines were written is <see cref="ABACErrors.DecisionAuditExportIncompleteCode"/>, whose
+    /// details give the number of lines written (<c>linesWritten</c>) and the failure's code
+    /// (<c>cause</c>): the destination then holds a partial file that must be discarded.
+    /// </returns>
     ValueTask<Either<EncinaError, int>> ExportAsync(
         ABACDecisionAuditQuery query,
         Stream destination,

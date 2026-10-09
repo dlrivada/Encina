@@ -420,6 +420,31 @@ public sealed class ABACDecisionAuditReaderTests
     }
 
     [Fact]
+    public async Task ExportAsync_PageFailsAfterLinesWereWritten_ReturnsExportIncompleteWithTheLineCount()
+    {
+        await SeedAsync(null);
+        var firstPageEntry = _store.GetAllEntries()[0];
+        var store = Substitute.For<IOperationAuditStore>();
+        store.QueryAsync(Arg.Is<OperationAuditQuery>(q => q.PageNumber == 1), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Right<EncinaError, PagedResult<OperationAuditEntry>>(
+                PagedResult<OperationAuditEntry>.Create([firstPageEntry], OperationAuditQuery.MaxPageSize + 1, 1, OperationAuditQuery.MaxPageSize))));
+        store.QueryAsync(Arg.Is<OperationAuditQuery>(q => q.PageNumber == 2), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Left<EncinaError, PagedResult<OperationAuditEntry>>(EncinaErrors.Create("store.down", "Secret detail"))));
+        using var stream = new MemoryStream();
+
+        var result = await Reader(store: store).ExportAsync(new ABACDecisionAuditQuery(), stream);
+
+        Code(result).ShouldBe(ABACErrors.DecisionAuditExportIncompleteCode);
+        result.IfLeft(error =>
+        {
+            error.GetDetails()["linesWritten"].ShouldBe(1);
+            error.GetDetails()["cause"].ShouldBe("store.down");
+            error.Message.ShouldNotContain("Secret detail");
+        });
+        Encoding.UTF8.GetString(stream.ToArray()).Split('\n', StringSplitOptions.RemoveEmptyEntries).Length.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task ExportAsync_NothingMatches_WritesNothing()
     {
         using var stream = new MemoryStream();

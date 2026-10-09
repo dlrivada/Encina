@@ -28,8 +28,32 @@ public sealed class AuditStoreABACDecisionRecorderTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
 
-    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 9, 8, 0, 0, TimeSpan.Zero));
+    private readonly TimerSignallingTimeProvider _time = new(new DateTimeOffset(2026, 10, 9, 8, 0, 0, TimeSpan.Zero));
     private readonly FakeLogCollector _logs = new();
+
+    /// <summary>
+    /// A fake clock that signals every timer created on it, so a test advances time only once the
+    /// timers it means to fire exist (deterministic, no polling).
+    /// </summary>
+    private sealed class TimerSignallingTimeProvider(DateTimeOffset start) : FakeTimeProvider(start)
+    {
+        private readonly global::System.Threading.Channels.Channel<bool> _created = global::System.Threading.Channels.Channel.CreateUnbounded<bool>();
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = base.CreateTimer(callback, state, dueTime, period);
+            _created.Writer.TryWrite(true);
+            return timer;
+        }
+
+        public async Task WaitForTimersAsync(int count)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                await _created.Reader.ReadAsync(TestContext.Current.CancellationToken);
+            }
+        }
+    }
 
     /// <summary>A scriptable store: each call runs the delegate the test sets.</summary>
     private sealed class ScriptedStore : IOperationAuditStore
@@ -241,10 +265,15 @@ public sealed class AuditStoreABACDecisionRecorderTests
         var store = new ScriptedStore
         {
             Record = (_, _) => ValueTask.FromResult(Left<EncinaError, Unit>(EncinaErrors.Create("store.down", "x"))),
-            ByCorrelation = (_, _) => ValueTask.FromResult(Left<EncinaError, IReadOnlyList<OperationAuditEntry>>(EncinaErrors.Create("store.read", "x")))
+            ByCorrelation = (_, _) => ValueTask.FromResult(Left<EncinaError, IReadOnlyList<OperationAuditEntry>>(EncinaErrors.Create("store.read", "Secret read detail")))
         };
 
         Code(await Recorder(store).RecordAsync(Record())).ShouldBe("store.down");
+        var log = _logs.GetSnapshot().ShouldHaveSingleItem();
+        log.Id.Id.ShouldBe(9099);
+        log.Message.ShouldContain("store.down");
+        log.Message.ShouldContain("store.read");
+        log.Message.ShouldNotContain("Secret read detail");
     }
 
     [Fact]
@@ -257,6 +286,10 @@ public sealed class AuditStoreABACDecisionRecorderTests
         };
 
         await Should.ThrowAsync<InvalidOperationException>(async () => await Recorder(store).RecordAsync(Record()));
+        var log = _logs.GetSnapshot().ShouldHaveSingleItem();
+        log.Id.Id.ShouldBe(9099);
+        log.Message.ShouldContain(nameof(InvalidOperationException));
+        log.Message.ShouldNotContain("exploded");
     }
 
     [Fact]
@@ -273,32 +306,24 @@ public sealed class AuditStoreABACDecisionRecorderTests
     {
         // The store never completes and never observes its token: only the WaitAsync race ends the call.
         var hung = new TaskCompletionSource<Either<EncinaError, Unit>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var lookupStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var lookupHung = new TaskCompletionSource<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = new ScriptedStore
         {
             Record = (_, _) => new ValueTask<Either<EncinaError, Unit>>(hung.Task),
-            ByCorrelation = (_, _) =>
-            {
-                lookupStarted.TrySetResult();
-                return new ValueTask<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>>(lookupHung.Task);
-            }
+            ByCorrelation = (_, _) => new ValueTask<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>>(lookupHung.Task)
         };
 
         var pending = Recorder(store).RecordAsync(Record()).AsTask();
         pending.IsCompleted.ShouldBeFalse();
 
+        // Each bounded call creates two timers on the clock: its token source and its WaitAsync race.
+        await _time.WaitForTimersAsync(2);
         _time.Advance(Timeout);
-        await lookupStarted.Task;
-
-        // The lookup's timer is registered right after the lookup call returns: advance until it fires.
-        for (var attempt = 0; attempt < 100 && !pending.IsCompleted; attempt++)
-        {
-            _time.Advance(Timeout);
-            await Task.WhenAny(pending, Task.Delay(TimeSpan.FromMilliseconds(20), TimeProvider.System));
-        }
+        await _time.WaitForTimersAsync(2);
+        _time.Advance(Timeout);
 
         await Should.ThrowAsync<TimeoutException>(pending);
+        _logs.GetSnapshot().ShouldContain(log => log.Id.Id == 9099);
         hung.SetException(new InvalidOperationException("late fault is observed, not unobserved"));
     }
 

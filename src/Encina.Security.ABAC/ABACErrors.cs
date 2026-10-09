@@ -130,6 +130,12 @@ public static class ABACErrors
     public const string DecisionAuditRecordUnreadableCode = "abac.decision_audit_record_unreadable";
 
     /// <summary>
+    /// Error code when a decision audit export failed after it had already written lines to the
+    /// destination: the output is a partial file and must be discarded.
+    /// </summary>
+    public const string DecisionAuditExportIncompleteCode = "abac.decision_audit_export_incomplete";
+
+    /// <summary>
     /// Error code when the decision audit reader is asked for data while multi-tenancy is enabled and the
     /// request carries no tenant (an authorization denial, HTTP 403).
     /// </summary>
@@ -696,6 +702,29 @@ public static class ABACErrors
             {
                 [MetadataKeyStage] = MetadataStageAbac,
                 ["cause"] = cause
+            });
+    }
+
+    /// <summary>
+    /// Creates the error a decision audit export returns when a page failed after earlier pages were
+    /// already written: the destination holds a partial JSON Lines file that must be discarded. The
+    /// message is fixed; the details carry the number of lines written and the code of the failure.
+    /// </summary>
+    /// <param name="linesWritten">The number of lines already written to the destination.</param>
+    /// <param name="causeCode">The error code of the page that failed; never a message.</param>
+    /// <returns>An error with code <see cref="DecisionAuditExportIncompleteCode"/>.</returns>
+    public static EncinaError DecisionAuditExportIncomplete(int linesWritten, string causeCode)
+    {
+        ArgumentNullException.ThrowIfNull(causeCode);
+
+        return EncinaErrors.Create(
+            code: DecisionAuditExportIncompleteCode,
+            message: "The decision audit export failed after part of it was written; discard the output.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["linesWritten"] = linesWritten,
+                ["cause"] = causeCode
             });
     }
 

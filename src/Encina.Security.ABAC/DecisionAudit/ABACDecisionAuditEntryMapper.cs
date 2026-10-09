@@ -37,8 +37,6 @@ namespace Encina.Security.ABAC.DecisionAudit;
 /// </remarks>
 public static class ABACDecisionAuditEntryMapper
 {
-    private const string ListSeparator = ",";
-
     /// <summary>
     /// Builds the operation audit entry of a decision record, applying the column-limit rule.
     /// </summary>
@@ -148,9 +146,9 @@ public static class ABACDecisionAuditEntryMapper
             RecordedValues = metadata.RecordedValues(),
             IpAddress = entry.IpAddress,
             UserAgent = entry.UserAgent,
-            HashedFields = metadata.List(ABACDecisionAuditSchema.MetadataHashedFields),
-            DroppedFields = metadata.List(ABACDecisionAuditSchema.MetadataDroppedFields),
-            TruncatedFields = metadata.List(ABACDecisionAuditSchema.MetadataTruncatedFields),
+            HashedFields = metadata.JsonList(ABACDecisionAuditSchema.MetadataHashedFields),
+            DroppedFields = metadata.JsonList(ABACDecisionAuditSchema.MetadataDroppedFields),
+            TruncatedFields = metadata.JsonList(ABACDecisionAuditSchema.MetadataTruncatedFields),
             StartedAtUtc = entry.StartedAtUtc,
             CompletedAtUtc = entry.CompletedAtUtc
         };
@@ -184,17 +182,21 @@ public static class ABACDecisionAuditEntryMapper
             bounds.Identifier(ABACDecisionAuditSchema.MetadataPolicyId, record.PolicyId, ABACDecisionAuditSchema.MaxAttributeValueLength));
         AddIfPresent(metadata, ABACDecisionAuditSchema.MetadataRuleId,
             bounds.Identifier(ABACDecisionAuditSchema.MetadataRuleId, record.RuleId, ABACDecisionAuditSchema.MaxAttributeValueLength));
-        AddIfPresent(metadata, ABACDecisionAuditSchema.MetadataModuleId, record.ModuleId);
-        AddJsonList(metadata, ABACDecisionAuditSchema.MetadataObligations, record.ObligationIds);
-        AddJsonList(metadata, ABACDecisionAuditSchema.MetadataAdvice, record.AdviceIds);
+        AddIfPresent(metadata, ABACDecisionAuditSchema.MetadataModuleId,
+            bounds.Identifier(ABACDecisionAuditSchema.MetadataModuleId, record.ModuleId, ABACDecisionAuditSchema.MaxAttributeValueLength));
+        AddJsonList(metadata, ABACDecisionAuditSchema.MetadataObligations,
+            bounds.CappedIds(ABACDecisionAuditSchema.MetadataObligations, record.ObligationIds));
+        AddJsonList(metadata, ABACDecisionAuditSchema.MetadataAdvice,
+            bounds.CappedIds(ABACDecisionAuditSchema.MetadataAdvice, record.AdviceIds));
     }
 
-    // Ids chosen by policy authors may contain any character, so they are stored as a JSON array.
-    private static void AddJsonList(Dictionary<string, object?> metadata, string key, IReadOnlyList<string> values)
+    // Lists of ids or field names may contain any character (a comma included), so they are stored as
+    // a JSON array of strings.
+    private static void AddJsonList(Dictionary<string, object?> metadata, string key, List<string> values)
     {
         if (values.Count > 0)
         {
-            metadata[key] = JsonSerializer.Serialize(values.ToList(), ABACDecisionAuditJsonContext.Default.ListString);
+            metadata[key] = JsonSerializer.Serialize(values, ABACDecisionAuditJsonContext.Default.ListString);
         }
     }
 
@@ -233,14 +235,6 @@ public static class ABACDecisionAuditEntryMapper
         if (value is not null)
         {
             metadata[key] = value;
-        }
-    }
-
-    private static void AddList(Dictionary<string, object?> metadata, string key, IReadOnlyCollection<string> values)
-    {
-        if (values.Count > 0)
-        {
-            metadata[key] = string.Join(ListSeparator, values);
         }
     }
 
@@ -316,11 +310,32 @@ public static class ABACDecisionAuditEntryMapper
             return capped;
         }
 
+        // At most MaxListedIds ids, each hashed when longer than a recorded value may be: the key is
+        // named once in the hashed or truncated marker when either cap applies.
+        public List<string> CappedIds(string key, IReadOnlyList<string> ids)
+        {
+            var kept = ids.Take(ABACDecisionAuditSchema.MaxListedIds)
+                .Select(id => NormalizeIdentifier(id, ABACDecisionAuditSchema.MaxAttributeValueLength)!)
+                .ToList();
+
+            MarkIf(_hashed, key, kept.Where((id, index) => !ReferenceEquals(id, ids[index])).Any());
+            MarkIf(_truncated, key, ids.Count > ABACDecisionAuditSchema.MaxListedIds);
+            return kept;
+        }
+
+        private static void MarkIf(List<string> marker, string key, bool applies)
+        {
+            if (applies)
+            {
+                marker.Add(key);
+            }
+        }
+
         public void WriteMarkers(Dictionary<string, object?> metadata)
         {
-            AddList(metadata, ABACDecisionAuditSchema.MetadataHashedFields, _hashed);
-            AddList(metadata, ABACDecisionAuditSchema.MetadataDroppedFields, _dropped);
-            AddList(metadata, ABACDecisionAuditSchema.MetadataTruncatedFields, _truncated);
+            AddJsonList(metadata, ABACDecisionAuditSchema.MetadataHashedFields, _hashed);
+            AddJsonList(metadata, ABACDecisionAuditSchema.MetadataDroppedFields, _dropped);
+            AddJsonList(metadata, ABACDecisionAuditSchema.MetadataTruncatedFields, _truncated);
         }
     }
 
@@ -335,9 +350,6 @@ public static class ABACDecisionAuditEntryMapper
         public T? Enum<T>(string key)
             where T : struct, System.Enum =>
             System.Enum.TryParse<T>(Text(key), ignoreCase: false, out var parsed) ? parsed : null;
-
-        public string[] List(string key) =>
-            Text(key) is { Length: > 0 } text ? text.Split(ListSeparator) : [];
 
         public List<string> JsonList(string key) =>
             Text(key) is { Length: > 0 } json
