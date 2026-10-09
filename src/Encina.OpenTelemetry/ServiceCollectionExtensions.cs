@@ -1,6 +1,7 @@
 using Encina.Caching;
 using Encina.DomainModeling;
 using Encina.IdGeneration.Diagnostics;
+using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
@@ -148,6 +149,7 @@ public static class ServiceCollectionExtensions
         DecorateService<IInboxStore>(services, inner => new InstrumentedInboxStore(inner));
         DecorateService<ISagaStore>(services, inner => new InstrumentedSagaStore(inner));
         DecorateService<IScheduledMessageStore>(services, inner => new InstrumentedScheduledMessageStore(inner));
+        DecorateService<IDeadLetterStore>(services, inner => new InstrumentedDeadLetterStore(inner));
         DecorateService<IOperationAuditStore>(services, inner => new InstrumentedOperationAuditStore(inner));
         DecorateService<ICacheProvider>(services, inner => new InstrumentedCacheProvider(inner));
 
@@ -203,6 +205,7 @@ public static class ServiceCollectionExtensions
             tracing.AddSource("Encina.Messaging.Inbox");
             tracing.AddSource("Encina.Messaging.Saga");
             tracing.AddSource("Encina.Messaging.Scheduling");
+            tracing.AddSource("Encina.Messaging.DeadLetter");
         });
 
         builder.WithMetrics(metrics =>

@@ -1,4 +1,5 @@
 using Encina.Diagnostics;
+using Encina.Messaging.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -248,6 +249,7 @@ public sealed class DeadLetterOrchestrator
         if (!stored.RightToArray()[0])
             return await ExistingAsync(data, cancellationToken).ConfigureAwait(false);
 
+        DeadLetterMetrics.RecordAdded(data.SourcePattern);
         DeadLetterLog.MessageAddedToDLQ(
             _logger,
             message.Id,
@@ -270,21 +272,23 @@ public sealed class DeadLetterOrchestrator
     {
         var addResult = await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
         if (addResult.IsLeft)
-            return LogStoreWriteFailed(addResult.LeftToArray()[0], sourcePattern);
+            return LogStoreWriteFailed(addResult.LeftToArray()[0], sourcePattern, "add");
 
         if (!addResult.RightToArray()[0])
             return false;
 
         var saveResult = await _store.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         if (saveResult.IsLeft)
-            return LogStoreWriteFailed(saveResult.LeftToArray()[0], sourcePattern);
+            return LogStoreWriteFailed(saveResult.LeftToArray()[0], sourcePattern, "save_changes");
 
         return true;
     }
 
-    private EncinaError LogStoreWriteFailed(EncinaError error, string sourcePattern)
+    private EncinaError LogStoreWriteFailed(EncinaError error, string sourcePattern, string operation)
     {
-        DeadLetterLog.StoreWriteFailed(_logger, sourcePattern, ErrorCodeOf(error));
+        var errorCode = ErrorCodeOf(error);
+        DeadLetterMetrics.RecordStoreFailure(operation, errorCode);
+        DeadLetterLog.StoreWriteFailed(_logger, sourcePattern, errorCode);
         return error;
     }
 
@@ -311,6 +315,7 @@ public sealed class DeadLetterOrchestrator
                 "The dead letter of the source message disappeared during capture");
         }
 
+        DeadLetterMetrics.RecordDuplicateIgnored(data.SourcePattern);
         DeadLetterLog.DuplicateIgnored(_logger, first.Id, data.SourcePattern);
         return Either<EncinaError, IDeadLetterMessage>.Right(first);
     }
@@ -482,6 +487,7 @@ public sealed class DeadLetterOrchestrator
 
         var count = countResult.Match(Right: c => c, Left: _ => 0);
 
+        DeadLetterMetrics.RecordDeleted(count, DeadLetterMetrics.ReasonExpired);
         if (count > 0)
         {
             DeadLetterLog.ExpiredMessagesCleanedUp(_logger, count);

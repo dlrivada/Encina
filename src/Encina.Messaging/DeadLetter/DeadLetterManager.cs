@@ -1,4 +1,5 @@
 using Encina.Diagnostics;
+using Encina.Messaging.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -215,18 +216,20 @@ public sealed class DeadLetterManager : IDeadLetterManager
     {
         var marked = await _store.MarkAsReplayedAsync(messageId, outcomeCode, cancellationToken).ConfigureAwait(false);
         if (marked.IsLeft)
-            return LogOutcomeNotRecorded(messageId, marked.LeftToArray()[0]);
+            return LogOutcomeNotRecorded(messageId, marked.LeftToArray()[0], "mark_replayed");
 
         var saved = await _store.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         if (saved.IsLeft)
-            return LogOutcomeNotRecorded(messageId, saved.LeftToArray()[0]);
+            return LogOutcomeNotRecorded(messageId, saved.LeftToArray()[0], "save_changes");
 
         return marked.RightToArray()[0];
     }
 
-    private EncinaError LogOutcomeNotRecorded(Guid messageId, EncinaError error)
+    private EncinaError LogOutcomeNotRecorded(Guid messageId, EncinaError error, string operation)
     {
-        DeadLetterLog.ReplayOutcomeNotRecorded(_logger, messageId, error.GetCode().IfNone("encina.unknown"));
+        var errorCode = error.GetCode().IfNone("encina.unknown");
+        DeadLetterMetrics.RecordStoreFailure(operation, errorCode);
+        DeadLetterLog.ReplayOutcomeNotRecorded(_logger, messageId, errorCode);
         return error;
     }
 
@@ -242,9 +245,11 @@ public sealed class DeadLetterManager : IDeadLetterManager
         if (recorded.IsLeft)
             return recorded.LeftToArray()[0];
 
-        return recorded.RightToArray()[0]
-            ? result
-            : ReplayResult.Failed(messageId, DeadLetterErrorCodes.AlreadyReplayed);
+        if (!recorded.RightToArray()[0])
+            return ReplayResult.Failed(messageId, DeadLetterErrorCodes.AlreadyReplayed);
+
+        DeadLetterMetrics.RecordReplayed(result.Success);
+        return result;
     }
 
     private async Task<Either<EncinaError, ReplayResult>> ReplayStoredMessageAsync(
@@ -259,6 +264,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
             if (recorded.IsLeft)
                 return recorded.LeftToArray()[0];
 
+            DeadLetterMetrics.RecordReplayed(succeeded: false);
             return EncinaErrors.Create(plan.ErrorCode, plan.ErrorText!);
         }
 
@@ -445,7 +451,11 @@ public sealed class DeadLetterManager : IDeadLetterManager
         if (deleteResult.IsLeft)
             return deleteResult.LeftToArray()[0];
 
-        return deleteResult.RightToArray()[0] ? Unit.Default : NotDeletedError(messageId);
+        if (!deleteResult.RightToArray()[0])
+            return NotDeletedError(messageId);
+
+        DeadLetterMetrics.RecordDeleted(1, DeadLetterMetrics.ReasonManual);
+        return Unit.Default;
     }
 
     private static EncinaError NotDeletedError(Guid messageId)
@@ -481,6 +491,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
             return saved.LeftToArray()[0];
 
         var count = deleted.RightToArray()[0];
+        DeadLetterMetrics.RecordDeleted(count, DeadLetterMetrics.ReasonManual);
         if (count > 0)
         {
             DeadLetterLog.MessagesDeleted(_logger, count);

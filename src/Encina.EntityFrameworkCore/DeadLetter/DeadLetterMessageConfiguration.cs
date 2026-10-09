@@ -10,7 +10,8 @@ namespace Encina.EntityFrameworkCore.DeadLetter;
 /// <remarks>
 /// <para>
 /// Applications apply it like <c>ScheduledMessageConfiguration</c>:
-/// <c>modelBuilder.ApplyConfiguration(new DeadLetterMessageConfiguration())</c>. The table, columns and
+/// <c>modelBuilder.ApplyConfiguration(new DeadLetterMessageConfiguration(collation))</c>, where the collation
+/// is <see cref="SqlServerBinaryCollation"/>, <see cref="MySqlBinaryCollation"/> or <c>null</c> (PostgreSQL). The table, columns and
 /// indexes match the <c>029_CreateDeadLetterMessagesTable.sql</c> scripts of the ADO.NET and Dapper
 /// providers, so switching the provider family does not change the schema. Lengths come from
 /// <see cref="DeadLetterStoreLimits"/>.
@@ -41,12 +42,13 @@ public sealed class DeadLetterMessageConfiguration : IEntityTypeConfiguration<De
     /// </summary>
     /// <param name="filterColumnCollation">
     /// The collation of <c>RequestType</c>, <c>ErrorCode</c>, <c>CorrelationId</c>, <c>SourcePattern</c>,
-    /// <c>SourceMessageId</c> and <c>TenantId</c>. Pass <see cref="SqlServerBinaryCollation"/> on SQL Server and
-    /// <see cref="MySqlBinaryCollation"/> on MySQL so that the unique source key and the filters compare
-    /// case-sensitively, as the 029 scripts and the other providers do. PostgreSQL needs none (the default,
-    /// <c>null</c>): its default comparison is case-sensitive.
+    /// <c>SourceMessageId</c> and <c>TenantId</c>. The argument is required so that no SQL Server or MySQL
+    /// model silently gets a case-insensitive default: pass <see cref="SqlServerBinaryCollation"/> on SQL Server
+    /// and <see cref="MySqlBinaryCollation"/> on MySQL, so that the unique source key and the filters compare
+    /// case-sensitively, as the 029 scripts and the other providers do. Pass <c>null</c> explicitly on
+    /// PostgreSQL, whose default comparison is case-sensitive.
     /// </param>
-    public DeadLetterMessageConfiguration(string? filterColumnCollation = null)
+    public DeadLetterMessageConfiguration(string? filterColumnCollation)
     {
         _filterColumnCollation = filterColumnCollation;
     }

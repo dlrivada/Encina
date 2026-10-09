@@ -62,8 +62,10 @@ public interface IDeadLetterStore
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
     /// Right(messages) on success, ordered by <c>DeadLetteredAtUtc</c> then <c>Id</c>, ascending
-    /// (descending when <paramref name="newestFirst"/>); this order is part of the contract.
-    /// Left(error) on infrastructure failure.
+    /// (descending when <paramref name="newestFirst"/>); the <c>DeadLetteredAtUtc</c> order is part of the
+    /// contract. The <c>Id</c> tie-break is stable within one provider only: providers compare GUIDs in
+    /// different byte orders, so rows with the same timestamp may come in a different order on another
+    /// provider. Left(error) on infrastructure failure.
     /// </returns>
     Task<Either<EncinaError, IEnumerable<IDeadLetterMessage>>> GetMessagesAsync(
         DeadLetterFilter? filter = null,
