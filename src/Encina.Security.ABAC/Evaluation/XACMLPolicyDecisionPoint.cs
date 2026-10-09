@@ -80,11 +80,12 @@ public sealed class XACMLPolicyDecisionPoint(
         ArgumentNullException.ThrowIfNull(context);
 
         var stopwatch = Stopwatch.StartNew();
+        var trace = CreateTraceRoot(context);
         PolicyEvaluationResult? combinedResult;
 
         try
         {
-            combinedResult = await EvaluateWholeStoreAsync(context, cancellationToken).ConfigureAwait(false);
+            combinedResult = await EvaluateWholeStoreAsync(context, trace, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -102,8 +103,15 @@ public sealed class XACMLPolicyDecisionPoint(
         // did load could miss a Deny among the ones that did not (#1676).
         return combinedResult is null
             ? StoreFailureDecision(stopwatch.Elapsed)
-            : BuildDecision(combinedResult, context, stopwatch.Elapsed);
+            : BuildDecision(combinedResult, context, stopwatch.Elapsed, trace);
     }
+
+    /// <summary>
+    /// Creates the root of the evaluation trace, or <c>null</c> when the context does not ask for one
+    /// (a request without a trace allocates nothing for it).
+    /// </summary>
+    private static PolicyTraceNode? CreateTraceRoot(PolicyEvaluationContext context) =>
+        context.IncludeEvaluationTrace ? PolicyTraceNode.CreateRoot(context.MaxTraceEntries) : null;
 
     /// <summary>
     /// Reads every top-level policy set and every standalone policy, evaluates them and combines
@@ -112,6 +120,7 @@ public sealed class XACMLPolicyDecisionPoint(
     /// </summary>
     private async ValueTask<PolicyEvaluationResult?> EvaluateWholeStoreAsync(
         PolicyEvaluationContext context,
+        PolicyTraceNode? trace,
         CancellationToken cancellationToken)
     {
         var policySetsResult = await _pap.GetPolicySetsAsync(cancellationToken).ConfigureAwait(false);
@@ -135,8 +144,8 @@ public sealed class XACMLPolicyDecisionPoint(
         }
 
         var allResults = new List<PolicyEvaluationResult>(policySets.Count + policies.Count);
-        allResults.AddRange(policySets.Select(policySet => EvaluatePolicySet(policySet, context)));
-        allResults.AddRange(policies.Select(policy => EvaluatePolicy(policy, context)));
+        allResults.AddRange(policySets.Select(policySet => EvaluatePolicySet(policySet, context, trace)));
+        allResults.AddRange(policies.Select(policy => EvaluatePolicy(policy, context, trace)));
 
         return allResults.Count == 0
             ? NotApplicableResult(string.Empty)
@@ -172,11 +181,12 @@ public sealed class XACMLPolicyDecisionPoint(
         ArgumentNullException.ThrowIfNull(context);
 
         var stopwatch = Stopwatch.StartNew();
+        var trace = CreateTraceRoot(context);
         Option<PolicyEvaluationResult> result;
 
         try
         {
-            result = await FindAndEvaluateAsync(policyId, context, cancellationToken).ConfigureAwait(false);
+            result = await FindAndEvaluateAsync(policyId, context, trace, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -191,7 +201,7 @@ public sealed class XACMLPolicyDecisionPoint(
         stopwatch.Stop();
 
         return result.Match<Either<EncinaError, PolicyDecision>>(
-            Some: evaluated => BuildDecision(evaluated, context, stopwatch.Elapsed),
+            Some: evaluated => BuildDecision(evaluated, context, stopwatch.Elapsed, trace),
             None: () => ABACErrors.PolicyNotFound(policyId));
     }
 
@@ -206,12 +216,13 @@ public sealed class XACMLPolicyDecisionPoint(
     private async ValueTask<Option<PolicyEvaluationResult>> FindAndEvaluateAsync(
         string policyId,
         PolicyEvaluationContext context,
+        PolicyTraceNode? trace,
         CancellationToken cancellationToken)
     {
         var policySets = await _pap.GetPolicySetsAsync(cancellationToken).ConfigureAwait(false);
         var fromPolicySet = policySets.Match(
             Left: error => LookupFailed(policyId, error),
-            Right: sets => FindById(sets, policyId, set => set.Id).Map(found => EvaluatePolicySet(found, context)));
+            Right: sets => FindById(sets, policyId, set => set.Id).Map(found => EvaluatePolicySet(found, context, trace)));
 
         if (fromPolicySet.IsSome)
         {
@@ -221,7 +232,7 @@ public sealed class XACMLPolicyDecisionPoint(
         var standalonePolicies = await _pap.GetPoliciesAsync(null, cancellationToken).ConfigureAwait(false);
         return standalonePolicies.Match(
             Left: error => LookupFailed(policyId, error),
-            Right: policies => FindById(policies, policyId, policy => policy.Id).Map(found => EvaluatePolicy(found, context)));
+            Right: policies => FindById(policies, policyId, policy => policy.Id).Map(found => EvaluatePolicy(found, context, trace)));
     }
 
     private static Option<T> FindById<T>(IReadOnlyList<T> items, string id, Func<T, string> idOf)
@@ -242,24 +253,25 @@ public sealed class XACMLPolicyDecisionPoint(
     /// </summary>
     private PolicyEvaluationResult EvaluatePolicySet(
         PolicySet policySet,
-        PolicyEvaluationContext context)
+        PolicyEvaluationContext context,
+        PolicyTraceNode? parentTrace)
     {
-        // Disabled policy sets are not applicable
-        if (!policySet.IsEnabled)
-        {
-            return NotApplicableResult(policySet.Id);
-        }
+        var node = parentTrace?.AddChild(policySet.Id, isPolicySet: true, policySet.Version);
+        var (result, reason) = EvaluatePolicySetCore(policySet, context, node);
+        node?.Complete(result.Effect, reason);
+        return result;
+    }
 
-        // Evaluate target
-        var targetResult = _targetEvaluator.EvaluateTarget(policySet.Target, context);
-        if (targetResult == Effect.NotApplicable)
+    private (PolicyEvaluationResult Result, PolicyTraceReason Reason) EvaluatePolicySetCore(
+        PolicySet policySet,
+        PolicyEvaluationContext context,
+        PolicyTraceNode? node)
+    {
+        // Disabled policy sets and policy sets whose target does not match are not applicable
+        var gate = EvaluateGate(policySet.IsEnabled, policySet.Target, context);
+        if (gate != PolicyTraceReason.Evaluated)
         {
-            return NotApplicableResult(policySet.Id);
-        }
-
-        if (targetResult == Effect.Indeterminate)
-        {
-            return IndeterminateResult(policySet.Id);
+            return (GateResult(policySet.Id, gate), gate);
         }
 
         // Evaluate child policies and policy sets
@@ -267,12 +279,12 @@ public sealed class XACMLPolicyDecisionPoint(
 
         foreach (var childPolicy in policySet.Policies)
         {
-            childResults.Add(EvaluatePolicy(childPolicy, context));
+            childResults.Add(EvaluatePolicy(childPolicy, context, node));
         }
 
         foreach (var childPolicySet in policySet.PolicySets)
         {
-            childResults.Add(EvaluatePolicySet(childPolicySet, context));
+            childResults.Add(EvaluatePolicySet(childPolicySet, context, node));
         }
 
         // Combine child results
@@ -288,14 +300,40 @@ public sealed class XACMLPolicyDecisionPoint(
         CollectObligations(policySet.Obligations, combinedResult.Effect, obligations);
         CollectAdvice(policySet.Advice, combinedResult.Effect, advice);
 
-        return new PolicyEvaluationResult
+        var evaluated = new PolicyEvaluationResult
         {
             Effect = combinedResult.Effect,
             PolicyId = policySet.Id,
             Obligations = obligations,
             Advice = advice
         };
+
+        return (evaluated, PolicyTraceReason.Evaluated);
     }
+
+    /// <summary>
+    /// Decides whether a policy or policy set is evaluated at all: <see cref="PolicyTraceReason.Evaluated"/>
+    /// when it is enabled and its target matches, otherwise the reason it is not.
+    /// </summary>
+    private PolicyTraceReason EvaluateGate(bool isEnabled, Target? target, PolicyEvaluationContext context)
+    {
+        if (!isEnabled)
+        {
+            return PolicyTraceReason.Disabled;
+        }
+
+        return _targetEvaluator.EvaluateTarget(target, context) switch
+        {
+            Effect.NotApplicable => PolicyTraceReason.TargetNotMatched,
+            Effect.Indeterminate => PolicyTraceReason.TargetIndeterminate,
+            _ => PolicyTraceReason.Evaluated
+        };
+    }
+
+    private static PolicyEvaluationResult GateResult(string policyId, PolicyTraceReason gate) =>
+        gate == PolicyTraceReason.TargetIndeterminate
+            ? IndeterminateResult(policyId)
+            : NotApplicableResult(policyId);
 
     /// <summary>
     /// Evaluates a <see cref="Policy"/> against the given context by evaluating
@@ -303,24 +341,25 @@ public sealed class XACMLPolicyDecisionPoint(
     /// </summary>
     private PolicyEvaluationResult EvaluatePolicy(
         Policy policy,
-        PolicyEvaluationContext context)
+        PolicyEvaluationContext context,
+        PolicyTraceNode? parentTrace)
     {
-        // Disabled policies are not applicable
-        if (!policy.IsEnabled)
-        {
-            return NotApplicableResult(policy.Id);
-        }
+        var node = parentTrace?.AddChild(policy.Id, isPolicySet: false, policy.Version);
+        var (result, reason, decisiveRuleIds) = EvaluatePolicyCore(policy, context, node is not null);
+        node?.Complete(result.Effect, reason, decisiveRuleIds);
+        return result;
+    }
 
-        // Evaluate target
-        var targetResult = _targetEvaluator.EvaluateTarget(policy.Target, context);
-        if (targetResult == Effect.NotApplicable)
+    private (PolicyEvaluationResult Result, PolicyTraceReason Reason, IReadOnlyList<string>? DecisiveRuleIds) EvaluatePolicyCore(
+        Policy policy,
+        PolicyEvaluationContext context,
+        bool traced)
+    {
+        // Disabled policies and policies whose target does not match are not applicable
+        var gate = EvaluateGate(policy.IsEnabled, policy.Target, context);
+        if (gate != PolicyTraceReason.Evaluated)
         {
-            return NotApplicableResult(policy.Id);
-        }
-
-        if (targetResult == Effect.Indeterminate)
-        {
-            return IndeterminateResult(policy.Id);
+            return (GateResult(policy.Id, gate), gate, null);
         }
 
         // Build variable dictionary for condition evaluation
@@ -356,13 +395,32 @@ public sealed class XACMLPolicyDecisionPoint(
         CollectObligations(policy.Obligations, combinedEffect, obligations);
         CollectAdvice(policy.Advice, combinedEffect, advice);
 
-        return new PolicyEvaluationResult
+        var evaluated = new PolicyEvaluationResult
         {
             Effect = combinedEffect,
             PolicyId = policy.Id,
             Obligations = obligations,
             Advice = advice
         };
+
+        return (evaluated, PolicyTraceReason.Evaluated, traced ? DecisiveRuleIds(ruleResults, combinedEffect) : null);
+    }
+
+    /// <summary>
+    /// The identifiers of the rules whose own effect equals the policy's combined effect, in rule
+    /// order; empty when the policy is not applicable.
+    /// </summary>
+    private static List<string> DecisiveRuleIds(IReadOnlyList<RuleEvaluationResult> ruleResults, Effect combinedEffect)
+    {
+        if (combinedEffect == Effect.NotApplicable)
+        {
+            return [];
+        }
+
+        return ruleResults
+            .Where(ruleResult => ruleResult.Effect == combinedEffect)
+            .Select(ruleResult => ruleResult.Rule.Id)
+            .ToList();
     }
 
     /// <summary>
@@ -438,7 +496,8 @@ public sealed class XACMLPolicyDecisionPoint(
     private static PolicyDecision BuildDecision(
         PolicyEvaluationResult combinedResult,
         PolicyEvaluationContext context,
-        TimeSpan evaluationDuration)
+        TimeSpan evaluationDuration,
+        PolicyTraceNode? trace)
     {
         // Filter obligations: only those whose FulfillOn matches the final effect
         var obligations = FilterObligations(combinedResult.Obligations, combinedResult.Effect);
@@ -448,7 +507,7 @@ public sealed class XACMLPolicyDecisionPoint(
             ? FilterAdvice(combinedResult.Advice, combinedResult.Effect)
             : (IReadOnlyList<AdviceExpression>)[];
 
-        return new PolicyDecision
+        var decision = new PolicyDecision
         {
             Effect = combinedResult.Effect,
             PolicyId = string.IsNullOrEmpty(combinedResult.PolicyId) ? null : combinedResult.PolicyId,
@@ -462,6 +521,23 @@ public sealed class XACMLPolicyDecisionPoint(
                     StatusMessage = "Policy evaluation produced an indeterminate result."
                 }
                 : null
+        };
+
+        return trace is null ? decision : WithTrace(decision, trace);
+    }
+
+    /// <summary>
+    /// Adds the evaluation trace and the representative decisive rule id to a decision.
+    /// </summary>
+    private static PolicyDecision WithTrace(PolicyDecision decision, PolicyTraceNode trace)
+    {
+        var evaluatedPolicies = trace.ToTraces();
+
+        return decision with
+        {
+            EvaluatedPolicies = evaluatedPolicies,
+            RuleId = PolicyEvaluationTraceResolver.ResolveDecisiveRuleId(evaluatedPolicies, decision.Effect),
+            EvaluationTraceTruncated = trace.Truncated
         };
     }
 

@@ -101,4 +101,23 @@ public sealed record PolicyEvaluationContext
     /// for performance optimization when advice is not needed.
     /// </remarks>
     public bool IncludeAdvice { get; init; } = true;
+
+    /// <summary>
+    /// Whether the decision carries the evaluation trace (<see cref="PolicyDecision.EvaluatedPolicies"/>
+    /// and <see cref="PolicyDecision.RuleId"/>).
+    /// </summary>
+    /// <remarks>
+    /// Defaults to <c>false</c>. When <c>false</c> the Policy Decision Point builds no trace and
+    /// allocates nothing for it; the decision audit sets it when it records decisions.
+    /// </remarks>
+    public bool IncludeEvaluationTrace { get; init; }
+
+    /// <summary>
+    /// The maximum number of trace nodes (policies and policy sets) one evaluation records.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to 64. Only used when <see cref="IncludeEvaluationTrace"/> is <c>true</c>; a value
+    /// below one records no node. Nodes past the limit are dropped, not summarized.
+    /// </remarks>
+    public int MaxTraceEntries { get; init; } = 64;
 }
