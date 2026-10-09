@@ -64,6 +64,7 @@ public sealed class InboxOrchestratorRetryTests
 
         first.IsLeft.ShouldBeTrue();
         second.IsLeft.ShouldBeTrue();
+        second.LeftToArray()[0].GetCode().IfNone(string.Empty).ShouldBe(InboxErrorCodes.CachedError);
         runs.ShouldBe(1);
         store.Message!.RetryCount.ShouldBe(0);
         store.Message.IsProcessed.ShouldBeTrue();

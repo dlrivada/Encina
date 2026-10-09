@@ -84,6 +84,7 @@ public static class InboxRetryScenario
 
         first.IsLeft.ShouldBeTrue();
         second.IsLeft.ShouldBeTrue();
+        second.LeftToArray()[0].GetCode().IfNone(string.Empty).ShouldBe(InboxErrorCodes.CachedError);
         runs.ShouldBe(1);
 
         var stored = (await store.GetMessageAsync(messageId)).ShouldBeRight();

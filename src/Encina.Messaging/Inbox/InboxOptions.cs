@@ -13,7 +13,8 @@ public sealed class InboxOptions
     /// Gets or sets the maximum number of handler attempts for a message.
     /// </summary>
     /// <remarks>
-    /// The handler runs at most <c>MaxRetries</c> times: each attempt that throws increments the
+    /// For sequential deliveries the handler runs at most <c>MaxRetries</c> times (concurrent redeliveries
+    /// of the same message are not serialized by the inbox): each attempt that throws increments the
     /// message's <c>RetryCount</c> once (in <c>IInboxStore.MarkAsFailedAsync</c>), and when
     /// <c>RetryCount</c> reaches <c>MaxRetries</c> the next delivery is rejected with
     /// <c>inbox.max_retries_exceeded</c> without running the handler. With the default of 3 the handler
