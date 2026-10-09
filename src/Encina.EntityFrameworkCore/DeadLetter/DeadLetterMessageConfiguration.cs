@@ -22,7 +22,34 @@ namespace Encina.EntityFrameworkCore.DeadLetter;
 /// </remarks>
 public sealed class DeadLetterMessageConfiguration : IEntityTypeConfiguration<DeadLetterMessage>
 {
+    /// <summary>
+    /// The binary collation of the string filter columns on SQL Server.
+    /// </summary>
+    public const string SqlServerBinaryCollation = "Latin1_General_100_BIN2";
+
+    /// <summary>
+    /// The binary collation of the string filter columns on MySQL.
+    /// </summary>
+    public const string MySqlBinaryCollation = "utf8mb4_bin";
+
     private const int ExceptionTypeMaxLength = 512;
+
+    private readonly string? _filterColumnCollation;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DeadLetterMessageConfiguration"/> class.
+    /// </summary>
+    /// <param name="filterColumnCollation">
+    /// The collation of <c>RequestType</c>, <c>ErrorCode</c>, <c>CorrelationId</c>, <c>SourcePattern</c>,
+    /// <c>SourceMessageId</c> and <c>TenantId</c>. Pass <see cref="SqlServerBinaryCollation"/> on SQL Server and
+    /// <see cref="MySqlBinaryCollation"/> on MySQL so that the unique source key and the filters compare
+    /// case-sensitively, as the 029 scripts and the other providers do. PostgreSQL needs none (the default,
+    /// <c>null</c>): its default comparison is case-sensitive.
+    /// </param>
+    public DeadLetterMessageConfiguration(string? filterColumnCollation = null)
+    {
+        _filterColumnCollation = filterColumnCollation;
+    }
 
     /// <inheritdoc/>
     public void Configure(EntityTypeBuilder<DeadLetterMessage> builder)
@@ -34,10 +61,26 @@ public sealed class DeadLetterMessageConfiguration : IEntityTypeConfiguration<De
         builder.HasKey(x => x.Id);
 
         ConfigureColumns(builder);
+        ConfigureCollation(builder);
         ConfigureIndexes(builder);
 
         // Derived from ReplayedAtUtc; not a column.
         builder.Ignore(x => x.IsReplayed);
+    }
+
+    private void ConfigureCollation(EntityTypeBuilder<DeadLetterMessage> builder)
+    {
+        if (string.IsNullOrEmpty(_filterColumnCollation))
+        {
+            return;
+        }
+
+        builder.Property(x => x.RequestType).UseCollation(_filterColumnCollation);
+        builder.Property(x => x.ErrorCode).UseCollation(_filterColumnCollation);
+        builder.Property(x => x.CorrelationId).UseCollation(_filterColumnCollation);
+        builder.Property(x => x.SourcePattern).UseCollation(_filterColumnCollation);
+        builder.Property(x => x.SourceMessageId).UseCollation(_filterColumnCollation);
+        builder.Property(x => x.TenantId).UseCollation(_filterColumnCollation);
     }
 
     private static void ConfigureColumns(EntityTypeBuilder<DeadLetterMessage> builder)

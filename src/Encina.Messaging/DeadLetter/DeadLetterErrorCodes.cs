@@ -61,6 +61,26 @@ public static class DeadLetterErrorCodes
     public const string InvalidMessageType = "dlq.invalid_message_type";
 
     /// <summary>
+    /// A store failed to read a single dead letter message.
+    /// </summary>
+    public const string GetFailed = "dlq.get_failed";
+
+    /// <summary>
+    /// A store failed to list or count dead letter messages.
+    /// </summary>
+    public const string QueryFailed = "dlq.query_failed";
+
+    /// <summary>
+    /// A store failed to claim a message for replay.
+    /// </summary>
+    public const string ClaimFailed = "dlq.claim_failed";
+
+    /// <summary>
+    /// A store failed to record the replay outcome of a message.
+    /// </summary>
+    public const string MarkReplayedFailed = "dlq.mark_replayed_failed";
+
+    /// <summary>
     /// Outcome code stored in <c>ReplayResult</c> when a replay succeeded.
     /// </summary>
     public const string ReplaySucceeded = "success";
