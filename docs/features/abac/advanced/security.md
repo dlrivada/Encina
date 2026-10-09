@@ -253,7 +253,7 @@ The `ObligationExecutor` checks three failure conditions:
 
 1. **Missing handler**: No registered `IObligationHandler` returns `true` from `CanHandle(obligationId)`.
 2. **Handler failure**: A handler returns `Either.Left(EncinaError)` from `HandleAsync`.
-3. **Handler exception**: A handler throws. The exception does not escape the pipeline; it becomes an `abac.obligation_handler_exception` error (fixed message, exception type in the error details) that the executor treats like a handler failure, so the request fails with `abac.obligation_failed`. The exception is logged through `ForLogging()` (EventId 9078), so its message text never reaches the logs. Cancellation of the request token still propagates as `OperationCanceledException`.
+3. **Handler exception**: A handler throws. The exception does not escape the pipeline; it becomes an `abac.obligation_handler_exception` error (fixed message, exception type in the error details) that the executor treats like a handler failure, so the request fails with `encina.authorization.abac_obligation_failed`. The exception is logged through `ForLogging()` (EventId 9078), so its message text never reaches the logs. Cancellation of the request token still propagates as `OperationCanceledException`.
 
 Each condition on a mandatory obligation produces an immediate Deny, even when the PDP returned Permit:
 
@@ -265,7 +265,7 @@ Final Decision: DENY (obligation failure overrides Permit)
 
 ### Missing handlers always deny
 
-A mandatory obligation with no registered handler always denies with `abac.obligation_failed`; there is no option to relax this, so obligations cannot be silently ignored. Advice without a handler is skipped. A handler whose `CanHandle` or `HandleAsync` throws becomes `abac.obligation_handler_exception`: a mandatory obligation denies, advice is skipped.
+A mandatory obligation with no registered handler always denies with `encina.authorization.abac_obligation_failed`; there is no option to relax this, so obligations cannot be silently ignored. Advice without a handler is skipped. A handler whose `CanHandle` or `HandleAsync` throws becomes `abac.obligation_handler_exception`: a mandatory obligation denies, advice is skipped.
 
 ### Advice vs Obligation
 
@@ -280,12 +280,12 @@ A request is evaluated only when its type carries `[RequirePolicy]` or `[Require
 | Situation | Result |
 |-----------|--------|
 | A required policy returns `Permit` | The requirement passes |
-| A required policy returns `Deny` or `NotApplicable` | Denies with `abac.access_denied`: an explicitly required policy that does not apply cannot authorize |
-| A required policy is not in the policy store, or exists only nested inside a policy set | Denies with `abac.policy_not_found` |
+| A required policy returns `Deny` or `NotApplicable` | Denies with `encina.authorization.abac_access_denied`: an explicitly required policy that does not apply cannot authorize |
+| A required policy is not in the policy store, or exists only nested inside a policy set | Denies with `encina.authorization.abac_policy_not_found` |
 | There is no security context, it is not authenticated (`IsAuthenticated` is `false`), or its `UserId` is null, empty or whitespace | Denies with `abac.missing_context`, in every enforcement mode, before any attribute is collected |
 | A required policy returns `Indeterminate`, or the PDP fails (policy store failure, a `Left` with another code) | Denies with `abac.indeterminate`, in every enforcement mode |
 | The attribute provider or the PDP throws | Denies with `abac.evaluation_failed`, in every enforcement mode |
-| A `[RequireCondition]` expression is `false` | Denies with `abac.condition_not_met` |
+| A `[RequireCondition]` expression is `false` | Denies with `encina.authorization.abac_condition_not_met` |
 | A `[RequireCondition]` expression does not compile or throws | `Indeterminate`, denies with `abac.indeterminate`, in every enforcement mode |
 
 `[RequirePolicy(name)]` resolves only top-level policy sets and standalone policies (those contained in no set). A name that exists only nested inside a policy set is not found; to require a nested policy, name its parent set, so that the set's target, enabled flag, combining algorithm and obligations apply. When a set and a standalone policy share a name, the set is evaluated. Conditions run only after the named policies permit, in declaration order.
@@ -294,7 +294,7 @@ There is no option that turns a `NotApplicable` required policy into a Permit. T
 
 ### Why Default Deny Matters
 
-Consider a system where a request type is decorated with `[RequirePolicy("new-feature")]` before the policy exists. The request is denied with `abac.policy_not_found` until the policy is created, instead of being allowed by default. The error message is fixed and does not repeat the policy name; the name is recorded in the error details only.
+Consider a system where a request type is decorated with `[RequirePolicy("new-feature")]` before the policy exists. The request is denied with `encina.authorization.abac_policy_not_found` until the policy is created, instead of being allowed by default. The error message is fixed and does not repeat the policy name; the name is recorded in the error details only.
 
 To roll out policies against live traffic without blocking, use `ABACEnforcementMode.Warn`, which logs a definite denial and lets the request proceed; errors still deny when they decide the verdict (see section 8).
 
@@ -315,7 +315,7 @@ The `ABACEnforcementMode` enum enables gradual rollout of ABAC policies without 
 
 ### Warn Mode Security Implications
 
-In `Warn` mode, definite verdicts are logged but the request proceeds: a Deny, a required policy that is NotApplicable, Deny or not found (`abac.policy_not_found`), and a condition that evaluates to `false` (`abac.condition_not_met`). Errors still deny when they decide the verdict: a missing or unauthenticated security context, or a missing user id (`abac.missing_context`, always, before any evaluation), Indeterminate (`abac.indeterminate`), an exception from the attribute provider or the PDP (`abac.evaluation_failed`), and a mandatory obligation that cannot be fulfilled (`abac.obligation_failed`). When a definite denial and an error occur together among the required policies (for example an `AllMustPass` policy that is NotApplicable next to one that is Indeterminate, or a missing policy name next to an Indeterminate one), the definite denial (`abac.access_denied` or `abac.policy_not_found`) is the verdict, and `Warn` logs it and lets the request through. Warn is useful for validating policies against real traffic, but for definite verdicts it means **no authorization is enforced**. Monitor logs for unexpected denials before transitioning to `Block`:
+In `Warn` mode, definite verdicts are logged but the request proceeds: a Deny, a required policy that is NotApplicable, Deny or not found (`encina.authorization.abac_policy_not_found`), and a condition that evaluates to `false` (`encina.authorization.abac_condition_not_met`). Errors still deny when they decide the verdict: a missing or unauthenticated security context, or a missing user id (`abac.missing_context`, always, before any evaluation), Indeterminate (`abac.indeterminate`), an exception from the attribute provider or the PDP (`abac.evaluation_failed`), and a mandatory obligation that cannot be fulfilled (`encina.authorization.abac_obligation_failed`). When a definite denial and an error occur together among the required policies (for example an `AllMustPass` policy that is NotApplicable next to one that is Indeterminate, or a missing policy name next to an Indeterminate one), the definite denial (`encina.authorization.abac_access_denied` or `encina.authorization.abac_policy_not_found`) is the verdict, and `Warn` logs it and lets the request through. Warn is useful for validating policies against real traffic, but for definite verdicts it means **no authorization is enforced**. Monitor logs for unexpected denials before transitioning to `Block`:
 
 ```csharp
 // During shadow mode, monitor these log events (EventIds in reference/observability.md):
@@ -493,7 +493,7 @@ encina.abac.evaluation.indeterminate / encina.abac.evaluation.total > 0.01
 
 ### Pitfall 4: Not Registering Obligation Handlers
 
-If a policy includes obligations but no handler is registered, the `ObligationExecutor` denies access with `abac.obligation_failed`, in every enforcement mode. This is correct security behavior but can cause unexpected denials during development. Use the health check to verify:
+If a policy includes obligations but no handler is registered, the `ObligationExecutor` denies access with `encina.authorization.abac_obligation_failed`, in every enforcement mode. This is correct security behavior but can cause unexpected denials during development. Use the health check to verify:
 
 ```csharp
 services.AddEncinaABAC(options =>

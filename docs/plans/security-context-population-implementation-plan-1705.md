@@ -1328,7 +1328,7 @@ The review resolution tables and review logs of this plan (review resolution of 
 
 1. After this plan PR merges, the orchestrator writes the Phase 4 brief (ABAC PEP, persistent PAP and seeding on the request identity), authoritative per "Maintainer decisions" item 14.
 2. #751 (ABAC decision audit) starts when Phase 4 merges (N9).
-3. The Phase 4 worker writes the issue files for N2 (the separate [BUG] for `abac.*` definite denials answered 500 and `abac.policy_not_found` answered 404 in the three host adapters), N10 (the in-memory PAP accepting anonymous changes) and N11 (the [FEATURE] with its own plan for a configurable, fail-closed permission check in the PAP); the orchestrator opens them.
+3. The Phase 4 worker writes the issue files for N2 (the separate [BUG] for `abac.*` definite denials answered 500 in the three host adapters; `abac.policy_not_found` answered 500 before #1984, because the adapters' 404 rule matches the `.not_found` suffix; after #1984 the PEP denial is `encina.authorization.abac_policy_not_found` (403) and the admin lookups are `abac.policy.not_found` / `abac.policy_set.not_found` (404)), N10 (the in-memory PAP accepting anonymous changes) and N11 (the [FEATURE] with its own plan for a configurable, fail-closed permission check in the PAP); the orchestrator opens them.
 4. Phases 5, 6 and 7 follow, one PR per phase, with manifests and changelog per phase (item 14).
 
 ---
@@ -1379,7 +1379,7 @@ Taken (2026-10-05, not to be revisited):
 
 14. Phase 4 re-check, maintainer decisions on #1705 (2026-10-07, after `artifacts/plans/1705-phase4-recheck.md`). This block is authoritative over the Phase 4, 6 and 7 task lists, which are not rewritten:
     - **N1.** The PEP's "no authenticated caller" error uses the shared `EncinaErrorCodes.AuthorizationUnauthenticated` (`encina.authorization.unauthenticated`); `ABACErrors.UnauthenticatedCaller()` stays as the factory and adds the detail `["gate"] = "abac"`. #1918 uses the same code.
-    - **N2.** `abac.*` definite denials answering 500 (and `abac.policy_not_found` answering 404) in the three host adapters are fixed by a separate [BUG] right after Phase 4; the Phase 4 worker writes the issue file.
+    - **N2.** `abac.*` definite denials answering 500 (including `abac.policy_not_found`, which answered 500 before #1984) in the three host adapters are fixed by a separate [BUG] right after Phase 4; the Phase 4 worker writes the issue file.
     - **N3.** `IAttributeProvider.GetSubjectAttributesAsync` takes `RequestIdentity` instead of `string userId`; the PEP always adds the built-in attributes `subject-id` and `identity-kind`; roles and permissions stay in follow-up F6.
     - **N4.** The persistent PAP's `IRequestContextAccessor` becomes required (non-optional constructor parameter, registration with `GetRequiredService`) and the `Guid.NewGuid()` correlation fallback is removed.
     - **N5.** EventId 9096 becomes the seeding summary (policy set and policy counts) and replaces both ad hoc `LogInformation` calls in `ABACPolicySeedingHostedService`; core EventId 166 marks the start.

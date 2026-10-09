@@ -4,7 +4,11 @@ namespace Encina.Security.ABAC;
 /// Factory methods for ABAC-related <see cref="EncinaError"/> instances.
 /// </summary>
 /// <remarks>
-/// Error codes follow the convention <c>abac.{category}</c>.
+/// Error codes follow the convention <c>abac.{category}</c>, except the definite authorization
+/// denials (<see cref="AccessDeniedCode"/>, <see cref="ConditionNotMetCode"/>,
+/// <see cref="ObligationFailedCode"/> and <see cref="RequiredPolicyNotFoundCode"/>): they use the
+/// <c>encina.authorization.abac_{reason}</c> codes so every host adapter answers them with
+/// HTTP 403 through the shared <c>encina.authorization.*</c> prefix rule.
 /// All errors include structured metadata for observability.
 /// </remarks>
 public static class ABACErrors
@@ -15,17 +19,28 @@ public static class ABACErrors
 
     // ── Error Code Constants ────────────────────────────────────────
 
-    /// <summary>Error code when policy evaluation resulted in Deny.</summary>
-    public const string AccessDeniedCode = "abac.access_denied";
+    /// <summary>Error code when policy evaluation resulted in Deny (an authorization denial, HTTP 403).</summary>
+    public const string AccessDeniedCode = "encina.authorization.abac_access_denied";
 
     /// <summary>Error code when policy evaluation resulted in Indeterminate (error during evaluation).</summary>
     public const string IndeterminateCode = "abac.indeterminate";
 
-    /// <summary>Error code when the referenced policy does not exist.</summary>
-    public const string PolicyNotFoundCode = "abac.policy_not_found";
+    /// <summary>
+    /// Error code when an administrative or lookup operation references a policy that does not exist
+    /// (a missing resource, not an authorization denial; the <c>.not_found</c> suffix makes the host
+    /// adapters answer HTTP 404). A request denied because a required policy
+    /// is missing uses <see cref="RequiredPolicyNotFoundCode"/> instead.
+    /// </summary>
+    public const string PolicyNotFoundCode = "abac.policy.not_found";
 
-    /// <summary>Error code when the referenced policy set does not exist.</summary>
-    public const string PolicySetNotFoundCode = "abac.policy_set_not_found";
+    /// <summary>
+    /// Error code when a request is denied because a policy it requires is missing from the policy
+    /// store (a fail-closed authorization denial, HTTP 403).
+    /// </summary>
+    public const string RequiredPolicyNotFoundCode = "encina.authorization.abac_policy_not_found";
+
+    /// <summary>Error code when the referenced policy set does not exist (HTTP 404 in the host adapters).</summary>
+    public const string PolicySetNotFoundCode = "abac.policy_set.not_found";
 
     /// <summary>Error code when policy evaluation threw an exception.</summary>
     public const string EvaluationFailedCode = "abac.evaluation_failed";
@@ -52,7 +67,7 @@ public static class ABACErrors
     public const string CombiningFailedCode = "abac.combining_failed";
 
     /// <summary>Error code when a mandatory obligation handler failed (access must be denied per XACML spec).</summary>
-    public const string ObligationFailedCode = "abac.obligation_failed";
+    public const string ObligationFailedCode = "encina.authorization.abac_obligation_failed";
 
     /// <summary>Error code when a referenced function is not in the registry.</summary>
     public const string FunctionNotFoundCode = "abac.function_not_found";
@@ -79,7 +94,7 @@ public static class ABACErrors
     public const string CacheProviderNotRegisteredCode = "abac.cache_provider_not_registered";
 
     /// <summary>Error code when a <see cref="RequireConditionAttribute"/> expression evaluated to <c>false</c>.</summary>
-    public const string ConditionNotMetCode = "abac.condition_not_met";
+    public const string ConditionNotMetCode = "encina.authorization.abac_condition_not_met";
 
     /// <summary>Error code when an obligation or advice handler threw an exception instead of returning a result.</summary>
     public const string ObligationHandlerExceptionCode = "abac.obligation_handler_exception";
@@ -151,14 +166,14 @@ public static class ABACErrors
     /// </summary>
     /// <param name="requestType">The request type that requires the policy.</param>
     /// <param name="policyName">The required policy name, recorded in the error details only.</param>
-    /// <returns>An error with code <see cref="PolicyNotFoundCode"/> and a fixed message.</returns>
+    /// <returns>An error with code <see cref="RequiredPolicyNotFoundCode"/> and a fixed message.</returns>
     public static EncinaError RequiredPolicyNotFound(Type requestType, string policyName)
     {
         ArgumentNullException.ThrowIfNull(requestType);
         ArgumentNullException.ThrowIfNull(policyName);
 
         return EncinaErrors.Create(
-            code: PolicyNotFoundCode,
+            code: RequiredPolicyNotFoundCode,
             message: "A policy required by the request was not found in the policy store. Access denied.",
             details: new Dictionary<string, object?>
             {

@@ -208,6 +208,10 @@ public class HttpResponseDataExtensionsTests
     [InlineData(EncinaErrorCodes.AuthorizationPermissionDenied)]
     [InlineData(EncinaErrorCodes.AuthorizationClaimMissing)]
     [InlineData(EncinaErrorCodes.AuthorizationNotOwner)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.AccessDeniedCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.ConditionNotMetCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.ObligationFailedCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.RequiredPolicyNotFoundCode)]
     [InlineData("encina.authorization.some_future_denial")]
     public void MapErrorCodeToStatusCode_AuthorizationErrors_Return403(string errorCode)
     {
@@ -222,6 +226,8 @@ public class HttpResponseDataExtensionsTests
     }
 
     [Theory]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode)]
     [InlineData("order.not_found")]
     [InlineData("product.not_found")]
     [InlineData("customer.not_found")]

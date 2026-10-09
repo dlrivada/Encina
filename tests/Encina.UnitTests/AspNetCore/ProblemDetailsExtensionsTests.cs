@@ -61,6 +61,10 @@ public sealed class ProblemDetailsExtensionsTests
     [InlineData(EncinaErrorCodes.AuthorizationPermissionDenied)]
     [InlineData(EncinaErrorCodes.AuthorizationClaimMissing)]
     [InlineData(EncinaErrorCodes.AuthorizationNotOwner)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.AccessDeniedCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.ConditionNotMetCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.ObligationFailedCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.RequiredPolicyNotFoundCode)]
     [InlineData("encina.authorization.some_future_denial")]
     public void ToProblemDetails_AuthorizationDenial_Returns403(string code)
     {
@@ -69,6 +73,18 @@ public sealed class ProblemDetailsExtensionsTests
 
         var result = error.ToProblemDetails(context);
         result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status403Forbidden);
+    }
+
+    [Theory]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode)]
+    public void ToProblemDetails_AbacAdministrativeNotFound_Returns404(string code)
+    {
+        var error = EncinaErrors.Create(code, "Not found");
+        var context = CreateHttpContext();
+
+        var result = error.ToProblemDetails(context);
+        result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status404NotFound);
     }
 
     [Fact]

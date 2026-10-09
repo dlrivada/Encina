@@ -18,6 +18,7 @@ public class ABACErrorsGuardTests
         ABACErrors.AccessDeniedCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.IndeterminateCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.PolicyNotFoundCode.ShouldNotBeNullOrWhiteSpace();
+        ABACErrors.RequiredPolicyNotFoundCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.PolicySetNotFoundCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.EvaluationFailedCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.AttributeResolutionFailedCode.ShouldNotBeNullOrWhiteSpace();
@@ -63,7 +64,7 @@ public class ABACErrorsGuardTests
     {
         var error = ABACErrors.RequiredPolicyNotFound(typeof(string), "policy-a");
 
-        error.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.PolicyNotFoundCode);
+        error.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.RequiredPolicyNotFoundCode);
         error.Message.ShouldNotContain("policy-a");
         error.GetDetails()["policyId"].ShouldBe("policy-a");
     }

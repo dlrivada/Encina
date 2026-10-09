@@ -152,7 +152,7 @@ The `Handle` method follows XACML 3.0 section 7.18:
 6. **Evaluate the requirements** -- call `IPolicyDecisionPoint.EvaluatePolicyAsync()` once for each `[RequirePolicy]` (the named top-level policy set or standalone policy is evaluated on its own, not the whole store), combine the policy results (`AllMustPass = true` policies must all permit; when any policy has `AllMustPass = false`, at least one of those must permit), and only if the policies pass evaluate each `[RequireCondition]` EEL expression in declaration order against the `user`, `resource`, `environment` and `action` variables. Everything combines with AND into one verdict.
 7. **Process the verdict** -- handle the three possible outcomes (a required policy that is NotApplicable is already a Deny):
    - **Permit**: execute obligations (mandatory), execute advice (best-effort), call `nextStep()`.
-   - **Deny**: execute OnDeny obligations, apply enforcement mode (Block or Warn). The error code is `abac.access_denied`, `abac.policy_not_found` (the named policy is not in the store) or `abac.condition_not_met` (a condition was `false`).
+   - **Deny**: execute OnDeny obligations, apply enforcement mode (Block or Warn). The error code is `encina.authorization.abac_access_denied`, `encina.authorization.abac_policy_not_found` (the named policy is not in the store) or `encina.authorization.abac_condition_not_met` (a condition was `false`).
    - **Indeterminate**: a required policy or condition could not be evaluated; the request is denied with `abac.indeterminate` in every enforcement mode.
 
 ### Static Attribute Caching
@@ -172,7 +172,7 @@ The `ABACEnforcementMode` enum controls how Deny decisions are handled:
 | Mode | Behavior | Use Case |
 |------|----------|----------|
 | `Block` | Deny decisions reject the request with an `EncinaError` | Production |
-| `Warn` | Definite verdicts (a Deny, a required policy that is NotApplicable, Deny or not found, a condition that evaluates to `false`) are logged and the request proceeds; errors (`abac.missing_context`, always; `abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`) still deny when they decide the verdict | Policy validation, gradual rollout |
+| `Warn` | Definite verdicts (a Deny, a required policy that is NotApplicable, Deny or not found, a condition that evaluates to `false`) are logged and the request proceeds; errors (`abac.missing_context`, always; `abac.indeterminate`, `abac.evaluation_failed`, `encina.authorization.abac_obligation_failed`) still deny when they decide the verdict | Policy validation, gradual rollout |
 | `Disabled` | ABAC evaluation is completely skipped | Development, feature-flagging |
 
 ---
@@ -203,7 +203,7 @@ public interface IPolicyDecisionPoint
 }
 ```
 
-`EvaluatePolicyAsync` looks the name up among the top-level policy sets first, then among the standalone policies (those contained in no policy set). A name that exists only nested inside a policy set is not found and the PEP denies with `abac.policy_not_found`; to require a nested policy, name its parent set, so that the set's target, enabled flag, combining algorithm and obligations apply. When a set and a standalone policy share a name, the set is evaluated. A PDP `Left` with a code other than `abac.policy_not_found` is treated as Indeterminate.
+`EvaluatePolicyAsync` looks the name up among the top-level policy sets first, then among the standalone policies (those contained in no policy set). A name that exists only nested inside a policy set is not found and the PEP denies with `encina.authorization.abac_policy_not_found`; to require a nested policy, name its parent set, so that the set's target, enabled flag, combining algorithm and obligations apply. When a set and a standalone policy share a name, the set is evaluated. A PDP `Left` with a code other than `abac.policy.not_found` is treated as Indeterminate. The PDP's `abac.policy.not_found` is an administrative lookup code; the PEP converts it into the denial `encina.authorization.abac_policy_not_found` and never returns it to the caller.
 
 ### Evaluation Algorithm (XACML 3.0 sections 7.12-7.14)
 
@@ -530,7 +530,7 @@ sequenceDiagram
     end
 
     alt Nothing matched
-        PDP-->>PEP: Either.Left(abac.policy_not_found)
+        PDP-->>PEP: Either.Left(abac.policy.not_found)
     else A store read returned Left or evaluation threw
         PDP-->>PEP: Either.Right(PolicyDecision with Effect.Indeterminate)
     else Evaluated
@@ -571,9 +571,9 @@ sequenceDiagram
 ### Key Flow Details
 
 - **Obligation failures cause denial**: per XACML 3.0 section 7.18, if any mandatory obligation handler fails or is missing, the PEP must deny access even if the PDP returned Permit.
-- **Handler exceptions do not escape**: an obligation or advice handler that throws becomes an `abac.obligation_handler_exception` error inside the executor; a mandatory obligation then denies with `abac.obligation_failed`, advice is skipped.
+- **Handler exceptions do not escape**: an obligation or advice handler that throws becomes an `abac.obligation_handler_exception` error inside the executor; a mandatory obligation then denies with `encina.authorization.abac_obligation_failed`, advice is skipped.
 - **Advice is best-effort**: advice handler failures are logged but do not affect the decision.
-- **NotApplicable denies**: a required policy that returns NotApplicable denies the request, and a policy name that is not in the store denies with `abac.policy_not_found`. A request type with no `[RequirePolicy]` and no `[RequireCondition]` is not evaluated at all.
+- **NotApplicable denies**: a required policy that returns NotApplicable denies the request, and a policy name that is not in the store denies with `encina.authorization.abac_policy_not_found`. A request type with no `[RequirePolicy]` and no `[RequireCondition]` is not evaluated at all.
 - **Indeterminate handling**: evaluation errors produce `Indeterminate`, which denies with `abac.indeterminate` in every enforcement mode, `Warn` included. `Warn` relaxes only definite verdicts. An error denies when it decides the verdict; next to a definite denial among the required policies, the definite denial is the verdict and `Warn` lets it through.
 - **Conditions come after the policies**: `[RequireCondition]` expressions are not evaluated before the PDP and are not a short-circuit in front of it.
 

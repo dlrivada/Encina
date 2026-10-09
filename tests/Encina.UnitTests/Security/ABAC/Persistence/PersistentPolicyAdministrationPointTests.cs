@@ -655,8 +655,10 @@ public sealed class PersistentPolicyAdministrationPointTests
         // Act
         var result = await _sut.UpdatePolicyAsync(policy);
 
-        // Assert
+        // Assert: an administrative lookup keeps the resource-style code (not an authorization denial)
         result.IsLeft.ShouldBeTrue();
+        result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty))
+            .ShouldBe(ABACErrors.PolicyNotFoundCode);
     }
 
     [Fact]
@@ -723,8 +725,10 @@ public sealed class PersistentPolicyAdministrationPointTests
         // Act
         var result = await _sut.RemovePolicyAsync("p-ghost");
 
-        // Assert
+        // Assert: an administrative lookup keeps the resource-style code (not an authorization denial)
         result.IsLeft.ShouldBeTrue();
+        result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty))
+            .ShouldBe(ABACErrors.PolicyNotFoundCode);
     }
 
     [Fact]

@@ -161,7 +161,7 @@ When a request arrives and its `[RequirePolicy]` policies permit, the PEP calls 
 1. **Cache hit** (fast path): The cached `ScriptRunner<bool>` is returned.
 2. **Cache miss**: The expression is compiled and cached.
 3. The PEP invokes the delegate with the `EELGlobals` it built.
-4. A compile error or an exception thrown by the expression makes the decision Indeterminate, and the request is denied with `abac.indeterminate` in every enforcement mode (see [EEL error handling](errors.md)). A condition that evaluates to `false` is `abac.condition_not_met`.
+4. A compile error or an exception thrown by the expression makes the decision Indeterminate, and the request is denied with `abac.indeterminate` in every enforcement mode (see [EEL error handling](errors.md)). A condition that evaluates to `false` is `encina.authorization.abac_condition_not_met`.
 
 ```
 [RequireCondition("user.role == \"Admin\"")]

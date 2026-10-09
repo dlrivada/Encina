@@ -270,7 +270,7 @@ public sealed class ABACPipelineBehaviorContractTests
 
         // Assert
         nextCalled.ShouldBeFalse();
-        CodeOf(result).ShouldBe(ABACErrors.PolicyNotFoundCode);
+        CodeOf(result).ShouldBe(ABACErrors.RequiredPolicyNotFoundCode);
     }
 
     // -- Indeterminate --

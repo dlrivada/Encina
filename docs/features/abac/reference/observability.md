@@ -207,7 +207,7 @@ The `ABACHealthCheck` verifies that the ABAC engine has policies loaded and can 
 |-----------|--------|---------|
 | At least one PolicySet loaded | `Healthy` | ABAC engine has loaded policy sets |
 | No PolicySets, but standalone Policies loaded | `Healthy` | ABAC engine has loaded standalone policies |
-| No PolicySets and no Policies | `Degraded` | No policies or policy sets loaded. Every policy named by `[RequirePolicy]` will be missing, so those requests are denied with `abac.policy_not_found` |
+| No PolicySets and no Policies | `Degraded` | No policies or policy sets loaded. Every policy named by `[RequirePolicy]` will be missing, so those requests are denied with `encina.authorization.abac_policy_not_found` |
 | Exception querying PAP | `Unhealthy` | Failed to query the Policy Administration Point |
 
 ### Enabling the Health Check

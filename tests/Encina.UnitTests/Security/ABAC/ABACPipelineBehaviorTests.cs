@@ -294,7 +294,7 @@ public sealed class ABACPipelineBehaviorTests
 
         var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest());
 
-        Code(result).ShouldBe(ABACErrors.PolicyNotFoundCode);
+        Code(result).ShouldBe(ABACErrors.RequiredPolicyNotFoundCode);
         nextCalled.ShouldBeFalse();
         result.IfLeft(error =>
         {
@@ -311,7 +311,7 @@ public sealed class ABACPipelineBehaviorTests
 
         var (result, _) = await SendAsync(behavior, new EmptyPolicyNameRequest());
 
-        Code(result).ShouldBe(ABACErrors.PolicyNotFoundCode);
+        Code(result).ShouldBe(ABACErrors.RequiredPolicyNotFoundCode);
         await pdp.DidNotReceiveWithAnyArgs().EvaluatePolicyAsync(default!, default!, default);
     }
 
@@ -404,7 +404,7 @@ public sealed class ABACPipelineBehaviorTests
 
         var (result, _) = await SendAsync(behavior, new AnyOfABRequest());
 
-        Code(result).ShouldBe(ABACErrors.PolicyNotFoundCode);
+        Code(result).ShouldBe(ABACErrors.RequiredPolicyNotFoundCode);
     }
 
     #endregion
