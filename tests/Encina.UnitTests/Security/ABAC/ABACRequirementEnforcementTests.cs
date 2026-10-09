@@ -84,7 +84,7 @@ public sealed class ABACRequirementEnforcementTests
         // Assert
         result.IsLeft.ShouldBeTrue("a nested policy is not found by its own name");
         nextCalled.ShouldBeFalse();
-        ErrorCode(result).ShouldBe(ABACErrors.PolicyNotFoundCode);
+        ErrorCode(result).ShouldBe(ABACErrors.RequiredPolicyNotFoundCode);
     }
 
     [Fact]

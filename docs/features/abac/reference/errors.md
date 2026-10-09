@@ -12,7 +12,7 @@ Encina ABAC uses the Railway Oriented Programming (ROP) pattern for error handli
 
 All ABAC errors are created through factory methods on the `ABACErrors` static class. Each error includes:
 
-- A **code** string following the `abac.{category}` convention
+- A **code** string. Most codes follow the `abac.{category}` convention; the four definite denials the PEP returns to the caller (`AccessDeniedCode`, `ConditionNotMetCode`, `ObligationFailedCode`, `RequiredPolicyNotFoundCode`) use the `encina.authorization.` prefix instead
 - A **message** with human-readable context
 - A **details** dictionary with structured metadata for observability (always includes `stage = "abac"`)
 
@@ -20,9 +20,10 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 
 | Error Code | Constant | Factory Method | Parameters | When It Occurs |
 |------------|----------|---------------|------------|----------------|
-| `abac.access_denied` | `AccessDeniedCode` | `AccessDenied` | `Type requestType, string? policyId = null` | A policy named by `[RequirePolicy]` returned Deny or NotApplicable (an explicitly required policy that does not apply cannot authorize). |
+| `encina.authorization.abac_access_denied` | `AccessDeniedCode` | `AccessDenied` | `Type requestType, string? policyId = null` | A policy named by `[RequirePolicy]` returned Deny or NotApplicable (an explicitly required policy that does not apply cannot authorize). |
 | `abac.indeterminate` | `IndeterminateCode` | `Indeterminate` | `Type requestType, string? reason = null` | A required policy or a `[RequireCondition]` expression could not produce a definitive result (evaluation error, expression that does not compile). |
-| `abac.policy_not_found` | `PolicyNotFoundCode` | `PolicyNotFound`, `RequiredPolicyNotFound` | `string policyId`; `Type requestType, string policyName` | A referenced policy does not exist in the PAP. `RequiredPolicyNotFound` is the error the PEP returns when `[RequirePolicy("name")]` names no top-level policy set or standalone policy in the store (a policy that exists only nested inside a set is not found; name its parent set); its message is fixed and the name is only in the details. |
+| `abac.policy_not_found` | `PolicyNotFoundCode` | `PolicyNotFound` | `string policyId` | An administrative lookup, not a request denial: a PAP operation (update or remove) or `EvaluatePolicyAsync` on the PDP names a policy that does not exist. The PEP never returns this code to the caller. |
+| `encina.authorization.abac_policy_not_found` | `RequiredPolicyNotFoundCode` | `RequiredPolicyNotFound` | `Type requestType, string policyName` | A request denial: `[RequirePolicy("name")]` names no top-level policy set or standalone policy in the store (a policy that exists only nested inside a set is not found; name its parent set). The message is fixed and the name is only in the details. |
 | `abac.policy_set_not_found` | `PolicySetNotFoundCode` | `PolicySetNotFound` | `string policySetId` | A referenced policy set does not exist in the PAP. |
 | `abac.evaluation_failed` | `EvaluationFailedCode` | `EvaluationFailed` | `Type requestType, Exception exception` | An unhandled exception occurred during policy evaluation. The message is fixed (`Policy evaluation failed for '<RequestType>'. Access denied.`); only the exception type is recorded, in `details["exceptionType"]`, never the exception message. |
 | `abac.attribute_resolution_failed` | `AttributeResolutionFailedCode` | `AttributeResolutionFailed` | `string attributeId, AttributeCategory category` | A required attribute (MustBePresent = true) could not be resolved. |
@@ -33,14 +34,18 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 | `abac.duplicate_policy_set` | `DuplicatePolicySetCode` | `DuplicatePolicySet` | `string policySetId` | A policy set with the same ID already exists in the PAP. |
 | `abac.combining_failed` | `CombiningFailedCode` | `CombiningFailed` | `string algorithmId, string? reason = null` | A combining algorithm produced an Indeterminate result. |
 | `abac.missing_context` | `MissingContextCode` | `MissingContext` | `Type requestType` | There is no security context, it is not authenticated (`IsAuthenticated` is `false`, even when it carries a user id claim), or its `UserId` is null, empty or whitespace. The PEP denies in every enforcement mode (`Block` and `Warn`) before it collects any attribute. |
-| `abac.obligation_failed` | `ObligationFailedCode` | `ObligationFailed` | `string obligationId, string? reason = null` | A mandatory obligation handler failed or was not found. Per XACML 3.0 section 7.18, access must be denied. |
+| `encina.authorization.abac_obligation_failed` | `ObligationFailedCode` | `ObligationFailed` | `string obligationId, string? reason = null` | A mandatory obligation handler failed or was not found. Per XACML 3.0 section 7.18, access must be denied. |
 | `abac.function_not_found` | `FunctionNotFoundCode` | `FunctionNotFound` | `string functionId` | A function referenced in a policy condition is not registered in `IFunctionRegistry`. |
 | `abac.function_error` | `FunctionErrorCode` | `FunctionError` | `string functionId, Exception exception` | A registered function threw an exception during evaluation. |
 | `abac.variable_not_found` | `VariableNotFoundCode` | `VariableNotFound` | `string variableId` | A `VariableReference` references an undefined `VariableDefinition` within the policy. |
-| `abac.condition_not_met` | `ConditionNotMetCode` | `ConditionNotMet` | `Type requestType, int conditionIndex` | A `[RequireCondition]` expression evaluated to `false`. The message is fixed. |
+| `encina.authorization.abac_condition_not_met` | `ConditionNotMetCode` | `ConditionNotMet` | `Type requestType, int conditionIndex` | A `[RequireCondition]` expression evaluated to `false`. The message is fixed. |
 | `abac.policy_change_principal_required` | `PolicyChangePrincipalRequiredCode` | `PolicyChangePrincipalRequired` | none | `PersistentPolicyAdministrationPoint` refused a mutation because the request context carries no principal. The message is fixed. |
 | `abac.policy_change_audit_failed` | `PolicyChangeAuditFailedCode` | `PolicyChangeAuditFailed` | `string cause` | The audit record of a policy change could not be written, so the change was not applied. `cause` (details) is the underlying error code or exception type. |
-| `abac.obligation_handler_exception` | `ObligationHandlerExceptionCode` | `ObligationHandlerException` | `string obligationId, Type exceptionType` | An obligation or advice handler threw instead of returning a result. The message is fixed and the exception message is never recorded. `ObligationExecutor` handles this error itself: a mandatory obligation then fails the request with `abac.obligation_failed`, and advice is skipped. |
+| `abac.obligation_handler_exception` | `ObligationHandlerExceptionCode` | `ObligationHandlerException` | `string obligationId, Type exceptionType` | An obligation or advice handler threw instead of returning a result. The message is fixed and the exception message is never recorded. `ObligationExecutor` handles this error itself: a mandatory obligation then fails the request with `encina.authorization.abac_obligation_failed`, and advice is skipped. |
+
+## HTTP Mapping
+
+The four definite denials start with `encina.authorization.`, so the ASP.NET Core, Azure Functions and AWS Lambda adapters answer them with HTTP 403 through their existing `encina.authorization.` prefix rule; there is no ABAC-specific mapping table. The other `abac.*` codes keep the mapping the adapters already give them.
 
 ## Error Metadata
 
@@ -116,7 +121,7 @@ if (result.IsLeft)
 ```csharp
 var error = ABACErrors.AccessDenied(typeof(CreateOrderCommand), "order-policy-v1");
 
-// error.Code        => "abac.access_denied"
+// error.Code        => "encina.authorization.abac_access_denied"
 // error.Message     => "Access denied for 'CreateOrderCommand' by policy 'order-policy-v1'."
 // error.Details["requestType"]  => "MyApp.Commands.CreateOrderCommand"
 // error.Details["stage"]        => "abac"
@@ -125,7 +130,7 @@ var error = ABACErrors.AccessDenied(typeof(CreateOrderCommand), "order-policy-v1
 
 ## Common Error Scenarios
 
-### 1. Access Denied (abac.access_denied)
+### 1. Access Denied (encina.authorization.abac_access_denied)
 
 **Scenario:** A user without the required role attempts an operation.
 
@@ -152,7 +157,7 @@ The request is denied in every enforcement mode, `Warn` included, and no attribu
 - A request meant to run without a user must not carry `[RequirePolicy]` or `[RequireCondition]` (or ABAC must run in `Disabled` mode).
 - Populating the context automatically, for example from `HttpContext.User`, is tracked by #1705.
 
-### 3. Obligation Failed (abac.obligation_failed)
+### 3. Obligation Failed (encina.authorization.abac_obligation_failed)
 
 **Scenario:** A policy grants Permit with a mandatory obligation (e.g., audit logging), but no handler is registered.
 
@@ -238,7 +243,7 @@ Error: Policy evaluation failed for 'TransferFunds'. Access denied.
 
 **Resolution:** Read the `exceptionType` in the error details, then debug the custom function or attribute provider that threw. The error never carries the exception message, because it can contain data; the exception itself is logged with EventId 9009 through `ForLogging()` (type and stack trace only).
 
-### 11. Condition Not Met (abac.condition_not_met)
+### 11. Condition Not Met (encina.authorization.abac_condition_not_met)
 
 **Scenario:** A request type carries `[RequireCondition("user.clearanceLevel >= 3")]` and the expression is `false` for the current user.
 
@@ -248,7 +253,7 @@ Error: A condition required by the request was not met. Access denied.
 
 **Resolution:** Read `conditionIndex` in the error details to find which condition failed, then check the attributes your `IAttributeProvider` returns for `user`, `resource`, `environment` and `action`. A condition that cannot be compiled, or that reads an attribute that is missing, is not this error: it is `Indeterminate` (`abac.indeterminate`) and also denies.
 
-### 12. Required Policy Not Found (abac.policy_not_found)
+### 12. Required Policy Not Found (encina.authorization.abac_policy_not_found)
 
 **Scenario:** A request type carries `[RequirePolicy("finance-access")]` but the policy store holds no policy set and no policy with that id.
 
@@ -256,7 +261,7 @@ Error: A condition required by the request was not met. Access denied.
 Error: A policy required by the request was not found in the policy store. Access denied.
 ```
 
-**Resolution:** Read `policyId` in the error details, then seed or create the policy set or policy with that id. The PEP does not fall back to evaluating the rest of the store.
+**Resolution:** Read `policyId` in the error details, then seed or create the policy set or policy with that id. The PEP does not fall back to evaluating the rest of the store. This is a request denial; `abac.policy_not_found` (`PolicyNotFoundCode`) is a different code, returned only by administrative lookups and `EvaluatePolicyAsync`, never by the PEP.
 
 ### 13. Obligation Handler Exception (abac.obligation_handler_exception)
 
@@ -266,4 +271,4 @@ Error: A policy required by the request was not found in the policy store. Acces
 Error: An obligation or advice handler threw an exception.
 ```
 
-**Resolution:** Read `obligationId` and `exceptionType` in the error details and fix the handler. A mandatory obligation whose handler throws denies the request, and the caller receives `abac.obligation_failed`; advice whose handler throws is skipped. The exception message is never logged (EventId 9078 records the exception through `ForLogging()`).
+**Resolution:** Read `obligationId` and `exceptionType` in the error details and fix the handler. A mandatory obligation whose handler throws denies the request, and the caller receives `encina.authorization.abac_obligation_failed`; advice whose handler throws is skipped. The exception message is never logged (EventId 9078 records the exception through `ForLogging()`).

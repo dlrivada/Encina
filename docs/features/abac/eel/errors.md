@@ -109,10 +109,11 @@ errors may appear in the broader policy evaluation pipeline:
 | Error Code                        | Trigger                                                    |
 |-----------------------------------|------------------------------------------------------------|
 | `abac.evaluation_failed`          | Policy evaluation threw an unhandled exception             |
-| `abac.access_denied`              | Policy evaluation produced a Deny decision                 |
+| `encina.authorization.abac_access_denied` | Policy evaluation produced a Deny decision (HTTP 403) |
 | `abac.indeterminate`              | Evaluation could not reach Permit or Deny                  |
-| `abac.policy_not_found`           | Referenced policy ID does not exist in the store, or a `[RequirePolicy]` name matches no top-level policy set or standalone policy |
-| `abac.condition_not_met`          | A `[RequireCondition]` expression evaluated to `false`     |
+| `abac.policy_not_found`           | Administrative lookup: a PAP operation or `EvaluatePolicyAsync` names a policy ID that does not exist (never returned by the PEP) |
+| `encina.authorization.abac_policy_not_found` | A `[RequirePolicy]` name matches no top-level policy set or standalone policy (HTTP 403) |
+| `encina.authorization.abac_condition_not_met` | A `[RequireCondition]` expression evaluated to `false` (HTTP 403) |
 | `abac.policy_set_not_found`       | Referenced policy set ID does not exist in the store       |
 | `abac.attribute_resolution_failed`| Required attribute (MustBePresent) could not be resolved   |
 | `abac.invalid_policy`             | Policy definition is structurally invalid                  |
@@ -121,7 +122,7 @@ errors may appear in the broader policy evaluation pipeline:
 | `abac.duplicate_policy_set`       | A policy set with the same ID already exists               |
 | `abac.combining_failed`           | Combining algorithm produced Indeterminate                 |
 | `abac.missing_context`            | No authenticated security context with a user              |
-| `abac.obligation_failed`          | Mandatory obligation handler failed (access denied per XACML) |
+| `encina.authorization.abac_obligation_failed` | Mandatory obligation handler failed (access denied per XACML; HTTP 403) |
 | `abac.function_not_found`         | Referenced function not in the function registry           |
 | `abac.function_error`             | Custom function threw an exception during evaluation       |
 | `abac.variable_not_found`         | VariableReference targets an undefined VariableDefinition  |

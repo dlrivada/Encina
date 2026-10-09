@@ -16,7 +16,7 @@ namespace Encina.Security.ABAC.Health;
 /// <item><description><see cref="HealthStatus.Healthy"/> — At least one policy or policy set is loaded
 /// (and the persistent store is reachable, if configured).</description></item>
 /// <item><description><see cref="HealthStatus.Degraded"/> — No policies or policy sets are loaded. Every request
-/// that requires a policy is denied with <see cref="ABACErrors.PolicyNotFoundCode"/>.</description></item>
+/// that requires a policy is denied with <see cref="ABACErrors.RequiredPolicyNotFoundCode"/>.</description></item>
 /// <item><description><see cref="HealthStatus.Unhealthy"/> — The PAP or the persistent store could not be queried
 /// (e.g., connection error).</description></item>
 /// </list>

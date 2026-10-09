@@ -428,7 +428,7 @@ Both builders follow the same pattern: set the trigger condition (`OnPermit()` o
 ## Configuring Obligation Behavior
 
 A mandatory obligation with no registered handler always denies with
-`abac.obligation_failed` (XACML 3.0 Section 7.18); there is no option to relax this, in any
+`encina.authorization.abac_obligation_failed` (XACML 3.0 Section 7.18); there is no option to relax this, in any
 enforcement mode. Advice without a handler is skipped. A handler whose `CanHandle` or
 `HandleAsync` throws becomes `abac.obligation_handler_exception`: a mandatory obligation
 denies, advice is skipped.

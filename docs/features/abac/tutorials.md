@@ -744,7 +744,7 @@ services.AddEncinaABAC(options =>
 | Finance | Down/failing | **Deny** (obligation failed) |
 | Engineering | N/A | **Deny** (rule does not match) |
 
-> **Key point**: If no handler is registered for `"audit-log"`, every Permit decision converts to Deny with `abac.obligation_failed`; there is no option to relax this. This ensures audit compliance.
+> **Key point**: If no handler is registered for `"audit-log"`, every Permit decision converts to Deny with `encina.authorization.abac_obligation_failed`; there is no option to relax this. This ensures audit compliance.
 
 ---
 

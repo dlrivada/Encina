@@ -13,7 +13,6 @@ public sealed class ABACErrorsTests
     #region Error Code Constants
 
     [Theory]
-    [InlineData(nameof(ABACErrors.AccessDeniedCode), "abac.access_denied")]
     [InlineData(nameof(ABACErrors.IndeterminateCode), "abac.indeterminate")]
     [InlineData(nameof(ABACErrors.PolicyNotFoundCode), "abac.policy_not_found")]
     [InlineData(nameof(ABACErrors.PolicySetNotFoundCode), "abac.policy_set_not_found")]
@@ -25,7 +24,6 @@ public sealed class ABACErrorsTests
     [InlineData(nameof(ABACErrors.DuplicatePolicyCode), "abac.duplicate_policy")]
     [InlineData(nameof(ABACErrors.DuplicatePolicySetCode), "abac.duplicate_policy_set")]
     [InlineData(nameof(ABACErrors.CombiningFailedCode), "abac.combining_failed")]
-    [InlineData(nameof(ABACErrors.ObligationFailedCode), "abac.obligation_failed")]
     [InlineData(nameof(ABACErrors.FunctionNotFoundCode), "abac.function_not_found")]
     [InlineData(nameof(ABACErrors.FunctionErrorCode), "abac.function_error")]
     [InlineData(nameof(ABACErrors.VariableNotFoundCode), "abac.variable_not_found")]
@@ -36,12 +34,45 @@ public sealed class ABACErrorsTests
         field!.GetValue(null).ShouldBe(expectedValue);
     }
 
+    [Theory]
+    [InlineData(nameof(ABACErrors.AccessDeniedCode), "encina.authorization.abac_access_denied")]
+    [InlineData(nameof(ABACErrors.ConditionNotMetCode), "encina.authorization.abac_condition_not_met")]
+    [InlineData(nameof(ABACErrors.ObligationFailedCode), "encina.authorization.abac_obligation_failed")]
+    [InlineData(nameof(ABACErrors.RequiredPolicyNotFoundCode), "encina.authorization.abac_policy_not_found")]
+    public void DefiniteDenialCode_UsesAuthorizationPrefix(string fieldName, string expectedValue)
+    {
+        var field = typeof(ABACErrors).GetField(fieldName);
+        field.ShouldNotBeNull();
+        var value = (string)field!.GetValue(null)!;
+
+        value.ShouldBe(expectedValue);
+        value.ShouldStartWith(EncinaErrorCodes.AuthorizationPrefix);
+    }
+
+    [Fact]
+    public void PolicyNotFoundCode_StaysAnAdministrativeLookupCode()
+    {
+        ABACErrors.PolicyNotFoundCode.ShouldBe("abac.policy_not_found");
+        ABACErrors.PolicyNotFoundCode.ShouldNotStartWith(EncinaErrorCodes.AuthorizationPrefix);
+    }
+
+    [Fact]
+    public void RequiredPolicyNotFound_UsesTheAuthorizationDenialCode_NotTheLookupCode()
+    {
+        var error = ABACErrors.RequiredPolicyNotFound(typeof(string), "finance-policy");
+
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.RequiredPolicyNotFoundCode);
+        error.GetCode().IfNone("").ShouldNotBe(ABACErrors.PolicyNotFoundCode);
+    }
+
     [Fact]
     public void AllErrorCodes_AreUnique()
     {
         var codes = new[]
         {
             ABACErrors.AccessDeniedCode,
+            ABACErrors.RequiredPolicyNotFoundCode,
+            ABACErrors.ConditionNotMetCode,
             ABACErrors.IndeterminateCode,
             ABACErrors.PolicyNotFoundCode,
             ABACErrors.PolicySetNotFoundCode,

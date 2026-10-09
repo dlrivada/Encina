@@ -26,11 +26,11 @@ services.AddEncinaABAC(o => o.EnforcementMode = ABACEnforcementMode.Block);  // 
 |------|----------|
 | Named policy | The top-level policy set or standalone policy (one contained in no set) with that id is evaluated on its own; only `Permit` passes. A policy that exists only inside a set is not found: name the parent set instead |
 | `NotApplicable` from a required policy | Denies |
-| Policy not in the store | Denies with `abac.policy_not_found` |
+| Policy not in the store | Denies with `encina.authorization.abac_policy_not_found` |
 | `Indeterminate` or evaluation error | Denies (`abac.indeterminate` / `abac.evaluation_failed`), in every enforcement mode |
 | No security context, an unauthenticated one (`IsAuthenticated` is `false`), or empty `UserId` | Denies with `abac.missing_context`, in every enforcement mode, before any attribute is collected |
 | Several `[RequirePolicy]` | `AllMustPass = true` ones are ANDed, `AllMustPass = false` ones are ORed, both groups must hold |
-| `[RequireCondition]` is `false` | Denies with `abac.condition_not_met` |
+| `[RequireCondition]` is `false` | Denies with `encina.authorization.abac_condition_not_met` |
 | `[RequireCondition]` fails to compile or throws | `Indeterminate`, denies with `abac.indeterminate` |
 | Policies and conditions | Combined with AND; conditions run only after the named policies permit, in declaration order. The variables are `user`, `resource`, `environment` and `action` (`action.name` is the request type name) |
 | No `[RequirePolicy]` and no `[RequireCondition]` | The request is not evaluated |
@@ -132,16 +132,17 @@ user.isAdmin == true || user.department == "security"
 | Mode | Behavior | Use Case |
 |------|----------|----------|
 | `Block` | Deny stops request execution | Production |
-| `Warn` | Definite verdicts (Deny, required policy NotApplicable/Deny/not found, condition `false`) are logged and the request proceeds; errors (`abac.missing_context`, `abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`) still deny when they decide the verdict (a definite denial found next to an error is the verdict and passes) | Policy validation / rollout |
+| `Warn` | Definite verdicts (Deny, required policy NotApplicable/Deny/not found, condition `false`) are logged and the request proceeds; errors (`abac.missing_context`, `abac.indeterminate`, `abac.evaluation_failed`, `encina.authorization.abac_obligation_failed`) still deny when they decide the verdict (a definite denial found next to an error is the verdict and passes) | Policy validation / rollout |
 | `Disabled` | ABAC skipped entirely | Development / feature flag |
 
 ## Error Codes
 
 | Code | Description |
 |------|-------------|
-| `abac.access_denied` | Policy evaluation resulted in Deny |
+| `encina.authorization.abac_access_denied` | Policy evaluation resulted in Deny (HTTP 403) |
 | `abac.indeterminate` | Evaluation error (missing attribute, function failure) |
-| `abac.policy_not_found` | Referenced policy does not exist |
+| `abac.policy_not_found` | Administrative lookup (PAP update/remove, `EvaluatePolicyAsync`) on a policy that does not exist; never returned by the PEP |
+| `encina.authorization.abac_policy_not_found` | A `[RequirePolicy]` name is not in the policy store (HTTP 403) |
 | `abac.policy_set_not_found` | Referenced policy set does not exist |
 | `abac.evaluation_failed` | Exception during evaluation |
 | `abac.attribute_resolution_failed` | Required attribute unresolvable (MustBePresent) |
@@ -152,12 +153,12 @@ user.isAdmin == true || user.department == "security"
 | `abac.duplicate_policy_set` | PolicySet with same ID already exists |
 | `abac.combining_failed` | Combining algorithm produced Indeterminate |
 | `abac.missing_context` | Security context unavailable, not authenticated, or its `UserId` is empty |
-| `abac.obligation_failed` | Mandatory obligation handler failed (access denied per XACML 7.18) |
+| `encina.authorization.abac_obligation_failed` | Mandatory obligation handler failed (access denied per XACML 7.18; HTTP 403) |
 | `abac.function_not_found` | Function not registered in registry |
 | `abac.function_error` | Function evaluation threw exception |
 | `abac.variable_not_found` | VariableReference to undefined VariableDefinition |
-| `abac.condition_not_met` | A `[RequireCondition]` expression evaluated to `false` |
-| `abac.obligation_handler_exception` | An obligation or advice handler threw (handled inside the executor; the request fails with `abac.obligation_failed`) |
+| `encina.authorization.abac_condition_not_met` | A `[RequireCondition]` expression evaluated to `false` (HTTP 403) |
+| `abac.obligation_handler_exception` | An obligation or advice handler threw (handled inside the executor; the request fails with `encina.authorization.abac_obligation_failed`) |
 
 ## Metrics
 
