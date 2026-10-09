@@ -59,6 +59,24 @@ public sealed class TransactionPipelineBehaviorTests
     }
 
     [Fact]
+    public async Task Handle_PlainConnection_HandlerThrowsOperationCanceled_RollsBackAndRethrows()
+    {
+        // Arrange
+        var accessor = new DbTransactionAccessor();
+        var behavior = new TransactionPipelineBehavior<TestRequest, string>(_connection, accessor);
+        RequestHandlerCallback<string> nextStep = () => throw new OperationCanceledException();
+
+        // Act
+        var act = async () => await behavior.Handle(new TestRequest(Guid.NewGuid()), CreateTestContext(), nextStep, CancellationToken.None);
+
+        // Assert
+        await act.ShouldThrowAsync<OperationCanceledException>();
+        _transaction.Received(1).Rollback();
+        _transaction.DidNotReceive().Commit();
+        accessor.Current.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task Handle_WithAccessor_ClearsTransactionAlsoWhenHandlerThrows()
     {
         // Arrange
