@@ -137,7 +137,7 @@ public sealed class InboxStoreEF : IInboxStore
                     m.ErrorMessage = null;
                 },
                 cancellationToken);
-        },"inbox.mark_processed_failed").ConfigureAwait(false);
+        }, "inbox.mark_processed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -164,7 +164,7 @@ public sealed class InboxStoreEF : IInboxStore
                     m.NextRetryAtUtc = nextRetryAtUtc;
                 },
                 cancellationToken);
-        },"inbox.mark_failed_failed").ConfigureAwait(false);
+        }, "inbox.mark_failed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
