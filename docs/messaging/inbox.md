@@ -104,9 +104,19 @@ A request can run inside a business transaction (the Transaction pattern: `Trans
 
 `InboxOrchestrator` sends a handler `Right` to `MarkAsProcessedAsync`, a handler `Left` to `CacheHandlerErrorAsync` and a thrown exception to `MarkAsFailedAsync`. If the business commit fails after a successful handler, the processed mark rolls back with it: the message stays unprocessed and the redelivery runs the handler again. The entry and the failure records are never lost.
 
+The processed mark is atomic with the business effect only when the request runs inside the Transaction pattern, and which requests are wrapped depends on the provider:
+
+| Family | Requests wrapped in a business transaction |
+|---|---|
+| EF Core | Only requests that implement `ITransactionalCommand` or carry `[Transaction]` (`RequiresTransaction` in `Encina.EntityFrameworkCore.TransactionPipelineBehavior`). |
+| ADO.NET, Dapper | Every request, when `UseTransactions` is on (`Encina.Messaging.TransactionPipelineBehavior`). |
+| MongoDB | None; the pipeline has no transaction. |
+
+For an unwrapped request, `MarkAsProcessedAsync` is an immediate write, separate from the handler's own writes. A crash between the handler's writes and the processed mark leaves the business effect committed and the message unprocessed, so the redelivery runs the handler again.
+
 | Family | Mechanism |
 |---|---|
-| ADO.NET, Dapper | The store reads the open transaction from `IDbTransactionAccessor` through `DbLease`. Enlisted writes use it; independent writes use the shared connection when no transaction is open and otherwise an opened clone of the connection. A connection that decorates another one implements `IWrappedDbConnection` and exposes it as `InnerConnection` (the module-isolation `SchemaValidatingConnection` does); `DbLease` follows the chain to find the business transaction and clones the innermost connection. The innermost connection must implement `ICloneable` (`SqlConnection`, `NpgsqlConnection` and `MySqlConnection` do) and every decorator must implement `IWrappedDbConnection`; otherwise the independent write fails with a `Left`. |
+| ADO.NET, Dapper | The store reads the open transaction from `IDbTransactionAccessor` through `DbLease`. Enlisted writes use it; independent writes use the shared connection when no transaction is open and otherwise an opened clone of the connection. A connection that decorates another one implements `IWrappedDbConnection` and exposes it as `InnerConnection` (the module-isolation `SchemaValidatingConnection` does); `DbLease` follows the chain to find the business transaction and clones the innermost connection. The innermost connection must implement `ICloneable` (`SqlConnection`, `NpgsqlConnection` and `MySqlConnection` do) and every decorator must implement `IWrappedDbConnection`; otherwise the independent write fails with a `Left` (fail closed). The clone is made with `ICloneable.Clone`: `SqlConnection.Clone` keeps the connection string, `AccessToken` and `Credential` (pinned by `DbLeaseCloneCredentialsTests`), and the `NpgsqlConnection` and `MySqlConnection` clones keep their connection settings (no test pins these two). A real-database scenario runs this path through the module-isolation decorator (`SchemaValidatingConnection`) on ADO.NET and Dapper for SQL Server and PostgreSQL. |
 | EF Core | Independent writes run on an isolated `DbContext` built from the injected context's options, with its own connection. `MarkAsProcessedAsync` runs on the injected context and joins its current transaction. Relational providers use `ExecuteUpdate`, so `RetryCount + 1` is atomic. |
 | MongoDB | The pipeline has no business transaction, so every write is immediate. |
 
@@ -120,6 +130,7 @@ Limits:
 - While a business transaction is open, each independent write uses a second pooled connection, so size the connection pool for it.
 - Under a repeatable-read or serializable `[Transaction]`, the lock taken by the lookup on the business connection can block an independent write until the command timeout.
 - The ADO.NET and Dapper `UnitOfWork` (an explicit `IUnitOfWork` transaction) is not visible to the inbox.
+- A request outside the Transaction pattern (an EF Core request with neither `ITransactionalCommand` nor `[Transaction]`, or any MongoDB request) has no atomic processed mark: a crash between the handler's writes and `MarkAsProcessedAsync` re-runs the handler.
 - Concurrent redeliveries of one message are not serialized; `MaxRetries` holds for sequential deliveries.
 
 ## Reference
