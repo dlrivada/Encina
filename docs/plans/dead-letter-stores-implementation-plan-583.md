@@ -4,7 +4,7 @@
 > **Type**: Feature
 > **Complexity**: High (12 phases, all 10 database providers, a reshaped store contract in `Encina.Messaging`)
 > **Estimated Scope**: ~2,200-2,900 lines of production code + ~3,000-3,800 lines of tests
-> **Scope decision**: maintainer comment on #583, 2026-10-07: the dead letter queue (DLQ) enters 1.0 complete, on exactly the 10 providers of the database matrix. Oracle and SQLite are out of the matrix ([ADR-009](../architecture/adr/009-remove-oracle-provider-pre-1.0.md), [ADR-024](../architecture/adr/024-remove-sqlite-provider-pre-1.0.md)), so the issue title's "13 providers" no longer applies. SPEC-000 records the scope change as DEC-008 in a separate docs PR.
+> **Scope decision**: maintainer comment on #583, 2026-10-07: the dead letter queue (DLQ) enters 1.0 complete, on exactly the 10 providers of the database matrix. Oracle and SQLite are out of the matrix ([ADR-009](../architecture/adr/009-remove-oracle-provider-pre-1.0.md), [ADR-024](../architecture/adr/024-remove-sqlite-provider-pre-1.0.md)), so the issue title's "13 providers" no longer applies. SPEC-000 records the scope change as DEC-008 (merged as #2008).
 > **Follow-up that relies on this plan**: [#1991](https://github.com/dlrivada/Encina/issues/1991) (wire the five `IntegrateWith*` sources to the DLQ, option (a), decided 2026-10-07). Post-1.0 store families: #584-#589.
 > **Related plans**: [#718](outbox-atomicity-ado-implementation-plan-718.md) (transaction accessor), [#1200](processed-message-purge-implementation-plan-1200.md) (purge), [#1251](processor-row-claiming-implementation-plan-1251.md) (row claiming)
 
@@ -58,7 +58,7 @@ Encina gets a database-backed dead letter queue on the 10 providers of the datab
 
 ### Rationale
 
-- I recommend A because the persisted shape is the part that is expensive to change after 1.0. Every rename done now is free; every rename done later is a migration on 10 providers.
+- Decided A (2026-10-09) because the persisted shape is the part that is expensive to change after 1.0. Every rename done now is free; every rename done later is a migration on 10 providers.
 - `ExceptionMessage` is never written (`DeadLetterOrchestrator.cs:121,216`) because an exception message can hold personal data. A column that must always be empty is an invitation to fill it.
 - `SourceMessageId` and `TenantId` are the inputs of Choices 6 and 7. A only creates the columns; those choices decide how they are used.
 
@@ -79,7 +79,7 @@ Encina gets a database-backed dead letter queue on the 10 providers of the datab
 
 ### Rationale
 
-- I recommend A because it removes the only reason a persisted entity would read the clock, and it makes the expiry rule one expression shared by the 10 stores, the fake and the manager.
+- Decided A (2026-10-09) because it removes the only reason a persisted entity would read the clock, and it makes the expiry rule one expression shared by the 10 stores, the fake and the manager.
 - The boundary is fixed as `ExpiresAtUtc <= utcNow` (expired at the instant of expiry), the form every SQL predicate and MongoDB filter uses. The fake today treats that instant as not expired (`now > ExpiresAtUtc`, `FakeDeadLetterMessage.cs:59`); it changes with the rest of the fake, and the contract test pins the boundary.
 
 </details>
@@ -99,7 +99,7 @@ Encina gets a database-backed dead letter queue on the 10 providers of the datab
 
 ### Rationale
 
-- I recommend A because the DLQ is a messaging pattern like the other four, and AGENTS.md §4 places feature stores in a folder named after the feature.
+- Decided A (2026-10-09) because the DLQ is a messaging pattern like the other four, and AGENTS.md §4 places feature stores in a folder named after the feature.
 - The feature stays opt-in through `UseDeadLetterQueue` (Choice 4), so placing the code in the existing packages does not make anyone pay at run time.
 
 </details>
@@ -119,7 +119,7 @@ Encina gets a database-backed dead letter queue on the 10 providers of the datab
 
 ### Rationale
 
-- I recommend A because outbox, inbox, saga and scheduling are all enabled by a flag on the same configuration object. A flag that registers nothing is the defect class #1991 and #1969 already report.
+- Decided A (2026-10-09) because outbox, inbox, saga and scheduling are all enabled by a flag on the same configuration object. A flag that registers nothing is the defect class #1991 and #1969 already report.
 - The helper also fixes the health-check registration (`TryAddEnumerable` instead of `TryAddScoped<IEncinaHealthCheck>`, which is skipped when another health check exists) and registers `DeadLetterHealthCheckOptions` with `TryAddSingleton`, so `ValidateOnBuild` passes with or without custom thresholds.
 - No in-memory production default exists for `IDeadLetterStore`, so "the store wins over the in-memory default" reduces to `TryAdd`: a store or fake registered by the application before the provider is kept, and a provider registered first is not overridden by a later `AddEncinaDeadLetterQueue` call with other types (documented, tested).
 
@@ -140,9 +140,9 @@ Encina gets a database-backed dead letter queue on the 10 providers of the datab
 
 ### Rationale
 
-- I recommend A because the persistent stores make the two defects real: on a large queue, `take: int.MaxValue` loads every payload into memory, and a failed delete is reported as "nothing to delete".
+- Decided A (2026-10-09) because the persistent stores make the two defects real: on a large queue, `take: int.MaxValue` loads every payload into memory, and a failed delete is reported as "nothing to delete".
 - Oldest first matches the operator's job (work the backlog in arrival order) and the orchestrator's existing reading of "first row".
-- The conditional `MarkAsReplayedAsync` lets the manager detect that a concurrent replay already recorded an outcome. Making replay exclusive before dispatch is a separate defect (issue file in Next Steps).
+- The conditional `MarkAsReplayedAsync` lets the manager detect that a concurrent replay already recorded an outcome. Making replay exclusive before dispatch is the atomic claim of B3, implemented in this PR with #2012.
 
 </details>
 
@@ -161,30 +161,30 @@ Encina gets a database-backed dead letter queue on the 10 providers of the datab
 
 ### Rationale
 
-- I recommend A because SPEC-002 REQ-017 keeps dead-lettered outbox messages in the outbox table and lets them be requeued. A message can therefore exhaust its retries twice, and #1991 will dead-letter it each time.
+- Decided A (2026-10-09) because SPEC-002 REQ-017 keeps dead-lettered outbox messages in the outbox table and lets them be requeued. A message can therefore exhaust its retries twice, and #1991 will dead-letter it each time.
 - `SourceMessageId` is a string because the sources use different identifiers: `Guid` for outbox, scheduled messages and sagas, `string` for inbox message ids.
 - Without a source id, the orchestrator uses the new dead letter id, so the key never blocks unrelated messages.
 
 </details>
 
 <details>
-<summary><strong>7. Tenancy — tenant column stamped at capture, explicit filter, no implicit scoping</strong></summary>
+<summary><strong>7. Tenancy — tenant column stamped at capture, explicit store filter, manager defaults to the ambient tenant</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `TenantId` column stamped from `IRequestContext.TenantId` at capture** (`DeadLetterContext` may override it, for sources that restore a persisted tenant), plus `DeadLetterFilter.TenantId`; queries return every tenant unless the filter names one | The tenant is persisted from day one (SPEC-000 §2); operator tooling sees the whole queue and can narrow it; single-tenant applications need no configuration | Tenant-scoped views are the caller's job (a tenant admin screen must set the filter) |
+| **A) `TenantId` column stamped from `IRequestContext.TenantId` at capture** (`DeadLetterContext` may override it, for sources that restore a persisted tenant), plus `DeadLetterFilter.TenantId`; the store contract is explicit (a store query returns every tenant unless the filter names one), while `DeadLetterManager` reads, replays and deletes default to the ambient `IRequestContext.TenantId` when present, with an explicit all-tenants option (`DeadLetterFilter.AllTenants`, B7) | The tenant is persisted from day one (SPEC-000 §2); a tenant admin screen cannot show another tenant's dead letters by forgetting the filter (SPEC-002 REQ-061); operator tooling opts in to every tenant; single-tenant applications need no configuration | The store itself does no implicit scoping, so direct store callers must set the filter |
 | **B) Column plus implicit scoping** to the current `ITenantContext`, failing closed when the application is multi-tenant and no tenant is present | Tenant isolation by default on reads | The DLQ is an operator tool: background cleanup and platform operators have no tenant, so they would be denied or need an opt-out on every call; the cleanup processor would need per-tenant loops |
 | **C) No column now; defer** as #737/#739 did for outbox and scheduled rows | No tenancy work in #583 | Exactly the post-1.0 retrofit SPEC-000 §2 warns against; #1991 could not carry the source's tenant |
 
-### Chosen Option: **A — stamped column, explicit filter** (decided 2026-10-09)
+### Chosen Option: **A — stamped column, explicit store filter, ambient-tenant default in the manager** (decided 2026-10-09; B7)
 
 ### Rationale
 
-- I recommend A because the persisted shape must carry the tenant before 1.0, while the DLQ's readers (operators, the cleanup processor, the health check) are deployment-wide by nature.
-- The orchestrator reads `IRequestContextAccessor` (already registered by `AddOutboxInboxSagaSchedulingServices`, `MessagingServiceCollectionExtensions.cs:235`). Telemetry carries the tenant id as an attribute (SPEC-002 REQ-062).
-- Replaying under the persisted tenant, rather than the operator's context, is a separate gap (issue file in Next Steps).
+- Decided A because the persisted shape must carry the tenant before 1.0. The store contract stays explicit; the cleanup processor and the health check stay deployment-wide, and `DeadLetterManager` (and `GetStatisticsAsync`) default to the ambient tenant (B7).
+- The orchestrator reads `IRequestContextAccessor` (already registered by `AddOutboxInboxSagaSchedulingServices`, `MessagingServiceCollectionExtensions.cs:235`). Telemetry carries no tenant id (SPEC-002 REQ-062: no identifiers in telemetry).
+- Replaying under the persisted tenant, rather than the operator's context, is a separate gap: #2013.
 
 </details>
 
@@ -203,7 +203,7 @@ Encina gets a database-backed dead letter queue on the 10 providers of the datab
 
 ### Rationale
 
-- I recommend A because the DLQ options promise a switch (`EnableAutomaticCleanup`, `DeadLetterOptions.cs:28`) that a TTL index cannot honour.
+- Decided A (2026-10-09) because the DLQ options promise a switch (`EnableAutomaticCleanup`, `DeadLetterOptions.cs:28`) that a TTL index cannot honour.
 - #771 may later move the loop to `Encina.Scheduling`. It will still call the same `DeleteExpiredAsync`, so A stays valid after #771.
 
 </details>
@@ -222,7 +222,7 @@ Encina gets a database-backed dead letter queue on the 10 providers of the datab
 
 ### Rationale
 
-- I recommend A because provider coherence (AGENTS.md §3) means switching the DI registration, not the schema. With A, one PostgreSQL table works for all three families.
+- Decided A (2026-10-09) because provider coherence (AGENTS.md §3) means switching the DI registration, not the schema. With A, one PostgreSQL table works for all three families.
 - The older messaging tables are not touched here. Aligning them is not needed for this issue.
 
 </details>
@@ -247,12 +247,12 @@ Encina gets a database-backed dead letter queue on the 10 providers of the datab
    - add `bool IsExpiredAt(DateTime utcNow)` (`ExpiresAtUtc is { } e && e <= utcNow`, documented as the rule every store applies in SQL).
 2. **`IDeadLetterMessageFactory.cs`** (`DeadLetterData` record): rename `ErrorMessage` to `ErrorCode`; delete `ExceptionMessage`; add `SourceMessageId` (required) and `TenantId` (optional).
 3. **`DeadLetterOrchestrator.cs`** (`DeadLetterContext` record, `:17-23`): add `string? SourceMessageId = null` and `string? TenantId = null`.
-4. **`DeadLetterFilter.cs`**: add `TenantId`, `ExpiresAtOrBeforeUtc`, and `SourceMessageId`; keep `ErrorCode` (now a real column).
+4. **`DeadLetterFilter.cs`**: add `TenantId`, `ExpiresAtOrBeforeUtc`, and `SourceMessageId`; keep `ErrorCode` (now a real column). Add `bool AllTenants { get; init; }` (default `false`, B7): the explicit all-tenants option for operator tooling. The manager applies the ambient `IRequestContext.TenantId` when `TenantId` is null, `AllTenants` is false and an ambient tenant exists; stores ignore `AllTenants` (they filter only by `TenantId`). `PublicAPI.Unshipped.txt` lists `DeadLetterFilter.AllTenants`.
 5. **`IDeadLetterStore.cs`**:
    - `Task<Either<EncinaError, bool>> AddAsync(IDeadLetterMessage message, CancellationToken)`: `false` when `(SourcePattern, SourceMessageId)` already exists.
    - `GetMessagesAsync(DeadLetterFilter? filter, int skip, int take, bool newestFirst = false, CancellationToken)`: order `DeadLetteredAtUtc, Id` ascending (descending when `newestFirst`), documented as the contract.
    - `Task<Either<EncinaError, bool>> MarkAsReplayedAsync(Guid, string, CancellationToken)`: updates only when `ReplayedAtUtc IS NULL`; `false` when not found or already replayed. The string is an **outcome code** (B3), never error text.
-   - Atomic replay claim (B3, folded with #2012; the method name is fixed at implementation): a store method that claims one message before dispatch with a conditional update on `ReplayedAtUtc IS NULL AND (ReplayClaimedAtUtc IS NULL OR the claim has expired)`, returning `true` only to the caller that won the claim. The claim expiry comes from the manager's options and the store's `TimeProvider`.
+   - Atomic replay claim (B3, folded with #2012; the method name is fixed at implementation): a store method that claims one message before dispatch with a conditional update on `ReplayedAtUtc IS NULL AND (ReplayClaimedAtUtc IS NULL OR the claim has expired)`. The claim expiry is `DeadLetterOptions.ReplayClaimTimeout` (`TimeSpan`, default 5 minutes, validated > 0 at start, Phase 3 task 3); the manager receives `DeadLetterOptions` and passes the computed "claim expired before" instant to the store, returning `true` only to the caller that won the claim. The claim expiry comes from the manager's options and the store's `TimeProvider`.
    - `Task<Either<EncinaError, int>> DeleteManyAsync(DeadLetterFilter filter, CancellationToken)`: one set-based delete. `DeleteAllAsync(DeadLetterFilter.All)` keeps deleting the whole queue in one statement (B9): state it in the XML docs; no confirmation parameter.
    - `DeleteExpiredAsync` unchanged in shape; documented predicate `ExpiresAtUtc IS NOT NULL AND ExpiresAtUtc <= now` with `now` from the store's `TimeProvider`.
    - Argument rules documented on the interface: `skip >= 0`, `1 <= take <= DeadLetterStoreLimits.MaxPageSize` (1,000), `messageId != Guid.Empty`, `replayResult` not null or whitespace.
@@ -279,7 +279,8 @@ TASK:
 1. IDeadLetterMessage: ErrorMessage -> ErrorCode; delete ExceptionMessage and IsExpired; add SourceMessageId
    (string), TenantId (string?), bool IsExpiredAt(DateTime utcNow) (ExpiresAtUtc <= utcNow).
 2. DeadLetterData: same renames and additions. DeadLetterContext: SourceMessageId?, TenantId?.
-3. DeadLetterFilter: TenantId, ExpiresAtOrBeforeUtc, SourceMessageId.
+3. DeadLetterFilter: TenantId, ExpiresAtOrBeforeUtc, SourceMessageId, bool AllTenants (init, default false; manager
+   only; add it to PublicAPI.Unshipped.txt). IDeadLetterMessage also gets DateTime? ReplayClaimedAtUtc.
 4. IDeadLetterStore: AddAsync -> Either<EncinaError, bool>; GetMessagesAsync gains bool newestFirst = false and a
    documented order (DeadLetteredAtUtc, Id); MarkAsReplayedAsync -> Either<EncinaError, bool>, conditional on
    ReplayedAtUtc IS NULL (outcome code only); an atomic replay-claim method (ReplayClaimedAtUtc, with claim
@@ -318,10 +319,10 @@ REFERENCE FILES:
    - On a `Left` from the store, log `DeadLetterStoreWriteFailed` with the error code only, then return the `Left`.
    - `GetStatisticsAsync`: oldest pending from `GetMessagesAsync(take: 1)`, newest from `newestFirst: true, take: 1`, expired count from `GetCountAsync` with `ExcludeReplayed = true` and `ExpiresAtOrBeforeUtc = now`. No `int.MaxValue` read remains.
 2. **`DeadLetterManager.cs`**:
-   - inject `TimeProvider?` (default `TimeProvider.System`); `IsNotReplayable` uses `message.IsExpiredAt(now)`;
+   - inject `TimeProvider?` (default `TimeProvider.System`) and `DeadLetterOptions` (for `ReplayClaimTimeout`); `IsNotReplayable` uses `message.IsExpiredAt(now)`;
    - `RecordReplayOutcomeAsync` returns `Either<EncinaError, bool>`. A `Left` is logged as `ReplayOutcomeNotRecorded` (error code only) and, for `ReplayAsync`, returned. When the update finds the row already replayed, the result says so (`ReplayResult.Failed` with `dlq.already_replayed`);
    - **outcome code and claim (B3, with #2012)**: the manager stops writing message text (`"Failed: {errorMessage}"`, `DeadLetterManager.cs:83,118,133-138`); the stored `ReplayResult` is an outcome code only (max 256). `ReplayAsync` first calls the atomic claim (`ReplayClaimedAtUtc`, with claim expiry); a lost claim returns a failed result without dispatching;
-   - **tenant default (B7)**: reads, replays and deletes default to `IRequestContext.TenantId` when it is present, with an explicit all-tenants option on the filter for operator tooling; with no ambient tenant the manager behaves as before. The store contract stays explicit (no implicit scoping in `IDeadLetterStore`), and the cleanup processor and the health check stay deployment-wide;
+   - **tenant default (B7)**: reads, replays and deletes default to `IRequestContext.TenantId` when it is present, with the explicit `DeadLetterFilter.AllTenants` option for operator tooling; `DeadLetterOrchestrator.GetStatisticsAsync` follows the same ambient-tenant default; with no ambient tenant the manager behaves as before. The store contract stays explicit (no implicit scoping in `IDeadLetterStore`), and the cleanup processor and the health check stay deployment-wide;
    - `DeleteAllAsync` calls `DeleteManyAsync(filter)` then `SaveChangesAsync`, propagating either `Left`; `DeleteAllAsync(DeadLetterFilter.All)` deletes the whole queue in one statement, documented in the XML docs and covered by one unit test (B9);
    - `ReplayAllAsync` no longer mutates the caller's filter (`DeadLetterManager.cs:220`): it copies it.
 3. **`src/Encina.Messaging/Health/DeadLetterHealthCheck.cs`**: done by #2011, which lands first as its own PR (B2); this plan only rebases onto it. For reference, #2011 makes:
@@ -395,7 +396,7 @@ REFERENCE FILES:
    - `TryAddSingleton(new DeadLetterHealthCheckOptions())` and `TryAddEnumerable(ServiceDescriptor.Scoped<IEncinaHealthCheck, DeadLetterHealthCheck>())` (the `TryAddEnumerable` registration is #2011's change, which lands first; keep it);
    - `AddHostedService<DeadLetterCleanupProcessor>()` when cleanup is on.
 2. **`DeadLetterServiceCollectionExtensions.cs`**: both `AddEncinaDeadLetterQueue` overloads delegate to the helper (the health-check overload replaces the `DeadLetterHealthCheckOptions` registration instead of adding a second one).
-3. **`DeadLetterOptions.cs`**: setter validation (`RetentionPeriod` > 0 when set, `CleanupInterval` > 0), `ArgumentOutOfRangeException` with the parameter name.
+3. **`DeadLetterOptions.cs`**: add `TimeSpan ReplayClaimTimeout` (default 5 minutes, B3); setter validation (`RetentionPeriod` > 0 when set, `CleanupInterval` > 0, `ReplayClaimTimeout` > 0), `ArgumentOutOfRangeException` with the parameter name; invalid values fail at start. `PublicAPI.Unshipped.txt` lists it.
 4. **Provider registrations** (each with a `DeadLetter/` using):
    - `src/Encina.ADO.{SqlServer,PostgreSQL,MySQL}/ServiceCollectionExtensions.cs`, private `AddEncinaADO(config)` (`ADO.SqlServer` `:62-87`): `services.AddDeadLetterQueueServices<DeadLetterStoreADO, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions)`.
    - `src/Encina.ADO.{SqlServer,PostgreSQL,MySQL}/Tenancy/TenancyServiceCollectionExtensions.cs` (B5): `AddEncinaADOWithTenancy` (`:53`, which reaches `AddMessagingServicesCore`, `MessagingServiceCollectionExtensions.cs:358`, and wires only outbox and inbox) also calls `AddDeadLetterQueueServices` with the same store and factory.
@@ -426,7 +427,7 @@ TASK:
 2. Health check through TryAddEnumerable; DeadLetterHealthCheckOptions through TryAddSingleton.
 3. Call the helper from AddEncinaADO (x3), AddEncinaADOWithTenancy (x3, with a DI test), AddEncinaDapper (x3), AddEncinaEntityFrameworkCore and AddEncinaMongoDB;
    add UseDeadLetterQueue, DeadLetterOptions and Collections.DeadLetterMessages to the MongoDB options.
-4. Setter validation on DeadLetterOptions.
+4. Setter validation on DeadLetterOptions, including the new ReplayClaimTimeout (TimeSpan, default 5 minutes, > 0).
 
 KEY RULES:
 - Registration completeness (AGENTS.md section 3): every option type and dependency the store, orchestrator,
@@ -619,6 +620,8 @@ KEY RULES:
 - Every Dapper call passes the CancellationToken through CommandDefinition.
 - Parameters only; identifiers through SqlIdentifierValidator; TimeProvider for "now".
 - Same argument validation and error codes as DeadLetterStoreADO.
+- Include the atomic replay claim (ReplayClaimedAtUtc, conditional update, claim expiry from
+  DeadLetterOptions.ReplayClaimTimeout) with the same SQL as the ADO store.
 
 REFERENCE FILES:
 - src/Encina.ADO.SqlServer/DeadLetter/DeadLetterStoreADO.cs (Phase 5)
@@ -739,7 +742,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Multi-tenancy (✅)**: `TenantId` stamped by the orchestrator (Phase 2), filterable (Phase 1), indexed (Phase 4), and an attribute on activities and metrics (Phase 10). The manager defaults to the ambient tenant with an explicit all-tenants option (B7). Replay restoring the persisted tenant is #2013.
+1. **Multi-tenancy (✅)**: `TenantId` stamped by the orchestrator (Phase 2), filterable (Phase 1), indexed (Phase 4), and never a telemetry dimension (REQ-062; Phase 10). The manager defaults to the ambient tenant with an explicit all-tenants option (B7). Replay restoring the persisted tenant is #2013.
 2. **Transactions (✅)**:
    - each store write is one statement (atomic);
    - the ADO.NET and Dapper stores enlist through #718's `IDbTransactionAccessor` when it exists at implementation time, otherwise they use the connection as the other stores do;
@@ -795,11 +798,11 @@ REFERENCE FILES:
 
 1. **Tracing**: `src/Encina.OpenTelemetry/MessagingStores/InstrumentedDeadLetterStore.cs`, an `internal sealed` decorator with its own `ActivitySource("Encina.Messaging.DeadLetter", "1.0")`, registered with `DecorateService<IDeadLetterStore>` next to the scheduled-message decorator (`src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:150`).
    - Activities `encina.dlq.add`, `.query`, `.count`, `.replay_mark`, `.delete`, `.delete_many`, `.delete_expired`.
-   - Tags `dlq.source_pattern`, `dlq.message_id` (a generated GUID, not a subject identifier), `encina.tenant_id` (only when present), `dlq.count`, and `encina.error_code` on failure.
+   - Tags `dlq.source_pattern`, `dlq.message_id` (a generated GUID, not a subject identifier), `dlq.count`, and `encina.error_code` on failure.
    - It must not copy `Failed(activity, err.Message)` from the existing decorators (`InstrumentedScheduledMessageStore.cs:45`, tracked by #1788). The source lives in the decorator that uses it, so #1790's dead-source problem does not repeat.
    - Add `"Encina.Messaging.DeadLetter"` to the sources `WithEncina` subscribes to (`tracing.AddSource(...)`, the messaging sources at `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:202-205`; `:179-185` are the core and sharding sources).
 2. **Metrics**: new `src/Encina.Messaging/Diagnostics/DeadLetterMetrics.cs` on `Meter("Encina", "1.0")` (as `MessagingStoreMetrics.cs:17`), used by the orchestrator and manager:
-   - `encina.dlq.messages_added_total` (tags `source_pattern`, `tenant_id` when present);
+   - `encina.dlq.messages_added_total` (tag `source_pattern`; no tenant id, SPEC-002 REQ-062);
    - `encina.dlq.duplicates_ignored_total` (`source_pattern`);
    - `encina.dlq.messages_replayed_total` (`outcome` = succeeded/failed);
    - `encina.dlq.messages_deleted_total` (`reason` = manual/expired);
@@ -834,7 +837,7 @@ TASK:
 
 KEY RULES:
 - No payloads, no EncinaError.Message, no exception messages in tags, metrics or logs; error code only.
-- Tenant id is an attribute only when the row has one.
+- No tenant id in tags, metrics or logs (SPEC-002 REQ-062).
 - EventIds packed sequentially inside the registered ranges; re-check they are free before writing.
 
 REFERENCE FILES:
@@ -858,6 +861,7 @@ REFERENCE FILES:
 
 1. **Unit tests** (`tests/Encina.UnitTests/Messaging/DeadLetter/`, existing `DeadLetterOrchestratorTests.cs`, `DeadLetterManagerTests.cs`):
    - tenant and source-id stamping; the duplicate path (no callback, existing row returned);
+   - B7 manager tests: the ambient tenant is applied to reads, replays and deletes; `AllTenants = true` reads every tenant; no ambient tenant behaves as before; an explicit `TenantId` wins; `GetStatisticsAsync` follows the same default; the claim expires after `ReplayClaimTimeout` (with `FakeTimeProvider`);
    - statistics from counts (no full read; assert `GetMessagesAsync` is never called with `take > 1`);
    - every store `Left` propagated and logged by code; the health check's `Unhealthy` on `Left`; `IsExpiredAt` boundary with `FakeTimeProvider`;
    - `AddDeadLetterQueueServices` for each flag combination; the fake store's new members;
@@ -948,13 +952,13 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **XML documentation** on every new public member: the store contract (order, predicates, return values), the entities, factories, the helper with an `<example>`, and the shared-`DbContext` remark on `DeadLetterStoreEF`.
-2. **`changelog.d/583-persistent-dead-letter-stores.added.md`**: the persistent DLQ on the 10 providers, enabled with `UseDeadLetterQueue`. Add a `.changed.md` fragment for the reshaped record and store contract (renamed and removed members, `bool` results), and a `.fixed.md` fragment for the health check and the swallowed store errors.
+2. **`changelog.d/583-persistent-dead-letter-stores.added.md`**: the persistent DLQ on the 10 providers, enabled with `UseDeadLetterQueue`. Add a `.changed.md` fragment for the reshaped record and store contract (renamed and removed members, `bool` results), and a `.fixed.md` fragment for the swallowed store errors and the plaintext replay outcome (#2012). The health-check fix has its own fragment in #2011.
 3. **ADR-046** (number reserved in `docs/architecture/adr/index.md` by this plan): "Persistent dead letter queue: oldest-first contract, idempotent capture by source message, tenant column". It records Choices 1, 5, 6 and 7 as the model #1991 and #584-#589 implement. Move the row from the reserved table to the ADR table when written.
 4. **Feature documentation** (`encina-docs` skill): the provider registration, schema scripts and EF configuration section of `docs/features/dead-letter-queue.md`. If #1990 has created the page, extend it; otherwise create it with that section and leave the rest of #1990's items to #1990. Include a Mermaid diagram of capture, replay and expiry, and the per-provider table.
 5. **Package READMEs**: `src/Encina.Messaging/README.md` (registration through `UseDeadLetterQueue`) and the eight provider READMEs (script `029`, EF `ApplyConfiguration`, MongoDB options).
 6. **`docs/INVENTORY.md`**: the new `DeadLetter/` folders, scripts and diagnostics files.
 7. **`PublicAPI.Unshipped.txt`**: verify the entries of Phases 1-10 (RS0016/RS0017/RS0036/RS0037 clean) in all 11 packages.
-8. **`ROADMAP.md` / `docs/releases/`**: the DLQ in the v0.19.0 block (SPEC-000 DEC-008 by the separate docs PR).
+8. **`ROADMAP.md` / `docs/releases/`**: the DLQ in the v0.19.0 block (SPEC-000 DEC-008, merged as #2008).
 9. **Build verification**: `dotnet build Encina.slnx --configuration Release` with 0 errors and 0 warnings.
 10. **Test verification**: `dotnet test` all pass. Every coverage flag (unit, guard, contract, property, integration) reaches its own target in `.github/coverage-manifest/{Package}.json`. Record the per-file measurement, the CRAP table and the ADR-018 matrix in the PR.
 
@@ -1001,7 +1005,7 @@ REFERENCE FILES:
 |--------|-------------|-----------|
 | EIP "Dead Letter Channel" (Hohpe & Woolf) | A message that cannot be delivered is moved to a dedicated channel for inspection | The pattern `IDeadLetterStore` persists |
 | SPEC-000 §2 (Multi-tenancy) and DEC-003 | Persisted shapes carry the tenant before 1.0; database features on the 10 providers | Choice 7; provider matrix |
-| SPEC-000 DEC-008 (docs PR, 2026-10-07) | The DLQ enters 1.0 complete on the 10 providers | Scope of this plan |
+| SPEC-000 DEC-008 (merged as #2008) | The DLQ enters 1.0 complete on the 10 providers | Scope of this plan |
 | SPEC-002 REQ-017 | A dead-lettered outbox message stays in the outbox table and can be requeued | Why capture must be idempotent (Choice 6) |
 | SPEC-002 REQ-061, REQ-062 | Tenant-aware and instrumented; no payloads or direct identifiers in telemetry | Choice 7; Phase 10 |
 | GDPR Art. 5(1)(e) | Storage limitation | `RetentionPeriod` (7 days) and `DeleteExpiredAsync` on every provider |
@@ -1012,7 +1016,7 @@ REFERENCE FILES:
 
 | Provider | Types | Insert-if-absent | Paging | Conditional replay mark |
 |----------|-------|------------------|--------|-------------------------|
-| SQL Server (ADO, Dapper) | `UNIQUEIDENTIFIER`, `NVARCHAR(n)`/`NVARCHAR(MAX)`, `DATETIME2(7)`, `INT`; replay claim: `UPDATE t SET ReplayClaimedAtUtc = @Now WHERE Id = @Id AND ReplayedAtUtc IS NULL AND (ReplayClaimedAtUtc IS NULL OR ReplayClaimedAtUtc <= @ClaimExpiredBefore)`, rows 1 = claimed (same shape on the other providers) | `INSERT INTO t (...) SELECT @Id, ... WHERE NOT EXISTS (SELECT 1 FROM t WITH (UPDLOCK, HOLDLOCK) WHERE SourcePattern = @SourcePattern AND SourceMessageId = @SourceMessageId)`; error 2627/2601 → `false` | `ORDER BY DeadLetteredAtUtc, Id OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY` | `UPDATE t SET ReplayedAtUtc = @Now, ReplayResult = @Result WHERE Id = @Id AND ReplayedAtUtc IS NULL` |
+| SQL Server (ADO, Dapper) | `UNIQUEIDENTIFIER`, `NVARCHAR(n)`/`NVARCHAR(MAX)`, `DATETIME2(7)`, `INT`; replay claim: `UPDATE t SET ReplayClaimedAtUtc = @Now WHERE Id = @Id AND ReplayedAtUtc IS NULL AND (ReplayClaimedAtUtc IS NULL OR ReplayClaimedAtUtc <= @ClaimExpiredBefore)`, rows 1 = claimed; `@ClaimExpiredBefore` = now minus `DeadLetterOptions.ReplayClaimTimeout` (same shape on the other providers) | `INSERT INTO t (...) SELECT @Id, ... WHERE NOT EXISTS (SELECT 1 FROM t WITH (UPDLOCK, HOLDLOCK) WHERE SourcePattern = @SourcePattern AND SourceMessageId = @SourceMessageId)`; error 2627/2601 → `false` | `ORDER BY DeadLetteredAtUtc, Id OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY` | `UPDATE t SET ReplayedAtUtc = @Now, ReplayResult = @Result WHERE Id = @Id AND ReplayedAtUtc IS NULL` |
 | PostgreSQL (ADO, Dapper) | `UUID`, `VARCHAR(n)`/`TEXT`, `TIMESTAMPTZ` for every `*AtUtc` column (B4), `INTEGER`; quoted PascalCase (Choice 9) | `INSERT ... ON CONFLICT ("SourcePattern", "SourceMessageId") DO NOTHING`; SQLSTATE `23505` → `false` | `ORDER BY "DeadLetteredAtUtc", "Id" LIMIT @Take OFFSET @Skip` | same `UPDATE`, quoted |
 | MySQL (ADO, Dapper) | `CHAR(36)`, `VARCHAR(n)`/`LONGTEXT`, `DATETIME(6)`, `INT`; backticks | `INSERT INTO t (...) SELECT ... FROM DUAL WHERE NOT EXISTS (...)`; error 1062 → `false` (not `INSERT IGNORE`, which hides other errors, nor `ON DUPLICATE KEY UPDATE`, whose affected-rows count depends on `UseAffectedRows`) | `ORDER BY DeadLetteredAtUtc, Id LIMIT @Take OFFSET @Skip` | same `UPDATE` |
 | EF Core (SQL Server, Npgsql, Pomelo) | from `DeadLetterMessageConfiguration` | `AnyAsync` on the key, then `AddAsync`; race → `DbUpdateException` → `Left(dlq.store_failed)` | `OrderBy/ThenBy/Skip/Take` | `ExecuteUpdateAsync` with `ReplayedAtUtc == null` |
@@ -1134,7 +1138,7 @@ REFERENCE FILES:
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Write-once records read by operators and the health check; a cached count or page would hide new dead letters, which is the signal the queue exists for |
-| 2 | OpenTelemetry | ✅ | `InstrumentedDeadLetterStore` with `ActivitySource("Encina.Messaging.DeadLetter")` and `DeadLetterMetrics` counters on `Meter("Encina")`; tenant as attribute; no payloads or error messages (Phase 10) |
+| 2 | OpenTelemetry | ✅ | `InstrumentedDeadLetterStore` with `ActivitySource("Encina.Messaging.DeadLetter")` and `DeadLetterMetrics` counters on `Meter("Encina")`; no tenant id and no payloads or error messages in telemetry (Phase 10) |
 | 3 | Structured Logging | ✅ | `[LoggerMessage]` 2990-2992 in `EventIdRanges.Messaging` and 3165-3166 in `EventIdRanges.MongoDB` (Phase 10; B1) |
 | 4 | Health Checks | ✅ | `DeadLetterHealthCheck` fails closed on a store `Left` and registers through `TryAddEnumerable` (#2011, which lands first; Phases 2-3); provider database health checks already cover connectivity |
 | 5 | Validation | ✅ | Store argument rules, `DeadLetterOptions` setter validation, source key lengths checked before I/O (Phases 1-3, 9) |
