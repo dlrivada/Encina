@@ -83,6 +83,26 @@ public sealed class ABACDecisionAuditStoreGuardTests
         (await Recorder().RecordAsync(ValidRecord())).IsRight.ShouldBeTrue();
     }
 
+    // ── ABACDecisionAuditOptions ─────────────────────────────────────
+
+    [Fact]
+    public void Options_WriteTimeoutAndCrossTenantOptOut_AcceptAnyValueAndValidateAtStart()
+    {
+        var options = new ABACOptions();
+
+        options.DecisionAudit.WriteTimeout = TimeSpan.FromSeconds(2);
+        options.DecisionAudit.AllowCrossTenantQueries = true;
+
+        options.DecisionAudit.WriteTimeout.ShouldBe(TimeSpan.FromSeconds(2));
+        options.DecisionAudit.AllowCrossTenantQueries.ShouldBeTrue();
+        new ABACOptionsValidator().Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void OptionsValidator_NullOptions_Throws() =>
+        Should.Throw<ArgumentNullException>(() => new ABACOptionsValidator().Validate(null, null!))
+            .ParamName.ShouldBe("options");
+
     // ── ABACDecisionAuditEntryMapper ─────────────────────────────────
 
     [Fact]
