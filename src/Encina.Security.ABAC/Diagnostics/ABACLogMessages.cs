@@ -183,13 +183,6 @@ internal static partial class ABACLogMessages
         ILogger logger, string entityType, string entityId, double durationMs);
 
     [LoggerMessage(
-        EventId = 9037,
-        Level = LogLevel.Error,
-        Message = "PAP {Operation} operation failed for {EntityType} '{EntityId}'")]
-    internal static partial void PapOperationFailedWithException(
-        ILogger logger, Exception exception, string operation, string entityType, string entityId);
-
-    [LoggerMessage(
         EventId = 9038,
         Level = LogLevel.Debug,
         Message = "PAP serialized {EntityType} to JSON ({JsonSize} bytes, {DurationMs:F2}ms)")]

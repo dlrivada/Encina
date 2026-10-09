@@ -460,7 +460,7 @@ public sealed class XacmlXmlPolicySerializer : IPolicySerializer
             {
                 var errorMsg =
                     $"Expected root element '{N.PolicySetElement.LocalName}' in XACML namespace, " +
-                    $"but found '{root?.Name.LocalName ?? "(empty)"}'. Ensure the XML is a valid XACML 3.0 PolicySet document.";
+                    "but the document root is a different element. Ensure the XML is a valid XACML 3.0 PolicySet document.";
                 ABACDiagnostics.XacmlXmlErrorTotal.Add(1);
                 ABACDiagnostics.RecordPapFailure(activity, "InvalidRootElement");
                 ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "PolicySet", "InvalidRootElement");
@@ -514,7 +514,7 @@ public sealed class XacmlXmlPolicySerializer : IPolicySerializer
             {
                 var errorMsg =
                     $"Expected root element '{N.PolicyElement.LocalName}' in XACML namespace, " +
-                    $"but found '{root?.Name.LocalName ?? "(empty)"}'. Ensure the XML is a valid XACML 3.0 Policy document.";
+                    "but the document root is a different element. Ensure the XML is a valid XACML 3.0 Policy document.";
                 ABACDiagnostics.XacmlXmlErrorTotal.Add(1);
                 ABACDiagnostics.RecordPapFailure(activity, "InvalidRootElement");
                 ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "Policy", "InvalidRootElement");

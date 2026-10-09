@@ -131,6 +131,7 @@ public sealed class ExceptionMessageRedactionTests
             ? LeftOf(sut.DeserializePolicySet(xml))
             : LeftOf(sut.DeserializePolicy(xml));
 
+        ShouldNotLeak(error);
         error.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.DeserializationFailedCode);
         stopped.Single(a => a.Status == ActivityStatusCode.Error).StatusDescription.ShouldBe("InvalidRootElement");
         ShouldNotLeak(stopped);
