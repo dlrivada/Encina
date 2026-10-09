@@ -54,7 +54,7 @@ public sealed class ExceptionMessageRedactionTests
         return listener;
     }
 
-    private static IEnumerable<string?> ErrorDescriptions(IEnumerable<Activity> activities) =>
+    private static List<string?> ErrorDescriptions(IEnumerable<Activity> activities) =>
         activities.Where(a => a.Status == ActivityStatusCode.Error).Select(a => a.StatusDescription).ToList();
 
     private static void ShouldNotLeak(IEnumerable<Activity> activities)
