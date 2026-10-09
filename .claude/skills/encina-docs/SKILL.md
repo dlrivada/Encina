@@ -19,7 +19,7 @@ The site is Jekyll with the just-the-docs theme (`docs/_config.yml`) for narrati
 | Explanation | `docs/architecture/adr/` (decisions), `docs/architecture/*.md`, `docs/engineering/`, `docs/specifications/` (SPEC-NNN) | ADRs keep their sequence and their `Decision / Context / Consequences / Status / Date` sections. |
 | Mixed today | `docs/features/*.md` (85 pages) | Historically each feature page mixes all four. Do not rewrite them wholesale; apply the working method in §4 one page at a time. |
 
-Internal working documents (`docs/plans/`, `docs/reports/`, `docs/engineering/`) carry `nav_exclude: true` in the front matter so they do not appear in the public navigation.
+Internal working documents under a folder the site builds (`docs/engineering/`) carry `nav_exclude: true` in the front matter so they do not appear in the public navigation. Folders listed in the `exclude:` block of `docs/_config.yml` (`docs/plans/`, `docs/reports/`, `docs/testing/`, among others) are never built, so their pages need no front matter.
 
 ## 2. Front matter and file conventions
 
