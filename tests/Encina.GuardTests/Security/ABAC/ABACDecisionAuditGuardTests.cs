@@ -22,6 +22,16 @@ public sealed class ABACDecisionAuditGuardTests
             .ParamName.ShouldBe("reason");
 
     [Fact]
+    public void DecisionAuditFactories_WithValidArguments_BuildErrorsWithTheirCodes()
+    {
+        ABACErrors.DecisionAuditFailed(typeof(string), null).GetCode().IfNone("").ShouldBe(ABACErrors.DecisionAuditFailedCode);
+        ABACErrors.InvalidDecisionAuditQuery("pageSize").GetCode().IfNone("").ShouldBe(ABACErrors.InvalidDecisionAuditQueryCode);
+        ABACErrors.DecisionAuditStoreUnavailable().GetCode().IfNone("").ShouldBe(ABACErrors.DecisionAuditStoreUnavailableCode);
+        ABACErrors.DecisionAuditTenantRequired().GetCode().IfNone("").ShouldBe(ABACErrors.DecisionAuditTenantRequiredCode);
+        ABACErrors.DecisionAuditTenantMismatch().GetCode().IfNone("").ShouldBe(ABACErrors.DecisionAuditTenantMismatchCode);
+    }
+
+    [Fact]
     public void ResolveDecisiveRuleId_NullNodes_Throws() =>
         Should.Throw<ArgumentNullException>(() => PolicyEvaluationTraceResolver.ResolveDecisiveRuleId(null!, Effect.Deny))
             .ParamName.ShouldBe("nodes");

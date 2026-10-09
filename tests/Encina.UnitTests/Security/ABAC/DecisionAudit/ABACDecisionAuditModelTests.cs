@@ -52,6 +52,57 @@ public sealed class ABACDecisionAuditModelTests
     }
 
     [Fact]
+    public void Record_FullyPopulated_ExposesEveryMember()
+    {
+        var trace = new PolicyEvaluationTrace
+        {
+            PolicyId = "p",
+            IsPolicySet = false,
+            Effect = Effect.Deny,
+            Reason = PolicyTraceReason.Evaluated,
+            DecisiveRuleIds = ["r"]
+        };
+
+        var record = MinimalRecord() with
+        {
+            UserId = "service:billing",
+            TenantId = "t1",
+            CorrelationId = "c1",
+            ModuleId = "m1",
+            IpAddress = "10.0.0.1",
+            UserAgent = "agent",
+            ResourceId = "order-1",
+            Effect = Effect.Deny,
+            PolicyId = "p",
+            RuleId = "r",
+            EvaluatedPolicies = [trace],
+            TraceTruncated = true,
+            ObligationIds = ["o1"],
+            AdviceIds = ["a1"],
+            RecordedValues = new Dictionary<string, string> { ["department"] = "HR" }
+        };
+
+        record.UserId.ShouldBe("service:billing");
+        record.TenantId.ShouldBe("t1");
+        record.CorrelationId.ShouldBe("c1");
+        record.ModuleId.ShouldBe("m1");
+        record.IpAddress.ShouldBe("10.0.0.1");
+        record.UserAgent.ShouldBe("agent");
+        record.ResourceId.ShouldBe("order-1");
+        record.Effect.ShouldBe(Effect.Deny);
+        record.PolicyId.ShouldBe("p");
+        record.RuleId.ShouldBe("r");
+        record.EvaluatedPolicies.ShouldBe([trace]);
+        record.TraceTruncated.ShouldBeTrue();
+        record.ObligationIds.ShouldBe(["o1"]);
+        record.AdviceIds.ShouldBe(["a1"]);
+        record.RecordedValues["department"].ShouldBe("HR");
+        record.IdentityKind.ShouldBe(IdentityKind.User);
+        record.EnforcementMode.ShouldBe(ABACEnforcementMode.Block);
+        (record.CompletedAtUtc - record.StartedAtUtc).ShouldBe(TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
     public void Record_WithExpression_ChangesOnlyTheNamedMember()
     {
         var original = MinimalRecord();
