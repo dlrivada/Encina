@@ -1,0 +1,229 @@
+---
+title: "How to enable the persistent dead letter queue"
+layout: default
+parent: "Features"
+---
+
+# How to enable the persistent dead letter queue
+
+This guide shows you how to turn on the database-backed dead letter queue (DLQ) on any of the 10 database providers, create its table, and use `IDeadLetterManager` to list, replay, count and clean up the messages that failed for good. It assumes you already use one of the Encina provider packages (ADO.NET, Dapper, EF Core or MongoDB). The pre-1.0 API may still change.
+
+The reasons behind the design (oldest-first order, one dead letter per source message, the tenant column, binary collation) are in [ADR-046](../architecture/adr/046-persistent-dead-letter-queue.md). The members of every type are in the generated API reference (`/api/` on the site).
+
+## What you get
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Src as Your code or a source
+    participant Orc as DeadLetterOrchestrator
+    participant Store as IDeadLetterStore
+    participant Op as Operator or job
+    participant Mgr as IDeadLetterManager
+    participant Cln as DeadLetterCleanupProcessor
+
+    Note over Src,Store: Capture
+    Src->>Orc: AddAsync(request, DeadLetterContext)
+    Orc->>Store: AddAsync(message)
+    alt (SourcePattern, SourceMessageId) is new
+        Store-->>Orc: Right(true), OnDeadLetter runs once
+    else already captured
+        Store-->>Orc: Right(false), existing dead letter returned
+    end
+
+    Note over Op,Store: Replay
+    Op->>Mgr: ReplayAsync(id)
+    Mgr->>Store: TryClaimForReplayAsync
+    alt claim won
+        Mgr->>Mgr: send the stored request through IEncina
+        Mgr->>Store: MarkAsReplayedAsync(outcome code)
+    else claim held or message gone
+        Mgr-->>Op: dlq.replay_in_progress or dlq.not_found
+    end
+
+    Note over Cln,Store: Expiry
+    loop every CleanupInterval
+        Cln->>Store: DeleteExpiredAsync
+        Store-->>Cln: Right(count) of rows with ExpiresAtUtc at or before now
+    end
+```
+
+A message is stored in a `DeadLetterMessages` table (a `dead_letter_messages` collection on MongoDB), survives restarts, and expires after `DeadLetterOptions.RetentionPeriod` (default 7 days; `null` disables expiry).
+
+## Before you start
+
+- A provider registration you already call: `AddEncinaADO`, `AddEncinaDapper`, `AddEncinaEntityFrameworkCore<TDbContext>` or `AddEncinaMongoDB`.
+- ADO.NET and Dapper stores need a connection that derives from `System.Data.Common.DbConnection` (`SqlConnection`, `NpgsqlConnection`, `MySqlConnection`). Any other `IDbConnection` is rejected with an `ArgumentException`, because the stores never fall back to synchronous calls.
+- Today nothing captures dead letters on its own: you call `DeadLetterOrchestrator` yourself. Wiring the five `IntegrateWith*` sources of `DeadLetterOptions` is tracked in [#1991](https://github.com/dlrivada/Encina/issues/1991); those flags are declared but not yet read.
+
+## 1. Switch the queue on
+
+The queue is opt-in. Set `UseDeadLetterQueue` in the same configuration action you already pass to the provider. The registration adds the store, the message factory, `DeadLetterOrchestrator`, `IDeadLetterManager`, `DeadLetterHealthCheck` and, when `EnableAutomaticCleanup` is `true` and `RetentionPeriod` is set, the `DeadLetterCleanupProcessor` hosted service.
+
+ADO.NET and Dapper (SQL Server shown; PostgreSQL and MySQL use the same call from their own namespace):
+
+```csharp
+using Encina.ADO.SqlServer;
+
+services.AddEncinaADO(connectionString, config =>
+{
+    config.UseDeadLetterQueue = true;
+    config.DeadLetterOptions.RetentionPeriod = TimeSpan.FromDays(14);
+});
+```
+
+With `Encina.Dapper.*`, call `AddEncinaDapper(connectionString, config => { ... })` the same way. On the ADO.NET tenancy path, `AddEncinaADOWithTenancy` (SQL Server), `AddEncinaADOPostgreSQLWithTenancy` and `AddEncinaADOMySQLWithTenancy` also honour `UseDeadLetterQueue`.
+
+EF Core:
+
+```csharp
+using Encina.EntityFrameworkCore;
+
+services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseDeadLetterQueue = true;
+});
+```
+
+MongoDB (the options class has the same two members):
+
+```csharp
+using Encina.MongoDB;
+
+services.AddEncinaMongoDB(options =>
+{
+    options.ConnectionString = connectionString;
+    options.UseDeadLetterQueue = true;
+    options.DeadLetterOptions.RetentionPeriod = TimeSpan.FromDays(14);
+});
+```
+
+If your application registers its own `IDeadLetterStore` first (or the test fake from `Encina.Testing.Fakes`), that registration is kept: the store and factory use `TryAdd`, and a provider registered first is not replaced by a later call with other types.
+
+## 2. Create the table
+
+Run the script that matches your provider, or apply the EF Core configuration and create a migration.
+
+| Provider family | What to run |
+| --- | --- |
+| ADO.NET and Dapper, SQL Server | `src/Encina.ADO.SqlServer/Scripts/029_CreateDeadLetterMessagesTable.sql` (the Dapper package has the same file under `src/Encina.Dapper.SqlServer/Scripts/`) |
+| ADO.NET and Dapper, PostgreSQL | `029_CreateDeadLetterMessagesTable.sql` in `src/Encina.ADO.PostgreSQL/Scripts/` or `src/Encina.Dapper.PostgreSQL/Scripts/` |
+| ADO.NET and Dapper, MySQL | `029_CreateDeadLetterMessagesTable.sql` in `src/Encina.ADO.MySQL/Scripts/` or `src/Encina.Dapper.MySQL/Scripts/` |
+| EF Core | `DeadLetterMessageConfiguration` in `OnModelCreating`, then `dotnet ef migrations add AddDeadLetterQueue` |
+| MongoDB | nothing: `MongoDbIndexCreator` creates the indexes at startup while `EncinaMongoDbOptions.CreateIndexes` is `true` (the default) |
+
+The scripts, the EF configuration and the MongoDB indexes describe the same table, so switching the provider family does not change the schema. On PostgreSQL the identifiers are quoted PascalCase (`"DeadLetterMessages"`).
+
+### EF Core: pass the collation
+
+`DeadLetterMessageConfiguration` has no parameterless constructor. You must pass the collation of the six filter-key columns (`RequestType`, `ErrorCode`, `CorrelationId`, `SourcePattern`, `SourceMessageId`, `TenantId`). A case-insensitive default would make the unique source key and the filters behave differently from PostgreSQL and MongoDB.
+
+```csharp
+using Encina.EntityFrameworkCore.DeadLetter;
+
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    // SQL Server
+    modelBuilder.ApplyConfiguration(
+        new DeadLetterMessageConfiguration(DeadLetterMessageConfiguration.SqlServerBinaryCollation));
+
+    // MySQL
+    // modelBuilder.ApplyConfiguration(
+    //     new DeadLetterMessageConfiguration(DeadLetterMessageConfiguration.MySqlBinaryCollation));
+
+    // PostgreSQL: a case-sensitive comparison is the default, so pass null explicitly
+    // modelBuilder.ApplyConfiguration(new DeadLetterMessageConfiguration(null));
+}
+```
+
+`SqlServerBinaryCollation` is `Latin1_General_100_BIN2` and `MySqlBinaryCollation` is `utf8mb4_bin`; the 029 scripts use the same collations.
+
+### MongoDB: collection and unique index
+
+The collection name is `EncinaMongoDbOptions.Collections.DeadLetterMessages` (default `dead_letter_messages`). The index creator builds six indexes, among them the unique `UX_DeadLetterMessages_Source` on `SourcePattern` and `SourceMessageId` that makes capture idempotent. There is no TTL index: expired documents are deleted by the same cleanup loop as on the other providers, so `EnableAutomaticCleanup` and the metrics stay accurate.
+
+## 3. Capture a failed message
+
+Resolve `DeadLetterOrchestrator` from a scope and pass the failed request with a `DeadLetterContext`. Give it `SourceMessageId` when the failed item has a stable identifier, so that a retry of the same item does not create a second dead letter.
+
+```csharp
+var result = await orchestrator.AddAsync(
+    request,
+    new DeadLetterContext(
+        Error: error,
+        Exception: exception,
+        SourcePattern: DeadLetterSourcePatterns.Outbox,
+        TotalRetryAttempts: 5,
+        FirstFailedAtUtc: firstFailedAtUtc,
+        CorrelationId: correlationId,
+        SourceMessageId: outboxMessage.Id.ToString("D")),
+    cancellationToken);
+```
+
+The result is `Either<EncinaError, IDeadLetterMessage>`. A repeated capture of the same `(SourcePattern, SourceMessageId)` returns the existing dead letter and does not invoke `DeadLetterOptions.OnDeadLetter`. The tenant is stamped from `IRequestContext.TenantId`, or from `DeadLetterContext.TenantId` when you set it. The record keeps the error code and the exception type, never the error or exception message.
+
+On EF Core the store shares the scoped `DbContext`, so `SaveChangesAsync` also saves anything else tracked in it. When you capture in a failure path, use a new scope.
+
+## 4. List, replay and delete
+
+Use `IDeadLetterManager`:
+
+```csharp
+// Oldest pending messages from the outbox
+var pending = await manager.GetMessagesAsync(
+    DeadLetterFilter.FromSource(DeadLetterSourcePatterns.Outbox), skip: 0, take: 50);
+
+// Replay one message, then everything that matches a filter (at most 100 by default)
+var one = await manager.ReplayAsync(messageId);
+var batch = await manager.ReplayAllAsync(DeadLetterFilter.FromSource(DeadLetterSourcePatterns.Outbox));
+
+// Counts, statistics and cleanup
+var count = await manager.GetCountAsync(DeadLetterFilter.All);
+var stats = await manager.GetStatisticsAsync();
+var removed = await manager.CleanupExpiredAsync();
+
+// Delete one message or every message that matches (DeadLetterFilter.All deletes the whole queue)
+await manager.DeleteAsync(messageId);
+await manager.DeleteAllAsync(new DeadLetterFilter { ErrorCode = "orders.invalid" });
+```
+
+All methods return `Either<EncinaError, T>`. A replay:
+
+1. rejects a message that is already replayed (`dlq.already_replayed`) or expired (`dlq.expired`);
+2. claims the message before dispatching (`ReplayClaimedAtUtc`). If another replay holds a claim younger than `DeadLetterOptions.ReplayClaimTimeout` (default 5 minutes), you get a failed `ReplayResult` with `dlq.replay_in_progress`. A claim older than the timeout is treated as abandoned by a crashed host and can be taken over;
+3. sends the stored request through `IEncina`, and records an outcome code in `ReplayResult` (the code, never error text) and `ReplayedAtUtc`. After that the message cannot be replayed again.
+
+## Provider coverage
+
+All 10 providers of the database matrix are covered ([AGENTS.md section 5](https://github.com/dlrivada/Encina/blob/main/AGENTS.md)); Oracle and SQLite are outside the matrix (ADR-009, ADR-024).
+
+| Provider | Registration | Store | Schema | Filter-key comparison |
+| --- | --- | --- | --- | --- |
+| ADO.NET SQL Server | `AddEncinaADO` | `DeadLetterStoreADO` | `029` script | binary (`Latin1_General_100_BIN2`) |
+| ADO.NET PostgreSQL | `AddEncinaADO` | `DeadLetterStoreADO` | `029` script | case-sensitive by default |
+| ADO.NET MySQL | `AddEncinaADO` | `DeadLetterStoreADO` | `029` script | binary (`utf8mb4_bin`) |
+| Dapper SQL Server | `AddEncinaDapper` | `DeadLetterStoreDapper` | `029` script | binary (`Latin1_General_100_BIN2`) |
+| Dapper PostgreSQL | `AddEncinaDapper` | `DeadLetterStoreDapper` | `029` script | case-sensitive by default |
+| Dapper MySQL | `AddEncinaDapper` | `DeadLetterStoreDapper` | `029` script | binary (`utf8mb4_bin`) |
+| EF Core SQL Server | `AddEncinaEntityFrameworkCore<TDbContext>` | `DeadLetterStoreEF` | `DeadLetterMessageConfiguration(SqlServerBinaryCollation)` | binary |
+| EF Core PostgreSQL | `AddEncinaEntityFrameworkCore<TDbContext>` | `DeadLetterStoreEF` | `DeadLetterMessageConfiguration(null)` | case-sensitive by default |
+| EF Core MySQL | `AddEncinaEntityFrameworkCore<TDbContext>` | `DeadLetterStoreEF` | `DeadLetterMessageConfiguration(MySqlBinaryCollation)` | binary |
+| MongoDB | `AddEncinaMongoDB` | `DeadLetterStoreMongoDB` | indexes created at startup | case-sensitive |
+
+## Behavior to know
+
+- **Order.** `GetMessagesAsync` returns the oldest first (`DeadLetteredAtUtc`, then `Id`); `newestFirst: true` reverses it on the store. The `DeadLetteredAtUtc` order is the contract. The `Id` tie-break is stable within one provider only, because providers compare GUIDs in different byte orders.
+- **Tenants.** A store returns every tenant unless `DeadLetterFilter.TenantId` names one. `IDeadLetterManager` reads, replays and deletes default to the ambient `IRequestContext.TenantId` when there is one; set `AllTenants = true` on the filter for operator tooling. The cleanup processor and the health check work across the whole deployment.
+- **Expiry.** A message is expired when `ExpiresAtUtc <= now`, with "now" taken from `TimeProvider`.
+- **Errors.** Every store failure comes back as a `Left`; nothing is reported as "not found" or "not deleted" to hide it. `DeadLetterHealthCheck` reports Unhealthy when the store fails.
+- **Limits.** `take` is at most `DeadLetterStoreLimits.MaxPageSize`; the other lengths in `DeadLetterStoreLimits` are checked before any I/O.
+
+## Telemetry
+
+With `Encina.OpenTelemetry` registered, the store is decorated with spans from the activity source `Encina.Messaging.DeadLetter` (`encina.dlq.add`, `encina.dlq.query`, `encina.dlq.count`, `encina.dlq.replay_claim` and the delete operations). The `Encina` meter exposes the counters `encina.dlq.messages_added_total`, `encina.dlq.duplicates_ignored_total`, `encina.dlq.messages_replayed_total`, `encina.dlq.messages_deleted_total` and `encina.dlq.store_failures_total`. Their dimensions are the source pattern, an outcome, a reason, an operation name and an error code. Telemetry never carries the tenant id, the request payload or the text of an error or exception, and logs record only error codes and exception types.
+
+## See also
+
+- [ADR-046: Persistent dead letter queue](../architecture/adr/046-persistent-dead-letter-queue.md) (why the contract looks like this)
+- [ADR-029: Recoverability error classification](../architecture/adr/029-recoverability-error-classification.md) (which failures reach the queue)
+- The README of your provider package, for the short version of steps 1 and 2: [Encina.Messaging](https://github.com/dlrivada/Encina/blob/main/src/Encina.Messaging/README.md), [Encina.EntityFrameworkCore](https://github.com/dlrivada/Encina/blob/main/src/Encina.EntityFrameworkCore/README.md), [Encina.MongoDB](https://github.com/dlrivada/Encina/blob/main/src/Encina.MongoDB/README.md)
