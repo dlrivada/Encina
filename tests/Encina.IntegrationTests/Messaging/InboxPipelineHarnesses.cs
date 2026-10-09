@@ -123,26 +123,26 @@ public static class InboxPipelineHarnesses
         Action<DbContextOptionsBuilder, string> useDatabase,
         Func<TContext> createVerifyContext)
         where TContext : DbContext => new()
-    {
-        Register = (s, setup) =>
         {
-            s.AddDbContext<TContext>(o => useDatabase(o, connectionString));
-            s.AddEncinaEntityFrameworkCore<TContext>(c => Configure(c, setup));
-        },
-        ReadRow = async id =>
-        {
-            await using var verify = createVerifyContext();
-            var row = await verify.Set<global::Encina.EntityFrameworkCore.Inbox.InboxMessage>()
-                .AsNoTracking()
-                .SingleOrDefaultAsync(m => m.MessageId == id);
-            return row is null ? null : new InboxRow(row.RetryCount, row.IsProcessed, row.Response);
-        },
-        BreakTransaction = scope =>
-        {
-            scope.GetRequiredService<TContext>().Database.GetDbConnection().Close();
-            return Task.CompletedTask;
-        }
-    };
+            Register = (s, setup) =>
+            {
+                s.AddDbContext<TContext>(o => useDatabase(o, connectionString));
+                s.AddEncinaEntityFrameworkCore<TContext>(c => Configure(c, setup));
+            },
+            ReadRow = async id =>
+            {
+                await using var verify = createVerifyContext();
+                var row = await verify.Set<global::Encina.EntityFrameworkCore.Inbox.InboxMessage>()
+                    .AsNoTracking()
+                    .SingleOrDefaultAsync(m => m.MessageId == id);
+                return row is null ? null : new InboxRow(row.RetryCount, row.IsProcessed, row.Response);
+            },
+            BreakTransaction = scope =>
+            {
+                scope.GetRequiredService<TContext>().Database.GetDbConnection().Close();
+                return Task.CompletedTask;
+            }
+        };
 
     /// <summary>MongoDB (no business transaction in the pipeline).</summary>
     public static Harness Mongo(MongoDbFixture f)
