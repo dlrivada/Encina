@@ -188,6 +188,11 @@ public sealed class InboxOrchestrator
             result = await processCallback().ConfigureAwait(false);
             serializedResponse = SerializeResponse(result);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The caller cancelled: that is not a failed attempt and must not consume a retry.
+            throw;
+        }
         catch (Exception ex)
         {
             Log.ErrorProcessingMessage(_logger, ex.ForLogging(), messageId, correlationId);
@@ -238,11 +243,10 @@ public sealed class InboxOrchestrator
                 "Failed to deserialize cached response");
         }
 
-        var value = envelope.Value;
-
-        if (envelope.IsSuccess && !EqualityComparer<TResponse>.Default.Equals(value, default!))
+        if (envelope.IsSuccess)
         {
-            return Right<EncinaError, TResponse>(value!); // NOSONAR S6966: LanguageExt Right is a pure function
+            // A successful response equal to default(TResponse) (0, false, Unit) is still the cached success.
+            return Right<EncinaError, TResponse>(envelope.Value!); // NOSONAR S6966: LanguageExt Right is a pure function
         }
 
         return EncinaErrors.Create(

@@ -32,6 +32,54 @@ public sealed class InboxStoreEFSqlServerTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData(1, true)]
+    [InlineData(3, true)]
+    [InlineData(3, false)]
+    public async Task Pipeline_ThrowingHandler_PersistsRetryCountAndRunsMaxRetriesTimes(int maxRetries, bool transactional)
+    {
+        await using (var context = _fixture.CreateDbContext<TestEFDbContext>())
+        {
+            await context.Database.EnsureCreatedAsync();
+        }
+
+        await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertThrowingHandlerRunsMaxRetriesTimesAsync(
+            o => o.UseSqlServer(_fixture.ConnectionString),
+            () => _fixture.CreateDbContext<TestEFDbContext>(),
+            maxRetries,
+            transactional);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Pipeline_HandlerLeft_IsCachedEvenWhenTheTransactionRollsBack(bool transactional)
+    {
+        await using (var context = _fixture.CreateDbContext<TestEFDbContext>())
+        {
+            await context.Database.EnsureCreatedAsync();
+        }
+
+        await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertHandlerLeftIsCachedAfterRollbackAsync(
+            o => o.UseSqlServer(_fixture.ConnectionString),
+            () => _fixture.CreateDbContext<TestEFDbContext>(),
+            transactional);
+    }
+
+    [Fact]
+    public async Task Pipeline_SuccessfulHandler_IsCachedAndCommitted()
+    {
+        await using (var context = _fixture.CreateDbContext<TestEFDbContext>())
+        {
+            await context.Database.EnsureCreatedAsync();
+        }
+
+        await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertSuccessIsCachedAsync(
+            o => o.UseSqlServer(_fixture.ConnectionString),
+            () => _fixture.CreateDbContext<TestEFDbContext>(),
+            transactional: true);
+    }
+
+    [Theory]
     [InlineData(1)]
     [InlineData(3)]
     public async Task Orchestrator_HandlerAlwaysThrows_RunsHandlerMaxRetriesTimesThenRejects(int maxRetries)

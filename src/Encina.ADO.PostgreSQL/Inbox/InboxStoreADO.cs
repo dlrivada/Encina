@@ -269,7 +269,6 @@ public sealed class InboxStoreADO : IInboxStore
         }, "inbox.remove_expired_failed").ConfigureAwait(false);
     }
 
-
     /// <inheritdoc />
     public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

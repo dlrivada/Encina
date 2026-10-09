@@ -1,6 +1,8 @@
 using Encina.Messaging.Inbox;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Query;
 
 namespace Encina.EntityFrameworkCore.Inbox;
 
@@ -9,8 +11,13 @@ namespace Encina.EntityFrameworkCore.Inbox;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This implementation provides idempotent message processing using EF Core's
-/// change tracking and transaction support.
+/// This implementation provides idempotent message processing with EF Core. The writes that record
+/// an attempt (<see cref="AddAsync"/>, <see cref="MarkAsProcessedAsync"/>, <see cref="MarkAsFailedAsync"/>)
+/// are immediate and run on an isolated context built from the injected context's options, so they are
+/// neither flushed with nor rolled back by the request's business transaction, like the ADO.NET, Dapper and
+/// MongoDB stores. On relational providers <see cref="MarkAsFailedAsync"/> increments <c>RetryCount</c> in a
+/// single atomic UPDATE. The context type must expose the standard public constructor taking its
+/// <c>DbContextOptions&lt;TContext&gt;</c>.
 /// </para>
 /// </remarks>
 public sealed class InboxStoreEF : IInboxStore
@@ -38,7 +45,9 @@ public sealed class InboxStoreEF : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
+            // No tracking: the isolated writes above change the row behind the context's back.
             var message = await _dbContext.Set<InboxMessage>()
+                .AsNoTracking()
                 .FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
 
             return message is not null
@@ -60,17 +69,50 @@ public sealed class InboxStoreEF : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
-            await _dbContext.Set<InboxMessage>().AddAsync(efMessage, cancellationToken);
+            // Immediate write on an isolated context, like the ADO.NET, Dapper and MongoDB stores:
+            // the inbox record must not depend on, or be rolled back with, the business unit of work.
+            await using var isolated = CreateIsolatedContext();
+            await isolated.Set<InboxMessage>().AddAsync(efMessage, cancellationToken);
+            await isolated.SaveChangesAsync(cancellationToken);
         }, "inbox.add_failed").ConfigureAwait(false);
     }
 
-    // AddAsync only tracks the entity (the caller owns SaveChanges), so a query alone would not see a
-    // message added earlier in the same unit of work: the tracked entity is looked up first.
-    private async Task<InboxMessage?> FindAsync(string messageId, CancellationToken cancellationToken)
+    // The inbox keeps its own record of every attempt in a unit of work of its own: the request's
+    // transaction (TransactionPipelineBehavior) rolls back on a Left, and a failed attempt or a cached
+    // response must survive that rollback. The isolated context shares the options (and so the model and
+    // the database) of the injected one, but uses its own connection and never flushes the business changes
+    // the injected context may be tracking. It requires the context type to expose the standard public
+    // constructor taking its own DbContextOptions<TContext>.
+    private DbContext CreateIsolatedContext()
     {
-        var set = _dbContext.Set<InboxMessage>();
-        return set.Local.FirstOrDefault(m => m.MessageId == messageId)
-            ?? await set.FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
+        var options = ((IInfrastructure<IServiceProvider>)_dbContext).GetService<IDbContextOptions>();
+        return (DbContext)Activator.CreateInstance(_dbContext.GetType(), options)!;
+    }
+
+    // Applies one change to a stored message. Relational providers run a single UPDATE (so RetryCount + 1 is
+    // atomic, like the SQL and MongoDB stores); the non-relational test provider has no concurrent writers,
+    // so it loads, mutates and saves.
+    private async Task UpdateIsolatedAsync(
+        string messageId,
+        Action<UpdateSettersBuilder<InboxMessage>> relational,
+        Action<InboxMessage> tracked,
+        CancellationToken cancellationToken)
+    {
+        await using var isolated = CreateIsolatedContext();
+        var set = isolated.Set<InboxMessage>();
+
+        if (isolated.Database.IsRelational())
+        {
+            await set.Where(m => m.MessageId == messageId).ExecuteUpdateAsync(relational, cancellationToken);
+            return;
+        }
+
+        var message = await set.FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
+        if (message is null)
+            return;
+
+        tracked(message);
+        await isolated.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -81,15 +123,21 @@ public sealed class InboxStoreEF : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
-            var message = await FindAsync(messageId, cancellationToken);
+            var processedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-            if (message == null)
-                return;
-
-            message.Response = response;
-            message.ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
-            message.ErrorMessage = null;
-        }, "inbox.mark_processed_failed").ConfigureAwait(false);
+            await UpdateIsolatedAsync(
+                messageId,
+                s => s.SetProperty(m => m.Response, response)
+                    .SetProperty(m => m.ProcessedAtUtc, processedAtUtc)
+                    .SetProperty(m => m.ErrorMessage, (string?)null),
+                m =>
+                {
+                    m.Response = response;
+                    m.ProcessedAtUtc = processedAtUtc;
+                    m.ErrorMessage = null;
+                },
+                cancellationToken);
+        },"inbox.mark_processed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -104,15 +152,19 @@ public sealed class InboxStoreEF : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
-            var message = await FindAsync(messageId, cancellationToken);
-
-            if (message == null)
-                return;
-
-            message.ErrorMessage = errorMessage;
-            message.RetryCount++;
-            message.NextRetryAtUtc = nextRetryAtUtc;
-        }, "inbox.mark_failed_failed").ConfigureAwait(false);
+            await UpdateIsolatedAsync(
+                messageId,
+                s => s.SetProperty(m => m.ErrorMessage, errorMessage)
+                    .SetProperty(m => m.RetryCount, m => m.RetryCount + 1)
+                    .SetProperty(m => m.NextRetryAtUtc, nextRetryAtUtc),
+                m =>
+                {
+                    m.ErrorMessage = errorMessage;
+                    m.RetryCount++;
+                    m.NextRetryAtUtc = nextRetryAtUtc;
+                },
+                cancellationToken);
+        },"inbox.mark_failed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>

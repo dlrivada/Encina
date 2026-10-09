@@ -32,6 +32,33 @@ public sealed class InboxStoreEFPostgreSqlTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData(1, true)]
+    [InlineData(3, true)]
+    [InlineData(3, false)]
+    public Task Pipeline_ThrowingHandler_PersistsRetryCountAndRunsMaxRetriesTimes(int maxRetries, bool transactional) =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertThrowingHandlerRunsMaxRetriesTimesAsync(
+            o => o.UseNpgsql(_fixture.ConnectionString),
+            () => _fixture.CreateDbContext<TestPostgreSqlDbContext>(),
+            maxRetries,
+            transactional);
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public Task Pipeline_HandlerLeft_IsCachedEvenWhenTheTransactionRollsBack(bool transactional) =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertHandlerLeftIsCachedAfterRollbackAsync(
+            o => o.UseNpgsql(_fixture.ConnectionString),
+            () => _fixture.CreateDbContext<TestPostgreSqlDbContext>(),
+            transactional);
+
+    [Fact]
+    public Task Pipeline_SuccessfulHandler_IsCachedAndCommitted() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertSuccessIsCachedAsync(
+            o => o.UseNpgsql(_fixture.ConnectionString),
+            () => _fixture.CreateDbContext<TestPostgreSqlDbContext>(),
+            transactional: true);
+
+    [Theory]
     [InlineData(1)]
     [InlineData(3)]
     public async Task Orchestrator_HandlerAlwaysThrows_RunsHandlerMaxRetriesTimesThenRejects(int maxRetries)

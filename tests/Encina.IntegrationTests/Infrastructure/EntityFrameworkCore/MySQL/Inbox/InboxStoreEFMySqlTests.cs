@@ -31,6 +31,23 @@ public sealed class InboxStoreEFMySqlTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData(1, true)]
+    [InlineData(3, true)]
+    [InlineData(3, false)]
+    public async Task Pipeline_ThrowingHandler_PersistsRetryCountAndRunsMaxRetriesTimes(int maxRetries, bool transactional)
+    {
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+
+        // Enable together with the other MySQL tests once the Pomelo provider supports EF Core 10 (#2086):
+        // pass o => o.UseMySql(...) as the database configuration.
+        await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertThrowingHandlerRunsMaxRetriesTimesAsync(
+            _ => { },
+            () => _fixture.CreateDbContext<TestEFDbContext>(),
+            maxRetries,
+            transactional);
+    }
+
+    [Theory]
     [InlineData(1)]
     [InlineData(3)]
     public async Task Orchestrator_HandlerAlwaysThrows_RunsHandlerMaxRetriesTimesThenRejects(int maxRetries)

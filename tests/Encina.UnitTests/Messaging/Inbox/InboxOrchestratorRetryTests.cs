@@ -71,6 +71,55 @@ public sealed class InboxOrchestratorRetryTests
     }
 
     [Fact]
+    public async Task ProcessAsync_CallerCancels_PropagatesCancellationAndDoesNotCountAttempt()
+    {
+        var store = new StatefulInboxStore();
+        var orchestrator = CreateOrchestrator(store, 3);
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var act = async () => await orchestrator.ProcessAsync<string>(
+            MessageId, "Req", "corr", null, () => throw new OperationCanceledException(cts.Token), cts.Token);
+
+        await act.ShouldThrowAsync<OperationCanceledException>();
+        store.Message!.RetryCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_HandlerThrowsOperationCanceledWithoutCallerCancel_CountsAsFailedAttempt()
+    {
+        var store = new StatefulInboxStore();
+        var orchestrator = CreateOrchestrator(store, 3);
+
+        var result = await orchestrator.ProcessAsync<string>(
+            MessageId, "Req", "corr", null, () => throw new OperationCanceledException());
+
+        result.IsLeft.ShouldBeTrue();
+        store.Message!.RetryCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_CachedSuccessEqualToDefault_IsReturnedAsThatSuccess()
+    {
+        var store = new StatefulInboxStore();
+        var orchestrator = CreateOrchestrator(store, 3);
+        var runs = 0;
+
+        Func<ValueTask<Either<EncinaError, int>>> handler = () =>
+        {
+            runs++;
+            return ValueTask.FromResult<Either<EncinaError, int>>(0);
+        };
+
+        await orchestrator.ProcessAsync(MessageId, "Req", "corr", null, handler);
+        var second = await orchestrator.ProcessAsync(MessageId, "Req", "corr", null, handler);
+
+        runs.ShouldBe(1);
+        second.IsRight.ShouldBeTrue();
+        second.RightToArray()[0].ShouldBe(0);
+    }
+
+    [Fact]
     public async Task ProcessAsync_GetMessageLeft_ReturnsLeftWithoutRunningHandler()
     {
         var store = new StatefulInboxStore { FailGet = true };

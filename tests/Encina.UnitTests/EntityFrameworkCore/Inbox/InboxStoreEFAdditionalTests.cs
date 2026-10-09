@@ -158,6 +158,7 @@ public class InboxStoreEFAdditionalTests : IDisposable
         await _store.SaveChangesAsync();
 
         // Assert
+        _dbContext.ChangeTracker.Clear(); // the store writes through its own context
         var updated = await _dbContext.InboxMessages.FindAsync("null-retry-test");
         updated!.NextRetryAtUtc.ShouldBeNull();
         updated.ErrorMessage.ShouldBe("Test error");
