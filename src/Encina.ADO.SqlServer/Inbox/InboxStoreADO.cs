@@ -60,29 +60,7 @@ public sealed class InboxStoreADO : IInboxStore
             using var reader = await ExecuteReaderAsync(command, cancellationToken);
             if (await ReadAsync(reader, cancellationToken))
             {
-                return Option<IInboxMessage>.Some(new InboxMessage
-                {
-                    MessageId = reader.GetString(reader.GetOrdinal("MessageId")),
-                    RequestType = reader.GetString(reader.GetOrdinal("RequestType")),
-                    ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal("ReceivedAtUtc")),
-                    ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("ProcessedAtUtc"))
-                        ? null
-                        : reader.GetDateTime(reader.GetOrdinal("ProcessedAtUtc")),
-                    ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal("ExpiresAtUtc")),
-                    Response = reader.IsDBNull(reader.GetOrdinal("Response"))
-                        ? null
-                        : reader.GetString(reader.GetOrdinal("Response")),
-                    ErrorMessage = reader.IsDBNull(reader.GetOrdinal("ErrorMessage"))
-                        ? null
-                        : reader.GetString(reader.GetOrdinal("ErrorMessage")),
-                    RetryCount = reader.GetInt32(reader.GetOrdinal("RetryCount")),
-                    NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("NextRetryAtUtc"))
-                        ? null
-                        : reader.GetDateTime(reader.GetOrdinal("NextRetryAtUtc")),
-                    Metadata = reader.IsDBNull(reader.GetOrdinal("Metadata"))
-                        ? null
-                        : reader.GetString(reader.GetOrdinal("Metadata"))
-                });
+                return Option<IInboxMessage>.Some(ReadMessage(reader));
             }
 
             return Option<IInboxMessage>.None;
@@ -252,29 +230,7 @@ public sealed class InboxStoreADO : IInboxStore
             using var reader = await ExecuteReaderAsync(command, cancellationToken);
             while (await ReadAsync(reader, cancellationToken))
             {
-                messages.Add(new InboxMessage
-                {
-                    MessageId = reader.GetString(reader.GetOrdinal("MessageId")),
-                    RequestType = reader.GetString(reader.GetOrdinal("RequestType")),
-                    ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal("ReceivedAtUtc")),
-                    ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("ProcessedAtUtc"))
-                        ? null
-                        : reader.GetDateTime(reader.GetOrdinal("ProcessedAtUtc")),
-                    ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal("ExpiresAtUtc")),
-                    Response = reader.IsDBNull(reader.GetOrdinal("Response"))
-                        ? null
-                        : reader.GetString(reader.GetOrdinal("Response")),
-                    ErrorMessage = reader.IsDBNull(reader.GetOrdinal("ErrorMessage"))
-                        ? null
-                        : reader.GetString(reader.GetOrdinal("ErrorMessage")),
-                    RetryCount = reader.GetInt32(reader.GetOrdinal("RetryCount")),
-                    NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("NextRetryAtUtc"))
-                        ? null
-                        : reader.GetDateTime(reader.GetOrdinal("NextRetryAtUtc")),
-                    Metadata = reader.IsDBNull(reader.GetOrdinal("Metadata"))
-                        ? null
-                        : reader.GetString(reader.GetOrdinal("Metadata"))
-                });
+                messages.Add(ReadMessage(reader));
             }
 
             return (IEnumerable<IInboxMessage>)messages;
@@ -313,6 +269,33 @@ public sealed class InboxStoreADO : IInboxStore
     {
         // ADO.NET executes SQL immediately, no need for SaveChanges
         return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+    }
+
+    private static InboxMessage ReadMessage(IDataReader reader)
+    {
+        return new InboxMessage
+        {
+            MessageId = reader.GetString(reader.GetOrdinal("MessageId")),
+            RequestType = reader.GetString(reader.GetOrdinal("RequestType")),
+            ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal("ReceivedAtUtc")),
+            ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("ProcessedAtUtc"))
+                ? null
+                : reader.GetDateTime(reader.GetOrdinal("ProcessedAtUtc")),
+            ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal("ExpiresAtUtc")),
+            Response = reader.IsDBNull(reader.GetOrdinal("Response"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("Response")),
+            ErrorMessage = reader.IsDBNull(reader.GetOrdinal("ErrorMessage"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("ErrorMessage")),
+            RetryCount = reader.GetInt32(reader.GetOrdinal("RetryCount")),
+            NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("NextRetryAtUtc"))
+                ? null
+                : reader.GetDateTime(reader.GetOrdinal("NextRetryAtUtc")),
+            Metadata = reader.IsDBNull(reader.GetOrdinal("Metadata"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("Metadata"))
+        };
     }
 
     private static void AddParameter(IDbCommand command, string name, object? value)
