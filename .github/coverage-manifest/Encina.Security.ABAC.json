@@ -44,8 +44,8 @@
         "guard": 90
       },
       "justifications": {
-        "unit": "Factory tests build every error, including the new unauthenticated-caller error (measured 89.2%).",
-        "guard": "Guard tests call every factory and check its code and details (measured 94.0%)."
+        "unit": "Factory tests build every error, including the unauthenticated-caller error and the decision audit factories (failed, invalid query, store unavailable, tenant required, tenant mismatch), and check their codes, fixed messages and details",
+        "guard": "Guard tests call every factory with null and valid arguments and check that only codes, never messages, reach the details, including the decision audit factories"
       }
     },
     "ABACSubjectAttributes.cs": {
@@ -366,6 +366,61 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "DecisionAudit/ABACDecisionAuditSchema.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Decision audit schema constants",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "Only const members: the file has no executable line to cover; the values are asserted by unit tests."
+      }
+    },
+    "DecisionAudit/ABACDecisionRecord.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Decision audit record with required and optional members",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests build the record minimal, fully populated and with expressions, so every accessor and initializer runs.",
+        "guard": "The record is a set of init properties with no parameters or guard clauses, so the guard suite has nothing to exercise; its members are covered by the unit suite"
+      }
+    },
+    "DecisionAudit/ABACEnforcedOutcome.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Enforced outcome enumeration",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "An enum has no executable line; its stable values are asserted by unit tests."
+      }
+    },
+    "DecisionAudit/IABACResourceIdentity.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "An interface has no executable line; unit and contract tests exercise its implementations."
+      }
+    },
     "Diagnostics/ABACDiagnostics.cs": {
       "defaultTests": [
         "unit",
@@ -484,6 +539,49 @@
         "property": "The designator selection property evaluates designators through Evaluate only, so Apply and VariableReference stay with the unit flag; FsCheck's random inputs decide whether the multi-valued and empty-bag branches run, so the measurement varies between 39% and 41.5%."
       }
     },
+    "Evaluation/PolicyEvaluationTraceResolver.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Resolves the representative decisive policy from a trace",
+      "targets": {
+        "unit": 100,
+        "guard": 10,
+        "contract": 60,
+        "property": 80
+      },
+      "justifications": {
+        "unit": "Unit tests cover every branch: not applicable, no match, policy, policy set, no rules.",
+        "guard": "Its single null guard clause is the only guarded line.",
+        "contract": "Reached through the traced-decision contract tests.",
+        "property": "The property suite checks the resolver against the first matching node."
+      }
+    },
+    "Evaluation/PolicyTraceNode.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Bounded node of the policy evaluation trace",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "contract": 85,
+        "property": 95
+      },
+      "justifications": {
+        "unit": "Unit tests drive the budget, truncation and freezing paths directly.",
+        "guard": "Internal builder with no externally supplied arguments to guard.",
+        "contract": "The contract suite evaluates traced decisions through it.",
+        "property": "The property suite builds traces of random size and limit."
+      }
+    },
     "Evaluation/TargetEvaluator.cs": {
       "defaultTests": [
         "unit",
@@ -506,7 +604,19 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 92,
+        "guard": 55,
+        "contract": 65,
+        "property": 40
+      },
+      "justifications": {
+        "unit": "Unit tests cover whole-store and named evaluation, traces, truncation and store failure.",
+        "guard": "Guard tests cover the argument checks and the shared evaluation paths.",
+        "contract": "Contract tests evaluate permit, deny and not-applicable policies with and without trace.",
+        "property": "Property tests evaluate random policy lists with and without trace."
+      }
     },
     "Functions/DefaultFunctionRegistry.cs": {
       "defaultTests": [
@@ -846,10 +956,24 @@
     "Model/PolicyDecision.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "contract",
+        "property"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 75,
+        "contract": 100,
+        "property": 100
+      },
+      "justifications": {
+        "unit": "Every PDP test reads the decision accessors.",
+        "guard": "Guard tests build decisions through the PDP paths.",
+        "contract": "Contract tests build decisions with and without a trace.",
+        "property": "Property tests read every decision accessor."
+      }
     },
     "Model/PolicyEvaluationContext.cs": {
       "defaultTests": [
@@ -875,6 +999,28 @@
       "defaultRule": "*Result.cs",
       "reason": "Result type"
     },
+    "Model/PolicyEvaluationTrace.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Evaluation trace record returned with a traced decision",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "contract": 90,
+        "property": 90
+      },
+      "justifications": {
+        "unit": "Every PDP trace test builds nodes, so all accessors run.",
+        "guard": "A record of init properties has no parameters to guard.",
+        "contract": "The contract suite evaluates traced decisions end to end.",
+        "property": "The property suite builds nodes for random policies."
+      }
+    },
     "Model/PolicySet.cs": {
       "defaultTests": [
         "unit",
@@ -882,6 +1028,20 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
+    },
+    "Model/PolicyTraceReason.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Trace reason enumeration",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "An enum has no executable line; the contract test pins its four values."
+      }
     },
     "Model/Rule.cs": {
       "defaultTests": [

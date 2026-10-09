@@ -63,7 +63,28 @@ public sealed record PolicyDecision
     /// <summary>
     /// The identifier of the rule that produced the final decision, if identifiable.
     /// </summary>
+    /// <remarks>
+    /// Populated only when <see cref="PolicyEvaluationContext.IncludeEvaluationTrace"/> is set. It is a
+    /// representative rule: the first decisive rule of the first evaluated policy whose effect equals
+    /// the decision (for <c>*-overrides</c> algorithms other rules may be decisive too; see
+    /// <see cref="EvaluatedPolicies"/>).
+    /// </remarks>
     public string? RuleId { get; init; }
+
+    /// <summary>
+    /// The evaluation trace: one node per evaluated top-level policy set or policy, in evaluation order.
+    /// </summary>
+    /// <remarks>
+    /// Empty unless <see cref="PolicyEvaluationContext.IncludeEvaluationTrace"/> is set. The trace is
+    /// bounded by <see cref="PolicyEvaluationContext.MaxTraceEntries"/>.
+    /// </remarks>
+    public IReadOnlyList<PolicyEvaluationTrace> EvaluatedPolicies { get; init; } = [];
+
+    /// <summary>
+    /// <c>true</c> when the trace stopped adding nodes because <see cref="PolicyEvaluationContext.MaxTraceEntries"/>
+    /// was reached.
+    /// </summary>
+    internal bool EvaluationTraceTruncated { get; init; }
 
     /// <summary>
     /// An optional human-readable explanation of why this decision was reached.

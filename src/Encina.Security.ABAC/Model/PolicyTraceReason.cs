@@ -1,0 +1,19 @@
+namespace Encina.Security.ABAC;
+
+/// <summary>
+/// Explains why a policy or policy set has the effect recorded in its <see cref="PolicyEvaluationTrace"/> node.
+/// </summary>
+public enum PolicyTraceReason
+{
+    /// <summary>The policy (set) was enabled and its target matched; its effect is the combined effect of its rules (or children).</summary>
+    Evaluated = 0,
+
+    /// <summary>The policy (set) is disabled, so it is not applicable without being evaluated.</summary>
+    Disabled = 1,
+
+    /// <summary>The target of the policy (set) did not match the request, so it is not applicable.</summary>
+    TargetNotMatched = 2,
+
+    /// <summary>The target of the policy (set) could not be evaluated, so its effect is indeterminate.</summary>
+    TargetIndeterminate = 3
+}

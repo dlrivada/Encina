@@ -4,9 +4,12 @@ namespace Encina.Security.ABAC;
 /// Factory methods for ABAC-related <see cref="EncinaError"/> instances.
 /// </summary>
 /// <remarks>
-/// Error codes follow the convention <c>abac.{category}</c>, except the definite authorization
+/// Error codes follow the convention <c>abac.{category}</c>, except the invalid decision audit query
+/// (<see cref="InvalidDecisionAuditQueryCode"/>, a <c>validation.*</c> code answered with HTTP 400) and the definite authorization
 /// denials (<see cref="AccessDeniedCode"/>, <see cref="ConditionNotMetCode"/>,
-/// <see cref="ObligationFailedCode"/> and <see cref="RequiredPolicyNotFoundCode"/>): they use the
+/// <see cref="ObligationFailedCode"/> and <see cref="RequiredPolicyNotFoundCode"/>) and the tenant denials of the
+/// decision audit reader (<see cref="DecisionAuditTenantRequiredCode"/> and
+/// <see cref="DecisionAuditTenantMismatchCode"/>): they use the
 /// <c>encina.authorization.abac_{reason}</c> codes so every host adapter answers them with
 /// HTTP 403 through the shared <c>encina.authorization.*</c> prefix rule.
 /// All errors include structured metadata for observability.
@@ -104,6 +107,33 @@ public static class ABACErrors
 
     /// <summary>Error code when the audit record of a policy change could not be written, so the change was not applied.</summary>
     public const string PolicyChangeAuditFailedCode = "abac.policy_change_audit_failed";
+
+    /// <summary>
+    /// Error code when the decision audit record of a request that would proceed could not be written,
+    /// so the request is denied (fail closed). A server-side failure, not an authorization denial.
+    /// </summary>
+    public const string DecisionAuditFailedCode = "abac.decision_audit_failed";
+
+    /// <summary>
+    /// Error code when a decision audit query has invalid arguments (page size, date range): a client
+    /// input error, so it uses the <c>validation.</c> family that every host adapter answers with HTTP 400.
+    /// </summary>
+    public const string InvalidDecisionAuditQueryCode = "validation.abac_decision_audit_query_invalid";
+
+    /// <summary>Error code when the decision audit reader or export finds no <c>IOperationAuditStore</c> registered.</summary>
+    public const string DecisionAuditStoreUnavailableCode = "abac.decision_audit_store_unavailable";
+
+    /// <summary>
+    /// Error code when the decision audit reader is asked for data while multi-tenancy is enabled and the
+    /// request carries no tenant (an authorization denial, HTTP 403).
+    /// </summary>
+    public const string DecisionAuditTenantRequiredCode = "encina.authorization.abac_audit_tenant_required";
+
+    /// <summary>
+    /// Error code when the decision audit reader is asked for the data of a tenant other than the
+    /// tenant of the request (an authorization denial, HTTP 403).
+    /// </summary>
+    public const string DecisionAuditTenantMismatchCode = "encina.authorization.abac_audit_tenant_mismatch";
 
     // ── Factory Methods ─────────────────────────────────────────────
 
@@ -583,5 +613,92 @@ public static class ABACErrors
             {
                 [MetadataKeyStage] = MetadataStageAbac,
                 ["cause"] = cause
+            });
+
+    /// <summary>
+    /// Creates the error the Policy Enforcement Point returns when the decision audit record of a
+    /// request that would have proceeded could not be written (fail closed). The message is fixed;
+    /// only the request type and the store's error code (or exception type) are recorded.
+    /// </summary>
+    /// <param name="requestType">The request type whose decision could not be recorded.</param>
+    /// <param name="storeErrorCode">The error code or exception type name of the store failure, when known; never a message.</param>
+    /// <returns>An error with code <see cref="DecisionAuditFailedCode"/>.</returns>
+    public static EncinaError DecisionAuditFailed(Type requestType, string? storeErrorCode)
+    {
+        ArgumentNullException.ThrowIfNull(requestType);
+
+        return EncinaErrors.Create(
+            code: DecisionAuditFailedCode,
+            message: "The ABAC decision could not be recorded in the audit trail. Access denied.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyRequestType] = requestType.FullName,
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["cause"] = storeErrorCode
+            });
+    }
+
+    /// <summary>
+    /// Creates an error when a decision audit query has invalid arguments.
+    /// </summary>
+    /// <param name="reason">A fixed description of the invalid argument (for example <c>"pageSize"</c>); never caller data.</param>
+    /// <returns>An error with code <see cref="InvalidDecisionAuditQueryCode"/>.</returns>
+    public static EncinaError InvalidDecisionAuditQuery(string reason)
+    {
+        ArgumentNullException.ThrowIfNull(reason);
+
+        return EncinaErrors.Create(
+            code: InvalidDecisionAuditQueryCode,
+            message: "The decision audit query is invalid.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["reason"] = reason
+            });
+    }
+
+    /// <summary>
+    /// Creates an error when the decision audit reader or export needs an <c>IOperationAuditStore</c>
+    /// and none is registered.
+    /// </summary>
+    /// <returns>An error with code <see cref="DecisionAuditStoreUnavailableCode"/> and a fixed message.</returns>
+    public static EncinaError DecisionAuditStoreUnavailable() =>
+        EncinaErrors.Create(
+            code: DecisionAuditStoreUnavailableCode,
+            message: "No operation audit store is registered, so the decision audit trail cannot be read.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["requirement"] = "IOperationAuditStore"
+            });
+
+    /// <summary>
+    /// Creates the denial the decision audit reader returns when multi-tenancy is enabled and the
+    /// request carries no tenant.
+    /// </summary>
+    /// <returns>An error with code <see cref="DecisionAuditTenantRequiredCode"/> and a fixed message.</returns>
+    public static EncinaError DecisionAuditTenantRequired() =>
+        EncinaErrors.Create(
+            code: DecisionAuditTenantRequiredCode,
+            message: "Reading the decision audit trail requires a tenant. Access denied.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["requirement"] = "tenant"
+            });
+
+    /// <summary>
+    /// Creates the denial the decision audit reader returns when the query names a tenant other than
+    /// the tenant of the request.
+    /// </summary>
+    /// <returns>An error with code <see cref="DecisionAuditTenantMismatchCode"/> and a fixed message; neither tenant is recorded.</returns>
+    public static EncinaError DecisionAuditTenantMismatch() =>
+        EncinaErrors.Create(
+            code: DecisionAuditTenantMismatchCode,
+            message: "The decision audit query names a different tenant than the request. Access denied.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["requirement"] = "same-tenant"
             });
 }
