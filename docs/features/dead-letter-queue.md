@@ -38,7 +38,7 @@ sequenceDiagram
         Mgr->>Mgr: send the stored request through IEncina
         Mgr->>Store: MarkAsReplayedAsync(outcome code)
     else claim held or message gone
-        Mgr-->>Op: dlq.replay_in_progress or dlq.not_found
+        Mgr-->>Op: failed ReplayResult (dlq.replay_in_progress) or Left (dlq.not_found)
     end
 
     Note over Cln,Store: Expiry
@@ -147,6 +147,9 @@ The collection name is `EncinaMongoDbOptions.Collections.DeadLetterMessages` (de
 Resolve `DeadLetterOrchestrator` from a scope and pass the failed request with a `DeadLetterContext`. Give it `SourceMessageId` when the failed item has a stable identifier, so that a retry of the same item does not create a second dead letter.
 
 ```csharp
+using Encina.Messaging.DeadLetter;
+
+// orchestrator is a DeadLetterOrchestrator resolved from the current scope
 var result = await orchestrator.AddAsync(
     request,
     new DeadLetterContext(
@@ -169,6 +172,9 @@ On EF Core the store shares the scoped `DbContext`, so `SaveChangesAsync` also s
 Use `IDeadLetterManager`:
 
 ```csharp
+using Encina.Messaging.DeadLetter;
+
+// manager is an IDeadLetterManager resolved from the current scope
 // Oldest pending messages from the outbox
 var pending = await manager.GetMessagesAsync(
     DeadLetterFilter.FromSource(DeadLetterSourcePatterns.Outbox), skip: 0, take: 50);
@@ -220,7 +226,7 @@ All 10 providers of the database matrix are covered ([AGENTS.md section 5](https
 
 ## Telemetry
 
-With `Encina.OpenTelemetry` registered, the store is decorated with spans from the activity source `Encina.Messaging.DeadLetter` (`encina.dlq.add`, `encina.dlq.query`, `encina.dlq.count`, `encina.dlq.replay_claim` and the delete operations). The `Encina` meter exposes the counters `encina.dlq.messages_added_total`, `encina.dlq.duplicates_ignored_total`, `encina.dlq.messages_replayed_total`, `encina.dlq.messages_deleted_total` and `encina.dlq.store_failures_total`. Their dimensions are the source pattern, an outcome, a reason, an operation name and an error code. Telemetry never carries the tenant id, the request payload or the text of an error or exception, and logs record only error codes and exception types.
+With `Encina.OpenTelemetry` registered, the store is decorated with spans from the activity source `Encina.Messaging.DeadLetter` (`encina.dlq.add`, `encina.dlq.query`, `encina.dlq.count`, `encina.dlq.replay_claim` and the delete operations). `Encina.Messaging` itself emits, on the `Encina` meter, the counters `encina.dlq.messages_added_total`, `encina.dlq.duplicates_ignored_total`, `encina.dlq.messages_replayed_total`, `encina.dlq.messages_deleted_total` and `encina.dlq.store_failures_total`. Their dimensions are the source pattern, an outcome, a reason, an operation name and an error code. Telemetry never carries the tenant id, the request payload or the text of an error or exception, and logs record only error codes and exception types.
 
 ## See also
 

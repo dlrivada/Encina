@@ -1,3 +1,10 @@
+---
+title: "ADR-046: Persistent Dead Letter Queue"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-046: Persistent Dead Letter Queue: Oldest-First Contract, Idempotent Capture by Source Message, Tenant Column
 
 ## Status
