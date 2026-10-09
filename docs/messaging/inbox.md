@@ -49,7 +49,7 @@ flowchart TD
 
 ## How MaxRetries counts attempts
 
-`InboxOptions.MaxRetries` is the maximum number of handler attempts. The handler runs at most `MaxRetries` times; with the default of 3 it runs three times.
+`InboxOptions.MaxRetries` is the maximum number of handler attempts. For sequential deliveries of a message the handler runs at most `MaxRetries` times; with the default of 3 it runs three times. Two limits apply. The inbox does not serialize concurrent redeliveries of the same message, so two concurrent deliveries can both read the same `RetryCount` and both run the handler. And an attempt that crashes the process before `MarkAsFailedAsync` completes is not counted.
 
 Each attempt that throws is recorded by `IInboxStore.MarkAsFailedAsync`. That method is the single place where the message's `RetryCount` grows, by exactly one per failed attempt. When `RetryCount` reaches `MaxRetries`, the next delivery is rejected with `inbox.max_retries_exceeded` and the handler does not run.
 
@@ -85,6 +85,11 @@ The inbox behaves the same on all 10 database providers, because they share the 
 | MongoDB | MongoDB |
 
 Switching provider means changing the DI registration, not the inbox configuration.
+
+Two provider caveats apply:
+
+- The EF Core stores only change tracked entities; the application owns `SaveChanges` and the unit of work. The failure record (`RetryCount`) is therefore persisted only when the unit of work is saved, and a transaction that rolls back on a `Left` discards it.
+- The EF Core MySQL variant has its integration tests skipped until Pomelo supports EF Core 10 (issue [#2086](https://github.com/dlrivada/Encina/issues/2086)), so it is verified only by the shared EF Core store code and the other EF Core providers.
 
 ## Reference
 
