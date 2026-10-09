@@ -155,6 +155,25 @@
         "guard": "The filter is a property bag with no reference-type parameter to guard."
       }
     },
+    "DeadLetter/DeadLetterInputs.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Input rules (UTC instants, trimmed identity values) the orchestrator and manager apply before any store call",
+      "targets": {
+        "unit": 95,
+        "guard": 0,
+        "integration": 60
+      },
+      "justifications": {
+        "unit": "Unit tests drive every accepted and rejected input of both rules and the filter validation.",
+        "guard": "Internal static helper with no public surface; its argument handling is exercised through the unit tests.",
+        "integration": "The store contract facts run the rules through the orchestrator against the ten real stores."
+      }
+    },
     "DeadLetter/DeadLetterLog.cs": {
       "defaultTests": [],
       "defaultRule": "*.cs",
@@ -1244,6 +1263,22 @@
       ],
       "defaultRule": "*Options.cs",
       "reason": "Configuration POCO with defaults and validation"
+    },
+    "Tenancy/TenancyInUse.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Marker registered by AddEncinaTenancy so messaging services fail closed without a tenant",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "The registration test asserts the marker is registered and the manager acts on it.",
+        "guard": "The class has no members that take parameters."
+      }
     },
     "Tenancy/TenancyMessagingOptions.cs": {
       "defaultTests": [
