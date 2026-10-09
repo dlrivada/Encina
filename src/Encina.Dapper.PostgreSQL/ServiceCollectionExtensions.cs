@@ -4,6 +4,7 @@ using Encina.Compliance.Anonymization.InMemory;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Dapper.PostgreSQL.Auditing;
+using Encina.Dapper.PostgreSQL.DeadLetter;
 using Encina.Dapper.PostgreSQL.Health;
 using Encina.Dapper.PostgreSQL.Inbox;
 using Encina.Dapper.PostgreSQL.Outbox;
@@ -57,6 +58,8 @@ public static class ServiceCollectionExtensions
             ScheduledMessageStoreDapper,
             ScheduledMessageFactory,
             OutboxProcessor>(config);
+
+        services.AddDeadLetterQueueServices<DeadLetterStoreDapper, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions);
 
         RegisterAuditStores(services, config);
         RegisterHealthServices(services, config);

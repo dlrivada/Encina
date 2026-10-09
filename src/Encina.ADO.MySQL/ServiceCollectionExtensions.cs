@@ -1,5 +1,6 @@
 using System.Data;
 using Encina.ADO.MySQL.Auditing;
+using Encina.ADO.MySQL.DeadLetter;
 using Encina.ADO.MySQL.Health;
 using Encina.ADO.MySQL.Inbox;
 using Encina.ADO.MySQL.Outbox;
@@ -55,6 +56,8 @@ public static class ServiceCollectionExtensions
             ScheduledMessageStoreADO,
             ScheduledMessageFactory,
             OutboxProcessor>(config);
+
+        services.AddDeadLetterQueueServices<DeadLetterStoreADO, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions);
 
         RegisterAuditStores(services, config);
         RegisterAnonymizationAndPolicyStores(services, config);

@@ -5,6 +5,7 @@ using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Dapper.SqlServer.Auditing;
 using Encina.Dapper.SqlServer.BulkOperations;
+using Encina.Dapper.SqlServer.DeadLetter;
 using Encina.Dapper.SqlServer.Health;
 using Encina.Dapper.SqlServer.Inbox;
 using Encina.Dapper.SqlServer.Modules;
@@ -76,6 +77,8 @@ public static class ServiceCollectionExtensions
             ScheduledMessageStoreDapper,
             ScheduledMessageFactory,
             OutboxProcessor>(config);
+
+        services.AddDeadLetterQueueServices<DeadLetterStoreDapper, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions);
 
         RegisterAuditStores(services, config);
         RegisterHealthServices(services, config);

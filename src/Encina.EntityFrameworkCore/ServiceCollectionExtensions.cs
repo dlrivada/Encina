@@ -9,6 +9,7 @@ using Encina.DomainModeling.Auditing;
 using Encina.EntityFrameworkCore.Auditing;
 using Encina.EntityFrameworkCore.BulkOperations;
 using Encina.EntityFrameworkCore.Caching;
+using Encina.EntityFrameworkCore.DeadLetter;
 using Encina.EntityFrameworkCore.DomainEvents;
 using Encina.EntityFrameworkCore.Health;
 using Encina.EntityFrameworkCore.Inbox;
@@ -176,6 +177,8 @@ public static class ServiceCollectionExtensions
             config.UseInbox, config.InboxOptions,
             config.UseSagas, config.SagaOptions,
             config.UseScheduling, config.SchedulingOptions);
+
+        services.AddDeadLetterQueueServices<DeadLetterStoreEF, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions);
 
         RegisterTenancy<TDbContext>(services, config);
         RegisterModuleIsolation(services, config);
