@@ -1,4 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using Encina.Diagnostics;
 using Encina.Messaging.Serialization;
@@ -145,6 +147,11 @@ public sealed class DelayedRetryProcessor : BackgroundService
 
             await RetryMessageAsync(message, store, encina, messageSerializer, cancellationToken).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Shutdown: the row stays pending for the next run; it is never consumed or failed.
+            throw;
+        }
         catch (Exception ex)
         {
             DelayedRetryProcessorLog.ProcessingException(_logger, ex.ForLogging(), message.Id, message.RequestType);
@@ -179,6 +186,12 @@ public sealed class DelayedRetryProcessor : BackgroundService
         // Execute through Encina pipeline
         // Note: The RecoverabilityPipelineBehavior will handle any further failures
         var result = await DispatchRequestAsync(encina, request, cancellationToken).ConfigureAwait(false);
+
+        // A failure seen while shutting down (a cancelled dispatch) says nothing about the message.
+        if (!result.IsSuccess)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+        }
 
         await ApplyDispatchResultAsync(message, store, request, result, cancellationToken).ConfigureAwait(false);
     }
@@ -238,7 +251,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
     {
         // The marker tells RecoverabilityPipelineBehavior this is a delayed-retry re-dispatch: it
         // runs the handler with its immediate retries but starts no retry chain (#2083).
-        using var redispatch = DelayedRetryRedispatch.Begin(request);
+        using var redispatch = DelayedRetryRedispatch.Begin(request.GetType());
 
         try
         {
@@ -285,21 +298,60 @@ public sealed class DelayedRetryProcessor : BackgroundService
             _options.DelayedRetries.Length,
             delay);
 
-        // Use reflection to call generic ScheduleRetryAsync
-        var requestType = Type.GetType(originalMessage.RequestType);
+        var correlationId = originalMessage.CorrelationId ?? RecoverabilityConstants.Unknown;
+
+        try
+        {
+            var scheduled = await InvokeScheduleRetryAsync(
+                scheduler, originalMessage.RequestType, request, context, delay, nextDelayedRetryAttempt, cancellationToken).ConfigureAwait(false);
+
+            // Only the error code: EncinaError.Message can carry personal data.
+            scheduled.IfLeft(error => DelayedRetryProcessorLog.SchedulingNextRetryFailed(
+                _logger, correlationId, originalMessage.RequestType, error.GetCode().IfNone(RecoverabilityConstants.Unknown)));
+
+            return scheduled.IsRight;
+        }
+        catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
+        {
+            // A throwing scheduler is a failed schedule: the chain fails permanently, once.
+            DelayedRetryProcessorLog.SchedulingNextRetryThrew(_logger, ex.ForLogging(), correlationId, originalMessage.RequestType);
+            return false;
+        }
+    }
+
+    // Calls the generic IDelayedRetryScheduler.ScheduleRetryAsync<TRequest> for a request type known at run time.
+    private static async Task<Either<EncinaError, Unit>> InvokeScheduleRetryAsync(
+        IDelayedRetryScheduler scheduler,
+        string requestTypeName,
+        object request,
+        RecoverabilityContext context,
+        TimeSpan delay,
+        int delayedRetryAttempt,
+        CancellationToken cancellationToken)
+    {
+        var requestType = Type.GetType(requestTypeName);
         var scheduleMethod = typeof(IDelayedRetryScheduler)
             .GetMethod(nameof(IDelayedRetryScheduler.ScheduleRetryAsync));
 
         if (requestType is null || scheduleMethod is null)
         {
-            return false;
+            return EncinaErrors.Create(RecoverabilityErrorCodes.ScheduleRetryFailed, "The request type or the scheduler method could not be resolved.");
         }
 
-        var genericMethod = scheduleMethod.MakeGenericMethod(requestType);
-        var task = (Task<Either<EncinaError, Unit>>)genericMethod.Invoke(scheduler, [request, context, delay, nextDelayedRetryAttempt, cancellationToken])!;
-        var scheduled = await task.ConfigureAwait(false);
+        Task<Either<EncinaError, Unit>> task;
+        try
+        {
+            task = (Task<Either<EncinaError, Unit>>)scheduleMethod
+                .MakeGenericMethod(requestType)
+                .Invoke(scheduler, [request, context, delay, delayedRetryAttempt, cancellationToken])!;
+        }
+        catch (TargetInvocationException tie) when (tie.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
+            throw;
+        }
 
-        return scheduled.IsRight;
+        return await task.ConfigureAwait(false);
     }
 
     private static RecoverabilityContext DeserializeContext(string contextContent)
@@ -467,5 +519,19 @@ internal static partial class DelayedRetryProcessorLog
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} OnPermanentFailure callback failed")]
     public static partial void OnPermanentFailureCallbackFailed(
+        ILogger logger, Exception ex, string correlationId, string requestType);
+
+    [LoggerMessage(
+        EventId = 2963,
+        Level = LogLevel.Error,
+        Message = "[{CorrelationId}] {RequestType} failed to schedule the next delayed retry: {ErrorCode}")]
+    public static partial void SchedulingNextRetryFailed(
+        ILogger logger, string correlationId, string requestType, string errorCode);
+
+    [LoggerMessage(
+        EventId = 2964,
+        Level = LogLevel.Error,
+        Message = "[{CorrelationId}] {RequestType} scheduling the next delayed retry threw")]
+    public static partial void SchedulingNextRetryThrew(
         ILogger logger, Exception ex, string correlationId, string requestType);
 }

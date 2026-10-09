@@ -191,35 +191,217 @@ public sealed class DelayedRetryChainTests
     }
 
     [Fact]
-    public async Task DelayedRetryRedispatch_DoesNotLeakToOtherRequests()
+    public void DelayedRetryRedispatch_IsConsumedOnce_AndOnlyForItsRequestType()
     {
-        // Arrange - a marker bound to one instance must not apply to another request.
-        var marked = new ChainCommand(1);
-        var other = new ChainCommand(1);
+        // Arrange
+        using var scope = DelayedRetryRedispatch.Begin(typeof(ChainCommand));
 
-        // Act
-        using var scope = DelayedRetryRedispatch.Begin(marked);
-
-        // Assert
-        DelayedRetryRedispatch.For(marked).ShouldNotBeNull();
-        DelayedRetryRedispatch.For(other).ShouldBeNull();
-        await Task.CompletedTask;
+        // Act & Assert - another type never takes it; the first behavior takes it; a nested send does not.
+        DelayedRetryRedispatch.Consume(typeof(StructCommand)).ShouldBeNull();
+        DelayedRetryRedispatch.Consume(typeof(ChainCommand)).ShouldBeSameAs(scope.Marker);
+        DelayedRetryRedispatch.Consume(typeof(ChainCommand)).ShouldBeNull();
     }
 
     [Fact]
     public void DelayedRetryRedispatch_AfterDispose_IsNoLongerMarked()
     {
         // Arrange
-        var request = new ChainCommand(1);
+        var scope = DelayedRetryRedispatch.Begin(typeof(ChainCommand));
 
         // Act
-        var scope = DelayedRetryRedispatch.Begin(request);
         scope.Marker.Report(ErrorClassification.Permanent);
         scope.Dispose();
 
         // Assert
         scope.Marker.Classification.ShouldBe(ErrorClassification.Permanent);
-        DelayedRetryRedispatch.For(request).ShouldBeNull();
+        DelayedRetryRedispatch.Consume(typeof(ChainCommand)).ShouldBeNull();
+    }
+
+    /// <summary>A value-type request: a boxed value has no stable reference identity.</summary>
+    public readonly record struct StructCommand(int Value) : IRequest<int>;
+
+    private static RecoverabilityPipelineBehavior<TRequest, int> CreateBehavior<TRequest>(
+        RecoverabilityOptions options,
+        IDelayedRetryScheduler? scheduler)
+        where TRequest : IRequest<int> =>
+        new(options, NullLogger<RecoverabilityPipelineBehavior<TRequest, int>>.Instance, scheduler);
+
+    private static IRequestContext CreateRequestContext()
+    {
+        var context = Substitute.For<IRequestContext>();
+        context.CorrelationId.Returns("chain-correlation");
+        return context;
+    }
+
+    private static RecoverabilityOptions BehaviorOptions(List<FailedMessage> failures) => new()
+    {
+        ImmediateRetries = 0,
+        UseJitter = false,
+        EnableDelayedRetries = true,
+        DelayedRetries = [TimeSpan.FromMilliseconds(1)],
+        ErrorClassifier = new MarkerClassifier(),
+        OnPermanentFailure = (failed, _) => { failures.Add(failed); return Task.CompletedTask; }
+    };
+
+    [Fact]
+    public async Task StructRequestReDispatch_IsRecognised_AndSchedulesNoNewChain()
+    {
+        // Arrange
+        var failures = new List<FailedMessage>();
+        var scheduler = Substitute.For<IDelayedRetryScheduler>();
+        var behavior = CreateBehavior<StructCommand>(BehaviorOptions(failures), scheduler);
+        using var scope = DelayedRetryRedispatch.Begin(typeof(StructCommand));
+
+        // Act
+        var result = await behavior.Handle(
+            new StructCommand(1),
+            CreateRequestContext(),
+            () => ValueTask.FromResult(Either<EncinaError, int>.Left(EncinaError.New("transient failure"))),
+            CancellationToken.None);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        _ = scheduler.DidNotReceiveWithAnyArgs().ScheduleRetryAsync<StructCommand>(default, default!, default, default, default);
+        failures.ShouldBeEmpty();
+        scope.Marker.Classification.ShouldBe(ErrorClassification.Transient);
+    }
+
+    [Fact]
+    public async Task FirstScheduleReturningLeft_RunsThePermanentFailurePath_Once()
+    {
+        // Arrange
+        var failures = new List<FailedMessage>();
+        var scheduler = Substitute.For<IDelayedRetryScheduler>();
+        scheduler.ScheduleRetryAsync(Arg.Any<ChainCommand>(), Arg.Any<RecoverabilityContext>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(EncinaError.New("scheduler down")));
+        var behavior = CreateBehavior<ChainCommand>(BehaviorOptions(failures), scheduler);
+
+        // Act
+        var result = await behavior.Handle(
+            new ChainCommand(1),
+            CreateRequestContext(),
+            () => ValueTask.FromResult(Either<EncinaError, int>.Left(EncinaError.New("transient failure"))),
+            CancellationToken.None);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        failures.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task FirstScheduleThrowing_RunsThePermanentFailurePath_Once()
+    {
+        // Arrange
+        var failures = new List<FailedMessage>();
+        var scheduler = Substitute.For<IDelayedRetryScheduler>();
+        scheduler.ScheduleRetryAsync(Arg.Any<ChainCommand>(), Arg.Any<RecoverabilityContext>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns<Task<Either<EncinaError, Unit>>>(_ => throw new InvalidOperationException("patient 12345"));
+        var behavior = CreateBehavior<ChainCommand>(BehaviorOptions(failures), scheduler);
+
+        // Act
+        var result = await behavior.Handle(
+            new ChainCommand(1),
+            CreateRequestContext(),
+            () => ValueTask.FromResult(Either<EncinaError, int>.Left(EncinaError.New("transient failure"))),
+            CancellationToken.None);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        failures.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task ExceptionFromTheHandler_NeverPutsItsMessageInTheError()
+    {
+        // Arrange
+        var behavior = CreateBehavior<ChainCommand>(
+            new RecoverabilityOptions { ImmediateRetries = 0, EnableDelayedRetries = false, ErrorClassifier = new MarkerClassifier() },
+            scheduler: null);
+
+        // Act
+        var result = await behavior.Handle(
+            new ChainCommand(1),
+            CreateRequestContext(),
+            () => throw new InvalidOperationException("patient 12345 not found"),
+            CancellationToken.None);
+
+        // Assert
+        var error = result.Match(Right: _ => throw new InvalidOperationException("Expected Left"), Left: e => e);
+        error.Message.ShouldNotContain("12345");
+    }
+
+    [Fact]
+    public async Task SchedulerThrowingForTheNextAttempt_EndsTheChainThroughThePermanentFailurePath_Once()
+    {
+        // Arrange
+        var fixture = CreateFixture(delayedRetries: 3, failure: "transient failure", failNextSchedule: true, throwNextSchedule: true);
+
+        // Act
+        await fixture.FirstFailureAsync();
+        await fixture.RunProcessorUntilPermanentFailureAsync();
+
+        // Assert
+        fixture.PermanentFailures.Count.ShouldBe(1);
+        fixture.Store.AttemptsAdded.ShouldBe([0]);
+        fixture.Store.FailedCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task ShutdownDuringTheReDispatch_LeavesTheRowPending()
+    {
+        // Arrange - the host token is cancelled while the retried request is being dispatched.
+        var store = new FakeStore();
+        var row = new FakeRow(new DelayedRetryMessageData(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            typeof(ChainCommand).AssemblyQualifiedName!,
+            "{\"value\":1}",
+            "{\"id\":\"00000000-0000-0000-0000-000000000000\",\"immediateRetryCount\":0,\"delayedRetryCount\":0}",
+            0,
+            DateTime.UtcNow,
+            DateTime.UtcNow,
+            "chain-correlation"));
+        await store.AddAsync(row);
+
+        using var cts = new CancellationTokenSource();
+        var dispatched = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var encina = Substitute.For<IEncina>();
+        encina.Send(Arg.Any<IRequest<int>>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                cts.Cancel();
+                dispatched.TrySetResult();
+                return new ValueTask<Either<EncinaError, int>>(
+                    Either<EncinaError, int>.Left(EncinaError.New("[recoverability.cancelled] Operation was cancelled")));
+            });
+
+        var failures = new List<FailedMessage>();
+        var options = new RecoverabilityOptions
+        {
+            DelayedRetries = [TimeSpan.FromMilliseconds(1)],
+            OnPermanentFailure = (failed, _) => { failures.Add(failed); return Task.CompletedTask; }
+        };
+
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
+        serviceProvider.GetService(typeof(IEncina)).Returns(encina);
+        var scope = Substitute.For<IServiceScope>();
+        scope.ServiceProvider.Returns(serviceProvider);
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        scopeFactory.CreateScope().Returns(scope);
+        var processor = new DelayedRetryProcessor(scopeFactory, options, NullLogger<DelayedRetryProcessor>.Instance)
+        {
+            ProcessingInterval = TimeSpan.FromMilliseconds(5)
+        };
+
+        // Act
+        await processor.StartAsync(cts.Token);
+        await dispatched.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await processor.StopAsync(default);
+
+        // Assert - neither consumed nor failed nor dead-lettered.
+        row.IsPending.ShouldBeTrue();
+        failures.ShouldBeEmpty();
     }
 
     [Fact]
@@ -238,11 +420,16 @@ public sealed class DelayedRetryChainTests
         context.StartedAtUtc.ShouldBe(startedAtUtc);
     }
 
-    private static ChainFixture CreateFixture(int delayedRetries, string failure, string? delayedFailure = null, bool failNextSchedule = false) =>
-        new(delayedRetries, failure, delayedFailure ?? failure, failNextSchedule);
+    private static ChainFixture CreateFixture(
+        int delayedRetries,
+        string failure,
+        string? delayedFailure = null,
+        bool failNextSchedule = false,
+        bool throwNextSchedule = false) =>
+        new(delayedRetries, failure, delayedFailure ?? failure, failNextSchedule, throwNextSchedule);
 
-    // Succeeds for the first schedule (attempt 0) and fails every later one.
-    private sealed class FailingNextScheduler(IDelayedRetryScheduler inner) : IDelayedRetryScheduler
+    // Succeeds for the first schedule (attempt 0) and fails (or throws on) every later one.
+    private sealed class FailingNextScheduler(IDelayedRetryScheduler inner, bool throws) : IDelayedRetryScheduler
     {
         public Task<Either<EncinaError, Unit>> ScheduleRetryAsync<TRequest>(
             TRequest request,
@@ -250,10 +437,17 @@ public sealed class DelayedRetryChainTests
             TimeSpan delay,
             int delayedRetryAttempt,
             CancellationToken cancellationToken = default)
-            where TRequest : notnull =>
-            delayedRetryAttempt == 0
-                ? inner.ScheduleRetryAsync(request, context, delay, delayedRetryAttempt, cancellationToken)
+            where TRequest : notnull
+        {
+            if (delayedRetryAttempt == 0)
+            {
+                return inner.ScheduleRetryAsync(request, context, delay, delayedRetryAttempt, cancellationToken);
+            }
+
+            return throws
+                ? throw new InvalidOperationException("scheduler down for patient 12345")
                 : Task.FromResult<Either<EncinaError, Unit>>(EncinaError.New("scheduler down"));
+        }
 
         public Task<Either<EncinaError, Unit>> CancelScheduledRetryAsync(Guid recoverabilityContextId, CancellationToken cancellationToken = default) =>
             inner.CancelScheduledRetryAsync(recoverabilityContextId, cancellationToken);
@@ -268,7 +462,7 @@ public sealed class DelayedRetryChainTests
         private readonly string _delayedFailure;
         private int _calls;
 
-        public ChainFixture(int delayedRetries, string firstFailure, string delayedFailure, bool failNextSchedule)
+        public ChainFixture(int delayedRetries, string firstFailure, string delayedFailure, bool failNextSchedule, bool throwNextSchedule)
         {
             _firstFailure = firstFailure;
             _delayedFailure = delayedFailure;
@@ -295,7 +489,7 @@ public sealed class DelayedRetryChainTests
                 new FakeFactory(),
                 NullLogger<DelayedRetryScheduler>.Instance,
                 new JsonMessageSerializer());
-            Scheduler = failNextSchedule ? new FailingNextScheduler(scheduler) : scheduler;
+            Scheduler = failNextSchedule ? new FailingNextScheduler(scheduler, throwNextSchedule) : scheduler;
 
             _behavior = new RecoverabilityPipelineBehavior<ChainCommand, int>(
                 _options,

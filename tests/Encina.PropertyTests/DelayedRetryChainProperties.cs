@@ -13,15 +13,16 @@ public sealed class DelayedRetryChainProperties
     private sealed record Payload(int Value);
 
     [Property(MaxTest = 100)]
-    public bool Marker_AppliesOnlyToTheReDispatchedInstance(int value, NonNegativeInt othersSeed)
+    public bool Marker_IsTakenOnceAndOnlyByItsRequestType(NonNegativeInt extraConsumes)
     {
-        var marked = new Payload(value);
-        var others = Enumerable.Range(0, othersSeed.Get % 5 + 1).Select(_ => new Payload(value)).ToArray();
+        using var scope = DelayedRetryRedispatch.Begin(typeof(Payload));
 
-        using var scope = DelayedRetryRedispatch.Begin(marked);
+        var otherTypeTakesIt = DelayedRetryRedispatch.Consume(typeof(string)) is not null;
+        var first = DelayedRetryRedispatch.Consume(typeof(Payload));
+        var laterTakes = Enumerable.Range(0, extraConsumes.Get % 5 + 1)
+            .Any(_ => DelayedRetryRedispatch.Consume(typeof(Payload)) is not null);
 
-        return ReferenceEquals(DelayedRetryRedispatch.For(marked), scope.Marker)
-            && others.All(other => DelayedRetryRedispatch.For(other) is null);
+        return !otherTypeTakesIt && ReferenceEquals(first, scope.Marker) && !laterTakes;
     }
 
     [Property(MaxTest = 100)]
@@ -29,14 +30,13 @@ public sealed class DelayedRetryChainProperties
     {
         var values = Enum.GetValues<ErrorClassification>();
         var classification = values[classificationSeed.Get % values.Length];
-        var request = new Payload(1);
 
-        var scope = DelayedRetryRedispatch.Begin(request);
+        var scope = DelayedRetryRedispatch.Begin(typeof(Payload));
         scope.Marker.Report(classification);
         var reported = scope.Marker.Classification == classification;
         scope.Dispose();
 
-        return reported && DelayedRetryRedispatch.For(request) is null;
+        return reported && DelayedRetryRedispatch.Consume(typeof(Payload)) is null;
     }
 
     [Property(MaxTest = 100)]
