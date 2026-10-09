@@ -28,7 +28,7 @@ internal static class TimeBoundedCall
     /// <param name="timeout">The bound; it must be greater than zero.</param>
     /// <param name="timeProvider">The clock of the bound.</param>
     /// <returns>The result of the call.</returns>
-    /// <exception cref="TimeoutException">The call did not complete within the bound, whether it ignored its token or observed it.</exception>
+    /// <exception cref="TimeoutException">The call did not complete within the bound, whether it ignored its token, threw on it or returned a result after it fired.</exception>
     public static async Task<T> RunAsync<T>(
         Func<CancellationToken, ValueTask<T>> operation,
         TimeSpan timeout,
@@ -36,10 +36,11 @@ internal static class TimeBoundedCall
     {
         using var bound = new CancellationTokenSource(timeout, timeProvider);
         var call = operation(bound.Token).AsTask();
+        T result;
 
         try
         {
-            return await call.WaitAsync(timeout, timeProvider).ConfigureAwait(false);
+            result = await call.WaitAsync(timeout, timeProvider).ConfigureAwait(false);
         }
         catch (TimeoutException)
         {
@@ -51,6 +52,13 @@ internal static class TimeBoundedCall
             // The store observed the bound's token: the same timeout, reported the same way.
             throw new TimeoutException("The call did not complete within its time bound.");
         }
+
+        // A store that observes the token may report the cancellation as a result (for example a Left
+        // "operation was cancelled") instead of throwing: once the bound has fired, that result is the
+        // timeout too, so every way of hitting the bound is classified the same.
+        return bound.IsCancellationRequested
+            ? throw new TimeoutException("The call did not complete within its time bound.")
+            : result;
     }
 
     private static void ObserveLateFault(Task call) =>

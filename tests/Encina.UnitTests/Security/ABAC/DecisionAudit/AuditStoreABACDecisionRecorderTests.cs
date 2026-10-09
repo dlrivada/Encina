@@ -321,6 +321,33 @@ public sealed class AuditStoreABACDecisionRecorderTests
     }
 
     [Fact]
+    public async Task RecordAsync_StoreObservesItsTokenAndReturnsLeft_IsClassifiedAsATimeout()
+    {
+        // A store like EF Core reports a cancelled save as a Left ("Operation was cancelled", no
+        // code) instead of throwing: once the bound fired it is the same timeout, not encina.unknown.
+        var store = new ScriptedStore
+        {
+            Record = async (_, token) =>
+            {
+                try
+                {
+                    await Task.Delay(System.Threading.Timeout.InfiniteTimeSpan, token);
+                    return Unit.Default;
+                }
+                catch (OperationCanceledException)
+                {
+                    return EncinaError.New("Operation was cancelled");
+                }
+            }
+        };
+
+        var pending = Recorder(store).RecordAsync(Record()).AsTask();
+        _time.Advance(Timeout);
+
+        await Should.ThrowAsync<TimeoutException>(pending);
+    }
+
+    [Fact]
     public async Task RecordAsync_TimedOutWriteThatWasCommitted_CountsAsWritten()
     {
         var hung = new TaskCompletionSource<Either<EncinaError, Unit>>(TaskCreationOptions.RunContinuationsAsynchronously);

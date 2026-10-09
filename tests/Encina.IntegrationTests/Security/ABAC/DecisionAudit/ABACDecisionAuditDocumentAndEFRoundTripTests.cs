@@ -21,55 +21,81 @@ using MongoDB.Driver;
 
 namespace Encina.IntegrationTests.Security.ABAC.DecisionAudit;
 
+/// <summary>
+/// Shared lifecycle of the EF Core round trips: each DI scope gets its own <see cref="AuditTestDbContext"/>,
+/// and every context created is disposed when the test ends.
+/// </summary>
+public abstract class ABACDecisionAuditEFRoundTripTestsBase : ABACDecisionAuditRoundTripTestsBase, IAsyncLifetime
+{
+    private readonly List<AuditTestDbContext> _contexts = [];
+
+    protected abstract AuditTestDbContext CreateContext();
+
+    protected abstract Task PrepareAsync();
+
+    public async ValueTask InitializeAsync() => await PrepareAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        foreach (var context in _contexts)
+        {
+            await context.DisposeAsync();
+        }
+
+        _contexts.Clear();
+    }
+
+    protected override IOperationAuditStore CreateStore()
+    {
+        var context = CreateContext();
+        _contexts.Add(context);
+        return new OperationAuditStoreEF(context);
+    }
+}
+
 [Trait("Category", "Integration")]
 [Trait("Database", "SqlServer")]
 [Collection("EFCore-SqlServer")]
-public sealed class ABACDecisionAuditEFSqlServerRoundTripTests(EFCoreSqlServerFixture fixture) : ABACDecisionAuditRoundTripTestsBase, IAsyncLifetime
+public sealed class ABACDecisionAuditEFSqlServerRoundTripTests(EFCoreSqlServerFixture fixture) : ABACDecisionAuditEFRoundTripTestsBase
 {
-    public async ValueTask InitializeAsync()
+    protected override AuditTestDbContext CreateContext() => fixture.CreateDbContext<AuditTestDbContext>();
+
+    protected override async Task PrepareAsync()
     {
         await fixture.EnsureSchemaCreatedAsync<AuditTestDbContext>();
         await fixture.ClearAllDataAsync();
     }
-
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-
-    protected override IOperationAuditStore CreateStore() => new OperationAuditStoreEF(fixture.CreateDbContext<AuditTestDbContext>());
 }
 
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
 [Collection("EFCore-PostgreSQL")]
-public sealed class ABACDecisionAuditEFPostgreSqlRoundTripTests(EFCorePostgreSqlFixture fixture) : ABACDecisionAuditRoundTripTestsBase, IAsyncLifetime
+public sealed class ABACDecisionAuditEFPostgreSqlRoundTripTests(EFCorePostgreSqlFixture fixture) : ABACDecisionAuditEFRoundTripTestsBase
 {
-    public async ValueTask InitializeAsync()
+    protected override AuditTestDbContext CreateContext() => fixture.CreateDbContext<AuditTestDbContext>();
+
+    protected override async Task PrepareAsync()
     {
         await fixture.EnsureSchemaCreatedAsync<AuditTestDbContext>();
         await fixture.ClearAllDataAsync();
     }
-
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-
-    protected override IOperationAuditStore CreateStore() => new OperationAuditStoreEF(fixture.CreateDbContext<AuditTestDbContext>());
 }
 
 /// <summary>EF Core on MySQL: skipped by the fixture until Pomelo ships EF Core 10 (#2086), like the rest of the EF Core MySQL suite.</summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "MySQL")]
 [Collection("EFCore-MySQL")]
-public sealed class ABACDecisionAuditEFMySqlRoundTripTests(EFCoreMySqlFixture fixture) : ABACDecisionAuditRoundTripTestsBase, IAsyncLifetime
+public sealed class ABACDecisionAuditEFMySqlRoundTripTests(EFCoreMySqlFixture fixture) : ABACDecisionAuditEFRoundTripTestsBase
 {
-    public async ValueTask InitializeAsync()
+    protected override bool IsAvailable => fixture.IsAvailable;
+
+    protected override AuditTestDbContext CreateContext() => fixture.CreateDbContext<AuditTestDbContext>();
+
+    protected override async Task PrepareAsync()
     {
         await fixture.EnsureSchemaCreatedAsync<AuditTestDbContext>();
         await fixture.ClearAllDataAsync();
     }
-
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-
-    protected override bool IsAvailable => fixture.IsAvailable;
-
-    protected override IOperationAuditStore CreateStore() => new OperationAuditStoreEF(fixture.CreateDbContext<AuditTestDbContext>());
 }
 
 [Collection(MongoDbCollection.Name)]

@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using Encina.Diagnostics;
 using Encina.Security.ABAC.Diagnostics;
 using Encina.Security.Audit;
 
@@ -67,7 +68,23 @@ internal sealed class ABACDecisionAuditReader : IABACDecisionAuditReader
         }
 
         var page = await store.QueryAsync(storeQuery, cancellationToken).ConfigureAwait(false);
-        return page.Map(ToRecords);
+        return ReadRecords(page);
+    }
+
+    // Stored data that cannot be read back is a data problem, not a crash: the query fails with a
+    // code, and the parser's exception is logged redacted (type and stack trace only).
+    private Either<EncinaError, PagedResult<ABACDecisionAuditRecord>> ReadRecords(
+        Either<EncinaError, PagedResult<OperationAuditEntry>> page)
+    {
+        try
+        {
+            return page.Map(ToRecords);
+        }
+        catch (JsonException ex)
+        {
+            ABACLogMessages.DecisionAuditRecordUnreadable(_logger, ex.ForLogging());
+            return ABACErrors.DecisionAuditRecordUnreadable(ex.GetType().Name);
+        }
     }
 
     /// <inheritdoc />

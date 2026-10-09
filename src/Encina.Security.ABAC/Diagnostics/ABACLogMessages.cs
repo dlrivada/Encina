@@ -398,4 +398,15 @@ internal static partial class ABACLogMessages
         Level = LogLevel.Warning,
         Message = "A decision audit query ran without a tenant in a multi-tenant application (AllowCrossTenantQueries is set)")]
     internal static partial void DecisionAuditCrossTenantQuery(ILogger logger);
+
+    /// <summary>
+    /// A stored decision audit entry could not be read back; the query fails with
+    /// <c>abac.decision_audit_record_unreadable</c>. The exception arrives redacted (type and stack
+    /// trace only) (Event ID 9098, see EventIdRanges.SecurityABAC).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 9098,
+        Level = LogLevel.Error,
+        Message = "A stored ABAC decision audit entry could not be read; the query fails")]
+    internal static partial void DecisionAuditRecordUnreadable(ILogger logger, Exception exception);
 }

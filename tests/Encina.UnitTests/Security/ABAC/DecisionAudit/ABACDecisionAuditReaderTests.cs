@@ -339,6 +339,32 @@ public sealed class ABACDecisionAuditReaderTests
         Code(await Reader(store: store).QueryAsync(new ABACDecisionAuditQuery())).ShouldBe("store.down");
     }
 
+    [Theory]
+    [InlineData(ABACDecisionAuditSchema.MetadataTrace, "not json")]
+    [InlineData(ABACDecisionAuditSchema.MetadataAttributeNames, "[1,2]")]
+    [InlineData(ABACDecisionAuditSchema.MetadataObligations, "{\"secret\":\"Alice\"}")]
+    [InlineData(ABACDecisionAuditSchema.MetadataTrace, "[{\"policyId\":\"p\",\"isPolicySet\":false,\"effect\":\"FutureEffect\",\"reason\":\"Evaluated\"}]")]
+    public async Task QueryAsync_StoredEntryWithUnreadableMetadata_ReturnsLeftAndLogsTheTypeOnly(string key, string value)
+    {
+        await SeedAsync(null);
+        var stored = _store.GetAllEntries()[0];
+        _store.Clear();
+        var metadata = new Dictionary<string, object?>(stored.Metadata) { [key] = value };
+        await _store.RecordAsync(stored with { Metadata = metadata });
+
+        var result = await Reader().QueryAsync(new ABACDecisionAuditQuery());
+
+        Code(result).ShouldBe(ABACErrors.DecisionAuditRecordUnreadableCode);
+        result.IfLeft(error =>
+        {
+            error.Message.ShouldNotContain(value);
+            error.GetDetails()["cause"].ShouldBe("JsonException");
+        });
+        var log = _logs.GetSnapshot().ShouldHaveSingleItem();
+        log.Id.Id.ShouldBe(9098);
+        log.Exception.ShouldNotBeNull().Message.ShouldNotContain("Alice");
+    }
+
     [Fact]
     public async Task QueryAsync_NullQuery_Throws() =>
         await Should.ThrowAsync<ArgumentNullException>(async () => await Reader().QueryAsync(null!));

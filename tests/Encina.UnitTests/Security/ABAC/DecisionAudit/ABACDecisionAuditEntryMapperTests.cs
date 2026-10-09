@@ -295,6 +295,35 @@ public sealed class ABACDecisionAuditEntryMapperTests
         Meta(entry, ABACDecisionAuditSchema.MetadataDroppedFields).ShouldBe("IpAddress");
     }
 
+    [Theory]
+    [InlineData("123")]
+    [InlineData("10.1")]
+    [InlineData("0x7f.1")]
+    [InlineData("fe80::1%eth0")]
+    [InlineData("fe80::1%3")]
+    [InlineData("2001:0db8::1")]
+    [InlineData("2001:db8:0:0:0:0:0:1")]
+    public void ToOperationAuditEntry_NonCanonicalIpAddress_IsDroppedAndMarked(string address)
+    {
+        var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with { IpAddress = address });
+
+        entry.IpAddress.ShouldBeNull();
+        Meta(entry, ABACDecisionAuditSchema.MetadataDroppedFields).ShouldBe("IpAddress");
+    }
+
+    [Theory]
+    [InlineData("198.51.100.23")]
+    [InlineData("::1")]
+    [InlineData("2001:DB8::1")]
+    [InlineData("::ffff:192.0.2.1")]
+    public void ToOperationAuditEntry_CanonicalIpAddress_IsKept(string address)
+    {
+        var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record() with { IpAddress = address });
+
+        entry.IpAddress.ShouldBe(address);
+        entry.Metadata.ShouldNotContainKey(ABACDecisionAuditSchema.MetadataDroppedFields);
+    }
+
     [Fact]
     public void ToOperationAuditEntry_IPv6Address_IsKept()
     {

@@ -27,7 +27,8 @@ namespace Encina.Security.ABAC.DecisionAudit;
 /// <b>Column limits</b>: a value never fails the insert. An identifier over its column limit
 /// (<c>UserId</c>, <c>EntityType</c>, <c>EntityId</c>, <c>CorrelationId</c> 256; <c>TenantId</c> 128)
 /// is replaced by <c>sha256:&lt;64 hex&gt;</c> and named in <see cref="ABACDecisionAuditSchema.MetadataHashedFields"/>;
-/// a client address over 45 characters or that does not parse is stored as <c>null</c> and named in
+/// a client address over 45 characters or that is not a canonical IPv4 or IPv6 address (no short
+/// forms, no zone id) is stored as <c>null</c> and named in
 /// <see cref="ABACDecisionAuditSchema.MetadataDroppedFields"/>; a user agent over 512 characters, the
 /// attribute-name list over 128 names and a recorded value over 256 characters are truncated and named
 /// in <see cref="ABACDecisionAuditSchema.MetadataTruncatedFields"/>. The decision audit reader applies
@@ -97,6 +98,17 @@ public static class ABACDecisionAuditEntryMapper
     /// </summary>
     internal static string? NormalizeIdentifier(string? value, int maxLength) =>
         value is null || value.Length <= maxLength ? value : Hash(value);
+
+    /// <summary>
+    /// Whether a value is an IPv4 or IPv6 address in its canonical text form (hexadecimal case aside):
+    /// the parser also accepts short forms such as <c>123</c> (read as <c>0.0.0.123</c>) and zone ids
+    /// such as <c>fe80::1%eth0</c>, which would store an address other than the one written.
+    /// </summary>
+    internal static bool IsCanonicalIpAddress(string value) =>
+        value.Length <= ABACDecisionAuditSchema.IpAddressMaxLength
+        && System.Net.IPAddress.TryParse(value, out var address)
+        && !value.Contains('%', StringComparison.Ordinal)
+        && string.Equals(address.ToString(), value, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The <c>sha256:&lt;64 hex&gt;</c> form of a value (SHA-256 of its UTF-8 bytes, lowercase hex).</summary>
     internal static string Hash(string value) =>
@@ -267,10 +279,10 @@ public static class ABACDecisionAuditEntryMapper
         }
 
         // A hash cannot fit 45 characters and a truncated address is a different address, so an
-        // over-length or unparseable address is dropped.
+        // over-length, unparseable or non-canonical address is dropped.
         public string? IpAddress(string? value)
         {
-            if (value is null || (value.Length <= ABACDecisionAuditSchema.IpAddressMaxLength && System.Net.IPAddress.TryParse(value, out _)))
+            if (value is null || IsCanonicalIpAddress(value))
             {
                 return value;
             }
@@ -278,6 +290,7 @@ public static class ABACDecisionAuditEntryMapper
             _dropped.Add(nameof(OperationAuditEntry.IpAddress));
             return null;
         }
+
 
         public Dictionary<string, List<string>> CappedNames(
             IReadOnlyDictionary<AttributeCategory, IReadOnlyList<string>> names)

@@ -26,6 +26,14 @@ public sealed class ABACDecisionAuditEntryMapperProperties
     private static readonly string[] UserAgentOnly = ["UserAgent"];
     private static readonly string[] IpAddressOnly = ["IpAddress"];
 
+    // Each address with whether it is canonical (kept) or not (dropped).
+    private static readonly (string Address, bool Valid)[] IpCases =
+    [
+        ("10.0.0.1", true), ("::1", true), ("2001:db8::8a2e:370:7334", true), ("::ffff:192.0.2.1", true),
+        ("", false), ("999.1.1.1", false), ("host.example", false), (new string('1', 46), false),
+        ("fe80::1%eth0", false), ("123", false), ("10.1", false), ("2001:0db8::1", false)
+    ];
+
     private static string Text(int length, char fill) => new(fill, length);
 
     private static ABACDecisionRecord Record(int user, int type, int resource, int correlation, int tenant, int agent) => new()
@@ -98,11 +106,11 @@ public sealed class ABACDecisionAuditEntryMapperProperties
 
     [Property(MaxTest = 200)]
     public Property IpAddress_IsKeptOnlyWhenItFitsAndParses() =>
-        Prop.ForAll(Gen.Elements("10.0.0.1", "::1", "2001:db8::8a2e:370:7334", "", "999.1.1.1", "host.example", new string('1', 46), "fe80::1%eth0").ToArbitrary(), address =>
+        Prop.ForAll(Gen.Elements(IpCases).ToArbitrary(), pair =>
         {
+            var (address, valid) = pair;
             var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Record(1, 1, 1, 1, 1, 1) with { IpAddress = address });
 
-            var valid = address.Length <= ABACDecisionAuditSchema.IpAddressMaxLength && System.Net.IPAddress.TryParse(address, out _);
             var dropped = Marker(entry, ABACDecisionAuditSchema.MetadataDroppedFields);
 
             return valid
