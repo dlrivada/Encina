@@ -18,7 +18,7 @@ Record: [issues/4.md](../issues/4.md)
 
 ## Remediation issues
 
-- not opened when this audit was published (draft )
+- none; the six findings are recorded as comments on #85, #86 and #90 (see "Duplicates noted")
 
 ## Duplicates noted
 
