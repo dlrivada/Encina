@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Caching.Benchmarks.DistributedLockBenchmarks-20261010-183346</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+INTEL XEON PLATINUM 8573C 2.30GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method            </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>concurrencyLevel</th><th>Mean      </th><th>Error    </th><th>StdDev </th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>AcquireAndReleaseLock</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>1,347.9 ns</td><td>10.09 ns</td><td>6.00 ns</td><td>1.00</td><td>0.01</td><td>0.0038</td><td>392 B</td><td>1.00</td>
+</tr><tr><td>TryAcquireAsync_Success</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>1,386.7 ns</td><td>3.77 ns</td><td>2.24 ns</td><td>1.03</td><td>0.00</td><td>0.0038</td><td>392 B</td><td>1.00</td>
+</tr><tr><td>IsLockedAsync_NotLocked</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>549.0 ns</td><td>0.99 ns</td><td>0.59 ns</td><td>0.41</td><td>0.00</td><td>0.0010</td><td>104 B</td><td>0.27</td>
+</tr><tr><td>IsLockedAsync_Locked</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>1,410.4 ns</td><td>4.20 ns</td><td>2.20 ns</td><td>1.05</td><td>0.00</td><td>0.0038</td><td>400 B</td><td>1.02</td>
+</tr><tr><td>ExtendLock</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>1,473.8 ns</td><td>3.42 ns</td><td>2.03 ns</td><td>1.09</td><td>0.00</td><td>0.0038</td><td>432 B</td><td>1.10</td>
+</tr><tr><td>AcquireAndReleaseLock</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>1,342.8 ns</td><td>189.14 ns</td><td>10.37 ns</td><td>1.00</td><td>0.01</td><td>0.0038</td><td>392 B</td><td>1.00</td>
+</tr><tr><td>TryAcquireAsync_Success</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>1,373.5 ns</td><td>37.87 ns</td><td>2.08 ns</td><td>1.02</td><td>0.01</td><td>0.0038</td><td>392 B</td><td>1.00</td>
+</tr><tr><td>IsLockedAsync_NotLocked</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>554.1 ns</td><td>19.77 ns</td><td>1.08 ns</td><td>0.41</td><td>0.00</td><td>0.0010</td><td>104 B</td><td>0.27</td>
+</tr><tr><td>IsLockedAsync_Locked</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>1,406.7 ns</td><td>78.39 ns</td><td>4.30 ns</td><td>1.05</td><td>0.01</td><td>0.0038</td><td>400 B</td><td>1.02</td>
+</tr><tr><td>ExtendLock</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>1,454.8 ns</td><td>21.12 ns</td><td>1.16 ns</td><td>1.08</td><td>0.01</td><td>0.0038</td><td>432 B</td><td>1.10</td>
+</tr><tr><td>ConcurrentLockContention</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>10</td><td>47,204,106.3 ns</td><td>459,674.28 ns</td><td>304,046.07 ns</td><td>?</td><td>?</td><td>-</td><td>17864 B</td><td>?</td>
+</tr><tr><td>ConcurrentLockContention</td><td>ShortRun</td><td>3</td><td>1</td><td>10</td><td>47,106,976.4 ns</td><td>3,949,522.07 ns</td><td>216,486.63 ns</td><td>?</td><td>?</td><td>-</td><td>17864 B</td><td>?</td>
+</tr><tr><td>ConcurrentLockContention</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>50</td><td>102,832,539.6 ns</td><td>976,966.02 ns</td><td>646,202.53 ns</td><td>?</td><td>?</td><td>-</td><td>181464 B</td><td>?</td>
+</tr><tr><td>ConcurrentLockContention</td><td>ShortRun</td><td>3</td><td>1</td><td>50</td><td>102,295,792.6 ns</td><td>7,476,018.19 ns</td><td>409,785.79 ns</td><td>?</td><td>?</td><td>-</td><td>191904 B</td><td>?</td>
+</tr><tr><td>ConcurrentLockContention</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>100</td><td>102,833,452.4 ns</td><td>1,042,193.88 ns</td><td>689,346.72 ns</td><td>?</td><td>?</td><td>-</td><td>419504 B</td><td>?</td>
+</tr><tr><td>ConcurrentLockContention</td><td>ShortRun</td><td>3</td><td>1</td><td>100</td><td>102,973,054.0 ns</td><td>4,306,203.35 ns</td><td>236,037.54 ns</td><td>?</td><td>?</td><td>-</td><td>419504 B</td><td>?</td>
+</tr></tbody></table>
+</body>
+</html>

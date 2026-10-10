@@ -1,0 +1,41 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+
+WarmupCount=3  
+
+```
+| Method                          | Job        | IterationCount | LaunchCount | concurrencyLevel | keyCount | Mean         | Error         | StdDev       | Ratio | RatioSD | Gen0    | Gen1    | Gen2    | Allocated  | Alloc Ratio |
+|-------------------------------- |----------- |--------------- |------------ |----------------- |--------- |-------------:|--------------:|-------------:|------:|--------:|--------:|--------:|--------:|-----------:|------------:|
+| **Invalidation_ConcurrentCommands** | **Job-YFEFPZ** | **10**             | **Default**     | **10**               | **?**        |    **196.99 μs** |      **2.601 μs** |     **1.720 μs** |     **?** |       **?** | **10.2539** |  **0.2441** |       **-** |  **171.18 KB** |           **?** |
+|                                 |            |                |             |                  |          |              |               |              |       |         |         |         |         |            |             |
+| Invalidation_ConcurrentCommands | ShortRun   | 3              | 1           | 10               | ?        |    188.07 μs |     19.235 μs |     1.054 μs |     ? |       ? | 10.2539 |  0.2441 |       - |  171.15 KB |           ? |
+|                                 |            |                |             |                  |          |              |               |              |       |         |         |         |         |            |             |
+| **Invalidation_ConcurrentCommands** | **Job-YFEFPZ** | **10**             | **Default**     | **50**               | **?**        |    **979.31 μs** |     **30.149 μs** |    **17.941 μs** |     **?** |       **?** | **50.7813** |  **1.9531** |       **-** |  **855.09 KB** |           **?** |
+|                                 |            |                |             |                  |          |              |               |              |       |         |         |         |         |            |             |
+| Invalidation_ConcurrentCommands | ShortRun   | 3              | 1           | 50               | ?        |    969.90 μs |     63.530 μs |     3.482 μs |     ? |       ? | 51.7578 |  2.9297 |       - |  855.16 KB |           ? |
+|                                 |            |                |             |                  |          |              |               |              |       |         |         |         |         |            |             |
+| **Invalidation_NoMatchingKeys**     | **Job-YFEFPZ** | **10**             | **Default**     | **?**                | **?**        |     **18.68 μs** |      **0.166 μs** |     **0.087 μs** |  **1.00** |    **0.01** |  **1.0071** |  **0.0305** |       **-** |   **16.77 KB** |        **1.00** |
+| Invalidation_WithMatchingKeys   | Job-YFEFPZ | 10             | Default     | ?                | ?        |     26.78 μs |      2.069 μs |     1.368 μs |  1.43 |    0.07 |  1.1902 |  0.0305 |       - |   19.47 KB |        1.16 |
+| Invalidation_SequentialCommands | Job-YFEFPZ | 10             | Default     | ?                | ?        |    192.71 μs |      1.881 μs |     1.244 μs | 10.31 |    0.08 | 10.2539 |  0.2441 |       - |  169.04 KB |       10.08 |
+|                                 |            |                |             |                  |          |              |               |              |       |         |         |         |         |            |             |
+| Invalidation_NoMatchingKeys     | ShortRun   | 3              | 1           | ?                | ?        |     17.88 μs |      1.686 μs |     0.092 μs |  1.00 |    0.01 |  1.0071 |  0.0305 |       - |    16.9 KB |        1.00 |
+| Invalidation_WithMatchingKeys   | ShortRun   | 3              | 1           | ?                | ?        |     29.57 μs |     35.852 μs |     1.965 μs |  1.65 |    0.10 |  1.1597 |  0.0610 |       - |   19.12 KB |        1.13 |
+| Invalidation_SequentialCommands | ShortRun   | 3              | 1           | ?                | ?        |    197.81 μs |    146.473 μs |     8.029 μs | 11.06 |    0.39 | 10.2539 |  0.2441 |       - |  169.04 KB |       10.00 |
+|                                 |            |                |             |                  |          |              |               |              |       |         |         |         |         |            |             |
+| **Invalidation_MultipleKeys**       | **Job-YFEFPZ** | **10**             | **Default**     | **?**                | **5**        | **10,181.63 μs** |  **5,067.918 μs** | **3,352.114 μs** |     **?** |       **?** | **17.5781** | **16.1133** | **16.1133** | **1262.91 KB** |           **?** |
+|                                 |            |                |             |                  |          |              |               |              |       |         |         |         |         |            |             |
+| Invalidation_MultipleKeys       | ShortRun   | 3              | 1           | ?                | 5        |  4,199.68 μs | 15,374.215 μs |   842.713 μs |     ? |       ? | 17.0898 | 15.6250 | 15.6250 |  702.93 KB |           ? |
+|                                 |            |                |             |                  |          |              |               |              |       |         |         |         |         |            |             |
+| **Invalidation_MultipleKeys**       | **Job-YFEFPZ** | **10**             | **Default**     | **?**                | **10**       |  **7,526.09 μs** |  **4,162.450 μs** | **2,753.203 μs** |     **?** |       **?** | **16.6016** | **15.6250** | **15.6250** | **1266.82 KB** |           **?** |
+|                                 |            |                |             |                  |          |              |               |              |       |         |         |         |         |            |             |
+| Invalidation_MultipleKeys       | ShortRun   | 3              | 1           | ?                | 10       |  4,019.62 μs | 13,743.902 μs |   753.350 μs |     ? |       ? | 16.6016 | 15.6250 | 15.6250 |  706.83 KB |           ? |
+|                                 |            |                |             |                  |          |              |               |              |       |         |         |         |         |            |             |
+| **Invalidation_MultipleKeys**       | **Job-YFEFPZ** | **10**             | **Default**     | **?**                | **25**       | **11,099.14 μs** |  **8,920.682 μs** | **5,900.479 μs** |     **?** |       **?** | **17.5781** | **15.6250** | **15.6250** | **1588.72 KB** |           **?** |
+|                                 |            |                |             |                  |          |              |               |              |       |         |         |         |         |            |             |
+| Invalidation_MultipleKeys       | ShortRun   | 3              | 1           | ?                | 25       |  6,262.57 μs | 11,111.594 μs |   609.064 μs |     ? |       ? | 17.5781 | 15.6250 | 15.6250 |  917.93 KB |           ? |

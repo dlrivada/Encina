@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Refit.Benchmarks.RestApiRequestHandlerBenchmarks-20261010-183934</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+INTEL XEON PLATINUM 8573C 2.30GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method               </th><th>Mean  </th><th>Error  </th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>EncinaRefitCall</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>?</td>
+</tr><tr><td>EncinaRefitCall_Sequential5</td><td>10.00 &mu;s</td><td>0.062 &mu;s</td><td>0.003 &mu;s</td><td>0.001</td><td>0.00</td><td>1</td><td>0.1068</td><td>8.79 KB</td><td>0.93</td>
+</tr><tr><td>EncinaRefitCall_Batch10</td><td>26.19 &mu;s</td><td>12.888 &mu;s</td><td>0.706 &mu;s</td><td>0.002</td><td>0.00</td><td>2</td><td>0.2136</td><td>18.34 KB</td><td>1.94</td>
+</tr><tr><td>DirectRefitCall_Baseline</td><td>14,156.17 &mu;s</td><td>9,787.474 &mu;s</td><td>536.484 &mu;s</td><td>1.001</td><td>0.05</td><td>3</td><td>-</td><td>9.45 KB</td><td>1.00</td>
+</tr><tr><td>DirectRefitCall_Batch10</td><td>21,439.68 &mu;s</td><td>5,591.644 &mu;s</td><td>306.497 &mu;s</td><td>1.516</td><td>0.05</td><td>4</td><td>-</td><td>93.46 KB</td><td>9.90</td>
+</tr><tr><td>DirectRefitCall_Sequential5</td><td>72,463.86 &mu;s</td><td>15,414.484 &mu;s</td><td>844.920 &mu;s</td><td>5.124</td><td>0.18</td><td>5</td><td>-</td><td>45.83 KB</td><td>4.85</td>
+</tr></tbody></table>
+</body>
+</html>
