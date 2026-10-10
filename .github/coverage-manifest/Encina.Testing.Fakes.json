@@ -26,10 +26,22 @@
     "Models/FakeDeadLetterMessage.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "contract",
+        "property"
       ],
       "defaultRule": "*Message.cs",
-      "reason": "Domain entity with serialization/validation logic"
+      "reason": "Domain entity with serialization/validation logic",
+      "targets": {
+        "unit": 95,
+        "contract": 90,
+        "property": 90
+      },
+      "justifications": {
+        "unit": "The fake is a plain message model whose property and serialization paths unit tests reach directly.",
+        "contract": "The contract suite instantiates the fake as a dead letter message and checks the interface shape it must keep.",
+        "property": "The property suite generates random messages through the fake, which covers its state combinations."
+      }
     },
     "Models/FakeInboxMessage.cs": {
       "defaultTests": [
@@ -85,7 +97,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 85,
+        "guard": 19
+      },
+      "justifications": {
+        "unit": "Unit tests register the fakes and resolve each one, so every registration branch of the file is reached.",
+        "guard": "Guard tests reach the null-argument check of each AddFake* method; the registration bodies are covered by the unit flag."
+      }
     },
     "Stores/FakeCdcDeadLetterStore.cs": {
       "defaultTests": [
@@ -98,10 +118,22 @@
     "Stores/FakeDeadLetterStore.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "contract",
+        "property"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": {
+        "unit": 45,
+        "contract": 65,
+        "property": 50
+      },
+      "justifications": {
+        "unit": "Unit tests cover the store operations that other tests call on the fake, and the contract and property suites cover the rest.",
+        "contract": "The contract suite runs the same store operations that the dead letter queue uses through this fake.",
+        "property": "The property suite generates store operations against the fake, which covers the paths the queue depends on."
+      }
     },
     "Stores/FakeInboxStore.cs": {
       "defaultTests": [

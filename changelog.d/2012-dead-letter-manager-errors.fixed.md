@@ -1,0 +1,3 @@
+- `DeadLetterManager` no longer swallows dead letter store errors: every `Left` from the store fails the operation instead of reporting success (#2012).
+- The replay outcome stored on a dead letter message is an outcome code, never error text (#2012).
+- Two concurrent replays of one dead letter message no longer dispatch the message twice: the replay claim is atomic and happens before dispatch (#2012).

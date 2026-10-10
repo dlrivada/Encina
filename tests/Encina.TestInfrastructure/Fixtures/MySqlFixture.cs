@@ -50,6 +50,7 @@ public sealed class MySqlFixture : DatabaseFixture<MySqlContainer>
         await MySqlSchema.CreateInboxSchemaAsync(mysqlConnection);
         await MySqlSchema.CreateSagaSchemaAsync(mysqlConnection);
         await MySqlSchema.CreateSchedulingSchemaAsync(mysqlConnection);
+        await MySqlSchema.CreateDeadLetterSchemaAsync(mysqlConnection);
         await MySqlSchema.CreateTestRepositorySchemaAsync(mysqlConnection);
         await MySqlSchema.CreateOrdersSchemaAsync(mysqlConnection);
         await MySqlSchema.CreateTenantTestSchemaAsync(mysqlConnection);

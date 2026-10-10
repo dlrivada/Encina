@@ -4,6 +4,7 @@ using Encina.Compliance.Anonymization.InMemory;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Dapper.MySQL.Auditing;
+using Encina.Dapper.MySQL.DeadLetter;
 using Encina.Dapper.MySQL.Health;
 using Encina.Dapper.MySQL.Inbox;
 using Encina.Dapper.MySQL.Outbox;
@@ -56,6 +57,8 @@ public static class ServiceCollectionExtensions
             ScheduledMessageStoreDapper,
             ScheduledMessageFactory,
             OutboxProcessor>(config);
+
+        services.AddDeadLetterQueueServices<DeadLetterStoreDapper, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions);
 
         RegisterAuditStores(services, config);
         RegisterHealthServices(services, config);

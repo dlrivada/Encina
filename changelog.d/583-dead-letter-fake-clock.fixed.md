@@ -1,0 +1,1 @@
+- `AddFakeDeadLetterStore` builds the fake store with the `TimeProvider` registered in the container, so a `FakeTimeProvider` drives claim expiry and retention (#583).

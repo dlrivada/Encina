@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 
+using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
@@ -63,6 +64,23 @@ public sealed class EncinaMongoDbOptions
     /// Gets or sets a value indicating whether to use the Scheduling pattern.
     /// </summary>
     public bool UseScheduling { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to use the Dead Letter Queue pattern.
+    /// </summary>
+    /// <remarks>
+    /// When enabled, registers the MongoDB dead letter store, the orchestrator, the manager, the
+    /// health check and (when configured) the cleanup processor, and creates the collection indexes.
+    /// </remarks>
+    public bool UseDeadLetterQueue { get; set; }
+
+    /// <summary>
+    /// Gets the dead letter queue options.
+    /// </summary>
+    /// <remarks>
+    /// Only used when <see cref="UseDeadLetterQueue"/> is <c>true</c>.
+    /// </remarks>
+    public DeadLetterOptions DeadLetterOptions { get; } = new();
 
     /// <summary>
     /// Gets or sets a value indicating whether to use the Audit Log Store.
@@ -284,6 +302,11 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for scheduled messages.
     /// </summary>
     public string ScheduledMessages { get; set; } = "scheduled_messages";
+
+    /// <summary>
+    /// Gets or sets the collection name for dead letter messages.
+    /// </summary>
+    public string DeadLetterMessages { get; set; } = "dead_letter_messages";
 
     /// <summary>
     /// Gets or sets the collection name for audit logs.

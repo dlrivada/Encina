@@ -1,4 +1,5 @@
 using Encina.Diagnostics;
+using Encina.Messaging.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -66,15 +67,21 @@ public sealed class DeadLetterCleanupProcessor : BackgroundService
                 deleteResult.Match(
                     Right: count =>
                     {
+                        DeadLetterMetrics.RecordDeleted(count, DeadLetterMetrics.ReasonExpired);
                         if (count > 0)
                         {
                             DeadLetterLog.ExpiredMessagesCleanedUp(_logger, count);
                         }
                     },
                     // Only the error code: EncinaError.Message can carry personal data (#1259 review).
-                    Left: error => DeadLetterLog.CleanupError(
-                        _logger,
-                        new InvalidOperationException($"DLQ cleanup failed with error code {error.GetCode().IfNone("encina.unknown")}")));
+                    Left: error =>
+                    {
+                        var errorCode = error.GetCode().IfNone("encina.unknown");
+                        DeadLetterMetrics.RecordStoreFailure("delete_expired", errorCode);
+                        DeadLetterLog.CleanupError(
+                            _logger,
+                            new InvalidOperationException($"DLQ cleanup failed with error code {errorCode}"));
+                    });
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

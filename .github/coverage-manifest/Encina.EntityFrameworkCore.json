@@ -665,13 +665,93 @@
       "defaultRule": "*StoreEF.cs",
       "reason": "EF Core store — needs real DbContext"
     },
+    "DeadLetter/DeadLetterMessage.cs": {
+      "defaultTests": [
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Dead letter message container with no logic of its own",
+      "targets": {
+        "unit": 0,
+        "guard": 75,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "The message is an auto-property container with no logic of its own, so a unit test would only restate its properties.",
+        "guard": "The guard suite covers the argument checks of the message, and the plain property accessors have no guard surface.",
+        "integration": "Every integration run persists and reads back messages on a real database, which exercises the full property mapping."
+      }
+    },
+    "DeadLetter/DeadLetterMessageConfiguration.cs": {
+      "defaultTests": [
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*Configuration.cs",
+      "reason": "EF Core entity configuration that needs a real provider to build",
+      "targets": {
+        "unit": 0,
+        "guard": 5,
+        "integration": 95
+      },
+      "justifications": {
+        "unit": "A model builder needs a real database provider to produce a mapping, so the integration schema creation on three providers is what exercises it.",
+        "guard": "Only the few argument checks of the configuration are reachable by guard tests.",
+        "integration": "Schema creation on SQL Server, PostgreSQL and MySQL builds the mapping on each provider, leaving little uncovered."
+      }
+    },
+    "DeadLetter/DeadLetterMessageFactory.cs": {
+      "defaultTests": [
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Dead letter message factory with a single object initializer",
+      "targets": {
+        "unit": 0,
+        "guard": 90,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "The factory is a single object initializer that the guard theory and every integration test already exercise, so a unit test would add no distinct path.",
+        "guard": "The guard theory covers the argument validation of the factory, which is its only branch surface.",
+        "integration": "Every integration test creates dead letter messages through the factory against a real database."
+      }
+    },
+    "DeadLetter/DeadLetterStoreEF.cs": {
+      "defaultTests": [
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*StoreEF.cs",
+      "reason": "EF Core dead letter store — needs real DbContext",
+      "targets": {
+        "unit": 0,
+        "guard": 8,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "The store is a thin wrapper over a real DbContext, so a unit test would only assert mocks while the shared contract runs it on SQL Server, PostgreSQL and MySQL.",
+        "guard": "Constructor and argument checks are the only guard-reachable surface of the store.",
+        "integration": "The shared contract runs on SQL Server, PostgreSQL and MySQL and covers every query path, and only provider-specific failure branches remain uncovered."
+      }
+    },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 50,
+        "guard": 50
+      },
+      "justifications": {
+        "unit": "The registration tests resolve the dead letter path, but the file also registers features that are covered by their own tests, so only part of it is exercised here.",
+        "guard": "The null-argument checks are covered by the guard tests, while the remaining registrations belong to other features."
+      }
     },
     "Sharding/FunctionalShardedRepositoryEF.cs": {
       "defaultTests": [

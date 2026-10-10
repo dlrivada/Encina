@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.ADO.SqlServer.Auditing;
 using Encina.ADO.SqlServer.BulkOperations;
+using Encina.ADO.SqlServer.DeadLetter;
 using Encina.ADO.SqlServer.Health;
 using Encina.ADO.SqlServer.Inbox;
 using Encina.ADO.SqlServer.Modules;
@@ -76,6 +77,8 @@ public static class ServiceCollectionExtensions
             ScheduledMessageStoreADO,
             ScheduledMessageFactory,
             OutboxProcessor>(config);
+
+        services.AddDeadLetterQueueServices<DeadLetterStoreADO, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions);
 
         RegisterAuditStores(services, config);
         RegisterAnonymizationAndPolicyStores(services, config);

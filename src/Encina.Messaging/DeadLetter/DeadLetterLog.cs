@@ -8,6 +8,7 @@ namespace Encina.Messaging.DeadLetter;
 /// </summary>
 /// <remarks>
 /// This class uses source generators to create optimized logging methods.
+/// Event IDs: 2945-2957 and 2990-2995 (see EventIdRanges.Messaging).
 /// Excluded from code coverage as the generated code is boilerplate.
 /// </remarks>
 [ExcludeFromCodeCoverage]
@@ -55,11 +56,11 @@ internal static partial class DeadLetterLog
     [LoggerMessage(
         EventId = 2949,
         Level = LogLevel.Warning,
-        Message = "Message {MessageId} replay failed. Error: {ErrorMessage}")]
+        Message = "Message {MessageId} replay failed. ErrorCode: {ErrorCode}")]
     public static partial void MessageReplayFailed(
         ILogger logger,
         Guid messageId,
-        string errorMessage);
+        string errorCode);
 
     [LoggerMessage(
         EventId = 2950,
@@ -126,4 +127,59 @@ internal static partial class DeadLetterLog
     public static partial void CleanupError(
         ILogger logger,
         Exception exception);
+
+    [LoggerMessage(
+        EventId = 2990,
+        Level = LogLevel.Warning,
+        Message = "Dead letter store write failed. Source: {SourcePattern}, ErrorCode: {ErrorCode}")]
+    public static partial void StoreWriteFailed(
+        ILogger logger,
+        string sourcePattern,
+        string errorCode);
+
+    [LoggerMessage(
+        EventId = 2991,
+        Level = LogLevel.Debug,
+        Message = "Source message already dead-lettered as {MessageId} (Source: {SourcePattern}); duplicate ignored")]
+    public static partial void DuplicateIgnored(
+        ILogger logger,
+        Guid messageId,
+        string sourcePattern);
+
+    [LoggerMessage(
+        EventId = 2992,
+        Level = LogLevel.Warning,
+        Message = "Replay outcome of dead letter message {MessageId} was not recorded. ErrorCode: {ErrorCode}")]
+    public static partial void ReplayOutcomeNotRecorded(
+        ILogger logger,
+        Guid messageId,
+        string errorCode);
+
+    [LoggerMessage(
+        EventId = 2993,
+        Level = LogLevel.Warning,
+        Message = "Dead letter operation {Operation} ran across all tenants (explicit AllTenants opt-out)")]
+    public static partial void AllTenantsOptOut(
+        ILogger logger,
+        string operation);
+
+    [LoggerMessage(
+        EventId = 2994,
+        Level = LogLevel.Warning,
+        Message = "Dead letter operation {Operation} denied: multi-tenancy is in use and no tenant is resolved. ErrorCode: {ErrorCode}")]
+    public static partial void TenantRequiredDenied(
+        ILogger logger,
+        string operation,
+        string errorCode);
+
+    [LoggerMessage(
+        EventId = 2995,
+        Level = LogLevel.Error,
+        Message = "Batch replay aborted by a store failure. Processed: {TotalProcessed}, Success: {SuccessCount}, Failed: {FailureCount}, ErrorCode: {ErrorCode}")]
+    public static partial void BatchReplayAborted(
+        ILogger logger,
+        int totalProcessed,
+        int successCount,
+        int failureCount,
+        string errorCode);
 }

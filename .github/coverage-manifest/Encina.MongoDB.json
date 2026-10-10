@@ -131,12 +131,78 @@
       "defaultRule": "*BulkOperations*.cs",
       "reason": "Bulk operations need real DB"
     },
+    "DeadLetter/DeadLetterMessage.cs": {
+      "defaultTests": [
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Dead letter message container with no logic of its own",
+      "targets": {
+        "unit": 0,
+        "guard": 75,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "The message is an auto-property container with no logic of its own, so a unit test would only restate its properties.",
+        "guard": "The guard suite covers the argument checks of the message, and the plain property accessors have no guard surface.",
+        "integration": "Every integration run persists and reads back messages on a real database, which exercises the full property mapping."
+      }
+    },
+    "DeadLetter/DeadLetterMessageFactory.cs": {
+      "defaultTests": [
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Dead letter message factory with a single object initializer",
+      "targets": {
+        "unit": 0,
+        "guard": 90,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "The factory is a single object initializer that the guard theory and every integration test already exercise, so a unit test would add no distinct path.",
+        "guard": "The guard theory covers the argument validation of the factory, which is its only branch surface.",
+        "integration": "Every integration test creates dead letter messages through the factory against a real database."
+      }
+    },
+    "DeadLetter/DeadLetterStoreMongoDB.cs": {
+      "defaultTests": [
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*StoreMongoDB.cs",
+      "reason": "MongoDB dead letter store — needs real MongoDB",
+      "targets": {
+        "unit": 0,
+        "guard": 8,
+        "integration": 80
+      },
+      "justifications": {
+        "unit": "The store only forwards calls to the MongoDB driver, so a unit test would assert mocks while the shared contract runs every operation on a real MongoDB instance.",
+        "guard": "Constructor and argument checks are the only guard-reachable surface of the store.",
+        "integration": "The shared contract runs every operation on a real MongoDB instance, and only driver-failure branches remain uncovered."
+      }
+    },
     "EncinaMongoDbOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard",
+        "integration"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 95,
+        "guard": 65,
+        "integration": 85
+      },
+      "justifications": {
+        "unit": "The options class holds defaults and validation rules that unit tests can check directly.",
+        "guard": "The argument checks of the options are covered, while the property setters carry no guard surface.",
+        "integration": "The integration runs configure the options against a real MongoDB instance, which exercises the values that reach the driver."
+      }
     },
     "EntityMappingErrorCodes.cs": {
       "defaultTests": [
@@ -208,7 +274,13 @@
     "Log.cs": {
       "defaultTests": [],
       "defaultRule": "Log.cs",
-      "reason": "Source-generated [LoggerMessage] delegates, no logic"
+      "reason": "Source-generated [LoggerMessage] delegates, no logic",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "Source-generated logging methods are excluded boilerplate, so there is no hand-written logic to cover."
+      }
     },
     "Modules/IModuleAwareMongoCollectionFactory.cs": {
       "defaultTests": [],
@@ -239,11 +311,20 @@
     },
     "MongoDbIndexCreator.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 80,
+        "guard": 0,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "The index creation logic is testable with a mocked collection, which covers its branches without a running database.",
+        "guard": "This internal hosted service has no guard surface, because its only input comes from the container.",
+        "integration": "The hosted service needs a running host to start, so the integration contract creates the same unique index explicitly instead."
+      }
     },
     "Outbox/OutboxMessage.cs": {
       "defaultTests": [
@@ -471,10 +552,21 @@
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 55,
+        "guard": 2,
+        "integration": 20
+      },
+      "justifications": {
+        "unit": "The registration unit tests cover most of the conditional wiring, while the remaining branches need a running host.",
+        "guard": "Almost every argument is validated by the options rather than by guards, so only a few checks are guard-reachable.",
+        "integration": "The integration runs register the services against a real MongoDB instance, which reaches only the wiring that needs a live connection."
+      }
     },
     "Sharding/FunctionalShardedRepositoryMongoDB.cs": {
       "defaultTests": [

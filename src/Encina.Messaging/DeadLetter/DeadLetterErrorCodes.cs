@@ -49,4 +49,46 @@ public static class DeadLetterErrorCodes
     /// Failed to delete DLQ message(s).
     /// </summary>
     public const string DeleteFailed = "dlq.delete_failed";
+
+    /// <summary>
+    /// Another replay holds the claim on the message, so this replay did not dispatch it.
+    /// </summary>
+    public const string ReplayInProgress = "dlq.replay_in_progress";
+
+    /// <summary>
+    /// A store received a dead letter message of a type it cannot persist.
+    /// </summary>
+    public const string InvalidMessageType = "dlq.invalid_message_type";
+
+    /// <summary>
+    /// A store failed to read a single dead letter message.
+    /// </summary>
+    public const string GetFailed = "dlq.get_failed";
+
+    /// <summary>
+    /// A store failed to list or count dead letter messages.
+    /// </summary>
+    public const string QueryFailed = "dlq.query_failed";
+
+    /// <summary>
+    /// A store failed to claim a message for replay.
+    /// </summary>
+    public const string ClaimFailed = "dlq.claim_failed";
+
+    /// <summary>
+    /// A store failed to record the replay outcome of a message.
+    /// </summary>
+    public const string MarkReplayedFailed = "dlq.mark_replayed_failed";
+
+    /// <summary>
+    /// Multi-tenancy is in use, no tenant is resolved and the caller did not set
+    /// <see cref="DeadLetterFilter.AllTenants"/>, so <see cref="IDeadLetterManager"/> denied the operation.
+    /// An <c>encina.authorization.*</c> code: transports map it to 403.
+    /// </summary>
+    public const string TenantRequired = "encina.authorization.dlq_tenant_required";
+
+    /// <summary>
+    /// Outcome code stored in <c>ReplayResult</c> when a replay succeeded.
+    /// </summary>
+    public const string ReplaySucceeded = "success";
 }

@@ -275,7 +275,7 @@ public static class EncinaVerify
             Id = m.Id,
             RequestType = m.RequestType,
             RequestContent = m.RequestContent,
-            ErrorMessage = m.ErrorMessage,
+            ErrorCode = m.ErrorCode,
             ExceptionType = m.ExceptionType,
             SourcePattern = m.SourcePattern,
             TotalRetryAttempts = m.TotalRetryAttempts,
@@ -497,7 +497,7 @@ internal sealed class DeadLetterMessageSnapshot
     public Guid Id { get; set; }
     public string RequestType { get; set; } = string.Empty;
     public string RequestContent { get; set; } = string.Empty;
-    public string ErrorMessage { get; set; } = string.Empty;
+    public string ErrorCode { get; set; } = string.Empty;
     public string? ExceptionType { get; set; }
     public string SourcePattern { get; set; } = string.Empty;
     public int TotalRetryAttempts { get; set; }

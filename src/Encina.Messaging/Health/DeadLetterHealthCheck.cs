@@ -89,7 +89,7 @@ public sealed class DeadLetterHealthCheck : EncinaHealthCheck
             },
             skip: 0,
             take: 1,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         if (oldMessagesResult.IsLeft)
         {
