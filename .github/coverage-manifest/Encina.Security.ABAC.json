@@ -1,7 +1,7 @@
 {
   "package": "Encina.Security.ABAC",
   "generated": "2026-10-09T17:34:55Z",
-  "totalFiles": 139,
+  "totalFiles": 140,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -436,6 +436,22 @@
         "unit": "Only const members: the file has no executable line to cover; the values are asserted by unit tests."
       }
     },
+    "DecisionAudit/ABACDecisionAuditStartupCheck.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Startup hosted check of the decision audit prerequisites (Critical 9087, Warning 9086 and 9084)",
+      "targets": {
+        "unit": 100,
+        "guard": 50
+      },
+      "justifications": {
+        "unit": "Unit tests cover the disabled no-op that never resolves the store, the missing store (9087 and throw), the in-memory store (9086) and BestEffort (9084).",
+        "guard": "Guard tests reject each null constructor argument and run the disabled start and stop (measured 53.6%); the enabled paths run in the unit suite."
+      }
+    },
     "DecisionAudit/ABACDecisionRecord.cs": {
       "defaultTests": [
         "unit",
@@ -636,7 +652,7 @@
         "guard": 75
       },
       "justifications": {
-        "unit": "Validator tests cover each rejected bound, the defaults and a null argument.",
+        "unit": "Validator tests cover each rejected bound, the undefined FailureMode, unknown Outcomes bits, the defaults and a null argument.",
         "guard": "Guard tests reject null options and validate a valid configuration."
       }
     },
