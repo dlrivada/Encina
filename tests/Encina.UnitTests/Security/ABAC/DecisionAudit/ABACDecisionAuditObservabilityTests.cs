@@ -107,13 +107,15 @@ public sealed class ABACDecisionAuditObservabilityTests
         IABACDecisionRecorder recorder,
         bool auditEnabled = true,
         ABACDecisionAuditFailureMode failureMode = ABACDecisionAuditFailureMode.FailClosed,
-        FakeLogger<ABACPipelineBehavior<PolicyARequest, string>>? logger = null)
+        FakeLogger<ABACPipelineBehavior<PolicyARequest, string>>? logger = null,
+        Effect effect = Effect.Permit,
+        ABACEnforcementMode mode = ABACEnforcementMode.Block)
     {
         var pdp = Substitute.For<IPolicyDecisionPoint>();
         pdp.EvaluatePolicyAsync(Arg.Any<string>(), Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(Right<EncinaError, PolicyDecision>(new PolicyDecision
             {
-                Effect = Effect.Permit,
+                Effect = effect,
                 Obligations = [],
                 Advice = [],
                 EvaluationDuration = TimeSpan.FromMilliseconds(1)
@@ -127,7 +129,7 @@ public sealed class ABACDecisionAuditObservabilityTests
         attributes.GetEnvironmentAttributesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, object>());
 
-        var options = new ABACOptions { EnforcementMode = ABACEnforcementMode.Block };
+        var options = new ABACOptions { EnforcementMode = mode };
         options.DecisionAudit.Enabled = auditEnabled;
         options.DecisionAudit.FailureMode = failureMode;
 
@@ -153,19 +155,24 @@ public sealed class ABACDecisionAuditObservabilityTests
             CancellationToken.None);
     }
 
-    [Fact]
-    public async Task SuccessfulWrite_CountsRecordedWithOutcomeAndEnforcementMode()
+    [Theory]
+    [InlineData(Effect.Permit, ABACEnforcementMode.Block, "Granted", true)]
+    [InlineData(Effect.Permit, ABACEnforcementMode.Warn, "Granted", true)]
+    [InlineData(Effect.Deny, ABACEnforcementMode.Block, "Denied", false)]
+    [InlineData(Effect.Deny, ABACEnforcementMode.Warn, "DeniedNotEnforced", true)]
+    public async Task SuccessfulWrite_CountsRecordedWithOutcomeAndEnforcementMode(
+        Effect effect, ABACEnforcementMode mode, string expectedOutcome, bool proceeds)
     {
         using var telemetry = new Telemetry();
-        var behavior = Behavior(new Recorder());
+        var behavior = Behavior(new Recorder(), effect: effect, mode: mode);
 
         var result = await SendAsync(behavior);
 
-        result.IsRight.ShouldBeTrue();
+        result.IsRight.ShouldBe(proceeds);
         var recorded = telemetry.Of("abac.decision_audit.recorded").ShouldHaveSingleItem();
         recorded.Value.ShouldBe(1);
-        recorded.Tags["abac.outcome"].ShouldBe("Granted");
-        recorded.Tags["abac.enforcement_mode"].ShouldBe("Block");
+        recorded.Tags["abac.outcome"].ShouldBe(expectedOutcome);
+        recorded.Tags["abac.enforcement_mode"].ShouldBe(mode.ToString());
         telemetry.Of("abac.decision_audit.failed").ShouldBeEmpty();
     }
 
@@ -248,9 +255,14 @@ public sealed class ABACDecisionAuditObservabilityTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task NoTagAndNoLogCarriesASubjectResourceTenantAttributeOrErrorMessage(bool recorderThrows)
+    [InlineData(false, ABACDecisionAuditFailureMode.FailClosed, Effect.Permit)]
+    [InlineData(true, ABACDecisionAuditFailureMode.FailClosed, Effect.Permit)]
+    [InlineData(false, ABACDecisionAuditFailureMode.BestEffort, Effect.Permit)]
+    [InlineData(true, ABACDecisionAuditFailureMode.BestEffort, Effect.Permit)]
+    [InlineData(false, ABACDecisionAuditFailureMode.FailClosed, Effect.Deny)]
+    [InlineData(true, ABACDecisionAuditFailureMode.FailClosed, Effect.Deny)]
+    public async Task NoTagAndNoLogCarriesASubjectResourceTenantAttributeOrErrorMessage(
+        bool recorderThrows, ABACDecisionAuditFailureMode failureMode, Effect effect)
     {
         using var telemetry = new Telemetry();
         var logger = new FakeLogger<ABACPipelineBehavior<PolicyARequest, string>>();
@@ -258,9 +270,14 @@ public sealed class ABACDecisionAuditObservabilityTests
             ? new Recorder(_ => throw new InvalidOperationException(SentinelMessage))
             : new Recorder(_ => ValueTask.FromResult(
                 Left<EncinaError, Unit>(EncinaErrors.Create("store.down", SentinelMessage))));
-        var behavior = Behavior(recorder, logger: logger);
+        var behavior = Behavior(recorder, failureMode: failureMode, logger: logger, effect: effect);
 
         await SendAsync(behavior, SentinelResource);
+
+        // The failure path under test logged (9080 FailClosed, 9081 BestEffort, 9082 already denied).
+        var expectedEventId = effect == Effect.Deny ? 9082
+            : failureMode == ABACDecisionAuditFailureMode.FailClosed ? 9080 : 9081;
+        logger.Collector.GetSnapshot().Any(r => r.Id.Id == expectedEventId).ShouldBeTrue();
 
         string[] sentinels = [SentinelSubject, SentinelTenant, SentinelResource, SentinelAttribute, SentinelMessage];
 

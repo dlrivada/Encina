@@ -125,7 +125,7 @@ When `ABACOptions.DecisionAudit.Enabled` is `true`, the Policy Enforcement Point
 ### Metrics
 
 | Metric Name | Type | Unit | Tags | Description |
-|-------------|------|------|------|-------------|
+| --- | --- | --- | --- | --- |
 | `abac.decision_audit.recorded` | `Counter<long>` | | `abac.outcome` (`Granted`, `Denied`, `DeniedNotEnforced`), `abac.enforcement_mode` (`Block`, `Warn`) | One increment per decision record written |
 | `abac.decision_audit.failed` | `Counter<long>` | | `abac.failure_mode` (`FailClosed`, `BestEffort`), `error.type` (error code or exception type name) | One increment per record that could not be built or written |
 | `abac.decision_audit.duration` | `Histogram<double>` | `ms` | none | Building plus writing one record, recorded once per audited decision |
@@ -135,7 +135,7 @@ When `ABACOptions.DecisionAudit.Enabled` is `true`, the Policy Enforcement Point
 ### Spans and tags
 
 | Item | Where | Description |
-|------|-------|-------------|
+| --- | --- | --- |
 | `ABAC.DecisionAudit.Record` | Activity, kind `Internal`, child of `ABAC.Evaluate` | Status `Ok` when the record was written; `Error` with the failure code as status description otherwise, plus tags `abac.failure_mode` and `error.type` |
 | `abac.decision_id` | Tag on `ABAC.Evaluate` | The decision id (`Guid`, format `D`), set once the record is built |
 
