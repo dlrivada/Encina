@@ -177,15 +177,58 @@ public sealed class SagaRunner : ISagaRunner
         var errorCode = error.GetCode().IfNone("encina.unknown");
         Log.StepFailed(_logger, sagaId, stepIndex + 1, definition.Steps[stepIndex].Name, errorCode);
 
-        // Run compensation for completed steps
-        await CompensateAsync(definition, data, stepIndex - 1, requestContext, cancellationToken)
+        // Persist Compensating BEFORE the compensations run. When the store rejects it the saga is
+        // still Running (recoverable by timeout/stuck-saga handling), so the operation fails here
+        // with the orchestrator's error instead of compensating without a record.
+        var started = await _orchestrator.StartCompensationAsync(sagaId, errorCode, cancellationToken)
             .ConfigureAwait(false);
 
-        // Mark saga as compensated
-        await _orchestrator.StartCompensationAsync(sagaId, errorCode, cancellationToken)
-            .ConfigureAwait(false);
+        if (started.IsLeft)
+        {
+            return (EncinaError)started;
+        }
 
+        var compensationFailure = await CompensateAsync(
+            definition, data, stepIndex - 1, requestContext, cancellationToken).ConfigureAwait(false);
+
+        // The compensations already ran: the terminal state is persisted even when the caller's
+        // token is cancelled meanwhile, otherwise the saga would stay Compensating.
+        var terminal = compensationFailure is null
+            ? await CompleteCompensationAsync(sagaId).ConfigureAwait(false)
+            : await _orchestrator.FailAsync(sagaId, compensationFailure, CancellationToken.None).ConfigureAwait(false);
+
+        if (terminal.IsLeft)
+        {
+            return (EncinaError)terminal;
+        }
+
+        // The caller still receives the original step error.
         return error;
+    }
+
+    /// <summary>
+    /// Records every compensation step as done, which moves the saga to Compensated once the
+    /// orchestrator has counted them all.
+    /// </summary>
+    private async Task<Either<EncinaError, Unit>> CompleteCompensationAsync(Guid sagaId)
+    {
+        int remaining;
+
+        do
+        {
+            var step = await _orchestrator.CompensateStepAsync(sagaId, CancellationToken.None)
+                .ConfigureAwait(false);
+
+            if (step.IsLeft)
+            {
+                return (EncinaError)step;
+            }
+
+            remaining = step.Match(Right: r => r, Left: _ => 0);
+        }
+        while (remaining > 0);
+
+        return Unit.Default;
     }
 
     private async ValueTask<Either<EncinaError, SagaResult<TData>>> HandleCancelledAsync<TData>(
@@ -239,7 +282,15 @@ public sealed class SagaRunner : ISagaRunner
         public int StepsExecuted { get; set; }
     }
 
-    private async Task CompensateAsync<TData>(
+    /// <summary>
+    /// Runs the compensations of the executed steps in reverse order. A failing compensation does
+    /// not stop the others.
+    /// </summary>
+    /// <returns>
+    /// <see langword="null"/> when every compensation succeeded; otherwise the persistable failure
+    /// code of the first failure (the compensation error code and the exception type, never the message).
+    /// </returns>
+    private async Task<string?> CompensateAsync<TData>(
         BuiltSagaDefinition<TData> definition,
         TData data,
         int fromStep,
@@ -247,6 +298,8 @@ public sealed class SagaRunner : ISagaRunner
         CancellationToken cancellationToken)
         where TData : class, new()
     {
+        string? failure = null;
+
         // Run compensation in reverse order
         for (var i = fromStep; i >= 0; i--)
         {
@@ -266,10 +319,13 @@ public sealed class SagaRunner : ISagaRunner
             }
             catch (Exception ex)
             {
-                // Log but continue with other compensations
+                // Log but continue with other compensations; the failure is reported to the caller.
                 Log.CompensationFailed(_logger, i + 1, step.Name, ex.GetType().Name, ex.ForLogging());
+                failure ??= $"{SagaErrorCodes.CompensationFailed}:{ex.GetType().Name}";
             }
         }
+
+        return failure;
     }
 }
 

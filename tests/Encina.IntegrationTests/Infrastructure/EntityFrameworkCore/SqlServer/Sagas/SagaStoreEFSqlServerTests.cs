@@ -1,4 +1,5 @@
 using Encina.EntityFrameworkCore.Sagas;
+using Encina.IntegrationTests.Infrastructure.Sagas;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 using LanguageExt;
@@ -29,6 +30,28 @@ public sealed class SagaStoreEFSqlServerTests : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         await _fixture.ClearAllDataAsync();
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenStepFailsAndCompensationsSucceed_PersistsCompensated()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        var store = new SagaStoreEF(context);
+
+        await SagaRunnerOutcomeScenarios.AssertStepFailureEndsCompensatedAsync(
+            store, new SagaStateFactory(), async () => (await store.SaveChangesAsync()).ShouldBeRight());
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenStepFailsAndCompensationThrows_PersistsFailed()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        var store = new SagaStoreEF(context);
+
+        await SagaRunnerOutcomeScenarios.AssertCompensationFailureEndsFailedAsync(
+            store, new SagaStateFactory(), async () => (await store.SaveChangesAsync()).ShouldBeRight());
     }
 
     [Fact]

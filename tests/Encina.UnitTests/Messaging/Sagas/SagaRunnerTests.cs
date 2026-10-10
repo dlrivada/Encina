@@ -1,6 +1,8 @@
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Sagas.LowCeremony;
 using Encina.Messaging.Serialization;
+using Encina.Testing.Fakes.Models;
+using Encina.Testing.Fakes.Stores;
 
 using LanguageExt;
 
@@ -340,6 +342,179 @@ public sealed class SagaRunnerTests
         compensated[1].ShouldBe("Compensate1");
     }
 
+    [Fact]
+    public async Task RunAsync_StepFailsAndAllCompensationsSucceed_EndsCompensatedWithCompletedAt()
+    {
+        // Arrange
+        var store = new FakeSagaStore();
+        var runner = CreateRunner(store);
+        var error = EncinaErrors.Create("STEP_FAILED", "Step 2 failed");
+
+        var definition = CreateDefinition(stepsWithCompensation:
+        [
+            ("Step1",
+             (data, _, _) => ValueTask.FromResult(Right<EncinaError, TestData>(data with { Value = 1 })),
+             (_, _, _) => Task.CompletedTask),
+            ("Step2",
+             (_, _, _) => ValueTask.FromResult(Left<EncinaError, TestData>(error)),
+             null)
+        ]);
+
+        // Act
+        var result = await runner.RunAsync(definition, new TestData());
+
+        // Assert: the caller still gets the original step error
+        result.IsLeft.ShouldBeTrue();
+        result.LeftAsEnumerable().First().GetCode().IfNone(string.Empty).ShouldBe("STEP_FAILED");
+
+        var saga = store.GetSagas().Single();
+        saga.Status.ShouldBe(SagaStatus.Compensated);
+        saga.CompletedAtUtc.ShouldNotBeNull();
+        saga.ErrorMessage.ShouldBe("STEP_FAILED");
+    }
+
+    [Fact]
+    public async Task RunAsync_FirstStepFails_EndsCompensated()
+    {
+        // Arrange
+        var store = new FakeSagaStore();
+        var runner = CreateRunner(store);
+        var error = EncinaErrors.Create("STEP_FAILED", "Step 1 failed");
+
+        var definition = CreateDefinition(steps:
+        [
+            ("Step1", (_, _, _) => ValueTask.FromResult(Left<EncinaError, TestData>(error)))
+        ]);
+
+        // Act
+        var result = await runner.RunAsync(definition, new TestData());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        store.GetSagas().Single().Status.ShouldBe(SagaStatus.Compensated);
+    }
+
+    [Fact]
+    public async Task RunAsync_StepFailsAndCompensationThrows_EndsFailedWithCodeAndExceptionType()
+    {
+        // Arrange
+        var store = new FakeSagaStore();
+        var runner = CreateRunner(store);
+        var error = EncinaErrors.Create("STEP_FAILED", "Step 3 failed");
+        var compensated = new List<string>();
+
+        var definition = CreateDefinition(stepsWithCompensation:
+        [
+            ("Step1",
+             (data, _, _) => ValueTask.FromResult(Right<EncinaError, TestData>(data with { Value = 1 })),
+             (_, _, _) => { compensated.Add("Compensate1"); return Task.CompletedTask; }),
+            ("Step2",
+             (data, _, _) => ValueTask.FromResult(Right<EncinaError, TestData>(data with { Value = 2 })),
+             (_, _, _) => throw new InvalidOperationException("secret compensation detail")),
+            ("Step3",
+             (_, _, _) => ValueTask.FromResult(Left<EncinaError, TestData>(error)),
+             null)
+        ]);
+
+        // Act
+        var result = await runner.RunAsync(definition, new TestData());
+
+        // Assert: original error returned, the other compensation still ran, final state Failed
+        result.IsLeft.ShouldBeTrue();
+        result.LeftAsEnumerable().First().GetCode().IfNone(string.Empty).ShouldBe("STEP_FAILED");
+        compensated.ShouldBe(["Compensate1"]);
+
+        var saga = store.GetSagas().Single();
+        saga.Status.ShouldBe(SagaStatus.Failed);
+        saga.CompletedAtUtc.ShouldNotBeNull();
+        var persisted = saga.ErrorMessage.ShouldNotBeNull();
+        persisted.ShouldBe($"{SagaErrorCodes.CompensationFailed}:{nameof(InvalidOperationException)}");
+        persisted.ShouldNotContain("secret");
+    }
+
+    [Fact]
+    public async Task RunAsync_StepFails_PersistsCompensatingBeforeCompensationsRun()
+    {
+        // Arrange
+        var store = new FakeSagaStore();
+        var runner = CreateRunner(store);
+        string? statusDuringCompensation = null;
+        var error = EncinaErrors.Create("STEP_FAILED", "Step 2 failed");
+
+        var definition = CreateDefinition(stepsWithCompensation:
+        [
+            ("Step1",
+             (data, _, _) => ValueTask.FromResult(Right<EncinaError, TestData>(data with { Value = 1 })),
+             (_, _, _) => { statusDuringCompensation = store.GetSagas().Single().Status; return Task.CompletedTask; }),
+            ("Step2",
+             (_, _, _) => ValueTask.FromResult(Left<EncinaError, TestData>(error)),
+             null)
+        ]);
+
+        // Act
+        await runner.RunAsync(definition, new TestData());
+
+        // Assert
+        statusDuringCompensation.ShouldBe(SagaStatus.Compensating);
+    }
+
+    [Fact]
+    public async Task RunAsync_StepFailsAndStartCompensationFails_ReturnsOrchestratorError()
+    {
+        // Arrange
+        // Update calls: 1 = AdvanceAsync of Step1, 2 = StartCompensationAsync.
+        var store = new FailingUpdateStore(failOnUpdate: 2);
+
+        var runner = CreateRunner(store);
+        var compensated = false;
+        var error = EncinaErrors.Create("STEP_FAILED", "Step 2 failed");
+
+        var definition = CreateDefinition(stepsWithCompensation:
+        [
+            ("Step1",
+             (data, _, _) => ValueTask.FromResult(Right<EncinaError, TestData>(data with { Value = 1 })),
+             (_, _, _) => { compensated = true; return Task.CompletedTask; }),
+            ("Step2",
+             (_, _, _) => ValueTask.FromResult(Left<EncinaError, TestData>(error)),
+             null)
+        ]);
+
+        // Act
+        var result = await runner.RunAsync(definition, new TestData());
+
+        // Assert: the orchestrator failure is returned, never reported as success or as the step error
+        result.IsLeft.ShouldBeTrue();
+        result.LeftAsEnumerable().First().GetCode().IfNone(string.Empty).ShouldBe("STORE_DOWN");
+        compensated.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task RunAsync_CompensationsSucceedButTerminalPersistFails_ReturnsOrchestratorError()
+    {
+        // Arrange: Update calls: 1 = AdvanceAsync of Step1, 2 = StartCompensationAsync, 3 = CompensateStepAsync.
+        var store = new FailingUpdateStore(failOnUpdate: 3);
+
+        var runner = CreateRunner(store);
+        var error = EncinaErrors.Create("STEP_FAILED", "Step 2 failed");
+
+        var definition = CreateDefinition(stepsWithCompensation:
+        [
+            ("Step1",
+             (data, _, _) => ValueTask.FromResult(Right<EncinaError, TestData>(data with { Value = 1 })),
+             (_, _, _) => Task.CompletedTask),
+            ("Step2",
+             (_, _, _) => ValueTask.FromResult(Left<EncinaError, TestData>(error)),
+             null)
+        ]);
+
+        // Act
+        var result = await runner.RunAsync(definition, new TestData());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.LeftAsEnumerable().First().GetCode().IfNone(string.Empty).ShouldBe("STORE_DOWN");
+    }
+
     #endregion
 
     #region RunAsync - Exception Handling
@@ -450,45 +625,76 @@ public sealed class SagaRunnerTests
 
     #region Helper Methods
 
-    private static SagaOrchestrator CreateOrchestrator()
+    /// <summary>Wraps a <see cref="FakeSagaStore"/> and fails the Nth UpdateAsync call with a "STORE_DOWN" error.</summary>
+    private sealed class FailingUpdateStore(int failOnUpdate) : ISagaStore
     {
-        var sagaStore = Substitute.For<ISagaStore>();
-        var options = new SagaOptions();
-        var logger = NullLogger<SagaOrchestrator>.Instance;
-        var stateFactory = Substitute.For<ISagaStateFactory>();
+        private readonly FakeSagaStore _inner = new();
+        private int _updates;
 
-        // Setup the mock to return a proper saga state
-        var mockState = Substitute.For<ISagaState>();
-        mockState.SagaId.Returns(Guid.NewGuid());
-        mockState.Status.Returns(SagaStatus.Running);
-        mockState.Data.Returns("{}");
-        mockState.CurrentStep.Returns(0);
+        public Task<Either<EncinaError, Option<ISagaState>>> GetAsync(Guid sagaId, CancellationToken cancellationToken = default)
+            => _inner.GetAsync(sagaId, cancellationToken);
 
-        stateFactory.Create(
-            Arg.Any<Guid>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<int>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime?>())
-            .Returns(mockState);
+        public Task<Either<EncinaError, LanguageExt.Unit>> AddAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
+            => _inner.AddAsync(sagaState, cancellationToken);
 
-        sagaStore.AddAsync(Arg.Any<ISagaState>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Either<EncinaError, LanguageExt.Unit>>(LanguageExt.Unit.Default));
+        public Task<Either<EncinaError, LanguageExt.Unit>> UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
+        {
+            if (++_updates == failOnUpdate)
+            {
+                return Task.FromResult<Either<EncinaError, LanguageExt.Unit>>(
+                    EncinaErrors.Create("STORE_DOWN", "store unavailable"));
+            }
 
-        sagaStore.GetAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(mockState)));
+            return _inner.UpdateAsync(sagaState, cancellationToken);
+        }
 
-        sagaStore.UpdateAsync(Arg.Any<ISagaState>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Either<EncinaError, LanguageExt.Unit>>(LanguageExt.Unit.Default));
+        public Task<Either<EncinaError, IEnumerable<ISagaState>>> GetStuckSagasAsync(TimeSpan olderThan, int batchSize, CancellationToken cancellationToken = default)
+            => _inner.GetStuckSagasAsync(olderThan, batchSize, cancellationToken);
 
-        return new SagaOrchestrator(sagaStore, options, logger, stateFactory, new JsonMessageSerializer());
+        public Task<Either<EncinaError, IEnumerable<ISagaState>>> GetExpiredSagasAsync(int batchSize, CancellationToken cancellationToken = default)
+            => _inner.GetExpiredSagasAsync(batchSize, cancellationToken);
+
+        public Task<Either<EncinaError, LanguageExt.Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
+            => _inner.SaveChangesAsync(cancellationToken);
     }
 
-    private static SagaRunner CreateRunner()
+    private sealed class FakeStateFactory : ISagaStateFactory
     {
-        var orchestrator = CreateOrchestrator();
+        public ISagaState Create(
+            Guid sagaId,
+            string sagaType,
+            string data,
+            string status,
+            int currentStep,
+            DateTime startedAtUtc,
+            DateTime? timeoutAtUtc = null) => new FakeSagaState
+            {
+                SagaId = sagaId,
+                SagaType = sagaType,
+                Data = data,
+                Status = status,
+                CurrentStep = currentStep,
+                StartedAtUtc = startedAtUtc,
+                LastUpdatedAtUtc = startedAtUtc,
+                TimeoutAtUtc = timeoutAtUtc
+            };
+    }
+
+    private static SagaOrchestrator CreateOrchestrator(ISagaStore? store = null)
+    {
+        // A stateful in-memory store: the orchestrator's status transitions are real, so the
+        // tests observe the persisted final state of the saga.
+        return new SagaOrchestrator(
+            store ?? new FakeSagaStore(),
+            new SagaOptions(),
+            NullLogger<SagaOrchestrator>.Instance,
+            new FakeStateFactory(),
+            new JsonMessageSerializer());
+    }
+
+    private static SagaRunner CreateRunner(ISagaStore? store = null)
+    {
+        var orchestrator = CreateOrchestrator(store);
         var requestContextAccessor = CreateAccessor();
         var logger = NullLogger<SagaRunner>.Instance;
         return new SagaRunner(orchestrator, requestContextAccessor, logger);
