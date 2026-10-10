@@ -4,6 +4,7 @@ using Encina.ADO.PostgreSQL.DeadLetter;
 using Encina.ADO.PostgreSQL.Health;
 using Encina.ADO.PostgreSQL.Inbox;
 using Encina.ADO.PostgreSQL.Outbox;
+using Encina.ADO.PostgreSQL.ReadWriteSeparation;
 using Encina.ADO.PostgreSQL.Repository;
 using Encina.ADO.PostgreSQL.Sagas;
 using Encina.ADO.PostgreSQL.Scheduling;
@@ -17,6 +18,7 @@ using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.Messaging;
 using Encina.Messaging.Health;
+using Encina.Messaging.ReadWriteSeparation;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
 using Microsoft.Extensions.DependencyInjection;
@@ -62,6 +64,7 @@ public static class ServiceCollectionExtensions
         RegisterAuditStores(services, config);
         RegisterAnonymizationAndPolicyStores(services, config);
         RegisterHealthServices(services, config);
+        RegisterReadWriteSeparation(services, config);
 
         return services;
     }
@@ -118,6 +121,49 @@ public static class ServiceCollectionExtensions
         // Register database health monitor for resilience infrastructure
         services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
             new PostgreSqlDatabaseHealthMonitor(sp));
+    }
+
+    private static void RegisterReadWriteSeparation(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseReadWriteSeparation)
+        {
+            return;
+        }
+
+        // Register the options
+        services.TryAddSingleton(config.ReadWriteSeparationOptions);
+
+        // Register replica selector based on strategy if replicas are configured
+        if (config.ReadWriteSeparationOptions.ReadConnectionStrings.Count > 0)
+        {
+            var replicaSelector = ReplicaSelectorFactory.Create(config.ReadWriteSeparationOptions);
+            services.TryAddSingleton<IReplicaSelector>(replicaSelector);
+
+            // Register connection selector with replica support
+            services.TryAddSingleton<IReadWriteConnectionSelector>(sp =>
+                new ReadWriteConnectionSelector(
+                    config.ReadWriteSeparationOptions,
+                    sp.GetRequiredService<IReplicaSelector>()));
+        }
+        else
+        {
+            // Register connection selector without replicas (falls back to primary)
+            services.TryAddSingleton<IReadWriteConnectionSelector>(
+                new ReadWriteConnectionSelector(
+                    config.ReadWriteSeparationOptions,
+                    replicaSelector: null));
+        }
+
+        // Register the connection factory
+        services.TryAddScoped<IReadWriteConnectionFactory, ReadWriteConnectionFactory>();
+
+        // Register the pipeline behavior for automatic routing (once, however many times the extension runs)
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped(typeof(IPipelineBehavior<,>), typeof(ReadWriteRoutingPipelineBehavior<,>)));
+
+        // Register the health check (once, however many times the extension runs)
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IEncinaHealthCheck, ReadWriteSeparationHealthCheck>());
     }
 
     private static void RemoveInMemoryDefault<TService, TInMemory>(IServiceCollection services)
