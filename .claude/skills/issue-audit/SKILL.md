@@ -487,6 +487,11 @@ worktree refusal, the resolver, both cross-audit duplicate checks and closing ou
 - At most `maxParallelAudits` audits open at once (2 to 5; 2 as shipped), each one individual; `audit-next.ps1`
   opens one per call, never an issue whose scope overlaps an open audit, and a stray `wia-*` worktree without
   its `open-audits/<n>.json` blocks starting a new one until you clean it up.
+- No audit is forgotten half-way: an audit is recorded as open (its state file, with `startedUtc`) the moment
+  `audit-next.ps1` starts it; `audit-stage.ps1 -List` shows every open audit with its next stage and days open
+  and flags `STALE` any open more than 2 days. While one is stale, `audit-next.ps1` refuses to start another
+  audit and names it; finish or close it first, or pass `-Force` (a deliberate, printed exception). Run `-List`
+  at the start of every session.
 - Every stage spawn is in the foreground, names the issue number and worktree explicitly, and is never
   batched with another issue's audit.
 - You never write a stage's own artifact; you write `stages/lessons.md` (the one file that is yours) and the

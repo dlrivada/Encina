@@ -42,7 +42,7 @@ if ($List) {
         $due = Get-NextStage (Get-StagesDir ([string]$a.worktree)) ([string]$a.worktree) (Get-AuditPipeline $a)
         $mode = if (Test-DeltaAudit $a) { " (delta $($a.set))" } else { '' }
         $age = Get-AuditAgeDays $a $now
-        $ageText = if ([double]::IsInfinity($age)) { 'start date unknown' } else { '{0:0.0} days open' -f $age }
+        $ageText = if ([double]::IsInfinity($age)) { 'start date unknown' } else { $age.ToString('0.0', [Globalization.CultureInfo]::InvariantCulture) + ' days open' }
         $stale = if ($age -gt $script:StaleAuditDays) { " STALE (open more than $($script:StaleAuditDays) days: finish or close it)" } else { '' }
         "#$($a.issue)$mode wia-$($a.issue): next stage $(if ($null -eq $due) { 'none (run audit-done.ps1 -Issue ' + $a.issue + ')' } else { "$($due.stage) ($($due.agent))" }); $ageText$stale; scope: $(if (@($a.scope).Count) { @($a.scope) -join ', ' } else { '-' })"
     }

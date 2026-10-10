@@ -19,7 +19,11 @@
 #      opens nothing; against an unopened one it only warns and opens;
 #   6. closing out of order: #12 (opened second) closes first; #10 and #13 stay open with their state, progress.csv
 #      records #12, and the next audit-next skips the overlapping #11 again and opens #14; once #10 closes, #11 is
-#      opened.
+#      opened;
+#   7. no audit forgotten half-way: an audit is recorded as open with its start date the moment audit-next starts
+#      it and is never handed to a second slot; audit-stage -List shows every open audit's stage and days open and
+#      flags one open more than 2 days STALE; audit-next refuses to start another audit while one is stale, naming
+#      it, unless -Force.
 # Nothing here can push or open anything.
 #
 # Exit code: 0 if every assertion passes, 1 otherwise.
@@ -86,9 +90,9 @@ exit 0
     $knowledge = Join-Path $main 'artifacts\knowledge'
     $openDir = Join-Path $knowledge 'open-audits'
     $remDir = Join-Path $knowledge 'remediation'
-    Write-Text (Join-Path $knowledge 'audit-queue.txt') "10`n11`n12`n13`n14`n"
+    Write-Text (Join-Path $knowledge 'audit-queue.txt') "10`n11`n12`n13`n14`n15`n"
     Write-Text (Join-Path $knowledge 'progress.csv') "issue,status,findings_blocker,findings_major,findings_minor,remediation_opened,notes`n"
-    $packages = @{ 10 = 'Encina.A'; 11 = 'Encina.A'; 12 = 'Encina.B'; 13 = 'Encina.C'; 14 = 'Encina.D' }
+    $packages = @{ 10 = 'Encina.A'; 11 = 'Encina.A'; 12 = 'Encina.B'; 13 = 'Encina.C'; 14 = 'Encina.D'; 15 = 'Encina.B' }
     foreach ($n in $packages.Keys) {
         Write-Text (Join-Path $knowledge "predraft\$n.md") "---`nissue: $n`ntitle: `"[DEBT] Fixture $n`"`npackages: [$($packages[$n]), Encina.NotAPackage]`n---`n`n## Decisions`n- none`n"
     }
@@ -221,6 +225,23 @@ exit 0
     $r = Invoke-Script 'audit-next.ps1' @()
     Assert-That 'with #10 closed, the skipped #11 is opened (queue order kept)' ($r.Exit -eq 0 -and $r.Text -like '*Audit #11 opened*') $r.Text
     Assert-That 'progress.csv records the audits in the order they closed (#12, #10)' ((@(Get-Content (Join-Path $knowledge 'progress.csv') | Where-Object { $_ -match '^\d+,done' } | ForEach-Object { ($_ -split ',')[0] }) -join ',') -eq '12,10')
+
+    # --- 7. no audit forgotten half-way ---------------------------------------------------------------------------
+    $s11 = Get-State 11
+    $age11 = ([DateTime]::UtcNow - ([DateTime]$s11.startedUtc).ToUniversalTime()).TotalMinutes
+    Assert-That 'an audit is recorded as open with its start date the moment audit-next starts it' ($s11 -and $age11 -ge 0 -and $age11 -lt 30) ($s11 | ConvertTo-Json -Compress)
+    $r = Invoke-Script 'audit-next.ps1' @('-Issue', '11')
+    Assert-That 'audit-next never hands an open audit to a second slot' ($r.Exit -ne 0 -and @(Get-ChildItem $openDir -Filter '11.json').Count -eq 1) $r.Text
+    $s13 = Get-Content (Join-Path $openDir '13.json') -Raw | ConvertFrom-Json -AsHashtable
+    $s13.startedUtc = [DateTime]::UtcNow.AddDays(-5).ToString('yyyy-MM-ddTHH:mm:ssZ')
+    Write-Text (Join-Path $openDir '13.json') ($s13 | ConvertTo-Json)
+    $r = Invoke-Script 'audit-stage.ps1' @('-List')
+    Assert-That '-List shows every open audit with its stage and days open, and flags #13 (5 days) STALE' ($r.Exit -eq 0 -and $r.Text -match '#13 wia-13: next stage \S+.*5\.0 days open STALE' -and $r.Text -match '#11 wia-11: next stage archivist \(issue-archivist\); 0\.0 days open; scope' -and $r.Text -notmatch '#11[^\n]*STALE' -and $r.Text -notmatch '#14[^\n]*STALE') $r.Text
+    Set-MaxParallel '4'
+    $r = Invoke-Script 'audit-next.ps1' @()
+    Assert-That 'audit-next refuses to start another audit while #13 is stale, naming it' ($r.Exit -ne 0 -and $r.Text -like '*stale audit(s) open for more than 2 days: #13 (wia-13*-Force*' -and $null -eq (Get-State 15)) $r.Text
+    $r = Invoke-Script 'audit-next.ps1' @('-Force')
+    Assert-That '-Force starts the next audit anyway, with a warning naming the stale one' ($r.Exit -eq 0 -and $r.Text -like '*-Force*#13*' -and $r.Text -like '*Audit #15 opened*') $r.Text
 }
 finally {
     Set-Location $PSScriptRoot

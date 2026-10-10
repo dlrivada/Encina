@@ -33,7 +33,13 @@
 # prints the first stage of tools/ai/audit/pipeline-delta.json. Delta audits count toward the same limit.
 #   pwsh -NoProfile -File tools/ai/audit/audit-next.ps1 -Delta rules-2026-10 [-Issue n]
 
-param([int]$Issue, [string]$Delta = '')
+#
+# No audit forgotten half-way (#2234): the audit is recorded as open (its state file, with startedUtc) the moment
+# this script starts it, so it is never handed to a second slot and audit-stage.ps1 -List shows it with its stage
+# and the days it has been open. While any open audit is older than 2 days (stale), this script refuses to start
+# another one and names it; -Force starts one anyway (an explicit, printed decision).
+
+param([int]$Issue, [string]$Delta = '', [switch]$Force)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_audit-lib.ps1')
@@ -60,6 +66,15 @@ try {
     if ($open.Count -ge $max) {
         Write-Error "audit-next: $($open.Count) audits are already open ($openText) and pipeline.json maxParallelAudits is $max. Close one with audit-done.ps1 first."
         exit 1
+    }
+    $stale = @(Get-StaleAudits $open ([DateTime]::UtcNow))
+    if ($stale.Count -gt 0) {
+        $staleText = ($stale | ForEach-Object { "#$($_.issue) (wia-$($_.issue), started $($_.startedUtc))" }) -join ', '
+        if (-not $Force) {
+            Write-Error "audit-next: stale audit(s) open for more than $($script:StaleAuditDays) days: $staleText. Finish or close them first (audit-stage.ps1 -List shows their stage), or pass -Force to start another audit anyway."
+            exit 1
+        }
+        Write-Warning "audit-next: -Force: starting another audit although stale audit(s) are open: $staleText."
     }
     $existingWia = @(Get-ChildItem -LiteralPath $worktreesRoot -Directory -Filter 'wia-*' -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch '^wia-(\d+)$' -or $openNumbers -notcontains $Matches[1] })
     if ($existingWia.Count -gt 0) {
