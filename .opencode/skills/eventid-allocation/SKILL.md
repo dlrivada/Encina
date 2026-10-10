@@ -36,7 +36,7 @@ Manages EventId allocation for Encina's structured logging system. Prevents coll
 | Compliance | 8100-8949 | GDPR, Consent, DSR, LawfulBasis, Anonymization, CryptoShredding, Retention, DataResidency, BreachNotification, DPIA, PrivacyByDesign |
 | Security Extensions | 9000-9199 | ABAC, AntiTampering |
 | Compliance Extensions | 9200-9699 | NIS2, CrossBorderTransfer, ProcessorAgreements, AIAct, Attestation |
-| Free | 300-1099, 5450-6999, 7100-7999, 8950-8999, 9700-9999 | Future modules |
+| Free | 300-1099, 5500-6999, 7100-7999, 8950-8999, 9700-9999 | Future modules |
 
 ## Allocation Workflow
 
