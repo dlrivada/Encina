@@ -162,7 +162,8 @@ public sealed class ABACPipelineDecisionAuditTests
         TimeProvider? timeProvider = null,
         IAttributeProvider? attributes = null,
         ObligationExecutor? executor = null,
-        ILogger<ABACPipelineBehavior<TRequest, string>>? logger = null)
+        ILogger<ABACPipelineBehavior<TRequest, string>>? logger = null,
+        ABACDecisionAuditHealthState? healthState = null)
         where TRequest : IRequest<string> =>
         new(
             pdp,
@@ -172,7 +173,8 @@ public sealed class ABACPipelineDecisionAuditTests
             Microsoft.Extensions.Options.Options.Create(options),
             recorder,
             timeProvider ?? new FakeTimeProvider(Start),
-            logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
+            logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance,
+            healthState);
 
     private static IRequestContext User(string id = "alice") =>
         TestRequestContext.For(TestIdentity.User(id), tenantId: "tenant-1", correlationId: "corr-1");
@@ -530,6 +532,45 @@ public sealed class ABACPipelineDecisionAuditTests
         Behavior = _ => ValueTask.FromResult(Left<EncinaError, Unit>(
             EncinaErrors.Create("store.down", "store message that must not travel")))
     };
+
+    [Fact]
+    public async Task WriteFailure_MarksTheHealthStateAndTheNextSuccessfulWriteClearsIt()
+    {
+        var clock = new FakeTimeProvider(Start);
+        var state = new ABACDecisionAuditHealthState(clock);
+        var recorder = FailingRecorder();
+        var behavior = Behavior<PolicyARequest>(Pdp(Effect.Permit), Options(), recorder, clock, healthState: state);
+
+        await SendAsync(behavior, new PolicyARequest());
+        state.LastFailureAtUtc.ShouldBe(Start);
+
+        recorder.Behavior = null;
+        await SendAsync(behavior, new PolicyARequest());
+        state.LastFailureAtUtc.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task WriteFailureForADeniedRequest_StillMarksTheHealthState()
+    {
+        var state = new ABACDecisionAuditHealthState(new FakeTimeProvider(Start));
+        var behavior = Behavior<PolicyARequest>(Pdp(Effect.Deny), Options(), FailingRecorder(), healthState: state);
+
+        await SendAsync(behavior, new PolicyARequest());
+
+        state.LastFailureAtUtc.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task RecordThatCannotBeBuilt_MarksTheHealthStateAsFailed()
+    {
+        var state = new ABACDecisionAuditHealthState(new FakeTimeProvider(Start));
+        var behavior = Behavior<ThrowingResourceRequest>(
+            Pdp(Effect.Permit), Options(), new RecordingRecorder(), healthState: state);
+
+        await SendAsync(behavior, new ThrowingResourceRequest());
+
+        state.LastFailureAtUtc.ShouldNotBeNull();
+    }
 
     [Theory]
     [InlineData(ABACEnforcementMode.Block)]

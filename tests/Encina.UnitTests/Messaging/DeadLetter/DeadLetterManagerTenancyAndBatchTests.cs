@@ -1,6 +1,5 @@
 using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Serialization;
-using Encina.Messaging.Tenancy;
 using Encina.Testing.Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -77,7 +76,7 @@ public sealed class DeadLetterManagerTenancyAndBatchTests
             new DeadLetterOptions(),
             accessor,
             new FakeTimeProvider(new DateTimeOffset(FixedUtcNow)),
-            tenancy ? TenancyInUse.Instance : null);
+            tenancy ? new MultiTenancyMarker() : null);
 
         return new Rig { Manager = manager, Store = store, ServiceProvider = serviceProvider, Logger = logger };
     }

@@ -48,6 +48,7 @@ public static class ServiceCollectionExtensions
     /// <item><description><see cref="ABACPipelineBehavior{TRequest, TResponse}"/> (Transient, added with <c>TryAddEnumerable</c>)</description></item>
     /// <item><description>The request identity model (<see cref="RequestIdentityServiceCollectionExtensions.AddEncinaRequestIdentity"/>): the PEP reads the caller from <see cref="IRequestContext.Identity"/></description></item>
     /// <item><description>A startup check that logs Warning 9085 once when the final options set <see cref="ABACEnforcementMode.Disabled"/></description></item>
+    /// <item><description><see cref="ABACDecisionAuditHealthState"/> (Singleton): the outcome of the last decision audit write, read by <see cref="Health.ABACHealthCheck"/></description></item>
     /// <item><description><see cref="IABACDecisionRecorder"/> → <see cref="AuditStoreABACDecisionRecorder"/> (Singleton) and <see cref="IABACDecisionAuditReader"/> (Scoped): both resolve the application's <c>IOperationAuditStore</c> per call and stay idle until <see cref="ABACDecisionAuditOptions.Enabled"/> is set</description></item>
     /// <item><description>An options validator that checks the decision audit bounds when the application starts</description></item>
     /// </list>
@@ -140,6 +141,7 @@ public static class ServiceCollectionExtensions
         // write in its own scope and the reader per call, so an application without a store builds.
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IABACDecisionRecorder, AuditStoreABACDecisionRecorder>();
+        services.TryAddSingleton<ABACDecisionAuditHealthState>();
         services.TryAddScoped<IABACDecisionAuditReader, ABACDecisionAuditReader>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ABACOptions>, ABACOptionsValidator>());
         services.AddOptions<ABACOptions>().ValidateOnStart();

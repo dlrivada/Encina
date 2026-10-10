@@ -1,7 +1,6 @@
 using Encina.Diagnostics;
 using Encina.Messaging.Diagnostics;
 using Encina.Messaging.Serialization;
-using Encina.Messaging.Tenancy;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -20,7 +19,7 @@ namespace Encina.Messaging.DeadLetter;
 /// <see cref="DeadLetterFilter.AllTenants"/> opts out for operator tooling (logged by event, never silent).
 /// </para>
 /// <para>
-/// Tenancy fails closed: when multi-tenancy is in use (<see cref="TenancyInUse"/> is registered, which
+/// Tenancy fails closed: when multi-tenancy is in use (<see cref="MultiTenancyMarker"/> is registered, which
 /// <c>AddEncinaTenancy</c> does) and no tenant is resolved, an operation that names no tenant and does not set
 /// <see cref="DeadLetterFilter.AllTenants"/> is denied with <see cref="DeadLetterErrorCodes.TenantRequired"/>
 /// (an <c>encina.authorization.*</c> code, 403). Operations by message id and
@@ -38,7 +37,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
     private readonly DeadLetterOptions _options;
     private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly TimeProvider _timeProvider;
-    private readonly TenancyInUse? _tenancy;
+    private readonly MultiTenancyMarker? _tenancy;
 
     private const string OpReplay = "replay";
     private const string OpReplayAll = "replay_all";
@@ -76,7 +75,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
         DeadLetterOptions options,
         IRequestContextAccessor requestContextAccessor,
         TimeProvider? timeProvider = null,
-        TenancyInUse? tenancy = null)
+        MultiTenancyMarker? tenancy = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(orchestrator);

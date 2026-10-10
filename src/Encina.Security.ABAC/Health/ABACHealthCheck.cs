@@ -1,6 +1,8 @@
 using Encina.Security.ABAC.Persistence;
+using Encina.Security.Audit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Security.ABAC.Health;
 
@@ -20,6 +22,17 @@ namespace Encina.Security.ABAC.Health;
 /// <item><description><see cref="HealthStatus.Unhealthy"/> — The PAP or the persistent store could not be queried
 /// (e.g., connection error).</description></item>
 /// </list>
+/// </para>
+/// <para>
+/// When <see cref="ABACOptions.DecisionAudit"/> is enabled the result also reflects the decision audit,
+/// and the worse status wins. There is no write probe: the check reads
+/// <see cref="DecisionAudit.ABACDecisionAuditHealthState"/>, which the Policy Enforcement Point updates on every
+/// audited decision. <see cref="HealthStatus.Unhealthy"/> — no <see cref="IOperationAuditStore"/> is registered,
+/// or the last write failed within <see cref="DecisionAudit.ABACDecisionAuditOptions.HealthFailureWindow"/> under
+/// <see cref="DecisionAudit.ABACDecisionAuditFailureMode.FailClosed"/>. <see cref="HealthStatus.Degraded"/> — the
+/// last write failed under <see cref="DecisionAudit.ABACDecisionAuditFailureMode.BestEffort"/> or outside the
+/// window (a successful write clears the failure), or the store is <see cref="InMemoryOperationAuditStore"/>.
+/// The description and data carry fixed text and a state code only, never a subject or tenant identifier.
 /// </para>
 /// <para>
 /// The <see cref="IPolicyStore"/> dependency is resolved optionally via
@@ -70,6 +83,93 @@ public sealed class ABACHealthCheck : IHealthCheck
     public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
+    {
+        var engine = await CheckPolicyEngineAsync(cancellationToken).ConfigureAwait(false);
+
+        // ── Step 3: Decision audit (only when enabled) ───────────────────
+        var audit = CheckDecisionAudit();
+        return audit is null ? engine : Combine(engine, audit.Value);
+    }
+
+    // The worse status wins; both descriptions are kept, the engine's first.
+    private static HealthCheckResult Combine(HealthCheckResult engine, HealthCheckResult audit)
+    {
+        var status = engine.Status < audit.Status ? engine.Status : audit.Status;
+        var description = $"{engine.Description} {audit.Description}";
+        var data = audit.Data.Count == 0 ? null : audit.Data;
+        return new HealthCheckResult(status, description, exception: null, data);
+    }
+
+    /// <summary>
+    /// Reads the decision audit state without a write probe: nothing is written to the store.
+    /// </summary>
+    /// <returns>
+    /// <c>null</c> when <see cref="DecisionAudit.ABACDecisionAuditOptions.Enabled"/> is false (or no options are
+    /// registered), otherwise the audit's own result. The description and data carry codes and fixed text only,
+    /// never a subject, tenant or error message.
+    /// </returns>
+    private HealthCheckResult? CheckDecisionAudit()
+    {
+        try
+        {
+            var audit = _serviceProvider.GetService<IOptions<ABACOptions>>()?.Value.DecisionAudit;
+            if (audit is not { Enabled: true })
+            {
+                return null;
+            }
+
+            return DescribeDecisionAudit(audit);
+        }
+#pragma warning disable CA1031 // Do not catch general exception types — health checks must not throw
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            return HealthCheckResult.Unhealthy(
+                $"Failed to read the decision audit state: {ex.GetType().Name}.");
+        }
+    }
+
+    private HealthCheckResult DescribeDecisionAudit(DecisionAudit.ABACDecisionAuditOptions audit)
+    {
+        // The store is resolved lazily and only here, so a disabled audit needs none.
+        using var scope = _serviceProvider.CreateScope();
+        var store = scope.ServiceProvider.GetService<IOperationAuditStore>();
+
+        if (store is null)
+        {
+            return Audit(HealthStatus.Unhealthy, "no_store",
+                "Decision audit is enabled but no IOperationAuditStore is registered.");
+        }
+
+        var lastFailure = _serviceProvider.GetService<DecisionAudit.ABACDecisionAuditHealthState>()?.LastFailureAtUtc;
+        return lastFailure is { } failedAt
+            ? DescribeFailedWrite(failedAt, audit)
+            : DescribeStore(store);
+    }
+
+    private HealthCheckResult DescribeFailedWrite(DateTimeOffset failedAt, DecisionAudit.ABACDecisionAuditOptions audit)
+    {
+        var now = (_serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow();
+        var blocking = now - failedAt <= audit.HealthFailureWindow
+            && audit.FailureMode == DecisionAudit.ABACDecisionAuditFailureMode.FailClosed;
+
+        return blocking
+            ? Audit(HealthStatus.Unhealthy, "write_failed",
+                "The last decision audit write failed; requests that would proceed are denied (FailClosed).")
+            : Audit(HealthStatus.Degraded, "write_failed",
+                "The last decision audit write failed and no write has succeeded since.");
+    }
+
+    private static HealthCheckResult DescribeStore(IOperationAuditStore store) =>
+        store is InMemoryOperationAuditStore
+            ? Audit(HealthStatus.Degraded, "in_memory_store",
+                "Decision audit writes to InMemoryOperationAuditStore, which does not survive a restart.")
+            : Audit(HealthStatus.Healthy, "ok", "Decision audit is recording.");
+
+    private static HealthCheckResult Audit(HealthStatus status, string state, string description) =>
+        new(status, description, exception: null, new Dictionary<string, object> { ["decision_audit"] = state });
+
+    private async Task<HealthCheckResult> CheckPolicyEngineAsync(CancellationToken cancellationToken)
     {
         try
         {

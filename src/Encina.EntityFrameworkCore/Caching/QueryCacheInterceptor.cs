@@ -377,13 +377,14 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     private QueryCacheKey? CacheableKey(DbCommand command, DbContext context) =>
         GenerateCacheKey(command, context) is { } cacheKey && !IsExcluded(cacheKey) ? cacheKey : null;
 
-    // Multi-tenancy is on when Encina.Tenancy registered its tenant provider (AddEncinaTenancy).
+    // Multi-tenancy is on when the core marker is registered (AddEncinaTenancy does it): the same signal
+    // the dead letter manager and the ABAC decision audit reader check, so one registration answers for all.
     // Read once: registrations do not change after the provider is built.
     private bool IsMultiTenant() => _multiTenant.Value;
 
     private bool DetectMultiTenancy() =>
         (_serviceProvider.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService)
-            ?.IsService(typeof(ITenantProvider)) == true;
+            ?.IsService(typeof(MultiTenancyMarker)) == true;
 
     /// <summary>
     /// Checks whether any of the entity types in the cache key are excluded from caching.

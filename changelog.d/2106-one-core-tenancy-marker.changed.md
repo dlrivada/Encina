@@ -1,0 +1,1 @@
+- The dead letter manager now reads the core `MultiTenancyMarker`, the same signal the ABAC decision audit reader uses, so `AddEncinaTenancy` registers one marker for every tenant-aware component; `Encina.Messaging.Tenancy.TenancyInUse` is removed and the `DeadLetterManager` constructor takes `MultiTenancyMarker?` instead. (#2106)
