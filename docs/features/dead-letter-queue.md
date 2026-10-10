@@ -236,6 +236,7 @@ The registration also adds `DeadLetterSourceCapture`, which the built-in sources
 | `IntegrateWithInbox` | The attempt that uses up `InboxOptions.MaxRetries`. Only a thrown exception is an attempt: a handler `Left` is a cached business result and never retries | The inbox message id | The request object (`InboxOrchestrator.ProcessAsync` takes it as its first parameter); the tenant comes from the inbox metadata | A retryable failure is returned as the attempt's `Left`; a rejected capture (`dlq.capture_rejected`) is not, and the inbox answers as without a dead letter queue. A redelivery refused with `inbox.max_retries_exceeded` captures again idempotently, which repairs a failed capture |
 | `IntegrateWithScheduling` | The failure that the scheduling retry policy dead-letters | The scheduled message id | The stored request type and content | Captured before the state is recorded, so after a retryable failure the message stays due for a later cycle (a rejection records the dead-lettered state, see the bullets below) |
 | `IntegrateWithSagas` | `SagaOrchestrator.FailAsync` ends the saga `Failed` (in `SagaRunner`: a failed compensation, a cancelled run or an unexpected exception). A `Compensated` saga is not captured | The saga id | The saga type name and the saga data | Returned by `FailAsync` after `Failed` was stored. `SagaRunner` returns that `Left` on all three triggers instead of the original error |
+| `IntegrateWithSagas` (not found) | A handler of `IHandleSagaNotFound<TMessage>` calls `SagaNotFoundContext.MoveToDeadLetterAsync` | `SagaNotFoundContext.SourceMessageId`, the identity the caller supplies (see below) | The message itself, serialized through `IMessageSerializer`, under source pattern `Saga`. The record stores the error code `saga.not_found`; the reason text stays in memory (`DeadLetterReason`) | Returned to the handler as a `Left`; only a `Right` marks the message as moved (`WasMovedToDeadLetter`) |
 
 - While the dead letter store is failing, or a capture throws (`dlq.capture_failed`, `DeadLetterErrorCodes.CaptureFailed`), an outbox message, a scheduled message or a delayed retry row that reached its terminal failure is not marked terminal, so it is delivered or run again on every processing cycle (its handler runs again) until a capture succeeds. `MaxRetries` does not bound those repeats. Monitor EventIds 2996, 2997 and 2961 and `DeadLetterHealthCheck`. `DeadLetterSourceCapture.IsRetryable` returns `true` for these errors.
 - A capture the queue rejects is not retried (`dlq.capture_rejected`, `DeadLetterErrorCodes.CaptureRejected`; `DeadLetterSourceCapture.IsRetryable` returns `false`). It happens when an identity value is over its limit or has leading or trailing white space, when an instant is not UTC, or when the source pattern has no `IntegrateWith*` flag. The outbox records the exhausted state, scheduling the dead-lettered state, and the delayed retry processor fails the row and runs `OnPermanentFailure`; the row stays in its table for inspection and requeue. The rejection is logged (EventId 2998) and counted in `encina.dlq.store_failures_total` with operation `capture`, as is a capture that threw.
@@ -245,7 +246,44 @@ The registration also adds `DeadLetterSourceCapture`, which the built-in sources
 - Every capture runs in a DI scope of its own, so on EF Core it never saves the source's tracked changes.
 - An outbox dead letter is replayed by publishing the notification again. Saga data is not a request, so a saga's replay is normally recorded as failed (`dlq.deserialization_failed`) unless the stored saga type name resolves to a request or notification type; the record is kept for inspection.
 - Outbox, scheduled and delayed-retry rows carry no tenant yet (#737, #739). Their dead letters take the ambient tenant of the running cycle, which is none for the hosted processors; under `AddEncinaTenancy` such a dead letter is seen only by an operator using `DeadLetterFilter.AllTenants`. Do not drive those cycles from a tenant-scoped request. The inbox takes the tenant from its metadata, and a saga's context sets none, so a saga dead letter also takes the ambient tenant.
-- The "saga not found" path (`SagaNotFoundContext.MoveToDeadLetterAsync`) is not wired yet: it waits for the identity decision in [#2203](https://github.com/dlrivada/Encina/issues/2203).
+- **Saga not found.** `ISagaNotFoundDispatcher.DispatchAsync` connects `SagaNotFoundContext.MoveToDeadLetterAsync` to the capture while `IntegrateWithSagas` is on. The caller supplies the message's identity, because a saga that was not found has no state to take one from ([ADR-046](../architecture/adr/046-persistent-dead-letter-queue.md), decision 15). `MoveToDeadLetterAsync` returns `Either<EncinaError, Unit>`:
+
+    | Result | When |
+    | --- | --- |
+    | `Right` | The message was stored, or was already stored for the same `SourceMessageId`. Only this marks the message as moved |
+    | `Left` `dlq.not_configured` (`DeadLetterErrorCodes.NotConfigured`) | The dead letter queue is not registered, or `IntegrateWithSagas` is off |
+    | `Left` `dlq.source_message_id_required` (`DeadLetterErrorCodes.SourceMessageIdRequired`) | The context was created without a `sourceMessageId`. Encina never guesses a key |
+    | `Left` with the capture's error | Storing failed or was rejected (see the bullets above) |
+
+    The id must be unique among the dead letters of the saga source. Saga ids are GUIDs and several messages can miss the same saga, so use the transport's message id. A redelivery with the same id keeps one dead letter. The caller creates the context:
+
+    ```csharp
+    using Encina.Messaging.Sagas;
+
+    // sagaNotFoundDispatcher is an ISagaNotFoundDispatcher; transportMessageId comes from the transport
+    var context = new SagaNotFoundContext(
+        sagaId, sagaType, typeof(PaymentCompleted), sourceMessageId: transportMessageId);
+    await sagaNotFoundDispatcher.DispatchAsync(message, context, cancellationToken);
+    ```
+
+    and the handler moves the message:
+
+    ```csharp
+    using Encina.Messaging.Sagas;
+    using Microsoft.Extensions.Logging;
+
+    public sealed class PaymentCompletedNotFoundHandler(ILogger<PaymentCompletedNotFoundHandler> logger)
+        : IHandleSagaNotFound<PaymentCompleted>
+    {
+        public async Task HandleAsync(
+            PaymentCompleted message, SagaNotFoundContext context, CancellationToken cancellationToken)
+        {
+            var moved = await context.MoveToDeadLetterAsync("Saga correlation failed", cancellationToken);
+            moved.IfLeft(error => logger.LogError(
+                "Dead letter failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
+        }
+    }
+    ```
 
 ### Multi-tenancy fails closed
 
