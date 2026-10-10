@@ -17,19 +17,23 @@ internal sealed class ABACOptionsValidator : IValidateOptions<ABACOptions>
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        var failures = new List<string>();
         var audit = options.DecisionAudit;
 
-        if (audit.WriteTimeout <= TimeSpan.Zero || audit.WriteTimeout > MaxWriteTimeout)
-        {
-            failures.Add("ABACOptions.DecisionAudit.WriteTimeout must be greater than zero and at most int.MaxValue milliseconds.");
-        }
+        (bool Valid, string Message)[] rules =
+        [
+            (audit.WriteTimeout > TimeSpan.Zero && audit.WriteTimeout <= MaxWriteTimeout,
+                "ABACOptions.DecisionAudit.WriteTimeout must be greater than zero and at most int.MaxValue milliseconds."),
+            (audit.MaxTraceEntries >= 1,
+                "ABACOptions.DecisionAudit.MaxTraceEntries must be at least 1."),
+            ((audit.Outcomes & ~ABACDecisionAuditOutcomes.All) == 0,
+                "ABACOptions.DecisionAudit.Outcomes contains a value that is not an ABACDecisionAuditOutcomes flag."),
+            (!(audit.Enabled && options.EnforcementMode == ABACEnforcementMode.Disabled),
+                "ABACOptions.DecisionAudit.Enabled cannot be combined with EnforcementMode.Disabled: a disabled enforcement point evaluates and records nothing."),
+            (Enum.IsDefined(audit.FailureMode),
+                "ABACOptions.DecisionAudit.FailureMode is not a defined ABACDecisionAuditFailureMode value.")
+        ];
 
-        if (audit.MaxTraceEntries < 1)
-        {
-            failures.Add("ABACOptions.DecisionAudit.MaxTraceEntries must be at least 1.");
-        }
-
+        var failures = rules.Where(rule => !rule.Valid).Select(rule => rule.Message).ToList();
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 }

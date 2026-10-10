@@ -120,7 +120,7 @@ ABACDiagnostics.RecordIndeterminate(activity, reason);
 
 ## Structured Logging
 
-All log messages use compile-time source generation via `[LoggerMessage]` for zero-allocation logging when the log level is disabled. Event IDs occupy the `9000-9099` range reserved for ABAC diagnostics. The package's EventIds are allocated inside 9000-9099 (9098 and 9099 are both used); the unused ids to reuse first are 9006-9007, 9016-9019, 9023-9029, 9041-9049 and 9056-9057; 9084, 9086 and 9087 of the 9079-9090 block reserved for #751 are not allocated yet (decision audit startup check). Ids 9094-9097 come from `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096).
+All log messages use compile-time source generation via `[LoggerMessage]` for zero-allocation logging when the log level is disabled. Event IDs occupy the `9000-9099` range reserved for ABAC diagnostics. The package's EventIds are allocated inside 9000-9099 (9098 and 9099 are both used); the unused ids to reuse first are 9006-9007, 9016-9019, 9023-9029, 9041-9049 and 9056-9057; 9079-9090 are the decision audit trail of #751, including the startup check (9084, 9086 and 9087). Ids 9094-9097 come from `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096).
 
 ### Pipeline Messages (9000-9005, 9008-9009)
 
@@ -170,7 +170,7 @@ These messages carry error codes and exception types only, never an error or exc
 
 ### Fail-Closed Messages (9091-9093)
 
-These messages carry error codes, source names and exception types only, never an error message, an exception message or a user identifier. The decision audit messages (9079-9083, 9088-9090) are listed in the next section.
+These messages carry error codes, source names and exception types only, never an error message, an exception message or a user identifier. The decision audit messages (9079-9090) are listed in the next section.
 
 | EventId | Level | Message Template | Parameters |
 |---------|-------|------------------|------------|
@@ -180,7 +180,7 @@ These messages carry error codes, source names and exception types only, never a
 
 ### Decision Audit Messages (9079-9090)
 
-Emitted by the Policy Enforcement Point, `AuditStoreABACDecisionRecorder` and the decision audit reader. They carry request type names, decision ids and error codes or exception types only, never an error or exception message. See [Decision audit](decision-audit.md). EventIds 9084, 9086 and 9087 of this block are not allocated yet.
+Emitted by the Policy Enforcement Point, `AuditStoreABACDecisionRecorder` and the decision audit reader. They carry request type names, decision ids and error codes or exception types only, never an error or exception message. See [Decision audit](decision-audit.md). EventIds 9084, 9086 and 9087 come from the startup check, which runs only when the audit is enabled.
 
 | EventId | Level | Message Template | Parameters |
 |---------|-------|------------------|------------|
@@ -189,6 +189,9 @@ Emitted by the Policy Enforcement Point, `AuditStoreABACDecisionRecorder` and th
 | 9081 | `Warning` | `The ABAC decision for {RequestType} could not be recorded ({FailureCode}). The request proceeds (BestEffort)` | `requestType`, `failureCode` |
 | 9082 | `Error` | `The ABAC decision for {RequestType}, which was denied, could not be recorded ({FailureCode}). The denial stands` | `requestType`, `failureCode` |
 | 9083 | `Error` | `The decision recorder threw while recording the ABAC decision for {RequestType}` | `exception` (through `ForLogging()`), `requestType` |
+| 9084 | `Warning` | `The ABAC decision audit runs in BestEffort mode: a request proceeds even when its decision record cannot be written, so the trail may be incomplete` | none |
+| 9086 | `Warning` | `The ABAC decision audit writes to InMemoryOperationAuditStore: the trail is lost when the process stops. Register a persistent IOperationAuditStore for production` | none |
+| 9087 | `Critical` | `The ABAC decision audit is enabled but no IOperationAuditStore is registered. Register one (for example through a provider package) or disable DecisionAudit` | none; the host start then fails with `InvalidOperationException` |
 | 9088 | `Debug` | `The evaluation trace of the ABAC decision for {RequestType} reached the limit of {MaxTraceEntries} entries and is truncated` | `requestType`, `maxTraceEntries` |
 | 9089 | `Debug` | `The write of ABAC decision {DecisionId} reported a failure ({FailureCode}) but the entry is stored; the record counts as written` | `decisionId`, `failureCode` |
 | 9090 | `Warning` | `A decision audit query ran without a tenant in a multi-tenant application (AllowCrossTenantQueries is set)` | none |
@@ -377,5 +380,5 @@ abac_obligation_no_handler
 | File | Purpose |
 |------|---------|
 | `src/Encina.Security.ABAC/Diagnostics/ABACDiagnostics.cs` | Activity source, meter, counters, histograms, tag constants, recording helpers |
-| `src/Encina.Security.ABAC/Diagnostics/ABACLogMessages.cs` | `[LoggerMessage]` source-generated structured log methods (EventIds allocated inside 9000-9099, unused ids 9006-9007, 9016-9019, 9023-9029, 9041-9049 and 9056-9057; 9079-9083, 9088-9090, 9098 and 9099 are the ABAC decision audit trail (#751), 9084, 9086 and 9087 of that block are not allocated; 9094-9097 come from `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096); see [Structured Logging](#structured-logging)) |
+| `src/Encina.Security.ABAC/Diagnostics/ABACLogMessages.cs` | `[LoggerMessage]` source-generated structured log methods (EventIds allocated inside 9000-9099, unused ids 9006-9007, 9016-9019, 9023-9029, 9041-9049 and 9056-9057; 9079-9090, 9098 and 9099 are the ABAC decision audit trail (#751, 9084, 9086 and 9087 are its startup check); 9094-9097 come from `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096); see [Structured Logging](#structured-logging)) |
 | `src/Encina.Security.ABAC/Health/ABACHealthCheck.cs` | `IHealthCheck` implementation for PAP policy verification |

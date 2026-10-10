@@ -305,7 +305,7 @@ internal static partial class ABACLogMessages
     internal static partial void EnforcementDisabled(ILogger logger);
 
     // ── Fail-Closed Messages (9091-9093) ─────────────────────────────
-    // Event IDs: 9091-9093 (see EventIdRanges.SecurityABAC; 9079-9090 are reserved for the
+    // Event IDs: 9091-9093 (see EventIdRanges.SecurityABAC; 9079-9090 belong to the
     // decision audit trail of #751). Codes and exception types only, never a user identifier,
     // an error message or an exception message (#1676).
 
@@ -330,9 +330,9 @@ internal static partial class ABACLogMessages
     internal static partial void StoreEvaluationFailed(
         ILogger logger, Exception exception);
 
-    // ── Decision Audit (9079-9083, 9088-9090) ────────────────────────
-    // Event IDs: 9079-9083 and 9088-9090 (see EventIdRanges.SecurityABAC; 9084, 9086 and 9087 are
-    // the rest of the block reserved for the decision audit trail of #751). Codes and exception types
+    // ── Decision Audit (9079-9090) ───────────────────────────────────
+    // Event IDs: 9079-9090 (see EventIdRanges.SecurityABAC), the block reserved for the decision
+    // audit trail of #751; 9084, 9086 and 9087 are the startup check. Codes and exception types
     // only: never a subject, a tenant, an attribute value, an error message or an exception message.
 
     [LoggerMessage(
@@ -398,6 +398,36 @@ internal static partial class ABACLogMessages
         Level = LogLevel.Warning,
         Message = "A decision audit query ran without a tenant in a multi-tenant application (AllowCrossTenantQueries is set)")]
     internal static partial void DecisionAuditCrossTenantQuery(ILogger logger);
+
+    /// <summary>
+    /// The decision audit runs in <c>BestEffort</c>: a request proceeds when its record cannot be
+    /// written (startup check, Event ID 9084, see EventIdRanges.SecurityABAC).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 9084,
+        Level = LogLevel.Warning,
+        Message = "The ABAC decision audit runs in BestEffort mode: a request proceeds even when its decision record cannot be written, so the trail may be incomplete")]
+    internal static partial void DecisionAuditBestEffort(ILogger logger);
+
+    /// <summary>
+    /// The decision audit writes to the in-memory operation audit store, which loses the trail on
+    /// restart (startup check, Event ID 9086, see EventIdRanges.SecurityABAC).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 9086,
+        Level = LogLevel.Warning,
+        Message = "The ABAC decision audit writes to InMemoryOperationAuditStore: the trail is lost when the process stops. Register a persistent IOperationAuditStore for production")]
+    internal static partial void DecisionAuditInMemoryStore(ILogger logger);
+
+    /// <summary>
+    /// The decision audit is enabled but no <c>IOperationAuditStore</c> is registered: the application
+    /// fails to start (startup check, Event ID 9087, see EventIdRanges.SecurityABAC).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 9087,
+        Level = LogLevel.Critical,
+        Message = "The ABAC decision audit is enabled but no IOperationAuditStore is registered. Register one (for example through a provider package) or disable DecisionAudit")]
+    internal static partial void DecisionAuditStoreMissing(ILogger logger);
 
     /// <summary>
     /// A stored decision audit entry could not be read back; the query fails with

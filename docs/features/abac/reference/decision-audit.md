@@ -181,6 +181,31 @@ services.AddEncinaABAC(options =>
 });
 ```
 
+`ABACOptions.AuditDecisions(Action<ABACDecisionAuditOptions>? configure = null)` is the short form: it sets `DecisionAudit.Enabled = true`, then runs the action (which may turn it off again), and returns the `ABACOptions` for chaining.
+
+### Startup check
+
+`AddEncinaABAC` registers a hosted service, `ABACDecisionAuditStartupCheck`, that reads the final `IOptions<ABACOptions>` when the host starts. The options validator also runs at start and rejects a `WriteTimeout` that is zero, negative or above `int.MaxValue` milliseconds, `MaxTraceEntries` below 1, `Outcomes` with bits outside `ABACDecisionAuditOutcomes.All`, and an undefined `FailureMode`. It also rejects `DecisionAudit.Enabled = true` together with `EnforcementMode = Disabled`, because the disabled enforcement point bypasses evaluation and would record nothing; the host fails to start with an `OptionsValidationException`.
+
+| Situation | Result |
+|-----------|--------|
+| Audit disabled | Nothing happens; the check never resolves the store |
+| Enabled, no `IOperationAuditStore` registered | Critical log, EventId 9087; the host start fails with `InvalidOperationException` |
+| Enabled, store is `InMemoryOperationAuditStore` | Warning, EventId 9086: the trail is lost on restart. Only the registered `InMemoryOperationAuditStore` itself is detected; an in-memory store wrapped by a decorator is not |
+| Enabled, `FailureMode` is `BestEffort` | Warning, EventId 9084: the trail may be incomplete |
+
+`AddEncinaABAC` never registers an `IOperationAuditStore`, and nothing it registers takes the store in its constructor, so with the audit disabled the container builds without any store. The messages are in the [observability reference](observability.md#decision-audit-messages-9079-9090).
+
+### Registration order
+
+Pipeline behaviors run in registration order. Call `AddEncinaSecurity` before `AddEncinaABAC` so the security behavior runs before the ABAC one. No startup warning exists for the wrong order; the execution-order contract is tracked in #1783.
+
+```csharp
+services.AddEncinaSecurity();
+services.AddEncinaABAC(o => o.AuditDecisions(a => a.Outcomes = ABACDecisionAuditOutcomes.Denied));
+services.AddScoped<IOperationAuditStore, MyOperationAuditStore>(); // the application's own store
+```
+
 All `ABACDecisionAuditOptions` properties are in the [configuration reference](configuration.md#decisionaudit-options). The error codes are in the [error reference](errors.md), the log messages in the [observability reference](observability.md#decision-audit-messages-9079-9090).
 
 ## Providers
@@ -200,4 +225,5 @@ The trail is stored by whatever `IOperationAuditStore` the application registers
 
 - Only requests that pass through the PEP are audited. A direct call to `IPolicyDecisionPoint` is not.
 - A missing row means the decision was not evaluated or not recorded, not that access was granted.
-- Not available yet: the startup check of the audit prerequisites (EventIds 9084, 9086 and 9087 are unallocated), a health check and metrics for the trail.
+- Not available yet: a health check and metrics for the trail.
+- No startup warning exists for registering `AddEncinaABAC` before `AddEncinaSecurity` (see [Registration order](#registration-order)).

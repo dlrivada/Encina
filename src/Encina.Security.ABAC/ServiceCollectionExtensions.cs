@@ -68,6 +68,15 @@ public static class ServiceCollectionExtensions
     /// registered (scoped or not), each change is audited fail closed in its own DI scope.
     /// </para>
     /// <para>
+    /// <b>Decision audit:</b>
+    /// The recorder, the reader, the options validator and a startup check are always registered; they
+    /// stay idle until <see cref="ABACOptions.DecisionAudit"/> is enabled (for example with
+    /// <see cref="ABACOptions.AuditDecisions"/>). This method never registers an
+    /// <c>IOperationAuditStore</c>: the application or a provider package does. With the audit enabled and
+    /// no store the host fails at start. Call <c>AddEncinaSecurity</c> before this method so the security
+    /// behavior runs before the ABAC one; the execution-order contract is tracked in #1783.
+    /// </para>
+    /// <para>
     /// <b>Policy seeding:</b>
     /// When <see cref="ABACOptions.SeedPolicySets"/> or <see cref="ABACOptions.SeedPolicies"/>
     /// contain entries, an <see cref="ABACPolicySeedingHostedService"/> is registered to seed
@@ -134,6 +143,10 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IABACDecisionAuditReader, ABACDecisionAuditReader>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ABACOptions>, ABACOptionsValidator>());
         services.AddOptions<ABACOptions>().ValidateOnStart();
+
+        // Checks the audit prerequisites at host start: a no-op while DecisionAudit.Enabled is false,
+        // a Critical log and a failed start when it is on without an IOperationAuditStore.
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ABACDecisionAuditStartupCheck>());
 
         // ── Function registry (Singleton) ──────────────────────────
         // Register with factory so custom functions from options are loaded

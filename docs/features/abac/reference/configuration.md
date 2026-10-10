@@ -70,7 +70,16 @@ All registrations use `TryAdd`, meaning you can register custom implementations 
 
 ## DecisionAudit Options
 
-`ABACOptions.DecisionAudit` (`ABACDecisionAuditOptions`, namespace `Encina.Security.ABAC.DecisionAudit`) configures the decision audit trail described in [Decision audit](decision-audit.md). `AddEncinaABAC()` always registers `IABACDecisionRecorder` (`AuditStoreABACDecisionRecorder`, singleton) and `IABACDecisionAuditReader` (scoped); they stay idle until `Enabled` is set.
+`ABACOptions.DecisionAudit` (`ABACDecisionAuditOptions`, namespace `Encina.Security.ABAC.DecisionAudit`) configures the decision audit trail described in [Decision audit](decision-audit.md). `AddEncinaABAC()` always registers `IABACDecisionRecorder` (`AuditStoreABACDecisionRecorder`, singleton) and `IABACDecisionAuditReader` (scoped); they stay idle until `Enabled` is set. It also registers the options validator, `TimeProvider` (`TryAdd`, `TimeProvider.System`) and the hosted `ABACDecisionAuditStartupCheck`. It never registers an `IOperationAuditStore`: with the audit enabled the application must register one, or the host start fails (see [Startup check](decision-audit.md#startup-check)).
+
+`ABACOptions.AuditDecisions(Action<ABACDecisionAuditOptions>? configure = null)` sets `Enabled` to `true`, runs the action (which may set it back to `false`) and returns the `ABACOptions`.
+
+```csharp
+services.AddEncinaSecurity(); // before AddEncinaABAC: see Registration order in decision-audit.md
+services.AddEncinaABAC(o => o.AuditDecisions(a => a.Outcomes = ABACDecisionAuditOutcomes.Denied));
+```
+
+The validator rejects, at start, a `WriteTimeout` of zero or less or above `int.MaxValue` milliseconds, `MaxTraceEntries` below 1, `Outcomes` with bits outside `ABACDecisionAuditOutcomes.All` and an undefined `FailureMode`. It also rejects `DecisionAudit.Enabled = true` together with `EnforcementMode = Disabled` (the disabled enforcement point bypasses evaluation and would record nothing), so the host fails to start with an `OptionsValidationException`. Registration order is explained in [Registration order](decision-audit.md#registration-order).
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|

@@ -1,7 +1,7 @@
 {
   "package": "Encina.Security.ABAC",
   "generated": "2026-10-09T17:34:55Z",
-  "totalFiles": 139,
+  "totalFiles": 140,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -436,6 +436,22 @@
         "unit": "Only const members: the file has no executable line to cover; the values are asserted by unit tests."
       }
     },
+    "DecisionAudit/ABACDecisionAuditStartupCheck.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Startup hosted check of the decision audit prerequisites (Critical 9087, Warning 9086 and 9084)",
+      "targets": {
+        "unit": 100,
+        "guard": 95
+      },
+      "justifications": {
+        "unit": "Unit tests cover the disabled no-op that never resolves the store, the missing store (9087 and throw), the in-memory store (9086) and BestEffort (9084).",
+        "guard": "Guard tests reject each null constructor argument and run the disabled no-op plus every enabled path (no store, in-memory store, BestEffort, persistent store) against a real service provider (measured 100%)."
+      }
+    },
     "DecisionAudit/ABACDecisionRecord.cs": {
       "defaultTests": [
         "unit",
@@ -633,11 +649,11 @@
       "reason": "Validates the decision audit options at start",
       "targets": {
         "unit": 95,
-        "guard": 75
+        "guard": 95
       },
       "justifications": {
-        "unit": "Validator tests cover each rejected bound, the defaults and a null argument.",
-        "guard": "Guard tests reject null options and validate a valid configuration."
+        "unit": "Validator tests cover each rejected bound, the undefined FailureMode, unknown Outcomes bits, the audit enabled together with EnforcementMode.Disabled, the defaults and a null argument.",
+        "guard": "Guard tests reject null options, a fully broken configuration (one failure per rule) and validate a valid configuration (measured 100%)."
       }
     },
     "DecisionAudit/IABACDecisionAuditReader.cs": {

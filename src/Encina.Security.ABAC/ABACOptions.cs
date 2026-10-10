@@ -326,4 +326,26 @@ public sealed class ABACOptions
         CustomFunctions.Add((functionId, function));
         return this;
     }
+
+    /// <summary>
+    /// Turns the decision audit trail on and optionally configures it.
+    /// </summary>
+    /// <param name="configure">Optional action that configures <see cref="DecisionAudit"/>.</param>
+    /// <returns>This options instance for chaining.</returns>
+    /// <remarks>
+    /// <see cref="ABACDecisionAuditOptions.Enabled"/> is set before <paramref name="configure"/> runs,
+    /// so the action can still turn it off again. The application must also register an
+    /// <c>IOperationAuditStore</c>: without one the application fails at startup.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// options.AuditDecisions(audit => audit.Outcomes = ABACDecisionAuditOutcomes.Denied);
+    /// </code>
+    /// </example>
+    public ABACOptions AuditDecisions(Action<ABACDecisionAuditOptions>? configure = null)
+    {
+        DecisionAudit.Enabled = true;
+        configure?.Invoke(DecisionAudit);
+        return this;
+    }
 }
