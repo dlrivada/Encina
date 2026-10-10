@@ -18,7 +18,10 @@ namespace Encina.Messaging.Sagas;
 /// <para>
 /// With the dead letter queue registered and <c>DeadLetterOptions.IntegrateWithSagas</c> on, the dispatcher connects
 /// <see cref="SagaNotFoundContext.MoveToDeadLetterAsync"/> to the dead letter capture: the handler's call stores the
-/// message, keyed by <see cref="SagaNotFoundContext.SourceMessageId"/>.
+/// message, keyed by <see cref="SagaNotFoundContext.SourceMessageId"/>. When the handler's last
+/// <see cref="SagaNotFoundContext.MoveToDeadLetterAsync"/> call failed and it then neither moved nor ignored the
+/// message, the dispatcher returns that error instead of success, so the caller does not acknowledge a message that
+/// is in no dead letter queue.
 /// </para>
 /// </remarks>
 public interface ISagaNotFoundDispatcher
@@ -31,8 +34,8 @@ public interface ISagaNotFoundDispatcher
     /// <param name="context">Context providing saga information and available actions.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
-    /// A successful result if the handler completed or no handler was registered;
-    /// an error if the handler threw an exception.
+    /// A successful result if the handler completed or no handler was registered; an error if the handler threw
+    /// an exception, or if its move to the dead letter queue failed and it did not recover from it.
     /// </returns>
     Task<Either<EncinaError, Unit>> DispatchAsync<TMessage>(
         TMessage message,

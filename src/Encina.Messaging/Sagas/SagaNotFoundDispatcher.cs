@@ -48,7 +48,11 @@ internal sealed partial class SagaNotFoundDispatcher : ISagaNotFoundDispatcher
         where TMessage : class
     {
         if (_deadLetterCapture is null || !_deadLetterCapture.IsEnabledFor(DeadLetterSourcePatterns.Saga))
+        {
+            // A context reused from an earlier dispatch must not keep that dispatch's capture.
+            context.UseDeadLetter(null);
             return;
+        }
 
         var capture = _deadLetterCapture;
         context.UseDeadLetter(cancellationToken => capture.CaptureAsync(
@@ -92,7 +96,9 @@ internal sealed partial class SagaNotFoundDispatcher : ISagaNotFoundDispatcher
 
             Log.SagaNotFoundHandlerCompleted(_logger, typeof(TMessage).Name, context.SagaId, context.Action);
 
-            return unit;
+            // A move the handler asked for and that failed is not success: the caller must not acknowledge a
+            // message that is in no dead letter queue.
+            return CompletedResult(context);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -110,6 +116,9 @@ internal sealed partial class SagaNotFoundDispatcher : ISagaNotFoundDispatcher
                 $"Saga not found handler for {typeof(TMessage).Name} failed");
         }
     }
+
+    private static Either<EncinaError, Unit> CompletedResult(SagaNotFoundContext context)
+        => context.FailedMove is { } failed ? failed : unit;
 
     [ExcludeFromCodeCoverage]
     private static partial class Log

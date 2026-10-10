@@ -101,7 +101,15 @@ public sealed class SagaNotFoundContext
     public void Ignore()
     {
         _action = SagaNotFoundAction.Ignored;
+        FailedMove = null;
     }
+
+    /// <summary>
+    /// The error of the last <see cref="MoveToDeadLetterAsync"/> call when it failed and the handler then neither
+    /// moved the message nor ignored it; <see cref="ISagaNotFoundDispatcher"/> returns it, so the caller does not
+    /// acknowledge a message that is in no dead letter queue.
+    /// </summary>
+    internal EncinaError? FailedMove { get; private set; }
 
     /// <summary>
     /// Moves the message to the dead letter queue for later investigation.
@@ -119,6 +127,23 @@ public sealed class SagaNotFoundContext
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
+        var moved = await MoveCoreAsync(cancellationToken).ConfigureAwait(false);
+        if (moved.IsRight)
+        {
+            _deadLetterReason = reason;
+            _action = SagaNotFoundAction.MovedToDeadLetter;
+            FailedMove = null;
+        }
+        else
+        {
+            FailedMove = moved.LeftToArray()[0];
+        }
+
+        return moved;
+    }
+
+    private async Task<Either<EncinaError, Unit>> MoveCoreAsync(CancellationToken cancellationToken)
+    {
         if (_moveToDeadLetterAsync is null)
         {
             return EncinaErrors.Create(
@@ -133,22 +158,18 @@ public sealed class SagaNotFoundContext
                 "A dead letter of a saga-not-found message needs the message's identity (sourceMessageId).");
         }
 
-        var moved = await _moveToDeadLetterAsync(cancellationToken).ConfigureAwait(false);
-        if (moved.IsRight)
-        {
-            _deadLetterReason = reason;
-            _action = SagaNotFoundAction.MovedToDeadLetter;
-        }
-
-        return moved;
+        return await _moveToDeadLetterAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Connects <see cref="MoveToDeadLetterAsync"/> to the dead letter capture. Internal: only
-    /// <see cref="ISagaNotFoundDispatcher"/> wires it, when the dead letter queue captures sagas.
+    /// Connects <see cref="MoveToDeadLetterAsync"/> to the dead letter capture, or disconnects it with
+    /// <see langword="null"/>. Internal: only <see cref="ISagaNotFoundDispatcher"/> wires it, on every dispatch.
     /// </summary>
-    internal void UseDeadLetter(Func<CancellationToken, Task<Either<EncinaError, Unit>>> moveToDeadLetterAsync)
-        => _moveToDeadLetterAsync = moveToDeadLetterAsync;
+    internal void UseDeadLetter(Func<CancellationToken, Task<Either<EncinaError, Unit>>>? moveToDeadLetterAsync)
+    {
+        _moveToDeadLetterAsync = moveToDeadLetterAsync;
+        FailedMove = null;
+    }
 }
 
 /// <summary>
