@@ -84,6 +84,10 @@ All tag keys used by activities and metrics are defined as internal constants:
 | `TagEnforcementMode` | `abac.enforcement_mode` | Activity | The current enforcement mode (`Block`, `Warn`, `Disabled`) |
 | `TagObligationId` | `abac.obligation_id` | Activity | The identifier of the obligation being executed |
 | `TagAdviceId` | `abac.advice_id` | Activity | The identifier of the advice being executed |
+| `TagDecisionId` | `abac.decision_id` | Activity | The identifier of the decision audit record written for the evaluation |
+| `TagOutcome` | `abac.outcome` | Metric | The enforced outcome of a recorded decision (`Granted`, `Denied`, `DeniedNotEnforced`) |
+| `TagFailureMode` | `abac.failure_mode` | Metric | The configured decision audit failure mode (`FailClosed`, `BestEffort`) |
+| `TagErrorType` | `error.type` | Metric | The error code or exception type name of a failed audit write, never a message |
 
 ---
 
@@ -130,7 +134,7 @@ When `ABACOptions.DecisionAudit.Enabled` is `true`, the Policy Enforcement Point
 | `abac.decision_audit.failed` | `Counter<long>` | | `abac.failure_mode` (`FailClosed`, `BestEffort`), `error.type` (error code or exception type name) | One increment per record that could not be built or written |
 | `abac.decision_audit.duration` | `Histogram<double>` | `ms` | none | Building plus writing one record, recorded once per audited decision |
 
-`abac.decision_audit.failed` is the failure signal of the trail: alert on any increase, because under `FailClosed` each increment is a request that was denied for lack of evidence, and under `BestEffort` it is a decision missing from the trail. The same failures are logged (EventIds 9080 to 9083) and, when `ABACOptions.AddHealthCheck` is `true`, reported by the [health check](decision-audit.md#health).
+`abac.decision_audit.failed` is the failure signal of the trail: alert on any increase, because under `FailClosed` each increment is a request that would have proceeded and was denied (error code `abac.decision_audit_failed`), and under `BestEffort` it is a decision missing from the trail while the request proceeds. When the request was already denied for another reason, the original denial stands; the audit failure is still counted and logged (EventId 9082). The same failures are logged (EventIds 9080 to 9083) and, when `ABACOptions.AddHealthCheck` is `true`, reported by the [health check](decision-audit.md#health).
 
 ### Spans and tags
 

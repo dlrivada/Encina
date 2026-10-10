@@ -226,6 +226,8 @@ public sealed class ABACDecisionAuditObservabilityTests
         var span = telemetry.Span("ABAC.DecisionAudit.Record");
         span.Status.ShouldBe(ActivityStatusCode.Error);
         span.GetTagItem("error.type").ShouldBe("store.down");
+        span.GetTagItem("abac.failure_mode").ShouldBe(failureMode.ToString());
+        span.StatusDescription.ShouldBe("store.down");
     }
 
     [Fact]
