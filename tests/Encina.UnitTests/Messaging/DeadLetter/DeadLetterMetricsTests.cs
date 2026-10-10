@@ -107,6 +107,25 @@ public sealed class DeadLetterMetricsTests : IDisposable
     }
 
     [Fact]
+    public async Task SourceCapture_RejectedAndThrown_AreCountedUnderTheCaptureOperation()
+    {
+        var throwing = Substitute.For<IDeadLetterStore>();
+        throwing.AddAsync(Arg.Any<IDeadLetterMessage>(), Arg.Any<CancellationToken>())
+            .Returns<Task<Either<EncinaError, bool>>>(_ => throw new InvalidOperationException("connection lost"));
+        using var rejectingHost = DeadLetterCaptureHost.Create();
+        using var throwingHost = DeadLetterCaptureHost.Create(store: throwing);
+
+        (await rejectingHost.Capture.CaptureAsync(new TestRequest(1), Context("metrics-rejected") with { SourcePattern = "Custom" }))
+            .ShouldBeErrorWithCode(DeadLetterErrorCodes.CaptureRejected);
+        (await throwingHost.Capture.CaptureAsync(new TestRequest(1), Context("metrics-thrown") with { SourcePattern = DeadLetterSourcePatterns.Inbox }))
+            .ShouldBeErrorWithCode(DeadLetterErrorCodes.CaptureFailed);
+
+        var capture = Measurements("encina.dlq.store_failures_total").Where(m => (string?)m.Tags["operation"] == "capture").ToList();
+        capture.ShouldContain(m => (string?)m.Tags["error_code"] == DeadLetterErrorCodes.CaptureRejected);
+        capture.ShouldContain(m => (string?)m.Tags["error_code"] == DeadLetterErrorCodes.CaptureFailed);
+    }
+
+    [Fact]
     public async Task AddAsync_WithATenant_NeverUsesTheTenantOrAnyErrorTextAsADimension()
     {
         var (orchestrator, store) = CreateOrchestrator(tenantId: "tenant-secret-42");

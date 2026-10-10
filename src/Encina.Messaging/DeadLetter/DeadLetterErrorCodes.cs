@@ -94,9 +94,11 @@ public static class DeadLetterErrorCodes
     public const string CaptureFailed = "dlq.capture_failed";
 
     /// <summary>
-    /// The dead letter queue cannot store the terminal failure of a source at all: its input rules reject an
-    /// identity value or instant of the message, or the source pattern has no <c>IntegrateWith*</c> flag. Trying
-    /// again cannot succeed, so the source records its terminal state (see <c>DeadLetterSourceCapture.IsRetryable</c>).
+    /// The dead letter queue cannot store the terminal failure of a source at all: the capture threw an
+    /// <see cref="ArgumentException"/> (its input rules reject an identity value or instant of the message, or an
+    /// argument the queue's configuration or store derives from it is invalid), or the source pattern has no
+    /// <c>IntegrateWith*</c> flag. Trying again cannot succeed, so the source records its terminal state (see
+    /// <c>DeadLetterSourceCapture.IsRetryable</c>).
     /// </summary>
     public const string CaptureRejected = "dlq.capture_rejected";
 
