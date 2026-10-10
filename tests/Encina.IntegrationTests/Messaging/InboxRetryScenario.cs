@@ -37,7 +37,7 @@ public static class InboxRetryScenario
 
         for (var i = 0; i < maxRetries; i++)
         {
-            var failed = await orchestrator.ProcessAsync(new object(), messageId,"TestRequest", "corr", null, handler);
+            var failed = await orchestrator.ProcessAsync(new object(), messageId, "TestRequest", "corr", null, handler);
             if (saveChanges is not null)
                 await saveChanges();
 
@@ -47,7 +47,7 @@ public static class InboxRetryScenario
 
         runs.ShouldBe(maxRetries);
 
-        var rejected = await orchestrator.ProcessAsync(new object(), messageId,"TestRequest", "corr", null, handler);
+        var rejected = await orchestrator.ProcessAsync(new object(), messageId, "TestRequest", "corr", null, handler);
 
         rejected.IsLeft.ShouldBeTrue();
         rejected.LeftToArray()[0].GetCode().IfNone(string.Empty).ShouldBe(InboxErrorCodes.MaxRetriesExceeded);
@@ -77,10 +77,10 @@ public static class InboxRetryScenario
             return ValueTask.FromResult<Either<EncinaError, string>>(EncinaErrors.Create("biz.rule", "business rule"));
         };
 
-        var first = await orchestrator.ProcessAsync(new object(), messageId,"TestRequest", "corr", null, handler);
+        var first = await orchestrator.ProcessAsync(new object(), messageId, "TestRequest", "corr", null, handler);
         if (saveChanges is not null)
             await saveChanges();
-        var second = await orchestrator.ProcessAsync(new object(), messageId,"TestRequest", "corr", null, handler);
+        var second = await orchestrator.ProcessAsync(new object(), messageId, "TestRequest", "corr", null, handler);
 
         first.IsLeft.ShouldBeTrue();
         second.IsLeft.ShouldBeTrue();
