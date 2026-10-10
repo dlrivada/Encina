@@ -1,6 +1,7 @@
 using Encina.Caching;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.CombiningAlgorithms;
+using Encina.Security.ABAC.DecisionAudit;
 using Encina.Security.ABAC.EEL;
 using Encina.Security.ABAC.Evaluation;
 using Encina.Security.ABAC.Health;
@@ -12,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Security.ABAC;
 
@@ -46,6 +48,8 @@ public static class ServiceCollectionExtensions
     /// <item><description><see cref="ABACPipelineBehavior{TRequest, TResponse}"/> (Transient, added with <c>TryAddEnumerable</c>)</description></item>
     /// <item><description>The request identity model (<see cref="RequestIdentityServiceCollectionExtensions.AddEncinaRequestIdentity"/>): the PEP reads the caller from <see cref="IRequestContext.Identity"/></description></item>
     /// <item><description>A startup check that logs Warning 9085 once when the final options set <see cref="ABACEnforcementMode.Disabled"/></description></item>
+    /// <item><description><see cref="IABACDecisionRecorder"/> → <see cref="AuditStoreABACDecisionRecorder"/> (Singleton) and <see cref="IABACDecisionAuditReader"/> (Scoped): both resolve the application's <c>IOperationAuditStore</c> per call and stay idle until <see cref="ABACDecisionAuditOptions.Enabled"/> is set</description></item>
+    /// <item><description>An options validator that checks the decision audit bounds when the application starts</description></item>
     /// </list>
     /// <para>
     /// <b>Default registrations:</b>
@@ -119,6 +123,17 @@ public static class ServiceCollectionExtensions
 
         // Warning 9085 once at startup when the final options disable enforcement.
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ABACEnforcementModeStartupCheck>());
+
+        // ── Decision audit (always registered, idle until DecisionAudit.Enabled) ──
+        // The Policy Enforcement Point needs both for every closed request type; the gate is the
+        // resolved IOptions<ABACOptions>, never the temporary options instance above.
+        // Nothing here takes IOperationAuditStore at construction: the recorder resolves it per
+        // write in its own scope and the reader per call, so an application without a store builds.
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IABACDecisionRecorder, AuditStoreABACDecisionRecorder>();
+        services.TryAddScoped<IABACDecisionAuditReader, ABACDecisionAuditReader>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ABACOptions>, ABACOptionsValidator>());
+        services.AddOptions<ABACOptions>().ValidateOnStart();
 
         // ── Function registry (Singleton) ──────────────────────────
         // Register with factory so custom functions from options are loaded

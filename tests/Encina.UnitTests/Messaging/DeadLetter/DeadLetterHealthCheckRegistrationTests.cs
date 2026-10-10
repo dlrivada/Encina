@@ -76,12 +76,13 @@ public sealed class DeadLetterHealthCheckRegistrationTests
     }
 
     [Fact]
-    public void AddEncinaDeadLetterQueue_WithNullHealthCheckOptions_DoesNotRegisterOptions()
+    public void AddEncinaDeadLetterQueue_WithNullHealthCheckOptions_RegistersTheDefaultOptionsOnce()
     {
         var services = new ServiceCollection();
         services.AddEncinaDeadLetterQueue<FakeDeadLetterStore, StubFactory>(null, null);
 
-        services.Any(d => d.ServiceType == typeof(DeadLetterHealthCheckOptions)).ShouldBeFalse();
+        // The default options are always registered, so the health check resolves under ValidateOnBuild.
+        services.Count(d => d.ServiceType == typeof(DeadLetterHealthCheckOptions)).ShouldBe(1);
     }
 
     [Fact]

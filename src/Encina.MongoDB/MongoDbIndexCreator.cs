@@ -1,5 +1,6 @@
 using Encina.Diagnostics;
 using Encina.MongoDB.Auditing;
+using Encina.MongoDB.DeadLetter;
 using Encina.MongoDB.Inbox;
 using Encina.MongoDB.Outbox;
 using Encina.MongoDB.Sagas;
@@ -62,9 +63,52 @@ internal sealed class MongoDbIndexCreator : IHostedService
         (_options.UseInbox, CreateInboxIndexesAsync),
         (_options.UseSagas, CreateSagaIndexesAsync),
         (_options.UseScheduling, CreateSchedulingIndexesAsync),
+        (_options.UseDeadLetterQueue, CreateDeadLetterIndexesAsync),
         (_options.UseAuditLogStore, CreateAuditLogIndexesAsync),
         (_options.UseOperationAuditStore, CreateOperationAuditIndexesAsync),
     ];
+
+    // Mirrors the six indexes the relational providers ship in 029_CreateDeadLetterMessagesTable.sql.
+    // No TTL index: expired rows are deleted by the cleanup loop on every provider (EnableAutomaticCleanup
+    // and the metrics stay honest), so ExpiresAtUtc gets an ordinary index.
+    private async Task CreateDeadLetterIndexesAsync(IMongoDatabase database, CancellationToken cancellationToken)
+    {
+        var collection = database.GetCollection<DeadLetterMessage>(_options.Collections.DeadLetterMessages);
+
+        await collection.Indexes.CreateManyAsync(BuildDeadLetterIndexModels(), cancellationToken).ConfigureAwait(false);
+        Log.CreatedDeadLetterIndexes(_logger);
+    }
+
+    private static List<CreateIndexModel<DeadLetterMessage>> BuildDeadLetterIndexModels()
+    {
+        var keys = Builders<DeadLetterMessage>.IndexKeys;
+
+        return
+        [
+            // Idempotent capture: SourceMessageId is never null, so a plain unique key is enough
+            new(
+                keys.Ascending(m => m.SourcePattern).Ascending(m => m.SourceMessageId),
+                new CreateIndexOptions { Name = "UX_DeadLetterMessages_Source", Unique = true }),
+            // Paging order
+            new(
+                keys.Ascending(m => m.DeadLetteredAtUtc).Ascending(m => m.Id),
+                new CreateIndexOptions { Name = "IX_DeadLetterMessages_DeadLetteredAt" }),
+            // Health check, statistics and FromSource
+            new(
+                keys.Ascending(m => m.ReplayedAtUtc).Ascending(m => m.SourcePattern).Ascending(m => m.DeadLetteredAtUtc),
+                new CreateIndexOptions { Name = "IX_DeadLetterMessages_Pending" }),
+            // Cleanup
+            new(
+                keys.Ascending(m => m.ExpiresAtUtc),
+                new CreateIndexOptions { Name = "IX_DeadLetterMessages_ExpiresAt" }),
+            new(
+                keys.Ascending(m => m.CorrelationId),
+                new CreateIndexOptions { Name = "IX_DeadLetterMessages_CorrelationId" }),
+            new(
+                keys.Ascending(m => m.TenantId).Ascending(m => m.DeadLetteredAtUtc),
+                new CreateIndexOptions { Name = "IX_DeadLetterMessages_Tenant" })
+        ];
+    }
 
     private async Task CreateOutboxIndexesAsync(IMongoDatabase database, CancellationToken cancellationToken)
     {

@@ -124,6 +124,18 @@ public static class ABACErrors
     public const string DecisionAuditStoreUnavailableCode = "abac.decision_audit_store_unavailable";
 
     /// <summary>
+    /// Error code when a stored decision audit entry cannot be read back (corrupt metadata or a schema
+    /// the reader does not know): a server-side data problem, so it stays in the <c>abac.*</c> family.
+    /// </summary>
+    public const string DecisionAuditRecordUnreadableCode = "abac.decision_audit_record_unreadable";
+
+    /// <summary>
+    /// Error code when a decision audit export failed after it had already written lines to the
+    /// destination: the output is a partial file and must be discarded.
+    /// </summary>
+    public const string DecisionAuditExportIncompleteCode = "abac.decision_audit_export_incomplete";
+
+    /// <summary>
     /// Error code when the decision audit reader is asked for data while multi-tenancy is enabled and the
     /// request carries no tenant (an authorization denial, HTTP 403).
     /// </summary>
@@ -658,19 +670,63 @@ public static class ABACErrors
     }
 
     /// <summary>
-    /// Creates an error when the decision audit reader or export needs an <c>IOperationAuditStore</c>
-    /// and none is registered.
+    /// Creates an error when the decision audit recorder, reader or export needs an
+    /// <c>IOperationAuditStore</c> and none is registered. The same cause and code serve the write
+    /// and the read path, so the message names neither alone.
     /// </summary>
     /// <returns>An error with code <see cref="DecisionAuditStoreUnavailableCode"/> and a fixed message.</returns>
     public static EncinaError DecisionAuditStoreUnavailable() =>
         EncinaErrors.Create(
             code: DecisionAuditStoreUnavailableCode,
-            message: "No operation audit store is registered, so the decision audit trail cannot be read.",
+            message: "No operation audit store is registered, so the decision audit trail cannot be written or read.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyStage] = MetadataStageAbac,
                 ["requirement"] = "IOperationAuditStore"
             });
+
+    /// <summary>
+    /// Creates the error the decision audit reader returns when a stored entry cannot be read back.
+    /// The message is fixed; neither the entry's content nor the parser's message is recorded.
+    /// </summary>
+    /// <param name="cause">The exception type name of the read failure; never a message.</param>
+    /// <returns>An error with code <see cref="DecisionAuditRecordUnreadableCode"/>.</returns>
+    public static EncinaError DecisionAuditRecordUnreadable(string cause)
+    {
+        ArgumentNullException.ThrowIfNull(cause);
+
+        return EncinaErrors.Create(
+            code: DecisionAuditRecordUnreadableCode,
+            message: "A stored decision audit entry could not be read.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["cause"] = cause
+            });
+    }
+
+    /// <summary>
+    /// Creates the error a decision audit export returns when a page failed after earlier pages were
+    /// already written: the destination holds a partial JSON Lines file that must be discarded. The
+    /// message is fixed; the details carry the number of lines written and the code of the failure.
+    /// </summary>
+    /// <param name="linesWritten">The number of lines already written to the destination.</param>
+    /// <param name="causeCode">The error code of the page that failed; never a message.</param>
+    /// <returns>An error with code <see cref="DecisionAuditExportIncompleteCode"/>.</returns>
+    public static EncinaError DecisionAuditExportIncomplete(int linesWritten, string causeCode)
+    {
+        ArgumentNullException.ThrowIfNull(causeCode);
+
+        return EncinaErrors.Create(
+            code: DecisionAuditExportIncompleteCode,
+            message: "The decision audit export failed after part of it was written; discard the output.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["linesWritten"] = linesWritten,
+                ["cause"] = causeCode
+            });
+    }
 
     /// <summary>
     /// Creates the denial the decision audit reader returns when multi-tenancy is enabled and the

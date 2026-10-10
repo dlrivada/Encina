@@ -1,5 +1,6 @@
 using System.Data;
 using Encina.ADO.PostgreSQL.Auditing;
+using Encina.ADO.PostgreSQL.DeadLetter;
 using Encina.ADO.PostgreSQL.Health;
 using Encina.ADO.PostgreSQL.Inbox;
 using Encina.ADO.PostgreSQL.Outbox;
@@ -55,6 +56,8 @@ public static class ServiceCollectionExtensions
             ScheduledMessageStoreADO,
             ScheduledMessageFactory,
             OutboxProcessor>(config);
+
+        services.AddDeadLetterQueueServices<DeadLetterStoreADO, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions);
 
         RegisterAuditStores(services, config);
         RegisterAnonymizationAndPolicyStores(services, config);

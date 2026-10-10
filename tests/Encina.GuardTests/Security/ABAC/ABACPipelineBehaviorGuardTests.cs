@@ -1,6 +1,7 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly -- NSubstitute mock setup pattern
 
 using Encina.Security.ABAC;
+using Encina.Security.ABAC.DecisionAudit;
 using Encina.Security.ABAC.EEL;
 using Encina.Testing.Identity;
 using LanguageExt;
@@ -36,6 +37,8 @@ public class ABACPipelineBehaviorGuardTests
             CreateObligationExecutor(),
             Compiler,
             Options.Create(new ABACOptions()),
+            Substitute.For<IABACDecisionRecorder>(),
+            TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
         Should.Throw<ArgumentNullException>(act)
@@ -51,6 +54,8 @@ public class ABACPipelineBehaviorGuardTests
             CreateObligationExecutor(),
             Compiler,
             Options.Create(new ABACOptions()),
+            Substitute.For<IABACDecisionRecorder>(),
+            TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
         Should.Throw<ArgumentNullException>(act)
@@ -66,6 +71,8 @@ public class ABACPipelineBehaviorGuardTests
             null!,
             Compiler,
             Options.Create(new ABACOptions()),
+            Substitute.For<IABACDecisionRecorder>(),
+            TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
         Should.Throw<ArgumentNullException>(act)
@@ -81,6 +88,8 @@ public class ABACPipelineBehaviorGuardTests
             CreateObligationExecutor(),
             null!,
             Options.Create(new ABACOptions()),
+            Substitute.For<IABACDecisionRecorder>(),
+            TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
         Should.Throw<ArgumentNullException>(act)
@@ -96,10 +105,46 @@ public class ABACPipelineBehaviorGuardTests
             CreateObligationExecutor(),
             Compiler,
             null!,
+            Substitute.For<IABACDecisionRecorder>(),
+            TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("options");
+    }
+
+    [Fact]
+    public void Constructor_NullDecisionRecorder_ThrowsArgumentNullException()
+    {
+        var act = () => new ABACPipelineBehavior<TestRequest, string>(
+            Substitute.For<IPolicyDecisionPoint>(),
+            Substitute.For<IAttributeProvider>(),
+            CreateObligationExecutor(),
+            Compiler,
+            Options.Create(new ABACOptions()),
+            null!,
+            TimeProvider.System,
+            NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
+
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("decisionRecorder");
+    }
+
+    [Fact]
+    public void Constructor_NullTimeProvider_ThrowsArgumentNullException()
+    {
+        var act = () => new ABACPipelineBehavior<TestRequest, string>(
+            Substitute.For<IPolicyDecisionPoint>(),
+            Substitute.For<IAttributeProvider>(),
+            CreateObligationExecutor(),
+            Compiler,
+            Options.Create(new ABACOptions()),
+            Substitute.For<IABACDecisionRecorder>(),
+            null!,
+            NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
+
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -111,6 +156,8 @@ public class ABACPipelineBehaviorGuardTests
             CreateObligationExecutor(),
             Compiler,
             Options.Create(new ABACOptions()),
+            Substitute.For<IABACDecisionRecorder>(),
+            TimeProvider.System,
             null!);
 
         Should.Throw<ArgumentNullException>(act)
@@ -239,6 +286,113 @@ public class ABACPipelineBehaviorGuardTests
 
     #endregion
 
+    #region Handle — Decision Audit Enabled
+
+    private static ABACOptions AuditEnabled(ABACEnforcementMode mode = ABACEnforcementMode.Block)
+    {
+        var options = new ABACOptions { EnforcementMode = mode };
+        options.DecisionAudit.Enabled = true;
+        return options;
+    }
+
+    private static RequestHandlerCallback<string> Reached(Action onReached) => () =>
+    {
+        onReached();
+        return ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("reached"));
+    };
+
+    [Theory]
+    [InlineData(Effect.Permit, true)]
+    [InlineData(Effect.Deny, false)]
+    [InlineData(Effect.Indeterminate, false)]
+    public async Task Handle_AuditEnabledAndRecorderSucceeds_WritesOneRecordAndEnforcesTheDecision(Effect effect, bool proceeds)
+    {
+        var recorder = Substitute.For<IABACDecisionRecorder>();
+        recorder.RecordAsync(Arg.Any<ABACDecisionRecord>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, LanguageExt.Unit>(LanguageExt.Unit.Default)));
+        var sut = CreateBehavior(pdp: PdpReturning(effect), abacOptions: AuditEnabled(), recorder: recorder);
+
+        var result = await sut.Handle(new TestRequest(), UserContext(), Reached(() => { }), CancellationToken.None);
+
+        result.IsRight.ShouldBe(proceeds);
+        await recorder.Received(1).RecordAsync(Arg.Any<ABACDecisionRecord>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_AuditEnabledAndRecorderReturnsLeft_DeniesARequestThatWouldProceed()
+    {
+        var recorder = Substitute.For<IABACDecisionRecorder>();
+        recorder.RecordAsync(Arg.Any<ABACDecisionRecord>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(LanguageExt.Prelude.Left<EncinaError, LanguageExt.Unit>(EncinaErrors.Create("store.down", "down"))));
+        var reached = false;
+        var sut = CreateBehavior(pdp: PdpReturning(Effect.Permit), abacOptions: AuditEnabled(), recorder: recorder);
+
+        var result = await sut.Handle(new TestRequest(), UserContext(), Reached(() => reached = true), CancellationToken.None);
+
+        reached.ShouldBeFalse();
+        result.IfLeft(error => error.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.DecisionAuditFailedCode));
+    }
+
+    [Fact]
+    public async Task Handle_AuditEnabledAndRecorderThrows_DeniesARequestThatWouldProceed()
+    {
+        var recorder = Substitute.For<IABACDecisionRecorder>();
+        recorder.RecordAsync(Arg.Any<ABACDecisionRecord>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, LanguageExt.Unit>>>(_ => throw new InvalidOperationException("down"));
+        var reached = false;
+        var sut = CreateBehavior(pdp: PdpReturning(Effect.Permit), abacOptions: AuditEnabled(), recorder: recorder);
+
+        var result = await sut.Handle(new TestRequest(), UserContext(), Reached(() => reached = true), CancellationToken.None);
+
+        reached.ShouldBeFalse();
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_AuditEnabledAndCallerAnonymous_RecordsTheDenial()
+    {
+        var recorder = Substitute.For<IABACDecisionRecorder>();
+        recorder.RecordAsync(Arg.Any<ABACDecisionRecord>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, LanguageExt.Unit>(LanguageExt.Unit.Default)));
+        var sut = CreateBehavior(pdp: PdpReturning(Effect.Permit), abacOptions: AuditEnabled(), recorder: recorder);
+
+        var result = await sut.Handle(
+            new TestRequest(), TestRequestContext.For(TestIdentity.Anonymous), Reached(() => { }), CancellationToken.None);
+
+        result.IsLeft.ShouldBeTrue();
+        await recorder.Received(1).RecordAsync(
+            Arg.Is<ABACDecisionRecord>(r => r.UserId == null && r.ReasonCode == EncinaErrorCodes.AuthorizationUnauthenticated),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_AuditEnabledAndTokenAlreadyCancelledBeforeTheRecordStep_ThrowsWithoutWriting()
+    {
+        using var cts = new CancellationTokenSource();
+        var recorder = Substitute.For<IABACDecisionRecorder>();
+        var pdp = Substitute.For<IPolicyDecisionPoint>();
+        pdp.EvaluatePolicyAsync(Arg.Any<string>(), Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                cts.Cancel();
+                return ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, PolicyDecision>(new PolicyDecision
+                {
+                    Effect = Effect.Permit,
+                    Obligations = [],
+                    Advice = [],
+                    EvaluationDuration = TimeSpan.Zero
+                }));
+            });
+        var sut = CreateBehavior(pdp: pdp, abacOptions: AuditEnabled(), recorder: recorder);
+
+        await Should.ThrowAsync<OperationCanceledException>(async () =>
+            await sut.Handle(new TestRequest(), UserContext(), Reached(() => { }), cts.Token));
+
+        await recorder.DidNotReceiveWithAnyArgs().RecordAsync(default!, default);
+    }
+
+    #endregion
+
     // ── Helpers ──────────────────────────────────────────────────────
 
     // An authenticated user: an anonymous caller denies before evaluation (#1676, #1705).
@@ -268,7 +422,8 @@ public class ABACPipelineBehaviorGuardTests
 
     private static ABACPipelineBehavior<TestRequest, string> CreateBehavior(
         IPolicyDecisionPoint? pdp = null,
-        ABACOptions? abacOptions = null)
+        ABACOptions? abacOptions = null,
+        IABACDecisionRecorder? recorder = null)
     {
         pdp ??= Substitute.For<IPolicyDecisionPoint>();
         var attributeProvider = CreateDefaultAttributeProvider();
@@ -278,7 +433,8 @@ public class ABACPipelineBehaviorGuardTests
         var logger = NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>();
 
         return new ABACPipelineBehavior<TestRequest, string>(
-            pdp, attributeProvider, obligationExecutor, Compiler, options, logger);
+            pdp, attributeProvider, obligationExecutor, Compiler, options,
+            recorder ?? Substitute.For<IABACDecisionRecorder>(), TimeProvider.System, logger);
     }
 
     private static IAttributeProvider CreateDefaultAttributeProvider()

@@ -154,7 +154,8 @@ public sealed class ErrorMessageLeakTests
         var store = new FakeDeadLetterStore();
         var logger = new FakeLogger<DeadLetterOrchestrator>();
         var orchestrator = new DeadLetterOrchestrator(
-            store, new PassThroughDeadLetterMessageFactory(), new DeadLetterOptions(), logger, new JsonMessageSerializer());
+            store, new PassThroughDeadLetterMessageFactory(), new DeadLetterOptions(), logger, new JsonMessageSerializer(),
+            Substitute.For<IRequestContextAccessor>());
 
         // Act
         var added = await orchestrator.AddAsync(
@@ -168,9 +169,8 @@ public sealed class ErrorMessageLeakTests
 
         // Assert
         var stored = store.GetMessage(added.Match(Right: m => m.Id, Left: e => throw new InvalidOperationException(e.Message)))!;
-        stored.ErrorMessage.ShouldBe("consent.missing");
+        stored.ErrorCode.ShouldBe("consent.missing");
         stored.ExceptionType.ShouldBe(typeof(InvalidOperationException).FullName);
-        stored.ExceptionMessage.ShouldBeNull();
         var logs = logger.Collector.GetSnapshot();
         logs.ShouldContain(r => r.Message.Contains("consent.missing"));
         logs.ShouldAllBe(r => !r.Message.Contains(PersonalData));
@@ -184,7 +184,8 @@ public sealed class ErrorMessageLeakTests
         var store = new FakeDeadLetterStore();
         var logger = new FakeLogger<DeadLetterOrchestrator>();
         var orchestrator = new DeadLetterOrchestrator(
-            store, new PassThroughDeadLetterMessageFactory(), new DeadLetterOptions(), logger, serializer);
+            store, new PassThroughDeadLetterMessageFactory(), new DeadLetterOptions(), logger, serializer,
+            Substitute.For<IRequestContextAccessor>());
 
         var context = new RecoverabilityContext();
         context.RecordFailedAttempt(SensitiveError, exception: null, ErrorClassification.Permanent);
@@ -198,7 +199,7 @@ public sealed class ErrorMessageLeakTests
         stored.RequestContent.ShouldStartWith("ENC:v1:");
         stored.RequestContent.ShouldNotContain(PersonalData);
         serializer.Deserialize<ReminderRequest>(stored.RequestContent)!.SubjectId.ShouldBe(PersonalData);
-        stored.ErrorMessage.ShouldBe("consent.missing");
+        stored.ErrorCode.ShouldBe("consent.missing");
         logger.Collector.GetSnapshot().ShouldAllBe(r => !r.Message.Contains(PersonalData));
     }
 
@@ -305,12 +306,14 @@ public sealed class ErrorMessageLeakTests
             RequestType = typeof(ReminderRequest).AssemblyQualifiedName!,
             RequestContent = serializer.Serialize(new ReminderRequest("r-1"))
         };
-        store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), 0, 100, Arg.Any<CancellationToken>())
+        store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), 0, 100, false, Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>([message]));
         store.GetAsync(message.Id, Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, Option<IDeadLetterMessage>>(Option<IDeadLetterMessage>.Some(message)));
+        store.TryClaimForReplayAsync(message.Id, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, bool>(true));
         store.MarkAsReplayedAsync(message.Id, Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Unit>(Unit.Default));
+            .Returns(Right<EncinaError, bool>(true));
         store.SaveChangesAsync(Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, Unit>(Unit.Default));
 
@@ -322,9 +325,11 @@ public sealed class ErrorMessageLeakTests
 
         var orchestrator = new DeadLetterOrchestrator(
             store, new PassThroughDeadLetterMessageFactory(), new DeadLetterOptions(),
-            NullLogger<DeadLetterOrchestrator>.Instance, serializer);
+            NullLogger<DeadLetterOrchestrator>.Instance, serializer, Substitute.For<IRequestContextAccessor>());
         var logger = new FakeLogger<DeadLetterManager>();
-        var manager = new DeadLetterManager(store, orchestrator, serviceProvider, logger, serializer);
+        var manager = new DeadLetterManager(
+            store, orchestrator, serviceProvider, logger, serializer,
+            new DeadLetterOptions(), Substitute.For<IRequestContextAccessor>());
 
         // Act
         var result = await manager.ReplayAllAsync(new DeadLetterFilter());
@@ -718,11 +723,11 @@ public sealed class ErrorMessageLeakTests
             Id = data.Id,
             RequestType = data.RequestType,
             RequestContent = data.RequestContent,
-            ErrorMessage = data.ErrorMessage,
+            ErrorCode = data.ErrorCode,
             ExceptionType = data.ExceptionType,
-            ExceptionMessage = data.ExceptionMessage,
             ExceptionStackTrace = data.ExceptionStackTrace,
             SourcePattern = data.SourcePattern,
+            SourceMessageId = data.SourceMessageId,
             TotalRetryAttempts = data.TotalRetryAttempts,
             CorrelationId = data.CorrelationId
         };

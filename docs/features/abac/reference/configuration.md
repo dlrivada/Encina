@@ -66,6 +66,23 @@ All registrations use `TryAdd`, meaning you can register custom implementations 
 | `PolicyCaching` | `PolicyCachingOptions` | See below | Configuration for the caching decorator. Only applicable when `UsePersistentPAP = true`. |
 | `SeedPolicySets` | `List<PolicySet>` | `[]` | Policy sets to seed into the PAP at application startup via `ABACPolicySeedingHostedService`. Duplicates are logged as warnings and skipped. |
 | `SeedPolicies` | `List<Policy>` | `[]` | Standalone policies to seed into the PAP at startup. Duplicates are logged as warnings and skipped. |
+| `DecisionAudit` | `ABACDecisionAuditOptions` | See [DecisionAudit Options](#decisionaudit-options) | Configuration of the decision audit trail. Off by default. |
+
+## DecisionAudit Options
+
+`ABACOptions.DecisionAudit` (`ABACDecisionAuditOptions`, namespace `Encina.Security.ABAC.DecisionAudit`) configures the decision audit trail described in [Decision audit](decision-audit.md). `AddEncinaABAC()` always registers `IABACDecisionRecorder` (`AuditStoreABACDecisionRecorder`, singleton) and `IABACDecisionAuditReader` (scoped); they stay idle until `Enabled` is set.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Enabled` | `bool` | `false` | Whether the PEP records the decisions it enforces. |
+| `Outcomes` | `ABACDecisionAuditOutcomes` | `All` | Which enforced outcomes are recorded (`Granted`, `Denied`, `NotEnforced`). Errors and unauthenticated callers are always recorded. |
+| `FailureMode` | `ABACDecisionAuditFailureMode` | `FailClosed` | What happens to a request that would proceed when its record cannot be written: `FailClosed` denies it, `BestEffort` lets it proceed and logs. |
+| `IncludeEvaluationTrace` | `bool` | `true` | Whether records carry the evaluation trace. |
+| `MaxTraceEntries` | `int` | `64` | Maximum trace nodes per record; must be at least 1 (validated at start). |
+| `ResourceIdAttributeName` | `string` | `resourceId` | Resource attribute read as the resource id when the request does not implement `IABACResourceIdentity`. |
+| `RecordedAttributeValues` | `HashSet<string>` | empty | Names of the attributes whose values are recorded. Values are personal data, so none are recorded by default. |
+| `WriteTimeout` | `TimeSpan` | 5 seconds | Bound of one record write, raced even against a store that ignores its token; must be greater than zero and at most `int.MaxValue` milliseconds (validated at start). A failed write holds the request for at most twice this value. |
+| `AllowCrossTenantQueries` | `bool` | `false` | Lets the reader run without a tenant in a multi-tenant application (operator tooling); each such query is logged with EventId 9090. |
 
 ## ABACEnforcementMode
 

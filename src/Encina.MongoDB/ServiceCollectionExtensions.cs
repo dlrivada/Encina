@@ -15,6 +15,7 @@ using Encina.Messaging.SoftDelete;
 using Encina.Modules.Isolation;
 using Encina.MongoDB.Auditing;
 using Encina.MongoDB.BulkOperations;
+using Encina.MongoDB.DeadLetter;
 using Encina.MongoDB.Health;
 using Encina.MongoDB.Inbox;
 using Encina.MongoDB.Modules;
@@ -607,6 +608,8 @@ public static class ServiceCollectionExtensions
             options.UseInbox, options.InboxOptions,
             options.UseSagas, options.SagaOptions,
             options.UseScheduling, options.SchedulingOptions);
+
+        services.AddDeadLetterQueueServices<DeadLetterStoreMongoDB, DeadLetterMessageFactory>(options.UseDeadLetterQueue, options.DeadLetterOptions);
     }
 
     /// <summary>

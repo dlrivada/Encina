@@ -310,6 +310,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - Distributed Lock providers
 - Serverless enhancements
 - Validation enhancements
+- Persistent dead letter queue on the 10 database providers (#583, SPEC-000 DEC-008)
 
 → [View v0.19.0 Issues](https://github.com/dlrivada/Encina/milestone/16)
 

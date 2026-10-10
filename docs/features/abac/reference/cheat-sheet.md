@@ -215,8 +215,10 @@ user.isAdmin == true || user.department == "security"
 | 9010-9019 | Obligations (execution, failure, missing handler) |
 | 9020-9029 | Advice (execution, failure, skipped) |
 | 9072-9078 | Required policies, conditions and obligation or advice handler exceptions |
-| 9091-9093 | Fail-closed denials: missing context, policy store retrieval failure, store evaluation exception (9079-9090 are reserved for #751) |
+| 9091-9093 | Fail-closed denials: missing context, policy store retrieval failure, store evaluation exception (9079-9083 and 9088-9090 are the decision audit trail, see [observability](observability.md#decision-audit-messages-9079-9090)) |
 | 9094 | Policy change audit write failed (error code) |
 | 9095 | Exception during a policy change audit write |
 | 9096 | System actor scope opened for startup seeding |
 | 9097 | Policy changes applied without an audit store (Warning, once per PAP instance) |
+| 9098 | A stored decision audit entry could not be read; the query fails (Error) |
+| 9099 | A failed decision audit write could not be confirmed because the look-up failed too (Debug) |

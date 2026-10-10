@@ -27,14 +27,26 @@ public sealed class RecoverabilityContext
     }
 
     /// <summary>
-    /// Gets the unique identifier for this processing attempt.
+    /// Gets the unique identifier of the logical message's retry chain. It stays the same across
+    /// every delayed retry of the message.
     /// </summary>
-    public Guid Id { get; } = Guid.NewGuid();
+    public Guid Id { get; private set; } = Guid.NewGuid();
 
     /// <summary>
     /// Gets the timestamp when processing first started (UTC).
     /// </summary>
-    public DateTime StartedAtUtc { get; }
+    public DateTime StartedAtUtc { get; private set; }
+
+    /// <summary>
+    /// Restores the identity of a persisted retry chain, so a delayed retry continues the logical
+    /// message's chain under its original id and start time. Internal: only the delayed retry
+    /// processor restores a chain.
+    /// </summary>
+    internal void RestoreChain(Guid id, DateTime startedAtUtc)
+    {
+        Id = id;
+        StartedAtUtc = startedAtUtc;
+    }
 
     /// <summary>
     /// Gets or sets the current immediate retry attempt count (0-based).
@@ -155,6 +167,27 @@ public sealed class RecoverabilityContext
     public void TransitionToDelayedPhase()
     {
         IsInDelayedRetryPhase = true;
+    }
+
+    /// <summary>
+    /// Adopts the real failure of a delayed-retry re-dispatch (its last error, exception, classification,
+    /// immediate retries and history) into the restored chain context. Internal: only the delayed retry
+    /// processor does this.
+    /// </summary>
+    internal void AbsorbRedispatch(RecoverabilityContext redispatch)
+    {
+        ArgumentNullException.ThrowIfNull(redispatch);
+
+        var history = redispatch.RetryHistory;
+
+        lock (_lock)
+        {
+            LastError = redispatch.LastError;
+            LastException = redispatch.LastException;
+            LastClassification = redispatch.LastClassification;
+            ImmediateRetryCount += redispatch.ImmediateRetryCount;
+            _retryHistory.AddRange(history);
+        }
     }
 
     /// <summary>

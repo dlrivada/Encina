@@ -131,7 +131,8 @@ public sealed class StorePayloadEncryptionTests
             new PassThroughDeadLetterMessageFactory(),
             new DeadLetterOptions(),
             NullLogger<DeadLetterOrchestrator>.Instance,
-            serializer);
+            serializer,
+            Substitute.For<IRequestContextAccessor>());
 
         var encina = Substitute.For<IEncina>();
         encina.Send(Arg.Any<SessionReminderRequest>(), Arg.Any<CancellationToken>())
@@ -140,7 +141,8 @@ public sealed class StorePayloadEncryptionTests
         serviceProvider.GetService(typeof(IEncina)).Returns(encina);
 
         var manager = new DeadLetterManager(
-            store, orchestrator, serviceProvider, NullLogger<DeadLetterManager>.Instance, serializer);
+            store, orchestrator, serviceProvider, NullLogger<DeadLetterManager>.Instance, serializer,
+            new DeadLetterOptions(), Substitute.For<IRequestContextAccessor>());
 
         // Act: dead-letter the failed request
         var added = await orchestrator.AddAsync(
@@ -259,8 +261,9 @@ public sealed class StorePayloadEncryptionTests
             Id = data.Id,
             RequestType = data.RequestType,
             RequestContent = data.RequestContent,
-            ErrorMessage = data.ErrorMessage,
+            ErrorCode = data.ErrorCode,
             SourcePattern = data.SourcePattern,
+            SourceMessageId = data.SourceMessageId,
             TotalRetryAttempts = data.TotalRetryAttempts,
             FirstFailedAtUtc = data.FirstFailedAtUtc,
             DeadLetteredAtUtc = data.DeadLetteredAtUtc,

@@ -1,4 +1,5 @@
 using System.Data;
+using Encina.ADO.SqlServer.DeadLetter;
 using Encina.ADO.SqlServer.Health;
 using Encina.ADO.SqlServer.Inbox;
 using Encina.ADO.SqlServer.Outbox;
@@ -88,6 +89,9 @@ public static class TenancyServiceCollectionExtensions
             InboxStoreADO,
             InboxMessageFactory,
             OutboxProcessor>(config);
+
+        // The dead letter queue is not wired by AddMessagingServicesCore (#583).
+        services.AddDeadLetterQueueServices<DeadLetterStoreADO, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions);
 
         // Register provider health check if enabled
         if (config.ProviderHealthCheck.Enabled)

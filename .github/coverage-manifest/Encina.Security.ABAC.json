@@ -1,7 +1,7 @@
 {
   "package": "Encina.Security.ABAC",
-  "generated": "2026-10-03T08:13:01Z",
-  "totalFiles": 113,
+  "generated": "2026-10-09T17:34:55Z",
+  "totalFiles": 139,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -76,7 +76,15 @@
         "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 80,
+        "guard": 95
+      },
+      "justifications": {
+        "unit": "The unit tests configure the options through AddEncinaABAC and the decision audit tests; the XACML serializer switches are covered by registration tests.",
+        "guard": "The guard suite exercises every property accessor and the argument checks of the fluent methods."
+      }
     },
     "ABACPipelineBehavior.cs": {
       "defaultTests": [
@@ -93,10 +101,10 @@
         "property": 70
       },
       "justifications": {
-        "unit": "Unit tests cover every decision, the unauthenticated-caller denial, the built-in attributes and the error paths (measured 96.7%).",
-        "guard": "Guard tests run the constructor guards and every named-policy decision (measured 90.2%).",
-        "contract": "Contract tests run the PEP contract for users, services and anonymous callers (measured 90.8%).",
-        "property": "Identity properties run the PEP for anonymous and authenticated callers in Block and Warn (measured 78.3%)."
+        "unit": "Unit tests cover every decision, the unauthenticated-caller denial, the built-in attributes, the audit record, write failures and the error paths.",
+        "guard": "Guard tests run the constructor guards, every named-policy decision and the enabled-audit paths (write failures, anonymous caller, cancellation).",
+        "contract": "Contract tests run the PEP contract for users, services and anonymous callers and the one-record-per-request, write-before-handler and fail-closed contract of the decision audit.",
+        "property": "Identity and decision-audit properties run the PEP for anonymous and authenticated callers, in Block and Warn, across write outcomes and the Outcomes filter."
       }
     },
     "ABACPolicySeedingHostedService.cs": {
@@ -366,6 +374,54 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "DecisionAudit/ABACDecisionAuditFailureMode.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "An enum has no executable line; the unit tests exercise both modes.",
+        "guard": "An enum has no executable line and no parameter to guard."
+      }
+    },
+    "DecisionAudit/ABACDecisionAuditOptions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 95,
+        "guard": 95
+      },
+      "justifications": {
+        "unit": "Unit tests read and set every option and its default through the decision audit tests of the PEP, so each accessor runs.",
+        "guard": "Guard tests set and read every option, including WriteTimeout and AllowCrossTenantQueries, and validate them."
+      }
+    },
+    "DecisionAudit/ABACDecisionAuditOutcomes.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "An enum has no executable line; the unit tests pin its flag values through the outcome filter tests.",
+        "guard": "An enum has no executable line and no parameter to guard."
+      }
+    },
     "DecisionAudit/ABACDecisionAuditSchema.cs": {
       "defaultTests": [
         "unit",
@@ -396,6 +452,22 @@
         "guard": "The record is a set of init properties with no parameters or guard clauses, so the guard suite has nothing to exercise; its members are covered by the unit suite"
       }
     },
+    "DecisionAudit/ABACDecisionRecordFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic",
+      "targets": {
+        "unit": 95,
+        "guard": 70
+      },
+      "justifications": {
+        "unit": "The unit tests build records for every path of the decision-path table: identity, context, resource id from the request or the attribute, attribute names and allow-listed values, trace and deciding policy.",
+        "guard": "The factory is internal and reached through the PEP; the guard suite runs the enabled-audit paths (permit, deny, indeterminate, anonymous, write failures) but not every optional branch (allow-listed values, resource attribute)."
+      }
+    },
     "DecisionAudit/ABACEnforcedOutcome.cs": {
       "defaultTests": [
         "unit",
@@ -410,6 +482,27 @@
         "unit": "An enum has no executable line; its stable values are asserted by unit tests."
       }
     },
+    "DecisionAudit/ABACEnforcementVerdict.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 90
+      },
+      "justifications": {
+        "unit": "The unit tests run Granted, Denied and NotEnforced for every row of the decision-path table.",
+        "guard": "The guard suite runs the permit, deny and anonymous verdicts through the PEP."
+      }
+    },
+    "DecisionAudit/IABACDecisionRecorder.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
     "DecisionAudit/IABACResourceIdentity.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
@@ -419,6 +512,157 @@
       },
       "justifications": {
         "unit": "An interface has no executable line; unit and contract tests exercise its implementations."
+      }
+    },
+    "DecisionAudit/AuditStoreABACDecisionRecorder.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Recorder that writes each decision as an operation audit entry in its own scope",
+      "targets": {
+        "unit": 95,
+        "guard": 50,
+        "contract": 55,
+        "property": 80,
+        "integration": 50
+      },
+      "justifications": {
+        "unit": "Unit tests drive every path: isolated scope, suppressed transaction, unlinked token, the WriteTimeout race against a store that ignores its token, and the idempotent re-check after a Left, an exception or a timeout.",
+        "guard": "Guard tests reject each null constructor argument and a null record, and write a valid record through the in-memory store.",
+        "contract": "The recorder contract writes one entry per record over the in-memory store and fails without a store.",
+        "property": "The property test feeds store errors with arbitrary messages and asserts none leaves the recorder.",
+        "integration": "The round trip writes through every real operation audit store (ADO x3, Dapper x3, EF Core, MongoDB, Marten); failure paths are unit-tested."
+      }
+    },
+    "DecisionAudit/ABACDecisionAuditEntryMapper.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*Mapper.cs",
+      "reason": "Maps decision audit records to operation audit entries and back",
+      "targets": {
+        "unit": 95,
+        "guard": 45,
+        "contract": 80,
+        "property": 85,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "A test per bounded column, every outcome row, the read-back and the JSON element metadata cover the mapper.",
+        "guard": "Guard tests reject a null record and map a minimal valid record.",
+        "contract": "The recorder and reader contracts map entries both ways.",
+        "property": "Properties generate over-limit values for every bounded column and round-trip entries to records.",
+        "integration": "The round trip maps entries both ways against every real store."
+      }
+    },
+    "DecisionAudit/ABACDecisionAuditReader.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "integration"
+      ],
+      "defaultRule": "*Reader.cs",
+      "reason": "Tenant-gated query and JSON Lines export of decision audit entries",
+      "targets": {
+        "unit": 95,
+        "guard": 75,
+        "contract": 55,
+        "integration": 75
+      },
+      "justifications": {
+        "unit": "Unit tests cover the five tenant cases, mismatch, blank tenants, validation, store errors, filter normalization and the paged JSON Lines export.",
+        "guard": "Guard tests reject null arguments and run a query and an export.",
+        "contract": "The contract test reads back what the recorder wrote.",
+        "integration": "The round trip queries and exports on every real store; the partial-export and unreadable-entry failure paths need a failing store and are unit-tested."
+      }
+    },
+    "DecisionAudit/ABACDecisionAuditRecord.cs": {
+      "defaultTests": [
+        "unit",
+        "contract",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Decision audit record read back from the operation audit store",
+      "targets": {
+        "unit": 95,
+        "contract": 85,
+        "property": 85,
+        "integration": 85
+      },
+      "justifications": {
+        "unit": "Read-back and ToString tests read every member.",
+        "contract": "The contract test reads back a full record.",
+        "property": "The entry-to-record property reads every stored member.",
+        "integration": "The round trip reads every member back from each store."
+      }
+    },
+    "DecisionAudit/ABACDecisionAuditQuery.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Query.cs",
+      "reason": "Filter and paging record of the decision audit reader",
+      "targets": {
+        "unit": 95,
+        "guard": 75
+      },
+      "justifications": {
+        "unit": "Reader tests set every filter and the paging, and ToString hides the filters.",
+        "guard": "Guard tests build default queries for the reader calls."
+      }
+    },
+    "DecisionAudit/ABACOptionsValidator.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Validator.cs",
+      "reason": "Validates the decision audit options at start",
+      "targets": {
+        "unit": 95,
+        "guard": 75
+      },
+      "justifications": {
+        "unit": "Validator tests cover each rejected bound, the defaults and a null argument.",
+        "guard": "Guard tests reject null options and validate a valid configuration."
+      }
+    },
+    "DecisionAudit/IABACDecisionAuditReader.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "An interface has no coverable lines; ABACDecisionAuditReader is measured instead."
+      }
+    },
+    "DecisionAudit/ABACDecisionAuditJsonContext.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Source-generated JSON metadata",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "Source-generated JSON metadata: no coverable lines of its own; the mapper and export tests exercise it."
       }
     },
     "Diagnostics/ABACDiagnostics.cs": {
@@ -480,6 +724,22 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "Enforcement/ABACRecordTrace.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 45
+      },
+      "justifications": {
+        "unit": "The unit tests drive the budget through PDP traces, condition leaves, skipped conditions and an exhausted budget.",
+        "guard": "The collector is internal and the guard suite reaches only the paths of the enabled-audit PEP tests (no condition leaves with an exhausted budget)."
+      }
+    },
     "Enforcement/ABACRequirementCombiner.cs": {
       "defaultTests": [
         "unit",
@@ -498,7 +758,7 @@
         "unit": 95
       },
       "justifications": {
-        "unit": "The enforcement and designator-agreement unit tests run every policy, condition and verdict path (measured 100%)."
+        "unit": "The enforcement and designator-agreement unit tests run every policy, condition and verdict path."
       }
     },
     "EnvironmentAttributes.cs": {
@@ -1056,7 +1316,7 @@
         "unit": 0
       },
       "justifications": {
-        "unit": "An enum has no executable line; the contract test pins its four values."
+        "unit": "An enum has no executable line; the contract test pins its five values."
       }
     },
     "Model/Rule.cs": {
@@ -1295,8 +1555,21 @@
         "guard": 60
       },
       "justifications": {
-        "unit": "Registration tests build the validated provider, the persistent PAP, caching and seeding paths (measured 79.5%).",
-        "guard": "Guard tests call AddEncinaABAC with each option set (measured 68.7%)."
+        "unit": "Registration tests build the validated provider, the persistent PAP, caching and seeding paths.",
+        "guard": "Guard tests call AddEncinaABAC with each option set."
+      }
+    },
+    "TimeBoundedCall.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Runs a store call under a deadline without awaiting an abandoned call",
+      "targets": {
+        "unit": 85
+      },
+      "justifications": {
+        "unit": "Unit tests cover the completed call, the race against a token-ignoring store and the observed token; the late-fault continuation runs only when an abandoned call faults later."
       }
     },
     "Testing/EELTestHelper.cs": {

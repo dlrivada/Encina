@@ -42,6 +42,7 @@ has_children: true
 | [031](031-retention-erasure-port.md) | Retention Enforcement Erases Through Its Own Category-Scoped Port |
 | [034](034-crypto-shredding-through-the-stj-contract.md) | Crypto-Shredding Runs Through the System.Text.Json Contract |
 | [036](036-three-audit-stores.md) | Three Purpose-Named Audit Stores: Operation, Entity Change and Read Access |
+| [046](046-persistent-dead-letter-queue.md) | Persistent Dead Letter Queue: Oldest-First Contract, Idempotent Capture, Tenant Column |
 | [048](048-inbox-record-vs-business-transaction.md) | The Inbox Record and the Business Transaction: Enlisted and Independent Writes |
 
 ## Reserved numbers
@@ -63,5 +64,4 @@ An ADR takes the next number that is neither used nor reserved. A plan or spike 
 | 043 | [processor-row-claiming-implementation-plan-1251.md](../../plans/processor-row-claiming-implementation-plan-1251.md) (#1251) | Processor row claiming | Reserved, ADR not written |
 | 044 | [aiact-marten-event-sourcing-implementation-plan-847.md](../../plans/aiact-marten-event-sourcing-implementation-plan-847.md) (#847) | Deterministic natural-key stream identity for compliance aggregates | Reserved, ADR not written |
 | 045 | [special-category-conditions-implementation-plan-1196.md](../../plans/special-category-conditions-implementation-plan-1196.md) (#1196) | Legal grounds: Art. 6 basis and Art. 9(2) condition as one model | Reserved, ADR not written |
-| 046 | [dead-letter-stores-implementation-plan-583.md](../../plans/dead-letter-stores-implementation-plan-583.md) (#583) | Persistent dead letter queue: oldest-first contract, idempotent capture, tenant column | Reserved, ADR not written |
 | 047 | [abac-decision-audit-implementation-plan-751.md](../../plans/abac-decision-audit-implementation-plan-751.md) (#751) | ABAC decision audit trail | Reserved, ADR not written |

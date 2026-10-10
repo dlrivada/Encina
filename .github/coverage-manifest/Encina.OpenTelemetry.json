@@ -191,6 +191,22 @@
       "defaultRule": "*Store.cs",
       "reason": "Abstract/base store with mockeable deps"
     },
+    "MessagingStores/InstrumentedDeadLetterStore.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Store.cs",
+      "reason": "Instrumented decorator over the dead letter store",
+      "targets": {
+        "unit": 95,
+        "guard": 8
+      },
+      "justifications": {
+        "unit": "Unit tests drive every instrumented store method and check the emitted spans and metrics against a fake store.",
+        "guard": "Guard tests cover the constructor null checks, which are the only guard surface of the decorator."
+      }
+    },
     "MessagingStores/InstrumentedScheduledMessageStore.cs": {
       "defaultTests": [
         "unit",
@@ -376,7 +392,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 90,
+        "guard": 35
+      },
+      "justifications": {
+        "unit": "Registration unit tests reach nearly every branch of the telemetry wiring, including the dead letter instrumentation.",
+        "guard": "Guard tests cover the null-argument checks of the registration methods, which are a minority of the file."
+      }
     },
     "Sharding/ColocationMetrics.cs": {
       "defaultTests": [

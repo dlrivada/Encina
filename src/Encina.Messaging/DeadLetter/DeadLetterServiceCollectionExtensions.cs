@@ -17,6 +17,10 @@ public static class DeadLetterServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Optional configuration action.</param>
     /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// A thin wrapper over <see cref="MessagingServiceCollectionExtensions.AddDeadLetterQueueServices{TStore, TFactory}"/>,
+    /// the registration body every provider shares. A store registered earlier is kept (<c>TryAdd</c>).
+    /// </remarks>
     public static IServiceCollection AddEncinaDeadLetterQueue<TStore, TFactory>(
         this IServiceCollection services,
         Action<DeadLetterOptions>? configure = null)
@@ -28,31 +32,7 @@ public static class DeadLetterServiceCollectionExtensions
         var options = new DeadLetterOptions();
         configure?.Invoke(options);
 
-        services.AddSingleton(options);
-
-        // DeadLetterOrchestrator and DeadLetterManager serialize the request payload through
-        // IMessageSerializer (so encryption applies to dead-lettered content).
-        services.TryAddDefaultMessageSerializer();
-
-        // Register store and factory
-        services.TryAddScoped<IDeadLetterStore, TStore>();
-        services.TryAddScoped<IDeadLetterMessageFactory, TFactory>();
-
-        // Register orchestrator and manager
-        services.TryAddScoped<DeadLetterOrchestrator>();
-        services.TryAddScoped<IDeadLetterManager, DeadLetterManager>();
-
-        // Register health check
-        // TryAddEnumerable so it coexists with other IEncinaHealthCheck registrations in any order.
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<IEncinaHealthCheck, DeadLetterHealthCheck>());
-
-        // Register cleanup processor if enabled
-        if (options.EnableAutomaticCleanup && options.RetentionPeriod.HasValue)
-        {
-            services.AddHostedService<DeadLetterCleanupProcessor>();
-        }
-
-        return services;
+        return services.AddDeadLetterQueueServices<TStore, TFactory>(useDeadLetterQueue: true, options);
     }
 
     /// <summary>
@@ -62,7 +42,7 @@ public static class DeadLetterServiceCollectionExtensions
     /// <typeparam name="TFactory">The dead letter message factory implementation.</typeparam>
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Configuration action for DLQ options.</param>
-    /// <param name="healthCheckOptions">Health check options.</param>
+    /// <param name="healthCheckOptions">Health check options; they replace the default registration.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddEncinaDeadLetterQueue<TStore, TFactory>(
         this IServiceCollection services,
@@ -75,7 +55,7 @@ public static class DeadLetterServiceCollectionExtensions
 
         if (healthCheckOptions is not null)
         {
-            services.AddSingleton(healthCheckOptions);
+            services.Replace(ServiceDescriptor.Singleton(healthCheckOptions));
         }
 
         return services;

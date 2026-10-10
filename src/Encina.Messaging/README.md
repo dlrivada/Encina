@@ -335,6 +335,30 @@ services.AddEncinaMessaging(config =>
 - **Route Metadata**: Attach custom metadata to routes
 - **Execution Metrics**: Track route execution time and matched route count
 
+### 8. **Dead Letter Queue** (Messages That Failed for Good)
+
+**Problem**: A message that exhausted its retries must not be lost, and an operator needs to inspect, replay or delete it.
+
+**Solution**: Keep it in a persistent queue. Enable it with `UseDeadLetterQueue` on the configuration of a provider package (ADO.NET, Dapper, EF Core or MongoDB); the provider registers its `IDeadLetterStore`, `DeadLetterOrchestrator` (capture), `IDeadLetterManager` (list, replay, count, statistics, delete, cleanup), the health check and the cleanup processor.
+
+```csharp
+services.AddEncinaADO(connectionString, config =>
+{
+    config.UseDeadLetterQueue = true;
+    config.DeadLetterOptions.RetentionPeriod = TimeSpan.FromDays(14);
+});
+```
+
+| `DeadLetterOptions` member | Default | Effect |
+|---|---|---|
+| `RetentionPeriod` | 7 days | Time until `ExpiresAtUtc`; `null` disables expiry |
+| `CleanupInterval` | 1 hour | How often `DeadLetterCleanupProcessor` deletes expired messages |
+| `EnableAutomaticCleanup` | `true` | Registers the cleanup processor (needs a `RetentionPeriod`) |
+| `ReplayClaimTimeout` | 5 minutes | How long a replay claim excludes other replays of the same message |
+| `OnDeadLetter` | none | Callback run once per newly captured source message |
+
+Capture is idempotent per `(SourcePattern, SourceMessageId)`, the store returns the oldest messages first, and the manager defaults to the ambient tenant. Setup per provider, schema scripts and the replay flow: [How to enable the persistent dead letter queue](../../docs/features/dead-letter-queue.md). Design reasons: [ADR-046](../../docs/architecture/adr/046-persistent-dead-letter-queue.md).
+
 ## Scheduling vs Hangfire/Quartz.NET
 
 ### Key Differences

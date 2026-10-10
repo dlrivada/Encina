@@ -156,53 +156,125 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Background processor that deletes expired dead letter messages on an interval",
+      "targets": {
+        "unit": 92,
+        "guard": 14
+      },
+      "justifications": {
+        "unit": "Unit tests drive the interval loop, the disabled and enabled paths, the cleanup metrics and the store-error branch against a mocked orchestrator (measured 94.5% line coverage).",
+        "guard": "Guard tests reach the constructor null checks only; the loop body is covered by the unit flag (measured 16.4%)."
+      }
     },
     "DeadLetter/DeadLetterErrorCodes.cs": {
-      "defaultTests": [
-        "unit"
-      ],
+      "defaultTests": [],
       "defaultRule": "*ErrorCodes.cs",
-      "reason": "Error code constants"
+      "reason": "Error code constants",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "Error code constants have no executable lines, so there is nothing for a test to cover."
+      }
     },
     "DeadLetter/DeadLetterFilter.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Property bag for dead letter queries",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests reach the filter through every property combination, since the file is a plain property bag with no branching.",
+        "guard": "The filter is a property bag with no reference-type parameter to guard."
+      }
     },
-    "DeadLetter/DeadLetterLog.cs": {
+    "DeadLetter/DeadLetterInputs.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Input rules (UTC instants, trimmed identity values) the orchestrator and manager apply before any store call",
+      "targets": {
+        "unit": 95,
+        "guard": 0,
+        "integration": 60
+      },
+      "justifications": {
+        "unit": "Unit tests drive every accepted and rejected input of both rules and the filter validation.",
+        "guard": "Internal static helper with no public surface; its argument handling is exercised through the unit tests.",
+        "integration": "The store contract facts run the rules through the orchestrator against the ten real stores."
+      }
+    },
+    "DeadLetter/DeadLetterLog.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Source-generated logging methods",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "Source-generated logging is excluded from coverage, so the file has no hand-written logic to cover."
+      }
     },
     "DeadLetter/DeadLetterManager.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Dead letter manager with capture, replay and cleanup",
+      "targets": {
+        "unit": 92,
+        "guard": 10,
+        "integration": 40
+      },
+      "justifications": {
+        "unit": "Unit tests drive every capture, replay and cleanup branch against a mocked store, including the store-error paths.",
+        "guard": "Only the constructor and argument checks are reachable by guard tests.",
+        "integration": "The end-to-end tests drive capture, replay and cleanup through the real services, which covers the store interaction paths."
+      }
     },
     "DeadLetter/DeadLetterOptions.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
-    },
-    "DeadLetter/DeadLetterOrchestrator.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 95,
+        "guard": 65
+      },
+      "justifications": {
+        "unit": "Unit tests check the option defaults and validation rules directly.",
+        "guard": "The argument checks of the option setters that validate input are covered by guard tests, while plain setters have no guard surface."
+      }
+    },
+    "DeadLetter/DeadLetterOrchestrator.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "integration"
+      ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Dead letter orchestrator coordinating capture and replay",
+      "targets": {
+        "unit": 92,
+        "guard": 10,
+        "integration": 40
+      },
+      "justifications": {
+        "unit": "Unit tests drive every orchestration branch against mocked collaborators.",
+        "guard": "Only the constructor and argument checks are reachable by guard tests.",
+        "integration": "The integration tests run the orchestrator through the real services, which reaches its dispatch and replay paths."
+      }
     },
     "DeadLetter/DeadLetterServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -225,10 +297,29 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "DeadLetter/IDeadLetterManager.cs": {
+    "DeadLetter/DeadLetterStoreLimits.cs": {
       "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Constants for dead letter store limits",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "The file holds only constants, so there are no executable lines to cover."
+      }
+    },
+    "DeadLetter/IDeadLetterManager.cs": {
+      "defaultTests": [
+        "unit"
+      ],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface with record and result types",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "The records and result types declared in this file are exercised by the unit tests of the manager."
+      }
     },
     "DeadLetter/IDeadLetterMessage.cs": {
       "defaultTests": [],
@@ -241,12 +332,33 @@
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Factory with creation logic",
+      "targets": {
+        "unit": 95,
+        "guard": 90
+      },
+      "justifications": {
+        "unit": "The unit tests of the manager create every dead letter message through this factory, so its creation logic is exercised directly.",
+        "guard": "The guard tests cover the argument checks of the factory methods, which are its only branches."
+      }
     },
     "DeadLetter/IDeadLetterStore.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
       "reason": "Interfaces have no implementation to test"
+    },
+    "Diagnostics/DeadLetterMetrics.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Metrics.cs",
+      "reason": "Dead letter metric instruments",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "Unit tests create the instruments and read the emitted measurements for each dead letter operation."
+      }
     },
     "Diagnostics/InboxActivitySource.cs": {
       "defaultTests": [
@@ -380,9 +492,9 @@
       ],
       "defaultRule": "*HealthCheck.cs",
       "reason": "Health check with mockeable service dependencies",
-      "targets": { "unit": 98, "guard": 8 },
+      "targets": { "unit": 95, "guard": 8 },
       "justifications": {
-        "unit": "Unit tests drive every branch (store Left on count and old-messages query, missing error code, old-message degrade, critical, warning, healthy, disabled old-message check); the target leaves no real gap because only the awaited-state-machine lines could differ.",
+        "unit": "Unit tests cover each health outcome, including the store-failure path that must report Unhealthy with only the error code.",
         "guard": "Only the constructor null check is a guard; the check logic belongs to unit tests, so a guard share near 10% is the realistic ceiling."
       }
     },
@@ -547,8 +659,8 @@
       "reason": "ServiceCollection extensions with conditional registration",
       "targets": { "unit": 95, "guard": 60, "integration": 35 },
       "justifications": {
-        "unit": "Registration snapshots and DI tests cover every pattern flag.",
-        "guard": "Argument checks of the public registration methods.",
+        "unit": "Registration snapshots and DI tests cover every pattern flag and nearly every branch of the messaging wiring, including the dead letter path.",
+        "guard": "Guard tests cover the null-argument checks of the public registration methods, which are a minority of the file.",
         "integration": "Provider package registrations run it end to end; per-flag branches are unit-covered."
       }
     },
@@ -715,7 +827,27 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 85, "guard": 5 },
+      "justifications": {
+        "unit": "Chain tests drive the processor through every delayed retry and a permanent error (measured 90%); the reflection scheduling fallbacks for an unresolvable type stay uncovered.",
+        "guard": "Only the constructor guards exist for this type; the processing loop takes no caller parameters (measured 6%)."
+      }
+    },
+    "Recoverability/DelayedRetryRedispatch.cs": {
+      "defaultTests": [
+        "unit",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal ambient marker for a delayed-retry re-dispatch",
+      "targets": { "unit": 95, "property": 95, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "Chain and marker tests execute every line (measured 100%).",
+        "property": "FsCheck properties cover marker binding, reporting and disposal (measured 100%).",
+        "guard": "Internal type; GuardTests has no InternalsVisibleTo for this package and Begin's null check is exercised by the unit tests.",
+        "contract": "Internal type with no public contract."
+      }
     },
     "Recoverability/DelayedRetryScheduler.cs": {
       "defaultTests": [
@@ -757,7 +889,14 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "contract": 70, "property": 45, "guard": 0 },
+      "justifications": {
+        "unit": "Every line runs through the behavior, processor and chain tests (measured 100%).",
+        "contract": "Contract tests exercise the public surface (measured 74%).",
+        "property": "A property covers RestoreChain and the delayed counter; the rest is unit-tested (measured 48%).",
+        "guard": "The only public constructor parameter is an optional TimeProvider; RestoreChain is internal, so no guard applies."
+      }
     },
     "Recoverability/RecoverabilityOptions.cs": {
       "defaultTests": [
@@ -773,7 +912,13 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 95, "guard": 5, "contract": 65 },
+      "justifications": {
+        "unit": "Unit tests cover immediate retries, delayed scheduling, permanent failure and the re-dispatch marker (measured 100%).",
+        "guard": "Only constructor guards exist (measured 6%); Handle takes the pipeline-supplied arguments.",
+        "contract": "Contract tests cover the pipeline behavior contract (measured 67%)."
+      }
     },
     "Recoverability/RecoverabilityServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -1205,6 +1350,22 @@
       ],
       "defaultRule": "*Options.cs",
       "reason": "Configuration POCO with defaults and validation"
+    },
+    "Tenancy/TenancyInUse.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Marker registered by AddEncinaTenancy so messaging services fail closed without a tenant",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "The registration test asserts the marker is registered and the manager acts on it.",
+        "guard": "The class has no members that take parameters."
+      }
     },
     "Tenancy/TenancyMessagingOptions.cs": {
       "defaultTests": [

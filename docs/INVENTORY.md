@@ -435,6 +435,11 @@ flowchart TB
 - `DeadLetterOrchestrator`
 - Replay individual y batch
 - Configuración: `DeadLetterOptions`
+- Persistent stores on the 10 database providers (#583), enabled with `UseDeadLetterQueue`:
+  - `DeadLetter/` folder in `Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL` (`DeadLetterMessage`, `DeadLetterMessageFactory`, `DeadLetterStoreADO`), `Encina.Dapper.SqlServer`, `Encina.Dapper.PostgreSQL`, `Encina.Dapper.MySQL` (`DeadLetterStoreDapper`), `Encina.EntityFrameworkCore` (`DeadLetterStoreEF`, `DeadLetterMessageConfiguration`) and `Encina.MongoDB` (`DeadLetterStoreMongoDB`)
+  - `Scripts/029_CreateDeadLetterMessagesTable.sql` in the six ADO.NET and Dapper packages
+  - Diagnostics: `Encina.Messaging/Diagnostics/DeadLetterMetrics.cs` (counters `encina.dlq.*`), `Encina.OpenTelemetry/MessagingStores/InstrumentedDeadLetterStore.cs` (activity source `Encina.Messaging.DeadLetter`)
+  - Documentation: `docs/features/dead-letter-queue.md`, ADR-046
 
 **Recoverability:**
 
@@ -1375,6 +1380,7 @@ src/
 | InboxStore | ✅ | ✅ | ✅ | ✅ | N/A |
 | SagaStore | ✅ | ✅ | ✅ | ✅ | N/A |
 | ScheduledMessageStore | ✅ | ✅ | ✅ | ✅ | N/A |
+| DeadLetterStore | ✅ | ✅ | ✅ | ✅ | N/A |
 | **AuditStore** | ✅ | ✅ | ✅ | ✅ | N/A |
 | AggregateRepository | N/A | N/A | N/A | N/A | ✅ |
 | SnapshotStore | N/A | N/A | N/A | N/A | ✅ |

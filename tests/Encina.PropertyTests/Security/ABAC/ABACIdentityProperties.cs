@@ -72,6 +72,8 @@ public sealed class ABACIdentityProperties
             new ObligationExecutor([], NullLogger<ObligationExecutor>.Instance),
             Compiler,
             Options.Create(new ABACOptions { EnforcementMode = warnMode ? ABACEnforcementMode.Warn : ABACEnforcementMode.Block }),
+            Substitute.For<global::Encina.Security.ABAC.DecisionAudit.IABACDecisionRecorder>(),
+            TimeProvider.System,
             NullLogger<ABACPipelineBehavior<GuardedRequest, string>>.Instance);
 
     private sealed class CountingAttributeProvider : IAttributeProvider

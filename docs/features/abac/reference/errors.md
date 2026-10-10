@@ -43,6 +43,22 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 | `abac.policy_change_audit_failed` | `PolicyChangeAuditFailedCode` | `PolicyChangeAuditFailed` | `string cause` | The audit record of a policy change could not be written, so the change was not applied. `cause` (details) is the underlying error code or exception type. |
 | `abac.obligation_handler_exception` | `ObligationHandlerExceptionCode` | `ObligationHandlerException` | `string obligationId, Type exceptionType` | An obligation or advice handler threw instead of returning a result. The message is fixed and the exception message is never recorded. `ObligationExecutor` handles this error itself: a mandatory obligation then fails the request with `encina.authorization.abac_obligation_failed`, and advice is skipped. |
 
+### Decision audit codes
+
+Returned by the PEP, `AuditStoreABACDecisionRecorder` and `IABACDecisionAuditReader`; see [Decision audit](decision-audit.md). Their messages are fixed.
+
+| Error Code | Constant | Factory Method | Parameters | When It Occurs |
+|------------|----------|---------------|------------|----------------|
+| `abac.decision_audit_failed` | `DecisionAuditFailedCode` | `DecisionAuditFailed` | `Type requestType, string? storeErrorCode` | The decision record of a request that would proceed could not be written and `FailureMode` is `FailClosed`. A server-side failure, not an authorization denial. `details["cause"]` is the store's error code or exception type. |
+| `validation.abac_decision_audit_query_invalid` | `InvalidDecisionAuditQueryCode` | `InvalidDecisionAuditQuery` | `string reason` | A decision audit query has an invalid `pageNumber`, `pageSize`, `dateRange` or `tenantId` (named in `details["reason"]`). |
+| `abac.decision_audit_store_unavailable` | `DecisionAuditStoreUnavailableCode` | `DecisionAuditStoreUnavailable` | none | The recorder, reader or export finds no `IOperationAuditStore` registered. |
+| `abac.decision_audit_record_unreadable` | `DecisionAuditRecordUnreadableCode` | `DecisionAuditRecordUnreadable` | `string cause` | A stored entry's metadata cannot be read back by `QueryAsync` or `ExportAsync`. The message is fixed; `details["cause"]` is the exception type name. |
+| `abac.decision_audit_export_incomplete` | `DecisionAuditExportIncompleteCode` | `DecisionAuditExportIncomplete` | `int linesWritten, string causeCode` | `ExportAsync` failed on a page after lines were already written. The message is fixed; `details["linesWritten"]` is the number of lines written and `details["cause"]` is the code of the failing page. The destination holds a partial file that must be discarded. A failure before the first line returns its own error and writes nothing. |
+| `encina.authorization.abac_audit_tenant_required` | `DecisionAuditTenantRequiredCode` | `DecisionAuditTenantRequired` | none | The reader is asked for data in a multi-tenant application and the request carries no tenant (and `AllowCrossTenantQueries` is `false`). |
+| `encina.authorization.abac_audit_tenant_mismatch` | `DecisionAuditTenantMismatchCode` | `DecisionAuditTenantMismatch` | none | The query names a tenant other than the tenant of the request. Neither tenant is recorded. |
+
+The two `encina.authorization.` codes are answered with HTTP 403 and `validation.abac_decision_audit_query_invalid` with HTTP 400 by the host adapters' existing prefix rules.
+
 ## HTTP Mapping
 
 The four definite denials start with `encina.authorization.`, so the ASP.NET Core, Azure Functions and AWS Lambda adapters answer them with HTTP 403 through their existing `encina.authorization.` prefix rule; there is no ABAC-specific mapping table. The other `abac.*` codes keep the mapping the adapters already give them. The two administrative lookup codes `abac.policy.not_found` and `abac.policy_set.not_found` end in `.not_found`, so the adapters answer them with HTTP 404. `abac.function_not_found` and `abac.variable_not_found` do not end in `.not_found`; they are policy configuration errors raised while a policy is evaluated and stay HTTP 500.

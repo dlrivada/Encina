@@ -1,10 +1,15 @@
+using Encina.Messaging.DeadLetter;
 using Encina.TestInfrastructure.Fixtures;
 using Npgsql;
 using Xunit;
+using AdoDeadLetterFactory = Encina.ADO.PostgreSQL.DeadLetter.DeadLetterMessageFactory;
+using AdoDeadLetterStore = Encina.ADO.PostgreSQL.DeadLetter.DeadLetterStoreADO;
 using AdoOutboxMessage = Encina.ADO.PostgreSQL.Outbox.OutboxMessage;
 using AdoOutboxStore = Encina.ADO.PostgreSQL.Outbox.OutboxStoreADO;
 using AdoSagaState = Encina.ADO.PostgreSQL.Sagas.SagaState;
 using AdoSagaStore = Encina.ADO.PostgreSQL.Sagas.SagaStoreADO;
+using DapperDeadLetterFactory = Encina.Dapper.PostgreSQL.DeadLetter.DeadLetterMessageFactory;
+using DapperDeadLetterStore = Encina.Dapper.PostgreSQL.DeadLetter.DeadLetterStoreDapper;
 using DapperOutboxMessage = Encina.Dapper.PostgreSQL.Outbox.OutboxMessage;
 using DapperOutboxStore = Encina.Dapper.PostgreSQL.Outbox.OutboxStoreDapper;
 
@@ -139,6 +144,76 @@ public sealed class PostgreSqlSchemaScriptsIntegrationTests : IAsyncLifetime
         var retrieved = (await store.GetAsync(saga.SagaId)).ShouldBeRight();
         Assert.True(retrieved.IsSome);
         retrieved.IfSome(s => Assert.Equal("Running", s.Status));
+    }
+
+    /// <summary>
+    /// <c>029_CreateDeadLetterMessagesTable.sql</c> creates the table with its six indexes, and the unique
+    /// source key rejects a second capture of the same source message (#583).
+    /// </summary>
+    [Theory]
+    [InlineData("Encina.ADO.PostgreSQL")]
+    [InlineData("Encina.Dapper.PostgreSQL")]
+    public async Task DeadLetterScript_CreatesTheSixIndexes_AndTheStoreRoundTripsOnTheTable(string packageName)
+    {
+        using var connection = (NpgsqlConnection)_fixture.CreateConnection();
+        await SetSearchPathAsync(connection);
+        var scriptPath = Directory.GetFiles(FindScriptsFolder(packageName), "029_*.sql").Single();
+        await using (var create = new NpgsqlCommand(await File.ReadAllTextAsync(scriptPath), connection))
+        {
+            await create.ExecuteNonQueryAsync();
+        }
+
+        var indexes = new List<string>();
+        await using (var query = new NpgsqlCommand(
+            "SELECT indexname FROM pg_indexes WHERE schemaname = @schema AND tablename = 'DeadLetterMessages';",
+            connection))
+        {
+            query.Parameters.AddWithValue("schema", SchemaName);
+            await using var reader = await query.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                indexes.Add(reader.GetString(0));
+            }
+        }
+
+        string[] expected =
+        [
+            "UX_DeadLetterMessages_Source",
+            "IX_DeadLetterMessages_DeadLetteredAt",
+            "IX_DeadLetterMessages_Pending",
+            "IX_DeadLetterMessages_ExpiresAt",
+            "IX_DeadLetterMessages_CorrelationId",
+            "IX_DeadLetterMessages_Tenant"
+        ];
+        foreach (var name in expected)
+        {
+            Assert.Contains(name, indexes);
+        }
+
+        var data = new DeadLetterData(
+            Id: Guid.NewGuid(),
+            RequestType: "T",
+            RequestContent: "{}",
+            ErrorCode: "e",
+            SourcePattern: "Outbox",
+            SourceMessageId: "script-1",
+            TotalRetryAttempts: 1,
+            FirstFailedAtUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            DeadLetteredAtUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            ExpiresAtUtc: null);
+        var duplicate = data with { Id = Guid.NewGuid() };
+
+        var dapper = packageName.Contains("Dapper", StringComparison.Ordinal);
+        IDeadLetterStore store = dapper
+            ? new DapperDeadLetterStore(connection)
+            : new AdoDeadLetterStore(connection);
+        IDeadLetterMessageFactory factory = dapper
+            ? new DapperDeadLetterFactory()
+            : new AdoDeadLetterFactory();
+
+        Assert.True((await store.AddAsync(factory.Create(data))).ShouldBeRight());
+        Assert.False((await store.AddAsync(factory.Create(duplicate))).ShouldBeRight());
+        Assert.Equal(1, (await store.GetCountAsync()).ShouldBeRight());
     }
 
     private async Task RunScriptsAsync(string packageName)
