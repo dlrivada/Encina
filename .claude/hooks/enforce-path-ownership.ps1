@@ -112,8 +112,10 @@
 # tools/ai/audit/audit-stage.ps1 -RepairAuthors from the main checkout") instead of being silently swallowed
 # and masking the real cause, as it did before #1374.
 #
-# Exit code 2 blocks the call and shows stderr to Claude; any failure of the hook itself allows the call
-# (except the authorship-sidecar write above, which denies on its own failure instead — see #1374).
+# Exit code 2 blocks the call and shows stderr to Claude; any other failure of the hook itself allows the call,
+# except two that deny instead: the authorship-sidecar write above (#1374), and open-audit state that cannot be
+# loaded (_open-audits.ps1 missing, open-audits/ unlistable or a state file unreadable, #2234), which denies every
+# write under a wia-<n> worktree, every stage artifact and every remediation draft.
 
 param([string]$Agent)
 

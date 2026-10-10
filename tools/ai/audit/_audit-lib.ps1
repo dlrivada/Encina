@@ -103,9 +103,17 @@ function Register-OpenAudit([string]$MainRoot, $State) {
         $new = ConvertTo-AuditState ([pscustomobject]$State)
         $new.concurrent = @($others | ForEach-Object { [int]$_.issue } | Sort-Object -Unique)
         Save-OpenAudit $MainRoot $new
-        foreach ($other in $others) {
-            $other.concurrent = @(@($other.concurrent) + $issue | Sort-Object -Unique)
-            Save-OpenAudit $MainRoot $other
+        try {
+            foreach ($other in $others) {
+                $other.concurrent = @(@($other.concurrent) + $issue | Sort-Object -Unique)
+                Save-OpenAudit $MainRoot $other
+            }
+        }
+        catch {
+            # A half-registered audit would hold a slot for a worktree audit-next.ps1 is about to remove: undo it.
+            # An extra entry left in another audit's `concurrent` list only widens its cross-audit check.
+            Remove-OpenAudit $MainRoot $issue
+            throw
         }
         return $new
     }
