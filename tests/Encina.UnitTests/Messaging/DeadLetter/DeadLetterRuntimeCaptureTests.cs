@@ -196,6 +196,117 @@ public sealed class DeadLetterRuntimeCaptureTests
         store.GetSagas().ShouldHaveSingleItem().Status.ShouldBe(SagaStatus.Failed);
     }
 
+    #region Saga not found
+
+    public sealed record NotFoundMessage(int Value);
+
+    private sealed class MovingHandler : IHandleSagaNotFound<NotFoundMessage>
+    {
+        public List<Either<EncinaError, Unit>> Results { get; } = [];
+
+        public async Task HandleAsync(NotFoundMessage message, SagaNotFoundContext context, CancellationToken cancellationToken)
+            => Results.Add(await context.MoveToDeadLetterAsync("no saga for this order", cancellationToken));
+    }
+
+    [Fact]
+    public async Task SagaNotFound_MovedWithAnId_IsCapturedOnce_AndARedeliveryKeepsOne()
+    {
+        var handler = new MovingHandler();
+        using var host = NotFoundHost(handler, configure: null);
+        var dispatcher = Dispatcher(host);
+
+        (await dispatcher.DispatchAsync(new NotFoundMessage(1), NotFound("transport-1"))).IsRight.ShouldBeTrue();
+        (await dispatcher.DispatchAsync(new NotFoundMessage(1), NotFound("transport-1"))).IsRight.ShouldBeTrue();
+
+        handler.Results.ShouldAllBe(r => r.IsRight);
+        var deadLetter = host.DeadLettersOf(DeadLetterSourcePatterns.Saga).ShouldHaveSingleItem();
+        deadLetter.SourceMessageId.ShouldBe("transport-1");
+        deadLetter.ErrorCode.ShouldBe(SagaErrorCodes.NotFound);
+        deadLetter.RequestType.ShouldContain(nameof(NotFoundMessage));
+        deadLetter.RequestContent.ShouldNotContain("no saga for this order");
+    }
+
+    [Fact]
+    public async Task SagaNotFound_DistinctIds_AreTwoDeadLetters()
+    {
+        var handler = new MovingHandler();
+        using var host = NotFoundHost(handler, configure: null);
+        var dispatcher = Dispatcher(host);
+
+        await dispatcher.DispatchAsync(new NotFoundMessage(1), NotFound("transport-1"));
+        await dispatcher.DispatchAsync(new NotFoundMessage(1), NotFound("transport-2"));
+
+        host.DeadLettersOf(DeadLetterSourcePatterns.Saga).Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task SagaNotFound_FlagOff_ReturnsNotConfigured_AndCapturesNothing()
+    {
+        var handler = new MovingHandler();
+        using var host = NotFoundHost(handler, o => o.IntegrateWithSagas = false);
+
+        await Dispatcher(host).DispatchAsync(new NotFoundMessage(1), NotFound("transport-1"));
+
+        CodeOf(handler.Results.ShouldHaveSingleItem()).ShouldBe(DeadLetterErrorCodes.NotConfigured);
+        host.Store.GetMessages().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task SagaNotFound_NoId_ReturnsSourceMessageIdRequired_AndCapturesNothing()
+    {
+        var handler = new MovingHandler();
+        using var host = NotFoundHost(handler, configure: null);
+
+        await Dispatcher(host).DispatchAsync(new NotFoundMessage(1), NotFound(sourceMessageId: null));
+
+        CodeOf(handler.Results.ShouldHaveSingleItem()).ShouldBe(DeadLetterErrorCodes.SourceMessageIdRequired);
+        host.Store.GetMessages().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task SagaNotFound_CaptureFails_TheHandlerGetsTheError()
+    {
+        var deadLetterStore = Substitute.For<IDeadLetterStore>();
+        deadLetterStore.AddAsync(Arg.Any<IDeadLetterMessage>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, bool>>(EncinaErrors.Create(DeadLetterErrorCodes.StoreFailed, "down")));
+        var handler = new MovingHandler();
+        using var host = DeadLetterCaptureHost.Create(store: deadLetterStore, configureServices: services =>
+            services.AddSingleton<IHandleSagaNotFound<NotFoundMessage>>(handler));
+
+        await Dispatcher(host).DispatchAsync(new NotFoundMessage(1), NotFound("transport-1"));
+
+        CodeOf(handler.Results.ShouldHaveSingleItem()).ShouldBe(DeadLetterErrorCodes.StoreFailed);
+    }
+
+    [Fact]
+    public async Task SagaNotFound_WithoutTheDeadLetterQueue_ReturnsNotConfigured()
+    {
+        var handler = new MovingHandler();
+        var services = new ServiceCollection();
+        services.AddSingleton<IHandleSagaNotFound<NotFoundMessage>>(handler);
+        using var provider = services.BuildServiceProvider();
+        var dispatcher = new SagaNotFoundDispatcher(provider, NullLogger<SagaNotFoundDispatcher>.Instance);
+
+        await dispatcher.DispatchAsync(new NotFoundMessage(1), NotFound("transport-1"));
+
+        CodeOf(handler.Results.ShouldHaveSingleItem()).ShouldBe(DeadLetterErrorCodes.NotConfigured);
+    }
+
+    private static DeadLetterCaptureHost NotFoundHost(MovingHandler handler, Action<DeadLetterOptions>? configure)
+        => DeadLetterCaptureHost.Create(configure, configureServices: services =>
+            services.AddSingleton<IHandleSagaNotFound<NotFoundMessage>>(handler));
+
+    private static SagaNotFoundDispatcher Dispatcher(DeadLetterCaptureHost host)
+        => new(host.Provider, NullLogger<SagaNotFoundDispatcher>.Instance, host.Capture, host.Clock);
+
+    private static SagaNotFoundContext NotFound(string? sourceMessageId)
+        => new(Guid.NewGuid(), "OrderSaga", typeof(NotFoundMessage), sourceMessageId);
+
+    private static string CodeOf(Either<EncinaError, Unit> result)
+        => result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty));
+
+    #endregion
+
     private static (FakeSagaStore Store, SagaRunner Runner) Runner(DeadLetterCaptureHost host)
     {
         var store = new FakeSagaStore(host.Clock);

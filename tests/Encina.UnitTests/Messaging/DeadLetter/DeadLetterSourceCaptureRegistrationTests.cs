@@ -86,6 +86,7 @@ public sealed class DeadLetterSourceCaptureRegistrationTests
         CaptureOf(scope.ServiceProvider.GetRequiredService<InboxOrchestrator>()).ShouldBeSameAs(capture, providerName);
         CaptureOf(scope.ServiceProvider.GetRequiredService<SchedulerOrchestrator>()).ShouldBeSameAs(capture, providerName);
         CaptureOf(scope.ServiceProvider.GetRequiredService<SagaOrchestrator>()).ShouldBeSameAs(capture, providerName);
+        CaptureOf(scope.ServiceProvider.GetRequiredService<ISagaNotFoundDispatcher>()).ShouldBeSameAs(capture, providerName);
         CaptureOf(scope.ServiceProvider.GetServices<IPipelineBehavior<ProbeCommand, int>>()
             .OfType<RecoverabilityPipelineBehavior<ProbeCommand, int>>().Single()).ShouldBeSameAs(capture, providerName);
         CaptureOf(provider.GetServices<IHostedService>().OfType<DelayedRetryProcessor>().Single()).ShouldBeSameAs(capture, providerName);

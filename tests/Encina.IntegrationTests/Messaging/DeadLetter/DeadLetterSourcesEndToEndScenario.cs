@@ -37,6 +37,19 @@ internal static class DeadLetterSourcesEndToEndScenario
     /// <summary>Saga data.</summary>
     public sealed record SourceSagaData(int Value);
 
+    /// <summary>A message whose saga is not found.</summary>
+    public sealed record OrphanMessage(int Value);
+
+    /// <summary>The saga-not-found handler of the scenario: it moves every orphan to the dead letter queue.</summary>
+    public sealed class MoveOrphanToDeadLetter : IHandleSagaNotFound<OrphanMessage>
+    {
+        public async Task HandleAsync(OrphanMessage message, SagaNotFoundContext context, CancellationToken cancellationToken)
+            => (await context.MoveToDeadLetterAsync("no saga for this message", cancellationToken)).ShouldBeRight();
+    }
+
+    /// <summary>The scenario name of the saga-not-found path (dead letters under source pattern Saga).</summary>
+    public const string SagaNotFound = "SagaNotFound";
+
     /// <summary>The source names a test theory runs over.</summary>
     public static TheoryData<string> Sources =>
     [
@@ -44,18 +57,20 @@ internal static class DeadLetterSourcesEndToEndScenario
         DeadLetterSourcePatterns.Outbox,
         DeadLetterSourcePatterns.Inbox,
         DeadLetterSourcePatterns.Scheduling,
-        DeadLetterSourcePatterns.Saga
+        DeadLetterSourcePatterns.Saga,
+        SagaNotFound
     ];
 
     private static readonly EncinaError HandlerError = EncinaErrors.Create("e2e.handler_failed", "failure");
 
-    /// <summary>Creates the services every family shares: logging and the fake clock.</summary>
+    /// <summary>Creates the services every family shares: logging, the fake clock and the saga-not-found handler.</summary>
     public static (ServiceCollection Services, FakeTimeProvider Clock) NewServices()
     {
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow.AddMinutes(-1));
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<TimeProvider>(clock);
+        services.AddScoped<IHandleSagaNotFound<OrphanMessage>, MoveOrphanToDeadLetter>();
         return (services, clock);
     }
 
@@ -107,6 +122,7 @@ internal static class DeadLetterSourcesEndToEndScenario
         DeadLetterSourcePatterns.Inbox => InboxAsync(provider),
         DeadLetterSourcePatterns.Scheduling => SchedulingAsync(provider, clock),
         DeadLetterSourcePatterns.Saga => SagaAsync(provider),
+        SagaNotFound => SagaNotFoundAsync(provider),
         _ => throw new ArgumentOutOfRangeException(nameof(source), source, "Unknown source")
     };
 
@@ -237,6 +253,26 @@ internal static class DeadLetterSourcesEndToEndScenario
         }
 
         (await CountAsync(provider, DeadLetterSourcePatterns.Saga, sagaId.ToString("D"))).ShouldBe(1);
+    }
+
+    // The caller supplies the message identity (the transport id): a redelivery keeps one dead letter, a different
+    // message gets its own.
+    private static async Task SagaNotFoundAsync(IServiceProvider provider)
+    {
+        var first = $"transport-{Guid.NewGuid():N}";
+        var second = $"transport-{Guid.NewGuid():N}";
+
+        foreach (var sourceMessageId in new[] { first, first, second })
+        {
+            await using var scope = provider.CreateAsyncScope();
+            var dispatcher = scope.ServiceProvider.GetRequiredService<ISagaNotFoundDispatcher>();
+            (await dispatcher.DispatchAsync(
+                new OrphanMessage(1),
+                new SagaNotFoundContext(Guid.NewGuid(), "E2ESaga", typeof(OrphanMessage), sourceMessageId))).ShouldBeRight();
+        }
+
+        (await CountAsync(provider, DeadLetterSourcePatterns.Saga, first)).ShouldBe(1);
+        (await CountAsync(provider, DeadLetterSourcePatterns.Saga, second)).ShouldBe(1);
     }
 
     private static async Task InScopeAsync<TOrchestrator, TStore>(

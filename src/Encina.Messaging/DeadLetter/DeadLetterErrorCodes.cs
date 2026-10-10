@@ -103,6 +103,18 @@ public static class DeadLetterErrorCodes
     public const string CaptureRejected = "dlq.capture_rejected";
 
     /// <summary>
+    /// A message was asked to move to the dead letter queue, but the queue is not registered or the source's
+    /// <c>IntegrateWith*</c> flag is off (for example <c>SagaNotFoundContext.MoveToDeadLetterAsync</c>).
+    /// </summary>
+    public const string NotConfigured = "dlq.not_configured";
+
+    /// <summary>
+    /// A message was asked to move to the dead letter queue without the identity that keys its dead letter (for
+    /// example a saga-not-found message whose caller supplied no <c>sourceMessageId</c>); Encina never guesses a key.
+    /// </summary>
+    public const string SourceMessageIdRequired = "dlq.source_message_id_required";
+
+    /// <summary>
     /// Outcome code stored in <c>ReplayResult</c> when a replay succeeded.
     /// </summary>
     public const string ReplaySucceeded = "success";

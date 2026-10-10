@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Encina.Diagnostics;
+using Encina.Messaging.DeadLetter;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -14,18 +15,52 @@ internal sealed partial class SagaNotFoundDispatcher : ISagaNotFoundDispatcher
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<SagaNotFoundDispatcher> _logger;
+    private readonly DeadLetterSourceCapture? _deadLetterCapture;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SagaNotFoundDispatcher"/> class.
     /// </summary>
     /// <param name="serviceProvider">The service provider for resolving handlers.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="deadLetterCapture">
+    /// Optional dead letter capture, registered with the dead letter queue: while
+    /// <c>DeadLetterOptions.IntegrateWithSagas</c> is on, <see cref="SagaNotFoundContext.MoveToDeadLetterAsync"/>
+    /// stores the message keyed by <see cref="SagaNotFoundContext.SourceMessageId"/>.
+    /// </param>
+    /// <param name="timeProvider">Optional time provider for the dead letter's failure instant.</param>
     public SagaNotFoundDispatcher(
         IServiceProvider serviceProvider,
-        ILogger<SagaNotFoundDispatcher> logger)
+        ILogger<SagaNotFoundDispatcher> logger,
+        DeadLetterSourceCapture? deadLetterCapture = null,
+        TimeProvider? timeProvider = null)
     {
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _deadLetterCapture = deadLetterCapture;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
+
+    // With the flag on, MoveToDeadLetterAsync captures the message itself (serialized through IMessageSerializer)
+    // under source pattern Saga, keyed by the caller's message id; the record keeps the code saga.not_found,
+    // never the handler's reason text. With the flag off the context stays unwired (dlq.not_configured).
+    private void WireDeadLetter<TMessage>(TMessage message, SagaNotFoundContext context)
+        where TMessage : class
+    {
+        if (_deadLetterCapture is null || !_deadLetterCapture.IsEnabledFor(DeadLetterSourcePatterns.Saga))
+            return;
+
+        var capture = _deadLetterCapture;
+        context.UseDeadLetter(cancellationToken => capture.CaptureAsync(
+            message,
+            new DeadLetterContext(
+                EncinaErrors.Create(SagaErrorCodes.NotFound, "Saga not found"),
+                Exception: null,
+                DeadLetterSourcePatterns.Saga,
+                TotalRetryAttempts: 0,
+                _timeProvider.GetUtcNow().UtcDateTime,
+                SourceMessageId: context.SourceMessageId),
+            cancellationToken));
     }
 
     /// <inheritdoc />
@@ -37,6 +72,8 @@ internal sealed partial class SagaNotFoundDispatcher : ISagaNotFoundDispatcher
     {
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(context);
+
+        WireDeadLetter(message, context);
 
         var handler = _serviceProvider.GetService<IHandleSagaNotFound<TMessage>>();
 

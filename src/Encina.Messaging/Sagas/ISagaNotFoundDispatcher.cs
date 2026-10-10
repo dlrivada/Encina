@@ -15,6 +15,11 @@ namespace Encina.Messaging.Sagas;
 /// If no handler is registered for a message type, the dispatcher returns
 /// a successful result (pass-through behavior).
 /// </para>
+/// <para>
+/// With the dead letter queue registered and <c>DeadLetterOptions.IntegrateWithSagas</c> on, the dispatcher connects
+/// <see cref="SagaNotFoundContext.MoveToDeadLetterAsync"/> to the dead letter capture: the handler's call stores the
+/// message, keyed by <see cref="SagaNotFoundContext.SourceMessageId"/>.
+/// </para>
 /// </remarks>
 public interface ISagaNotFoundDispatcher
 {

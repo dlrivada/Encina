@@ -133,7 +133,12 @@ public sealed class DeadLetterOptions
     /// cancelled run or an unexpected exception in <c>SagaRunner</c>) stores its saga type and data once,
     /// keyed by the saga id (source pattern <see cref="DeadLetterSourcePatterns.Saga"/>); a failed capture is
     /// returned by <c>FailAsync</c>. A saga that ends <c>Compensated</c> is not captured. The record is kept for
-    /// inspection: saga data is not a request, so a replay is recorded as failed.
+    /// inspection: saga data is not a request, so a replay is recorded as failed. A message whose saga is not found
+    /// is stored when its <c>IHandleSagaNotFound</c> handler calls <c>SagaNotFoundContext.MoveToDeadLetterAsync</c>
+    /// (dispatched through <c>ISagaNotFoundDispatcher</c>): the message itself, keyed by the
+    /// <c>SagaNotFoundContext.SourceMessageId</c> the caller supplied (without one the call returns
+    /// <see cref="DeadLetterErrorCodes.SourceMessageIdRequired"/>); with this flag off it returns
+    /// <see cref="DeadLetterErrorCodes.NotConfigured"/> and stores nothing.
     /// </remarks>
     /// <value>Default: true.</value>
     public bool IntegrateWithSagas { get; set; } = true;
