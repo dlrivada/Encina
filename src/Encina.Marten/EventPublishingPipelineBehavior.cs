@@ -81,7 +81,7 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
     }
 
     /// <summary>
-    /// Publishes the committed and pending domain events of a successful command; a failed
+    /// Publishes the domain events committed during a successful command; a failed
     /// command publishes nothing and a failed publication fails the command.
     /// </summary>
     private async ValueTask<Either<EncinaError, TResponse>> PublishAfterSuccessAsync(
@@ -94,8 +94,9 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
             return result;
         }
 
+        // Only events that a commit made durable are published; events appended to the session but
+        // never saved are not in the stream and are not published.
         var pendingEvents = collector.Drain();
-        pendingEvents.AddRange(GetPendingNotifications());
         if (pendingEvents.Count == 0)
         {
             return result;
@@ -114,6 +115,8 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
     /// </summary>
     private CommittedEventCollector? TryAttachCollector()
     {
+        // CommittedEventCollector is not generic, so one collector is shared by every command type
+        // that reaches the same session.
         if (_session.Listeners.OfType<CommittedEventCollector>().Any())
         {
             return null;
@@ -122,48 +125,6 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
         var created = new CommittedEventCollector();
         _session.Listeners.Add(created);
         return created;
-    }
-
-    /// <summary>
-    /// Gets the pending domain-event notifications recorded on the session since the last save.
-    /// </summary>
-    private List<INotification> GetPendingNotifications() =>
-        _session.PendingChanges.Streams()
-            .SelectMany(s => s.Events)
-            .Select(e => e.Data)
-            .OfType<INotification>()
-            .ToList();
-
-    /// <summary>
-    /// Session listener that records the domain-event notifications of every successful commit.
-    /// </summary>
-    private sealed class CommittedEventCollector : DocumentSessionListenerBase
-    {
-        private readonly List<INotification> _events = [];
-
-        /// <inheritdoc />
-        public override Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
-        {
-            lock (_events)
-            {
-                _events.AddRange(commit.GetEvents().Select(e => e.Data).OfType<INotification>());
-            }
-
-            return Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// Returns the notifications recorded so far and forgets them, so each is published once.
-        /// </summary>
-        public List<INotification> Drain()
-        {
-            lock (_events)
-            {
-                var drained = _events.ToList();
-                _events.Clear();
-                return drained;
-            }
-        }
     }
 
     /// <summary>

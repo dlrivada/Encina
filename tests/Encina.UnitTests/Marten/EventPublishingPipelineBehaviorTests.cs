@@ -125,9 +125,6 @@ public class EventPublishingPipelineBehaviorTests
             new ValueTask<Either<EncinaError, TestResponse>>(
                 Right<EncinaError, TestResponse>(response));
 
-        // PendingChanges.Streams() returns empty
-        _session.PendingChanges.Streams().Returns([]);
-
         // Act
         var result = await sut.Handle(new TestCommand(), _requestContext, next, CancellationToken.None);
 
@@ -148,16 +145,17 @@ public class EventPublishingPipelineBehaviorTests
         var sut = new EventPublishingPipelineBehavior<TestCommand, TestResponse>(
             _session, _encina, logger, _options);
 
-        var pendingEvent = new Event<TestNotification>(new TestNotification("hello"));
-        var streamAction = StreamAction.Start(Guid.NewGuid(), pendingEvent);
-        _session.PendingChanges.Streams().Returns([streamAction]);
+        var listeners = UseRealListeners();
 
         _encina.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(error)));
 
-        RequestHandlerCallback<TestResponse> next = () =>
-            new ValueTask<Either<EncinaError, TestResponse>>(
-                Right<EncinaError, TestResponse>(new TestResponse()));
+        RequestHandlerCallback<TestResponse> next = async () =>
+        {
+            await listeners.Single().AfterCommitAsync(
+                _session, CommitOf(new TestNotification("hello")), CancellationToken.None);
+            return Right<EncinaError, TestResponse>(new TestResponse());
+        };
 
         // Act
         var result = await sut.Handle(new TestCommand(), _requestContext, next, CancellationToken.None);
@@ -272,6 +270,63 @@ public class EventPublishingPipelineBehaviorTests
     }
 
     [Fact]
+    public async Task Handle_EventsAppendedButNeverSaved_AreNotPublished()
+    {
+        // Arrange - the handler appends to the session without committing
+        var listeners = UseRealListeners();
+        var sut = CreateSut();
+        var unsaved = new Event<TestNotification>(new TestNotification("unsaved"));
+        _session.PendingChanges.Streams().Returns([StreamAction.Start(Guid.NewGuid(), unsaved)]);
+
+        RequestHandlerCallback<TestResponse> next = () =>
+            new ValueTask<Either<EncinaError, TestResponse>>(
+                Right<EncinaError, TestResponse>(new TestResponse()));
+
+        // Act
+        var result = await sut.Handle(new TestCommand(), _requestContext, next, CancellationToken.None);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        await _encina.DidNotReceive().Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>());
+        listeners.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_DifferentCommandTypeOnTheSameSession_PassesThroughWithoutPublishing()
+    {
+        // Arrange
+        var listeners = UseRealListeners();
+        var outer = CreateSut();
+        var otherCommandBehavior = new EventPublishingPipelineBehavior<OtherCommand, TestResponse>(
+            _session, _encina, NullLogger<EventPublishingPipelineBehavior<OtherCommand, TestResponse>>.Instance, _options);
+        var notification = new TestNotification("shared");
+        _encina.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
+
+        var publishedWhenOtherReturned = -1;
+        RequestHandlerCallback<TestResponse> outerNext = async () =>
+        {
+            await listeners.Single().AfterCommitAsync(_session, CommitOf(notification), CancellationToken.None);
+            var otherResult = await otherCommandBehavior.Handle(
+                new OtherCommand(),
+                _requestContext,
+                () => new ValueTask<Either<EncinaError, TestResponse>>(Right<EncinaError, TestResponse>(new TestResponse())),
+                CancellationToken.None);
+            publishedWhenOtherReturned = _encina.ReceivedCalls().Count(c => c.GetMethodInfo().Name == nameof(IEncina.Publish));
+            return otherResult;
+        };
+
+        // Act
+        var result = await outer.Handle(new TestCommand(), _requestContext, outerNext, CancellationToken.None);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        publishedWhenOtherReturned.ShouldBe(0);
+        await _encina.Received(1).Publish(notification, Arg.Any<CancellationToken>());
+        listeners.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task Handle_HandlerThrows_DetachesTheListenerAndPropagates()
     {
         // Arrange
@@ -344,6 +399,7 @@ public class EventPublishingPipelineBehaviorTests
     // Test types
 
     public sealed record TestCommand : ICommand<TestResponse>;
+    public sealed record OtherCommand : ICommand<TestResponse>;
     public sealed record TestResponse;
     public sealed record TestNotification(string Message) : INotification;
 }

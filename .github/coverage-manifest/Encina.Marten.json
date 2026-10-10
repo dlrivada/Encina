@@ -1,13 +1,29 @@
 {
   "package": "Encina.Marten",
   "generated": "2026-03-30T00:00:00Z",
-  "totalFiles": 49,
+  "totalFiles": 50,
   "targets": {
     "unit": 38,
     "guard": 7,
     "contract": 8
   },
   "files": {
+    "CommittedEventCollector.cs": {
+      "defaultTests": [
+        "unit",
+        "integration"
+      ],
+      "defaultRule": "*Collector.cs",
+      "reason": "Internal Marten session listener that records committed domain events",
+      "targets": {
+        "unit": 95,
+        "integration": 95
+      },
+      "justifications": {
+        "unit": "Unit tests drive AfterCommitAsync and Drain directly through the behavior with substituted commits; measured 100%.",
+        "integration": "Every integration test commits real events through the listener on a real Marten session; measured 100%."
+      }
+    },
     "ConfigureMartenEventMetadata.cs": {
       "defaultTests": [
         "unit",
@@ -58,14 +74,14 @@
       "targets": {
         "unit": 95,
         "guard": 10,
-        "contract": 35,
+        "contract": 45,
         "integration": 85
       },
       "justifications": {
         "unit": "Every branch of Handle (pass-through, failure, committed and pending events, nested sessions, publish failure) is exercised with a mocked session and encina; measured 100%.",
         "guard": "Guard tests cover only the constructor null checks; the rest of the pipeline logic is covered by the unit and integration flags.",
         "contract": "Contract tests assert the IPipelineBehavior contract and the constructor; the publishing branches are covered by the unit and integration flags.",
-        "integration": "Real Marten/PostgreSQL tests run create, save, disabled option and failing handler through IEncina.Send; only the nested-session branch and cancellation paths stay uncovered (measured 91%)."
+        "integration": "Real Marten/PostgreSQL tests run create, save, disabled option and failing handler through IEncina.Send; only the same-session pass-through and cancellation paths stay uncovered (measured above 90%)."
       }
     },
     "GlobalSuppressions.cs": {
