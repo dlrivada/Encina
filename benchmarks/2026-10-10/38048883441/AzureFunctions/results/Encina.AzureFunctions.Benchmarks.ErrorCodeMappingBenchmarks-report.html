@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.AzureFunctions.Benchmarks.ErrorCodeMappingBenchmarks-20261010-121707</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  DefaultJob : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                   </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>MapAuthorizationUnauthenticated</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>12.448 ns</td><td>0.0370 ns</td><td>0.0328 ns</td><td>1.44</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationForbidden</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>13.764 ns</td><td>0.0182 ns</td><td>0.0142 ns</td><td>1.59</td><td>-</td><td>NA</td>
+</tr><tr><td>MapConflictError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>10.340 ns</td><td>0.0111 ns</td><td>0.0098 ns</td><td>1.20</td><td>-</td><td>NA</td>
+</tr><tr><td>MapUnknownError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>11.845 ns</td><td>0.0222 ns</td><td>0.0185 ns</td><td>1.37</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMultipleValidationErrors</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>46.818 ns</td><td>0.0746 ns</td><td>0.0661 ns</td><td>5.42</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMixedErrors</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>56.816 ns</td><td>0.0532 ns</td><td>0.0444 ns</td><td>6.58</td><td>-</td><td>NA</td>
+</tr><tr><td>MapValidationError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>8.638 ns</td><td>0.0148 ns</td><td>0.0116 ns</td><td>1.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapNotFoundError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>9.790 ns</td><td>0.0057 ns</td><td>0.0044 ns</td><td>1.13</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationUnauthenticated</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>12.439 ns</td><td>0.0664 ns</td><td>0.0036 ns</td><td>1.44</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationForbidden</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>13.688 ns</td><td>0.2197 ns</td><td>0.0120 ns</td><td>1.59</td><td>-</td><td>NA</td>
+</tr><tr><td>MapConflictError</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>10.341 ns</td><td>0.0445 ns</td><td>0.0024 ns</td><td>1.20</td><td>-</td><td>NA</td>
+</tr><tr><td>MapUnknownError</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>12.808 ns</td><td>0.6102 ns</td><td>0.0334 ns</td><td>1.48</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMultipleValidationErrors</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>46.822 ns</td><td>1.0152 ns</td><td>0.0556 ns</td><td>5.43</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMixedErrors</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>57.331 ns</td><td>0.5386 ns</td><td>0.0295 ns</td><td>6.65</td><td>-</td><td>NA</td>
+</tr><tr><td>MapValidationError</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>8.626 ns</td><td>0.1328 ns</td><td>0.0073 ns</td><td>1.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapNotFoundError</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>9.791 ns</td><td>0.0519 ns</td><td>0.0028 ns</td><td>1.13</td><td>-</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>
