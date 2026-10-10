@@ -292,6 +292,43 @@ public sealed class DeadLetterRuntimeCaptureTests
         CodeOf(handler.Results.ShouldHaveSingleItem()).ShouldBe(DeadLetterErrorCodes.NotConfigured);
     }
 
+    [Fact]
+    public async Task SagaNotFound_NoHandlerRegistered_PassesThrough()
+    {
+        using var host = DeadLetterCaptureHost.Create();
+
+        (await Dispatcher(host).DispatchAsync(new NotFoundMessage(1), NotFound("transport-1"))).IsRight.ShouldBeTrue();
+
+        host.Store.GetMessages().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task SagaNotFound_HandlerThrows_ReturnsHandlerFailed()
+    {
+        var handler = Substitute.For<IHandleSagaNotFound<NotFoundMessage>>();
+        handler.HandleAsync(Arg.Any<NotFoundMessage>(), Arg.Any<SagaNotFoundContext>(), Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => throw new InvalidOperationException("handler crashed"));
+        using var host = DeadLetterCaptureHost.Create(configureServices: services => services.AddSingleton(handler));
+
+        var result = await Dispatcher(host).DispatchAsync(new NotFoundMessage(1), NotFound("transport-1"));
+
+        CodeOf(result).ShouldBe(SagaErrorCodes.HandlerFailed);
+    }
+
+    [Fact]
+    public async Task SagaNotFound_HandlerCancelled_ReturnsHandlerCancelled()
+    {
+        using var cts = new CancellationTokenSource();
+        var handler = Substitute.For<IHandleSagaNotFound<NotFoundMessage>>();
+        handler.HandleAsync(Arg.Any<NotFoundMessage>(), Arg.Any<SagaNotFoundContext>(), Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => { cts.Cancel(); throw new OperationCanceledException(cts.Token); });
+        using var host = DeadLetterCaptureHost.Create(configureServices: services => services.AddSingleton(handler));
+
+        var result = await Dispatcher(host).DispatchAsync(new NotFoundMessage(1), NotFound("transport-1"), cts.Token);
+
+        CodeOf(result).ShouldBe(SagaErrorCodes.HandlerCancelled);
+    }
+
     private static DeadLetterCaptureHost NotFoundHost(MovingHandler handler, Action<DeadLetterOptions>? configure)
         => DeadLetterCaptureHost.Create(configure, configureServices: services =>
             services.AddSingleton<IHandleSagaNotFound<NotFoundMessage>>(handler));
