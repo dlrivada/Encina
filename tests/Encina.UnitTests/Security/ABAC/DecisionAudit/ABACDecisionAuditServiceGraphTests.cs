@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
+using Microsoft.Extensions.Options;
 
 using Shouldly;
 
@@ -149,7 +150,9 @@ public sealed class ABACDecisionAuditServiceGraphTests
         builder.Services.AddEncinaABAC(options => options.AuditDecisions(a => a.WriteTimeout = TimeSpan.Zero));
         using var host = builder.Build();
 
-        await Should.ThrowAsync<Exception>(() => host.StartAsync());
+        var ex = await Should.ThrowAsync<OptionsValidationException>(() => host.StartAsync());
+
+        ex.Message.ShouldContain("WriteTimeout");
     }
 
     private static void Register(IServiceCollection services, bool securityFirst, Action<ABACOptions>? configure)

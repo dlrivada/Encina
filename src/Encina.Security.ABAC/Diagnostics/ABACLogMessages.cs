@@ -305,7 +305,7 @@ internal static partial class ABACLogMessages
     internal static partial void EnforcementDisabled(ILogger logger);
 
     // ── Fail-Closed Messages (9091-9093) ─────────────────────────────
-    // Event IDs: 9091-9093 (see EventIdRanges.SecurityABAC; 9079-9090 are reserved for the
+    // Event IDs: 9091-9093 (see EventIdRanges.SecurityABAC; 9079-9090 belong to the
     // decision audit trail of #751). Codes and exception types only, never a user identifier,
     // an error message or an exception message (#1676).
 

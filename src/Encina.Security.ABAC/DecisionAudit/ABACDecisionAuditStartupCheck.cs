@@ -42,15 +42,15 @@ internal sealed class ABACDecisionAuditStartupCheck : IHostedService
         _logger = logger;
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         var audit = _options.Value.DecisionAudit;
         if (!audit.Enabled)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        using var scope = _scopeFactory.CreateScope();
+        await using var scope = _scopeFactory.CreateAsyncScope();
         var store = scope.ServiceProvider.GetService<IOperationAuditStore>();
         if (store is null)
         {
@@ -69,8 +69,6 @@ internal sealed class ABACDecisionAuditStartupCheck : IHostedService
         {
             ABACLogMessages.DecisionAuditBestEffort(_logger);
         }
-
-        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
