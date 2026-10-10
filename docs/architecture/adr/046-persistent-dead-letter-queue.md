@@ -68,7 +68,7 @@ These continue the numbering above. Decision 5 refines the tenant paragraph abov
 - **Decision 10: the five sources are wired.** The maintainer chose option (a) on 2026-10-07: the `IntegrateWith*` flags of `DeadLetterOptions` do what they promise, instead of being removed.
 - **Decision 11: sources capture through `DeadLetterSourceCapture`, each capture in a scope of its own.** The queue registration adds it and the sources take it as an optional dependency. On EF Core the store shares the scoped `DbContext`, so a capture in the source's scope would save the source's tracked changes or be broken by them.
 - **Decision 12: stored content is kept as is.** `DeadLetterOrchestrator.AddSerializedAsync` stores the type name and content a source already holds (outbox, scheduling, sagas, undeliverable delayed retries) without serializing them again.
-- **Decision 13: outbox and scheduling capture before they record their terminal state.** A failed capture leaves the message un-exhausted (outbox) or due for a later cycle (scheduling), so a message is never reported as dead-lettered without a dead letter.
+- **Decision 13: outbox, scheduling and delayed retries capture before they record their terminal state.** A failed capture leaves the message un-exhausted (outbox), due for a later cycle (scheduling) or the row pending (delayed retries, where `OnPermanentFailure` also waits for a successful capture), so a message is never reported as dead-lettered without a dead letter.
 - **Decision 14: the inbox terminal point is the attempt that uses up `InboxOptions.MaxRetries`.** A handler `Left` is a cached business result and never retries; only a thrown exception counts as an attempt.
 
 ## Alternatives rejected
