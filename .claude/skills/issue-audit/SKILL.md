@@ -37,7 +37,14 @@ start, scope, the concurrent audits). The scripts find the audit from `-Issue <n
 worktree they run from; with more than one audit open and no worktree context, `-Issue` is required. The hooks
 find it from the one `wia-<n>` the spawn prompt names. `audit-stage.ps1 -List` shows every open audit and its
 next stage. The pre-#2234 `artifacts/knowledge/current-audit.json` is converted into `open-audits/<n>.json` the
-first time any audit script runs; the hooks read it until then.
+first time any audit script runs; the hooks read it until then. Run that first script from the main checkout
+(an audit worktree opened before #2234 carries the old copies of the scripts, which only know
+`current-audit.json`).
+
+The overlap rule needs a scope: an issue whose pre-draft and commits name no package under `src/` (a docs-only
+or process issue) overlaps nothing and may run next to any audit; the cross-audit duplicate check is what
+catches a collision there. Overlap is decided when an audit starts; packages an archivist names later are used
+for the next `audit-next.ps1` call, not to stop an audit already running.
 
 **No shortcuts.** Every closed issue gets the full pipeline: one issue, one worktree, six stages, no token
 budget. Batches and cheap paths lose precision — they caused a false "implemented" claim in the first pass
@@ -202,7 +209,7 @@ is needed, since `audit-commit-stage.ps1` stages only `artifacts/knowledge`). Th
 
 ```powershell
 (Get-Content -Raw .claude/worktrees/wia-<n>/tools/ai/audit/pipeline.json | ConvertFrom-Json).stages | Where-Object stage -eq 'remediation'
-pwsh -NoProfile -File tools/ai/audit/audit-stage.ps1 -Next
+pwsh -NoProfile -File tools/ai/audit/audit-stage.ps1 -Next -Issue <n>
 ```
 
 The first must print `remediation-drafter`/`sonnet` (a parse error means the edit broke the JSON: the hooks then

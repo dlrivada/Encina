@@ -68,6 +68,24 @@ function Save-OpenAudit([string]$MainRoot, $Audit) {
     finally { if ($null -ne $temp -and (Test-Path -LiteralPath $temp)) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue } }
 }
 
+# The lock that serializes every change to the set of open audits (audit-next.ps1 opening one and updating the
+# others' `concurrent` lists, audit-done.ps1 removing one), so a slow audit-next can never re-save the state file of
+# an audit that audit-done closed meanwhile (#2234 review F1). Returns the acquired Mutex, or throws after 60 s.
+function Enter-OpenAuditsLock([string]$MainRoot) {
+    $name = 'Local\Encina.OpenAudits.' + (-join ([System.Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($MainRoot.ToLowerInvariant())) | ForEach-Object { $_.ToString('x2') }))
+    $mutex = [System.Threading.Mutex]::new($false, $name)
+    $acquired = $false
+    try { $acquired = $mutex.WaitOne(60000) } catch [System.Threading.AbandonedMutexException] { $acquired = $true }
+    if (-not $acquired) { $mutex.Dispose(); throw 'another audit script is changing the open audits; try again when it has finished.' }
+    return $mutex
+}
+
+function Exit-OpenAuditsLock($Mutex) {
+    if ($null -eq $Mutex) { return }
+    $Mutex.ReleaseMutex()
+    $Mutex.Dispose()
+}
+
 function Remove-OpenAudit([string]$MainRoot, [int]$Issue) {
     $path = Get-OpenAuditPath $MainRoot $Issue
     if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
@@ -88,6 +106,14 @@ function ConvertTo-AuditState($Object) {
 # no concurrent audit) and deletes it. An unreadable file throws: nothing is guessed (fail closed).
 function Convert-LegacyCurrentAudit([string]$MainRoot) {
     $legacy = Get-LegacyCurrentAuditPath $MainRoot
+    if (-not (Test-Path -LiteralPath $legacy)) { return }
+    # Two scripts starting at once both see the file: convert under the open-audits lock, re-checking inside it.
+    $lock = Enter-OpenAuditsLock $MainRoot
+    try { Convert-LegacyCurrentAuditLocked $MainRoot $legacy }
+    finally { Exit-OpenAuditsLock $lock }
+}
+
+function Convert-LegacyCurrentAuditLocked([string]$MainRoot, [string]$legacy) {
     if (-not (Test-Path -LiteralPath $legacy)) { return }
     try { $old = Get-Content -LiteralPath $legacy -Raw | ConvertFrom-Json -ErrorAction Stop }
     catch { throw "artifacts/knowledge/current-audit.json (the pre-#2234 open audit) cannot be read: $($_.Exception.Message); repair it so it can be converted into artifacts/knowledge/open-audits/<n>.json." }

@@ -1680,6 +1680,10 @@ try {
         $script:total++
         if ((Test-Path $par51Authors) -and -not (Test-Path $par52Authors) -and ((Get-Content $par51Authors -Raw | ConvertFrom-Json).code.agent -eq 'issue-auditor')) { 'PASS enforce-path-ownership.ps1 (#2234): authorship is recorded only in the worktree of the audit the agent was spawned for' }
         else { $script:failed++; 'FAIL enforce-path-ownership.ps1 (#2234): authorship leaked into another audit''s .authors.json, or was not recorded for its own' }
+        # Review F3: an unreadable state file never lets a stage agent write into an audit worktree unchecked.
+        Set-Content (Join-Path $parOpenDir '52.json') '{ not json'
+        Invoke-ParWrite 'issue-archivist' 'p51' (Join-Path (Get-ParWt 52) 'artifacts\knowledge\issues\52.md') 2 'enforce-path-ownership (#2234): with #52''s state file unreadable, another audit''s archivist may not write #52''s knowledge record (fail closed)'
+        Invoke-ParWrite 'test-auditor' 'p53t' (Join-Path (Get-ParWt 52) 'artifacts\audit\coverage\unit\x.xml') 2 'enforce-path-ownership (#2234): with #52''s state file unreadable, coverage scratch in wia-52 is denied (fail closed)'
         # A delta audit and a full audit open at once: each worktree keeps its own pipeline file.
         Initialize-ParAudit 52 @() 'delta'
         Write-ParTranscript 'p52d' 'Audit #52 in worktree wia-52, delta: rules-2026-10, check only rule (a).'

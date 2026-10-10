@@ -409,6 +409,12 @@ try {
             # outside artifacts/knowledge/ entirely is denied for these single-owner roles.
             # #2234: inside an open audit's worktree, only into the audit this agent was spawned for.
             $ownAudit = Get-BoundAudit $location.Root
+            # Review F3: inside an audit worktree whose audit cannot be resolved because a state file is
+            # unreadable, the binding cannot be checked: deny (fail closed) instead of skipping it.
+            if ($null -eq $ownAudit -and $location.InWorktree -and (Split-Path -Leaf $location.Root) -match '^wia-\d+$' -and (Get-OpenAuditState).Unreadable.Count -gt 0) {
+                [Console]::Error.WriteLine("Blocked: '$relative' is in the audit worktree $(Split-Path -Leaf $location.Root), but an open-audit state file under artifacts/knowledge/ cannot be read, so it cannot be checked which audit $Agent was spawned for; repair it first (#2234, fail closed).")
+                return $false
+            }
             if ($relative -match '^artifacts/knowledge/issues/[^/]+\.md$') {
                 if ($Agent -ne 'issue-archivist') {
                     [Console]::Error.WriteLine("Blocked: the knowledge record ('$relative') belongs to issue-archivist, not $Agent (#1345 single-owner roles).")

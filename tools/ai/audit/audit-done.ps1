@@ -202,6 +202,8 @@ if ($branch) {
     $brOut = & git -C $mainRoot branch -D $branch 2>&1
     if ($LASTEXITCODE -ne 0) { Write-Error "audit-done: git branch -D $branch failed: $brOut"; exit 1 }
 }
-Remove-OpenAudit $mainRoot ([int]$n)
+$stateLock = Enter-OpenAuditsLock $mainRoot
+try { Remove-OpenAudit $mainRoot ([int]$n) }
+finally { Exit-OpenAuditsLock $stateLock }
 
 "audit-done: closed audit for #$n (remediation drafts: $remCount; role lessons applied: $appliedRoles; stages archived to artifacts\knowledge\stages\$n; branch $branch removed; pull request: $($publish.PrUrl))"

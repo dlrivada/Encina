@@ -92,13 +92,22 @@ try {
                 if ($shared.Count -gt 0) { "#$($a.issue) ($($shared -join ', '))" }
             })
     }
-    # Writes the new audit's state file and adds it to the concurrent list of every open audit.
+    # Writes the new audit's state file and adds it to the concurrent list of every audit still open, under the
+    # open-audits lock: each other state file is re-read there, so an audit that audit-done.ps1 closed while this
+    # run generated a pre-draft or fetched is never re-saved (review F1 of #2234).
     function Register-Audit($State) {
-        Save-OpenAudit $mainRoot ([pscustomobject]$State)
-        foreach ($a in $open) {
-            $a.concurrent = @(@($a.concurrent) + [int]$State.issue | Sort-Object -Unique)
-            Save-OpenAudit $mainRoot $a
+        $lock = Enter-OpenAuditsLock $mainRoot
+        try {
+            Save-OpenAudit $mainRoot ([pscustomobject]$State)
+            foreach ($a in $open) {
+                $path = Get-OpenAuditPath $mainRoot ([int]$a.issue)
+                if (-not (Test-Path -LiteralPath $path)) { continue }
+                $fresh = ConvertTo-AuditState (Get-Content -LiteralPath $path -Raw | ConvertFrom-Json)
+                $fresh.concurrent = @(@($fresh.concurrent) + [int]$State.issue | Sort-Object -Unique)
+                Save-OpenAudit $mainRoot $fresh
+            }
         }
+        finally { Exit-OpenAuditsLock $lock }
     }
 
     if ($Delta) {

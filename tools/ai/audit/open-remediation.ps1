@@ -443,6 +443,9 @@ $drafts = foreach ($f in Get-ChildItem $dir -Filter $pattern) {
 # opened yet only warns: the first audit to open its issues wins, and the other one then hits the refusal above.
 try { $thisAudit = @(Get-OpenAudits $root) | Where-Object { [int]$_.issue -eq $Issue } | Select-Object -First 1 }
 catch { Write-Error "open-remediation: $($_.Exception.Message)"; exit 1 }
+if ($null -eq $thisAudit -and @($drafts).Count -gt 0) {
+    Write-Warning "open-remediation: #$Issue is not an open audit (no artifacts/knowledge/open-audits/$Issue.json), so its drafts are not compared with the drafts of concurrent audits (#2234)."
+}
 if ($null -ne $thisAudit -and @($drafts).Count -gt 0) {
     . (Join-Path $PSScriptRoot '_remediation-checks.ps1')
     $others = @(Get-ConcurrentAuditDrafts $root $thisAudit)
