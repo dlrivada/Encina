@@ -99,7 +99,7 @@ public sealed class InboxOrchestrator
     /// The result of processing or the cached response. When the dead letter capture of a message that used
     /// up its retries fails, its <c>Left</c> is returned instead of the processing error.
     /// </returns>
-    public async ValueTask<Either<EncinaError, TResponse>> ProcessAsync<TResponse>(
+    public ValueTask<Either<EncinaError, TResponse>> ProcessAsync<TResponse>(
         object request,
         string messageId,
         string requestType,
@@ -115,23 +115,39 @@ public sealed class InboxOrchestrator
 
         Log.ProcessingIdempotentRequest(_logger, requestType, messageId, correlationId);
 
-        // Check if message already exists in inbox
+        return ProcessCoreAsync(request, messageId, requestType, correlationId, metadata, processCallback, cancellationToken);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> ProcessCoreAsync<TResponse>(
+        object request,
+        string messageId,
+        string requestType,
+        string correlationId,
+        InboxMetadata? metadata,
+        Func<ValueTask<Either<EncinaError, TResponse>>> processCallback,
+        CancellationToken cancellationToken)
+    {
+        // Check if message already exists in inbox; a store Left fails the operation.
         var existingResult = await _store.GetMessageAsync(messageId, cancellationToken).ConfigureAwait(false);
 
-        if (existingResult.IsLeft)
-            return existingResult.LeftToArray()[0];
+        return await existingResult.Match(
+            Right: existing => existing.Match(
+                Some: message => HandleExistingMessageAsync(
+                    message, request, messageId, correlationId, metadata, processCallback, cancellationToken),
+                None: () => ProcessNewMessageAsync(
+                    request, messageId, requestType, correlationId, metadata, processCallback, cancellationToken)),
+            Left: error => ValueTask.FromResult<Either<EncinaError, TResponse>>(error)).ConfigureAwait(false);
+    }
 
-        var existingOption = existingResult.Match(Right: o => o, Left: _ => Option<IInboxMessage>.None);
-
-        if (existingOption.IsSome)
-        {
-            var existingMessage = existingOption.Match(Some: m => m, None: () => default!);
-            var attempt = new InboxAttempt(
-                request, messageId, correlationId, metadata?.TenantId, existingMessage.RetryCount, existingMessage.ReceivedAtUtc);
-            return await HandleExistingMessageAsync(
-                existingMessage, attempt, processCallback, cancellationToken).ConfigureAwait(false);
-        }
-
+    private async ValueTask<Either<EncinaError, TResponse>> ProcessNewMessageAsync<TResponse>(
+        object request,
+        string messageId,
+        string requestType,
+        string correlationId,
+        InboxMetadata? metadata,
+        Func<ValueTask<Either<EncinaError, TResponse>>> processCallback,
+        CancellationToken cancellationToken)
+    {
         // Create new inbox entry
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var newMessage = _messageFactory.Create(
@@ -184,12 +200,15 @@ public sealed class InboxOrchestrator
 
     private async ValueTask<Either<EncinaError, TResponse>> HandleExistingMessageAsync<TResponse>(
         IInboxMessage existingMessage,
-        InboxAttempt attempt,
+        object request,
+        string messageId,
+        string correlationId,
+        InboxMetadata? metadata,
         Func<ValueTask<Either<EncinaError, TResponse>>> processCallback,
         CancellationToken cancellationToken)
     {
-        var messageId = attempt.MessageId;
-        var correlationId = attempt.CorrelationId;
+        var attempt = new InboxAttempt(
+            request, messageId, correlationId, metadata?.TenantId, existingMessage.RetryCount, existingMessage.ReceivedAtUtc);
 
         // Message already processed - return cached response
         if (existingMessage.IsProcessed && existingMessage.Response != null)

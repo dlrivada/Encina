@@ -188,18 +188,7 @@ internal sealed class OutboxBatchProcessor
             var publishResult = await publish(message, notificationType, notification).ConfigureAwait(false);
             if (publishResult.IsLeft)
             {
-                var error = publishResult.LeftToArray()[0];
-                if (IsCancellation(error, cancellationToken))
-                {
-                    return MessageOutcome.Cancelled;
-                }
-
-                // Only the error code is stored and logged: EncinaError.Message can carry
-                // personal data such as a data-subject id (#1259 review). No exception is attached for a
-                // Left: the error's exception carries EncinaError.Message (EncinaErrors.FromException copies
-                // the cause's message).
-                var errorCode = error.GetCode().IfNone("encina.unknown");
-                return await FailAsync(message, new Failure(errorCode, errorCode), cancellationToken).ConfigureAwait(false);
+                return await PublishFailedAsync(message, publishResult.LeftToArray()[0], cancellationToken).ConfigureAwait(false);
             }
 
             var marked = await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
@@ -226,6 +215,21 @@ internal sealed class OutboxBatchProcessor
         }
     }
 
+    // A Left from the publish callback: a cancellation stops the batch; anything else is a failed delivery.
+    private async Task<MessageOutcome> PublishFailedAsync(IOutboxMessage message, EncinaError error, CancellationToken cancellationToken)
+    {
+        if (IsCancellation(error, cancellationToken))
+        {
+            return MessageOutcome.Cancelled;
+        }
+
+        // Only the error code is stored and logged: EncinaError.Message can carry personal data such as a
+        // data-subject id (#1259 review). No exception is attached for a Left: the error's exception carries
+        // EncinaError.Message (EncinaErrors.FromException copies the cause's message).
+        var errorCode = error.GetCode().IfNone("encina.unknown");
+        return await FailAsync(message, new Failure(errorCode, errorCode), cancellationToken).ConfigureAwait(false);
+    }
+
     // Reason is what is stored in ErrorMessage and logged: the EncinaError code, the exception type, or a
     // fixed description, never EncinaError.Message. ErrorCode is what a dead letter records.
     private readonly record struct Failure(string Reason, string ErrorCode, Exception? Exception = null);
@@ -241,33 +245,7 @@ internal sealed class OutboxBatchProcessor
 
         if (retryCount >= _options.MaxRetries)
         {
-            // The dead letter is captured before the exhausted state is recorded: when the capture fails the
-            // message keeps its state and is delivered (and captured) again, instead of ending exhausted
-            // without its dead letter. The capture is idempotent on the message id.
-            var captured = await CaptureDeadLetterAsync(message, failure, retryCount, cancellationToken)
-                .ConfigureAwait(false);
-            if (captured.IsLeft)
-            {
-                return OutcomeNotRecorded(DeadLetterCaptureOperation, message, captured);
-            }
-
-            var exhaustedMark = await _store.MarkAsFailedAsync(message.Id, failureReason, nextRetryAtUtc: null, cancellationToken)
-                .ConfigureAwait(false);
-            if (exhaustedMark.IsLeft)
-            {
-                return OutcomeNotRecorded(nameof(IOutboxStore.MarkAsFailedAsync), message, exhaustedMark);
-            }
-
-            MessagingLog.OutboxMessageRetriesExhausted(
-                _logger,
-                exception?.ForLogging(),
-                message.Id,
-                message.NotificationType,
-                retryCount,
-                OutboxErrorCodes.MaxRetriesExceeded,
-                failureReason);
-
-            return MessageOutcome.Exhausted;
+            return await ExhaustAsync(message, failure, retryCount, cancellationToken).ConfigureAwait(false);
         }
 
         var delay = OutboxRetryBackoff.ComputeDelay(
@@ -295,6 +273,40 @@ internal sealed class OutboxBatchProcessor
             nextRetryAtUtc);
 
         return MessageOutcome.Failure;
+    }
+
+    // The failure that uses up MaxRetries. The dead letter is captured before the exhausted state is recorded:
+    // when the capture fails the message keeps its state and is delivered (and captured) again, instead of
+    // ending exhausted without its dead letter. The capture is idempotent on the message id.
+    private async Task<MessageOutcome> ExhaustAsync(
+        IOutboxMessage message,
+        Failure failure,
+        int retryCount,
+        CancellationToken cancellationToken)
+    {
+        var captured = await CaptureDeadLetterAsync(message, failure, retryCount, cancellationToken).ConfigureAwait(false);
+        if (captured.IsLeft)
+        {
+            return OutcomeNotRecorded(DeadLetterCaptureOperation, message, captured);
+        }
+
+        var exhaustedMark = await _store.MarkAsFailedAsync(message.Id, failure.Reason, nextRetryAtUtc: null, cancellationToken)
+            .ConfigureAwait(false);
+        if (exhaustedMark.IsLeft)
+        {
+            return OutcomeNotRecorded(nameof(IOutboxStore.MarkAsFailedAsync), message, exhaustedMark);
+        }
+
+        MessagingLog.OutboxMessageRetriesExhausted(
+            _logger,
+            failure.Exception?.ForLogging(),
+            message.Id,
+            message.NotificationType,
+            retryCount,
+            OutboxErrorCodes.MaxRetriesExceeded,
+            failure.Reason);
+
+        return MessageOutcome.Exhausted;
     }
 
     private Task<Either<EncinaError, Unit>> CaptureDeadLetterAsync(

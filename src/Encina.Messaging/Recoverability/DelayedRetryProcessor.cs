@@ -504,7 +504,14 @@ public sealed class DelayedRetryProcessor : BackgroundService
 
         // A Left is logged by the capture (error code only); the row is already marked failed.
         await CaptureDeadLetterAsync(message, request, failedMessage, cancellationToken).ConfigureAwait(false);
+        await InvokeOnPermanentFailureAsync(message, failedMessage, cancellationToken).ConfigureAwait(false);
+    }
 
+    private async Task InvokeOnPermanentFailureAsync(
+        IDelayedRetryMessage message,
+        FailedMessage failedMessage,
+        CancellationToken cancellationToken)
+    {
         if (_options.OnPermanentFailure is null)
             return;
 
