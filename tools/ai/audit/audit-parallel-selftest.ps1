@@ -23,7 +23,10 @@
 #   7. no audit forgotten half-way: an audit is recorded as open with its start date the moment audit-next starts
 #      it and is never handed to a second slot; audit-stage -List shows every open audit's stage and days open and
 #      flags one open more than 2 days STALE; audit-next refuses to start another audit while one is stale, naming
-#      it, unless -Force.
+#      it, unless -Force;
+#   8. concurrent registrations (Register-OpenAudit, the open-audits lock): six processes registering at once, the
+#      same issue twice among them, leave exactly one registration per issue and mutually consistent `concurrent`
+#      lists. This case fails when the lock is removed (verified when it was written, #2234 PR review).
 # Nothing here can push or open anything.
 #
 # Exit code: 0 if every assertion passes, 1 otherwise.
@@ -242,6 +245,41 @@ exit 0
     Assert-That 'audit-next refuses to start another audit while #13 is stale, naming it' ($r.Exit -ne 0 -and $r.Text -like '*stale audit(s) open for more than 2 days: #13 (wia-13*-Force*' -and $null -eq (Get-State 15)) $r.Text
     $r = Invoke-Script 'audit-next.ps1' @('-Force')
     Assert-That '-Force starts the next audit anyway, with a warning naming the stale one' ($r.Exit -eq 0 -and $r.Text -like '*-Force*#13*' -and $r.Text -like '*Audit #15 opened*') $r.Text
+
+    # --- 8. concurrent registrations (the open-audits lock) ---------------------------------------------------------
+    # Six registrations start at once as separate processes against the same state folder, with the window between
+    # reading the open audits and writing the state files widened to 3 s (the test seam of Register-OpenAudit): four
+    # different issues and the same issue twice. With the lock they run one after another: the duplicate is refused
+    # and every pair of open audits lists each other as concurrent. Without it every run reads the same snapshot,
+    # so updates are lost and the duplicate is written twice.
+    $regRoot = Join-Path $base 'register'
+    $regOpen = Join-Path $regRoot 'artifacts\knowledge\open-audits'
+    New-Item -ItemType Directory -Force $regOpen | Out-Null
+    Write-Text (Join-Path $regOpen '50.json') (@{ issue = 50; worktree = 'wia-50'; branch = 'audit/50'; startedUtc = '2026-10-10T00:00:00Z'; scope = @(); concurrent = @() } | ConvertTo-Json)
+    $lib = Join-Path $main 'tools\ai\audit\_audit-lib.ps1'
+    $jobs = foreach ($n in 61, 62, 63, 64, 70, 70) {
+        Start-Job -ArgumentList $lib, $regRoot, $n -ScriptBlock {
+            param($Lib, $Root, $N)
+            $ErrorActionPreference = 'Stop'
+            $env:ENCINA_AUDIT_REGISTER_TEST_DELAY_MS = '3000'
+            . $Lib
+            try { $null = Register-OpenAudit $Root ([ordered]@{ issue = $N; worktree = "wia-$N"; branch = "audit/$N"; startedUtc = '2026-10-10T00:00:00Z' }); "ok $N" }
+            catch { "refused ${N}: $($_.Exception.Message)" }
+        }
+    }
+    $results = @($jobs | Wait-Job -Timeout 180 | Receive-Job)
+    $jobs | Remove-Job -Force
+    Assert-That 'concurrent registrations: the same issue is registered once and refused once' (@($results | Where-Object { $_ -eq 'ok 70' }).Count -eq 1 -and @($results | Where-Object { $_ -like 'refused 70: *already an open audit*' }).Count -eq 1) ($results -join ' | ')
+    Assert-That 'concurrent registrations: the four different issues are all registered' (@($results | Where-Object { $_ -match '^ok 6[1-4]$' }).Count -eq 4) ($results -join ' | ')
+    $regStates = @{}
+    foreach ($f in Get-ChildItem $regOpen -Filter '*.json') { $regStates[[int]$f.BaseName] = Get-Content $f.FullName -Raw | ConvertFrom-Json }
+    $allOpen = @($regStates.Keys | Sort-Object)
+    $inconsistent = @(foreach ($k in $allOpen) {
+            $expected = (@($allOpen | Where-Object { $_ -ne $k }) -join ',')
+            $actual = (@($regStates[$k].concurrent | ForEach-Object { [int]$_ } | Sort-Object) -join ',')
+            if ($expected -ne $actual) { "#$k concurrent [$actual], expected [$expected]" }
+        })
+    Assert-That 'concurrent registrations: six open audits, and each lists every other one as concurrent (no lost update)' (($allOpen -join ',') -eq '50,61,62,63,64,70' -and $inconsistent.Count -eq 0) (($allOpen -join ',') + ' ' + ($inconsistent -join '; '))
 }
 finally {
     Set-Location $PSScriptRoot

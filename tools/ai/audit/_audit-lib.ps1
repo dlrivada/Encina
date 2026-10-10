@@ -86,6 +86,32 @@ function Exit-OpenAuditsLock($Mutex) {
     $Mutex.Dispose()
 }
 
+# Registers a new open audit (#2234) under the open-audits lock, reading the open audits fresh inside it: refuses
+# when the issue already has a state file (the same issue is never opened twice), records every audit open right
+# now as its `concurrent`, and adds the new issue to each of theirs. Never re-saves an audit that was closed
+# meanwhile, and two registrations never lose each other's update. $env:ENCINA_AUDIT_REGISTER_TEST_DELAY_MS
+# (test seam, audit-parallel-selftest.ps1) widens the window between reading and writing so the self-test can
+# prove the lock is what keeps concurrent registrations consistent; it is never set outside that test.
+function Register-OpenAudit([string]$MainRoot, $State) {
+    $lock = Enter-OpenAuditsLock $MainRoot
+    try {
+        $issue = [int]$State.issue
+        if (Test-Path -LiteralPath (Get-OpenAuditPath $MainRoot $issue)) { throw "#$issue is already an open audit; it is never opened twice." }
+        $others = @(Get-OpenAudits $MainRoot | Where-Object { [int]$_.issue -ne $issue })
+        $delay = 0
+        if ([int]::TryParse([string]$env:ENCINA_AUDIT_REGISTER_TEST_DELAY_MS, [ref]$delay) -and $delay -gt 0) { Start-Sleep -Milliseconds $delay }
+        $new = ConvertTo-AuditState ([pscustomobject]$State)
+        $new.concurrent = @($others | ForEach-Object { [int]$_.issue } | Sort-Object -Unique)
+        Save-OpenAudit $MainRoot $new
+        foreach ($other in $others) {
+            $other.concurrent = @(@($other.concurrent) + $issue | Sort-Object -Unique)
+            Save-OpenAudit $MainRoot $other
+        }
+        return $new
+    }
+    finally { Exit-OpenAuditsLock $lock }
+}
+
 function Remove-OpenAudit([string]$MainRoot, [int]$Issue) {
     $path = Get-OpenAuditPath $MainRoot $Issue
     if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
@@ -133,6 +159,7 @@ function Convert-LegacyCurrentAuditLocked([string]$MainRoot, [string]$legacy) {
 function Get-OpenAudits([string]$MainRoot) {
     Convert-LegacyCurrentAudit $MainRoot
     $dir = Get-OpenAuditsDir $MainRoot
+    if ((Test-Path -LiteralPath $dir) -and -not (Test-Path -LiteralPath $dir -PathType Container)) { throw "$dir exists but is not a folder; the open audits cannot be read." }
     if (-not (Test-Path -LiteralPath $dir -PathType Container)) { return @() }
     $audits = foreach ($file in @(Get-ChildItem -LiteralPath $dir -Filter '*.json' -File)) {
         try { $raw = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json -ErrorAction Stop }

@@ -218,10 +218,24 @@ try {
     # pre-#2234 current-audit.json the scripts have not converted yet; _open-audits.ps1), read once per hook run.
     # A state file that exists but cannot be read makes every rule that needs the open audits fail closed
     # (AGENTS.md section 3).
-    . (Join-Path $PSScriptRoot '_open-audits.ps1')
+    # PR #2243 review: a failure to load the helper or to enumerate open-audits/ must not reach the hook's global
+    # catch (which allows the call): it is recorded as one more unreadable entry, so every audit path (stage
+    # artifacts, drafts, and anything under a wia-<n> worktree) is denied below, as audit-stage-guard.ps1 denies
+    # the spawn (fail closed). Writes outside the audit paths are not affected.
+    $script:OpenAuditsLoadError = $null
+    try { . (Join-Path $PSScriptRoot '_open-audits.ps1') }
+    catch { $script:OpenAuditsLoadError = "the helper _open-audits.ps1 cannot be loaded ($($_.Exception.Message))" }
     $script:OpenAudits = $null
     function Get-OpenAuditState {
-        if ($null -eq $script:OpenAudits) { $script:OpenAudits = Get-HookOpenAudits $layout.MainRoot }
+        if ($null -eq $script:OpenAudits) {
+            if ($null -eq $script:OpenAuditsLoadError) {
+                try { $script:OpenAudits = Get-HookOpenAudits $layout.MainRoot }
+                catch { $script:OpenAuditsLoadError = "artifacts/knowledge/open-audits/ cannot be read ($($_.Exception.Message))" }
+            }
+            if ($null -ne $script:OpenAuditsLoadError) {
+                $script:OpenAudits = [pscustomobject]@{ Audits = @(); Unreadable = @($script:OpenAuditsLoadError) }
+            }
+        }
         return $script:OpenAudits
     }
 
@@ -262,6 +276,7 @@ try {
     # checks the binding for it. $null when $Root is no open audit's worktree.
     function Get-BoundAudit([string]$Root) {
         $state = Get-OpenAuditState
+        if ($state.Unreadable.Count -gt 0) { return $null }
         return (Get-HookAuditByWorktree $state.Audits $Root)
     }
 
@@ -273,6 +288,17 @@ try {
 
         $relative = $location.Relative
         $category = Get-PathCategory $relative
+
+        # #2234, PR #2243 review: while the open-audit state cannot be read (a state file, the open-audits/ folder or
+        # the helper itself), nobody can tell which audit a wia-<n> worktree belongs to or who owns its files: every
+        # write under an audit worktree is denied, for every caller (fail closed).
+        if ($location.InWorktree -and (Split-Path -Leaf $location.Root) -match '^wia-\d+$') {
+            $wiaState = Get-OpenAuditState
+            if ($wiaState.Unreadable.Count -gt 0) {
+                [Console]::Error.WriteLine("Blocked: '$relative' is in the audit worktree $(Split-Path -Leaf $location.Root), but the open-audit state cannot be read ($($wiaState.Unreadable -join '; ')), so its owner cannot be decided; repair it first (#2234, fail closed).")
+                return $false
+            }
+        }
 
         # #1345 review: the authorship sidecar has exactly one legitimate writer — this hook's own Set-Content
         # call below, invoked directly by the hook process, never through a Write/Edit/shell tool call. Denied
@@ -409,12 +435,6 @@ try {
             # outside artifacts/knowledge/ entirely is denied for these single-owner roles.
             # #2234: inside an open audit's worktree, only into the audit this agent was spawned for.
             $ownAudit = Get-BoundAudit $location.Root
-            # Review F3: inside an audit worktree whose audit cannot be resolved because a state file is
-            # unreadable, the binding cannot be checked: deny (fail closed) instead of skipping it.
-            if ($null -eq $ownAudit -and $location.InWorktree -and (Split-Path -Leaf $location.Root) -match '^wia-\d+$' -and (Get-OpenAuditState).Unreadable.Count -gt 0) {
-                [Console]::Error.WriteLine("Blocked: '$relative' is in the audit worktree $(Split-Path -Leaf $location.Root), but an open-audit state file under artifacts/knowledge/ cannot be read, so it cannot be checked which audit $Agent was spawned for; repair it first (#2234, fail closed).")
-                return $false
-            }
             if ($relative -match '^artifacts/knowledge/issues/[^/]+\.md$') {
                 if ($Agent -ne 'issue-archivist') {
                     [Console]::Error.WriteLine("Blocked: the knowledge record ('$relative') belongs to issue-archivist, not $Agent (#1345 single-owner roles).")

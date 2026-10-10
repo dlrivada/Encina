@@ -17,7 +17,9 @@ function Get-HookOpenAudits([string]$MainRoot) {
     $unreadable = [System.Collections.Generic.List[string]]::new()
     $seen = [System.Collections.Generic.HashSet[string]]::new()
     $dir = Join-Path $MainRoot 'artifacts\knowledge\open-audits'
-    if (Test-Path -LiteralPath $dir -PathType Container) {
+    # Something named open-audits that is not a folder cannot hold the state: unreadable, never "no audit open".
+    if ((Test-Path -LiteralPath $dir) -and -not (Test-Path -LiteralPath $dir -PathType Container)) { $unreadable.Add('open-audits (not a folder)') }
+    elseif (Test-Path -LiteralPath $dir -PathType Container) {
         foreach ($file in @(Get-ChildItem -LiteralPath $dir -Filter '*.json' -File -ErrorAction Stop | Sort-Object Name)) {
             try {
                 $state = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json -ErrorAction Stop

@@ -92,22 +92,18 @@ try {
                 if ($shared.Count -gt 0) { "#$($a.issue) ($($shared -join ', '))" }
             })
     }
-    # Writes the new audit's state file and adds it to the concurrent list of every audit still open, under the
-    # open-audits lock: each other state file is re-read there, so an audit that audit-done.ps1 closed while this
-    # run generated a pre-draft or fetched is never re-saved (review F1 of #2234).
+    # Registers the new audit (Register-OpenAudit, _audit-lib.ps1: under the open-audits lock, with the open audits
+    # read fresh, so an audit that audit-done.ps1 closed while this run generated a pre-draft or fetched is never
+    # re-saved; review F1 of #2234). When registration is refused, the worktree and branch just created are removed.
     function Register-Audit($State) {
-        $lock = Enter-OpenAuditsLock $mainRoot
-        try {
-            Save-OpenAudit $mainRoot ([pscustomobject]$State)
-            foreach ($a in $open) {
-                $path = Get-OpenAuditPath $mainRoot ([int]$a.issue)
-                if (-not (Test-Path -LiteralPath $path)) { continue }
-                $fresh = ConvertTo-AuditState (Get-Content -LiteralPath $path -Raw | ConvertFrom-Json)
-                $fresh.concurrent = @(@($fresh.concurrent) + [int]$State.issue | Sort-Object -Unique)
-                Save-OpenAudit $mainRoot $fresh
-            }
+        try { return (Register-OpenAudit $mainRoot $State) }
+        catch {
+            $reason = $_.Exception.Message
+            $rmOut = & git -C $mainRoot worktree remove ([string]$State.worktree) --force 2>&1
+            $brOut = & git -C $mainRoot branch -D ([string]$State.branch) 2>&1
+            Write-Error "audit-next: could not register #$($State.issue): $reason Worktree and branch removed, no audit left half open."
+            exit 1
         }
-        finally { Exit-OpenAuditsLock $lock }
     }
 
     if ($Delta) {
@@ -179,7 +175,7 @@ try {
         New-Item -ItemType Directory -Force (Get-StagesDir $wt) | Out-Null
         Set-Content -LiteralPath (Join-Path $wt 'artifacts\knowledge\delta-scope.md') -Value $scopeText -Encoding utf8
 
-        Register-Audit ([ordered]@{
+        $null = Register-Audit ([ordered]@{
                 issue      = $n
                 worktree   = $wt
                 branch     = $branch
@@ -262,7 +258,7 @@ try {
     New-Item -ItemType Directory -Force (Get-StagesDir $wt) | Out-Null
     New-Item -ItemType Directory -Force $knowledgeRoot | Out-Null
 
-    Register-Audit ([ordered]@{
+    $null = Register-Audit ([ordered]@{
             issue      = $n
             worktree   = $wt
             branch     = $branch

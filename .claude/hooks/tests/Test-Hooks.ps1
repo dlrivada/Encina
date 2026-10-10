@@ -1684,6 +1684,48 @@ try {
         Set-Content (Join-Path $parOpenDir '52.json') '{ not json'
         Invoke-ParWrite 'issue-archivist' 'p51' (Join-Path (Get-ParWt 52) 'artifacts\knowledge\issues\52.md') 2 'enforce-path-ownership (#2234): with #52''s state file unreadable, another audit''s archivist may not write #52''s knowledge record (fail closed)'
         Invoke-ParWrite 'test-auditor' 'p53t' (Join-Path (Get-ParWt 52) 'artifacts\audit\coverage\unit\x.xml') 2 'enforce-path-ownership (#2234): with #52''s state file unreadable, coverage scratch in wia-52 is denied (fail closed)'
+        Initialize-ParAudit 52 @()
+        # PR #2243 review: a helper that cannot be loaded, or an open-audits/ folder that cannot be listed, never
+        # reaches the hook's global allow: every audit path is denied, other paths are not affected.
+        $ownNoHelper = Join-Path $work 'own-no-helper'
+        New-Item -ItemType Directory -Force $ownNoHelper | Out-Null
+        foreach ($h in 'enforce-path-ownership.ps1', '_command-text.ps1', '_repo-paths.ps1', '_write-targets.ps1', '_read-payload.ps1') { Copy-Item (Join-Path $hooks $h) $ownNoHelper }
+        $ownNoHelperHook = Join-Path $ownNoHelper 'enforce-path-ownership.ps1'
+        function Invoke-NoHelperWrite([string]$Agent, [string]$Path, [int]$Expected, [string]$Label) {
+            $env:CLAUDE_PROJECT_DIR = $parMain
+            $payload = @{ tool_name = 'Write'; cwd = $parMain; tool_input = @{ file_path = $Path } }
+            if ($Agent) { $payload.agent_type = $Agent; $payload.agent_id = 'p51'; $payload.transcript_path = $parSession }
+            Invoke-HookCase $ownNoHelperHook ($payload | ConvertTo-Json -Compress) $Expected $Label $Agent
+        }
+        Invoke-NoHelperWrite 'issue-auditor' $par51Code 2 'enforce-path-ownership (#2234): a missing _open-audits.ps1 denies a stage-artifact write (fail closed)'
+        Invoke-NoHelperWrite 'issue-archivist' (Join-Path (Get-ParWt 51) 'artifacts\knowledge\issues\51.md') 2 'enforce-path-ownership (#2234): a missing _open-audits.ps1 denies a knowledge-record write in an audit worktree (fail closed)'
+        Invoke-NoHelperWrite 'test-auditor' (Join-Path (Get-ParWt 51) 'artifacts\audit\coverage\unit\x.xml') 2 'enforce-path-ownership (#2234): a missing _open-audits.ps1 denies coverage scratch in an audit worktree (fail closed)'
+        Invoke-NoHelperWrite 'remediation-drafter' (Join-Path $parMain 'artifacts\knowledge\remediation\51-code-1-fix.md') 2 'enforce-path-ownership (#2234): a missing _open-audits.ps1 denies a remediation draft (fail closed)'
+        Invoke-NoHelperWrite $null (Join-Path (Get-ParWt 51) 'notes.txt') 2 'enforce-path-ownership (#2234): a missing _open-audits.ps1 denies any write under a wia-<n> worktree, the orchestrator included'
+        Invoke-NoHelperWrite $null (Join-Path $parMain 'tools\x.ps1') 0 'enforce-path-ownership (#2234): a missing _open-audits.ps1 does not affect a write outside the audit paths'
+        # open-audits/ replaced by a junction whose target is gone: it exists as a folder but listing it throws.
+        $parOpenSaved = Join-Path $work 'open-audits-saved'
+        $parOpenGone = Join-Path $work 'open-audits-gone'
+        Move-Item -LiteralPath $parOpenDir -Destination $parOpenSaved
+        New-Item -ItemType Directory -Force $parOpenGone | Out-Null
+        New-Item -ItemType Junction -Path $parOpenDir -Target $parOpenGone | Out-Null
+        Remove-Item -LiteralPath $parOpenGone -Force
+        try {
+            Invoke-ParWrite 'issue-auditor' 'p51' $par51Code 2 'enforce-path-ownership (#2234): an open-audits/ folder that cannot be listed denies a stage-artifact write (fail closed)'
+            Invoke-ParWrite 'issue-archivist' 'p52' (Join-Path (Get-ParWt 52) 'artifacts\knowledge\issues\52.md') 2 'enforce-path-ownership (#2234): an open-audits/ folder that cannot be listed denies a knowledge-record write (fail closed)'
+            Invoke-ParWrite 'remediation-drafter' 'p53' (Join-Path $parMain 'artifacts\knowledge\remediation\53-code-1-fix.md') 2 'enforce-path-ownership (#2234): an open-audits/ folder that cannot be listed denies a remediation draft (fail closed)'
+            Invoke-ParWrite $null $null (Join-Path $parMain 'tools\x.ps1') 0 'enforce-path-ownership (#2234): an open-audits/ folder that cannot be listed does not affect a write outside the audit paths'
+        }
+        finally {
+            [IO.Directory]::Delete($parOpenDir)
+            Move-Item -LiteralPath $parOpenSaved -Destination $parOpenDir
+        }
+        # open-audits that is a file, not a folder, is unreadable state too.
+        Move-Item -LiteralPath $parOpenDir -Destination $parOpenSaved
+        Set-Content -LiteralPath $parOpenDir -Value 'not a folder'
+        Invoke-ParWrite 'issue-auditor' 'p51' $par51Code 2 'enforce-path-ownership (#2234): an open-audits path that is a file, not a folder, denies a stage-artifact write (fail closed)'
+        Remove-Item -LiteralPath $parOpenDir -Force
+        Move-Item -LiteralPath $parOpenSaved -Destination $parOpenDir
         # A delta audit and a full audit open at once: each worktree keeps its own pipeline file.
         Initialize-ParAudit 52 @() 'delta'
         Write-ParTranscript 'p52d' 'Audit #52 in worktree wia-52, delta: rules-2026-10, check only rule (a).'
