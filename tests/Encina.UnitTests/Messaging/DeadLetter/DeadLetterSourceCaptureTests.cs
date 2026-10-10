@@ -170,6 +170,21 @@ public sealed class DeadLetterSourceCaptureTests
             () => host.Capture.CaptureAsync(new SampleRequest(1), Context(DeadLetterSourcePatterns.Inbox, "msg-1"), cts.Token));
     }
 
+    [Fact]
+    public void AsUtc_StoredColumnWithEveryKind_IsReturnedAsTheSameUtcInstant()
+    {
+        var utc = new DateTime(2026, 5, 1, 7, 0, 0, DateTimeKind.Utc);
+
+        DeadLetterInputs.AsUtc(utc).ShouldBe(utc);
+        DeadLetterInputs.AsUtc(DateTime.SpecifyKind(utc, DateTimeKind.Unspecified)).ShouldSatisfyAllConditions(
+            value => value.Kind.ShouldBe(DateTimeKind.Utc),
+            value => value.Ticks.ShouldBe(utc.Ticks));
+        var local = utc.ToLocalTime();
+        DeadLetterInputs.AsUtc(local).ShouldSatisfyAllConditions(
+            value => value.Kind.ShouldBe(DateTimeKind.Utc),
+            value => value.ShouldBe(utc));
+    }
+
     private static DeadLetterContext Context(string sourcePattern, string sourceMessageId, string? tenantId = null)
         => new(
             EncinaErrors.Create("sample.failed", "failure"),
