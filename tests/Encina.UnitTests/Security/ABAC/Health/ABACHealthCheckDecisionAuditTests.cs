@@ -34,7 +34,8 @@ public sealed class ABACHealthCheckDecisionAuditTests
         ABACDecisionAuditFailureMode mode = ABACDecisionAuditFailureMode.FailClosed,
         bool store = true,
         bool inMemoryStore = false,
-        bool papLoaded = true)
+        bool papLoaded = true,
+        bool registerState = true)
     {
         var clock = new FakeTimeProvider(Now);
         var state = new ABACDecisionAuditHealthState(clock);
@@ -49,7 +50,11 @@ public sealed class ABACHealthCheckDecisionAuditTests
         var services = new ServiceCollection();
         services.AddSingleton<IOptions<ABACOptions>>(Microsoft.Extensions.Options.Options.Create(options));
         services.AddSingleton<TimeProvider>(clock);
-        services.AddSingleton(state);
+        if (registerState)
+        {
+            services.AddSingleton(state);
+        }
+
         if (auditStore is not null)
         {
             services.AddSingleton(auditStore);
@@ -170,6 +175,29 @@ public sealed class ABACHealthCheckDecisionAuditTests
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Data["decision_audit"].ShouldBe("no_store");
+    }
+
+    [Fact]
+    public async Task NoStoreUnderBestEffort_IsStillUnhealthy()
+    {
+        var rig = NewRig(mode: ABACDecisionAuditFailureMode.BestEffort, store: false);
+
+        var result = await RunAsync(rig);
+
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Data["decision_audit"].ShouldBe("no_store");
+    }
+
+    [Fact]
+    public async Task EnabledWithoutTheHealthState_FailsClosedAsUnhealthy()
+    {
+        var rig = NewRig(registerState: false);
+
+        var result = await RunAsync(rig);
+
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Data["decision_audit"].ShouldBe("state_unavailable");
+        result.Description!.ShouldContain("health state is not registered");
     }
 
     [Fact]

@@ -131,7 +131,7 @@ public sealed class DeadLetterManagerTenancyAndBatchTests
 
     [Theory]
     [MemberData(nameof(FilteredOperations))]
-    public async Task FilteredOperation_TenancyInUseAndNoTenant_IsDeniedWithTheAuthorizationCodeAndNeverTouchesTheStore(string operation)
+    public async Task FilteredOperation_MultiTenancyMarkerAndNoTenant_IsDeniedWithTheAuthorizationCodeAndNeverTouchesTheStore(string operation)
     {
         var rig = NewRig(tenancy: true);
 
@@ -143,7 +143,7 @@ public sealed class DeadLetterManagerTenancyAndBatchTests
     }
 
     [Fact]
-    public async Task GetMessagesAsync_TenancyInUseAndNoTenant_ReturnsTenantRequiredWhichIsAnAuthorizationCode()
+    public async Task GetMessagesAsync_MultiTenancyMarkerAndNoTenant_ReturnsTenantRequiredWhichIsAnAuthorizationCode()
     {
         var rig = NewRig(tenancy: true);
 
@@ -155,7 +155,7 @@ public sealed class DeadLetterManagerTenancyAndBatchTests
 
     [Theory]
     [MemberData(nameof(FilteredOperations))]
-    public async Task FilteredOperation_TenancyInUseAndAllTenants_RunsAcrossTenantsAndLogsTheOptOut(string operation)
+    public async Task FilteredOperation_MultiTenancyMarkerAndAllTenants_RunsAcrossTenantsAndLogsTheOptOut(string operation)
     {
         var rig = NewRig(tenancy: true);
 
@@ -167,7 +167,7 @@ public sealed class DeadLetterManagerTenancyAndBatchTests
     }
 
     [Fact]
-    public async Task GetMessagesAsync_TenancyInUseAndAllTenants_LeavesTheStoreFilterUnscoped()
+    public async Task GetMessagesAsync_MultiTenancyMarkerAndAllTenants_LeavesTheStoreFilterUnscoped()
     {
         var rig = NewRig(tenancy: true, ambientTenant: "tenant-a");
 
@@ -178,7 +178,7 @@ public sealed class DeadLetterManagerTenancyAndBatchTests
     }
 
     [Fact]
-    public async Task GetMessagesAsync_TenancyInUseAndExplicitTenant_IsAllowedWithoutAmbientTenant()
+    public async Task GetMessagesAsync_MultiTenancyMarkerAndExplicitTenant_IsAllowedWithoutAmbientTenant()
     {
         var rig = NewRig(tenancy: true);
 
@@ -191,7 +191,7 @@ public sealed class DeadLetterManagerTenancyAndBatchTests
     }
 
     [Fact]
-    public async Task GetMessagesAsync_TenancyInUseAndAmbientTenant_ScopesToTheAmbientTenant()
+    public async Task GetMessagesAsync_MultiTenancyMarkerAndAmbientTenant_ScopesToTheAmbientTenant()
     {
         var rig = NewRig(tenancy: true, ambientTenant: "tenant-a");
 
@@ -228,7 +228,7 @@ public sealed class DeadLetterManagerTenancyAndBatchTests
     // ------------------------------------------------------------------ tenancy gate on operations by id
 
     [Fact]
-    public async Task ReplayAsync_TenancyInUseAndNoTenant_IsDeniedBeforeAnyStoreCall()
+    public async Task ReplayAsync_MultiTenancyMarkerAndNoTenant_IsDeniedBeforeAnyStoreCall()
     {
         var rig = NewRig(tenancy: true);
 
@@ -239,7 +239,7 @@ public sealed class DeadLetterManagerTenancyAndBatchTests
     }
 
     [Fact]
-    public async Task GetMessageAsync_TenancyInUseAndNoTenant_IsDenied()
+    public async Task GetMessageAsync_MultiTenancyMarkerAndNoTenant_IsDenied()
     {
         var rig = NewRig(tenancy: true);
 
@@ -249,7 +249,7 @@ public sealed class DeadLetterManagerTenancyAndBatchTests
     }
 
     [Fact]
-    public async Task DeleteAsync_TenancyInUseAndNoTenant_IsDeniedAndDeletesNothing()
+    public async Task DeleteAsync_MultiTenancyMarkerAndNoTenant_IsDeniedAndDeletesNothing()
     {
         var rig = NewRig(tenancy: true);
 
@@ -260,7 +260,7 @@ public sealed class DeadLetterManagerTenancyAndBatchTests
     }
 
     [Fact]
-    public async Task GetStatisticsAsync_TenancyInUseAndNoTenant_IsDenied()
+    public async Task GetStatisticsAsync_MultiTenancyMarkerAndNoTenant_IsDenied()
     {
         var rig = NewRig(tenancy: true);
 
@@ -270,7 +270,7 @@ public sealed class DeadLetterManagerTenancyAndBatchTests
     }
 
     [Fact]
-    public async Task GetMessageAsync_TenancyInUseAndAmbientTenant_ReadsTheMessage()
+    public async Task GetMessageAsync_MultiTenancyMarkerAndAmbientTenant_ReadsTheMessage()
     {
         var rig = NewRig(tenancy: true, ambientTenant: "tenant-a");
         var id = Guid.NewGuid();
@@ -438,7 +438,7 @@ public sealed class DeadLetterManagerTenancyAndBatchTests
     // ------------------------------------------------------------------ gate edge cases
 
     [Fact]
-    public async Task GetMessagesAsync_TenancyInUseAndEmptyTenantId_IsDeniedLikeNoTenant()
+    public async Task GetMessagesAsync_MultiTenancyMarkerAndEmptyTenantId_IsDeniedLikeNoTenant()
     {
         var rig = NewRig(tenancy: true);
 

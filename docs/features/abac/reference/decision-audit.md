@@ -214,11 +214,12 @@ When the audit is enabled, `ABACHealthCheck` (name `encina-abac`) also reports t
 
 The check never writes to the store. It reads `ABACDecisionAuditHealthState`, a singleton that the PEP updates after every audited decision: a failed write (a store error, an exception, a timeout or a record that cannot be built) stores the time of the failure, and the next successful write clears it. The state therefore changes only while audited traffic flows; after a failure, no traffic means the failure stays until a write succeeds.
 
-The conditions are evaluated top to bottom, with the failure rows before the store row: a failed write on an `InMemoryOperationAuditStore` reports `write_failed`, not `in_memory_store`.
+The conditions are evaluated top to bottom, with the failure rows before the in-memory store row: a failed write on an `InMemoryOperationAuditStore` reports `write_failed`, not `in_memory_store`.
 
 | Status | Condition | `decision_audit` code |
 |--------|-----------|-----------------------|
 | `Unhealthy` | No `IOperationAuditStore` is registered | `no_store` |
+| `Unhealthy` | Decision audit is enabled but `ABACDecisionAuditHealthState` is not registered (fail closed: write failures cannot be seen) | `state_unavailable` |
 | `Unhealthy` | `FailureMode` is `FailClosed` and the last write failed within `HealthFailureWindow` | `write_failed` |
 | `Degraded` | `FailureMode` is `BestEffort` and the last write failed | `write_failed` |
 | `Degraded` | The last write failed more than `HealthFailureWindow` ago, whatever the mode | `write_failed` |

@@ -141,8 +141,15 @@ public sealed class ABACHealthCheck : IHealthCheck
                 "Decision audit is enabled but no IOperationAuditStore is registered.");
         }
 
-        var lastFailure = _serviceProvider.GetService<DecisionAudit.ABACDecisionAuditHealthState>()?.LastFailureAtUtc;
-        return lastFailure is { } failedAt
+        // Fail closed: without the state the check cannot tell a failed write from a healthy trail.
+        var state = _serviceProvider.GetService<DecisionAudit.ABACDecisionAuditHealthState>();
+        if (state is null)
+        {
+            return Audit(HealthStatus.Unhealthy, "state_unavailable",
+                "Decision audit is enabled but its health state is not registered, so write failures cannot be seen.");
+        }
+
+        return state.LastFailureAtUtc is { } failedAt
             ? DescribeFailedWrite(failedAt, audit)
             : DescribeStore(store);
     }
