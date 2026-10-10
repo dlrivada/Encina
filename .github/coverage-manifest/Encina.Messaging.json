@@ -1070,7 +1070,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 10 },
+      "justifications": {
+        "unit": "Every failure path is driven through a stateful in-memory saga store: step failure, throwing compensation, orchestrator errors, cancellation and exception handlers.",
+        "guard": "Only the constructor and RunAsync argument checks are guardable; the rest of the runner takes no external arguments."
+      }
     },
     "Sagas/LowCeremony/SagaStepBuilder.cs": {
       "defaultTests": [
