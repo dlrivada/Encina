@@ -730,6 +730,54 @@ public sealed class DelayedRetryChainTests
     }
 
     [Fact]
+    public async Task OnPermanentFailureThrowing_IsLogged_AndTheRowStaysFailed()
+    {
+        // Arrange - the callback records the call and then throws.
+        var store = new FakeStore();
+        var row = CreateRow("No.Such.Type, NoSuchAssembly", "{}");
+        await store.AddAsync(row);
+        var called = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var options = new RecoverabilityOptions
+        {
+            DelayedRetries = [TimeSpan.FromMilliseconds(1)],
+            OnPermanentFailure = (_, _) =>
+            {
+                called.TrySetResult();
+                throw new InvalidOperationException("callback crashed");
+            }
+        };
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
+        serviceProvider.GetService(typeof(IEncina)).Returns(Substitute.For<IEncina>());
+        var scope = Substitute.For<IServiceScope>();
+        scope.ServiceProvider.Returns(serviceProvider);
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        scopeFactory.CreateScope().Returns(scope);
+        var processor = new DelayedRetryProcessor(scopeFactory, options, NullLogger<DelayedRetryProcessor>.Instance)
+        {
+            ProcessingInterval = TimeSpan.FromMilliseconds(5)
+        };
+
+        // Act
+        using var cts = new CancellationTokenSource();
+        await processor.StartAsync(cts.Token);
+        try
+        {
+            await called.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            await store.WaitForPollsAsync(2).WaitAsync(TimeSpan.FromSeconds(20));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(default);
+        }
+
+        // Assert - the throwing callback does not bring the row back.
+        row.IsPending.ShouldBeFalse();
+        store.FailedCount.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task DeadLetterQueue_CaptureRejected_FailsTheRowAndRunsOnPermanentFailure()
     {
         // Arrange - a stored type name with edge white space: the dead letter queue rejects it.

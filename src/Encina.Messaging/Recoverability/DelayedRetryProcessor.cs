@@ -500,34 +500,35 @@ public sealed class DelayedRetryProcessor : BackgroundService
         FailureInfo failure,
         CancellationToken cancellationToken)
     {
-        DelayedRetryProcessorLog.PermanentFailure(
+        LogPermanentFailure(message);
+        var failedMessage = FailedMessageFor(message, request, failure);
+
+        if (!await CapturedOrRejectedAsync(message, request, failedMessage, cancellationToken).ConfigureAwait(false))
+            return;
+
+        await store.MarkAsFailedAsync(message.Id, failure.Text, cancellationToken).ConfigureAwait(false);
+        await InvokeOnPermanentFailureAsync(message, failedMessage, cancellationToken).ConfigureAwait(false);
+    }
+
+    private void LogPermanentFailure(IDelayedRetryMessage message)
+        => DelayedRetryProcessorLog.PermanentFailure(
             _logger,
             message.CorrelationId ?? RecoverabilityConstants.Unknown,
             message.RequestType,
             message.DelayedRetryAttempt + 1);
 
-        var failedMessage = _options.OnPermanentFailure is null && _deadLetterCapture is null
+    // Built only when someone reads it: the callback or the dead letter capture.
+    private FailedMessage? FailedMessageFor(IDelayedRetryMessage message, object? request, FailureInfo failure)
+        => _options.OnPermanentFailure is null && _deadLetterCapture is null
             ? null
             : BuildFailedMessage(message, request, failure);
 
-        // A capture the dead letter queue rejects can never succeed: the row is failed anyway (the rejection is
-        // logged by the capture); any other failed capture leaves it pending.
-        var captured = await CaptureDeadLetterAsync(message, request, failedMessage, cancellationToken).ConfigureAwait(false);
-        if (captured.IsLeft && DeadLetter.DeadLetterSourceCapture.IsRetryable(captured.LeftToArray()[0]))
-            return;
-
-        await store.MarkAsFailedAsync(message.Id, failure.Text, cancellationToken).ConfigureAwait(false);
-
-        if (failedMessage is not null)
-            await InvokeOnPermanentFailureAsync(message, failedMessage, cancellationToken).ConfigureAwait(false);
-    }
-
     private async Task InvokeOnPermanentFailureAsync(
         IDelayedRetryMessage message,
-        FailedMessage failedMessage,
+        FailedMessage? failedMessage,
         CancellationToken cancellationToken)
     {
-        if (_options.OnPermanentFailure is null)
+        if (_options.OnPermanentFailure is null || failedMessage is null)
             return;
 
         try
@@ -542,6 +543,18 @@ public sealed class DelayedRetryProcessor : BackgroundService
                 message.CorrelationId ?? RecoverabilityConstants.Unknown,
                 message.RequestType);
         }
+    }
+
+    // False only when the capture failed in a way worth trying again (the row then stays pending). A capture the
+    // dead letter queue rejects can never succeed: the row is failed anyway (the capture logged the rejection).
+    private async Task<bool> CapturedOrRejectedAsync(
+        IDelayedRetryMessage message,
+        object? request,
+        FailedMessage? failedMessage,
+        CancellationToken cancellationToken)
+    {
+        var captured = await CaptureDeadLetterAsync(message, request, failedMessage, cancellationToken).ConfigureAwait(false);
+        return captured.IsRight || !DeadLetter.DeadLetterSourceCapture.IsRetryable(captured.LeftToArray()[0]);
     }
 
     // A row with no request object (unknown type, unreadable payload) is captured from its stored type name
