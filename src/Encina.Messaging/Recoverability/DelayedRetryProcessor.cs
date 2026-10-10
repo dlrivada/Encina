@@ -509,7 +509,10 @@ public sealed class DelayedRetryProcessor : BackgroundService
             ? null
             : BuildFailedMessage(message, request, failure);
 
-        if ((await CaptureDeadLetterAsync(message, request, failedMessage, cancellationToken).ConfigureAwait(false)).IsLeft)
+        // A capture the dead letter queue rejects can never succeed: the row is failed anyway (the rejection is
+        // logged by the capture); any other failed capture leaves it pending.
+        var captured = await CaptureDeadLetterAsync(message, request, failedMessage, cancellationToken).ConfigureAwait(false);
+        if (captured.IsLeft && DeadLetter.DeadLetterSourceCapture.IsRetryable(captured.LeftToArray()[0]))
             return;
 
         await store.MarkAsFailedAsync(message.Id, failure.Text, cancellationToken).ConfigureAwait(false);

@@ -730,6 +730,22 @@ public sealed class DelayedRetryChainTests
     }
 
     [Fact]
+    public async Task DeadLetterQueue_CaptureRejected_FailsTheRowAndRunsOnPermanentFailure()
+    {
+        // Arrange - a stored type name with edge white space: the dead letter queue rejects it.
+        using var host = DeadLetterCaptureHost.Create();
+        var row = CreateRow("No.Such.Type ", "{}");
+
+        // Act
+        var failures = await RunRowToPermanentFailureAsync(row, serializer: null, host.Capture);
+
+        // Assert - no loop: the chain ends once, without a dead letter.
+        failures.Count.ShouldBe(1);
+        row.IsPending.ShouldBeFalse();
+        host.Store.GetMessages().ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task DeadLetterQueue_UnknownRequestType_CapturesTheStoredTypeNameAndContent()
     {
         // Arrange

@@ -870,10 +870,12 @@ const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.ReplayResultMaxLength = 
 const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.InvalidMessageType = "dlq.invalid_message_type" -> string!
 const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.ReplayInProgress = "dlq.replay_in_progress" -> string!
 const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.CaptureFailed = "dlq.capture_failed" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.CaptureRejected = "dlq.capture_rejected" -> string!
 Encina.Messaging.DeadLetter.DeadLetterOrchestrator.AddSerializedAsync(string! requestType, string! requestContent, Encina.Messaging.DeadLetter.DeadLetterContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.DeadLetter.IDeadLetterMessage!>>!
 Encina.Messaging.DeadLetter.DeadLetterSourceCapture
 Encina.Messaging.DeadLetter.DeadLetterSourceCapture.DeadLetterSourceCapture(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Encina.Messaging.DeadLetter.DeadLetterOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.DeadLetter.DeadLetterSourceCapture!>! logger) -> void
 Encina.Messaging.DeadLetter.DeadLetterSourceCapture.IsEnabledFor(string! sourcePattern) -> bool
+static Encina.Messaging.DeadLetter.DeadLetterSourceCapture.IsRetryable(Encina.EncinaError error) -> bool
 Encina.Messaging.DeadLetter.DeadLetterSourceCapture.CaptureAsync(object! request, Encina.Messaging.DeadLetter.DeadLetterContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
 Encina.Messaging.DeadLetter.DeadLetterSourceCapture.CaptureSerializedAsync(string! requestType, string! requestContent, Encina.Messaging.DeadLetter.DeadLetterContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
 Encina.Messaging.DeadLetter.DeadLetterSourceCapture.CaptureFailedMessageAsync(Encina.Messaging.Recoverability.FailedMessage! failedMessage, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!

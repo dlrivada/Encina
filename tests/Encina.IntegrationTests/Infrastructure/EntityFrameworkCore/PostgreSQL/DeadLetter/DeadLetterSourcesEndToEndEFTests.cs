@@ -13,7 +13,7 @@ namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.PostgreSQL.
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
 [Collection("EFCore-PostgreSQL")]
-public sealed class DeadLetterSourcesEndToEndEFTests
+public sealed class DeadLetterSourcesEndToEndEFTests : IAsyncLifetime
 {
     private readonly EFCorePostgreSqlFixture _fixture;
 
@@ -22,12 +22,18 @@ public sealed class DeadLetterSourcesEndToEndEFTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync()
+    {
+        await _fixture.EnsureSchemaCreatedAsync<TestEFDbContext>();
+        await _fixture.ClearAllDataAsync();
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Theory]
     [MemberData(nameof(DeadLetterSourcesEndToEndScenario.Sources), MemberType = typeof(DeadLetterSourcesEndToEndScenario))]
     public async Task Source_TerminalFailure_PersistsOneDeadLetter(string source)
     {
-        await _fixture.EnsureSchemaCreatedAsync<TestEFDbContext>();
-        await _fixture.ClearAllDataAsync();
         var (services, clock) = DeadLetterSourcesEndToEndScenario.NewServices();
         services.AddDbContext<TestEFDbContext>(options => options.UseNpgsql(_fixture.ConnectionString));
         services.AddEncinaEntityFrameworkCore<TestEFDbContext>(DeadLetterSourcesEndToEndScenario.Configure);

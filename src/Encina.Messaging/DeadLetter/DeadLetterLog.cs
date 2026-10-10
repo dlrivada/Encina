@@ -8,7 +8,7 @@ namespace Encina.Messaging.DeadLetter;
 /// </summary>
 /// <remarks>
 /// This class uses source generators to create optimized logging methods.
-/// Event IDs: 2945-2957 and 2990-2997 (see EventIdRanges.Messaging).
+/// Event IDs: 2945-2957 and 2990-2998 (see EventIdRanges.Messaging).
 /// Excluded from code coverage as the generated code is boilerplate.
 /// </remarks>
 [ExcludeFromCodeCoverage]
@@ -200,4 +200,14 @@ internal static partial class DeadLetterLog
         ILogger logger,
         Exception exception,
         string sourcePattern);
+
+    [LoggerMessage(
+        EventId = 2998,
+        Level = LogLevel.Error,
+        Message = "Dead letter capture from {SourcePattern} rejected: the dead letter queue cannot store the message. ErrorCode: {ErrorCode}")]
+    public static partial void SourceCaptureRejected(
+        ILogger logger,
+        Exception? exception,
+        string sourcePattern,
+        string errorCode);
 }

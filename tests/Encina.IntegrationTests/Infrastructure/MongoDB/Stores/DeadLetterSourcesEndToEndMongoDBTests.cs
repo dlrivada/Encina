@@ -15,7 +15,7 @@ namespace Encina.IntegrationTests.Infrastructure.MongoDB.Stores;
 [Collection(MongoDbCollection.Name)]
 [Trait("Category", "Integration")]
 [Trait("Database", "MongoDB")]
-public sealed class DeadLetterSourcesEndToEndMongoDBTests
+public sealed class DeadLetterSourcesEndToEndMongoDBTests : IAsyncLifetime
 {
     private readonly MongoDbFixture _fixture;
 
@@ -24,9 +24,7 @@ public sealed class DeadLetterSourcesEndToEndMongoDBTests
         _fixture = fixture;
     }
 
-    [Theory]
-    [MemberData(nameof(DeadLetterSourcesEndToEndScenario.Sources), MemberType = typeof(DeadLetterSourcesEndToEndScenario))]
-    public async Task Source_TerminalFailure_PersistsOneDeadLetter(string source)
+    public async ValueTask InitializeAsync()
     {
         var collections = new EncinaMongoDbOptions().Collections;
         foreach (var name in new[] { collections.Outbox, collections.Inbox, collections.Sagas, collections.ScheduledMessages })
@@ -39,7 +37,14 @@ public sealed class DeadLetterSourcesEndToEndMongoDBTests
         await deadLetters.Indexes.CreateOneAsync(new CreateIndexModel<DeadLetterMessage>(
             Builders<DeadLetterMessage>.IndexKeys.Ascending(m => m.SourcePattern).Ascending(m => m.SourceMessageId),
             new CreateIndexOptions { Name = "UX_DeadLetterMessages_Source", Unique = true }));
+    }
 
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Theory]
+    [MemberData(nameof(DeadLetterSourcesEndToEndScenario.Sources), MemberType = typeof(DeadLetterSourcesEndToEndScenario))]
+    public async Task Source_TerminalFailure_PersistsOneDeadLetter(string source)
+    {
         var (services, clock) = DeadLetterSourcesEndToEndScenario.NewServices();
         services.AddEncinaMongoDB(options =>
         {

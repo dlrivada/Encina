@@ -531,9 +531,9 @@ public sealed class SchedulerOrchestrator
 
         // The dead letter is captured before the dead-lettered state is recorded: when the capture fails the
         // message keeps its state and runs (and is captured) again in a later cycle, instead of ending without
-        // its dead letter. The capture logs its own failure; it is idempotent on the message id.
-        if (decision.IsDeadLettered
-            && (await CaptureDeadLetterAsync(message, failure, cancellationToken).ConfigureAwait(false)).IsLeft)
+        // its dead letter. The capture logs its own failure; it is idempotent on the message id. A capture the dead
+        // letter queue rejects can never succeed, so the dead-lettered state is recorded anyway.
+        if (decision.IsDeadLettered && !await CapturedOrRejectedAsync(message, failure, cancellationToken).ConfigureAwait(false))
         {
             return;
         }
@@ -544,6 +544,13 @@ public sealed class SchedulerOrchestrator
             var storeError = storeResult.LeftToArray()[0];
             Log.StoreMarkAsFailedError(_logger, message.Id, storeError.GetCode().IfNone("unknown"));
         }
+    }
+
+    // False only when the capture failed in a way worth trying again (the message then stays due).
+    private async Task<bool> CapturedOrRejectedAsync(IScheduledMessage message, ScheduledFailure failure, CancellationToken cancellationToken)
+    {
+        var captured = await CaptureDeadLetterAsync(message, failure, cancellationToken).ConfigureAwait(false);
+        return captured.IsRight || !DeadLetterSourceCapture.IsRetryable(captured.LeftToArray()[0]);
     }
 
     // The stored type name and content are captured as they are (IMessageSerializer wrote the content, so

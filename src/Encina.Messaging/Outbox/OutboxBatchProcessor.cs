@@ -284,8 +284,10 @@ internal sealed class OutboxBatchProcessor
         int retryCount,
         CancellationToken cancellationToken)
     {
+        // A capture the dead letter queue rejects can never succeed: the exhausted state is recorded anyway (the
+        // row stays in the outbox for inspection and requeue), and the capture already logged the rejection.
         var captured = await CaptureDeadLetterAsync(message, failure, retryCount, cancellationToken).ConfigureAwait(false);
-        if (captured.IsLeft)
+        if (captured.IsLeft && DeadLetterSourceCapture.IsRetryable(captured.LeftToArray()[0]))
         {
             return OutcomeNotRecorded(DeadLetterCaptureOperation, message, captured);
         }

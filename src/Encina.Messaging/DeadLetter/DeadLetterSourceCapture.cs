@@ -1,4 +1,5 @@
 using Encina.Diagnostics;
+using Encina.Messaging.Diagnostics;
 using Encina.Messaging.Recoverability;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,8 +23,11 @@ namespace Encina.Messaging.DeadLetter;
 /// <para>
 /// A capture is idempotent on <c>(SourcePattern, SourceMessageId)</c>: a repeated terminal event of the same
 /// source message keeps the one dead letter. Every method returns <c>Right</c> when the message was captured,
-/// was already captured, or the source's flag is off; it returns <c>Left</c> when the capture failed (the
-/// store failed, or the capture threw, which is reported as <see cref="DeadLetterErrorCodes.CaptureFailed"/>).
+/// was already captured, or the source's flag is off. It returns <c>Left</c> when the capture failed: the store
+/// failed, or the capture threw (<see cref="DeadLetterErrorCodes.CaptureFailed"/>), both worth trying again; or the
+/// dead letter queue cannot store the message at all (<see cref="DeadLetterErrorCodes.CaptureRejected"/>: its input
+/// rules reject an identity value or instant, or the source pattern has no <c>IntegrateWith*</c> flag), which
+/// <see cref="IsRetryable"/> reports as not retryable so a source records its terminal state instead of looping.
 /// The source decides what a <c>Left</c> means for its message; it never reports success for it. Only the
 /// error code or the exception type is logged.
 /// </para>
@@ -61,15 +65,30 @@ public sealed class DeadLetterSourceCapture
     /// <returns>
     /// The <c>IntegrateWith*</c> flag of a built-in source; <see langword="false"/> for any other pattern.
     /// </returns>
+    public bool IsEnabledFor(string sourcePattern) => FlagOf(sourcePattern) ?? false;
+
+    /// <summary>
+    /// Gets whether a failed capture can succeed when it is tried again.
+    /// </summary>
+    /// <param name="error">The <c>Left</c> a capture method returned.</param>
+    /// <returns>
+    /// <see langword="false"/> for <see cref="DeadLetterErrorCodes.CaptureRejected"/> (the dead letter queue cannot
+    /// store this message, so a source records its terminal state instead of trying again);
+    /// <see langword="true"/> for any other error, such as a store failure.
+    /// </returns>
+    public static bool IsRetryable(EncinaError error)
+        => !string.Equals(error.GetCode().IfNone(string.Empty), DeadLetterErrorCodes.CaptureRejected, StringComparison.Ordinal);
+
+    // The IntegrateWith* flag of a built-in source; null for any other pattern.
     // crap-exempt: single-question switch — maps a source pattern to its IntegrateWith* flag.
-    public bool IsEnabledFor(string sourcePattern) => sourcePattern switch
+    private bool? FlagOf(string sourcePattern) => sourcePattern switch
     {
         DeadLetterSourcePatterns.Recoverability => _options.IntegrateWithRecoverability,
         DeadLetterSourcePatterns.Outbox => _options.IntegrateWithOutbox,
         DeadLetterSourcePatterns.Inbox => _options.IntegrateWithInbox,
         DeadLetterSourcePatterns.Scheduling => _options.IntegrateWithScheduling,
         DeadLetterSourcePatterns.Saga => _options.IntegrateWithSagas,
-        _ => false
+        _ => null
     };
 
     /// <summary>
@@ -144,7 +163,11 @@ public sealed class DeadLetterSourceCapture
         Func<DeadLetterOrchestrator, Task<Either<EncinaError, IDeadLetterMessage>>> capture,
         CancellationToken cancellationToken)
     {
-        if (!IsEnabledFor(sourcePattern))
+        // A pattern with no IntegrateWith* flag is never reported as captured.
+        if (FlagOf(sourcePattern) is not { } enabled)
+            return Rejected(sourcePattern, exception: null, "No IntegrateWith* flag exists for this source pattern");
+
+        if (!enabled)
             return Unit.Default;
 
         try
@@ -157,14 +180,32 @@ public sealed class DeadLetterSourceCapture
                 Right: _ => Either<EncinaError, Unit>.Right(Unit.Default),
                 Left: error => Failed(sourcePattern, error));
         }
+        catch (ArgumentException ex)
+        {
+            // The dead letter queue's input rules reject this message (an identity value too long or with edge
+            // white space, a non-UTC instant): trying again cannot succeed.
+            return Rejected(sourcePattern, ex, $"Capturing the dead letter was rejected: {ex.GetType().FullName}");
+        }
         catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
         {
             // Only the exception type: its message can carry personal data.
             DeadLetterLog.SourceCaptureThrew(_logger, ex.ForLogging(), sourcePattern);
+            DeadLetterMetrics.RecordStoreFailure(CaptureOperation, DeadLetterErrorCodes.CaptureFailed);
             return EncinaErrors.Create(
                 DeadLetterErrorCodes.CaptureFailed,
                 $"Capturing the dead letter threw {ex.GetType().FullName}");
         }
+    }
+
+    // The operation name a capture failure is counted under in encina.dlq.store_failures_total; a store Left is
+    // already counted by the orchestrator under its own operation.
+    private const string CaptureOperation = "capture";
+
+    private Either<EncinaError, Unit> Rejected(string sourcePattern, Exception? exception, string text)
+    {
+        DeadLetterLog.SourceCaptureRejected(_logger, exception?.ForLogging(), sourcePattern, DeadLetterErrorCodes.CaptureRejected);
+        DeadLetterMetrics.RecordStoreFailure(CaptureOperation, DeadLetterErrorCodes.CaptureRejected);
+        return EncinaErrors.Create(DeadLetterErrorCodes.CaptureRejected, text);
     }
 
     private Either<EncinaError, Unit> Failed(string sourcePattern, EncinaError error)

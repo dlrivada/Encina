@@ -145,16 +145,59 @@ public sealed class DeadLetterSourceCaptureTests
     }
 
     [Fact]
-    public async Task CaptureAsync_CaptureThrows_ReturnsCaptureFailed()
+    public async Task CaptureAsync_InputTheQueueCannotStore_ReturnsCaptureRejected()
     {
         using var host = DeadLetterCaptureHost.Create();
 
         // An identity value with edge white space is rejected by the orchestrator (ArgumentException).
         var result = await host.Capture.CaptureAsync(new SampleRequest(1), Context(DeadLetterSourcePatterns.Inbox, " padded "));
 
-        result.ShouldBeErrorWithCode(DeadLetterErrorCodes.CaptureFailed);
+        result.ShouldBeErrorWithCode(DeadLetterErrorCodes.CaptureRejected);
+        DeadLetterSourceCapture.IsRetryable(result.LeftToArray()[0]).ShouldBeFalse();
         host.Store.GetMessages().ShouldBeEmpty();
     }
+
+    [Fact]
+    public async Task CaptureAsync_StoreThrows_ReturnsCaptureFailed_WhichIsRetryable()
+    {
+        var store = Substitute.For<IDeadLetterStore>();
+        store.AddAsync(Arg.Any<IDeadLetterMessage>(), Arg.Any<CancellationToken>())
+            .Returns<Task<Either<EncinaError, bool>>>(_ => throw new InvalidOperationException("connection lost"));
+        using var host = DeadLetterCaptureHost.Create(store: store);
+
+        var result = await host.Capture.CaptureAsync(new SampleRequest(1), Context(DeadLetterSourcePatterns.Inbox, "msg-1"));
+
+        result.ShouldBeErrorWithCode(DeadLetterErrorCodes.CaptureFailed);
+        DeadLetterSourceCapture.IsRetryable(result.LeftToArray()[0]).ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(DeadLetterSourcePatterns.Choreography)]
+    [InlineData("Custom")]
+    public async Task CaptureAsync_PatternWithoutAFlag_IsRejectedNotReportedAsCaptured(string sourcePattern)
+    {
+        using var host = DeadLetterCaptureHost.Create();
+
+        var result = await host.Capture.CaptureAsync(new SampleRequest(1), Context(sourcePattern, "msg-1"));
+
+        result.ShouldBeErrorWithCode(DeadLetterErrorCodes.CaptureRejected);
+        host.Store.GetMessages().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task CaptureSerializedAsync_PatternWithoutAFlag_IsRejectedNotReportedAsCaptured()
+    {
+        using var host = DeadLetterCaptureHost.Create();
+
+        var result = await host.Capture.CaptureSerializedAsync("Some.Type", "{}", Context("Custom", "row-1"));
+
+        result.ShouldBeErrorWithCode(DeadLetterErrorCodes.CaptureRejected);
+        host.Store.GetMessages().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void IsRetryable_StoreFailure_IsTrue()
+        => DeadLetterSourceCapture.IsRetryable(EncinaErrors.Create(DeadLetterErrorCodes.StoreFailed, "down")).ShouldBeTrue();
 
     [Fact]
     public async Task CaptureAsync_CallerCancelled_PropagatesTheCancellation()

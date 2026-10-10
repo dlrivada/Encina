@@ -5,6 +5,7 @@ using Encina.Messaging.Recoverability;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Testing.Fakes.Factories;
+using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
 using Encina.Testing.Shouldly;
 using LanguageExt;
@@ -189,6 +190,27 @@ public sealed class DeadLetterSourcesCaptureTests
         (await orchestrator.GetPendingCountAsync()).ShouldBeRight().ShouldBe(1);
     }
 
+    [Fact]
+    public async Task Outbox_CaptureRejected_RecordsTheExhaustedStateInsteadOfLooping()
+    {
+        using var host = DeadLetterCaptureHost.Create();
+        var (store, orchestrator) = Outbox(host);
+        var message = new FakeOutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            NotificationType = "No.Such.Type ", // edge white space: the dead letter queue rejects it
+            Content = "{}",
+            CreatedAtUtc = host.Clock.GetUtcNow().UtcDateTime
+        };
+        await store.AddAsync(message);
+
+        await ExhaustOutboxAsync(host, orchestrator);
+
+        store.GetMessage(message.Id)!.RetryCount.ShouldBe(2);
+        (await orchestrator.GetPendingCountAsync()).ShouldBeRight().ShouldBe(0);
+        host.Store.GetMessages().ShouldBeEmpty();
+    }
+
     private static (FakeOutboxStore Store, OutboxOrchestrator Orchestrator) Outbox(DeadLetterCaptureHost host)
     {
         var store = new FakeOutboxStore(host.Clock);
@@ -264,6 +286,20 @@ public sealed class DeadLetterSourcesCaptureTests
         (await ProcessInboxAsync(orchestrator)).ShouldBeErrorWithCode(DeadLetterErrorCodes.StoreFailed);
     }
 
+    [Fact]
+    public async Task Inbox_CaptureRejected_AnswersAsWithoutADeadLetterQueue()
+    {
+        using var host = DeadLetterCaptureHost.Create();
+        var orchestrator = Inbox(host);
+
+        // A message id with edge white space is accepted by the inbox but rejected by the dead letter queue.
+        (await ProcessInboxAsync(orchestrator, " inbox-2 ")).ShouldBeErrorWithCode("inbox.processing_failed");
+        (await ProcessInboxAsync(orchestrator, " inbox-2 ")).ShouldBeErrorWithCode("inbox.processing_failed");
+        (await ProcessInboxAsync(orchestrator, " inbox-2 ")).ShouldBeErrorWithCode(InboxErrorCodes.MaxRetriesExceeded);
+
+        host.Store.GetMessages().ShouldBeEmpty();
+    }
+
     private static InboxOrchestrator Inbox(DeadLetterCaptureHost host) => new(
         new FakeInboxStore(host.Clock),
         new InboxOptions { MaxRetries = 2 },
@@ -273,10 +309,10 @@ public sealed class DeadLetterSourcesCaptureTests
         host.Clock,
         host.Capture);
 
-    private static async Task<Either<EncinaError, int>> ProcessInboxAsync(InboxOrchestrator orchestrator)
+    private static async Task<Either<EncinaError, int>> ProcessInboxAsync(InboxOrchestrator orchestrator, string messageId = "inbox-1")
         => await orchestrator.ProcessAsync<int>(
             new SampleCommand(5),
-            "inbox-1",
+            messageId,
             typeof(SampleCommand).AssemblyQualifiedName!,
             "corr-1",
             new InboxMetadata { TenantId = "tenant-a", CorrelationId = "corr-1" },
@@ -366,6 +402,21 @@ public sealed class DeadLetterSourcesCaptureTests
         deadLetter.RequestType.ShouldBe("No.Such.Type, NoSuchAssembly");
     }
 
+    [Fact]
+    public async Task Scheduling_CaptureRejected_RecordsTheDeadLetteredStateInsteadOfLooping()
+    {
+        using var host = DeadLetterCaptureHost.Create();
+        var (store, orchestrator) = Scheduler(host);
+        var id = (await orchestrator.ScheduleAsync(new SampleCommand(2), TimeSpan.FromMinutes(1))).ShouldBeRight();
+        store.GetMessage(id)!.RequestType = "No.Such.Type "; // edge white space: the dead letter queue rejects it
+
+        await ExhaustScheduledAsync(host, orchestrator);
+
+        store.GetMessage(id)!.RetryCount.ShouldBe(2);
+        (await orchestrator.GetPendingCountAsync()).ShouldBeRight().ShouldBe(0);
+        host.Store.GetMessages().ShouldBeEmpty();
+    }
+
     private static (FakeScheduledMessageStore Store, SchedulerOrchestrator Orchestrator) Scheduler(DeadLetterCaptureHost host)
     {
         var options = new SchedulingOptions { MaxRetries = 2 };
@@ -453,6 +504,20 @@ public sealed class DeadLetterSourcesCaptureTests
 
         result.ShouldBeErrorWithCode(DeadLetterErrorCodes.StoreFailed);
         store.GetSaga(sagaId)!.Status.ShouldBe(SagaStatus.Failed);
+    }
+
+    [Fact]
+    public async Task Saga_CaptureRejected_FailAsyncReturnsTheRejectionAfterStoringFailed()
+    {
+        using var host = DeadLetterCaptureHost.Create();
+        var (store, orchestrator) = Saga(host);
+        var sagaId = (await orchestrator.StartAsync(" PaddedSaga", new SampleSagaData(9))).ShouldBeRight();
+
+        var result = await orchestrator.FailAsync(sagaId, "saga.compensation_failed");
+
+        result.ShouldBeErrorWithCode(DeadLetterErrorCodes.CaptureRejected);
+        store.GetSaga(sagaId)!.Status.ShouldBe(SagaStatus.Failed);
+        host.Store.GetMessages().ShouldBeEmpty();
     }
 
     private static (FakeSagaStore Store, SagaOrchestrator Orchestrator) Saga(DeadLetterCaptureHost host)

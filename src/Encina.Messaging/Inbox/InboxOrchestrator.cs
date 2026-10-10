@@ -240,7 +240,22 @@ public sealed class InboxOrchestrator
 
     // Captures the request of a message that used up its retries; Right when there is nothing to capture.
     // Only a thrown exception consumes a retry, so the dead letter's error code is inbox.processing_failed.
-    private Task<Either<EncinaError, Unit>> CaptureDeadLetterAsync(
+    // A capture the dead letter queue rejects (for example a message id it cannot store) can never succeed: it is
+    // logged by the capture and the inbox answers as without a dead letter queue, instead of failing every
+    // redelivery with the capture's error.
+    private async Task<Either<EncinaError, Unit>> CaptureDeadLetterAsync(
+        InboxAttempt attempt,
+        int failedAttempts,
+        Exception? exception,
+        CancellationToken cancellationToken)
+    {
+        var captured = await CaptureOrSkipAsync(attempt, failedAttempts, exception, cancellationToken).ConfigureAwait(false);
+        return captured.IsLeft && !DeadLetterSourceCapture.IsRetryable(captured.LeftToArray()[0])
+            ? Unit.Default
+            : captured;
+    }
+
+    private Task<Either<EncinaError, Unit>> CaptureOrSkipAsync(
         InboxAttempt attempt,
         int failedAttempts,
         Exception? exception,

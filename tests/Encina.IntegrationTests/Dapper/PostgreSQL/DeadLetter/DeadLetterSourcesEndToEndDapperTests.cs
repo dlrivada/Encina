@@ -12,7 +12,7 @@ namespace Encina.IntegrationTests.Dapper.PostgreSQL.DeadLetter;
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
 [Collection("Dapper-PostgreSQL")]
-public sealed class DeadLetterSourcesEndToEndDapperTests
+public sealed class DeadLetterSourcesEndToEndDapperTests : IAsyncLifetime
 {
     private readonly PostgreSqlFixture _fixture;
 
@@ -21,11 +21,17 @@ public sealed class DeadLetterSourcesEndToEndDapperTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Theory]
     [MemberData(nameof(DeadLetterSourcesEndToEndScenario.Sources), MemberType = typeof(DeadLetterSourcesEndToEndScenario))]
     public async Task Source_TerminalFailure_PersistsOneDeadLetter(string source)
     {
-        await _fixture.ClearAllDataAsync();
         var (services, clock) = DeadLetterSourcesEndToEndScenario.NewServices();
         using var connection = _fixture.CreateConnection();
         services.AddSingleton<System.Data.IDbConnection>(connection);
