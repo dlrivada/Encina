@@ -52,6 +52,7 @@ public sealed class DeadLetterSourcesCaptureTests
         var deadLetter = host.DeadLettersOf(DeadLetterSourcePatterns.Recoverability).ShouldHaveSingleItem();
         deadLetter.ErrorCode.ShouldBe("sample.handler_failed");
         deadLetter.RequestType.ShouldContain(nameof(SampleCommand));
+        deadLetter.FirstFailedAtUtc.ShouldBe(host.Clock.GetUtcNow().UtcDateTime);
     }
 
     [Fact]

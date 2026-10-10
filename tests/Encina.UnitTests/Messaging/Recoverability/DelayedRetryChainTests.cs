@@ -681,6 +681,55 @@ public sealed class DelayedRetryChainTests
     }
 
     [Fact]
+    public async Task DeadLetterQueue_CaptureFails_LeavesTheRowPendingAndSkipsOnPermanentFailure()
+    {
+        // Arrange - the dead letter store is down.
+        var deadLetterStore = Substitute.For<IDeadLetterStore>();
+        deadLetterStore.AddAsync(Arg.Any<IDeadLetterMessage>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, bool>>(EncinaErrors.Create(DeadLetterErrorCodes.StoreFailed, "down")));
+        using var host = DeadLetterCaptureHost.Create(store: deadLetterStore);
+        var store = new FakeStore();
+        var row = CreateRow("No.Such.Type, NoSuchAssembly", "{}");
+        await store.AddAsync(row);
+        var failures = new List<FailedMessage>();
+        var options = new RecoverabilityOptions
+        {
+            DelayedRetries = [TimeSpan.FromMilliseconds(1)],
+            OnPermanentFailure = (message, _) => { failures.Add(message); return Task.CompletedTask; }
+        };
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
+        serviceProvider.GetService(typeof(IEncina)).Returns(Substitute.For<IEncina>());
+        var scope = Substitute.For<IServiceScope>();
+        scope.ServiceProvider.Returns(serviceProvider);
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        scopeFactory.CreateScope().Returns(scope);
+        var processor = new DelayedRetryProcessor(
+            scopeFactory, options, NullLogger<DelayedRetryProcessor>.Instance, deadLetterCapture: host.Capture)
+        {
+            ProcessingInterval = TimeSpan.FromMilliseconds(5)
+        };
+
+        // Act - several cycles run while the capture keeps failing.
+        using var cts = new CancellationTokenSource();
+        await processor.StartAsync(cts.Token);
+        try
+        {
+            await store.WaitForPollsAsync(3).WaitAsync(TimeSpan.FromSeconds(20));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(default);
+        }
+
+        // Assert - never failed without its dead letter, and the callback waits for the capture.
+        row.IsPending.ShouldBeTrue();
+        failures.ShouldBeEmpty();
+        await deadLetterStore.Received().AddAsync(Arg.Any<IDeadLetterMessage>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task DeadLetterQueue_UnknownRequestType_CapturesTheStoredTypeNameAndContent()
     {
         // Arrange

@@ -245,11 +245,14 @@ public sealed class SagaRunner : ISagaRunner
         await CompensateAsync(definition, progress.Data, progress.StepsExecuted - 1, requestContext, cancellationToken)
             .ConfigureAwait(false);
 
-        // Persist only the error code (#1469): FailAsync stores this string in the saga state.
-        await _orchestrator.FailAsync(sagaId, SagaErrorCodes.HandlerCancelled, CancellationToken.None)
+        // Persist only the error code (#1469): FailAsync stores this string in the saga state. A failure to
+        // persist (or to dead-letter) the failed saga is returned instead of the cancellation, never dropped.
+        var failed = await _orchestrator.FailAsync(sagaId, SagaErrorCodes.HandlerCancelled, CancellationToken.None)
             .ConfigureAwait(false);
 
-        return EncinaErrors.Create(SagaErrorCodes.HandlerCancelled, "Saga was cancelled");
+        return failed.IsLeft
+            ? (EncinaError)failed
+            : EncinaErrors.Create(SagaErrorCodes.HandlerCancelled, "Saga was cancelled");
     }
 
     private async ValueTask<Either<EncinaError, SagaResult<TData>>> HandleExceptionAsync<TData>(
@@ -268,10 +271,13 @@ public sealed class SagaRunner : ISagaRunner
         await CompensateAsync(definition, progress.Data, progress.StepsExecuted - 1, requestContext, CancellationToken.None)
             .ConfigureAwait(false);
 
-        await _orchestrator.FailAsync(sagaId, SagaErrorCodes.HandlerFailed, CancellationToken.None)
+        // A failure to persist (or to dead-letter) the failed saga is returned instead, never dropped.
+        var failed = await _orchestrator.FailAsync(sagaId, SagaErrorCodes.HandlerFailed, CancellationToken.None)
             .ConfigureAwait(false);
 
-        return EncinaErrors.Create(SagaErrorCodes.HandlerFailed, UnexpectedStepExceptionMessage, ex);
+        return failed.IsLeft
+            ? (EncinaError)failed
+            : EncinaErrors.Create(SagaErrorCodes.HandlerFailed, UnexpectedStepExceptionMessage, ex);
     }
 
     /// <summary>Mutable progress of one run, read by the failure handlers to compensate the executed steps.</summary>

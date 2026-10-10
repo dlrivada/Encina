@@ -81,7 +81,8 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
     {
-        var recoverabilityContext = new RecoverabilityContext
+        // The behavior's clock stamps the chain, so a dead letter's first-failure and dead-letter instants agree.
+        var recoverabilityContext = new RecoverabilityContext(_timeProvider)
         {
             CorrelationId = context.CorrelationId,
             IdempotencyKey = context.IdempotencyKey,

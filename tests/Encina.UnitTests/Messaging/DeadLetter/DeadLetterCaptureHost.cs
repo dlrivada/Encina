@@ -39,7 +39,8 @@ internal sealed class DeadLetterCaptureHost : IDisposable
     public static DeadLetterCaptureHost Create(
         Action<DeadLetterOptions>? configure = null,
         IDeadLetterStore? store = null,
-        IEncina? encina = null)
+        IEncina? encina = null,
+        Action<IServiceCollection>? configureServices = null)
     {
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 5, 1, 8, 0, 0, TimeSpan.Zero));
         var services = new ServiceCollection();
@@ -59,6 +60,7 @@ internal sealed class DeadLetterCaptureHost : IDisposable
         var options = new DeadLetterOptions();
         configure?.Invoke(options);
         services.AddDeadLetterQueueServices<FakeDeadLetterStore, PassThroughFactory>(true, options);
+        configureServices?.Invoke(services);
 
         var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         return new DeadLetterCaptureHost(provider, clock);
