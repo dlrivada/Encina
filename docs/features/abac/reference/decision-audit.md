@@ -185,7 +185,7 @@ services.AddEncinaABAC(options =>
 
 ### Startup check
 
-`AddEncinaABAC` registers a hosted service, `ABACDecisionAuditStartupCheck`, that reads the final `IOptions<ABACOptions>` when the host starts. The options validator also runs at start and rejects a `WriteTimeout` that is zero, negative or above `int.MaxValue` milliseconds, `MaxTraceEntries` below 1, `Outcomes` with bits outside `ABACDecisionAuditOutcomes.All`, and an undefined `FailureMode`. It also rejects `DecisionAudit.Enabled = true` together with `EnforcementMode = Disabled`, because the disabled enforcement point bypasses evaluation and would record nothing; the host fails to start with an `OptionsValidationException`.
+`AddEncinaABAC` registers a hosted service, `ABACDecisionAuditStartupCheck`, that reads the final `IOptions<ABACOptions>` when the host starts. The options validator also runs at start and rejects a `WriteTimeout` that is zero, negative or above `int.MaxValue` milliseconds, `MaxTraceEntries` below 1, a `HealthFailureWindow` of zero or less, `Outcomes` with bits outside `ABACDecisionAuditOutcomes.All`, and an undefined `FailureMode`. It also rejects `DecisionAudit.Enabled = true` together with `EnforcementMode = Disabled`, because the disabled enforcement point bypasses evaluation and would record nothing; the host fails to start with an `OptionsValidationException`.
 
 | Situation | Result |
 |-----------|--------|
@@ -208,6 +208,27 @@ services.AddScoped<IOperationAuditStore, MyOperationAuditStore>(); // the applic
 
 All `ABACDecisionAuditOptions` properties are in the [configuration reference](configuration.md#decisionaudit-options). The error codes are in the [error reference](errors.md), the log messages in the [observability reference](observability.md#decision-audit-messages-9079-9090).
 
+## Health
+
+When the audit is enabled, `ABACHealthCheck` (name `encina-abac`) also reports the trail. The check is registered only when `ABACOptions.AddHealthCheck` is `true` (default `false`); without it a failure is visible only in the logs (EventIds 9080 to 9083, see the [observability reference](observability.md#decision-audit-messages-9079-9090)). With the audit disabled, the result is the engine's alone.
+
+The check never writes to the store. It reads `ABACDecisionAuditHealthState`, a singleton that the PEP updates after every audited decision: a failed write (a store error, an exception, a timeout or a record that cannot be built) stores the time of the failure, and the next successful write clears it. The state therefore changes only while audited traffic flows; after a failure, no traffic means the failure stays until a write succeeds.
+
+The conditions are evaluated top to bottom, with the failure rows before the store row: a failed write on an `InMemoryOperationAuditStore` reports `write_failed`, not `in_memory_store`.
+
+| Status | Condition | `decision_audit` code |
+|--------|-----------|-----------------------|
+| `Unhealthy` | No `IOperationAuditStore` is registered | `no_store` |
+| `Unhealthy` | `FailureMode` is `FailClosed` and the last write failed within `HealthFailureWindow` | `write_failed` |
+| `Degraded` | `FailureMode` is `BestEffort` and the last write failed | `write_failed` |
+| `Degraded` | The last write failed more than `HealthFailureWindow` ago, whatever the mode | `write_failed` |
+| `Degraded` | The store is `InMemoryOperationAuditStore` | `in_memory_store` |
+| `Healthy` | None of the above | `ok` |
+
+`ABACDecisionAuditOptions.HealthFailureWindow` (default 5 minutes, must be greater than zero, validated at start) bounds how long a failure keeps a `FailClosed` application Unhealthy. The engine and the audit are combined and the worse status wins.
+
+The description and the data carry fixed text and the `decision_audit` code only: never a subject, tenant, resource or error message.
+
 ## Providers
 
 The trail is stored by whatever `IOperationAuditStore` the application registers.
@@ -225,5 +246,5 @@ The trail is stored by whatever `IOperationAuditStore` the application registers
 
 - Only requests that pass through the PEP are audited. A direct call to `IPolicyDecisionPoint` is not.
 - A missing row means the decision was not evaluated or not recorded, not that access was granted.
-- Not available yet: a health check and metrics for the trail.
+- Without `AddHealthCheck`, a failing trail is visible only in the logs (see [Health](#health)). Metrics for the trail are not available yet.
 - No startup warning exists for registering `AddEncinaABAC` before `AddEncinaSecurity` (see [Registration order](#registration-order)).

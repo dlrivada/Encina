@@ -230,6 +230,8 @@ The `ABACHealthCheck` verifies that the ABAC engine has policies loaded and can 
 | No PolicySets and no Policies | `Degraded` | No policies or policy sets loaded. Every policy named by `[RequirePolicy]` will be missing, so those requests are denied with `encina.authorization.abac_policy_not_found` |
 | Exception querying PAP | `Unhealthy` | Failed to query the Policy Administration Point |
 
+When `ABACOptions.DecisionAudit.Enabled` is `true`, the result also carries the decision audit state and the worse of the two statuses wins; see [Decision audit: Health](decision-audit.md#health).
+
 ### Enabling the Health Check
 
 ```csharp

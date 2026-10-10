@@ -289,7 +289,7 @@ The registration also adds `DeadLetterSourceCapture`, which the built-in sources
 
 ### Multi-tenancy fails closed
 
-When `AddEncinaTenancy` is registered (it registers the `TenancyInUse` marker) and no tenant is resolved, `DeadLetterManager` denies the operation instead of working across the whole queue. An empty `TenantId` counts as no tenant.
+When `AddEncinaTenancy` is registered (it registers the core `Encina.MultiTenancyMarker`, which the ABAC decision audit reader also uses) and no tenant is resolved, `DeadLetterManager` denies the operation instead of working across the whole queue. An empty `TenantId` counts as no tenant.
 
 | Operation | With tenancy in use and no tenant resolved |
 | --- | --- |
