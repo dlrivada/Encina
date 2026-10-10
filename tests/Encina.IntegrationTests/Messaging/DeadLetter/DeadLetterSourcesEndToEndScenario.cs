@@ -84,8 +84,23 @@ internal static class DeadLetterSourcesEndToEndScenario
         scheduling.EnableProcessor = false;
     }
 
-    /// <summary>Runs the scenario of <paramref name="source"/>.</summary>
-    public static Task RunAsync(string source, IServiceProvider provider, FakeTimeProvider clock) => source switch
+    /// <summary>
+    /// Runs the scenario of <paramref name="source"/>, on an empty dead letter queue (a fixture's data clean-up
+    /// may not cover the dead letter table, and other tests of the collection write to it).
+    /// </summary>
+    public static async Task RunAsync(string source, IServiceProvider provider, FakeTimeProvider clock)
+    {
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredService<IDeadLetterStore>();
+            (await store.DeleteManyAsync(DeadLetterFilter.All)).ShouldBeRight();
+            (await store.SaveChangesAsync()).ShouldBeRight();
+        }
+
+        await RunSourceAsync(source, provider, clock);
+    }
+
+    private static Task RunSourceAsync(string source, IServiceProvider provider, FakeTimeProvider clock) => source switch
     {
         DeadLetterSourcePatterns.Recoverability => RecoverabilityAsync(provider, clock),
         DeadLetterSourcePatterns.Outbox => OutboxAsync(provider, clock),
@@ -116,10 +131,16 @@ internal static class DeadLetterSourcesEndToEndScenario
 
     private static async Task OutboxAsync(IServiceProvider provider, FakeTimeProvider clock)
     {
+        // The fixture may hold outbox rows of other tests, so this message is found by a unique value.
+        var marker = Random.Shared.Next(100_000_000, int.MaxValue);
+        var messageId = string.Empty;
         await InScopeAsync<OutboxOrchestrator, IOutboxStore>(provider, async (orchestrator, store) =>
         {
-            (await orchestrator.AddAsync(new SourceNotification(1))).ShouldBeRight();
+            (await orchestrator.AddAsync(new SourceNotification(marker))).ShouldBeRight();
             (await store.SaveChangesAsync()).ShouldBeRight();
+            var pending = (await store.GetPendingMessagesAsync(10_000, 100)).ShouldBeRight();
+            messageId = pending.Single(m => m.Content.Contains(marker.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal))
+                .Id.ToString("D");
         });
 
         for (var cycle = 1; cycle <= 2; cycle++)
@@ -130,13 +151,13 @@ internal static class DeadLetterSourcesEndToEndScenario
                     .ShouldBeRight();
                 (await store.SaveChangesAsync()).ShouldBeRight();
             });
-            (await CountAsync(provider, DeadLetterSourcePatterns.Outbox)).ShouldBe(cycle == 1 ? 0 : 1);
+            (await CountAsync(provider, DeadLetterSourcePatterns.Outbox, messageId)).ShouldBe(cycle == 1 ? 0 : 1);
             clock.Advance(TimeSpan.FromHours(1));
         }
 
         // Requeued and exhausted again: still one dead letter for the outbox message.
         await InScopeAsync<OutboxOrchestrator, IOutboxStore>(provider, async (orchestrator, _) =>
-            (await orchestrator.RequeueExhaustedAsync()).ShouldBeRight().ShouldBe(1));
+            (await orchestrator.RequeueExhaustedAsync()).ShouldBeRight().ShouldBeGreaterThanOrEqualTo(1));
         for (var cycle = 1; cycle <= 2; cycle++)
         {
             await InScopeAsync<OutboxOrchestrator, IOutboxStore>(provider, async (orchestrator, store) =>
@@ -147,7 +168,7 @@ internal static class DeadLetterSourcesEndToEndScenario
             clock.Advance(TimeSpan.FromHours(1));
         }
 
-        (await CountAsync(provider, DeadLetterSourcePatterns.Outbox)).ShouldBe(1);
+        (await CountAsync(provider, DeadLetterSourcePatterns.Outbox, messageId)).ShouldBe(1);
     }
 
     private static async Task InboxAsync(IServiceProvider provider)
@@ -176,9 +197,11 @@ internal static class DeadLetterSourcesEndToEndScenario
 
     private static async Task SchedulingAsync(IServiceProvider provider, FakeTimeProvider clock)
     {
+        // Counted by the message id: the fixture may hold scheduled rows of other tests.
+        var messageId = string.Empty;
         await InScopeAsync<SchedulerOrchestrator, IScheduledMessageStore>(provider, async (orchestrator, store) =>
         {
-            (await orchestrator.ScheduleAsync(new SourceCommand(1), TimeSpan.FromSeconds(1))).ShouldBeRight();
+            messageId = (await orchestrator.ScheduleAsync(new SourceCommand(1), TimeSpan.FromSeconds(1))).ShouldBeRight().ToString("D");
             (await store.SaveChangesAsync()).ShouldBeRight();
         });
 
@@ -190,7 +213,7 @@ internal static class DeadLetterSourcesEndToEndScenario
                     .ShouldBeRight());
 
             // The second failure is the one the retry policy dead-letters; a third cycle finds nothing due.
-            (await CountAsync(provider, DeadLetterSourcePatterns.Scheduling)).ShouldBe(cycle == 1 ? 0 : 1);
+            (await CountAsync(provider, DeadLetterSourcePatterns.Scheduling, messageId)).ShouldBe(cycle == 1 ? 0 : 1);
         }
     }
 
