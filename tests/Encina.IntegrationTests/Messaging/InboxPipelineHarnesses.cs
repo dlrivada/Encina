@@ -47,7 +47,7 @@ public static class InboxPipelineHarnesses
             s.AddScoped<IDbConnection>(_ => f.CreateConnection());
             global::Encina.ADO.SqlServer.ServiceCollectionExtensions.AddEncinaADO(s, c => Configure(c, setup));
         },
-        ReadRow = id => ToRowAsync(new global::Encina.ADO.SqlServer.Inbox.InboxStoreADO(f.CreateConnection()).GetMessageAsync(id)),
+        ReadRow = async id => { using var c = f.CreateConnection(); return await ToRowAsync(new global::Encina.ADO.SqlServer.Inbox.InboxStoreADO(c).GetMessageAsync(id)); },
         BreakTransaction = CloseScopedConnection
     };
 
@@ -59,7 +59,7 @@ public static class InboxPipelineHarnesses
             s.AddScoped<IDbConnection>(_ => f.CreateConnection());
             global::Encina.ADO.PostgreSQL.ServiceCollectionExtensions.AddEncinaADO(s, c => Configure(c, setup));
         },
-        ReadRow = id => ToRowAsync(new global::Encina.ADO.PostgreSQL.Inbox.InboxStoreADO(f.CreateConnection()).GetMessageAsync(id)),
+        ReadRow = async id => { using var c = f.CreateConnection(); return await ToRowAsync(new global::Encina.ADO.PostgreSQL.Inbox.InboxStoreADO(c).GetMessageAsync(id)); },
         BreakTransaction = CloseScopedConnection
     };
 
@@ -71,7 +71,7 @@ public static class InboxPipelineHarnesses
             s.AddScoped<IDbConnection>(_ => f.CreateConnection());
             global::Encina.ADO.MySQL.ServiceCollectionExtensions.AddEncinaADO(s, c => Configure(c, setup));
         },
-        ReadRow = id => ToRowAsync(new global::Encina.ADO.MySQL.Inbox.InboxStoreADO(f.CreateConnection()).GetMessageAsync(id)),
+        ReadRow = async id => { using var c = f.CreateConnection(); return await ToRowAsync(new global::Encina.ADO.MySQL.Inbox.InboxStoreADO(c).GetMessageAsync(id)); },
         BreakTransaction = CloseScopedConnection
     };
 
@@ -83,7 +83,7 @@ public static class InboxPipelineHarnesses
             s.AddScoped<IDbConnection>(_ => f.CreateConnection());
             global::Encina.Dapper.SqlServer.ServiceCollectionExtensions.AddEncinaDapper(s, c => Configure(c, setup));
         },
-        ReadRow = id => ToRowAsync(new global::Encina.Dapper.SqlServer.Inbox.InboxStoreDapper(f.CreateConnection()).GetMessageAsync(id)),
+        ReadRow = async id => { using var c = f.CreateConnection(); return await ToRowAsync(new global::Encina.Dapper.SqlServer.Inbox.InboxStoreDapper(c).GetMessageAsync(id)); },
         BreakTransaction = CloseScopedConnection
     };
 
@@ -95,7 +95,7 @@ public static class InboxPipelineHarnesses
             s.AddScoped<IDbConnection>(_ => f.CreateConnection());
             global::Encina.Dapper.PostgreSQL.ServiceCollectionExtensions.AddEncinaDapper(s, c => Configure(c, setup));
         },
-        ReadRow = id => ToRowAsync(new global::Encina.Dapper.PostgreSQL.Inbox.InboxStoreDapper(f.CreateConnection()).GetMessageAsync(id)),
+        ReadRow = async id => { using var c = f.CreateConnection(); return await ToRowAsync(new global::Encina.Dapper.PostgreSQL.Inbox.InboxStoreDapper(c).GetMessageAsync(id)); },
         BreakTransaction = CloseScopedConnection
     };
 
@@ -107,7 +107,7 @@ public static class InboxPipelineHarnesses
             s.AddScoped<IDbConnection>(_ => f.CreateConnection());
             global::Encina.Dapper.MySQL.ServiceCollectionExtensions.AddEncinaDapper(s, c => Configure(c, setup));
         },
-        ReadRow = id => ToRowAsync(new global::Encina.Dapper.MySQL.Inbox.InboxStoreDapper(f.CreateConnection()).GetMessageAsync(id)),
+        ReadRow = async id => { using var c = f.CreateConnection(); return await ToRowAsync(new global::Encina.Dapper.MySQL.Inbox.InboxStoreDapper(c).GetMessageAsync(id)); },
         BreakTransaction = CloseScopedConnection
     };
 

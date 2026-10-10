@@ -19,6 +19,7 @@ public sealed class InboxStoreADOTests : IAsyncLifetime
     private static readonly string[] s_oneMessageId = ["msg-1"];
 
     private readonly MySqlFixture _fixture;
+    private System.Data.IDbConnection _connection = null!;
     private InboxStoreADO _store = null!;
 
     public InboxStoreADOTests(MySqlFixture fixture)
@@ -29,10 +30,15 @@ public sealed class InboxStoreADOTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         await _fixture.ClearAllDataAsync();
-        _store = new InboxStoreADO(_fixture.CreateConnection());
+        _connection = _fixture.CreateConnection();
+        _store = new InboxStoreADO(_connection);
     }
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync()
+    {
+        _connection?.Dispose();
+        return ValueTask.CompletedTask;
+    }
 
     #region AddAsync Tests
 
