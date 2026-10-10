@@ -2243,7 +2243,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 80, "guard": 4 },
+      "justifications": {
+        "unit": "Unit tests drive AddShadowSharding through AddEncinaSharding and directly, covering router decoration, both pipeline behavior registrations and the missing-topology error (measured 83.7%); only router-descriptor resolution branches stay uncovered.",
+        "guard": "Guard tests cover only the two null-argument checks of the single internal method, about 4.7% of its coverable lines; the rest is registration logic exercised by unit tests."
+      }
     },
     "Sharding/Shadow/ShadowShardRouterDecorator.cs": {
       "defaultTests": [
