@@ -50,10 +50,23 @@
       "defaultTests": [
         "unit",
         "guard",
-        "contract"
+        "contract",
+        "integration"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 95,
+        "guard": 10,
+        "contract": 35,
+        "integration": 85
+      },
+      "justifications": {
+        "unit": "Every branch of Handle (pass-through, failure, committed and pending events, nested sessions, publish failure) is exercised with a mocked session and encina; measured 100%.",
+        "guard": "Guard tests cover only the constructor null checks; the rest of the pipeline logic is covered by the unit and integration flags.",
+        "contract": "Contract tests assert the IPipelineBehavior contract and the constructor; the publishing branches are covered by the unit and integration flags.",
+        "integration": "Real Marten/PostgreSQL tests run create, save, disabled option and failing handler through IEncina.Send; only the nested-session branch and cancellation paths stay uncovered (measured 91%)."
+      }
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
@@ -241,7 +254,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 95,
+        "guard": 65
+      },
+      "justifications": {
+        "unit": "The registration tests build providers with every option combination; measured 100%.",
+        "guard": "Guard tests cover the null-argument checks of every extension method; the conditional registrations are covered by the unit flag (measured 73%)."
+      }
     },
     "Snapshots/ISnapshot.cs": {
       "defaultTests": [],

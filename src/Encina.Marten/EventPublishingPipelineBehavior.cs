@@ -1,5 +1,6 @@
 using LanguageExt;
 using Marten;
+using Marten.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using static LanguageExt.Prelude;
@@ -50,16 +51,48 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
     {
-        // Execute the command
-        var result = await nextStep().ConfigureAwait(false);
+        // When auto-publish is disabled the behavior is a pass-through.
+        if (!_options.AutoPublishDomainEvents)
+        {
+            return await nextStep().ConfigureAwait(false);
+        }
 
-        // If the command failed or auto-publish is disabled, return early
-        if (result.IsLeft || !_options.AutoPublishDomainEvents)
+        // The aggregate repository commits the session inside the handler, so by the time
+        // nextStep returns the events are no longer pending: capture them as they are committed.
+        var (collector, ownsCollector) = AcquireCollector();
+
+        try
+        {
+            // Execute the command
+            var result = await nextStep().ConfigureAwait(false);
+
+            return await PublishAfterSuccessAsync(result, collector, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (ownsCollector)
+            {
+                _session.Listeners.Remove(collector);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Publishes the committed and pending domain events of a successful command; a failed
+    /// command publishes nothing and a failed publication fails the command.
+    /// </summary>
+    private async ValueTask<Either<EncinaError, TResponse>> PublishAfterSuccessAsync(
+        Either<EncinaError, TResponse> result,
+        CommittedEventCollector collector,
+        CancellationToken cancellationToken)
+    {
+        if (result.IsLeft)
         {
             return result;
         }
 
-        var pendingEvents = GetPendingNotifications();
+        var pendingEvents = collector.Drain();
+        pendingEvents.AddRange(GetPendingNotifications());
         if (pendingEvents.Count == 0)
         {
             return result;
@@ -73,6 +106,23 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
     }
 
     /// <summary>
+    /// Returns the collector already listening on the session (a nested command shares the
+    /// session, so the events of the whole scope are published exactly once) or attaches a new one.
+    /// </summary>
+    private (CommittedEventCollector Collector, bool Owns) AcquireCollector()
+    {
+        var existing = _session.Listeners.OfType<CommittedEventCollector>().FirstOrDefault();
+        if (existing is not null)
+        {
+            return (existing, false);
+        }
+
+        var created = new CommittedEventCollector();
+        _session.Listeners.Add(created);
+        return (created, true);
+    }
+
+    /// <summary>
     /// Gets the pending domain-event notifications recorded on the session since the last save.
     /// </summary>
     private List<INotification> GetPendingNotifications() =>
@@ -81,6 +131,38 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
             .Select(e => e.Data)
             .OfType<INotification>()
             .ToList();
+
+    /// <summary>
+    /// Session listener that records the domain-event notifications of every successful commit.
+    /// </summary>
+    private sealed class CommittedEventCollector : DocumentSessionListenerBase
+    {
+        private readonly List<INotification> _events = [];
+
+        /// <inheritdoc />
+        public override Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
+        {
+            lock (_events)
+            {
+                _events.AddRange(commit.GetEvents().Select(e => e.Data).OfType<INotification>());
+            }
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Returns the notifications recorded so far and forgets them, so each is published once.
+        /// </summary>
+        public List<INotification> Drain()
+        {
+            lock (_events)
+            {
+                var drained = _events.ToList();
+                _events.Clear();
+                return drained;
+            }
+        }
+    }
 
     /// <summary>
     /// Publishes every pending domain event in order, stopping at the first failure.
