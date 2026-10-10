@@ -155,6 +155,25 @@ public sealed class ABACDecisionAuditServiceGraphTests
         ex.Message.ShouldContain("WriteTimeout");
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task BothRegistrationOrders_AuditEnabledWithDisabledEnforcement_FailsTheHostStart(bool securityFirst)
+    {
+        var builder = CreateBuilder();
+        builder.Services.AddScoped<IOperationAuditStore, InMemoryOperationAuditStore>();
+        Register(builder.Services, securityFirst, options =>
+        {
+            options.EnforcementMode = ABACEnforcementMode.Disabled;
+            options.AuditDecisions();
+        });
+        using var host = builder.Build();
+
+        var ex = await Should.ThrowAsync<OptionsValidationException>(() => host.StartAsync());
+
+        ex.Message.ShouldContain("EnforcementMode.Disabled");
+    }
+
     private static void Register(IServiceCollection services, bool securityFirst, Action<ABACOptions>? configure)
     {
         if (securityFirst)

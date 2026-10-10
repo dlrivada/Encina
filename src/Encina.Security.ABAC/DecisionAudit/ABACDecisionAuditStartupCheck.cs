@@ -21,6 +21,10 @@ namespace Encina.Security.ABAC.DecisionAudit;
 /// the store, so an application without one starts. The store is resolved from a scope of its own
 /// because database stores are scoped.
 /// </para>
+/// <para>
+/// The in-memory warning (9086) tests the resolved store with <c>is InMemoryOperationAuditStore</c>:
+/// an in-memory store wrapped by a decorator is not detected and raises no warning.
+/// </para>
 /// </remarks>
 internal sealed class ABACDecisionAuditStartupCheck : IHostedService
 {

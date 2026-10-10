@@ -1,5 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.DecisionAudit;
+using Encina.Security.Audit;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -47,6 +48,40 @@ public sealed class ABACDecisionAuditStartupCheckGuardTests
 
         scopes.ReceivedCalls().ShouldBeEmpty();
     }
+
+    private static ABACDecisionAuditStartupCheck Enabled(IOperationAuditStore? store, ABACDecisionAuditFailureMode mode = ABACDecisionAuditFailureMode.FailClosed)
+    {
+        var options = new ABACOptions();
+        options.AuditDecisions(a => a.FailureMode = mode);
+        var services = new ServiceCollection();
+        if (store is not null)
+        {
+            services.AddScoped(_ => store);
+        }
+
+        var provider = services.BuildServiceProvider();
+        return new ABACDecisionAuditStartupCheck(
+            Microsoft.Extensions.Options.Options.Create(options),
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<ABACDecisionAuditStartupCheck>.Instance);
+    }
+
+    [Fact]
+    public async Task StartupCheck_EnabledWithoutAStore_Throws() =>
+        await Should.ThrowAsync<InvalidOperationException>(() => Enabled(null).StartAsync(CancellationToken.None));
+
+    [Fact]
+    public async Task StartupCheck_EnabledWithAPersistentStore_Starts() =>
+        await Should.NotThrowAsync(() => Enabled(Substitute.For<IOperationAuditStore>()).StartAsync(CancellationToken.None));
+
+    [Fact]
+    public async Task StartupCheck_EnabledWithTheInMemoryStore_Starts() =>
+        await Should.NotThrowAsync(() => Enabled(new InMemoryOperationAuditStore()).StartAsync(CancellationToken.None));
+
+    [Fact]
+    public async Task StartupCheck_EnabledBestEffort_Starts() =>
+        await Should.NotThrowAsync(() => Enabled(
+            Substitute.For<IOperationAuditStore>(), ABACDecisionAuditFailureMode.BestEffort).StartAsync(CancellationToken.None));
 
     [Fact]
     public void Validator_NullOptions_Throws() =>

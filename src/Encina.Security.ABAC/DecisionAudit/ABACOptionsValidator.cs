@@ -27,6 +27,8 @@ internal sealed class ABACOptionsValidator : IValidateOptions<ABACOptions>
                 "ABACOptions.DecisionAudit.MaxTraceEntries must be at least 1."),
             ((audit.Outcomes & ~ABACDecisionAuditOutcomes.All) == 0,
                 "ABACOptions.DecisionAudit.Outcomes contains a value that is not an ABACDecisionAuditOutcomes flag."),
+            (!(audit.Enabled && options.EnforcementMode == ABACEnforcementMode.Disabled),
+                "ABACOptions.DecisionAudit.Enabled cannot be combined with EnforcementMode.Disabled: a disabled enforcement point evaluates and records nothing."),
             (Enum.IsDefined(audit.FailureMode),
                 "ABACOptions.DecisionAudit.FailureMode is not a defined ABACDecisionAuditFailureMode value.")
         ];
