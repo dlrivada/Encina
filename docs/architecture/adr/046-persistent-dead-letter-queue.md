@@ -9,7 +9,7 @@ grand_parent: Architecture
 
 ## Status
 
-**Accepted** - decided by the maintainer on 2026-10-09 (Design Choices 1, 5, 6 and 7 and decisions B3, B7 and B9 of the [plan for #583](../../plans/dead-letter-stores-implementation-plan-583.md#maintainer-decisions)), plus four decisions added the same day while the stores were being finished (listed under "Decisions added during implementation"), and four more after the stores were finished (listed under "Decisions added after the stores were finished").
+**Accepted** - decided by the maintainer on 2026-10-09 (Design Choices 1, 5, 6 and 7 and decisions B3, B7 and B9 of the [plan for #583](../../plans/dead-letter-stores-implementation-plan-583.md#maintainer-decisions)), plus four decisions added the same day while the stores were being finished (listed under "Decisions added during implementation"), and four more after the stores were finished (listed under "Decisions added after the stores were finished"), and five on 2026-10-10 with the source capture of #1991 (decisions 10 to 14).
 
 ## Context
 
@@ -40,7 +40,7 @@ Persisting the queue makes the shape of the record and the behavior of the store
 
 ### Capture is idempotent by source message (plan Choice 6)
 
-A unique index on `(SourcePattern, SourceMessageId)` exists from table creation, and `AddAsync` returns `Either<EncinaError, bool>`: `true` when stored, `false` when that source message is already dead-lettered (not an error). `DeadLetterContext.SourceMessageId` is the idempotency key. When the caller omits it, `DeadLetterOrchestrator` uses the new dead letter id, so the capture is unique and not deduplicated. At the store, the key is required: every store and the fake store throw `ArgumentException` for an empty one, and the fake no longer substitutes the message id. The key has no tenant, so `SourceMessageId` must be unique per `SourcePattern` across tenants; if two tenants dead-letter the same source id, the second capture returns the first tenant's message. The built-in sources use globally unique ids (GUIDs, inbox message ids). On PostgreSQL the ADO.NET and Dapper stores insert with `ON CONFLICT ("SourcePattern", "SourceMessageId") DO NOTHING`, so a duplicate raises no server error and is safe inside an open transaction. A duplicate capture returns the existing dead letter and does not invoke `DeadLetterOptions.OnDeadLetter`. `SourceMessageId` is a string because the sources use different identifiers (`Guid` for outbox, scheduled messages and sagas, `string` for inbox message ids).
+A unique index on `(SourcePattern, SourceMessageId)` exists from table creation, and `AddAsync` returns `Either<EncinaError, bool>`: `true` when stored, `false` when that source message is already dead-lettered (not an error). `DeadLetterContext.SourceMessageId` is the idempotency key. When the caller omits it, `DeadLetterOrchestrator` uses the new dead letter id, so the capture is unique and not deduplicated. At the store, the key is required: every store and the fake store throw `ArgumentException` for an empty one, and the fake no longer substitutes the message id. The key has no tenant, so `SourceMessageId` must be unique per `SourcePattern` across tenants; if two tenants dead-letter the same source id, the second capture returns the first tenant's message. The built-in sources use globally unique ids (GUIDs, inbox message ids). On PostgreSQL the ADO.NET and Dapper stores insert with `ON CONFLICT ("SourcePattern", "SourceMessageId") DO NOTHING`, so a duplicate raises no server error and is safe inside an open transaction. A duplicate capture returns the existing dead letter and does not invoke `DeadLetterOptions.OnDeadLetter`. `SourceMessageId` is a string because the sources use different identifiers (`Guid` for outbox, scheduled messages and sagas, `string` for inbox message ids). On MongoDB without the unique index, and on an EF Core lost race, a duplicate is not yet reported as `Right(false)`; this is tracked in [#2079](https://github.com/dlrivada/Encina/issues/2079).
 
 ### The tenant is a column stamped at capture (plan Choice 7)
 
@@ -63,6 +63,14 @@ These continue the numbering above. Decision 5 refines the tenant paragraph abov
 - **Decision 8: test support.** `AddFakeDeadLetterStore` takes the container's `TimeProvider` (`TimeProvider.System` otherwise), and the SQL Server `029` script has an integration test like the PostgreSQL and MySQL scripts. The store contract also runs the expiry boundary under a non-UTC PostgreSQL session time zone (`SET TIME ZONE 'America/Los_Angeles'`) for ADO.NET, Dapper and EF Core (maintainer decision B4), so a `TIMESTAMPTZ` comparison cannot depend on the session zone.
 - **Decision 9: options registration is first-wins.** `AddDeadLetterQueueServices` registers `DeadLetterOptions` with the same first-wins semantics as the store and the factory. A later call, for example `AddEncinaDeadLetterQueue` after a provider registered the queue with `UseDeadLetterQueue`, keeps the first options, so the three registrations cannot disagree. Configure the queue in the first call.
 
+### Decisions added with the source capture (#1991, 2026-10-10)
+
+- **Decision 10: the five sources are wired.** The maintainer chose option (a) on 2026-10-07: the `IntegrateWith*` flags of `DeadLetterOptions` do what they promise, instead of being removed.
+- **Decision 11: sources capture through `DeadLetterSourceCapture`, each capture in a scope of its own.** The queue registration adds it and the sources take it as an optional dependency. On EF Core the store shares the scoped `DbContext`, so a capture in the source's scope would save the source's tracked changes or be broken by them.
+- **Decision 12: stored content is kept as is.** `DeadLetterOrchestrator.AddSerializedAsync` stores the type name and content a source already holds (outbox, scheduling, sagas, undeliverable delayed retries) without serializing them again.
+- **Decision 13: outbox and scheduling capture before they record their terminal state.** A failed capture leaves the message un-exhausted (outbox) or due for a later cycle (scheduling), so a message is never reported as dead-lettered without a dead letter.
+- **Decision 14: the inbox terminal point is the attempt that uses up `InboxOptions.MaxRetries`.** A handler `Left` is a cached business result and never retries; only a thrown exception counts as an attempt.
+
 ## Alternatives rejected
 
 - **Persist the interface as it was, plus `TenantId`** (Choice 1, B): 10 schemas would carry a misnamed column and a column that must stay empty forever, and nothing would identify the source message.
@@ -78,7 +86,7 @@ These continue the numbering above. Decision 5 refines the tenant paragraph abov
 
 ## Consequences
 
-- **Positive**: the queue survives restarts on all 10 providers; `OnDeadLetter` runs once per source message; statistics, cleanup and bulk delete are set-based; #1991 (wiring the five `IntegrateWith*` sources) and the post-1.0 store families #584-#589 implement a fixed contract, and the record needs no schema change for them.
+- **Positive**: the queue survives restarts on all 10 providers; `OnDeadLetter` runs once per source message; statistics, cleanup and bulk delete are set-based; #1991 (wiring the five `IntegrateWith*` sources, delivered as decisions 10 to 14) and the post-1.0 store families #584-#589 implement a fixed contract, and the record needs no schema change for them.
 - **Negative**: every store implements two more predicates and three more methods than before; EF Core detects duplicates with a query before tracking, so a race between two hosts surfaces as a unique-violation `Left`; applications on SQL Server and MySQL must pass the collation when they apply the EF configuration; under `AddEncinaTenancy`, a manager call with no resolved tenant is denied (403) unless the filter opts out (decision 5).
 - **Neutral**: the tie-break order differs between providers; the older messaging tables keep their unquoted PostgreSQL identifiers, while the DLQ uses quoted PascalCase so ADO.NET, Dapper and EF Core share one table (plan Choice 9).
 
