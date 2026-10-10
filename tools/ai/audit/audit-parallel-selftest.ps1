@@ -14,9 +14,11 @@
 #      names it too, and -Issue contradicting the worktree context is refused; audit-stage -List shows all three;
 #   4. the cross-audit duplicate check of audit-draft-remediation.ps1 -Prepare: a finding of #13 that matches an
 #      unopened draft of the concurrent audit #12 stops -Prepare with nothing written; once that draft is opened
-#      the finding is recorded as a duplicate of its issue; the manifest names the concurrent audits;
+#      the finding is recorded as a duplicate of its issue; the manifest names the concurrent audits; in the other
+#      direction #12 does not stop on an unopened draft of the higher-numbered #13 (the lower number goes first);
 #   5. the cross-audit duplicate check of open-remediation.ps1: a draft of #12 that matches an opened draft of #10
-#      opens nothing; against an unopened one it only warns and opens;
+#      opens nothing; against an unopened one it only warns and opens; 5b. #10 and #12 opening matching drafts at
+#      the same time (two processes) create exactly one issue, the other run refuses;
 #   6. closing out of order: #12 (opened second) closes first; #10 and #13 stay open with their state, progress.csv
 #      records #12, and the next audit-next skips the overlapping #11 again and opens #14; once #10 closes, #11 is
 #      opened;
@@ -42,7 +44,16 @@ function Assert-That([string]$Name, [bool]$Condition, [string]$Detail = '') {
     else { Write-Host "FAIL  $Name $Detail"; $failures.Add($Name) }
 }
 
-function Git { & $realGit @args 2>&1 | ForEach-Object { "$_" } }
+# Fixture git: any failure stops the self-test (a fixture that did not build must never read as a pass or a
+# confusing assertion failure). GitMayFail is for the calls whose failure the test expects or tolerates.
+function Git {
+    $raw = & $realGit @args 2>&1
+    $code = $LASTEXITCODE
+    $out = @($raw | ForEach-Object { "$_" })
+    if ($code -ne 0) { throw "fixture command 'git $($args -join ' ')' failed (exit $code): $($out -join ' ')" }
+    return $out
+}
+function GitMayFail { & $realGit @args 2>&1 | ForEach-Object { "$_" } }
 
 function Write-Text([string]$Path, [string]$Text) {
     New-Item -ItemType Directory -Force (Split-Path -Parent $Path) | Out-Null
@@ -67,7 +78,12 @@ Add-Content -LiteralPath $env:AUDIT_STUB_LOG -Value ('gh ' + ($args -join ' '))
 if ($args[0] -eq 'issue' -and $args[1] -eq 'view') { 'CLOSED'; exit 0 }
 if ($args[0] -eq 'label') { 'technical-debt'; 'area-testing'; 'bug'; 'p0-mandatory'; 'p1-recommended'; 'p2-post-1.0'; exit 0 }
 if ($args[0] -eq 'api') { "v0.14.0 $([char]0x2014) Hardening"; "v0.19.0 $([char]0x2014) Providers & Testing"; "v0.21.0 $([char]0x2014) Documentation"; exit 0 }
-if ($args[0] -eq 'issue' -and $args[1] -eq 'create') { 'https://github.com/dlrivada/Encina/issues/7001'; exit 0 }
+if ($args[0] -eq 'issue' -and $args[1] -eq 'create') {
+    # The concurrency case (section 5b) widens the create and counts every create in its own file.
+    if ($env:AUDIT_STUB_CREATE_DELAY_MS) { Start-Sleep -Milliseconds ([int]$env:AUDIT_STUB_CREATE_DELAY_MS) }
+    if ($env:AUDIT_STUB_CREATES) { New-Item -ItemType File -Path (Join-Path $env:AUDIT_STUB_CREATES ([guid]::NewGuid().ToString('N'))) | Out-Null }
+    'https://github.com/dlrivada/Encina/issues/7001'; exit 0
+}
 if ($args -contains 'list') { exit 0 }
 if ($args[0] -eq 'project') { exit 0 }
 'https://github.com/dlrivada/Encina/pull/9999'
@@ -171,6 +187,23 @@ exit 0
     $r = Invoke-Script 'audit-draft-remediation.ps1' @('-Prepare', '-NoGh', '-Issue', '13')
     Assert-That '-Prepare of #13 stops on a match with the unopened draft of the concurrent audit #12' ($r.Exit -ne 0 -and $r.Text -like '*cross-audit duplicate check*12-code-1-widgetstore-swallows.md*concurrent audit #12*not opened*') $r.Text
     Assert-That 'the stopped -Prepare wrote nothing' (-not (Test-Path (Join-Path $remDir '_manifest-13.json')) -and -not (Test-Path (Join-Path $remDir '_input-13-code-1.md')))
+    # The other direction (CodeRabbit on PR #2243): the lower-numbered audit goes first. #12's -Prepare does not stop
+    # on the matching unopened draft of the higher-numbered #13, so the two can never block each other.
+    $wt12 = Get-Wt 12
+    $finding12 = '1. **Major** - `src/Encina.C/Widget.cs:12`: `WidgetStore.SaveAsync` swallows the store error, seen from #12.'
+    Write-Text (Join-Path $wt12 'artifacts\knowledge\stages\code.md') "## Findings`n$finding12`n## Lessons for the pipeline`n- none`n"
+    Write-Text (Join-Path $wt12 'artifacts\knowledge\stages\tests.md') "## Findings`n- none`n"
+    Write-Text (Join-Path $wt12 'artifacts\knowledge\stages\docs.md') "## Findings`n- none`n"
+    $draft13 = Join-Path $remDir '13-code-1-widgetstore-swallows.md'
+    Write-Text $draft13 (Get-Content $otherDraft -Raw)
+    Move-Item -LiteralPath $otherDraft -Destination (Join-Path $base 'draft12.saved')
+    $r = Invoke-Script 'audit-draft-remediation.ps1' @('-Prepare', '-NoGh', '-Issue', '12')
+    $m12 = if (Test-Path (Join-Path $remDir '_manifest-12.json')) { Get-Content (Join-Path $remDir '_manifest-12.json') -Raw | ConvertFrom-Json } else { $null }
+    $f12 = if ($m12) { @($m12.findings | Where-Object { $_.key -eq 'code 1' })[0] } else { $null }
+    Assert-That '-Prepare of #12 does not stop on the matching unopened draft of the higher-numbered #13 (lower number goes first)' ($r.Exit -eq 0 -and $f12 -and $f12.draftFile -and -not $f12.duplicateOf) "$($r.Text) $($f12 | ConvertTo-Json -Compress)"
+    Remove-Item -Force $draft13
+    Get-ChildItem $remDir -File | Where-Object { $_.Name -like '_input-12-*' -or $_.Name -eq '_manifest-12.json' } | Remove-Item -Force
+    Move-Item -LiteralPath (Join-Path $base 'draft12.saved') -Destination $otherDraft
     Write-Text (Join-Path $remDir 'opened.csv') "12-code-1-widgetstore-swallows.md,https://github.com/dlrivada/Encina/issues/5551`n"
     $r = Invoke-Script 'audit-draft-remediation.ps1' @('-Prepare', '-NoGh', '-Issue', '13')
     $manifest = if (Test-Path (Join-Path $remDir '_manifest-13.json')) { Get-Content (Join-Path $remDir '_manifest-13.json') -Raw | ConvertFrom-Json } else { $null }
@@ -194,11 +227,54 @@ exit 0
     Write-Text $draft10 ($draftText.Replace('Retries never stop.', 'Seen from audit #10.'))
     Write-Text (Join-Path $remDir 'opened.csv') "10-code-1-widget-retry.md,https://github.com/dlrivada/Encina/issues/6001`n"
     $r = Invoke-Script 'open-remediation.ps1' @('-Issue', '12')
-    Assert-That 'open-remediation of #12 refuses a draft that duplicates an opened draft of the concurrent audit #10, and opens nothing' ($r.Exit -ne 0 -and $r.Text -like '*12-code-2-widget-retry.md duplicates 10-code-1-widget-retry.md of the concurrent audit #10*issues/6001*' -and -not ($r.Log | Where-Object { $_ -like 'gh issue create*' })) $r.Text
+    Assert-That 'open-remediation of #12 refuses a draft that duplicates an opened draft of the concurrent audit #10, and opens nothing' ($r.Exit -ne 0 -and ($r.Text -replace '\s+\|\s+', ' ' -replace '\s+', ' ') -like '*12-code-2-widget-retry.md duplicates 10-code-1-widget-retry.md of the concurrent audit #10*issues/6001*' -and -not ($r.Log | Where-Object { $_ -like 'gh issue create*' })) $r.Text
     Remove-Item -Force (Join-Path $remDir 'opened.csv')
     $r = Invoke-Script 'open-remediation.ps1' @('-Issue', '12')
     Assert-That 'against an unopened draft it only warns, and #12 opens first' ($r.Exit -eq 0 -and $r.Text -like '*matches 10-code-1-widget-retry.md of the concurrent audit #10, not opened yet*' -and @($r.Log | Where-Object { $_ -like 'gh issue create*' }).Count -eq 1) $r.Text
     Remove-Item -Force $draft10
+
+    # --- 5b. two audits open matching drafts at the same time (CodeRabbit on PR #2243) ---------------------------------
+    # #10 and #12 each hold an unopened draft of the same defect and run open-remediation.ps1 at once, as separate
+    # processes; the stubbed `gh issue create` takes 6 s. The re-check, the create and the opened.csv row happen
+    # under the open-audits lock, so exactly one issue is created and the other run refuses. Without the lock both
+    # pass the up-front check and both create.
+    $pairText = "<!-- issue`ntitle: [DEBT] CacheStore.Get ignores the expiry`nlabels: technical-debt`nmilestone:`nkind: debt`n-->`n`n## Type`n`n- [x] Incorrect implementation`n`n## Description`n`nExpired entries are served.`n`n## Location`n`n- **File(s)**: ``src/Encina.B/Cache.cs:7`` (``CacheStore.Get``)`n`n## Priority`n`n- [ ] **High** - x`n- [x] **Medium** - y`n- [ ] **Low** - z`n"
+    $pairFinding = '`src/Encina.B/Cache.cs:7`: `CacheStore.Get` ignores the expiry.'
+    $pairDrafts = @{}
+    foreach ($n in 10, 12) {
+        $pairDraft = Join-Path $remDir "$n-code-3-cache-expiry.md"
+        $pairInput = Join-Path $remDir "_input-$n-code-3.md"
+        Write-Text $pairDraft $pairText
+        Write-Text $pairInput $pairFinding
+        $findings = @(@{ key = 'code 3'; draftFile = $pairDraft; inputFile = $pairInput })
+        if ($n -eq 12) { $findings += @{ key = 'code 2'; draftFile = $draft12; inputFile = $input12 } }
+        Write-Text (Join-Path $remDir "_manifest-$n.json") (@{ issue = $n; findings = $findings } | ConvertTo-Json -Depth 5)
+        $pairDrafts[$n] = $pairDraft
+    }
+    $creates = Join-Path $base 'creates'
+    New-Item -ItemType Directory -Force $creates | Out-Null
+    $openJobs = foreach ($n in 10, 12) {
+        $jobLog = Join-Path $base "open-$n.log"
+        $command = "Set-Location -LiteralPath '$main'; function gh { & '$stubs\gh-stub.ps1' @args }; & '$main\tools\ai\audit\open-remediation.ps1' -Issue $n; exit `$LASTEXITCODE"
+        Start-Job -ArgumentList $command, $jobLog, $creates, $n -ScriptBlock {
+            param($Command, $JobLog, $Creates, $N)
+            $env:AUDIT_STUB_LOG = $JobLog
+            $env:AUDIT_STUB_CREATES = $Creates
+            $env:AUDIT_STUB_CREATE_DELAY_MS = '6000'
+            $raw = & pwsh -NoProfile -Command $Command 2>&1
+            $code = $LASTEXITCODE
+            [pscustomobject]@{ Issue = $N; Exit = $code; Text = (@($raw | ForEach-Object { "$_" }) -join ' ') }
+        }
+    }
+    $openResults = @($openJobs | Wait-Job -Timeout 240 | Receive-Job)
+    $openJobs | Remove-Job -Force
+    $createCount = @(Get-ChildItem $creates -File).Count
+    $winners = @($openResults | Where-Object { $_.Exit -eq 0 })
+    $losers = @($openResults | Where-Object { $_.Exit -ne 0 -and ($_.Text -replace '\s+\|\s+', ' ' -replace '\s+', ' ') -like '*already opened as*' })
+    Assert-That 'two audits opening matching drafts at once: exactly one gh issue create, one run succeeds and the other refuses' ($createCount -eq 1 -and $winners.Count -eq 1 -and $losers.Count -eq 1) ("creates: $createCount; " + (($openResults | ForEach-Object { "#$($_.Issue) exit $($_.Exit): $($_.Text)" }) -join ' || '))
+    # Leave no unopened draft behind for the closing steps below.
+    $openedNames = @(Get-Content (Join-Path $remDir 'opened.csv') | ForEach-Object { ($_ -split ',')[0].Trim() })
+    foreach ($pairDraft in $pairDrafts.Values) { if ($openedNames -notcontains (Split-Path -Leaf $pairDraft)) { Remove-Item -Force $pairDraft } }
 
     # --- 6. closing out of order -----------------------------------------------------------------------------------
     $pipeline = Get-Content $pipelinePath -Raw | ConvertFrom-Json

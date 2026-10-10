@@ -113,6 +113,9 @@ Save-Doc 'meta' 'board' @{ current = 6; pipeline = 'v2'; status = 'hand written'
 [IO.File]::WriteAllText((Join-Path $main 'artifacts' 'knowledge' 'current-audit.json'), '{"issue":8,"worktree":"wia-8","startedUtc":"2026-10-05T08:00:00Z"}', [Text.UTF8Encoding]::new($false))
 New-Item -ItemType Directory -Force (Join-Path $main 'artifacts' 'knowledge' 'open-audits') | Out-Null
 [IO.File]::WriteAllText((Join-Path $main 'artifacts' 'knowledge' 'open-audits' '9.json'), '{"issue":9,"worktree":"wia-9","startedUtc":"2026-10-05T09:30:00Z","scope":[],"concurrent":[8]}', [Text.UTF8Encoding]::new($false))
+# A corrupt state file and one without a positive issue number are skipped with a warning, never fatal, never audits/0.
+[IO.File]::WriteAllText((Join-Path $main 'artifacts' 'knowledge' 'open-audits' '7.json'), '{ not json', [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $main 'artifacts' 'knowledge' 'open-audits' '0.json'), '{"issue":0,"worktree":"wia-0"}', [Text.UTF8Encoding]::new($false))
 
 $now = [datetime]::Parse('2026-10-05T11:00:00Z').ToUniversalTime()
 $docs = Read-BoardExport $export
@@ -168,6 +171,7 @@ try {
     Assert-That ($null -eq $c.Data.outcome -and $null -eq $c.Data.pipeline -and $c.Data.note -match 'remediation issues opened 2') 'created audit invents no outcome or pipeline; counts come from progress.csv'
     $c = Find-Change 'audits/8'
     Assert-That ($c -and $c.Data.status -eq 'open' -and $c.Data.openedUtc -eq '2026-10-05T08:00:00Z') 'current-audit.json (pre-#2234): open audit created'
+    Assert-That ((@($facts.OpenAudits | ForEach-Object { [int]$_.issue }) -join ',') -eq '8,9' -and $null -eq (Find-Change 'audits/0')) 'a corrupt open-audits/7.json and an open-audits/0.json without a positive issue are skipped: no abort, no audits/0'
     $c = Find-Change 'audits/9'
     Assert-That ($c -and $c.Data.status -eq 'open' -and $c.Data.openedUtc -eq '2026-10-05T09:30:00Z') 'open-audits/9.json (#2234): a second open audit created with its own start time'
     # ---- meta

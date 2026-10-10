@@ -31,9 +31,10 @@
 # every finding group with the drafts of the audits that ran concurrently with this one (its state file's
 # `concurrent`, recorded in the manifest as concurrentAudits), with the same evidence rule as the open-issue search
 # (Test-DuplicateEvidence). A match already opened as an issue (opened.csv) makes the group a duplicate of that
-# issue (" (draft <file> of the concurrent audit #m)" on its line); a match not opened yet stops -Prepare before
-# anything is written, because a sequential run would have found it as an issue: open the other audit's
-# remediation first, or pass -NotDuplicate when the verifier ruled it is not a duplicate. -NotDuplicate and
+# issue (" (draft <file> of the concurrent audit #m)" on its line). A match not opened yet stops -Prepare before
+# anything is written only when the other audit has the LOWER issue number (it goes first, as in queue order; a
+# higher-numbered audit's unopened draft does not stop this one, so two audits never block each other): open the
+# other audit's remediation first, or pass -NotDuplicate when the verifier ruled it is not a duplicate. -NotDuplicate and
 # -DuplicateOf skip the check for their group.
 #
 # Every list parameter (-Only, -DuplicateOf, -MergeInto, -NotDuplicate, -NoMerge) takes an array in-process and a
@@ -833,8 +834,15 @@ foreach ($gi in $touchedGroupIndexes) {
             $partiallyRelated.Clear()
             $possiblyRelated.Clear()
         }
-        elseif ($crossMatches.Count -gt 0) {
-            $crossAuditBlocks.Add("$primaryLabel matches the draft $($crossMatches[0].Name) of the concurrent audit #$($crossMatches[0].Issue), which is not opened as an issue yet")
+        else {
+            # Deterministic priority (CodeRabbit on PR #2243): of two audits whose unopened drafts match, the one with
+            # the LOWER issue number goes first, as in the sequential queue order. A match with a higher-numbered
+            # audit's unopened draft does not stop this one (that audit waits for ours); a match with a lower-numbered
+            # one does, so the two can never block each other.
+            $lowerMatches = @($crossMatches | Where-Object { [int]$_.Issue -lt [int]$n } | Sort-Object Issue, Name)
+            if ($lowerMatches.Count -gt 0) {
+                $crossAuditBlocks.Add("$primaryLabel matches the draft $($lowerMatches[0].Name) of the concurrent audit #$($lowerMatches[0].Issue), which is not opened as an issue yet (the lower-numbered audit goes first)")
+            }
         }
     }
 

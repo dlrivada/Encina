@@ -184,8 +184,17 @@ function Get-BoardFacts($Docs, [string]$Repo, [string]$MainRoot, [datetime]$Now,
     $cp = Join-Path $kn 'current-audit.json'
     if (Test-Path -LiteralPath $cp) { $openFiles += $cp }
     foreach ($file in $openFiles) {
-        $state = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json -AsHashtable
-        if (-not @($openAudits | Where-Object { [int]$_.issue -eq [int]$state.issue }).Count) { $openAudits.Add($state) }
+        # A corrupt state file, or one without a positive issue number, is skipped with a warning on stderr: it
+        # must neither abort the whole reconciliation nor create an audits/0 document (CodeRabbit on PR #2243).
+        $state = $null
+        try { $state = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json -AsHashtable } catch { $state = $null }
+        $issueNumber = 0
+        if ($state -isnot [hashtable] -or -not [int]::TryParse([string]$state['issue'], [ref]$issueNumber) -or $issueNumber -le 0) {
+            [Console]::Error.WriteLine("reconcile-board: skipped the open-audit state file $file (unreadable JSON or no positive issue number).")
+            continue
+        }
+        $state['issue'] = $issueNumber
+        if (-not @($openAudits | Where-Object { [int]$_.issue -eq $issueNumber }).Count) { $openAudits.Add($state) }
     }
     $openAudits = @($openAudits | Sort-Object { [int]$_.issue })
     $progress = @()

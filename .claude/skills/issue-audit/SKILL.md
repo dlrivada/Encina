@@ -172,8 +172,9 @@ committed:
    that ran concurrently with this one (the state file's `concurrent`, recorded in the manifest as
    `concurrentAudits`), with the same evidence rule. A match with a draft already opened as an issue makes the
    group a duplicate of that issue (`duplicate of #m (draft <file> of the concurrent audit #k)`); a match with a
-   draft not opened yet stops Prepare before anything is written, because a sequential run would already have
-   that issue: finish the other audit's remediation first (`open-remediation.ps1 -Issue <k>` after its verifier
+   draft not opened yet of a LOWER-numbered audit stops Prepare before anything is written, because a sequential
+   run would already have that issue (a higher-numbered audit's unopened draft does not stop it: the lower number
+   goes first, so two audits never block each other): finish the other audit's remediation first (`open-remediation.ps1 -Issue <k>` after its verifier
    PASS) and run Prepare again, or pass `-NotDuplicate '<stage> <n>'` when `audit-verifier` ruled it is not a
    duplicate.
 2. Spawn `remediation-drafter` **in the foreground**, naming `#<n>`, `wia-<n>` and the manifest path. It writes

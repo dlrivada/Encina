@@ -151,10 +151,23 @@ function New-Issue([string]$Title, [string]$Body, [string[]]$Lab, [string]$Miles
     return "$url".Trim()
 }
 
+# #2234 (CodeRabbit on PR #2243): the re-check, the `gh issue create` and the opened.csv row of one draft happen
+# under the shared open-audits lock, so two runs (two audits opening drafts that duplicate each other, or the same
+# audit opened twice) can never both create an issue: the second one sees the first one's row.
 function Open-Draft($Draft) {
-    $url = New-Issue $Draft.Title $Draft.Body $Draft.Labels $Draft.Milestone $Draft.File.BaseName
-    # The row is written before the project call, so a project failure never makes a re-run open a duplicate.
-    Add-Content $opened "$($Draft.File.Name),$url"
+    $lock = Enter-OpenAuditsLock $root
+    try {
+        if ((Test-Path $opened) -and (@(Get-Content $opened | ForEach-Object { ($_ -split ',')[0].Trim() }) -contains $Draft.File.Name)) {
+            "already opened by another run, skipped: $($Draft.File.Name)"
+            return
+        }
+        $problems = @(Get-CrossAuditProblems $Draft -Quiet)
+        if ($problems.Count -gt 0) { Stop-CrossAudit $problems 'nothing more was created: ' }
+        $url = New-Issue $Draft.Title $Draft.Body $Draft.Labels $Draft.Milestone $Draft.File.BaseName
+        # The row is written before the project call, so a project failure never makes a re-run open a duplicate.
+        Add-Content $opened "$($Draft.File.Name),$url"
+    }
+    finally { Exit-OpenAuditsLock $lock }
     Add-ToProject $url
     "$url  $($Draft.Title)"
 }
@@ -403,7 +416,14 @@ function Open-Consolidated($plan) {
         return
     }
 
-    # Create every part first, then write the rows: a crashed run is recovered by the same-title reuse below.
+    # Create every part first, then write the rows: a crashed run is recovered by the same-title reuse below. Under the
+    # shared open-audits lock (#2234), so a second run started meanwhile waits and then finds the parts.
+    $lock = Enter-OpenAuditsLock $root
+    try { Open-ConsolidatedLocked $plan }
+    finally { Exit-OpenAuditsLock $lock }
+}
+
+function Open-ConsolidatedLocked($plan) {
     $rows = [System.Collections.Generic.List[string]]::new()
     foreach ($p in $plan) {
         # Reuse an issue with the exact same title instead of creating a duplicate.
@@ -446,10 +466,9 @@ catch { Write-Error "open-remediation: $($_.Exception.Message)"; exit 1 }
 if ($null -eq $thisAudit -and @($drafts).Count -gt 0) {
     Write-Warning "open-remediation: #$Issue is not an open audit (no artifacts/knowledge/open-audits/$Issue.json), so its drafts are not compared with the drafts of concurrent audits (#2234)."
 }
+$findingTextByDraft = @{}
 if ($null -ne $thisAudit -and @($drafts).Count -gt 0) {
     . (Join-Path $PSScriptRoot '_remediation-checks.ps1')
-    $others = @(Get-ConcurrentAuditDrafts $root $thisAudit)
-    $findingTextByDraft = @{}
     foreach ($manifestFile in @(Get-ChildItem -LiteralPath $dir -Filter "_manifest-$Issue*.json" -File -ErrorAction SilentlyContinue)) {
         if ($manifestFile.Name -notmatch "^_manifest-$Issue(-delta-[^.]+)?\.json$") { continue }
         try { $m = Get-Content -LiteralPath $manifestFile.FullName -Raw | ConvertFrom-Json } catch { continue }
@@ -457,19 +476,28 @@ if ($null -ne $thisAudit -and @($drafts).Count -gt 0) {
             if ($f.draftFile -and $f.inputFile -and (Test-Path -LiteralPath ([string]$f.inputFile))) { $findingTextByDraft[(Split-Path -Leaf ([string]$f.draftFile))] = Get-Content -LiteralPath ([string]$f.inputFile) -Raw }
         }
     }
-    $crossProblems = [System.Collections.Generic.List[string]]::new()
-    foreach ($d in @($drafts)) {
-        $text = if ($findingTextByDraft.ContainsKey($d.File.Name)) { $findingTextByDraft[$d.File.Name] } else { $d.Body }
-        foreach ($o in @($others | Where-Object { Test-DuplicateEvidence $text $_.TitleAndBody })) {
-            if ($o.Url) { $crossProblems.Add("$($d.File.Name) duplicates $($o.Name) of the concurrent audit #$($o.Issue), already opened as $($o.Url)") }
-            else { Write-Warning "open-remediation: $($d.File.Name) matches $($o.Name) of the concurrent audit #$($o.Issue), not opened yet; this audit opens first, and #$($o.Issue)'s remediation must then record its draft as a duplicate (#2234)." }
-        }
-    }
-    if ($crossProblems.Count -gt 0) {
-        Write-Error "open-remediation: cross-audit duplicate check (#2234) failed, no issue was created: $($crossProblems -join '; '). Run audit-draft-remediation.ps1 -Prepare -Issue $Issue again (it records the duplicate), re-run the remediation stage and the verifier, then open-remediation.ps1 again."
-        exit 1
-    }
 }
+
+# The cross-audit matches of one draft, read fresh from disk (the other audits' drafts and opened.csv): returns the
+# problems (a match already opened as an issue) and warns about a match not opened yet. Empty when this issue is not
+# an open audit.
+function Get-CrossAuditProblems($Draft, [switch]$Quiet) {
+    if ($null -eq $thisAudit) { return @() }
+    $text = if ($findingTextByDraft.ContainsKey($Draft.File.Name)) { $findingTextByDraft[$Draft.File.Name] } else { $Draft.Body }
+    $problems = foreach ($o in @(Get-ConcurrentAuditDrafts $root $thisAudit | Where-Object { Test-DuplicateEvidence $text $_.TitleAndBody })) {
+        if ($o.Url) { "$($Draft.File.Name) duplicates $($o.Name) of the concurrent audit #$($o.Issue), already opened as $($o.Url)" }
+        elseif (-not $Quiet) { Write-Warning "open-remediation: $($Draft.File.Name) matches $($o.Name) of the concurrent audit #$($o.Issue), not opened yet; this audit opens first, and #$($o.Issue)'s remediation must then record its draft as a duplicate (#2234)." }
+    }
+    return @($problems)
+}
+
+function Stop-CrossAudit([string[]]$Problems, [string]$Prefix) {
+    Write-Error "open-remediation: cross-audit duplicate check (#2234) failed, $Prefix$($Problems -join '; '). Run audit-draft-remediation.ps1 -Prepare -Issue $Issue again (it records the duplicate), re-run the remediation stage and the verifier, then open-remediation.ps1 again."
+    exit 1
+}
+
+$crossProblems = @(foreach ($d in @($drafts)) { Get-CrossAuditProblems $d })
+if ($crossProblems.Count -gt 0) { Stop-CrossAudit $crossProblems 'no issue was created: ' }
 
 if (-not $Consolidate) {
     foreach ($d in $drafts) { if ($WhatIf) { "WhatIf: would open: $($d.Title)" } else { Open-Draft $d } }
