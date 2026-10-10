@@ -289,13 +289,38 @@
         "guard": "Guard tests cover the null services check of both overloads, which is the only guard in the file (about 16% of its lines)."
       }
     },
+    "DeadLetter/DeadLetterSourceCapture.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Captures the terminal failures of the built-in sources into the dead letter queue",
+      "targets": {
+        "unit": 95,
+        "guard": 25,
+        "integration": 75
+      },
+      "justifications": {
+        "unit": "Unit tests drive every IntegrateWith* flag, the duplicate capture, a store Left, a throwing capture and the caller's cancellation (measured 98%).",
+        "guard": "Only the constructor and the argument checks of the three capture methods are guard-reachable (measured 29%).",
+        "integration": "The ten-provider end-to-end tests capture each source through the real store; the throwing-capture branch is reached by unit tests only (measured 83%)."
+      }
+    },
     "DeadLetter/DeadLetterSourcePatterns.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "String constants have no executable lines, so there is nothing for a test to cover."
+      }
     },
     "DeadLetter/DeadLetterStoreLimits.cs": {
       "defaultTests": [],
@@ -632,7 +657,19 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 95,
+        "guard": 5,
+        "contract": 5,
+        "integration": 85
+      },
+      "justifications": {
+        "unit": "Every routing branch (non-idempotent request, nested dispatch, missing key, orchestrated processing) runs against a fake store (measured 97%).",
+        "guard": "Only the constructor null check is guard-reachable (measured 6%).",
+        "contract": "The contract tests construct the behavior without dispatching through it, so only the constructor runs (measured 6%).",
+        "integration": "The inbox integration tests process real messages through the behavior on every provider (measured 91%)."
+      }
     },
     "MessagingConfiguration.cs": {
       "defaultTests": [
@@ -680,7 +717,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 98,
+        "guard": 15,
+        "integration": 80
+      },
+      "justifications": {
+        "unit": "Unit tests drive delivery, every failure kind, exhaustion with and without the dead letter capture, store errors and cancellation (measured 100%).",
+        "guard": "The processor is internal; guard tests reach it only through the orchestrator's argument checks (measured 19%).",
+        "integration": "Real outbox stores run the batch to exhaustion and dead-lettering; the cancellation branches stay unit-only (measured 82%)."
+      }
     },
     "Outbox/OutboxOptions.cs": {
       "defaultTests": [
@@ -695,7 +742,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 85,
+        "integration": 85
+      },
+      "justifications": {
+        "unit": "Every public operation runs against a fake store (measured 99%).",
+        "guard": "Guard tests construct the orchestrator and call every public method with invalid arguments (measured 90%).",
+        "integration": "The outbox store and dead letter end-to-end suites run the orchestrator against real databases (measured 87%)."
+      }
     },
     "Outbox/OutboxPostProcessor.cs": {
       "defaultTests": [
@@ -711,7 +768,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 85,
+        "guard": 10,
+        "integration": 70
+      },
+      "justifications": {
+        "unit": "Provider processors run their cycles against fake stores; the host-loop delay and error-logging lines stay uncovered (measured 86%).",
+        "guard": "Only the constructor checks are guard-reachable (measured 13%).",
+        "integration": "Provider processor tests run real cycles against the databases (measured 71%)."
+      }
     },
     "Outbox/OutboxRetryBackoff.cs": {
       "defaultTests": [
@@ -1114,7 +1181,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 90,
+        "guard": 45,
+        "integration": 30
+      },
+      "justifications": {
+        "unit": "Every lifecycle transition, the not-found and invalid-status paths and the dead letter capture of a failed saga run against a fake store (measured 94%).",
+        "guard": "Guard tests reach the constructor and the argument checks of the public operations (measured 48%).",
+        "integration": "The saga store and dead letter end-to-end suites start and fail sagas on real databases; stuck and expired saga queries are covered by the store suites and unit tests (measured 35% in the suites run for this change)."
+      }
     },
     "ScatterGather/BuiltScatterGatherDefinition.cs": {
       "defaultTests": [
