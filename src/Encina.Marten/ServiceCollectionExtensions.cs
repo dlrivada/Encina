@@ -51,6 +51,28 @@ public static class ServiceCollectionExtensions
         // Register the open generic aggregate repository
         services.TryAddScoped(typeof(IAggregateRepository<>), typeof(MartenAggregateRepository<>));
 
+        services.AddDomainEventPublishing(options);
+        services.AddOptInFeatures(options);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Publishes the domain events of event-sourced aggregates after a successful command. Off
+    /// means not in the pipeline. The open generic is skipped for requests that are not commands
+    /// (the behavior constrains TRequest to ICommand&lt;TResponse&gt;).
+    /// </summary>
+    private static void AddDomainEventPublishing(this IServiceCollection services, EncinaMartenOptions options)
+    {
+        if (options.AutoPublishDomainEvents)
+        {
+            services.TryAddEnumerable(
+                ServiceDescriptor.Scoped(typeof(IPipelineBehavior<,>), typeof(EventPublishingPipelineBehavior<,>)));
+        }
+    }
+
+    private static void AddOptInFeatures(this IServiceCollection services, EncinaMartenOptions options)
+    {
         // Register health check if enabled
         if (options.ProviderHealthCheck.Enabled)
         {
@@ -81,8 +103,6 @@ public static class ServiceCollectionExtensions
         {
             services.AddEventMetadata(options.Metadata);
         }
-
-        return services;
     }
 
     /// <summary>

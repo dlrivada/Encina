@@ -1,5 +1,6 @@
 using LanguageExt;
 using Marten;
+using Marten.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using static LanguageExt.Prelude;
@@ -50,16 +51,52 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
     {
-        // Execute the command
-        var result = await nextStep().ConfigureAwait(false);
+        // When auto-publish is disabled the behavior is a pass-through.
+        if (!_options.AutoPublishDomainEvents)
+        {
+            return await nextStep().ConfigureAwait(false);
+        }
 
-        // If the command failed or auto-publish is disabled, return early
-        if (result.IsLeft || !_options.AutoPublishDomainEvents)
+        // The aggregate repository commits the session inside the handler, so by the time
+        // nextStep returns the events are no longer pending: capture them as they are committed.
+        var collector = TryAttachCollector();
+        if (collector is null)
+        {
+            // Another instance of this behavior already owns the session's collector (the same
+            // session reached this behavior again); only the owner publishes, once, when it finishes.
+            return await nextStep().ConfigureAwait(false);
+        }
+
+        try
+        {
+            // Execute the command
+            var result = await nextStep().ConfigureAwait(false);
+
+            return await PublishAfterSuccessAsync(result, collector, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _session.Listeners.Remove(collector);
+        }
+    }
+
+    /// <summary>
+    /// Publishes the domain events committed during a successful command; a failed
+    /// command publishes nothing and a failed publication fails the command.
+    /// </summary>
+    private async ValueTask<Either<EncinaError, TResponse>> PublishAfterSuccessAsync(
+        Either<EncinaError, TResponse> result,
+        CommittedEventCollector collector,
+        CancellationToken cancellationToken)
+    {
+        if (result.IsLeft)
         {
             return result;
         }
 
-        var pendingEvents = GetPendingNotifications();
+        // Only events that a commit made durable are published; events appended to the session but
+        // never saved are not in the stream and are not published.
+        var pendingEvents = collector.Drain();
         if (pendingEvents.Count == 0)
         {
             return result;
@@ -73,14 +110,22 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
     }
 
     /// <summary>
-    /// Gets the pending domain-event notifications recorded on the session since the last save.
+    /// Attaches a collector to the session, or returns <see langword="null"/> when one is already
+    /// attached by another instance of this behavior.
     /// </summary>
-    private List<INotification> GetPendingNotifications() =>
-        _session.PendingChanges.Streams()
-            .SelectMany(s => s.Events)
-            .Select(e => e.Data)
-            .OfType<INotification>()
-            .ToList();
+    private CommittedEventCollector? TryAttachCollector()
+    {
+        // CommittedEventCollector is not generic, so one collector is shared by every command type
+        // that reaches the same session.
+        if (_session.Listeners.OfType<CommittedEventCollector>().Any())
+        {
+            return null;
+        }
+
+        var created = new CommittedEventCollector();
+        _session.Listeners.Add(created);
+        return created;
+    }
 
     /// <summary>
     /// Publishes every pending domain event in order, stopping at the first failure.
@@ -126,6 +171,6 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
 
         return EncinaErrors.Create(
             MartenErrorCodes.PublishEventsFailed,
-            $"Failed to publish domain event {domainEvent.GetType().Name}: {error.Message}");
+            $"Failed to publish domain event {domainEvent.GetType().Name} (error code {error.GetEncinaCode()}).");
     }
 }
