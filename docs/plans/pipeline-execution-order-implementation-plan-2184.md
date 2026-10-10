@@ -1,6 +1,6 @@
 # Implementation Plan: Pipeline Execution-Order Contract (`Encina` core) — closed named stages, typed processors adapted into stages, fail-closed startup validation
 
-> **Issue**: [#1783](https://github.com/dlrivada/Encina/issues/1783) (spike, with [#1678](https://github.com/dlrivada/Encina/issues/1678) merged into it by maintainer decision of 2026-10-09)
+> **Issue**: [#2184](https://github.com/dlrivada/Encina/issues/2184) (implementation of the [#1783](https://github.com/dlrivada/Encina/issues/1783) spike, with [#1678](https://github.com/dlrivada/Encina/issues/1678) merged into it by maintainer decision of 2026-10-09)
 > **Type**: Spike turned into implementation (labels: `p0-mandatory`, `area-pipeline`, `investigation`)
 > **Milestone**: v0.14.0 — Hardening (SPEC-000 DEC-005, block 1)
 > **Research**: spike report `artifacts/spikes/1783-execution-order-contract.md` and prior-art study `artifacts/research/pre-post-processors.md` (both kept locally, summarised in "Research" below); maintainer decisions Q1-Q6 recorded on #1783 on 2026-10-09
@@ -210,7 +210,7 @@ All in `src/Encina`, namespace `Encina` unless noted.
 <summary>Prompt for AI Agents — Phase 1</summary>
 
 ```text
-CONTEXT: Encina core (src/Encina). Pipeline behaviors run in DI registration order today (Pipeline/PipelineBuilder.cs:63-80); pre/post processors run outside every behavior (:82-83). Issue #1783 introduces a closed stage contract (plan docs/plans/pipeline-execution-order-implementation-plan-1783.md, ADR-049).
+CONTEXT: Encina core (src/Encina). Pipeline behaviors run in DI registration order today (Pipeline/PipelineBuilder.cs:63-80); pre/post processors run outside every behavior (:82-83). Issue #2184 introduces a closed stage contract (plan docs/plans/pipeline-execution-order-implementation-plan-2184.md, ADR-049).
 TASK: Add PipelineStage (16 members, values 100..1600 in the plan's order), PipelineStageAttribute (Stage, Order), PipelineStepDescription/PipelineStepKind/PipelineStepSource, IEncinaPipelineInspector; change IRequestPreProcessor.Process to return ValueTask<Either<EncinaError, Unit>>; change IRequestPostProcessor.Process to take TResponse (not Either) and return ValueTask<Either<EncinaError, Unit>>; add IRequestErrorProcessor and IRequestPostCommitProcessor; fix the "reverse registration order" XML in IPipelineBehavior.cs:11, IStreamPipelineBehavior.cs:21, Modules/IModulePipelineBehavior.cs:18. Do not change PipelineBuilder yet (Phase 2); make it compile with the new signatures only.
 KEY RULES: .NET 10 / C# 14, nullable; XML docs with <example> on every public type; no [Obsolete], no compatibility overloads (pre-1.0: change signatures completely); every new public symbol in src/Encina/PublicAPI.Unshipped.txt through mechanical-fixer; CRAP <= 10 on every method you add or change.
 REFERENCE FILES: src/Encina/Abstractions/IPipelineBehavior.cs, IStreamPipelineBehavior.cs, IRequestPreProcessor.cs, IRequestPostProcessor.cs, Modules/IModulePipelineBehavior.cs, Pipeline/PipelineBuilder.cs; artifacts/research/pre-post-processors.md (local, optional).
@@ -464,7 +464,7 @@ REFERENCE FILES: tests/Encina.UnitTests/Core/EncinaTests.cs, tests/Encina.UnitTe
 1. `docs/architecture/adr/049-pipeline-stages-execution-order.md`: ADR-049 "Pipeline stages: a closed, core-owned execution-order contract for behaviors" (context, the 16 stages and constraints, Q1-Q6, the ADR-048 correction, the validation rules, alternatives A/B/#1678-B/C from the spike, consequences); move its row from "Reserved numbers" to the ADR table of `docs/architecture/adr/index.md`; link it from ADR-018's cross-cutting table.
 2. New explanation page `docs/architecture/pipeline-stages.md` (Diátaxis explanation; `encina-docs` skill; delegated to `docs-writer`): a Mermaid diagram of the stages and the built-in table.
 3. Rewrite the order passages: `docs/architecture/request-pipeline.md` (`:30` and the composition section); `docs/features/pipeline-behaviors.md` (the "Ordering notes" column at `:16` becomes "Stage / Order"; `:22`); `docs/guides/how-to-write-a-pipeline-behavior.md` section 4 (`:91-93`): declaring a stage, and when to write a processor instead of a behavior; `docs/architecture/patterns-guide.md` and `docs/architecture/extensibility-analysis.md` (the order diagrams and "reverse registration order"; re-read the line numbers before editing); `src/Encina.AspNetCore/README.md:597,:612`; `src/Encina.DataAnnotations/README.md:223`; `src/Encina.Security.ABAC/README.md:92`; the ADR-002, ADR-007 and component-diagram mentions of pre/post processors.
-4. `changelog.d/1783-pipeline-stages.changed.md` (breaking: stage-ordered pipeline, processor signatures, post-processors only on `Right`, removed `ICommand/IQueryPipelineBehavior` descriptors) and `changelog.d/1783-pipeline-stages.added.md` (stages, attribute, inspector, error and post-commit hooks).
+4. `changelog.d/2184-pipeline-stages.changed.md` (breaking: stage-ordered pipeline, processor signatures, post-processors only on `Right`, removed `ICommand/IQueryPipelineBehavior` descriptors) and `changelog.d/2184-pipeline-stages.added.md` (stages, attribute, inspector, error and post-commit hooks).
 5. `src/Encina/PublicAPI.Unshipped.txt` complete (and the satellites' files if an attribute changes a public surface; it does not for attributes alone); `docs/INVENTORY.md` (new files); `ROADMAP.md` and `docs/releases/v0.14.0/README.md` if the milestone notes list pipeline work.
 6. Build: `dotnet build Encina.slnx --configuration Release` with 0 errors and 0 warnings; tests: `dotnet test Encina.slnx --configuration Release` all green; every coverage flag at its per-file target; local CRAP table of the changed methods at or under 10.
 
@@ -474,7 +474,7 @@ REFERENCE FILES: tests/Encina.UnitTests/Core/EncinaTests.cs, tests/Encina.UnitTe
 <summary>Prompt for AI Agents — Phase 9</summary>
 
 ```text
-CONTEXT: The pipeline stage contract (#1783) is implemented and tested (Phases 1-8). ADR-049 is reserved in docs/architecture/adr/index.md. Several pages and READMEs describe registration order or recommend Validation before Authorization.
+CONTEXT: The pipeline stage contract (#2184) is implemented and tested (Phases 1-8). ADR-049 is reserved in docs/architecture/adr/index.md. Several pages and READMEs describe registration order or recommend Validation before Authorization.
 TASK: Write ADR-049 and move its index row; write docs/architecture/pipeline-stages.md (explanation, Mermaid diagram, built-in table) through docs-writer; rewrite the order passages listed in Phase 9 task 3; add the two changelog fragments; complete PublicAPI.Unshipped.txt, docs/INVENTORY.md and the release notes; run the Release build and the full test suite and the coverage and CRAP checks.
 KEY RULES: encina-docs skill (one Diátaxis quadrant per page, junior-readable English, no hand-typed coverage figures, link ADRs and SPECs, no emojis); never edit CHANGELOG.md [Unreleased] by hand; zero warnings; English only; no AI attribution.
 REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, docs/architecture/adr/index.md, docs/architecture/adr/018-cross-cutting-integration-principle.md, docs/architecture/request-pipeline.md, docs/features/pipeline-behaviors.md, docs/guides/how-to-write-a-pipeline-behavior.md, changelog.d/README.md.
@@ -576,7 +576,7 @@ Outermost first. Order inside a stage: lower is further out. "Variant" marks pro
 <summary><strong>Full combined prompt for all phases</strong></summary>
 
 ```text
-PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 mediator library with Railway Oriented Programming (Either<EncinaError, T>), opt-in features and provider coherence (AGENTS.md). Pipeline behaviors run in DI registration order today (src/Encina/Pipeline/PipelineBuilder.cs:63-80) and pre/post processors run outside every behavior (:82-125). Issue #1783 (with #1678 merged) replaces this with a closed stage contract; the maintainer decided Option C and Q1-Q6 on 2026-10-09 (plan: docs/plans/pipeline-execution-order-implementation-plan-1783.md; ADR-049).
+PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 mediator library with Railway Oriented Programming (Either<EncinaError, T>), opt-in features and provider coherence (AGENTS.md). Pipeline behaviors run in DI registration order today (src/Encina/Pipeline/PipelineBuilder.cs:63-80) and pre/post processors run outside every behavior (:82-125). Issue #2184 (the implementation of the #1783 spike, with #1678 merged) replaces this with a closed stage contract; the maintainer decided Option C and Q1-Q6 on 2026-10-09 (plan: docs/plans/pipeline-execution-order-implementation-plan-2184.md; ADR-049).
 
 IMPLEMENTATION OVERVIEW:
 1. Core abstractions: PipelineStage (16 stages, 100..1600, outermost first), PipelineStageAttribute(stage) { Order }, PipelineStepDescription/Kind/Source, IEncinaPipelineInspector; pre-processor returns ValueTask<Either<EncinaError, Unit>>; post-processor takes TResponse, runs only on Right, returns Either; new IRequestErrorProcessor (observe Left) and IRequestPostCommitProcessor (after commit).
@@ -644,7 +644,7 @@ No function is deferred, so no follow-up issue is needed for the matrix.
 2. Re-check the prerequisites (#2032, #2029, #2030) and the EventIds (Phase 7 task 2) when the work is picked up; the orchestrator writes one worker brief per phase group (1-4 core, 5-6 migration, 7-9 observability, tests and docs).
 3. Implement Phases 1 to 9 in order; Phase 5 starts only when #2032, #2029 and #2030 are merged.
 4. Delegate the documentation of Phase 9 to `docs-writer` and the review of every PR to `adversarial-reviewer`.
-5. Close #1783 with the implementation PR; remove the `investigation` label in favour of the implementation labels.
+5. Close #2184 with the implementation PR; remove the `investigation` label in favour of the implementation labels.
 
 ---
 
