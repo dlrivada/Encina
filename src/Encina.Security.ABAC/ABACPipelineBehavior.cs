@@ -576,16 +576,26 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         // abort it (the write is never linked to the client's token, A3).
         cancellationToken.ThrowIfCancellationRequested();
         var failure = await BuildAndWriteAsync(capture, verdict, requestTypeName).ConfigureAwait(false);
+
+        // The health state follows the write, not the caller: a client that left during a failing write
+        // must not hide the failure from the health check.
+        if (failure is null)
+        {
+            _healthState?.RecordWriteSucceeded();
+        }
+        else
+        {
+            _healthState?.RecordWriteFailed();
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
 
         if (failure is null)
         {
-            _healthState?.RecordWriteSucceeded();
             ABACLogMessages.DecisionRecorded(_logger, requestTypeName, verdict.Enforced.ToString(), verdict.ReasonCode);
             return verdict.Error;
         }
 
-        _healthState?.RecordWriteFailed();
         return OnWriteFailed(verdict, requestTypeName, failure);
     }
 

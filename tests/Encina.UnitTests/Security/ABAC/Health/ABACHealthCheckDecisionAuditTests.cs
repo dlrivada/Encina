@@ -185,6 +185,28 @@ public sealed class ABACHealthCheckDecisionAuditTests
     }
 
     [Fact]
+    public async Task AnExceptionReadingTheAuditState_IsUnhealthyWithTheExceptionTypeOnly()
+    {
+        var options = new ABACOptions();
+        options.DecisionAudit.Enabled = true;
+        var services = new ServiceCollection();
+        services.AddSingleton<IOptions<ABACOptions>>(Microsoft.Extensions.Options.Options.Create(options));
+        services.AddScoped<IOperationAuditStore>(_ => throw new InvalidOperationException("secret detail"));
+        var pap = Substitute.For<IPolicyAdministrationPoint>();
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>()).Returns(
+            Either<EncinaError, IReadOnlyList<PolicySet>>.Right([]));
+        pap.GetPoliciesAsync(null, Arg.Any<CancellationToken>()).Returns(
+            Either<EncinaError, IReadOnlyList<Policy>>.Right([]));
+
+        var result = await new ABACHealthCheck(pap, services.BuildServiceProvider())
+            .CheckHealthAsync(new HealthCheckContext());
+
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("secret detail");
+    }
+
+    [Fact]
     public async Task TheResult_CarriesNoIdentifierOrErrorText()
     {
         var rig = NewRig();

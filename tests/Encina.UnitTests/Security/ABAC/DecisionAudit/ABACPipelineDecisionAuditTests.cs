@@ -572,6 +572,27 @@ public sealed class ABACPipelineDecisionAuditTests
         state.LastFailureAtUtc.ShouldNotBeNull();
     }
 
+    [Fact]
+    public async Task ClientLeavingDuringAFailingWrite_StillMarksTheHealthState()
+    {
+        using var cts = new CancellationTokenSource();
+        var state = new ABACDecisionAuditHealthState(new FakeTimeProvider(Start));
+        var recorder = new RecordingRecorder
+        {
+            Behavior = _ =>
+            {
+                cts.Cancel();
+                return ValueTask.FromResult(Left<EncinaError, Unit>(EncinaErrors.Create("store.down", "x")));
+            }
+        };
+        var behavior = Behavior<PolicyARequest>(Pdp(Effect.Permit), Options(), recorder, healthState: state);
+
+        await Should.ThrowAsync<OperationCanceledException>(
+            () => SendAsync(behavior, new PolicyARequest(), cancellationToken: cts.Token));
+
+        state.LastFailureAtUtc.ShouldNotBeNull();
+    }
+
     [Theory]
     [InlineData(ABACEnforcementMode.Block)]
     [InlineData(ABACEnforcementMode.Warn)]

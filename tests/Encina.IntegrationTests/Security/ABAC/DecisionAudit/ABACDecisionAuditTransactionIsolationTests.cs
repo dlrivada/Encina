@@ -39,14 +39,19 @@ public sealed class ABACDecisionAuditTransactionIsolationTests(EFCoreSqlServerFi
     [RequirePolicy(PolicyName)]
     private sealed record DenyingCommand : IRequest<string>, ITransactionalCommand;
 
+    private ServiceProvider _provider = null!;
+
     public async ValueTask InitializeAsync()
     {
+        _provider = BuildProvider();
         await fixture.EnsureSchemaCreatedAsync<AuditTestDbContext>();
         await fixture.ClearAllDataAsync();
     }
 
     public async ValueTask DisposeAsync()
     {
+        await _provider.DisposeAsync();
+
         foreach (var context in _contexts)
         {
             await context.DisposeAsync();
@@ -58,6 +63,18 @@ public sealed class ABACDecisionAuditTransactionIsolationTests(EFCoreSqlServerFi
         var context = fixture.CreateDbContext<AuditTestDbContext>();
         _contexts.Add(context);
         return context;
+    }
+
+    // The application's wiring: one scoped DbContext and one scoped store per DI scope. The request runs in
+    // its own scope; the recorder opens another one, so the deny row is written through a different context
+    // and connection than the request's transaction.
+    private ServiceProvider BuildProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddScoped(_ => NewContext());
+        services.AddScoped<IOperationAuditStore>(sp => new OperationAuditStoreEF(sp.GetRequiredService<AuditTestDbContext>()));
+        return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
 
     private ABACPipelineBehavior<DenyingCommand, string> NewPep()
@@ -83,15 +100,8 @@ public sealed class ABACDecisionAuditTransactionIsolationTests(EFCoreSqlServerFi
         var options = new ABACOptions();
         options.DecisionAudit.Enabled = true;
 
-        // The recorder resolves its store from a fresh DI scope, so it gets a context and a connection of
-        // its own: nothing it writes shares the request's transaction.
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddScoped<IOperationAuditStore>(_ => new OperationAuditStoreEF(NewContext()));
-        var provider = services.BuildServiceProvider();
-
         var recorder = new AuditStoreABACDecisionRecorder(
-            provider.GetRequiredService<IServiceScopeFactory>(),
+            _provider.GetRequiredService<IServiceScopeFactory>(),
             Microsoft.Extensions.Options.Options.Create(options),
             TimeProvider.System,
             NullLogger<AuditStoreABACDecisionRecorder>.Instance);
@@ -134,8 +144,9 @@ public sealed class ABACDecisionAuditTransactionIsolationTests(EFCoreSqlServerFi
     {
         var correlationId = $"tx-{Guid.NewGuid():N}";
         var markerCorrelation = correlationId + "-marker";
-        var outerContext = NewContext();
-        var outerStore = new OperationAuditStoreEF(outerContext);
+        await using var requestScope = _provider.CreateAsyncScope();
+        var outerContext = requestScope.ServiceProvider.GetRequiredService<AuditTestDbContext>();
+        var outerStore = requestScope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
         var transaction = new TransactionPipelineBehavior<DenyingCommand, string>(
             outerContext, NullLogger<TransactionPipelineBehavior<DenyingCommand, string>>.Instance);
         var pep = NewPep();
@@ -171,7 +182,8 @@ public sealed class ABACDecisionAuditTransactionIsolationTests(EFCoreSqlServerFi
         Either<EncinaError, string> result;
         using (new TransactionScope(TransactionScopeOption.Required, TransactionScopeAsyncFlowOption.Enabled))
         {
-            var outerStore = new OperationAuditStoreEF(NewContext());
+            await using var requestScope = _provider.CreateAsyncScope();
+            var outerStore = requestScope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
             (await outerStore.RecordAsync(Marker(markerCorrelation))).IsRight.ShouldBeTrue();
             result = await pep.Handle(new DenyingCommand(), context, () => ValueTask.FromResult(Right<EncinaError, string>("handled")), default);
 
