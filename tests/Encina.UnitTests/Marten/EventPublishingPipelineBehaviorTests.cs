@@ -236,7 +236,7 @@ public class EventPublishingPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_NestedCommandOnTheSameSession_PublishesTheSharedEventsOnce()
+    public async Task Handle_SecondBehaviorOnTheSameSession_OnlyTheOwnerPublishesWhenItFinishes()
     {
         // Arrange
         var listeners = UseRealListeners();
@@ -253,16 +253,68 @@ public class EventPublishingPipelineBehaviorTests
             return Right<EncinaError, TestResponse>(new TestResponse());
         };
 
+        var publishedWhenInnerReturned = -1;
         RequestHandlerCallback<TestResponse> outerNext = async () =>
-            await inner.Handle(new TestCommand(), _requestContext, innerNext, CancellationToken.None);
+        {
+            var innerResult = await inner.Handle(new TestCommand(), _requestContext, innerNext, CancellationToken.None);
+            publishedWhenInnerReturned = _encina.ReceivedCalls().Count(c => c.GetMethodInfo().Name == nameof(IEncina.Publish));
+            return innerResult;
+        };
 
         // Act
         var result = await outer.Handle(new TestCommand(), _requestContext, outerNext, CancellationToken.None);
 
         // Assert
         result.IsRight.ShouldBeTrue();
+        publishedWhenInnerReturned.ShouldBe(0);
         await _encina.Received(1).Publish(notification, Arg.Any<CancellationToken>());
         listeners.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_HandlerThrows_DetachesTheListenerAndPropagates()
+    {
+        // Arrange
+        var listeners = UseRealListeners();
+        var sut = CreateSut();
+        RequestHandlerCallback<TestResponse> next = () => throw new InvalidOperationException("boom");
+
+        // Act
+        var act = async () => await sut.Handle(new TestCommand(), _requestContext, next, CancellationToken.None);
+
+        // Assert
+        await Should.ThrowAsync<InvalidOperationException>(act);
+        listeners.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_SecondEventFailsToPublish_StopsAtTheFailureAndReturnsLeft()
+    {
+        // Arrange
+        var listeners = UseRealListeners();
+        var sut = CreateSut();
+        var first = new TestNotification("first");
+        var second = new TestNotification("second");
+        var third = new TestNotification("third");
+        _encina.Publish(first, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
+        _encina.Publish(second, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(
+                Left<EncinaError, Unit>(EncinaErrors.Create("test.publish.error", "SENTINEL-inner-message"))));
+
+        RequestHandlerCallback<TestResponse> next = async () =>
+        {
+            await listeners.Single().AfterCommitAsync(_session, CommitOf(first, second, third), CancellationToken.None);
+            return Right<EncinaError, TestResponse>(new TestResponse());
+        };
+
+        // Act
+        var result = await sut.Handle(new TestCommand(), _requestContext, next, CancellationToken.None);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.Message.ShouldNotContain("SENTINEL-inner-message"));
+        await _encina.DidNotReceive().Publish(third, Arg.Any<CancellationToken>());
     }
 
     [Fact]

@@ -59,7 +59,13 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
 
         // The aggregate repository commits the session inside the handler, so by the time
         // nextStep returns the events are no longer pending: capture them as they are committed.
-        var (collector, ownsCollector) = AcquireCollector();
+        var collector = TryAttachCollector();
+        if (collector is null)
+        {
+            // Another instance of this behavior already owns the session's collector (the same
+            // session reached this behavior again); only the owner publishes, once, when it finishes.
+            return await nextStep().ConfigureAwait(false);
+        }
 
         try
         {
@@ -70,10 +76,7 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
         }
         finally
         {
-            if (ownsCollector)
-            {
-                _session.Listeners.Remove(collector);
-            }
+            _session.Listeners.Remove(collector);
         }
     }
 
@@ -106,20 +109,19 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
     }
 
     /// <summary>
-    /// Returns the collector already listening on the session (a nested command shares the
-    /// session, so the events of the whole scope are published exactly once) or attaches a new one.
+    /// Attaches a collector to the session, or returns <see langword="null"/> when one is already
+    /// attached by another instance of this behavior.
     /// </summary>
-    private (CommittedEventCollector Collector, bool Owns) AcquireCollector()
+    private CommittedEventCollector? TryAttachCollector()
     {
-        var existing = _session.Listeners.OfType<CommittedEventCollector>().FirstOrDefault();
-        if (existing is not null)
+        if (_session.Listeners.OfType<CommittedEventCollector>().Any())
         {
-            return (existing, false);
+            return null;
         }
 
         var created = new CommittedEventCollector();
         _session.Listeners.Add(created);
-        return (created, true);
+        return created;
     }
 
     /// <summary>
@@ -208,6 +210,6 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
 
         return EncinaErrors.Create(
             MartenErrorCodes.PublishEventsFailed,
-            $"Failed to publish domain event {domainEvent.GetType().Name}: {error.Message}");
+            $"Failed to publish domain event {domainEvent.GetType().Name} (error code {error.GetEncinaCode()}).");
     }
 }
