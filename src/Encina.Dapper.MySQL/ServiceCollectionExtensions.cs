@@ -133,16 +133,16 @@ public static class ServiceCollectionExtensions
         }
 
         // Register the options
-        services.AddSingleton(config.ReadWriteSeparationOptions);
+        services.TryAddSingleton(config.ReadWriteSeparationOptions);
 
         // Register replica selector based on strategy if replicas are configured
         if (config.ReadWriteSeparationOptions.ReadConnectionStrings.Count > 0)
         {
             var replicaSelector = ReplicaSelectorFactory.Create(config.ReadWriteSeparationOptions);
-            services.AddSingleton<IReplicaSelector>(replicaSelector);
+            services.TryAddSingleton<IReplicaSelector>(replicaSelector);
 
             // Register connection selector with replica support
-            services.AddSingleton<IReadWriteConnectionSelector>(sp =>
+            services.TryAddSingleton<IReadWriteConnectionSelector>(sp =>
                 new ReadWriteConnectionSelector(
                     config.ReadWriteSeparationOptions,
                     sp.GetRequiredService<IReplicaSelector>()));
@@ -150,20 +150,22 @@ public static class ServiceCollectionExtensions
         else
         {
             // Register connection selector without replicas (falls back to primary)
-            services.AddSingleton<IReadWriteConnectionSelector>(
+            services.TryAddSingleton<IReadWriteConnectionSelector>(
                 new ReadWriteConnectionSelector(
                     config.ReadWriteSeparationOptions,
                     replicaSelector: null));
         }
 
         // Register the connection factory
-        services.AddScoped<IReadWriteConnectionFactory, ReadWriteConnectionFactory>();
+        services.TryAddScoped<IReadWriteConnectionFactory, ReadWriteConnectionFactory>();
 
-        // Register the pipeline behavior for automatic routing
-        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ReadWriteRoutingPipelineBehavior<,>));
+        // Register the pipeline behavior for automatic routing (once, however many times the extension runs)
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped(typeof(IPipelineBehavior<,>), typeof(ReadWriteRoutingPipelineBehavior<,>)));
 
-        // Register the health check
-        services.AddSingleton<IEncinaHealthCheck, ReadWriteSeparationHealthCheck>();
+        // Register the health check (once, however many times the extension runs)
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IEncinaHealthCheck, ReadWriteSeparationHealthCheck>());
     }
 
     private static void RemoveInMemoryDefault<TService, TInMemory>(IServiceCollection services)

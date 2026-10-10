@@ -2,6 +2,7 @@ using System.Data;
 using System.Data.Common;
 using Encina.Dapper.MySQL;
 using Encina.Dapper.MySQL.ReadWriteSeparation;
+using Encina.Messaging;
 using Encina.Messaging.Health;
 using Encina.Messaging.ReadWriteSeparation;
 using Encina.Testing.Shouldly;
@@ -92,6 +93,26 @@ public sealed class ReadWriteRegistrationTests
         sp.GetServices<IPipelineBehavior<RwCommand, string>>()
             .ShouldNotContain(b => b is ReadWriteRoutingPipelineBehavior<RwCommand, string>);
         sp.GetServices<IEncinaHealthCheck>().ShouldNotContain(h => h is ReadWriteSeparationHealthCheck);
+    }
+
+    [Fact]
+    public void AddEncinaDapper_CalledTwice_RegistersTheBehaviorAndTheHealthCheckOnce()
+    {
+        var services = NewServices();
+        Action<MessagingConfiguration> configure = config =>
+        {
+            config.UseReadWriteSeparation = true;
+            config.ReadWriteSeparationOptions.WriteConnectionString = WriteConnectionString;
+        };
+
+        services.AddEncinaDapper(configure);
+        services.AddEncinaDapper(configure);
+
+        services.Count(d => d.ServiceType == typeof(IPipelineBehavior<,>)
+                && d.ImplementationType == typeof(ReadWriteRoutingPipelineBehavior<,>)).ShouldBe(1);
+        services.Count(d => d.ServiceType == typeof(IEncinaHealthCheck)
+                && d.ImplementationType == typeof(ReadWriteSeparationHealthCheck)).ShouldBe(1);
+        services.Count(d => d.ServiceType == typeof(IReadWriteConnectionFactory)).ShouldBe(1);
     }
 
     private sealed record RwCommand : ICommand<string>;
