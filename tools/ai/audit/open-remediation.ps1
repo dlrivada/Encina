@@ -1,6 +1,8 @@
 # tools/ai/audit/open-remediation.ps1 -Issue <n> [-Consolidate [-Set <set>]] (#1345; moved from the unversioned artifacts/knowledge/)
 #
 # Opens the remediation drafts collected for one audited issue (artifacts/knowledge/remediation/<n>-*.md).
+# Before creating anything it compares each draft with the drafts of the audits that ran concurrently (#2234;
+# see the cross-audit duplicate check below) and refuses when one of them is already an issue.
 # Drafts carry an HTML-comment header with title/labels/milestone; unknown labels are dropped; bugs default
 # to Hardening.
 #
@@ -431,6 +433,39 @@ $drafts = foreach ($f in Get-ChildItem $dir -Filter $pattern) {
     if ($done -contains $f.Name) { continue }
     $d = Get-Draft $f
     if ($d) { $d }
+}
+
+# #2234: cross-audit duplicate check, before anything is created. Each draft (its finding's own text from the
+# audit's manifest, else the draft body) is compared with the drafts of every audit that ran concurrently with
+# this one (open-audits/<n>.json `concurrent`), with the same evidence rule as the open-issue duplicate search
+# (Test-DuplicateEvidence). A match already opened as an issue means a sequential run would have recorded this
+# finding as its duplicate: nothing is opened, and -Prepare must run again (it records the duplicate). A match not
+# opened yet only warns: the first audit to open its issues wins, and the other one then hits the refusal above.
+try { $thisAudit = @(Get-OpenAudits $root) | Where-Object { [int]$_.issue -eq $Issue } | Select-Object -First 1 }
+catch { Write-Error "open-remediation: $($_.Exception.Message)"; exit 1 }
+if ($null -ne $thisAudit -and @($drafts).Count -gt 0) {
+    . (Join-Path $PSScriptRoot '_remediation-checks.ps1')
+    $others = @(Get-ConcurrentAuditDrafts $root $thisAudit)
+    $findingTextByDraft = @{}
+    foreach ($manifestFile in @(Get-ChildItem -LiteralPath $dir -Filter "_manifest-$Issue*.json" -File -ErrorAction SilentlyContinue)) {
+        if ($manifestFile.Name -notmatch "^_manifest-$Issue(-delta-[^.]+)?\.json$") { continue }
+        try { $m = Get-Content -LiteralPath $manifestFile.FullName -Raw | ConvertFrom-Json } catch { continue }
+        foreach ($f in @($m.findings)) {
+            if ($f.draftFile -and $f.inputFile -and (Test-Path -LiteralPath ([string]$f.inputFile))) { $findingTextByDraft[(Split-Path -Leaf ([string]$f.draftFile))] = Get-Content -LiteralPath ([string]$f.inputFile) -Raw }
+        }
+    }
+    $crossProblems = [System.Collections.Generic.List[string]]::new()
+    foreach ($d in @($drafts)) {
+        $text = if ($findingTextByDraft.ContainsKey($d.File.Name)) { $findingTextByDraft[$d.File.Name] } else { $d.Body }
+        foreach ($o in @($others | Where-Object { Test-DuplicateEvidence $text $_.TitleAndBody })) {
+            if ($o.Url) { $crossProblems.Add("$($d.File.Name) duplicates $($o.Name) of the concurrent audit #$($o.Issue), already opened as $($o.Url)") }
+            else { Write-Warning "open-remediation: $($d.File.Name) matches $($o.Name) of the concurrent audit #$($o.Issue), not opened yet; this audit opens first, and #$($o.Issue)'s remediation must then record its draft as a duplicate (#2234)." }
+        }
+    }
+    if ($crossProblems.Count -gt 0) {
+        Write-Error "open-remediation: cross-audit duplicate check (#2234) failed, no issue was created: $($crossProblems -join '; '). Run audit-draft-remediation.ps1 -Prepare -Issue $Issue again (it records the duplicate), re-run the remediation stage and the verifier, then open-remediation.ps1 again."
+        exit 1
+    }
 }
 
 if (-not $Consolidate) {

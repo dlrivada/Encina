@@ -109,7 +109,10 @@ Save-Doc 'audits' '6' @{ issue = 6; note = ''; opened = @(); outcome = 'delivere
 Save-Doc 'meta' 'board' @{ current = 6; pipeline = 'v2'; status = 'hand written'; updatedUtc = '2026-10-01T00:00:00Z' }
 
 [IO.File]::WriteAllText((Join-Path $main 'artifacts' 'knowledge' 'progress.csv'), "issue,status,findings_blocker,findings_major,findings_minor,remediation_opened,notes`n5,done,,,,1,`"five`"`n6,done,,,,0,`"`"`n7,done,,,,2,`"seven`"`n", [Text.UTF8Encoding]::new($false))
+# #2234: two open audits, one still in the pre-#2234 current-audit.json, one in its own open-audits/<n>.json.
 [IO.File]::WriteAllText((Join-Path $main 'artifacts' 'knowledge' 'current-audit.json'), '{"issue":8,"worktree":"wia-8","startedUtc":"2026-10-05T08:00:00Z"}', [Text.UTF8Encoding]::new($false))
+New-Item -ItemType Directory -Force (Join-Path $main 'artifacts' 'knowledge' 'open-audits') | Out-Null
+[IO.File]::WriteAllText((Join-Path $main 'artifacts' 'knowledge' 'open-audits' '9.json'), '{"issue":9,"worktree":"wia-9","startedUtc":"2026-10-05T09:30:00Z","scope":[],"concurrent":[8]}', [Text.UTF8Encoding]::new($false))
 
 $now = [datetime]::Parse('2026-10-05T11:00:00Z').ToUniversalTime()
 $docs = Read-BoardExport $export
@@ -164,13 +167,15 @@ try {
     Assert-That ($c -and -not $c.Exists -and $c.Data.status -eq 'closed' -and $c.Data.title -eq 'Issue 7 title') 'audit missing from the board: created from progress.csv with the issue title'
     Assert-That ($null -eq $c.Data.outcome -and $null -eq $c.Data.pipeline -and $c.Data.note -match 'remediation issues opened 2') 'created audit invents no outcome or pipeline; counts come from progress.csv'
     $c = Find-Change 'audits/8'
-    Assert-That ($c -and $c.Data.status -eq 'open' -and $c.Data.openedUtc -eq '2026-10-05T08:00:00Z') 'current-audit.json: open audit created'
+    Assert-That ($c -and $c.Data.status -eq 'open' -and $c.Data.openedUtc -eq '2026-10-05T08:00:00Z') 'current-audit.json (pre-#2234): open audit created'
+    $c = Find-Change 'audits/9'
+    Assert-That ($c -and $c.Data.status -eq 'open' -and $c.Data.openedUtc -eq '2026-10-05T09:30:00Z') 'open-audits/9.json (#2234): a second open audit created with its own start time'
     # ---- meta
     $c = Find-Change 'meta/board'
-    Assert-That ($c.Data.status -match 'Audit #8 open\.' -and $c.Data.status -match 'Open PRs: #201 #210 #211 #212 \(draft\) #213 \(draft\) #221 #234 #236 #237 \(draft\)\.') 'meta.status lists the open audit and open PRs'
-    Assert-That ($c.Data.status -match 'Merged last 48h: #200 #220 #235\.' -and $c.Data.current -eq 8 -and $c.Data.updatedUtc -eq '2026-10-05T11:00:00Z') 'meta.status lists recent merges; current and updatedUtc set'
+    Assert-That ($c.Data.status -match 'Audits #8 #9 open\.' -and $c.Data.status -match 'Open PRs: #201 #210 #211 #212 \(draft\) #213 \(draft\) #221 #234 #236 #237 \(draft\)\.') 'meta.status lists both open audits and the open PRs'
+    Assert-That ($c.Data.status -match 'Merged last 48h: #200 #220 #235\.' -and $c.Data.current -eq 8 -and (@($c.Data.openAudits) -join ',') -eq '8,9' -and $c.Data.updatedUtc -eq '2026-10-05T11:00:00Z') 'meta.status lists recent merges; current (lowest open), openAudits and updatedUtc set'
     Assert-That ($c.Data.status -match ' Notes: hand written$') 'first run keeps the hand-written status behind the Notes marker'
-    $noAudit = $facts.Clone(); $noAudit.CurrentAudit = $null
+    $noAudit = $facts.Clone(); $noAudit.OpenAudits = @()
     $cNo = (Get-BoardChanges $docs $noAudit $now | Where-Object { $_.Collection -eq 'meta' }).Data
     Assert-That ($cNo.Contains('current') -and $null -eq $cNo.current) 'meta.current is cleared when no audit is open'
     Assert-That ($null -eq ($changes | Where-Object { $_.Collection -notin 'work', 'flow', 'audits', 'meta' })) 'no other collection is touched'
@@ -185,7 +190,7 @@ try {
     Assert-That ($batch.Skipped -contains 'work/103' -and $batch.Skipped.Count -eq 1) 'existing doc without a version is skipped, never written unpinned'
     Assert-That ((@($all | Where-Object { $_.op -eq 'update' -and $_.if_version -gt 0 }).Count) -eq (@($all | Where-Object { $_.op -eq 'update' }).Count)) 'every update carries if_version'
     $creates = @($all | Where-Object { $_.op -eq 'set' })
-    Assert-That (@($creates | Where-Object { $_.Contains('if_version') }).Count -eq 0 -and $creates.Count -eq 4) "creates ($($creates.Count): $(($creates | ForEach-Object { "$($_.collection)/$($_.doc_id)" }) -join ',')) carry no if_version (work/300, work/401 for PR 221, audits/7, audits/8)"
+    Assert-That (@($creates | Where-Object { $_.Contains('if_version') }).Count -eq 0 -and $creates.Count -eq 5) "creates ($($creates.Count): $(($creates | ForEach-Object { "$($_.collection)/$($_.doc_id)" }) -join ',')) carry no if_version (work/300, work/401 for PR 221, audits/7, audits/8, audits/9)"
     Assert-That (($all | Where-Object { $_.collection -eq 'work' -and $_.doc_id -eq '100' }).if_version -eq 4) 'the version comes from the sidecar'
     $w100 = $all | Where-Object { $_.collection -eq 'work' -and $_.doc_id -eq '100' }
     Assert-That ((@($w100.data.Keys | Sort-Object) -join ',') -eq 'endedUtc,status') "update carries only the changed fields (got $(@($w100.data.Keys | Sort-Object) -join ','))"

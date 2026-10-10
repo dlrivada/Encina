@@ -954,6 +954,14 @@ function Invoke-HookCase([string]$Hook, [string]$Json, [int]$Expected, [string]$
     }
 }
 
+# #2234: opens audit <n> in the fixture repository $Root the way audit-next.ps1 does, with its own state file
+# artifacts/knowledge/open-audits/<n>.json naming $Worktree.
+function Set-OpenAuditState([string]$Root, [int]$N, [string]$Worktree) {
+    $dir = Join-Path $Root 'artifacts\knowledge\open-audits'
+    New-Item -ItemType Directory -Force $dir | Out-Null
+    @{ issue = $N; worktree = $Worktree; branch = "audit/$N"; startedUtc = '2026-01-01T00:00:00Z'; scope = @(); concurrent = @() } | ConvertTo-Json | Set-Content (Join-Path $dir "$N.json")
+}
+
 function Invoke-Git { & git -C $gateWt -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
 
 function Write-GateFile([string]$Relative) {
@@ -1571,6 +1579,118 @@ try {
 
         Invoke-HookCase $auditGuard 'not json' 0 'audit-stage-guard: malformed payload'
 
+        # #2234: several audits open at once, each identified by its worktree wia-<n> and its own state file
+        # artifacts/knowledge/open-audits/<n>.json. Every audit keeps its own stage order, verifier loop and path
+        # ownership; a stage agent writes only into the audit its spawn prompt names (the first user message of its
+        # own transcript).
+        $parMain = Join-Path $work 'ParallelMain'
+        $parOpenDir = Join-Path $parMain 'artifacts\knowledge\open-audits'
+        $parSession = Join-Path $work 'parsession.jsonl'
+        $parSubagents = Join-Path $work 'parsession\subagents'
+        New-Item -ItemType Directory -Force $parOpenDir, $parSubagents | Out-Null
+        function Get-ParWt([int]$N) { Join-Path $parMain ".claude\worktrees\wia-$N" }
+        function Invoke-ParGit([int]$N) { & git -C (Get-ParWt $N) -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+        function Initialize-ParAudit([int]$N, [string[]]$Committed, [string]$Mode) {
+            $w = Get-ParWt $N
+            if (Test-Path $w) { Remove-Item -Recurse -Force $w }
+            New-Item -ItemType Directory -Force (Join-Path $w 'tools\ai\audit'), (Join-Path $w 'artifacts\knowledge\stages') | Out-Null
+            Invoke-ParGit $N init -q -b main
+            Invoke-ParGit $N commit -q --allow-empty -m base
+            Set-Content (Join-Path $w 'tools\ai\audit\pipeline.json') $defaultPipelineJson
+            Set-Content (Join-Path $w 'tools\ai\audit\pipeline-delta.json') $deltaPipelineJson
+            foreach ($stageName in $Committed) {
+                $artifact = "$stageName.md"
+                Set-Content (Join-Path $w "artifacts\knowledge\stages\$artifact") "x`n## Lessons for the pipeline`n- none`n"
+                Invoke-ParGit $N add -f "artifacts/knowledge/stages/$artifact"
+                Invoke-ParGit $N commit -q -m "audit #$N`: $stageName stage" -m "Stage: $stageName"
+            }
+            $state = [ordered]@{ issue = $N; worktree = $w; branch = "audit/$N"; startedUtc = '2026-10-10T00:00:00Z'; scope = @(); concurrent = @() }
+            if ($Mode) { $state.mode = $Mode; $state.set = 'rules-2026-10' }
+            $state | ConvertTo-Json | Set-Content (Join-Path $parOpenDir "$N.json")
+        }
+        function Invoke-ParGuard([string]$Subagent, [string]$Prompt, [int]$Expected, [string]$Label) {
+            $env:CLAUDE_PROJECT_DIR = $parMain
+            Invoke-HookCase $auditGuard (@{ tool_name = 'Agent'; cwd = $parMain; tool_input = @{ subagent_type = $Subagent; prompt = $Prompt } } | ConvertTo-Json -Compress) $Expected $Label
+        }
+        # The subagent's own transcript, whose first user message is its spawn prompt.
+        function Write-ParTranscript([string]$AgentId, [string]$Prompt) {
+            $line = @{ type = 'user'; message = @{ role = 'user'; content = $Prompt } } | ConvertTo-Json -Compress -Depth 5
+            Set-Content -LiteralPath (Join-Path $parSubagents "agent-$AgentId.jsonl") -Value $line
+        }
+        function Invoke-ParWrite([string]$Agent, [string]$AgentId, [string]$Path, [int]$Expected, [string]$Label, [string]$Command) {
+            $env:CLAUDE_PROJECT_DIR = $parMain
+            $payload = if ($Command) { @{ tool_name = 'PowerShell'; cwd = $parMain; tool_input = @{ command = $Command } } } else { @{ tool_name = 'Write'; cwd = $parMain; tool_input = @{ file_path = $Path } } }
+            if ($Agent) { $payload.agent_type = $Agent; $payload.agent_id = $AgentId; $payload.transcript_path = $parSession }
+            Invoke-HookCase $ownership ($payload | ConvertTo-Json -Compress) $Expected $Label $Agent
+        }
+
+        # Three audits open at three different stages of the same pipeline.
+        Initialize-ParAudit 51 @('archivist')
+        Initialize-ParAudit 52 @()
+        Initialize-ParAudit 53 @('archivist', 'code', 'tests', 'docs')
+        Invoke-ParGuard 'issue-auditor' 'Audit #51 in worktree wia-51, code stage.' 0 'audit-stage-guard (#2234, 3 audits): the code stage of #51 is due in its own worktree'
+        Invoke-ParGuard 'issue-archivist' 'Audit #52 in worktree wia-52, archivist stage.' 0 'audit-stage-guard (#2234, 3 audits): the archivist stage of #52 is due in its own worktree'
+        Invoke-ParGuard 'issue-auditor' 'Audit #52 in worktree wia-52, code stage.' 2 'audit-stage-guard (#2234, 3 audits): #52''s code stage is out of order even though #51 is at its code stage'
+        Invoke-ParGuard 'remediation-drafter' 'Audit #53 in worktree wia-53, remediation stage.' 0 'audit-stage-guard (#2234, 3 audits): the remediation stage of #53 is due'
+        Invoke-ParGuard 'issue-archivist' 'Audit #53 in worktree wia-53, archivist again.' 2 'audit-stage-guard (#2234, 3 audits): an out-of-order stage of #53 is denied'
+        Invoke-ParGuard 'issue-auditor' 'Audits #51 and #52 in worktrees wia-51 and wia-52, code stage.' 2 'audit-stage-guard (#2234): one spawn naming two open audits is denied (never a batch)'
+        Invoke-ParGuard 'issue-archivist' 'Audit #54 in worktree wia-54.' 2 'audit-stage-guard (#2234): a spawn for a worktree that is not an open audit is denied'
+        Invoke-ParGuard 'issue-auditor' 'Audit #52 in worktree wia-51, code stage.' 2 'audit-stage-guard (#2234): the issue and the worktree of the prompt must be the same audit'
+        Invoke-ParGuard 'issue-auditor' 'Audit #51, code stage.' 2 'audit-stage-guard (#2234): a prompt with no wia-<n> is denied while several audits are open'
+        # The FAIL loop is per audit: #52's FAIL verdict re-opens #52's stages, never #51's.
+        Set-Content (Join-Path (Get-ParWt 52) 'artifacts\knowledge\stages\verification.md') "Verdict: FAIL`n"
+        Invoke-ParGuard 'issue-auditor' 'Audit #52 in worktree wia-52, redo the code stage.' 0 'audit-stage-guard (#2234): a FAIL verdict of #52 lets #52 re-run a stage out of order'
+        Invoke-ParGuard 'issue-archivist' 'Audit #51 in worktree wia-51, redo the archivist.' 2 'audit-stage-guard (#2234): #52''s FAIL verdict does not let #51 run out of order'
+        Remove-Item -Force (Join-Path (Get-ParWt 52) 'artifacts\knowledge\stages\verification.md')
+        # Two audits open: the closed one's worktree is no longer accepted.
+        Remove-Item -Force (Join-Path $parOpenDir '53.json')
+        Invoke-ParGuard 'remediation-drafter' 'Audit #53 in worktree wia-53, remediation stage.' 2 'audit-stage-guard (#2234, 2 audits): a spawn for an audit that was closed is denied'
+        Invoke-ParGuard 'issue-auditor' 'Audit #51 in worktree wia-51, code stage.' 0 'audit-stage-guard (#2234, 2 audits): the other open audit is unaffected'
+        # Migration: the pre-#2234 current-audit.json is one more open audit until a script converts it.
+        Move-Item -Force (Join-Path $parOpenDir '51.json') (Join-Path $parMain 'artifacts\knowledge\current-audit.json')
+        Invoke-ParGuard 'issue-auditor' 'Audit #51 in worktree wia-51, code stage.' 0 'audit-stage-guard (#2234 migration): an audit still in current-audit.json is read next to open-audits/'
+        Invoke-ParGuard 'issue-archivist' 'Audit #52 in worktree wia-52, archivist stage.' 0 'audit-stage-guard (#2234 migration): and so is the audit in open-audits/'
+        Move-Item -Force (Join-Path $parMain 'artifacts\knowledge\current-audit.json') (Join-Path $parOpenDir '51.json')
+        # Fail closed on an unreadable state file.
+        Set-Content (Join-Path $parOpenDir '52.json') '{ not json'
+        Invoke-ParGuard 'issue-auditor' 'Audit #51 in worktree wia-51, code stage.' 2 'audit-stage-guard (#2234): an unreadable open-audit state file denies every stage spawn (fail closed)'
+        Initialize-ParAudit 52 @()
+        Initialize-ParAudit 53 @('archivist', 'code', 'tests', 'docs')
+
+        # Path ownership per audit: the agent spawned for #51 writes #51's files only.
+        Write-ParTranscript 'p51' 'Audit #51 in worktree wia-51, code stage.'
+        Write-ParTranscript 'p52' 'Audit #52 in worktree wia-52, archivist stage.'
+        Write-ParTranscript 'p53' 'Audit #53 in worktree wia-53, remediation stage.'
+        Write-ParTranscript 'p53t' 'Audit #53 in worktree wia-53, tests stage.'
+        $par51Code = Join-Path (Get-ParWt 51) 'artifacts\knowledge\stages\code.md'
+        $par52Code = Join-Path (Get-ParWt 52) 'artifacts\knowledge\stages\code.md'
+        Invoke-ParWrite 'issue-auditor' 'p51' $par51Code 0 'enforce-path-ownership (#2234, 3 audits): the code agent of #51 writes #51''s code.md'
+        Invoke-ParWrite 'issue-auditor' 'p51' $par52Code 2 'enforce-path-ownership (#2234, 3 audits): the code agent of #51 may not write #52''s code.md'
+        Invoke-ParWrite 'issue-auditor' 'p51' $null 2 'enforce-path-ownership (#2234): shell vector, the code agent of #51 writing #52''s code.md with Set-Content is denied' "Set-Content -LiteralPath '$par52Code' -Value 'x'"
+        Invoke-ParWrite 'issue-auditor' 'missing' $par51Code 2 'enforce-path-ownership (#2234): with several audits open, a stage agent whose transcript cannot be read is denied (fail closed)'
+        Invoke-ParWrite $null $null $par51Code 2 'enforce-path-ownership (#2234): the orchestrator still may not write a stage artifact of any open audit'
+        Invoke-ParWrite 'issue-archivist' 'p52' (Join-Path (Get-ParWt 52) 'artifacts\knowledge\issues\52.md') 0 'enforce-path-ownership (#2234): the archivist of #52 writes #52''s knowledge record'
+        Invoke-ParWrite 'issue-archivist' 'p52' (Join-Path (Get-ParWt 51) 'artifacts\knowledge\issues\51.md') 2 'enforce-path-ownership (#2234): the archivist of #52 may not write #51''s knowledge record'
+        Invoke-ParWrite 'remediation-drafter' 'p53' (Join-Path $parMain 'artifacts\knowledge\remediation\53-code-1-fix.md') 0 'enforce-path-ownership (#2234): the drafter of #53 writes #53''s draft'
+        Invoke-ParWrite 'remediation-drafter' 'p53' (Join-Path $parMain 'artifacts\knowledge\remediation\51-code-1-fix.md') 2 'enforce-path-ownership (#2234): the drafter of #53 may not write a draft of the open audit #51'
+        Invoke-ParWrite 'test-auditor' 'p53t' (Join-Path (Get-ParWt 53) 'artifacts\audit\coverage\unit\x.xml') 0 'enforce-path-ownership (#2234): the tests agent of #53 writes coverage scratch in #53'
+        Invoke-ParWrite 'test-auditor' 'p53t' (Join-Path (Get-ParWt 51) 'artifacts\audit\coverage\unit\x.xml') 2 'enforce-path-ownership (#2234): the tests agent of #53 may not write coverage scratch in #51'
+        $par51Authors = Join-Path (Get-ParWt 51) 'artifacts\knowledge\stages\.authors.json'
+        $par52Authors = Join-Path (Get-ParWt 52) 'artifacts\knowledge\stages\.authors.json'
+        $script:total++
+        if ((Test-Path $par51Authors) -and -not (Test-Path $par52Authors) -and ((Get-Content $par51Authors -Raw | ConvertFrom-Json).code.agent -eq 'issue-auditor')) { 'PASS enforce-path-ownership.ps1 (#2234): authorship is recorded only in the worktree of the audit the agent was spawned for' }
+        else { $script:failed++; 'FAIL enforce-path-ownership.ps1 (#2234): authorship leaked into another audit''s .authors.json, or was not recorded for its own' }
+        # A delta audit and a full audit open at once: each worktree keeps its own pipeline file.
+        Initialize-ParAudit 52 @() 'delta'
+        Write-ParTranscript 'p52d' 'Audit #52 in worktree wia-52, delta: rules-2026-10, check only rule (a).'
+        Invoke-ParWrite 'docs-reviewer' 'p52d' (Join-Path (Get-ParWt 52) 'artifacts\knowledge\stages\docs.md') 0 'enforce-path-ownership (#2234): docs.md of the delta audit #52 belongs to its docs agent (pipeline-delta.json)'
+        Invoke-ParWrite 'issue-auditor' 'p51' $par51Code 0 'enforce-path-ownership (#2234): the full audit #51 next to it keeps pipeline.json'
+        Invoke-ParWrite 'issue-auditor' 'p51' $par52Code 2 'enforce-path-ownership (#2234): code.md has no owner in the delta audit #52'
+        # With a single open audit there is nothing to confuse: no transcript is needed (pre-#2234 behaviour).
+        Remove-Item -Force (Join-Path $parOpenDir '52.json'), (Join-Path $parOpenDir '53.json')
+        Invoke-ParWrite 'issue-auditor' 'missing' $par51Code 0 'enforce-path-ownership (#2234, 1 audit): a stage agent without a readable transcript writes the only open audit''s artifact'
+        Remove-Item -Recurse -Force $parMain, (Join-Path $work 'parsession') -ErrorAction SilentlyContinue
+
         # #1345: audit-commit-stage.ps1 refuses an artifact whose last recorded author (the sidecar
         # enforce-path-ownership.ps1 maintains) does not match the agent pipeline.json assigns to that stage.
         # A standalone repo, self-referential (its own current-audit.json points at itself), carrying its own
@@ -1593,7 +1713,7 @@ try {
         Invoke-CommitWtGit config user.email hooks@example.invalid
         Invoke-CommitWtGit commit -q --allow-empty -m base
         New-Item -ItemType Directory -Force (Join-Path $commitWt 'artifacts\knowledge\stages') | Out-Null
-        @{ issue = 77; worktree = $commitWt; branch = 'audit/77'; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $commitWt 'artifacts\knowledge\current-audit.json')
+        Set-OpenAuditState $commitWt 77 $commitWt
         Set-Content (Join-Path $commitWt 'artifacts\knowledge\stages\code.md') "x`n## Lessons for the pipeline`n- none`n"
 
         function Invoke-CommitStage {
@@ -1637,7 +1757,7 @@ try {
             Invoke-ArchivistWtGit config user.email hooks@example.invalid
             Invoke-ArchivistWtGit commit -q --allow-empty -m base
             $archivistN = 4242
-            @{ issue = $archivistN; worktree = $archivistWt; branch = "audit/$archivistN"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $archivistWt 'artifacts\knowledge\current-audit.json')
+            Set-OpenAuditState $archivistWt $archivistN $archivistWt
             Set-Content (Join-Path $archivistWt 'artifacts\knowledge\stages\archivist.md') "x`n## Lessons for the pipeline`n- none`n"
             @{ archivist = @{ agent = 'issue-archivist'; utc = '2026-01-01T00:00:00Z' } } | ConvertTo-Json | Set-Content (Join-Path $archivistWt 'artifacts\knowledge\stages\.authors.json')
 
@@ -1860,7 +1980,7 @@ Test.
         # concatenated objects (the exact #1374 shape).
         $repairCorrupt = '{"code":{"agent":"issue-auditor","utc":"2026-01-01T00:00:00Z"},"tests":{"agent":"test-auditor","utc":"2026-01-02T00:00:00Z"}}{"code":{"agent":"issue-auditor","utc":"2026-01-01T00:00:00Z"},"tests":{"agent":"test-auditor","utc":"2026-01-02T00:00:00Z"}}'
         Set-Content (Join-Path $repairWt 'artifacts\knowledge\stages\.authors.json') $repairCorrupt
-        @{ issue = 78; worktree = $repairWt; branch = 'audit/78'; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $repairWt 'artifacts\knowledge\current-audit.json')
+        Set-OpenAuditState $repairWt 78 $repairWt
         $repairOutput = & pwsh -NoProfile -File (Join-Path $repairWt 'tools\ai\audit\audit-stage.ps1') -RepairAuthors 2>&1
         $repairCode = $LASTEXITCODE
         $repairResultRaw = Get-Content -LiteralPath (Join-Path $repairWt 'artifacts\knowledge\stages\.authors.json') -Raw
@@ -1875,7 +1995,7 @@ Test.
         else { $script:failed++; "FAIL audit-stage.ps1: -RepairAuthors (#1374) (exit $repairCode): $(Get-FlatOutput $repairOutput); sidecar now: $repairResultRaw" }
 
         # -RepairAuthors refuses when no audit is open, same as -Next.
-        Remove-Item -Force (Join-Path $repairWt 'artifacts\knowledge\current-audit.json')
+        Remove-Item -Force (Join-Path $repairWt 'artifacts\knowledge\open-audits\78.json')
         $noAuditOutput = & pwsh -NoProfile -File (Join-Path $repairWt 'tools\ai\audit\audit-stage.ps1') -RepairAuthors 2>&1
         $script:total++
         if ($LASTEXITCODE -ne 0) { 'PASS audit-stage.ps1: -RepairAuthors refuses when no audit is open' }
@@ -1973,7 +2093,7 @@ Test.
             Set-Content (Join-Path $doneWt 'tools\ai\audit\pipeline.json') $defaultPipelineJson
             & git -C $doneWt -c user.name=hooks -c user.email=hooks@example.invalid init -q -b main 2>&1 | Out-Null
             & git -C $doneWt -c user.name=hooks -c user.email=hooks@example.invalid commit -q --allow-empty -m base 2>&1 | Out-Null
-            @{ issue = $doneN; worktree = $doneWt; branch = "audit/$doneN"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $doneWt 'artifacts\knowledge\current-audit.json')
+            Set-OpenAuditState $doneWt $doneN $doneWt
         }
         function Invoke-DoneGit { & git -C $doneWt -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
         function Write-DoneStage([string]$StageName, [string]$ArtifactName, [string]$Content, [int]$UnixSeconds) {
@@ -2133,7 +2253,7 @@ Test.
         Set-Content (Join-Path $root 'artifacts\knowledge\stages\code.md') "## Findings`n$Code`n## Lessons for the pipeline`n- none`n"
         Set-Content (Join-Path $root 'artifacts\knowledge\stages\tests.md') "## Findings`n$Tests`n## Lessons for the pipeline`n- none`n"
         Set-Content (Join-Path $root 'artifacts\knowledge\stages\docs.md') "## Findings`n$Docs`n## Lessons for the pipeline`n- none`n"
-        @{ issue = $IssueNumber; worktree = $root; branch = "audit/$IssueNumber"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $root 'artifacts\knowledge\current-audit.json')
+        Set-OpenAuditState $root $IssueNumber $root
         return $root
     }
     # Runs the fixture's own copy of the script. With -GhStub, `gh` is the PowerShell function the stub file

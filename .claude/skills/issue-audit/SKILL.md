@@ -1,6 +1,6 @@
 ---
 name: issue-audit
-description: Run one SPEC-003 audit of a closed Encina issue end to end - queue discipline, the fixed six-stage pipeline with single-owner agents, the verifier's FAIL loop, lessons flowing back into role memory, and the Audit board. Use when starting, continuing or closing an audit of a closed issue, or when asked to run the SPEC-003 audit pipeline.
+description: Run SPEC-003 audits of closed Encina issues end to end, each one individually (2-5 may run in parallel, never as a batch) - queue discipline with the scope-overlap rule, the fixed six-stage pipeline with single-owner agents per audit, the verifier's FAIL loop, the cross-audit duplicate check, lessons flowing back into role memory, and the Audit board. Use when starting, continuing or closing an audit of a closed issue, or when asked to run the SPEC-003 audit pipeline.
 ---
 
 # SPEC-003 issue audit (#1345)
@@ -16,7 +16,28 @@ artifact, and move to the next one the hooks allow.
 A closed issue goes through the same lifecycle as new work, with the first half already done: the design and
 the code exist. What is missing is the rest of the specialist pipeline that checks work before it becomes a
 permanent part of Encina — reviewers, testers, an independent QA gate. You are the coordinator of that
-pipeline for one issue at a time; the stage agents do the reviewing.
+pipeline for each issue; the stage agents do the reviewing.
+
+**Parallel, never batched (#2234, maintainer decision of 2026-10-10).** Several audits may be open at once, up to
+`maxParallelAudits` in `tools/ai/audit/pipeline.json` (an integer from 2 to 5; 2 as shipped, the pilot). Each one
+is individual, exactly as if the audits ran one after the other: its own `wia-<n>` worktree, its own six stage
+agents (one spawn per stage per audit, naming only that audit), its own verifier FAIL loop, its own lessons and
+its own knowledge pull request. Two rules keep the result identical to a sequential run:
+
+- **Overlap rule.** `audit-next.ps1` never opens an issue whose scope (the packages under `src/` its pre-draft
+  and commits name, plus, for an open audit, what its record and archivist and code stages name) shares a package
+  with an open audit; it takes the next non-overlapping queue entry and leaves the overlapping one for a later
+  call, keeping the queue order otherwise.
+- **Cross-audit duplicate check.** `audit-draft-remediation.ps1 -Prepare` and `open-remediation.ps1` compare each
+  finding or draft with the drafts of every audit that ran concurrently (same evidence rule as the open-issue
+  search), and `audit-verifier` checks it again.
+
+Every open audit has its own state file `artifacts/knowledge/open-audits/<n>.json` (issue, worktree, branch,
+start, scope, the concurrent audits). The scripts find the audit from `-Issue <n>`, or from the `wia-<n>`
+worktree they run from; with more than one audit open and no worktree context, `-Issue` is required. The hooks
+find it from the one `wia-<n>` the spawn prompt names. `audit-stage.ps1 -List` shows every open audit and its
+next stage. The pre-#2234 `artifacts/knowledge/current-audit.json` is converted into `open-audits/<n>.json` the
+first time any audit script runs; the hooks read it until then.
 
 **No shortcuts.** Every closed issue gets the full pipeline: one issue, one worktree, six stages, no token
 budget. Batches and cheap paths lose precision — they caused a false "implemented" claim in the first pass
@@ -75,11 +96,14 @@ artifact file name; never hard-code it. As shipped:
 pwsh -NoProfile -File tools/ai/audit/audit-next.ps1
 ```
 
-With no `-Issue`, it takes the next entry of `artifacts/knowledge/audit-queue.txt` not already in
-`progress.csv`. It refuses when an audit is already open — close it first (step 6) — creates
-`.claude/worktrees/wia-<n>` on branch `audit/<n>` from `origin/main`, writes
-`artifacts/knowledge/current-audit.json`, ensures the local-model pre-draft exists, and prints the next stage
-to run.
+Each call opens ONE audit. With no `-Issue`, it takes the first entry of `artifacts/knowledge/audit-queue.txt`
+that is not in `progress.csv`, not open already and whose scope overlaps no open audit (the skipped ones are
+printed and stay in the queue). It refuses when `maxParallelAudits` audits are open — close one first (step 6) —
+or when a stray `wia-*` worktree has no state file. It makes sure each candidate's local-model pre-draft exists
+(the scope is read from it), creates `.claude/worktrees/wia-<n>` on branch `audit/<n>` from `origin/main`, writes
+`artifacts/knowledge/open-audits/<n>.json` (adding `<n>` to the concurrent list of every other open audit), and
+prints the next stage to run. `-Issue <n>` is accepted only for that same issue. Run it again to open the next
+audit in parallel, up to the limit.
 
 **Audit board.** Create/update `audits/<n>` with `status=open` and `stage=archivist` using the `ArtifactData`
 tool against the board at <https://claude.ai/artifact/TCuXwkn8D8FxWdDZWut9Te> (collections `audits/<n>`,
@@ -90,19 +114,24 @@ tool against the board at <https://claude.ai/artifact/TCuXwkn8D8FxWdDZWut9Te> (c
 For every stage `audit-stage-guard.ps1` is willing to let through:
 
 1. Spawn the stage's agent **in the foreground**, naming the issue number and the `wia-<n>` worktree
-   explicitly in the prompt (the guard denies a spawn that omits either, or that also names a different
-   `wia-<m>` — the batching failure this pipeline closes). Give it nothing else: the agent's own definition
-   states its Inputs.
+   explicitly in the prompt (the guard denies a spawn that omits either, that names a `wia-<n>` that is not an
+   open audit, or that also names a different `wia-<m>` — the batching failure this pipeline closes). Give it
+   nothing else: the agent's own definition states its Inputs. With several audits open, spawn one agent per
+   audit; `enforce-path-ownership.ps1` lets each one write only into the audit its prompt names, so the agent of
+   audit A can neither write nor get committed a file of audit B.
 2. Wait for its report. Do not edit its artifact yourself — `enforce-path-ownership.ps1` denies you anyway;
    if something is wrong, that is a finding for `audit-verifier`, not a fix you make mid-pipeline.
 3. Commit the stage:
    ```powershell
-   pwsh -NoProfile -File tools/ai/audit/audit-commit-stage.ps1 -Stage <stage>
+   pwsh -NoProfile -File tools/ai/audit/audit-commit-stage.ps1 -Stage <stage> -Issue <n>
    ```
+   (`-Issue <n>` names the audit; every script in this skill takes it, and needs it when several audits are open
+   and the script does not run from that audit's `wia-<n>` worktree.)
    This refuses if the artifact is missing, or if `artifacts/knowledge/stages/.authors.json` does not record
    the assigned agent as the last writer (the fabrication-gap check: only a Write/Edit call from that exact
    agent, allowed by `enforce-path-ownership.ps1`, updates that sidecar).
-4. Run `audit-stage.ps1 -Next` (or re-read `audit-next.ps1`'s last line) to see the next stage.
+4. Run `audit-stage.ps1 -Next -Issue <n>` (or re-read `audit-next.ps1`'s last line) to see the next stage;
+   `audit-stage.ps1 -List` shows it for every open audit.
 
 The **docs** stage is `docs-reviewer` in audit mode: name the `wia-<n>` worktree and the word "audit" in its
 prompt so `audit-stage-guard.ps1` recognises it as this pipeline's stage, not an ordinary documentation
@@ -114,7 +143,7 @@ committed:
 
 1. Prepare (deterministic, no model):
    ```powershell
-   pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Prepare
+   pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Prepare -Issue <n>
    ```
    It splits each of `code.md`, `tests.md` and `docs.md`'s `## Findings` section into individual findings (the
    numbered "N. **Blocker/Major/Minor** — ..." paragraphs the stage agents write; a section that is the `- none`
@@ -132,6 +161,14 @@ committed:
    previous drafts, inputs and manifest; every `gh` call runs before that cleanup, through a retry helper
    (3 retries after 5, 15 and 45 s on a TLS, dial or connection failure, an HTTP 5xx, or a rate limit reported
    as HTTP 403 or 429; no retry on any other 4xx; a malformed JSON reply stops the run; #1548).
+   **Cross-audit duplicates (#2234).** Prepare also compares every finding group with the drafts of the audits
+   that ran concurrently with this one (the state file's `concurrent`, recorded in the manifest as
+   `concurrentAudits`), with the same evidence rule. A match with a draft already opened as an issue makes the
+   group a duplicate of that issue (`duplicate of #m (draft <file> of the concurrent audit #k)`); a match with a
+   draft not opened yet stops Prepare before anything is written, because a sequential run would already have
+   that issue: finish the other audit's remediation first (`open-remediation.ps1 -Issue <k>` after its verifier
+   PASS) and run Prepare again, or pass `-NotDuplicate '<stage> <n>'` when `audit-verifier` ruled it is not a
+   duplicate.
 2. Spawn `remediation-drafter` **in the foreground**, naming `#<n>`, `wia-<n>` and the manifest path. It writes
    every draft and `stages/remediation.md`; its definition holds the drafting rules (facts verified with
    `file:line` in the `src/` and `tests/` of the audit worktree the manifest's `worktree` names, `wia-<n>`,
@@ -139,7 +176,7 @@ committed:
    invented code, no pipeline meta-text).
 3. Finalize (deterministic, no model):
    ```powershell
-   pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Finalize
+   pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Finalize -Issue <n>
    ```
    It applies the sanitizers below to every regenerated draft, then checks each draft's header block
    (title prefix, labels, milestone, `kind:`), the template headers in order, leftover placeholders, missing
@@ -151,7 +188,7 @@ committed:
    when any remains: re-spawn `remediation-drafter` (naming `#<n>` and `wia-<n>`) and paste Finalize's whole
    output into its prompt — the drafter keeps every draft that output does not name and rewrites only the ones it
    names — then run `-Finalize` again.
-4. Commit: `pwsh -NoProfile -File tools/ai/audit/audit-commit-stage.ps1 -Stage remediation` (it refuses unless
+4. Commit: `pwsh -NoProfile -File tools/ai/audit/audit-commit-stage.ps1 -Stage remediation -Issue <n>` (it refuses unless
    `.authors.json` records `remediation-drafter` as the last writer of `stages/remediation.md` and `-Finalize`,
    which it runs again, is clean; the manifest's lessons must also appear in the stage file's Lessons section).
 
@@ -333,7 +370,7 @@ anything. Its `stages/verification.md` starts with `Verdict: PASS` or `Verdict: 
 ## 4. Lessons
 
 ```powershell
-pwsh -NoProfile -File tools/ai/audit/audit-lessons.ps1
+pwsh -NoProfile -File tools/ai/audit/audit-lessons.ps1 -Issue <n>
 ```
 
 Collects every stage's "## Lessons for the pipeline" bullets into `stages/lessons.md`, each followed by
@@ -352,7 +389,7 @@ blocked). For each lesson, replace `TODO` with one of:
 Commit `stages/lessons.md` on the audit branch with:
 
 ```powershell
-pwsh -NoProfile -File tools/ai/audit/audit-commit-stage.ps1 -Lessons
+pwsh -NoProfile -File tools/ai/audit/audit-commit-stage.ps1 -Lessons -Issue <n>
 ```
 
 It is not a `pipeline.json` stage, so the plain `-Stage` mode does not apply to it, and a bare `git commit`
@@ -373,11 +410,20 @@ once `audit-verifier` has PASSed and checked each draft for duplicates, and **be
 (#1735): the published audit result names the opened issues, and `audit-done.ps1` refuses while a draft has no
 row in `opened.csv`. Record the opened issue numbers on the board (`audits/<n>.opened`).
 
+Before creating anything it runs the cross-audit duplicate check (#2234): each draft (its finding's text from
+the manifest) is compared with the drafts of the concurrent audits. When one of theirs is already an issue, it
+opens nothing and exits 1: run `audit-draft-remediation.ps1 -Prepare -Issue <n>` again (it records the
+duplicate), re-run the remediation stage and the verifier, then open. A match with a draft not opened yet only
+warns: this audit opens first, and the other audit's own check then records its draft as the duplicate.
+
 ## 6. Close the audit
 
 ```powershell
-pwsh -NoProfile -File tools/ai/audit/audit-done.ps1
+pwsh -NoProfile -File tools/ai/audit/audit-done.ps1 -Issue <n>
 ```
+
+Audits close in any order (#2234): closing one touches only its own worktree, branch, state file and one
+`progress.csv` row, and frees a slot for `audit-next.ps1`; the other open audits keep running.
 
 Refuses when any stage artifact is missing or uncommitted, the verification verdict is not PASS, any lesson
 still says `Applied: TODO`, the worktree's `knowledge-records --check` fails on `artifacts/knowledge/issues`, or a
@@ -393,7 +439,7 @@ script-owned branch, so a retry replaces an earlier attempt) and opens a pull re
 stages), the script generates a short one: the verdict line and pass count of the verification stage, one line per
 stage with a link to its stage file, the remediation issues (from `opened.csv`) and the duplicates the
 remediation stage noted. Remediation drafts are not published. If publishing fails, nothing else happens (the
-`wia-<n>` worktree, the `audit/<n>` branch and `current-audit.json` stay) and the script can be run again; when the
+`wia-<n>` worktree, the `audit/<n>` branch and `open-audits/<n>.json` stay) and the script can be run again; when the
 publication is already on `origin/main` (the pull request was merged) a retry counts as published and closes the
 audit. After publishing it deletes the local `knowledge/audit-<n>` branch. `-NoPublish` prepares the branch and
 prints the push and `gh pr create` commands without running them, and leaves the audit open. Merge the knowledge
@@ -402,7 +448,7 @@ pull request like any other (`pr-cycle`).
 Only after the pull request exists it copies the records, audits, remediation drafts, stage artifacts and the
 ledger into the main `artifacts/knowledge/` (still git-ignored, the working area), appends `progress.csv`,
 appends every `role:<agent>` lesson to that agent's memory file, removes the `wia-<n>` worktree and its
-`audit/<n>` branch, and deletes `current-audit.json`.
+`audit/<n>` branch, and deletes `artifacts/knowledge/open-audits/<n>.json`.
 
 Update the board: `audits/<n>.status=closed`, its `outcome` (from the knowledge record), `opened=[...]`
 remediation issue numbers from step 5, and `meta/board.pipeline="v2"`.
@@ -426,16 +472,21 @@ pwsh -NoProfile -File tools/ai/audit/audit-next.ps1 -Delta rules-2026-10
 (`-Issue <n>` picks a specific audited issue that has no delta yet; without it the script takes the first one.)
 
 - **Which issue.** The set covers exactly the audits done before the rules: the candidates are the distinct issues of `artifacts/knowledge/progress.csv`, in order, whose published record does not date its audit on or after the set's cut-off (`delta.cutOff` in `pipeline-delta.json`, 2026-10-05; audits #30 and later already apply the rules and never enter the queue). An issue with no published record `docs/knowledge/issues/<n>.md` on `origin/main` is skipped with a warning (#4; the pilot-format #11-#15 and #20 until #1765 lands). Progress is kept in `artifacts/knowledge/delta-progress-rules-2026-10.csv` (git-ignored), so `progress.csv` and the original audit are never touched.
-- **What it does.** It creates `wia-<n>` on `audit/<n>` from `origin/main` as in step 1 (there is no pre-draft), writes the reused scope to `artifacts/knowledge/delta-scope.md` in that worktree (the front matter of `docs/knowledge/issues/<n>.md` plus the scope lists of the published `docs/knowledge/audits/<n>/stages/archivist.md` and `code.md`; when `docs/knowledge/audits/<n>/stages/` is not published, it is built from the record and the published result `docs/knowledge/audits/issue-<n>.md`, and says which source was used; `knowledge-records.cs` accepts an `audits/<n>/` folder that holds only `delta-*` folders), records `mode: delta` and `set: rules-2026-10` in `current-audit.json`, and prints the first stage.
+- **What it does.** It creates `wia-<n>` on `audit/<n>` from `origin/main` as in step 1 (there is no pre-draft), writes the reused scope to `artifacts/knowledge/delta-scope.md` in that worktree (the front matter of `docs/knowledge/issues/<n>.md` plus the scope lists of the published `docs/knowledge/audits/<n>/stages/archivist.md` and `code.md`; when `docs/knowledge/audits/<n>/stages/` is not published, it is built from the record and the published result `docs/knowledge/audits/issue-<n>.md`, and says which source was used; `knowledge-records.cs` accepts an `audits/<n>/` folder that holds only `delta-*` folders), records `mode: delta` and `set: rules-2026-10` in its `open-audits/<n>.json` (its scope is the `packages:` of the published record), and prints the first stage. Delta audits count toward `maxParallelAudits` and follow the same overlap rule; an issue already open, in either mode, is never opened twice.
 - **Stage prompts.** Spawn each agent in the foreground, naming `#<n>` and `wia-<n>` as always, and say `delta: rules-2026-10, check only rule (a)` for the docs stage, `delta: rules-2026-10, check only rule (b)` for the tests stage, and `delta: rules-2026-10, verify only rules (a) and (b)` for the verifier. `audit-stage-guard.ps1` reads `pipeline-delta.json` for order and agent, denies the full pipeline's other agents (`issue-archivist`, `issue-auditor`) and a prompt without the marker; `enforce-path-ownership.ps1` applies the same ownership to the delta stage files. Commit stages, run `audit-lessons.ps1` and `audit-commit-stage.ps1 -Lessons` as in steps 2 to 4; the remediation stage (`-Prepare`, spawn, `-Finalize`) reads only the stages the delta pipeline has.
 - **Close.** Open the remediation first (step 5, `-Consolidate` below), then `audit-done.ps1` works as in step 6 (it refuses while a draft has no `opened.csv` row) but publishes to `docs/knowledge/audits/<n>/delta-2026-10/` (the delta stage files, `lessons.md` and `delta-scope.md`) on the branch `knowledge/audit-<n>-delta-2026-10` through the same pull request mechanism (`Refs #1345`); it does not replace the original record or audit result, and appends `<n>,done` to the delta progress file. The remediation step is `open-remediation.ps1 -Issue <n> -Consolidate` (add `-Set <set>` for a set other than `rules-2026-10`): the delta opens ONE (when it fits, see the split below) `[DEBT] Delta re-audit (<set>) of #<n>: <k> findings (docs and coverage obligations)` issue that carries every remediation draft as a checkbox and a per-finding subsection under the `technical_debt.md` headers, and `opened.csv` gets one row per draft pointing at it, so `audit-done.ps1` and the published audit result work unchanged (a `[BUG]` draft is still its own issue); when one body would exceed GitHub's 65,000-character limit the script splits it, drafts kept whole and docs before tests, into the fewest `... (part k/n)` issues that each fit, and each draft's row points at the part that holds it (a single draft over the limit fails the run naming it). Why: maintainer decision 2026-10-05, one issue per audit and the fixes done in batches; full audits keep one issue per draft.
 - **Self-test of the consolidation.** `pwsh -NoProfile -File tools/ai/audit/open-remediation-selftest.ps1` (gh stubbed) asserts the one issue, its headers, checkboxes and `opened.csv` rows, the separate bug, the idempotent re-run, and the 65,000-character split (parts, rows per part, per-part `-WhatIf` previews, an oversized draft failing before anything is created).
 - **Self-test.** `pwsh -NoProfile -File tools/ai/audit/audit-delta-selftest.ps1` runs `audit-next.ps1 -Delta` against a fixture with stubbed `git push` and `gh` and asserts the scope reuse, the stage order and the publish layout.
 
+**Self-test of parallel audits (#2234).** `pwsh -NoProfile -File tools/ai/audit/audit-parallel-selftest.ps1`
+opens two and three audits in a fixture, and asserts the overlap rule, the limit and its validation, the stray
+worktree refusal, the resolver, both cross-audit duplicate checks and closing out of order.
+
 ## Rules
 
-- One audit open at a time; `audit-next.ps1` refuses a second one, and a stray `wia-*` worktree without
-  `current-audit.json` blocks starting a new one until you clean it up.
+- At most `maxParallelAudits` audits open at once (2 to 5; 2 as shipped), each one individual; `audit-next.ps1`
+  opens one per call, never an issue whose scope overlaps an open audit, and a stray `wia-*` worktree without
+  its `open-audits/<n>.json` blocks starting a new one until you clean it up.
 - Every stage spawn is in the foreground, names the issue number and worktree explicitly, and is never
   batched with another issue's audit.
 - You never write a stage's own artifact; you write `stages/lessons.md` (the one file that is yours) and the

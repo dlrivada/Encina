@@ -20,14 +20,37 @@
 # recognise inside that garbage is more useful to report than giving up because the file as a whole is not
 # valid JSON.
 
-param([switch]$Next, [switch]$RepairAuthors)
+#
+# #2234: several audits may be open at once. -Issue <n> names the audit; it may be omitted when the script runs
+# from (or the current directory is) that audit's wia-<n> worktree, or when only one audit is open
+# (Resolve-OpenAudit, _audit-lib.ps1). -List prints every open audit with its next stage and the days it has
+# been open, and flags STALE any audit open more than 2 days ($script:StaleAuditDays), so none is forgotten
+# half-way; audit-next.ps1 refuses to start another audit while one is stale (unless -Force).
+
+param([switch]$Next, [switch]$RepairAuthors, [switch]$List, [int]$Issue)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_audit-lib.ps1')
 
 $mainRoot = Get-MainRoot $PSScriptRoot
-$audit = Get-CurrentAudit $mainRoot
-if ($null -eq $audit) { Write-Error 'audit-stage: no open audit (artifacts/knowledge/current-audit.json not found). Run audit-next.ps1 first.'; exit 1 }
+
+if ($List) {
+    try { $all = @(Get-OpenAudits $mainRoot) } catch { Write-Error "audit-stage: $($_.Exception.Message)"; exit 1 }
+    if ($all.Count -eq 0) { 'audit-stage: no open audit.'; exit 0 }
+    $now = [DateTime]::UtcNow
+    foreach ($a in $all) {
+        $due = Get-NextStage (Get-StagesDir ([string]$a.worktree)) ([string]$a.worktree) (Get-AuditPipeline $a)
+        $mode = if (Test-DeltaAudit $a) { " (delta $($a.set))" } else { '' }
+        $age = Get-AuditAgeDays $a $now
+        $ageText = if ([double]::IsInfinity($age)) { 'start date unknown' } else { '{0:0.0} days open' -f $age }
+        $stale = if ($age -gt $script:StaleAuditDays) { " STALE (open more than $($script:StaleAuditDays) days: finish or close it)" } else { '' }
+        "#$($a.issue)$mode wia-$($a.issue): next stage $(if ($null -eq $due) { 'none (run audit-done.ps1 -Issue ' + $a.issue + ')' } else { "$($due.stage) ($($due.agent))" }); $ageText$stale; scope: $(if (@($a.scope).Count) { @($a.scope) -join ', ' } else { '-' })"
+    }
+    exit 0
+}
+
+try { $audit = Resolve-OpenAudit $mainRoot $Issue $PSScriptRoot }
+catch { Write-Error "audit-stage: $($_.Exception.Message)"; exit 1 }
 
 if ($RepairAuthors) {
     $wt = [string]$audit.worktree
@@ -81,7 +104,7 @@ if ($RepairAuthors) {
     exit 0
 }
 
-if (-not $Next) { 'Usage: audit-stage.ps1 -Next | -RepairAuthors'; exit 0 }
+if (-not $Next) { 'Usage: audit-stage.ps1 -Next | -RepairAuthors [-Issue n] | -List'; exit 0 }
 
 $wt = [string]$audit.worktree
 $n = [string]$audit.issue
@@ -92,15 +115,15 @@ $pipeline = Get-AuditPipeline $audit
 $dueStage = Get-NextStage $stagesDir $wt $pipeline
 
 if ($null -eq $dueStage) {
-    "All stages complete for #$n. Run audit-done.ps1."
+    "All stages complete for #$n. Run audit-done.ps1 -Issue $n."
     exit 0
 }
 if ($dueStage.agent -eq 'remediation-drafter') {
     # #1572: the remediation stage is a script step, an agent spawn and a script step.
     "Next stage: $($dueStage.stage) for issue #$n, worktree $wt -- three steps:"
-    "  1. pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Prepare"
+    "  1. pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Prepare -Issue $n"
     "  2. spawn remediation-drafter in the foreground, naming #$n, wia-$n and artifacts/knowledge/remediation/_manifest-$n.json"
-    "  3. pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Finalize (on exit 1, re-spawn remediation-drafter with its output, then run -Finalize again)"
+    "  3. pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Finalize -Issue $n (on exit 1, re-spawn remediation-drafter with its output, then run -Finalize again)"
 }
 elseif ($dueStage.agent -match '^issue-|^audit-|^docs-reviewer$') {
     "Next stage: $($dueStage.stage) (spawn $($dueStage.agent) on issue #$n, worktree $wt)"
