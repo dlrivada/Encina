@@ -29,6 +29,7 @@ Record: [issues/37.md](../issues/37.md)
 - https://github.com/dlrivada/Encina/issues/2195 (draft 37-docs-4-rule-a-point-5-and-decision-accuracy-docs.md)
 - https://github.com/dlrivada/Encina/issues/2196 (draft 37-tests-1-chained-upcasting-v1-to-v2-to-v3-has.md)
 - https://github.com/dlrivada/Encina/issues/2197 (draft 37-tests-4-addeventupcaster-tupcaster-servicecollectionextensions-cs-29.md)
+- https://github.com/dlrivada/Encina/issues/2201 (decision issue for the criteria of #37 that were never delivered)
 
 ## Duplicates noted
 
