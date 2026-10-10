@@ -1106,7 +1106,13 @@
     "Sagas/ISagaNotFoundDispatcher.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interfaces have no implementation to test",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "An interface has no executable lines, so there is nothing for a test to cover."
+      }
     },
     "Sagas/ISagaState.cs": {
       "defaultTests": [],
@@ -1165,7 +1171,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 25,
+        "integration": 60
+      },
+      "justifications": {
+        "unit": "Unit tests drive every MoveToDeadLetterAsync outcome (not configured, no source message id, capture failure, success) and Ignore (measured 100%).",
+        "guard": "Guard tests reach the constructor and the reason checks (measured 31%).",
+        "integration": "The ten-provider saga-not-found scenario moves messages through the dispatcher; the error outcomes are reached by unit tests only (measured 64%)."
+      }
     },
     "Sagas/SagaNotFoundDispatcher.cs": {
       "defaultTests": [
@@ -1173,7 +1189,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 0,
+        "integration": 65
+      },
+      "justifications": {
+        "unit": "Unit tests drive pass-through without a handler, handler failure and cancellation, and the dead letter wiring with the flag on and off (measured 100%).",
+        "guard": "The dispatcher is internal and only resolved through DI, so guard tests cannot reach it (measured 0%).",
+        "integration": "The ten-provider saga-not-found scenario dispatches through the registered dispatcher; the failure and cancellation branches are unit-only (measured 70%)."
+      }
     },
     "Sagas/SagaOrchestrator.cs": {
       "defaultTests": [

@@ -130,7 +130,8 @@ Encina.Messaging.Sagas.SagaNotFoundContext.Ignore() -> void
 Encina.Messaging.Sagas.SagaNotFoundContext.MessageType.get -> System.Type!
 Encina.Messaging.Sagas.SagaNotFoundContext.MoveToDeadLetterAsync(string! reason, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Messaging.Sagas.SagaNotFoundContext.SagaId.get -> System.Guid
-Encina.Messaging.Sagas.SagaNotFoundContext.SagaNotFoundContext(System.Guid sagaId, string! sagaType, System.Type! messageType, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>? moveToDeadLetterAsync = null) -> void
+Encina.Messaging.Sagas.SagaNotFoundContext.SourceMessageId.get -> string?
+Encina.Messaging.Sagas.SagaNotFoundContext.SagaNotFoundContext(System.Guid sagaId, string! sagaType, System.Type! messageType, string? sourceMessageId = null) -> void
 Encina.Messaging.Sagas.SagaNotFoundContext.SagaType.get -> string!
 Encina.Messaging.Sagas.SagaNotFoundContext.WasIgnored.get -> bool
 Encina.Messaging.Sagas.SagaNotFoundContext.WasMovedToDeadLetter.get -> bool
@@ -871,6 +872,8 @@ const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.InvalidMessageType = "dlq
 const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.ReplayInProgress = "dlq.replay_in_progress" -> string!
 const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.CaptureFailed = "dlq.capture_failed" -> string!
 const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.CaptureRejected = "dlq.capture_rejected" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.NotConfigured = "dlq.not_configured" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.SourceMessageIdRequired = "dlq.source_message_id_required" -> string!
 Encina.Messaging.DeadLetter.DeadLetterOrchestrator.AddSerializedAsync(string! requestType, string! requestContent, Encina.Messaging.DeadLetter.DeadLetterContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.DeadLetter.IDeadLetterMessage!>>!
 Encina.Messaging.DeadLetter.DeadLetterSourceCapture
 Encina.Messaging.DeadLetter.DeadLetterSourceCapture.DeadLetterSourceCapture(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Encina.Messaging.DeadLetter.DeadLetterOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.DeadLetter.DeadLetterSourceCapture!>! logger) -> void
