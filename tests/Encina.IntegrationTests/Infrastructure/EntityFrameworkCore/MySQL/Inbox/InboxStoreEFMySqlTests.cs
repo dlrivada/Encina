@@ -30,6 +30,63 @@ public sealed class InboxStoreEFMySqlTests : IAsyncLifetime
         await _fixture.ClearAllDataAsync();
     }
 
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(3, true)]
+    [InlineData(3, false)]
+    public async Task Pipeline_ThrowingHandler_PersistsRetryCountAndRunsMaxRetriesTimes(int maxRetries, bool transactional)
+    {
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+
+        // Enable together with the other MySQL tests once the Pomelo provider supports EF Core 10 (#2086):
+        // pass o => o.UseMySql(...) as the database configuration.
+        await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertThrowingHandlerRunsMaxRetriesTimesAsync(
+            Harness(), maxRetries, transactional);
+    }
+
+    [Fact]
+    public async Task Pipeline_FailedBusinessCommit_LeavesMessageUnprocessed()
+    {
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+
+        await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertFailedBusinessCommitLeavesMessageUnprocessedAsync(
+            Harness());
+    }
+
+    private global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.Harness Harness() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineHarnesses.Ef<TestEFDbContext>(
+            _fixture.ConnectionString,
+            (_, _) => { /* o.UseMySql(...) once the Pomelo provider supports EF Core 10 (#2086) */ },
+            () => _fixture.CreateDbContext<TestEFDbContext>());
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task Orchestrator_HandlerAlwaysThrows_RunsHandlerMaxRetriesTimesThenRejects(int maxRetries)
+    {
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        var store = new InboxStoreEF(context);
+
+        await global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerRunsMaxRetriesTimesAsync(
+            store, new InboxMessageFactory(), maxRetries, () => context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task Orchestrator_HandlerLeft_IsCachedAndNotRerun()
+    {
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        var store = new InboxStoreEF(context);
+
+        await global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerLeftIsCachedAsync(
+            store, new InboxMessageFactory(), () => context.SaveChangesAsync());
+    }
+
     [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()
     {

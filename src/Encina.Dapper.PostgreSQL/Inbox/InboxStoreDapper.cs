@@ -16,6 +16,7 @@ public sealed class InboxStoreDapper : IInboxStore
     private readonly IDbConnection _connection;
     private readonly string _tableName;
     private readonly TimeProvider _timeProvider;
+    private readonly IDbTransactionAccessor? _transactionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InboxStoreDapper"/> class.
@@ -23,17 +24,20 @@ public sealed class InboxStoreDapper : IInboxStore
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The inbox table name (default: inboxmessages).</param>
     /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
+    /// <param name="transactionAccessor">Optional accessor of the business transaction on the shared connection; when a transaction is active the store enlists or leaves it as documented in ADR-048.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is null or whitespace.</exception>
     public InboxStoreDapper(
         IDbConnection connection,
         string tableName = "inboxmessages",
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IDbTransactionAccessor? transactionAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _transactionAccessor = transactionAccessor;
     }
 
     /// <inheritdoc />
@@ -49,7 +53,8 @@ public sealed class InboxStoreDapper : IInboxStore
                 FROM {_tableName}
                 WHERE messageid = @MessageId";
 
-            var result = await _connection.QuerySingleOrDefaultAsync<InboxMessage>(sql, new { MessageId = messageId });
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            var result = await lease.Connection.QuerySingleOrDefaultAsync<InboxMessage>(new CommandDefinition(sql, new { MessageId = messageId }, lease.Transaction, cancellationToken: cancellationToken));
 
             return result is not null
                 ? Option<IInboxMessage>.Some(result)
@@ -71,7 +76,8 @@ public sealed class InboxStoreDapper : IInboxStore
                 VALUES
                 (@MessageId, @RequestType, @ReceivedAtUtc, @ProcessedAtUtc, @ExpiresAtUtc, @Response, @ErrorMessage, @RetryCount, @NextRetryAtUtc, @Metadata)";
 
-            await _connection.ExecuteAsync(sql, message);
+            using var lease = await DbLease.IndependentAsync(_connection, _transactionAccessor, cancellationToken);
+            await lease.Connection.ExecuteAsync(new CommandDefinition(sql, message, lease.Transaction, cancellationToken: cancellationToken));
         }, "inbox.add_failed").ConfigureAwait(false);
     }
 
@@ -94,8 +100,32 @@ public sealed class InboxStoreDapper : IInboxStore
                     errormessage = NULL
                 WHERE messageid = @MessageId";
 
-            await _connection.ExecuteAsync(sql, new { MessageId = messageId, Response = response, NowUtc = nowUtc });
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            await lease.Connection.ExecuteAsync(new CommandDefinition(sql, new { MessageId = messageId, Response = response, NowUtc = nowUtc }, lease.Transaction, cancellationToken: cancellationToken));
         }, "inbox.mark_processed_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, Unit>> CacheHandlerErrorAsync(
+        string messageId,
+        string response,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            var sql = $@"
+                UPDATE {_tableName}
+                SET processedatutc = @NowUtc,
+                    response = @Response,
+                    errormessage = NULL
+                WHERE messageid = @MessageId";
+
+            using var lease = await DbLease.IndependentAsync(_connection, _transactionAccessor, cancellationToken);
+            await lease.Connection.ExecuteAsync(new CommandDefinition(sql, new { MessageId = messageId, Response = response, NowUtc = nowUtc }, lease.Transaction, cancellationToken: cancellationToken));
+        }, "inbox.cache_handler_error_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -118,14 +148,17 @@ public sealed class InboxStoreDapper : IInboxStore
                     nextretryatutc = @NextRetryAtUtc
                 WHERE messageid = @MessageId";
 
-            await _connection.ExecuteAsync(
+            using var lease = await DbLease.IndependentAsync(_connection, _transactionAccessor, cancellationToken);
+            await lease.Connection.ExecuteAsync(new CommandDefinition(
                 sql,
                 new
                 {
                     MessageId = messageId,
                     ErrorMessage = errorMessage,
                     NextRetryAtUtc = nextRetryAtUtc
-                });
+                },
+                lease.Transaction,
+                cancellationToken: cancellationToken));
         }, "inbox.mark_failed_failed").ConfigureAwait(false);
     }
 
@@ -148,7 +181,8 @@ public sealed class InboxStoreDapper : IInboxStore
                 ORDER BY expiresatutc
                 LIMIT @BatchSize";
 
-            var messages = await _connection.QueryAsync<InboxMessage>(sql, new { BatchSize = batchSize, NowUtc = nowUtc });
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            var messages = await lease.Connection.QueryAsync<InboxMessage>(new CommandDefinition(sql, new { BatchSize = batchSize, NowUtc = nowUtc }, lease.Transaction, cancellationToken: cancellationToken));
             return messages.Cast<IInboxMessage>();
         }, "inbox.get_expired_failed").ConfigureAwait(false);
     }
@@ -171,24 +205,9 @@ public sealed class InboxStoreDapper : IInboxStore
                 DELETE FROM {_tableName}
                 WHERE messageid = ANY(@MessageIds)";
 
-            await _connection.ExecuteAsync(sql, new { MessageIds = messageIds });
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            await lease.Connection.ExecuteAsync(new CommandDefinition(sql, new { MessageIds = messageIds }, lease.Transaction, cancellationToken: cancellationToken));
         }, "inbox.remove_expired_failed").ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public async Task<Either<EncinaError, Unit>> IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
-
-        return await EitherHelpers.TryAsync(async () =>
-        {
-            var sql = $@"
-                UPDATE {_tableName}
-                SET retrycount = retrycount + 1
-                WHERE messageid = @MessageId";
-
-            await _connection.ExecuteAsync(sql, new { MessageId = messageId });
-        }, "inbox.increment_retry_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />

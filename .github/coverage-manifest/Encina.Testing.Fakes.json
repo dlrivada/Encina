@@ -141,7 +141,12 @@
         "guard"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": { "unit": 80, "guard": 40 },
+      "justifications": {
+        "unit": "The store operations and the failure/retry bookkeeping are unit-covered; the expiry listing filters and the guard clauses account for the uncovered remainder.",
+        "guard": "Only the argument checks of the fake store are guard-reachable."
+      }
     },
     "Stores/FakeOutboxStore.cs": {
       "defaultTests": [

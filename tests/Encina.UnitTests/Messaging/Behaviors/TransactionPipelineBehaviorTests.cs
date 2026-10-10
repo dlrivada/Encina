@@ -36,6 +36,63 @@ public sealed class TransactionPipelineBehaviorTests
         exception.ParamName.ShouldBe("connection");
     }
 
+    [Fact]
+    public async Task Handle_WithAccessor_PublishesTransactionWhileRunningAndClearsItAfterwards()
+    {
+        // Arrange
+        var accessor = new DbTransactionAccessor();
+        var behavior = new TransactionPipelineBehavior<TestRequest, string>(_connection, accessor);
+        IDbTransaction? seenByHandler = null;
+
+        RequestHandlerCallback<string> nextStep = () =>
+        {
+            seenByHandler = accessor.Current;
+            return ValueTask.FromResult<Either<EncinaError, string>>("Success");
+        };
+
+        // Act
+        await behavior.Handle(new TestRequest(Guid.NewGuid()), CreateTestContext(), nextStep, CancellationToken.None);
+
+        // Assert
+        seenByHandler.ShouldBeSameAs(_transaction);
+        accessor.Current.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_PlainConnection_HandlerThrowsOperationCanceled_RollsBackAndRethrows()
+    {
+        // Arrange
+        var accessor = new DbTransactionAccessor();
+        var behavior = new TransactionPipelineBehavior<TestRequest, string>(_connection, accessor);
+        RequestHandlerCallback<string> nextStep = () => throw new OperationCanceledException();
+
+        // Act
+        var act = async () => await behavior.Handle(new TestRequest(Guid.NewGuid()), CreateTestContext(), nextStep, CancellationToken.None);
+
+        // Assert
+        await act.ShouldThrowAsync<OperationCanceledException>();
+        _transaction.Received(1).Rollback();
+        _transaction.DidNotReceive().Commit();
+        accessor.Current.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_WithAccessor_ClearsTransactionAlsoWhenHandlerThrows()
+    {
+        // Arrange
+        var accessor = new DbTransactionAccessor();
+        var behavior = new TransactionPipelineBehavior<TestRequest, string>(_connection, accessor);
+
+        RequestHandlerCallback<string> nextStep = () => throw new InvalidOperationException("boom");
+
+        // Act
+        var result = await behavior.Handle(new TestRequest(Guid.NewGuid()), CreateTestContext(), nextStep, CancellationToken.None);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        accessor.Current.ShouldBeNull();
+    }
+
     #endregion
 
     #region Handle Tests - Success Path

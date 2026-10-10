@@ -160,7 +160,8 @@ public sealed class InboxOrchestrator
             return DeserializeResponse<TResponse>(existingMessage.Response);
         }
 
-        // Message exists but failed - retry if within limit
+        // RetryCount counts failed attempts (the store increments it in MarkAsFailedAsync, once per
+        // failed attempt). Once it reaches MaxRetries the handler has already run MaxRetries times.
         if (existingMessage.RetryCount >= _options.MaxRetries)
         {
             Log.MaxRetriesExceeded(_logger, messageId, _options.MaxRetries, correlationId);
@@ -168,9 +169,6 @@ public sealed class InboxOrchestrator
                 InboxErrorCodes.MaxRetriesExceeded,
                 $"Message has failed {existingMessage.RetryCount} times and will not be retried");
         }
-
-        // Increment retry count and process
-        await _store.IncrementRetryCountAsync(messageId, cancellationToken).ConfigureAwait(false);
 
         return await ProcessAndCacheResponseAsync(
             messageId, correlationId, processCallback, cancellationToken).ConfigureAwait(false);
@@ -182,31 +180,50 @@ public sealed class InboxOrchestrator
         Func<ValueTask<Either<EncinaError, TResponse>>> processCallback,
         CancellationToken cancellationToken)
     {
+        Either<EncinaError, TResponse> result;
+        string serializedResponse;
+
         try
         {
-            var result = await processCallback().ConfigureAwait(false);
-
-            // Store response in inbox
-            var serializedResponse = SerializeResponse(result);
-            await _store.MarkAsProcessedAsync(messageId, serializedResponse, cancellationToken).ConfigureAwait(false);
-
-            Log.ProcessedAndCachedMessage(_logger, messageId, correlationId);
-
-            return result;
+            result = await processCallback().ConfigureAwait(false);
+            serializedResponse = SerializeResponse(result);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The caller cancelled: that is not a failed attempt and must not consume a retry.
+            throw;
         }
         catch (Exception ex)
         {
             Log.ErrorProcessingMessage(_logger, ex.ForLogging(), messageId, correlationId);
 
-            await _store.MarkAsFailedAsync(
+            // A thrown exception is a failed attempt: the store records it and increments RetryCount.
+            var failed = await _store.MarkAsFailedAsync(
                 messageId,
                 ex.GetType().FullName ?? ex.GetType().Name, // type only: the message may carry personal data
                 _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(1), // Simple backoff, can be made configurable
                 cancellationToken).ConfigureAwait(false);
 
+            if (failed.IsLeft)
+                return failed.LeftToArray()[0];
+
             return EncinaErrors.FromException("inbox.processing_failed", ex,
                 $"Error processing inbox message {messageId}");
         }
+
+        // A handler Left is a business outcome (ADR-001): it is cached as the processed response and
+        // does not consume retries. The business transaction rolls back on a Left, so the cached Left is
+        // written outside it; a Right is marked processed atomically with the business effect (ADR-048).
+        // A store Left fails the operation instead of reporting success.
+        var processed = result.IsRight
+            ? await _store.MarkAsProcessedAsync(messageId, serializedResponse, cancellationToken).ConfigureAwait(false)
+            : await _store.CacheHandlerErrorAsync(messageId, serializedResponse, cancellationToken).ConfigureAwait(false);
+        if (processed.IsLeft)
+            return processed.LeftToArray()[0];
+
+        Log.ProcessedAndCachedMessage(_logger, messageId, correlationId);
+
+        return result;
     }
 
     private string SerializeResponse<TResponse>(Either<EncinaError, TResponse> response)
@@ -230,11 +247,10 @@ public sealed class InboxOrchestrator
                 "Failed to deserialize cached response");
         }
 
-        var value = envelope.Value;
-
-        if (envelope.IsSuccess && !EqualityComparer<TResponse>.Default.Equals(value, default!))
+        if (envelope.IsSuccess)
         {
-            return Right<EncinaError, TResponse>(value!); // NOSONAR S6966: LanguageExt Right is a pure function
+            // A successful response equal to default(TResponse) (0, false, Unit) is still the cached success.
+            return Right<EncinaError, TResponse>(envelope.Value!); // NOSONAR S6966: LanguageExt Right is a pure function
         }
 
         return EncinaErrors.Create(

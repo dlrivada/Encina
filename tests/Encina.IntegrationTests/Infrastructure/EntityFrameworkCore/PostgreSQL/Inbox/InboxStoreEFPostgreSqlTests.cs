@@ -31,6 +31,56 @@ public sealed class InboxStoreEFPostgreSqlTests : IAsyncLifetime
         await _fixture.ClearAllDataAsync();
     }
 
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(3, true)]
+    [InlineData(3, false)]
+    public Task Pipeline_ThrowingHandler_PersistsRetryCountAndRunsMaxRetriesTimes(int maxRetries, bool transactional) =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertThrowingHandlerRunsMaxRetriesTimesAsync(
+            Harness(), maxRetries, transactional);
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public Task Pipeline_HandlerLeft_IsCachedEvenWhenTheTransactionRollsBack(bool transactional) =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertHandlerLeftIsCachedAfterRollbackAsync(
+            Harness(), transactional);
+
+    [Fact]
+    public Task Pipeline_SuccessfulHandler_IsCachedAndCommitted() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertSuccessIsCachedAsync(
+            Harness(), transactional: true);
+
+    [Fact]
+    public Task Pipeline_FailedBusinessCommit_LeavesMessageUnprocessed() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertFailedBusinessCommitLeavesMessageUnprocessedAsync(
+            Harness());
+
+    private global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.Harness Harness() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineHarnesses.EfPostgreSql<TestPostgreSqlDbContext>(_fixture);
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task Orchestrator_HandlerAlwaysThrows_RunsHandlerMaxRetriesTimesThenRejects(int maxRetries)
+    {
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
+        var store = new InboxStoreEF(context);
+
+        await global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerRunsMaxRetriesTimesAsync(
+            store, new InboxMessageFactory(), maxRetries, () => context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task Orchestrator_HandlerLeft_IsCachedAndNotRerun()
+    {
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
+        var store = new InboxStoreEF(context);
+
+        await global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerLeftIsCachedAsync(
+            store, new InboxMessageFactory(), () => context.SaveChangesAsync());
+    }
+
     [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()
     {

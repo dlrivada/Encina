@@ -438,10 +438,20 @@
     },
     "Inbox/InboxStoreEF.cs": {
       "defaultTests": [
-        "integration"
+        "integration",
+        "unit",
+        "guard",
+        "contract"
       ],
       "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
+      "reason": "EF Core store — needs real DbContext",
+      "targets": { "unit": 92, "guard": 80, "contract": 75, "integration": 83 },
+      "justifications": {
+        "unit": "The in-memory provider covers the non-relational fallback, the isolation guards and the registration check; the relational UPDATE branch needs a real database.",
+        "guard": "Argument checks of every public method; the isolated-context paths are not guard-reachable.",
+        "contract": "The store contract tests drive add, mark processed, mark failed, expiry and removal.",
+        "integration": "Real SQL Server and PostgreSQL runs cover the relational UPDATE and the pipeline scenarios; the non-relational fallback and the skipped EF MySQL variant (#2086) are not reachable there."
+      }
     },
     "ITransactionalCommand.cs": {
       "defaultTests": [
@@ -740,17 +750,16 @@
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": {
-        "unit": 50,
-        "guard": 50
-      },
+      "targets": { "unit": 50, "guard": 53, "integration": 30 },
       "justifications": {
-        "unit": "The registration tests resolve the dead letter path, but the file also registers features that are covered by their own tests, so only part of it is exercised here.",
-        "guard": "The null-argument checks are covered by the guard tests, while the remaining registrations belong to other features."
+        "unit": "Registration paths are DI-tested and the tests resolve the dead letter path, but provider-specific branches need real contexts and other features are covered by their own tests.",
+        "guard": "Argument checks of the public registration methods are covered by the guard tests, while the remaining registrations belong to other features.",
+        "integration": "Real-database pipeline runs register the messaging stack; the remaining branches (tenancy, sharding, read-write routing) are exercised by their own suites."
       }
     },
     "Sharding/FunctionalShardedRepositoryEF.cs": {

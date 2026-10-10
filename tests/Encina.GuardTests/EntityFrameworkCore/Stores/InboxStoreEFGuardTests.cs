@@ -137,23 +137,6 @@ public sealed class InboxStoreEFGuardTests
 
     #endregion
 
-    #region IncrementRetryCountAsync Guards
-
-    [Fact]
-    public async Task IncrementRetryCountAsync_NullMessageId_ThrowsArgumentNullException()
-    {
-        // Arrange
-        var store = CreateStore();
-        string messageId = null!;
-
-        // Act & Assert
-        var ex = await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await store.IncrementRetryCountAsync(messageId));
-        ex.ParamName.ShouldBe("messageId");
-    }
-
-    #endregion
-
     #region RemoveExpiredMessagesAsync Guards
 
     [Fact]

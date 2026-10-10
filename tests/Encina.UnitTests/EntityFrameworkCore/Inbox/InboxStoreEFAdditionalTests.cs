@@ -158,6 +158,7 @@ public class InboxStoreEFAdditionalTests : IDisposable
         await _store.SaveChangesAsync();
 
         // Assert
+        _dbContext.ChangeTracker.Clear(); // the store writes through its own context
         var updated = await _dbContext.InboxMessages.FindAsync("null-retry-test");
         updated!.NextRetryAtUtc.ShouldBeNull();
         updated.ErrorMessage.ShouldBe("Test error");
@@ -185,54 +186,6 @@ public class InboxStoreEFAdditionalTests : IDisposable
 
         // Assert
         exception.ShouldBeNull();
-    }
-
-    #endregion
-
-    #region IncrementRetryCountAsync Tests
-
-    [Fact]
-    public async Task IncrementRetryCountAsync_NullMessageId_ThrowsArgumentNullException()
-    {
-        // Act & Assert
-        await Should.ThrowAsync<ArgumentNullException>(() =>
-            _store.IncrementRetryCountAsync(null!));
-    }
-
-    [Fact]
-    public async Task IncrementRetryCountAsync_NonExistentMessage_DoesNotThrow()
-    {
-        // Act - Should not throw for non-existent message
-        var exception = await Record.ExceptionAsync(() =>
-            _store.IncrementRetryCountAsync("non-existent-id"));
-
-        // Assert
-        exception.ShouldBeNull();
-    }
-
-    [Fact]
-    public async Task IncrementRetryCountAsync_IncrementsRetryCount()
-    {
-        // Arrange
-        var message = new InboxMessage
-        {
-            MessageId = "increment-test",
-            RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
-            RetryCount = 2
-        };
-
-        await _dbContext.InboxMessages.AddAsync(message);
-        await _dbContext.SaveChangesAsync();
-
-        // Act
-        await _store.IncrementRetryCountAsync("increment-test");
-        await _store.SaveChangesAsync();
-
-        // Assert
-        var updated = await _dbContext.InboxMessages.FindAsync("increment-test");
-        updated!.RetryCount.ShouldBe(3);
     }
 
     #endregion

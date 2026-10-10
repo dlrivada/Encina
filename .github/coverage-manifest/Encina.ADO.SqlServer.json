@@ -110,10 +110,16 @@
     },
     "Inbox/InboxStoreADO.cs": {
       "defaultTests": [
-        "integration"
+        "integration",
+        "guard"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL — needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database",
+      "targets": { "integration": 92, "guard": 7 },
+      "justifications": {
+        "integration": "Real-database retry contract tests drive the store through the orchestrator; the uncovered lines are provider error branches.",
+        "guard": "Only the argument checks are guard-reachable."
+      }
     },
     "Modules/ModuleAwareConnectionFactory.cs": {
       "defaultTests": [

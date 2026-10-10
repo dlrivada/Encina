@@ -44,7 +44,7 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         result.IfRight(opt => opt.Match(
             Some: _ => CompleteDuplicateFound(activity),
             None: () => Complete(activity)));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, err));
         return result;
     }
 
@@ -54,7 +54,7 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         using var activity = StartReceive(message.RequestType, message.MessageId);
         var result = await _inner.AddAsync(message, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, err));
         return result;
     }
 
@@ -67,7 +67,20 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         using var activity = StartMarkProcessed(messageId);
         var result = await _inner.MarkAsProcessedAsync(messageId, response, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, err));
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, Unit>> CacheHandlerErrorAsync(
+        string messageId,
+        string response,
+        CancellationToken cancellationToken = default)
+    {
+        using var activity = StartCacheHandlerError(messageId);
+        var result = await _inner.CacheHandlerErrorAsync(messageId, response, cancellationToken).ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err));
         return result;
     }
 
@@ -82,17 +95,7 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         var result = await _inner.MarkAsFailedAsync(messageId, errorMessage, nextRetryAtUtc, cancellationToken)
             .ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
-        return result;
-    }
-
-    /// <inheritdoc />
-    public async Task<Either<EncinaError, Unit>> IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
-    {
-        using var activity = StartIncrementRetry(messageId);
-        var result = await _inner.IncrementRetryCountAsync(messageId, cancellationToken).ConfigureAwait(false);
-        result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, err));
         return result;
     }
 
@@ -109,7 +112,7 @@ internal sealed class InstrumentedInboxStore : IInboxStore
             var count = messages is ICollection<IInboxMessage> col ? col.Count : messages.Count();
             CompleteBatch(activity, count);
         });
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, err));
         return result;
     }
 
@@ -121,7 +124,7 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         using var activity = StartRemoveExpired();
         var result = await _inner.RemoveExpiredMessagesAsync(messageIds, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, err));
         return result;
     }
 
@@ -166,6 +169,18 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         return activity;
     }
 
+    private static Activity? StartCacheHandlerError(string messageId)
+    {
+        if (!Source.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = Source.StartActivity("encina.inbox.cache_handler_error", ActivityKind.Internal);
+        activity?.SetTag("inbox.message_id", messageId);
+        return activity;
+    }
+
     private static Activity? StartMarkFailed(string messageId)
     {
         if (!Source.HasListeners())
@@ -174,18 +189,6 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         }
 
         var activity = Source.StartActivity("encina.inbox.mark_failed", ActivityKind.Internal);
-        activity?.SetTag("inbox.message_id", messageId);
-        return activity;
-    }
-
-    private static Activity? StartIncrementRetry(string messageId)
-    {
-        if (!Source.HasListeners())
-        {
-            return null;
-        }
-
-        var activity = Source.StartActivity("encina.inbox.increment_retry", ActivityKind.Internal);
         activity?.SetTag("inbox.message_id", messageId);
         return activity;
     }
@@ -239,8 +242,9 @@ internal sealed class InstrumentedInboxStore : IInboxStore
         activity.SetStatus(ActivityStatusCode.Ok);
     }
 
-    private static void Failed(Activity? activity, string? errorMessage)
+    // Only the error code reaches the activity: EncinaError.Message can carry personal data (AGENTS.md section 3).
+    private static void Failed(Activity? activity, EncinaError error)
     {
-        activity?.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity?.SetStatus(ActivityStatusCode.Error, error.GetCode().IfNone("encina.unknown"));
     }
 }
