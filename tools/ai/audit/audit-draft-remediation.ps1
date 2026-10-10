@@ -26,6 +26,17 @@
 #      placeholders, and that stages/remediation.md carries the manifest's line for every finding. It prints
 #      every problem and exits 1 when any remains; the orchestrator re-spawns the drafter with that output.
 #
+# -Issue <n> (#2234) names the audit when several are open; it may be omitted from the audit's wia-<n> worktree or
+# with one open audit (Resolve-OpenAudit, _audit-lib.ps1). Cross-audit duplicates (#2234): -Prepare also compares
+# every finding group with the drafts of the audits that ran concurrently with this one (its state file's
+# `concurrent`, recorded in the manifest as concurrentAudits), with the same evidence rule as the open-issue search
+# (Test-DuplicateEvidence). A match already opened as an issue (opened.csv) makes the group a duplicate of that
+# issue (" (draft <file> of the concurrent audit #m)" on its line). A match not opened yet stops -Prepare before
+# anything is written only when the other audit has the LOWER issue number (it goes first, as in queue order; a
+# higher-numbered audit's unopened draft does not stop this one, so two audits never block each other): open the
+# other audit's remediation first, or pass -NotDuplicate when the verifier ruled it is not a duplicate. -NotDuplicate and
+# -DuplicateOf skip the check for their group.
+#
 # Every list parameter (-Only, -DuplicateOf, -MergeInto, -NotDuplicate, -NoMerge) takes an array in-process and a
 # single comma-separated string under `pwsh -File` ('tests 8,tests 9'; #1863, which settles #1645's limitation).
 # A list parameter that is supplied but empty after splitting (-Only ',,,') is a usage error: exit 2, nothing touched.
@@ -91,7 +102,8 @@ param(
     [string[]]$DuplicateOf,
     [string[]]$MergeInto,
     [string[]]$NotDuplicate,
-    [string[]]$NoMerge
+    [string[]]$NoMerge,
+    [int]$Issue
 )
 
 $ErrorActionPreference = 'Stop'
@@ -185,8 +197,8 @@ $newMergeEntries = if ($MergeInto.Count -gt 0) { ConvertTo-MergeEntries $MergeIn
 $mergeIntoEntries = $null   # the effective set (previous manifest's merges plus this run's), built in -Prepare
 
 $mainRoot = Get-MainRoot $PSScriptRoot
-$audit = Get-CurrentAudit $mainRoot
-if ($null -eq $audit) { Stop-Remediation 'no open audit (artifacts/knowledge/current-audit.json not found). Run audit-next.ps1 first.' }
+try { $audit = Resolve-OpenAudit $mainRoot $Issue $PSScriptRoot }
+catch { Stop-Remediation $_.Exception.Message }
 
 $wt = [string]$audit.worktree
 $n = [string]$audit.issue
@@ -752,6 +764,10 @@ foreach ($mergeLesson in $mergeLessonItems) { if ($touchedMemberKeys.Contains($m
 
 $entriesByKey = @{}
 $ghIssueCache = @{}
+# #2234: the drafts of every audit that ran concurrently with this one (open-audits/<n>.json `concurrent`), for the
+# cross-audit duplicate check inside the loop below.
+$concurrentDrafts = @(Get-ConcurrentAuditDrafts $mainRoot $audit)
+$crossAuditBlocks = [System.Collections.Generic.List[string]]::new()
 # #1592: the types declared in the audited worktree's src/, for the "partially related" rule (route (b) of
 # Test-PartialDuplicateEvidence); scanned once per run, skipped under -NoGh (no duplicate search runs then).
 $declaredTypes = if ($NoGh) { , [System.Collections.Generic.HashSet[string]]::new() } else { Get-DeclaredEncinaTypes (Join-Path $wt 'src') }
@@ -764,6 +780,7 @@ foreach ($gi in $touchedGroupIndexes) {
 
     $duplicateOfIssue = $null
     $duplicateSource = $null
+    $crossAuditNote = ''
     $partiallyRelated = [System.Collections.Generic.List[string]]::new()
     $possiblyRelated = [System.Collections.Generic.List[string]]::new()
     if ($groupDuplicateIssue.ContainsKey($gi)) {
@@ -804,13 +821,37 @@ foreach ($gi in $touchedGroupIndexes) {
             }
         }
     }
+    # #2234: the drafts of the concurrent audits, with the same evidence rule as the open-issue search (and also
+    # under -NoGh: it reads only local files). A match already opened as an issue makes this group a duplicate of
+    # that issue, as a sequential run would have found it; a match not opened yet stops the run below.
+    if (-not $duplicateOfIssue -and $duplicateSource -ne 'manual not-duplicate') {
+        $crossMatches = @($concurrentDrafts | Where-Object { Test-DuplicateEvidence $primary.Text $_.TitleAndBody })
+        $crossOpened = @($crossMatches | Where-Object { $_.Number -gt 0 } | Sort-Object Number)
+        if ($crossOpened.Count -gt 0) {
+            $duplicateOfIssue = [string]$crossOpened[0].Number
+            $duplicateSource = 'cross-audit'
+            $crossAuditNote = " (draft $($crossOpened[0].Name) of the concurrent audit #$($crossOpened[0].Issue))"
+            $partiallyRelated.Clear()
+            $possiblyRelated.Clear()
+        }
+        else {
+            # Deterministic priority (CodeRabbit on PR #2243): of two audits whose unopened drafts match, the one with
+            # the LOWER issue number goes first, as in the sequential queue order. A match with a higher-numbered
+            # audit's unopened draft does not stop this one (that audit waits for ours); a match with a lower-numbered
+            # one does, so the two can never block each other.
+            $lowerMatches = @($crossMatches | Where-Object { [int]$_.Issue -lt [int]$n } | Sort-Object Issue, Name)
+            if ($lowerMatches.Count -gt 0) {
+                $crossAuditBlocks.Add("$primaryLabel matches the draft $($lowerMatches[0].Name) of the concurrent audit #$($lowerMatches[0].Issue), which is not opened as an issue yet (the lower-numbered audit goes first)")
+            }
+        }
+    }
 
     $kind = $null
     $kindOptions = @()
     $draftFile = $null
     $primaryLine = $null
     if ($duplicateOfIssue) {
-        $primaryLine = if ($duplicateSource -eq 'manual override') { "- $primaryLabel`: duplicate of #$duplicateOfIssue (manual override)" } else { "- $primaryLabel`: duplicate of #$duplicateOfIssue" }
+        $primaryLine = if ($duplicateSource -eq 'manual override') { "- $primaryLabel`: duplicate of #$duplicateOfIssue (manual override)" } else { "- $primaryLabel`: duplicate of #$duplicateOfIssue$crossAuditNote" }
     }
     else {
         # Deterministic where the stage decides it; a code-stage finding is a bug, debt or documentation drift
@@ -861,6 +902,13 @@ foreach ($gi in $touchedGroupIndexes) {
         }
         "$memberLabel -> $($line -replace '^-\s+[^:]+:\s*', '')$(if ($isPrimary -and $kind) { " (kind: $kind)" })"
     }
+}
+
+# #2234: a finding that matches a concurrent audit's draft that is not an issue yet cannot be decided now: in a
+# sequential run that draft would already be an issue and the finding its duplicate. Stop before anything on disk
+# is touched; the orchestrator opens the other audit's remediation first (or records the verifier's ruling).
+if ($crossAuditBlocks.Count -gt 0) {
+    Stop-Remediation ("cross-audit duplicate check (#2234): " + ($crossAuditBlocks -join '; ') + ". Nothing was written. Open that audit's remediation issues first (open-remediation.ps1 -Issue <m>, after its verifier PASS) and run -Prepare again, which then records the duplicate; or, when audit-verifier ruled the finding is not a duplicate, run -Prepare again with -NotDuplicate '<stage> <n>'.")
 }
 
 # Untouched findings of an -Only run: their existing line, draft and input, verbatim (#1492 decision 3). When
@@ -914,6 +962,8 @@ $findingEntries = foreach ($f in $allFindings) {
 $manifest = [ordered]@{
     issue          = [int]$n
     worktree       = $wt
+    # #2234: the audits whose drafts the cross-audit duplicate check compared (audit-verifier repeats it).
+    concurrentAudits = @(@($audit.concurrent) | ForEach-Object { [int]$_ })
     dryRun         = [bool]$DryRun
     only           = if ($Only) { @($Only) } else { $null }
     outputDir      = $outDir
@@ -969,5 +1019,5 @@ foreach ($f in $allFindings) {
 Set-Content -LiteralPath $manifestPath -Encoding utf8 -Value ($manifest | ConvertTo-Json -Depth 8)
 
 $draftCount = @($manifest.findings | Where-Object { $_.regenerate -and $_.draftFile }).Count
-"audit-draft-remediation: -Prepare wrote $manifestPath for #$n ($($allFindings.Count) finding(s), $draftCount draft(s) to write$(if ($DryRun) { ', dry run' })). Next: spawn remediation-drafter (naming #$n and wia-$n), then run -Finalize$(if ($DryRun) { ' -DryRun' })."
+"audit-draft-remediation: -Prepare wrote $manifestPath for #$n ($($allFindings.Count) finding(s), $draftCount draft(s) to write$(if ($DryRun) { ', dry run' })). Next: spawn remediation-drafter (naming #$n and wia-$n), then run -Finalize -Issue $n$(if ($DryRun) { ' -DryRun' })."
 exit 0

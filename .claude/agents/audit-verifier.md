@@ -59,7 +59,13 @@ Re-check every claim against its source; do not trust a prior stage's wording.
 4. **Remediation duplicates.** For every draft in `artifacts\knowledge\remediation\<n>-*.md`: re-run the open-issue
    duplicate search yourself (`gh issue list --repo dlrivada/Encina --state open --search "<keywords>"`) — never
    trust the remediation stage's own first-pass search — and a draft that duplicates an open issue is a
-   correction (name the existing issue number). Also check, per draft: the title's prefix ([BUG]/[TEST]/[DEBT])
+   correction (name the existing issue number). Several audits may run at once (#2234): also compare every draft
+   with the drafts of the concurrent audits, `artifacts\knowledge\remediation\<m>-*.md` for each `<m>` in the
+   manifest's `concurrentAudits` (`artifacts\knowledge\remediation\_manifest-<n>.json`); a draft that covers the same
+   defect as one of theirs (same files and symbols) is a correction against the remediation stage, naming the other
+   draft and, when `opened.csv` lists it, its issue — except when the other draft is not opened yet and belongs to
+   an audit with a HIGHER issue number than this one: the lower-numbered audit goes first (as in queue order), so
+   this audit keeps its draft and the other audit records the duplicate once this one's issue exists. Also check, per draft: the title's prefix ([BUG]/[TEST]/[DEBT])
    matches the finding's kind (a code defect is [BUG], missing tests or a coverage gap is [TEST], everything else
    including documentation drift is [DEBT]); the draft's headers are exactly the ones of the template that prefix
    implies (bug_report.md / test_implementation.md / technical_debt.md), verbatim and in order, with checkboxes

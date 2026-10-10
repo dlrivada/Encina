@@ -19,28 +19,32 @@
 # stage when the pipeline wrote none) and the stage files to docs/knowledge/audits/<n>/stages/, validates the
 # whole docs/knowledge tree with knowledge-records.cs --check, commits "docs(knowledge): SPEC-003 audit of #<n>",
 # pushes and opens a pull request with "Refs #1345" (Publish-AuditKnowledge in _audit-lib.ps1). When publishing fails, NOTHING else
-# happens: the audit worktree, the audit/<n> branch and current-audit.json stay, and the script can be re-run.
+# happens: the audit worktree, the audit/<n> branch and its open-audit state file stay, and the script can be re-run.
 #
 # Only after the pull request exists it copies the collected records, audit results, remediation drafts, stage
 # artifacts and ledger lines into the main artifacts/knowledge (still git-ignored), appends
 # artifacts/knowledge/progress.csv, appends any role-tagged lesson (stages/lessons.md 'Applied: role:<agent>'
 # line) to .claude/agents/lessons/<agent>.md (#1345), removes the wia-<n> worktree AND its audit/<n> branch,
-# and deletes current-audit.json.
+# and deletes the audit's state file artifacts/knowledge/open-audits/<n>.json.
+#
+# #2234: several audits may be open at once and close in any order. -Issue <n> names the audit to close
+# (optional from its wia-<n> worktree or with one open audit; Resolve-OpenAudit, _audit-lib.ps1). Closing touches
+# only that audit: its worktree, branch and state file, one progress.csv row (the queue reads progress.csv as a
+# set, so the order of the rows does not matter) and its own lessons; the other open audits keep running.
 #
 # -NoPublish: runs every check, builds and commits the publication branch locally, prints the push and
 # 'gh pr create' commands it would run, and stops. It does not push, open a pull request or close the audit
-# (the audit worktree, branch and current-audit.json stay).
+# (the audit worktree, branch and state file stay).
 
-param([switch]$NoPublish)
+param([switch]$NoPublish, [int]$Issue)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_audit-lib.ps1')
 
 $mainRoot = Get-MainRoot $PSScriptRoot
 $knowledgeRoot = Get-KnowledgeRoot $mainRoot
-$currentAuditPath = Get-CurrentAuditPath $mainRoot
-$audit = Get-CurrentAudit $mainRoot
-if ($null -eq $audit) { Write-Error 'audit-done: no open audit (artifacts/knowledge/current-audit.json not found).'; exit 1 }
+try { $audit = Resolve-OpenAudit $mainRoot $Issue $PSScriptRoot }
+catch { Write-Error "audit-done: $($_.Exception.Message)"; exit 1 }
 
 $n = [string]$audit.issue
 $wt = [string]$audit.worktree
@@ -126,7 +130,7 @@ $publish = Publish-AuditKnowledge -Issue ([int]$n) -MainRoot $mainRoot -AuditWor
     -DraftDirs $remediationDrafts -OpenedCsv (Join-Path $knowledgeRoot 'remediation\opened.csv') -NoPublish:$NoPublish `
     -DeltaFolder $deltaFolder -DeltaSet $deltaSet
 if (-not $publish.Ok) {
-    Write-Error "audit-done: publishing the audit of #$n failed; the audit worktree, branch $branch and current-audit.json are kept, nothing else was changed:`n$($publish.Message)"
+    Write-Error "audit-done: publishing the audit of #$n failed; the audit worktree, branch $branch and open-audits/$n.json are kept, nothing else was changed:`n$($publish.Message)"
     exit 1
 }
 if ($NoPublish) {
@@ -198,6 +202,8 @@ if ($branch) {
     $brOut = & git -C $mainRoot branch -D $branch 2>&1
     if ($LASTEXITCODE -ne 0) { Write-Error "audit-done: git branch -D $branch failed: $brOut"; exit 1 }
 }
-Remove-Item -LiteralPath $currentAuditPath -Force
+$stateLock = Enter-OpenAuditsLock $mainRoot
+try { Remove-OpenAudit $mainRoot ([int]$n) }
+finally { Exit-OpenAuditsLock $stateLock }
 
 "audit-done: closed audit for #$n (remediation drafts: $remCount; role lessons applied: $appliedRoles; stages archived to artifacts\knowledge\stages\$n; branch $branch removed; pull request: $($publish.PrUrl))"

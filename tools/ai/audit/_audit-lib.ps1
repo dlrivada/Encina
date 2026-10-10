@@ -5,7 +5,7 @@
 #
 # Audit data is unversioned, in the MAIN checkout (the repository root, resolved as the parent of git's
 # common directory -- never the current working directory, which may be inside a `wia-<n>` worktree):
-#   artifacts/knowledge/current-audit.json   the open audit: { issue, worktree, startedUtc }
+#   artifacts/knowledge/open-audits/<n>.json one per open audit (#2234; see "Open audits" below)
 #   artifacts/knowledge/audit-queue.txt      closed issue numbers, ascending, one per line
 #   artifacts/knowledge/progress.csv         history of finished audits
 #   artifacts/knowledge/issues|audits|remediation|predraft|stages/<n>/   collected outputs
@@ -32,12 +32,323 @@ function Get-MainRoot([string]$From) {
 
 function Get-KnowledgeRoot([string]$MainRoot) { Join-Path $MainRoot 'artifacts\knowledge' }
 
-function Get-CurrentAuditPath([string]$MainRoot) { Join-Path (Get-KnowledgeRoot $MainRoot) 'current-audit.json' }
+# ---------------------------------------------------------------------------------------------------------------
+# Open audits (#2234). Several audits may run at once, each individually: its own wia-<n> worktree, its own six
+# stage agents, its own verifier loop and its own knowledge pull request, exactly as if they ran one after the
+# other (maintainer decision of 2026-10-10: never a batch). The limit is pipeline.json maxParallelAudits (2-5,
+# default 2). Every open audit has its own state file artifacts/knowledge/open-audits/<n>.json:
+#   { issue, worktree, branch, startedUtc, [mode, set], scope: [src packages], concurrent: [issues] }
+# `scope` is the set of packages under src/ the audit touches (the overlap rule of audit-next.ps1); `concurrent`
+# lists every other audit that was open at some time during this one (the cross-audit duplicate check of
+# audit-draft-remediation.ps1 -Prepare and open-remediation.ps1 compares drafts with theirs).
+#
+# Migration: the single artifacts/knowledge/current-audit.json of the one-audit pipeline is converted into
+# open-audits/<n>.json the first time any script reads the open audits (Convert-LegacyCurrentAudit), so an audit
+# that was open when #2234 landed keeps working. The hooks read that file too until it is converted.
+# ---------------------------------------------------------------------------------------------------------------
 
-function Get-CurrentAudit([string]$MainRoot) {
-    $p = Get-CurrentAuditPath $MainRoot
-    if (-not (Test-Path -LiteralPath $p)) { return $null }
-    return Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+function Get-LegacyCurrentAuditPath([string]$MainRoot) { Join-Path (Get-KnowledgeRoot $MainRoot) 'current-audit.json' }
+
+function Get-OpenAuditsDir([string]$MainRoot) { Join-Path (Get-KnowledgeRoot $MainRoot) 'open-audits' }
+
+function Get-OpenAuditPath([string]$MainRoot, [int]$Issue) { Join-Path (Get-OpenAuditsDir $MainRoot) "$Issue.json" }
+
+# Writes the state file of one open audit atomically (temp file next to it, then an overwriting move), so a hook
+# reading it concurrently never sees a half-written file.
+function Save-OpenAudit([string]$MainRoot, $Audit) {
+    $dir = Get-OpenAuditsDir $MainRoot
+    New-Item -ItemType Directory -Force $dir | Out-Null
+    $path = Get-OpenAuditPath $MainRoot ([int]$Audit.issue)
+    $temp = Join-Path $dir ".$([int]$Audit.issue).json.$PID.$([guid]::NewGuid().ToString('N')).tmp"
+    try {
+        [IO.File]::WriteAllText($temp, ($Audit | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
+        [IO.File]::Move($temp, $path, $true)
+        $temp = $null
+    }
+    finally { if ($null -ne $temp -and (Test-Path -LiteralPath $temp)) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue } }
+}
+
+# The lock that serializes every change to the set of open audits (audit-next.ps1 opening one and updating the
+# others' `concurrent` lists, audit-done.ps1 removing one), so a slow audit-next can never re-save the state file of
+# an audit that audit-done closed meanwhile (#2234 review F1). Returns the acquired Mutex, or throws after 60 s.
+function Enter-OpenAuditsLock([string]$MainRoot) {
+    $name = 'Local\Encina.OpenAudits.' + (-join ([System.Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($MainRoot.ToLowerInvariant())) | ForEach-Object { $_.ToString('x2') }))
+    $mutex = [System.Threading.Mutex]::new($false, $name)
+    $acquired = $false
+    try { $acquired = $mutex.WaitOne(60000) } catch [System.Threading.AbandonedMutexException] { $acquired = $true }
+    if (-not $acquired) { $mutex.Dispose(); throw 'another audit script is changing the open audits; try again when it has finished.' }
+    return $mutex
+}
+
+function Exit-OpenAuditsLock($Mutex) {
+    if ($null -eq $Mutex) { return }
+    $Mutex.ReleaseMutex()
+    $Mutex.Dispose()
+}
+
+# Registers a new open audit (#2234) under the open-audits lock, reading the open audits fresh inside it: refuses
+# when the issue already has a state file (the same issue is never opened twice), records every audit open right
+# now as its `concurrent`, and adds the new issue to each of theirs. Never re-saves an audit that was closed
+# meanwhile, and two registrations never lose each other's update. $env:ENCINA_AUDIT_REGISTER_TEST_DELAY_MS
+# (test seam, audit-parallel-selftest.ps1) widens the window between reading and writing so the self-test can
+# prove the lock is what keeps concurrent registrations consistent; it is never set outside that test.
+function Register-OpenAudit([string]$MainRoot, $State) {
+    $lock = Enter-OpenAuditsLock $MainRoot
+    try {
+        $issue = [int]$State.issue
+        if (Test-Path -LiteralPath (Get-OpenAuditPath $MainRoot $issue)) { throw "#$issue is already an open audit; it is never opened twice." }
+        $others = @(Get-OpenAudits $MainRoot | Where-Object { [int]$_.issue -ne $issue })
+        $delay = 0
+        if ([int]::TryParse([string]$env:ENCINA_AUDIT_REGISTER_TEST_DELAY_MS, [ref]$delay) -and $delay -gt 0) { Start-Sleep -Milliseconds $delay }
+        $new = ConvertTo-AuditState ([pscustomobject]$State)
+        $new.concurrent = @($others | ForEach-Object { [int]$_.issue } | Sort-Object -Unique)
+        Save-OpenAudit $MainRoot $new
+        try {
+            foreach ($other in $others) {
+                $other.concurrent = @(@($other.concurrent) + $issue | Sort-Object -Unique)
+                Save-OpenAudit $MainRoot $other
+            }
+        }
+        catch {
+            # A half-registered audit would hold a slot for a worktree audit-next.ps1 is about to remove: undo it.
+            # An extra entry left in another audit's `concurrent` list only widens its cross-audit check.
+            Remove-OpenAudit $MainRoot $issue
+            throw
+        }
+        return $new
+    }
+    finally { Exit-OpenAuditsLock $lock }
+}
+
+function Remove-OpenAudit([string]$MainRoot, [int]$Issue) {
+    $path = Get-OpenAuditPath $MainRoot $Issue
+    if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
+}
+
+# An ordered copy of a state object's properties (ConvertFrom-Json gives a PSCustomObject).
+function ConvertTo-AuditState($Object) {
+    $state = [ordered]@{}
+    foreach ($p in $Object.PSObject.Properties) { $state[$p.Name] = $p.Value }
+    if (-not $state.Contains('scope') -or $null -eq $state['scope']) { $state['scope'] = @() }
+    if (-not $state.Contains('concurrent') -or $null -eq $state['concurrent']) { $state['concurrent'] = @() }
+    $state['scope'] = @($state['scope'] | ForEach-Object { [string]$_ })
+    $state['concurrent'] = @($state['concurrent'] | ForEach-Object { [int]$_ })
+    return [pscustomobject]$state
+}
+
+# Converts a pre-#2234 current-audit.json into open-audits/<n>.json (scope from the issue's pre-draft and commits,
+# no concurrent audit) and deletes it. An unreadable file throws: nothing is guessed (fail closed).
+function Convert-LegacyCurrentAudit([string]$MainRoot) {
+    $legacy = Get-LegacyCurrentAuditPath $MainRoot
+    if (-not (Test-Path -LiteralPath $legacy)) { return }
+    # Two scripts starting at once both see the file: convert under the open-audits lock, re-checking inside it.
+    $lock = Enter-OpenAuditsLock $MainRoot
+    try { Convert-LegacyCurrentAuditLocked $MainRoot $legacy }
+    finally { Exit-OpenAuditsLock $lock }
+}
+
+function Convert-LegacyCurrentAuditLocked([string]$MainRoot, [string]$legacy) {
+    if (-not (Test-Path -LiteralPath $legacy)) { return }
+    try { $old = Get-Content -LiteralPath $legacy -Raw | ConvertFrom-Json -ErrorAction Stop }
+    catch { throw "artifacts/knowledge/current-audit.json (the pre-#2234 open audit) cannot be read: $($_.Exception.Message); repair it so it can be converted into artifacts/knowledge/open-audits/<n>.json." }
+    if ([string]$old.issue -notmatch '^\d+$' -or [string]::IsNullOrWhiteSpace([string]$old.worktree)) { throw 'artifacts/knowledge/current-audit.json (the pre-#2234 open audit) has no issue number or worktree; repair it so it can be converted.' }
+    $issue = [int]$old.issue
+    if (-not (Test-Path -LiteralPath (Get-OpenAuditPath $MainRoot $issue))) {
+        $state = ConvertTo-AuditState $old
+        if (@($state.scope).Count -eq 0) { $state.scope = @(Get-IssueScopePackages $MainRoot $issue) }
+        Save-OpenAudit $MainRoot $state
+    }
+    Remove-Item -LiteralPath $legacy -Force
+    Write-Host "audit: converted artifacts/knowledge/current-audit.json (audit #$issue) into artifacts/knowledge/open-audits/$issue.json (#2234)."
+}
+
+# Every open audit, ordered by issue number. Converts a legacy current-audit.json first. A state file that cannot
+# be read, or whose issue does not match its name, throws (fail closed: a script never guesses which audits run).
+function Get-OpenAudits([string]$MainRoot) {
+    Convert-LegacyCurrentAudit $MainRoot
+    $dir = Get-OpenAuditsDir $MainRoot
+    if ((Test-Path -LiteralPath $dir) -and -not (Test-Path -LiteralPath $dir -PathType Container)) { throw "$dir exists but is not a folder; the open audits cannot be read." }
+    if (-not (Test-Path -LiteralPath $dir -PathType Container)) { return @() }
+    $audits = foreach ($file in @(Get-ChildItem -LiteralPath $dir -Filter '*.json' -File)) {
+        try { $raw = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json -ErrorAction Stop }
+        catch { throw "the open-audit state file $($file.FullName) cannot be read: $($_.Exception.Message)" }
+        if ("$([string]$raw.issue).json" -ne $file.Name -or [string]::IsNullOrWhiteSpace([string]$raw.worktree)) { throw "the open-audit state file $($file.FullName) does not name its own issue and a worktree." }
+        ConvertTo-AuditState $raw
+    }
+    return @($audits | Sort-Object { [int]$_.issue })
+}
+
+# The audit number of the wia-<n> worktree that contains $Path, or 0.
+function Get-WorktreeAuditNumber([string]$Path) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { return 0 }
+    $m = [regex]::Match($Path, '(?i)[\\/]\.claude[\\/]worktrees[\\/]wia-(?<n>\d+)(?:[\\/]|$)')
+    if ($m.Success) { return [int]$m.Groups['n'].Value }
+    return 0
+}
+
+# The open audit a script call is about (#2234): -Issue when given; else the wia-<n> worktree the script runs from
+# ($ScriptRoot, the worktree's own tools\ai\audit) or the current directory is in; else the only open audit. With
+# several audits open and no worktree context, -Issue is required. -Issue that contradicts the worktree context is
+# refused. Throws with the reason; never guesses.
+function Resolve-OpenAudit([string]$MainRoot, [int]$Issue = 0, [string]$ScriptRoot = '', [string]$Cwd = '') {
+    $audits = @(Get-OpenAudits $MainRoot)
+    $openText = if ($audits.Count -gt 0) { ($audits | ForEach-Object { "#$($_.issue)" }) -join ', ' } else { 'none' }
+    if ($audits.Count -eq 0) { throw 'no open audit (artifacts/knowledge/open-audits/ has no state file). Run audit-next.ps1 first.' }
+    if ([string]::IsNullOrWhiteSpace($Cwd)) { $Cwd = (Get-Location).Path }
+    $context = @((Get-WorktreeAuditNumber $ScriptRoot), (Get-WorktreeAuditNumber $Cwd) | Where-Object { $_ -gt 0 } | Select-Object -Unique)
+    if ($context.Count -gt 1) { throw "the script runs from wia-$($context[0]) but the current directory is wia-$($context[1]); run it from one audit's worktree or from the main checkout with -Issue." }
+    $wanted = if ($Issue -gt 0) { $Issue } elseif ($context.Count -eq 1) { [int]$context[0] } else { 0 }
+    if ($Issue -gt 0 -and $context.Count -eq 1 -and [int]$context[0] -ne $Issue) { throw "-Issue $Issue contradicts the worktree wia-$($context[0]) this runs from; run it from the main checkout or from wia-$Issue." }
+    if ($wanted -eq 0) {
+        if ($audits.Count -eq 1) { return $audits[0] }
+        throw "$($audits.Count) audits are open ($openText); pass -Issue <n> to name the one this call is about (#2234)."
+    }
+    $audit = $audits | Where-Object { [int]$_.issue -eq $wanted } | Select-Object -First 1
+    if ($null -eq $audit) { throw "#$wanted is not an open audit (open: $openText)." }
+    return $audit
+}
+
+# No audit may be forgotten half-way (#2234; audit #4 once stayed open for a long time): an open audit older than
+# $script:StaleAuditDays days (from its state file's startedUtc) is stale. audit-stage.ps1 -List flags it and
+# audit-next.ps1 refuses to start another audit while one exists, unless -Force.
+$script:StaleAuditDays = 2
+
+# Whole and fractional days since the audit started, at $NowUtc; a missing or unreadable startedUtc counts as
+# stale (a state file that cannot say when it started is exactly the kind that gets forgotten).
+function Get-AuditAgeDays($Audit, [DateTime]$NowUtc) {
+    # ConvertFrom-Json already turns an ISO 8601 'Z' value into a UTC DateTime.
+    if ($Audit.startedUtc -is [DateTime]) { return ($NowUtc - $Audit.startedUtc.ToUniversalTime()).TotalDays }
+    $started = [DateTime]::MinValue
+    $styles = [Globalization.DateTimeStyles]::AdjustToUniversal -bor [Globalization.DateTimeStyles]::AssumeUniversal
+    if (-not [DateTime]::TryParse([string]$Audit.startedUtc, [Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$started)) { return [double]::PositiveInfinity }
+    return ($NowUtc - $started).TotalDays
+}
+
+# The open audits older than $script:StaleAuditDays days at $NowUtc.
+function Get-StaleAudits($Audits, [DateTime]$NowUtc) {
+    return @(@($Audits) | Where-Object { (Get-AuditAgeDays $_ $NowUtc) -gt $script:StaleAuditDays })
+}
+
+# The parallelism limit (#2234): pipeline.json maxParallelAudits, an integer from 2 to 5; 2 when absent. Any other
+# value throws (a typo must not silently open more audits than the maintainer allowed).
+function Get-MaxParallelAudits($Pipeline) {
+    $property = $Pipeline.PSObject.Properties['maxParallelAudits']
+    if ($null -eq $property) { return 2 }
+    $value = 0
+    if (-not [int]::TryParse([string]$property.Value, [ref]$value) -or $value -lt 2 -or $value -gt 5) {
+        throw "pipeline.json maxParallelAudits must be an integer from 2 to 5 (found '$($property.Value)')."
+    }
+    return $value
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# Scope and overlap (#2234). An audit's scope is the set of packages under src/ it touches. Two audits whose
+# scopes share a package would read and judge the same code, so their findings and drafts could collide; such an
+# issue waits until the other audit closes (audit-next.ps1), which keeps the result identical to a sequential
+# run. Package names are the folder names under src/ of the main checkout (Encina, Encina.Messaging, ...).
+# ---------------------------------------------------------------------------------------------------------------
+
+# The folder names under $MainRoot\src, as a case-insensitive name -> canonical name map.
+function Get-SrcPackageNames([string]$MainRoot) {
+    $map = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $src = Join-Path $MainRoot 'src'
+    if (Test-Path -LiteralPath $src -PathType Container) {
+        foreach ($d in Get-ChildItem -LiteralPath $src -Directory -ErrorAction SilentlyContinue) { $map[$d.Name] = $d.Name }
+    }
+    return , $map
+}
+
+# The src/ packages a text names: every `src/<Package>/` path, plus the entries of a front-matter or YAML
+# `packages:` list (inline `[a, "b"]` or one `- name` per line). Only names that are folders under src/ count.
+function Get-PackagesFromText([string]$Text, $Known) {
+    $found = [System.Collections.Generic.SortedSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return @() }
+    foreach ($m in [regex]::Matches($Text, '(?i)(?<![\w.-])src[\\/](?<p>[A-Za-z][\w.]*)[\\/]')) {
+        $name = $m.Groups['p'].Value
+        if ($Known.ContainsKey($name)) { [void]$found.Add($Known[$name]) }
+    }
+    $inline = [regex]::Match($Text, '(?m)^packages:[ \t]*\[(?<list>[^\]\r\n]*)\]')
+    $names = [System.Collections.Generic.List[string]]::new()
+    if ($inline.Success) { foreach ($part in $inline.Groups['list'].Value -split ',') { $names.Add($part.Trim().Trim('"', "'", ' ')) } }
+    $block = [regex]::Match($Text, '(?m)^packages:[ \t]*\r?\n(?<items>(?:[ \t]+-[ \t]*\S.*\r?\n?)+)')
+    if ($block.Success) { foreach ($line in $block.Groups['items'].Value -split "`r?`n") { if ($line -match '^\s+-\s*(?<v>\S.*?)\s*$') { $names.Add($Matches['v'].Trim('"', "'", ' ')) } } }
+    foreach ($name in $names) { if ($name -and $Known.ContainsKey($name)) { [void]$found.Add($Known[$name]) } }
+    return @($found)
+}
+
+# The src/ packages of one queued issue before its audit starts: the pre-draft's `packages:` list and paths, the
+# files of the commits its raw pre-draft input names, and the files of every commit whose message mentions #<n>
+# (the same evidence classify-scope.ps1 uses, without network calls). Sorted; empty when nothing names a package.
+function Get-IssueScopePackages([string]$MainRoot, [int]$Issue) {
+    $known = Get-SrcPackageNames $MainRoot
+    $found = [System.Collections.Generic.SortedSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $knowledge = Get-KnowledgeRoot $MainRoot
+    $predraft = Join-Path $knowledge "predraft\$Issue.md"
+    if (Test-Path -LiteralPath $predraft) { foreach ($p in (Get-PackagesFromText (Get-Content -LiteralPath $predraft -Raw) $known)) { [void]$found.Add($p) } }
+    $files = [System.Collections.Generic.List[string]]::new()
+    $raw = Join-Path $knowledge "predraft\raw\$Issue.txt"
+    if (Test-Path -LiteralPath $raw) {
+        $rawText = Get-Content -LiteralPath $raw -Raw
+        foreach ($m in [regex]::Matches($rawText, 'COMMIT ([0-9a-f]{8})')) {
+            foreach ($f in @(& git -C $MainRoot show --name-only --format= $m.Groups[1].Value 2>$null)) { if ($f) { $files.Add([string]$f) } }
+        }
+    }
+    foreach ($h in @(& git -C $MainRoot log --all --format=%h -E --grep "#$Issue\b" 2>$null)) {
+        foreach ($f in @(& git -C $MainRoot show --name-only --format= $h 2>$null)) { if ($f) { $files.Add([string]$f) } }
+    }
+    foreach ($p in (Get-PackagesFromText (($files | ForEach-Object { "$_" }) -join "`n") $known)) { [void]$found.Add($p) }
+    return @($found)
+}
+
+# The scope of an open audit now: its recorded scope plus every src/ package its own worktree's knowledge record
+# and archivist and code stage files name (the archivist's scope list is more precise than the pre-draft).
+function Get-AuditScope([string]$MainRoot, $Audit) {
+    $known = Get-SrcPackageNames $MainRoot
+    $found = [System.Collections.Generic.SortedSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($p in @($Audit.scope)) { if ($p) { [void]$found.Add([string]$p) } }
+    $wt = [string]$Audit.worktree
+    foreach ($relative in "artifacts\knowledge\issues\$($Audit.issue).md", 'artifacts\knowledge\stages\archivist.md', 'artifacts\knowledge\stages\code.md', 'artifacts\knowledge\delta-scope.md') {
+        $file = Join-Path $wt $relative
+        if (Test-Path -LiteralPath $file) { foreach ($p in (Get-PackagesFromText (Get-Content -LiteralPath $file -Raw) $known)) { [void]$found.Add($p) } }
+    }
+    return @($found)
+}
+
+# The remediation drafts of the audits concurrent with $Audit (#2234): every '<m>-*.md' in the main checkout's
+# artifacts/knowledge/remediation/ for each m in $Audit.concurrent (open now or closed since), with the draft's
+# title and body as one text for the duplicate-evidence rules, and the issue URL and number opened.csv records for
+# it ('' and 0 while it is not opened yet). Sorted by audit and file name.
+function Get-ConcurrentAuditDrafts([string]$MainRoot, $Audit) {
+    $dir = Join-Path (Get-KnowledgeRoot $MainRoot) 'remediation'
+    if (-not (Test-Path -LiteralPath $dir -PathType Container)) { return @() }
+    $opened = @{}
+    $openedCsv = Join-Path $dir 'opened.csv'
+    if (Test-Path -LiteralPath $openedCsv) {
+        foreach ($line in Get-Content -LiteralPath $openedCsv) {
+            $parts = $line -split ',', 2
+            if ($parts.Count -eq 2) { $opened[$parts[0].Trim()] = $parts[1].Trim() }
+        }
+    }
+    $self = [int]$Audit.issue
+    $drafts = foreach ($m in @(@($Audit.concurrent) | ForEach-Object { [int]$_ } | Where-Object { $_ -gt 0 -and $_ -ne $self } | Sort-Object -Unique)) {
+        foreach ($f in @(Get-ChildItem -LiteralPath $dir -Filter "$m-*.md" -File -ErrorAction SilentlyContinue | Sort-Object Name)) {
+            $raw = Get-Content -LiteralPath $f.FullName -Raw
+            $header = [regex]::Match($raw, '(?s)<!--(.*?)-->').Groups[1].Value
+            $title = ([regex]::Match($header, 'title:[ \t]*(.+)')).Groups[1].Value.Trim()
+            $body = ($raw -replace '(?s)^\s*<!--.*?-->\s*', '').Trim()
+            $url = if ($opened.ContainsKey($f.Name)) { [string]$opened[$f.Name] } else { '' }
+            $number = if ($url -match '/issues/(?<n>\d+)\s*$') { [int]$Matches['n'] } else { 0 }
+            [pscustomobject]@{ Issue = $m; Name = $f.Name; Path = $f.FullName; TitleAndBody = "$title`n$body"; Url = $url; Number = $number }
+        }
+    }
+    return @($drafts)
+}
+
+# The packages two scopes share (case-insensitive), sorted; empty when they do not overlap.
+function Get-ScopeOverlap([string[]]$A, [string[]]$B) {
+    $set = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($x in @($A)) { if ($x) { [void]$set.Add($x) } }
+    return @(@($B) | Where-Object { $_ -and $set.Contains($_) } | Sort-Object -Unique)
 }
 
 function Get-StagesDir([string]$Worktree) { Join-Path $Worktree 'artifacts\knowledge\stages' }
@@ -54,13 +365,13 @@ function Get-Pipeline([string]$ToolsAuditDir, [string]$File = 'pipeline.json') {
 
 # ---------------------------------------------------------------------------------------------------------------
 # Delta mode (#1763): a re-check of an audit already published, for the rules decided after it ran, with the
-# pipeline tools/ai/audit/pipeline-delta.json instead of pipeline.json. current-audit.json then carries
-# `mode = 'delta'` and `set = '<name>'`; every script and hook that reads the pipeline asks the open audit which
+# pipeline tools/ai/audit/pipeline-delta.json instead of pipeline.json. The audit's state file then carries
+# `mode = 'delta'` and `set = '<name>'`; every script and hook that reads the pipeline asks the audit which
 # file to read (the hooks inline the same one-line decision, since they depend on nothing here).
 # ---------------------------------------------------------------------------------------------------------------
 
-# 'pipeline-delta.json' when the open audit is a delta audit, 'pipeline.json' otherwise (also for a
-# current-audit.json written before delta mode existed, which has no `mode`).
+# 'pipeline-delta.json' when the audit is a delta audit, 'pipeline.json' otherwise (also for a state file
+# written before delta mode existed, which has no `mode`).
 function Get-AuditPipelineFile($Audit) {
     $mode = if ($null -ne $Audit -and $null -ne $Audit.PSObject.Properties['mode']) { [string]$Audit.mode } else { '' }
     if ($mode -eq 'delta') { return 'pipeline-delta.json' }
@@ -657,7 +968,7 @@ function Update-PlanLinks($Plan, [string]$Tmp) {
 # Builds the publication of one audit. Returns @{ Ok; Message; Branch; PrUrl; Planned }.
 #   -NoPublish: prepares the branch locally (layout, validation, commit) and records the push and
 #   'gh pr create' commands in Planned without running them.
-# On any failure the caller keeps the audit worktree, the audit branch and current-audit.json; the temporary
+# On any failure the caller keeps the audit worktree, the audit branch and its open-audit state file; the temporary
 # worktree is always removed and a stale local knowledge/audit-<n> branch from an earlier try is replaced.
 function Publish-AuditKnowledge {
     param(
