@@ -184,7 +184,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
             .ConfigureAwait(false);
 
         // ── 5. Record (write-ahead) ─────────────────────────────────
-        var denial = await RecordAsync(verdict, requestTypeName, cancellationToken).ConfigureAwait(false);
+        var denial = await RecordAsync(verdict, requestTypeName, activity, cancellationToken).ConfigureAwait(false);
 
         // ── 6. Report the enforced outcome, then enforce ────────────
         // Span status and counters follow the final outcome: a request the audit write denies is a denial.
@@ -565,6 +565,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     private async ValueTask<EncinaError?> RecordAsync(
         ABACEnforcementVerdict verdict,
         string requestTypeName,
+        Activity? evaluation,
         CancellationToken cancellationToken)
     {
         if (verdict.Capture is not { } capture)
@@ -575,7 +576,16 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         // A caller that is already gone gets no write; one that leaves during the write does not
         // abort it (the write is never linked to the client's token, A3).
         cancellationToken.ThrowIfCancellationRequested();
-        var failure = await BuildAndWriteAsync(capture, verdict, requestTypeName).ConfigureAwait(false);
+
+        // The span is a child of ABAC.Evaluate (the current activity); metrics follow the write itself.
+        string? failure;
+        using (var span = ABACDiagnostics.StartDecisionAuditRecord())
+        {
+            var writeStart = Stopwatch.GetTimestamp();
+            failure = await BuildAndWriteAsync(capture, verdict, requestTypeName, evaluation).ConfigureAwait(false);
+            ABACDiagnostics.RecordDecisionAudit(
+                span, writeStart, verdict.Enforced.ToString(), _options.EnforcementMode, _options.DecisionAudit.FailureMode, failure);
+        }
 
         // The health state follows the write, not the caller: a client that left during a failing write
         // must not hide the failure from the health check.
@@ -614,7 +624,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     // the failure: never a message. A recorder that throws is a failed write, not a crash, and a
     // record that cannot be built (a throwing resource-id getter, an unusable option) is the same.
     private async ValueTask<string?> BuildAndWriteAsync(
-        ABACDecisionInputs capture, ABACEnforcementVerdict verdict, string requestTypeName)
+        ABACDecisionInputs capture, ABACEnforcementVerdict verdict, string requestTypeName, Activity? evaluation)
     {
         ABACDecisionRecord record;
 
@@ -627,6 +637,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
             return ex.GetType().Name;
         }
 
+        ABACDiagnostics.SetDecisionId(evaluation, record.DecisionId);
         return await WriteAsync(record, requestTypeName).ConfigureAwait(false);
     }
 

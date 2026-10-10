@@ -706,7 +706,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 75,
+        "guard": 70
+      },
+      "justifications": {
+        "unit": "Unit tests run the evaluation, PAP and XACML XML helpers and the decision audit counters, histogram and record span through the pipeline behavior with a MeterListener and an ActivityListener.",
+        "guard": "Guard tests run the pipeline behavior in the enabled-audit paths that emit the decision audit instruments and span."
+      }
     },
     "Diagnostics/ABACLogMessages.cs": {
       "defaultTests": [],

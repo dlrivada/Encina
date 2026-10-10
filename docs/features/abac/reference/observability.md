@@ -118,6 +118,39 @@ ABACDiagnostics.RecordIndeterminate(activity, reason);
 
 ---
 
+## Decision Audit Telemetry
+
+When `ABACOptions.DecisionAudit.Enabled` is `true`, the Policy Enforcement Point emits the instruments below on the same `Encina.Security.ABAC` activity source and meter, one set per audited decision. Nothing is emitted when the audit is disabled. None of them carries a subject, resource, tenant, attribute value or error or exception message ([SPEC-002](../../../specifications/SPEC-002-eu-regulatory-readiness.md) REQ-062); the failure tag holds the store error code or the exception type name. For the trail itself see [Decision audit](decision-audit.md).
+
+### Metrics
+
+| Metric Name | Type | Unit | Tags | Description |
+|-------------|------|------|------|-------------|
+| `abac.decision_audit.recorded` | `Counter<long>` | | `abac.outcome` (`Granted`, `Denied`, `DeniedNotEnforced`), `abac.enforcement_mode` (`Block`, `Warn`) | One increment per decision record written |
+| `abac.decision_audit.failed` | `Counter<long>` | | `abac.failure_mode` (`FailClosed`, `BestEffort`), `error.type` (error code or exception type name) | One increment per record that could not be built or written |
+| `abac.decision_audit.duration` | `Histogram<double>` | `ms` | none | Building plus writing one record, recorded once per audited decision |
+
+`abac.decision_audit.failed` is the failure signal of the trail: alert on any increase, because under `FailClosed` each increment is a request that was denied for lack of evidence, and under `BestEffort` it is a decision missing from the trail. The same failures are logged (EventIds 9080 to 9083) and, when `ABACOptions.AddHealthCheck` is `true`, reported by the [health check](decision-audit.md#health).
+
+### Spans and tags
+
+| Item | Where | Description |
+|------|-------|-------------|
+| `ABAC.DecisionAudit.Record` | Activity, kind `Internal`, child of `ABAC.Evaluate` | Status `Ok` when the record was written; `Error` with the failure code as status description otherwise, plus tags `abac.failure_mode` and `error.type` |
+| `abac.decision_id` | Tag on `ABAC.Evaluate` | The decision id (`Guid`, format `D`), set once the record is built |
+
+### Prometheus examples
+
+```promql
+sum by (abac_failure_mode, error_type) (rate(abac_decision_audit_failed_total[5m]))
+```
+
+```promql
+histogram_quantile(0.95, rate(abac_decision_audit_duration_bucket[5m]))
+```
+
+---
+
 ## Structured Logging
 
 All log messages use compile-time source generation via `[LoggerMessage]` for zero-allocation logging when the log level is disabled. Event IDs occupy the `9000-9099` range reserved for ABAC diagnostics. The package's EventIds are allocated inside 9000-9099 (9098 and 9099 are both used); the unused ids to reuse first are 9006-9007, 9016-9019, 9023-9029, 9041-9049 and 9056-9057; 9079-9090 are the decision audit trail of #751, including the startup check (9084, 9086 and 9087). Ids 9094-9097 come from `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096).

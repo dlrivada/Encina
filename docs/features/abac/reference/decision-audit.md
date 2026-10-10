@@ -210,7 +210,7 @@ All `ABACDecisionAuditOptions` properties are in the [configuration reference](c
 
 ## Health
 
-When the audit is enabled, `ABACHealthCheck` (name `encina-abac`) also reports the trail. The check is registered only when `ABACOptions.AddHealthCheck` is `true` (default `false`); without it a failure is visible only in the logs (EventIds 9080 to 9083, see the [observability reference](observability.md#decision-audit-messages-9079-9090)). With the audit disabled, the result is the engine's alone.
+When the audit is enabled, `ABACHealthCheck` (name `encina-abac`) also reports the trail. The check is registered only when `ABACOptions.AddHealthCheck` is `true` (default `false`); without it a failure is still counted by `abac.decision_audit.failed` and logged (EventIds 9080 to 9083), see the [observability reference](observability.md#decision-audit-telemetry) and its [log messages](observability.md#decision-audit-messages-9079-9090). With the audit disabled, the result is the engine's alone.
 
 The check never writes to the store. It reads `ABACDecisionAuditHealthState`, a singleton that the PEP updates after every audited decision: a failed write (a store error, an exception, a timeout or a record that cannot be built) stores the time of the failure, and the next successful write clears it. The state therefore changes only while audited traffic flows; after a failure, no traffic means the failure stays until a write succeeds.
 
@@ -247,5 +247,5 @@ The trail is stored by whatever `IOperationAuditStore` the application registers
 
 - Only requests that pass through the PEP are audited. A direct call to `IPolicyDecisionPoint` is not.
 - A missing row means the decision was not evaluated or not recorded, not that access was granted.
-- Without `AddHealthCheck`, a failing trail is visible only in the logs (see [Health](#health)). Metrics for the trail are not available yet.
+- Without `AddHealthCheck`, a failing trail is visible through the `abac.decision_audit.failed` counter and the logs, not through a health endpoint (see [Health](#health) and [Decision audit telemetry](observability.md#decision-audit-telemetry)).
 - No startup warning exists for registering `AddEncinaABAC` before `AddEncinaSecurity` (see [Registration order](#registration-order)).
