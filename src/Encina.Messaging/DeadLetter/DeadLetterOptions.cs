@@ -69,51 +69,65 @@ public sealed class DeadLetterOptions
     public bool EnableAutomaticCleanup { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets whether to enable automatic integration with the Recoverability Pipeline.
+    /// Gets or sets whether permanent failures of the Recoverability Pipeline are captured in the DLQ.
     /// </summary>
     /// <remarks>
-    /// When enabled, permanently failed messages from the Recoverability Pipeline
-    /// are automatically stored in the DLQ.
+    /// When enabled, a request that fails permanently is stored once, keyed by its retry chain id
+    /// (<c>FailedMessage.Id</c>, source pattern <see cref="DeadLetterSourcePatterns.Recoverability"/>): in
+    /// <c>RecoverabilityPipelineBehavior</c> after a permanent error or when immediate retries are exhausted and
+    /// no delayed retry is scheduled, and in <c>DelayedRetryProcessor</c> when the last delayed retry fails or a
+    /// row cannot be re-dispatched (then its stored type name and content are kept). A failed capture is
+    /// logged (EventId 2996 or 2997); the request already returns its failure.
     /// </remarks>
     /// <value>Default: true.</value>
     public bool IntegrateWithRecoverability { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets whether to enable automatic integration with the Outbox pattern.
+    /// Gets or sets whether outbox messages that use up their retries are captured in the DLQ.
     /// </summary>
     /// <remarks>
-    /// When enabled, outbox messages that exceed max retries are automatically
-    /// stored in the DLQ.
+    /// When enabled, the failed delivery that brings a message to <c>OutboxOptions.MaxRetries</c> stores its
+    /// notification type and content once, keyed by the outbox message id (source pattern
+    /// <see cref="DeadLetterSourcePatterns.Outbox"/>), before the exhausted state is recorded. When the capture
+    /// fails, the message is not marked exhausted and is delivered again in a later cycle. A replay publishes
+    /// the notification again.
     /// </remarks>
     /// <value>Default: true.</value>
     public bool IntegrateWithOutbox { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets whether to enable automatic integration with the Inbox pattern.
+    /// Gets or sets whether inbox messages that use up their retries are captured in the DLQ.
     /// </summary>
     /// <remarks>
-    /// When enabled, inbox messages that exceed max retries are automatically
-    /// stored in the DLQ.
+    /// When enabled, the failed attempt (a thrown exception) that brings a message to
+    /// <c>InboxOptions.MaxRetries</c> stores its request once, keyed by the inbox message id (source pattern
+    /// <see cref="DeadLetterSourcePatterns.Inbox"/>); a redelivery rejected afterwards captures it again
+    /// idempotently. When the capture fails, the attempt returns the capture's error.
     /// </remarks>
     /// <value>Default: true.</value>
     public bool IntegrateWithInbox { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets whether to enable automatic integration with the Scheduling pattern.
+    /// Gets or sets whether scheduled messages that use up their retries are captured in the DLQ.
     /// </summary>
     /// <remarks>
-    /// When enabled, scheduled messages that exceed max retries are automatically
-    /// stored in the DLQ.
+    /// When enabled, the failure that the scheduling retry policy dead-letters stores the message's request
+    /// type and content once, keyed by the scheduled message id (source pattern
+    /// <see cref="DeadLetterSourcePatterns.Scheduling"/>), before that state is recorded. When the capture
+    /// fails, the message keeps its state and runs again in a later cycle.
     /// </remarks>
     /// <value>Default: true.</value>
     public bool IntegrateWithScheduling { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets whether to enable automatic integration with the Saga pattern.
+    /// Gets or sets whether failed sagas are captured in the DLQ.
     /// </summary>
     /// <remarks>
-    /// When enabled, saga messages with no handler (saga not found) are automatically
-    /// stored in the DLQ when moved to dead letter.
+    /// When enabled, a saga that <c>SagaOrchestrator.FailAsync</c> ends <c>Failed</c> (a failed compensation, a
+    /// cancelled run or an unexpected exception in <c>SagaRunner</c>) stores its saga type and data once,
+    /// keyed by the saga id (source pattern <see cref="DeadLetterSourcePatterns.Saga"/>); a failed capture is
+    /// returned by <c>FailAsync</c>. A saga that ends <c>Compensated</c> is not captured. The record is kept for
+    /// inspection: saga data is not a request, so a replay is recorded as failed.
     /// </remarks>
     /// <value>Default: true.</value>
     public bool IntegrateWithSagas { get; set; } = true;

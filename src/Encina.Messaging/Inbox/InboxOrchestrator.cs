@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Encina.Diagnostics;
+using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -31,12 +32,16 @@ namespace Encina.Messaging.Inbox;
 /// </remarks>
 public sealed class InboxOrchestrator
 {
+    // The error code of a processing attempt that threw.
+    private const string InboxProcessingFailed = "inbox.processing_failed";
+
     private readonly IInboxStore _store;
     private readonly InboxOptions _options;
     private readonly ILogger<InboxOrchestrator> _logger;
     private readonly IInboxMessageFactory _messageFactory;
     private readonly IMessageSerializer _messageSerializer;
     private readonly TimeProvider _timeProvider;
+    private readonly DeadLetterSourceCapture? _deadLetterCapture;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InboxOrchestrator"/> class.
@@ -47,14 +52,22 @@ public sealed class InboxOrchestrator
     /// <param name="messageFactory">Factory to create inbox messages.</param>
     /// <param name="messageSerializer">The message serializer for response caching.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
+    /// <param name="deadLetterCapture">
+    /// Optional dead letter capture, registered with the dead letter queue: while
+    /// <c>DeadLetterOptions.IntegrateWithInbox</c> is on, the failed attempt that uses up
+    /// <see cref="InboxOptions.MaxRetries"/> captures the request (keyed by the inbox message id), and a
+    /// redelivery rejected afterwards captures it again idempotently, so a failed capture is repaired.
+    /// </param>
     public InboxOrchestrator(
         IInboxStore store,
         InboxOptions options,
         ILogger<InboxOrchestrator> logger,
         IInboxMessageFactory messageFactory,
         IMessageSerializer messageSerializer,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        DeadLetterSourceCapture? deadLetterCapture = null)
     {
+        _deadLetterCapture = deadLetterCapture;
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -73,14 +86,21 @@ public sealed class InboxOrchestrator
     /// Processes a request idempotently using the Inbox Pattern.
     /// </summary>
     /// <typeparam name="TResponse">The response type.</typeparam>
+    /// <param name="request">
+    /// The request being processed; it is what the dead letter queue stores when the message uses up its retries.
+    /// </param>
     /// <param name="messageId">The message ID (idempotency key).</param>
     /// <param name="requestType">The type of the request.</param>
     /// <param name="correlationId">The correlation ID for logging.</param>
     /// <param name="metadata">Additional metadata to store.</param>
     /// <param name="processCallback">The callback to process the request.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The result of processing or the cached response.</returns>
+    /// <returns>
+    /// The result of processing or the cached response. When the dead letter capture of a message that used
+    /// up its retries fails, its <c>Left</c> is returned instead of the processing error.
+    /// </returns>
     public async ValueTask<Either<EncinaError, TResponse>> ProcessAsync<TResponse>(
+        object request,
         string messageId,
         string requestType,
         string correlationId,
@@ -88,6 +108,7 @@ public sealed class InboxOrchestrator
         Func<ValueTask<Either<EncinaError, TResponse>>> processCallback,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
         ArgumentException.ThrowIfNullOrWhiteSpace(requestType);
         ArgumentNullException.ThrowIfNull(processCallback);
@@ -105,8 +126,10 @@ public sealed class InboxOrchestrator
         if (existingOption.IsSome)
         {
             var existingMessage = existingOption.Match(Some: m => m, None: () => default!);
-            return await HandleExistingMessageAsync<TResponse>(
-                existingMessage, messageId, correlationId, processCallback, cancellationToken).ConfigureAwait(false);
+            var attempt = new InboxAttempt(
+                request, messageId, correlationId, metadata?.TenantId, existingMessage.RetryCount, existingMessage.ReceivedAtUtc);
+            return await HandleExistingMessageAsync(
+                existingMessage, attempt, processCallback, cancellationToken).ConfigureAwait(false);
         }
 
         // Create new inbox entry
@@ -123,8 +146,21 @@ public sealed class InboxOrchestrator
             return addResult.LeftToArray()[0];
 
         return await ProcessAndCacheResponseAsync(
-            messageId, correlationId, processCallback, cancellationToken).ConfigureAwait(false);
+            new InboxAttempt(request, messageId, correlationId, metadata?.TenantId, FailedAttemptsBefore: 0, now),
+            processCallback,
+            cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// One processing attempt of an inbox message: what a dead letter of it records.
+    /// </summary>
+    private sealed record InboxAttempt(
+        object Request,
+        string MessageId,
+        string CorrelationId,
+        string? TenantId,
+        int FailedAttemptsBefore,
+        DateTime ReceivedAtUtc);
 
     /// <summary>
     /// Validates that a message ID is present for idempotent processing.
@@ -148,11 +184,13 @@ public sealed class InboxOrchestrator
 
     private async ValueTask<Either<EncinaError, TResponse>> HandleExistingMessageAsync<TResponse>(
         IInboxMessage existingMessage,
-        string messageId,
-        string correlationId,
+        InboxAttempt attempt,
         Func<ValueTask<Either<EncinaError, TResponse>>> processCallback,
         CancellationToken cancellationToken)
     {
+        var messageId = attempt.MessageId;
+        var correlationId = attempt.CorrelationId;
+
         // Message already processed - return cached response
         if (existingMessage.IsProcessed && existingMessage.Response != null)
         {
@@ -165,21 +203,82 @@ public sealed class InboxOrchestrator
         if (existingMessage.RetryCount >= _options.MaxRetries)
         {
             Log.MaxRetriesExceeded(_logger, messageId, _options.MaxRetries, correlationId);
+
+            // Captured again, idempotently: a capture that failed on the attempt that used up the retries is
+            // repaired by the next redelivery, and an existing dead letter is kept as it is.
+            var captured = await CaptureDeadLetterAsync(
+                attempt, existingMessage.RetryCount, exception: null, cancellationToken).ConfigureAwait(false);
+            if (captured.IsLeft)
+                return captured.LeftToArray()[0];
+
             return EncinaErrors.Create(
                 InboxErrorCodes.MaxRetriesExceeded,
                 $"Message has failed {existingMessage.RetryCount} times and will not be retried");
         }
 
-        return await ProcessAndCacheResponseAsync(
-            messageId, correlationId, processCallback, cancellationToken).ConfigureAwait(false);
+        return await ProcessAndCacheResponseAsync(attempt, processCallback, cancellationToken).ConfigureAwait(false);
+    }
+
+    // Captures the request of a message that used up its retries; Right when there is nothing to capture.
+    // Only a thrown exception consumes a retry, so the dead letter's error code is inbox.processing_failed.
+    private Task<Either<EncinaError, Unit>> CaptureDeadLetterAsync(
+        InboxAttempt attempt,
+        int failedAttempts,
+        Exception? exception,
+        CancellationToken cancellationToken)
+    {
+        if (_deadLetterCapture is null)
+            return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+
+        return _deadLetterCapture.CaptureAsync(
+            attempt.Request,
+            new DeadLetterContext(
+                EncinaErrors.Create(InboxProcessingFailed, "Inbox message used up its retries"),
+                exception,
+                DeadLetterSourcePatterns.Inbox,
+                failedAttempts,
+                DeadLetterInputs.AsUtc(attempt.ReceivedAtUtc),
+                attempt.CorrelationId,
+                attempt.MessageId,
+                string.IsNullOrEmpty(attempt.TenantId) ? null : attempt.TenantId),
+            cancellationToken);
+    }
+
+    // A thrown exception is a failed attempt: the store records it and increments RetryCount, and the
+    // attempt that uses up MaxRetries is the terminal failure whose request is dead-lettered.
+    private async Task<EncinaError> FailAttemptAsync(InboxAttempt attempt, Exception ex, CancellationToken cancellationToken)
+    {
+        Log.ErrorProcessingMessage(_logger, ex.ForLogging(), attempt.MessageId, attempt.CorrelationId);
+
+        var failed = await _store.MarkAsFailedAsync(
+            attempt.MessageId,
+            ex.GetType().FullName ?? ex.GetType().Name, // type only: the message may carry personal data
+            _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(1), // Simple backoff, can be made configurable
+            cancellationToken).ConfigureAwait(false);
+
+        if (failed.IsLeft)
+            return failed.LeftToArray()[0];
+
+        var failedAttempts = attempt.FailedAttemptsBefore + 1;
+        if (failedAttempts >= _options.MaxRetries)
+        {
+            var captured = await CaptureDeadLetterAsync(attempt, failedAttempts, ex, cancellationToken).ConfigureAwait(false);
+            if (captured.IsLeft)
+                return captured.LeftToArray()[0];
+        }
+
+        return EncinaErrors.FromException(InboxProcessingFailed, ex,
+            $"Error processing inbox message {attempt.MessageId}");
     }
 
     private async ValueTask<Either<EncinaError, TResponse>> ProcessAndCacheResponseAsync<TResponse>(
-        string messageId,
-        string correlationId,
+        InboxAttempt attempt,
         Func<ValueTask<Either<EncinaError, TResponse>>> processCallback,
         CancellationToken cancellationToken)
     {
+        var messageId = attempt.MessageId;
+        var correlationId = attempt.CorrelationId;
+
         Either<EncinaError, TResponse> result;
         string serializedResponse;
 
@@ -195,20 +294,7 @@ public sealed class InboxOrchestrator
         }
         catch (Exception ex)
         {
-            Log.ErrorProcessingMessage(_logger, ex.ForLogging(), messageId, correlationId);
-
-            // A thrown exception is a failed attempt: the store records it and increments RetryCount.
-            var failed = await _store.MarkAsFailedAsync(
-                messageId,
-                ex.GetType().FullName ?? ex.GetType().Name, // type only: the message may carry personal data
-                _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(1), // Simple backoff, can be made configurable
-                cancellationToken).ConfigureAwait(false);
-
-            if (failed.IsLeft)
-                return failed.LeftToArray()[0];
-
-            return EncinaErrors.FromException("inbox.processing_failed", ex,
-                $"Error processing inbox message {messageId}");
+            return await FailAttemptAsync(attempt, ex, cancellationToken).ConfigureAwait(false);
         }
 
         // A handler Left is a business outcome (ADR-001): it is cached as the processed response and

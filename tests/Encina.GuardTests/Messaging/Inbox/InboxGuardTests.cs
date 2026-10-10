@@ -81,12 +81,23 @@ public class InboxGuardTests
     #region InboxOrchestrator.ProcessAsync
 
     [Fact]
+    public async Task ProcessAsync_NullRequest_ThrowsArgumentNullException()
+    {
+        var orchestrator = CreateOrchestrator();
+
+        var act = async () => await orchestrator.ProcessAsync<string>(
+            null!, "msg-1", "type", "corr", null, () => default);
+
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("request");
+    }
+
+    [Fact]
     public async Task ProcessAsync_NullMessageId_ThrowsArgumentException()
     {
         var orchestrator = CreateOrchestrator();
 
         var act = async () => await orchestrator.ProcessAsync<string>(
-            null!, "type", "corr", null, () => default);
+            new object(),null!, "type", "corr", null, () => default);
 
         (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("messageId");
     }
@@ -97,7 +108,7 @@ public class InboxGuardTests
         var orchestrator = CreateOrchestrator();
 
         var act = async () => await orchestrator.ProcessAsync<string>(
-            "", "type", "corr", null, () => default);
+            new object(),"", "type", "corr", null, () => default);
 
         (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("messageId");
     }
@@ -108,7 +119,7 @@ public class InboxGuardTests
         var orchestrator = CreateOrchestrator();
 
         var act = async () => await orchestrator.ProcessAsync<string>(
-            "   ", "type", "corr", null, () => default);
+            new object(),"   ", "type", "corr", null, () => default);
 
         (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("messageId");
     }
@@ -119,7 +130,7 @@ public class InboxGuardTests
         var orchestrator = CreateOrchestrator();
 
         var act = async () => await orchestrator.ProcessAsync<string>(
-            "msg-1", null!, "corr", null, () => default);
+            new object(),"msg-1", null!, "corr", null, () => default);
 
         (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("requestType");
     }
@@ -130,7 +141,7 @@ public class InboxGuardTests
         var orchestrator = CreateOrchestrator();
 
         var act = async () => await orchestrator.ProcessAsync<string>(
-            "msg-1", "", "corr", null, () => default);
+            new object(),"msg-1", "", "corr", null, () => default);
 
         (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("requestType");
     }
@@ -141,7 +152,7 @@ public class InboxGuardTests
         var orchestrator = CreateOrchestrator();
 
         var act = async () => await orchestrator.ProcessAsync<string>(
-            "msg-1", "type", "corr", null, null!);
+            new object(),"msg-1", "type", "corr", null, null!);
 
         (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("processCallback");
     }

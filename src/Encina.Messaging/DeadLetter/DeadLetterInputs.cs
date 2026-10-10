@@ -40,6 +40,20 @@ internal static class DeadLetterInputs
         }
     }
 
+    /// <summary>
+    /// Returns a timestamp read from an Encina source row (an <c>*AtUtc</c> column that Encina wrote from
+    /// <see cref="TimeProvider"/> as UTC) as a UTC instant. Unlike caller input, its zone is known: a provider
+    /// that drops <see cref="DateTime.Kind"/> on read returns <see cref="DateTimeKind.Unspecified"/> for a UTC
+    /// value, which is relabelled; a <see cref="DateTimeKind.Local"/> value is converted.
+    /// </summary>
+    // crap-exempt: single-question switch — maps the DateTimeKind of a stored UTC column to a UTC instant.
+    public static DateTime AsUtc(DateTime storedUtc) => storedUtc.Kind switch
+    {
+        DateTimeKind.Utc => storedUtc,
+        DateTimeKind.Local => storedUtc.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(storedUtc, DateTimeKind.Utc)
+    };
+
     /// <summary>Applies the instant and identity rules to every field of <paramref name="filter"/> that has one.</summary>
     public static void ValidateFilter(DeadLetterFilter filter)
     {

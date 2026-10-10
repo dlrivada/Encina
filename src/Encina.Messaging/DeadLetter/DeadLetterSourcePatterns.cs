@@ -26,7 +26,7 @@ public static class DeadLetterSourcePatterns
     public const string Scheduling = "Scheduling";
 
     /// <summary>
-    /// Message originated from the Saga Pattern when saga was not found.
+    /// Message originated from the Saga Pattern: a saga that ended <c>Failed</c>.
     /// </summary>
     public const string Saga = "Saga";
 

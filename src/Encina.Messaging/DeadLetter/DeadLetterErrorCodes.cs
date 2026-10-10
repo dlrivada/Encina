@@ -88,6 +88,12 @@ public static class DeadLetterErrorCodes
     public const string TenantRequired = "encina.authorization.dlq_tenant_required";
 
     /// <summary>
+    /// Capturing the terminal failure of a built-in source into the dead letter queue threw (for example an
+    /// identity value the queue cannot store); the source treats it as a failed capture.
+    /// </summary>
+    public const string CaptureFailed = "dlq.capture_failed";
+
+    /// <summary>
     /// Outcome code stored in <c>ReplayResult</c> when a replay succeeded.
     /// </summary>
     public const string ReplaySucceeded = "success";

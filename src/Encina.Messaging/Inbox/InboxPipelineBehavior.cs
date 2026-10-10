@@ -80,6 +80,7 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
         };
 
         return await _orchestrator.ProcessAsync<TResponse>(
+            request,
             context.IdempotencyKey!,
             typeof(TRequest).AssemblyQualifiedName ?? typeof(TRequest).FullName ?? typeof(TRequest).Name,
             context.CorrelationId,

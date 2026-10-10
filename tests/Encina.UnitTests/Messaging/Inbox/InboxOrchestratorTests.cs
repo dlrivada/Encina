@@ -188,7 +188,7 @@ public sealed class InboxOrchestratorTests
 
         // Act
         var result = await _orchestrator.ProcessAsync(
-            messageId, requestType, correlationId, null, callback);
+            new object(),messageId, requestType, correlationId, null, callback);
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -228,7 +228,7 @@ public sealed class InboxOrchestratorTests
 
         // Act
         await _orchestrator.ProcessAsync(
-            messageId, "TestRequest", "corr-123", metadata, callback);
+            new object(),messageId, "TestRequest", "corr-123", metadata, callback);
 
         // Assert
         _messageFactory.Received(1).Create(
@@ -266,7 +266,7 @@ public sealed class InboxOrchestratorTests
 
         // Act
         var result = await _orchestrator.ProcessAsync<string>(
-            messageId, "TestRequest", "corr-123", null, callback);
+            new object(),messageId, "TestRequest", "corr-123", null, callback);
 
         // Assert
         callbackInvoked.ShouldBeFalse();
@@ -299,7 +299,7 @@ public sealed class InboxOrchestratorTests
 
         // Act
         var result = await _orchestrator.ProcessAsync(
-            messageId, "TestRequest", "corr-123", null, callback);
+            new object(),messageId, "TestRequest", "corr-123", null, callback);
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -331,7 +331,7 @@ public sealed class InboxOrchestratorTests
 
         // Act
         var result = await _orchestrator.ProcessAsync<string>(
-            messageId, "TestRequest", "corr-123", null, callback);
+            new object(),messageId, "TestRequest", "corr-123", null, callback);
 
         // Assert
         callbackInvoked.ShouldBeFalse();
@@ -368,7 +368,7 @@ public sealed class InboxOrchestratorTests
 
         // Act
         var result = await _orchestrator.ProcessAsync(
-            messageId, "TestRequest", "corr-123", null, callback);
+            new object(),messageId, "TestRequest", "corr-123", null, callback);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
@@ -388,7 +388,7 @@ public sealed class InboxOrchestratorTests
 
         // Act
         var act = async () => await _orchestrator.ProcessAsync(
-            null!, "TestRequest", "corr-123", null, callback);
+            new object(),null!, "TestRequest", "corr-123", null, callback);
 
         // Assert
         await act.ShouldThrowAsync<ArgumentException>();
@@ -402,7 +402,7 @@ public sealed class InboxOrchestratorTests
 
         // Act
         var act = async () => await _orchestrator.ProcessAsync(
-            "msg-123", null!, "corr-123", null, callback);
+            new object(),"msg-123", null!, "corr-123", null, callback);
 
         // Assert
         await act.ShouldThrowAsync<ArgumentException>();
@@ -413,7 +413,7 @@ public sealed class InboxOrchestratorTests
     {
         // Act
         var act = async () => await _orchestrator.ProcessAsync<string>(
-            "msg-123", "TestRequest", "corr-123", null, null!);
+            new object(),"msg-123", "TestRequest", "corr-123", null, null!);
 
         // Assert
         await act.ShouldThrowAsync<ArgumentNullException>();

@@ -30,6 +30,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
     private readonly RecoverabilityOptions _options;
     private readonly ILogger<DelayedRetryProcessor> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly DeadLetter.DeadLetterSourceCapture? _deadLetterCapture;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -53,11 +54,18 @@ public sealed class DelayedRetryProcessor : BackgroundService
     /// <param name="options">The recoverability options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="timeProvider">Optional time provider for the failed message timestamps.</param>
+    /// <param name="deadLetterCapture">
+    /// Optional dead letter capture, registered with the dead letter queue: the permanent failure that ends a
+    /// delayed retry chain is captured once (keyed by the chain's <see cref="FailedMessage.Id"/>) while
+    /// <c>DeadLetterOptions.IntegrateWithRecoverability</c> is on. A row that could not be re-dispatched (unknown
+    /// type, unreadable payload) is captured from its stored type name and content.
+    /// </param>
     public DelayedRetryProcessor(
         IServiceScopeFactory scopeFactory,
         RecoverabilityOptions options,
         ILogger<DelayedRetryProcessor> logger,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null)
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(options);
@@ -67,6 +75,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         _options = options;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _deadLetterCapture = deadLetterCapture;
     }
 
     /// <inheritdoc />
@@ -488,23 +497,57 @@ public sealed class DelayedRetryProcessor : BackgroundService
             message.RequestType,
             message.DelayedRetryAttempt + 1);
 
-        if (_options.OnPermanentFailure is not null)
-        {
-            var failedMessage = BuildFailedMessage(message, request, failure);
+        if (_options.OnPermanentFailure is null && _deadLetterCapture is null)
+            return;
 
-            try
-            {
-                await _options.OnPermanentFailure(failedMessage, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                DelayedRetryProcessorLog.OnPermanentFailureCallbackFailed(
-                    _logger,
-                    ex.ForLogging(),
-                    message.CorrelationId ?? RecoverabilityConstants.Unknown,
-                    message.RequestType);
-            }
+        var failedMessage = BuildFailedMessage(message, request, failure);
+
+        // A Left is logged by the capture (error code only); the row is already marked failed.
+        await CaptureDeadLetterAsync(message, request, failedMessage, cancellationToken).ConfigureAwait(false);
+
+        if (_options.OnPermanentFailure is null)
+            return;
+
+        try
+        {
+            await _options.OnPermanentFailure(failedMessage, cancellationToken).ConfigureAwait(false);
         }
+        catch (Exception ex)
+        {
+            DelayedRetryProcessorLog.OnPermanentFailureCallbackFailed(
+                _logger,
+                ex.ForLogging(),
+                message.CorrelationId ?? RecoverabilityConstants.Unknown,
+                message.RequestType);
+        }
+    }
+
+    // A row with no request object (unknown type, unreadable payload) is captured from its stored type name
+    // and content, which IMessageSerializer wrote and the replay reads back.
+    private Task<Either<EncinaError, Unit>> CaptureDeadLetterAsync(
+        IDelayedRetryMessage message,
+        object? request,
+        FailedMessage failedMessage,
+        CancellationToken cancellationToken)
+    {
+        if (_deadLetterCapture is null)
+            return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+
+        if (request is not null)
+            return _deadLetterCapture.CaptureFailedMessageAsync(failedMessage, cancellationToken);
+
+        return _deadLetterCapture.CaptureSerializedAsync(
+            message.RequestType,
+            message.RequestContent,
+            new DeadLetter.DeadLetterContext(
+                failedMessage.Error,
+                failedMessage.Exception,
+                DeadLetter.DeadLetterSourcePatterns.Recoverability,
+                failedMessage.TotalAttempts,
+                failedMessage.FirstAttemptAtUtc,
+                failedMessage.CorrelationId,
+                failedMessage.Id.ToString("D")),
+            cancellationToken);
     }
 
     private sealed record DispatchResult(bool IsSuccess, string? ErrorMessage, bool IsPermanent, RecoverabilityContext? Attempt);

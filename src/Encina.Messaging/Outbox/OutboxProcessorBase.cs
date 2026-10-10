@@ -1,4 +1,5 @@
 using Encina.Diagnostics;
+using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
@@ -27,7 +28,9 @@ namespace Encina.Messaging.Outbox;
 /// with <see cref="OutboxOptions.RetryJitterRatio"/> jitter).</description></item>
 /// <item><description>When the failure uses up <see cref="OutboxOptions.MaxRetries"/>, the message is
 /// logged with <see cref="OutboxErrorCodes.MaxRetriesExceeded"/> (EventId 2958) and counted in
-/// <c>encina.outbox.processor.messages_total{outcome="exhausted"}</c>.</description></item>
+/// <c>encina.outbox.processor.messages_total{outcome="exhausted"}</c>. With the dead letter queue registered
+/// and <c>DeadLetterOptions.IntegrateWithOutbox</c> on, the message is first captured into the dead letter
+/// queue; a failed capture leaves it unexhausted for a later cycle.</description></item>
 /// <item><description>A cancellation (the host stopping, or <see cref="EncinaErrorCodes.NotificationCancelled"/>
 /// from the dispatcher) stops the batch without marking the interrupted message failed.</description></item>
 /// </list>
@@ -123,7 +126,11 @@ public abstract class OutboxProcessorBase : BackgroundService
         var encina = services.GetRequiredService<IEncina>();
         var serializer = services.GetService<IMessageSerializer>();
 
-        var batchProcessor = new OutboxBatchProcessor(store, _options, _logger, serializer, TimeProvider);
+        // Registered with the dead letter queue; captures an exhausted message while IntegrateWithOutbox is on.
+        var deadLetterCapture = services.GetService<DeadLetterSourceCapture>();
+
+        var batchProcessor = new OutboxBatchProcessor(
+            store, _options, _logger, serializer, TimeProvider, deadLetterCapture: deadLetterCapture);
 
         var batchResult = await batchProcessor.ProcessAsync(
             (message, _, notification) => PublishAsync(encina, message, notification, cancellationToken),

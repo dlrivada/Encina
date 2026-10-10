@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -33,6 +34,7 @@ public sealed class SagaOrchestrator
     private readonly ISagaStateFactory _stateFactory;
     private readonly TimeProvider _timeProvider;
     private readonly IMessageSerializer _messageSerializer;
+    private readonly DeadLetterSourceCapture? _deadLetterCapture;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SagaOrchestrator"/> class.
@@ -46,14 +48,21 @@ public sealed class SagaOrchestrator
     /// <c>EncryptingMessageSerializer</c> apply to saga state too.
     /// </param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
+    /// <param name="deadLetterCapture">
+    /// Optional dead letter capture, registered with the dead letter queue: while
+    /// <c>DeadLetterOptions.IntegrateWithSagas</c> is on, a saga that <see cref="FailAsync"/> ends
+    /// <see cref="SagaStatus.Failed"/> is captured (its saga type and data, keyed by the saga id).
+    /// </param>
     public SagaOrchestrator(
         ISagaStore store,
         SagaOptions options,
         ILogger<SagaOrchestrator> logger,
         ISagaStateFactory stateFactory,
         IMessageSerializer messageSerializer,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        DeadLetterSourceCapture? deadLetterCapture = null)
     {
+        _deadLetterCapture = deadLetterCapture;
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -346,7 +355,12 @@ public sealed class SagaOrchestrator
     /// user-supplied messages.
     /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The result of failing the saga.</returns>
+    /// <returns>
+    /// The result of failing the saga. With the dead letter queue registered and
+    /// <c>DeadLetterOptions.IntegrateWithSagas</c> on, the failed saga is then captured into the dead letter
+    /// queue (once per saga id); a failed capture is returned as <c>Left</c> after the <see cref="SagaStatus.Failed"/>
+    /// state was stored, so calling this method again repeats only the capture.
+    /// </returns>
     public async Task<Either<EncinaError, Unit>> FailAsync(
         Guid sagaId,
         string errorCode,
@@ -357,11 +371,12 @@ public sealed class SagaOrchestrator
             return loaded.LeftToArray()[0];
 
         var state = loaded.RightToArray()[0];
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
 
         state.Status = SagaStatus.Failed;
         state.ErrorMessage = errorCode;
-        state.CompletedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        state.CompletedAtUtc = now;
+        state.LastUpdatedAtUtc = now;
 
         var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
         if (updateResult.IsLeft)
@@ -369,7 +384,32 @@ public sealed class SagaOrchestrator
 
         Log.SagaFailed(_logger, sagaId, errorCode);
 
-        return Unit.Default;
+        return await CaptureDeadLetterAsync(state, errorCode, now, cancellationToken).ConfigureAwait(false);
+    }
+
+    // The saga's type name and stored data (written by IMessageSerializer) are captured as they are. The saga
+    // data is not a request, so the dead letter is kept for inspection: replaying it reports
+    // dlq.deserialization_failed unless the saga type name resolves to a request or notification type.
+    private Task<Either<EncinaError, Unit>> CaptureDeadLetterAsync(
+        ISagaState state,
+        string errorCode,
+        DateTime failedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        if (_deadLetterCapture is null)
+            return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+
+        return _deadLetterCapture.CaptureSerializedAsync(
+            state.SagaType,
+            state.Data,
+            new DeadLetterContext(
+                EncinaErrors.Create(errorCode, "Saga failed"),
+                Exception: null,
+                DeadLetterSourcePatterns.Saga,
+                TotalRetryAttempts: 0,
+                failedAtUtc,
+                SourceMessageId: state.SagaId.ToString("D")),
+            cancellationToken);
     }
 
     /// <summary>
