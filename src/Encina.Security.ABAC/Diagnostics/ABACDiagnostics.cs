@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
+using Encina.Security.ABAC.DecisionAudit;
+
 namespace Encina.Security.ABAC.Diagnostics;
 
 /// <summary>
@@ -115,6 +117,23 @@ internal static class ABACDiagnostics
             unit: "By",
             description: "Size of serialized XACML XML documents in bytes.");
 
+    // ── Decision Audit Instruments (#751) ───────────────────────────
+    // Tags carry enumeration names, error codes and exception type names only: never a subject,
+    // resource, tenant or attribute value and never an error or exception message (SPEC-002 REQ-062).
+
+    internal static readonly Counter<long> DecisionAuditRecorded =
+        Meter.CreateCounter<long>("abac.decision_audit.recorded",
+            description: "Number of ABAC decision records written to the audit trail.");
+
+    internal static readonly Counter<long> DecisionAuditFailed =
+        Meter.CreateCounter<long>("abac.decision_audit.failed",
+            description: "Number of ABAC decision records that could not be written to the audit trail.");
+
+    internal static readonly Histogram<double> DecisionAuditDuration =
+        Meter.CreateHistogram<double>("abac.decision_audit.duration",
+            unit: "ms",
+            description: "Duration of building and writing one ABAC decision record in milliseconds.");
+
     // ── Tag Names ───────────────────────────────────────────────────
 
     internal const string TagRequestType = "abac.request_type";
@@ -123,6 +142,12 @@ internal static class ABACDiagnostics
     internal const string TagEnforcementMode = "abac.enforcement_mode";
     internal const string TagObligationId = "abac.obligation_id";
     internal const string TagAdviceId = "abac.advice_id";
+
+    // Decision audit tags
+    internal const string TagDecisionId = "abac.decision_id";
+    internal const string TagOutcome = "abac.outcome";
+    internal const string TagFailureMode = "abac.failure_mode";
+    internal const string TagErrorType = "error.type";
 
     // PAP-specific tags
     internal const string TagOperation = "abac.operation";
@@ -162,6 +187,51 @@ internal static class ABACDiagnostics
     {
         activity?.SetTag(TagEffect, "indeterminate");
         activity?.SetStatus(ActivityStatusCode.Error, reason);
+    }
+
+    // ── Decision Audit Activity Helpers ─────────────────────────────
+
+    // Started while ABAC.Evaluate is the current activity, so the span is its child.
+    internal static Activity? StartDecisionAuditRecord()
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        return ActivitySource.StartActivity("ABAC.DecisionAudit.Record", ActivityKind.Internal);
+    }
+
+    internal static void SetDecisionId(Activity? evaluation, Guid decisionId) =>
+        evaluation?.SetTag(TagDecisionId, decisionId.ToString("D"));
+
+    // failure is null when the record was written, otherwise an error code or an exception type name.
+    internal static void RecordDecisionAudit(
+        Activity? span,
+        long startTimestamp,
+        string outcome,
+        ABACEnforcementMode enforcementMode,
+        ABACDecisionAuditFailureMode failureMode,
+        string? failure)
+    {
+        DecisionAuditDuration.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
+
+        if (failure is null)
+        {
+            DecisionAuditRecorded.Add(1,
+                new KeyValuePair<string, object?>(TagOutcome, outcome),
+                new KeyValuePair<string, object?>(TagEnforcementMode, enforcementMode.ToString()));
+            span?.SetStatus(ActivityStatusCode.Ok);
+            return;
+        }
+
+        var failureModeName = failureMode.ToString();
+        DecisionAuditFailed.Add(1,
+            new KeyValuePair<string, object?>(TagFailureMode, failureModeName),
+            new KeyValuePair<string, object?>(TagErrorType, failure));
+        span?.SetTag(TagFailureMode, failureModeName);
+        span?.SetTag(TagErrorType, failure);
+        span?.SetStatus(ActivityStatusCode.Error, failure);
     }
 
     // ── PAP Activity Helpers ────────────────────────────────────────
