@@ -79,7 +79,7 @@ services.AddEncinaSecurity(); // before AddEncinaABAC: see Registration order in
 services.AddEncinaABAC(o => o.AuditDecisions(a => a.Outcomes = ABACDecisionAuditOutcomes.Denied));
 ```
 
-The validator rejects, at start, a `WriteTimeout` of zero or less or above `int.MaxValue` milliseconds, `MaxTraceEntries` below 1, `Outcomes` with bits outside `ABACDecisionAuditOutcomes.All` and an undefined `FailureMode`. Registration order is explained in [Registration order](decision-audit.md#registration-order).
+The validator rejects, at start, a `WriteTimeout` of zero or less or above `int.MaxValue` milliseconds, `MaxTraceEntries` below 1, `Outcomes` with bits outside `ABACDecisionAuditOutcomes.All` and an undefined `FailureMode`. It also rejects `DecisionAudit.Enabled = true` together with `EnforcementMode = Disabled` (the disabled enforcement point bypasses evaluation and would record nothing), so the host fails to start with an `OptionsValidationException`. Registration order is explained in [Registration order](decision-audit.md#registration-order).
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|

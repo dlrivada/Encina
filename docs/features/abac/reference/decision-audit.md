@@ -185,13 +185,13 @@ services.AddEncinaABAC(options =>
 
 ### Startup check
 
-`AddEncinaABAC` registers a hosted service, `ABACDecisionAuditStartupCheck`, that reads the final `IOptions<ABACOptions>` when the host starts. The options validator also runs at start and rejects a `WriteTimeout` that is zero, negative or above `int.MaxValue` milliseconds, `MaxTraceEntries` below 1, `Outcomes` with bits outside `ABACDecisionAuditOutcomes.All`, and an undefined `FailureMode`.
+`AddEncinaABAC` registers a hosted service, `ABACDecisionAuditStartupCheck`, that reads the final `IOptions<ABACOptions>` when the host starts. The options validator also runs at start and rejects a `WriteTimeout` that is zero, negative or above `int.MaxValue` milliseconds, `MaxTraceEntries` below 1, `Outcomes` with bits outside `ABACDecisionAuditOutcomes.All`, and an undefined `FailureMode`. It also rejects `DecisionAudit.Enabled = true` together with `EnforcementMode = Disabled`, because the disabled enforcement point bypasses evaluation and would record nothing; the host fails to start with an `OptionsValidationException`.
 
 | Situation | Result |
 |-----------|--------|
 | Audit disabled | Nothing happens; the check never resolves the store |
 | Enabled, no `IOperationAuditStore` registered | Critical log, EventId 9087; the host start fails with `InvalidOperationException` |
-| Enabled, store is `InMemoryOperationAuditStore` | Warning, EventId 9086: the trail is lost on restart |
+| Enabled, store is `InMemoryOperationAuditStore` | Warning, EventId 9086: the trail is lost on restart. Only the registered `InMemoryOperationAuditStore` itself is detected; an in-memory store wrapped by a decorator is not |
 | Enabled, `FailureMode` is `BestEffort` | Warning, EventId 9084: the trail may be incomplete |
 
 `AddEncinaABAC` never registers an `IOperationAuditStore`, and nothing it registers takes the store in its constructor, so with the audit disabled the container builds without any store. The messages are in the [observability reference](observability.md#decision-audit-messages-9079-9090).
