@@ -109,7 +109,7 @@ Common misses: a new store or entity misses OpenTelemetry, `TenantId`, `ModuleId
 - Workflow: pick the next free range in the right area (typically 50 or 100 slots); register it; write `Diagnostics/*LogMessages.cs` with EventIds inside it; add the new field to `PublicAPI.Unshipped.txt`; add the assembly to the `AssemblyRanges` map of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (the test fails otherwise); run the architecture tests.
 - Pack EventIds sequentially; NEVER sparse allocations (8400, 8410, 8420). Group them by functional area. Use the `[LoggerMessage]` source generator, not `LoggerMessage.Define`, for new code; existing `LoggerMessage.Define` calls need one literal `new EventId(<n>, ...)` each, which the test scans (#1125). Add XML docs naming the range (`/// Event IDs: 8120-8133 (see EventIdRanges.ComplianceGDPR)`).
 - `EventIdUniquenessRule` (`Encina.Testing.Architecture`) asserts every `[LoggerMessage]` has an EventId, every EventId is in a range mapped to its assembly, and no ranges overlap.
-- The registry is the source of truth for the range map. Free ranges as of 2026-10-02: 300-1099, 3850-3899, 5450-6999, 7100-7999, 8950-8999, 9700-9999 (area map: handbook "Current Range Map").
+- The registry is the source of truth for the range map. Free ranges as of 2026-10-10: 300-1099, 3850-3899, 5500-6999, 7100-7999, 8950-8999, 9700-9999 (area map: handbook "Current Range Map").
 
 ## 8. Build, analysis, public API and documentation
 
