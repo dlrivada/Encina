@@ -1,5 +1,7 @@
+using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Recoverability;
 using Encina.Messaging.Serialization;
+using Encina.UnitTests.Messaging.DeadLetter;
 
 using LanguageExt;
 
@@ -181,7 +183,10 @@ public sealed class DelayedRetryChainTests
         "chain-correlation"));
 
     // Runs the processor over one row that never reaches a handler and returns what OnPermanentFailure got.
-    private static async Task<List<FailedMessage>> RunRowToPermanentFailureAsync(FakeRow row, IMessageSerializer? serializer)
+    private static async Task<List<FailedMessage>> RunRowToPermanentFailureAsync(
+        FakeRow row,
+        IMessageSerializer? serializer,
+        DeadLetterSourceCapture? deadLetterCapture = null)
     {
         var store = new FakeStore();
         await store.AddAsync(row);
@@ -202,7 +207,8 @@ public sealed class DelayedRetryChainTests
         scope.ServiceProvider.Returns(serviceProvider);
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         scopeFactory.CreateScope().Returns(scope);
-        var processor = new DelayedRetryProcessor(scopeFactory, options, NullLogger<DelayedRetryProcessor>.Instance)
+        var processor = new DelayedRetryProcessor(
+            scopeFactory, options, NullLogger<DelayedRetryProcessor>.Instance, deadLetterCapture: deadLetterCapture)
         {
             ProcessingInterval = TimeSpan.FromMilliseconds(5)
         };
@@ -636,8 +642,174 @@ public sealed class DelayedRetryChainTests
         string failure,
         string? delayedFailure = null,
         bool failNextSchedule = false,
-        bool throwNextSchedule = false) =>
-        new(delayedRetries, failure, delayedFailure ?? failure, failNextSchedule, throwNextSchedule);
+        bool throwNextSchedule = false,
+        DeadLetterSourceCapture? deadLetterCapture = null) =>
+        new(delayedRetries, failure, delayedFailure ?? failure, failNextSchedule, throwNextSchedule, deadLetterCapture);
+
+    [Fact]
+    public async Task DeadLetterQueue_ChainThroughEveryDelayedRetry_CapturesOnceUnderTheChainId()
+    {
+        // Arrange
+        using var host = DeadLetterCaptureHost.Create();
+        var fixture = CreateFixture(delayedRetries: 2, failure: "transient failure", deadLetterCapture: host.Capture);
+
+        // Act - the first failure schedules a delayed retry: no dead letter yet.
+        await fixture.FirstFailureAsync();
+        host.Store.GetMessages().ShouldBeEmpty();
+        await fixture.RunProcessorUntilPermanentFailureAsync();
+
+        // Assert
+        var deadLetter = host.DeadLettersOf(DeadLetterSourcePatterns.Recoverability).ShouldHaveSingleItem();
+        deadLetter.SourceMessageId.ShouldBe(fixture.Store.ContextIdsAdded[0].ToString("D"));
+        deadLetter.RequestType.ShouldContain(nameof(ChainCommand));
+    }
+
+    [Fact]
+    public async Task DeadLetterQueue_FlagOff_ChainThroughEveryDelayedRetry_CapturesNothing()
+    {
+        // Arrange
+        using var host = DeadLetterCaptureHost.Create(o => o.IntegrateWithRecoverability = false);
+        var fixture = CreateFixture(delayedRetries: 1, failure: "transient failure", deadLetterCapture: host.Capture);
+
+        // Act
+        await fixture.FirstFailureAsync();
+        await fixture.RunProcessorUntilPermanentFailureAsync();
+
+        // Assert
+        fixture.PermanentFailures.Count.ShouldBe(1);
+        host.Store.GetMessages().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task DeadLetterQueue_CaptureFails_LeavesTheRowPendingAndSkipsOnPermanentFailure()
+    {
+        // Arrange - the dead letter store is down.
+        var deadLetterStore = Substitute.For<IDeadLetterStore>();
+        deadLetterStore.AddAsync(Arg.Any<IDeadLetterMessage>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, bool>>(EncinaErrors.Create(DeadLetterErrorCodes.StoreFailed, "down")));
+        using var host = DeadLetterCaptureHost.Create(store: deadLetterStore);
+        var store = new FakeStore();
+        var row = CreateRow("No.Such.Type, NoSuchAssembly", "{}");
+        await store.AddAsync(row);
+        var failures = new List<FailedMessage>();
+        var options = new RecoverabilityOptions
+        {
+            DelayedRetries = [TimeSpan.FromMilliseconds(1)],
+            OnPermanentFailure = (message, _) => { failures.Add(message); return Task.CompletedTask; }
+        };
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
+        serviceProvider.GetService(typeof(IEncina)).Returns(Substitute.For<IEncina>());
+        var scope = Substitute.For<IServiceScope>();
+        scope.ServiceProvider.Returns(serviceProvider);
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        scopeFactory.CreateScope().Returns(scope);
+        var processor = new DelayedRetryProcessor(
+            scopeFactory, options, NullLogger<DelayedRetryProcessor>.Instance, deadLetterCapture: host.Capture)
+        {
+            ProcessingInterval = TimeSpan.FromMilliseconds(5)
+        };
+
+        // Act - several cycles run while the capture keeps failing.
+        using var cts = new CancellationTokenSource();
+        await processor.StartAsync(cts.Token);
+        try
+        {
+            await store.WaitForPollsAsync(3).WaitAsync(TimeSpan.FromSeconds(20));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(default);
+        }
+
+        // Assert - never failed without its dead letter, and the callback waits for the capture.
+        row.IsPending.ShouldBeTrue();
+        failures.ShouldBeEmpty();
+        await deadLetterStore.Received().AddAsync(Arg.Any<IDeadLetterMessage>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task OnPermanentFailureThrowing_IsLogged_AndTheRowStaysFailed()
+    {
+        // Arrange - the callback records the call and then throws.
+        var store = new FakeStore();
+        var row = CreateRow("No.Such.Type, NoSuchAssembly", "{}");
+        await store.AddAsync(row);
+        var called = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var options = new RecoverabilityOptions
+        {
+            DelayedRetries = [TimeSpan.FromMilliseconds(1)],
+            OnPermanentFailure = (_, _) =>
+            {
+                called.TrySetResult();
+                throw new InvalidOperationException("callback crashed");
+            }
+        };
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
+        serviceProvider.GetService(typeof(IEncina)).Returns(Substitute.For<IEncina>());
+        var scope = Substitute.For<IServiceScope>();
+        scope.ServiceProvider.Returns(serviceProvider);
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        scopeFactory.CreateScope().Returns(scope);
+        var processor = new DelayedRetryProcessor(scopeFactory, options, NullLogger<DelayedRetryProcessor>.Instance)
+        {
+            ProcessingInterval = TimeSpan.FromMilliseconds(5)
+        };
+
+        // Act
+        using var cts = new CancellationTokenSource();
+        await processor.StartAsync(cts.Token);
+        try
+        {
+            await called.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            await store.WaitForPollsAsync(2).WaitAsync(TimeSpan.FromSeconds(20));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(default);
+        }
+
+        // Assert - the throwing callback does not bring the row back.
+        row.IsPending.ShouldBeFalse();
+        store.FailedCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task DeadLetterQueue_CaptureRejected_FailsTheRowAndRunsOnPermanentFailure()
+    {
+        // Arrange - a stored type name with edge white space: the dead letter queue rejects it.
+        using var host = DeadLetterCaptureHost.Create();
+        var row = CreateRow("No.Such.Type ", "{}");
+
+        // Act
+        var failures = await RunRowToPermanentFailureAsync(row, serializer: null, host.Capture);
+
+        // Assert - no loop: the chain ends once, without a dead letter.
+        failures.Count.ShouldBe(1);
+        row.IsPending.ShouldBeFalse();
+        host.Store.GetMessages().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task DeadLetterQueue_UnknownRequestType_CapturesTheStoredTypeNameAndContent()
+    {
+        // Arrange
+        using var host = DeadLetterCaptureHost.Create();
+        var row = CreateRow("No.Such.Type, NoSuchAssembly", "{\"stored\":true}");
+
+        // Act
+        var failures = await RunRowToPermanentFailureAsync(row, serializer: null, host.Capture);
+
+        // Assert
+        failures.Count.ShouldBe(1);
+        var deadLetter = host.DeadLettersOf(DeadLetterSourcePatterns.Recoverability).ShouldHaveSingleItem();
+        deadLetter.RequestType.ShouldBe("No.Such.Type, NoSuchAssembly");
+        deadLetter.RequestContent.ShouldBe("{\"stored\":true}");
+        deadLetter.SourceMessageId.ShouldBe(failures[0].Id.ToString("D"));
+    }
 
     // Succeeds for the first schedule (attempt 0) and fails (or throws on) every later one.
     private sealed class FailingNextScheduler(IDelayedRetryScheduler inner, bool throws) : IDelayedRetryScheduler
@@ -671,10 +843,18 @@ public sealed class DelayedRetryChainTests
         private readonly TaskCompletionSource _permanentlyFailed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly string _firstFailure;
         private readonly string _delayedFailure;
+        private readonly DeadLetterSourceCapture? _deadLetterCapture;
         private int _calls;
 
-        public ChainFixture(int delayedRetries, string firstFailure, string delayedFailure, bool failNextSchedule, bool throwNextSchedule)
+        public ChainFixture(
+            int delayedRetries,
+            string firstFailure,
+            string delayedFailure,
+            bool failNextSchedule,
+            bool throwNextSchedule,
+            DeadLetterSourceCapture? deadLetterCapture)
         {
+            _deadLetterCapture = deadLetterCapture;
             _firstFailure = firstFailure;
             _delayedFailure = delayedFailure;
             Store = new FakeStore();
@@ -705,7 +885,8 @@ public sealed class DelayedRetryChainTests
             _behavior = new RecoverabilityPipelineBehavior<ChainCommand, int>(
                 _options,
                 NullLogger<RecoverabilityPipelineBehavior<ChainCommand, int>>.Instance,
-                Scheduler);
+                Scheduler,
+                deadLetterCapture: deadLetterCapture);
         }
 
         public FakeStore Store { get; }
@@ -748,7 +929,8 @@ public sealed class DelayedRetryChainTests
             var scopeFactory = Substitute.For<IServiceScopeFactory>();
             scopeFactory.CreateScope().Returns(scope);
 
-            var processor = new DelayedRetryProcessor(scopeFactory, _options, NullLogger<DelayedRetryProcessor>.Instance)
+            var processor = new DelayedRetryProcessor(
+                scopeFactory, _options, NullLogger<DelayedRetryProcessor>.Instance, deadLetterCapture: _deadLetterCapture)
             {
                 ProcessingInterval = TimeSpan.FromMilliseconds(5)
             };

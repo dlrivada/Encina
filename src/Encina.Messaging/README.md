@@ -339,7 +339,7 @@ services.AddEncinaMessaging(config =>
 
 **Problem**: A message that exhausted its retries must not be lost, and an operator needs to inspect, replay or delete it.
 
-**Solution**: Keep it in a persistent queue. Enable it with `UseDeadLetterQueue` on the configuration of a provider package (ADO.NET, Dapper, EF Core or MongoDB); the provider registers its `IDeadLetterStore`, `DeadLetterOrchestrator` (capture), `IDeadLetterManager` (list, replay, count, statistics, delete, cleanup), the health check and the cleanup processor.
+**Solution**: Keep it in a persistent queue. Enable it with `UseDeadLetterQueue` on the configuration of a provider package (ADO.NET, Dapper, EF Core or MongoDB); the provider registers its `IDeadLetterStore`, `DeadLetterOrchestrator` (capture), `IDeadLetterManager` (list, replay, count, statistics, delete, cleanup), the health check and the cleanup processor. The registration also adds `DeadLetterSourceCapture`, and the five `IntegrateWith*` flags of `DeadLetterOptions` (on by default) make recoverability, outbox, inbox, scheduling and sagas capture their terminal failures.
 
 ```csharp
 services.AddEncinaADO(connectionString, config =>

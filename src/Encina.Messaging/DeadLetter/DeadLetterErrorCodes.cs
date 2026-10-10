@@ -88,6 +88,33 @@ public static class DeadLetterErrorCodes
     public const string TenantRequired = "encina.authorization.dlq_tenant_required";
 
     /// <summary>
+    /// Capturing the terminal failure of a built-in source into the dead letter queue threw an unexpected
+    /// exception; the source treats it as a failed capture and tries again later.
+    /// </summary>
+    public const string CaptureFailed = "dlq.capture_failed";
+
+    /// <summary>
+    /// The dead letter queue cannot store the terminal failure of a source at all: the capture threw an
+    /// <see cref="ArgumentException"/> (its input rules reject an identity value or instant of the message, or an
+    /// argument the queue's configuration or store derives from it is invalid), or the source pattern has no
+    /// <c>IntegrateWith*</c> flag. Trying again cannot succeed, so the source records its terminal state (see
+    /// <c>DeadLetterSourceCapture.IsRetryable</c>).
+    /// </summary>
+    public const string CaptureRejected = "dlq.capture_rejected";
+
+    /// <summary>
+    /// A message was asked to move to the dead letter queue, but the queue is not registered or the source's
+    /// <c>IntegrateWith*</c> flag is off (for example <c>SagaNotFoundContext.MoveToDeadLetterAsync</c>).
+    /// </summary>
+    public const string NotConfigured = "dlq.not_configured";
+
+    /// <summary>
+    /// A message was asked to move to the dead letter queue without the identity that keys its dead letter (for
+    /// example a saga-not-found message whose caller supplied no <c>sourceMessageId</c>); Encina never guesses a key.
+    /// </summary>
+    public const string SourceMessageIdRequired = "dlq.source_message_id_required";
+
+    /// <summary>
     /// Outcome code stored in <c>ReplayResult</c> when a replay succeeded.
     /// </summary>
     public const string ReplaySucceeded = "success";

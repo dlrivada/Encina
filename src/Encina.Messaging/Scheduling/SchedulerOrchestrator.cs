@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Encina.Diagnostics;
+using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -37,6 +38,7 @@ public sealed class SchedulerOrchestrator
     private readonly ICronParser? _cronParser;
     private readonly TimeProvider _timeProvider;
     private readonly IMessageSerializer _messageSerializer;
+    private readonly DeadLetterSourceCapture? _deadLetterCapture;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SchedulerOrchestrator"/> class.
@@ -57,6 +59,13 @@ public sealed class SchedulerOrchestrator
     /// </param>
     /// <param name="cronParser">Optional cron parser for recurring messages.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
+    /// <param name="deadLetterCapture">
+    /// Optional dead letter capture, registered with the dead letter queue: while
+    /// <c>DeadLetterOptions.IntegrateWithScheduling</c> is on, a message whose failure the retry policy
+    /// dead-letters is captured (stored type name and content, keyed by the message id) before that state is
+    /// recorded; when the capture fails in a retryable way the message keeps its state and runs again in a later
+    /// cycle, and a capture the queue rejects (<c>dlq.capture_rejected</c>) does not stop the state being recorded.
+    /// </param>
     /// <exception cref="ArgumentNullException">
     /// Thrown when any required dependency (<paramref name="store"/>,
     /// <paramref name="options"/>, <paramref name="logger"/>,
@@ -71,8 +80,10 @@ public sealed class SchedulerOrchestrator
         IScheduledMessageRetryPolicy retryPolicy,
         IMessageSerializer messageSerializer,
         ICronParser? cronParser = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        DeadLetterSourceCapture? deadLetterCapture = null)
     {
+        _deadLetterCapture = deadLetterCapture;
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -392,7 +403,10 @@ public sealed class SchedulerOrchestrator
             // Real failures use the Either path above.
             Log.ExecutionFailed(_logger, ex.ForLogging(), message.Id);
             // The exception message may carry personal data; store only the exception type.
-            await MarkAsFailedAsync(message, ex.GetType().FullName ?? ex.GetType().Name, cancellationToken).ConfigureAwait(false);
+            await MarkAsFailedAsync(
+                message,
+                new ScheduledFailure(ex.GetType().FullName ?? ex.GetType().Name, SchedulingErrorCodes.ExecutionFailed, ex),
+                cancellationToken).ConfigureAwait(false);
             return false;
         }
     }
@@ -426,7 +440,10 @@ public sealed class SchedulerOrchestrator
         if (requestType == null)
         {
             Log.UnknownRequestType(_logger, message.Id, message.RequestType);
-            await MarkAsFailedAsync(message, $"Unknown request type: {message.RequestType}", cancellationToken).ConfigureAwait(false);
+            await MarkAsFailedAsync(
+                message,
+                new ScheduledFailure($"Unknown request type: {message.RequestType}", SchedulingErrorCodes.UnknownRequestType),
+                cancellationToken).ConfigureAwait(false);
             return false;
         }
 
@@ -434,7 +451,10 @@ public sealed class SchedulerOrchestrator
         if (request == null)
         {
             Log.DeserializationFailed(_logger, message.Id, message.RequestType);
-            await MarkAsFailedAsync(message, "Failed to deserialize request", cancellationToken).ConfigureAwait(false);
+            await MarkAsFailedAsync(
+                message,
+                new ScheduledFailure("Failed to deserialize request", SchedulingErrorCodes.DeserializationFailed),
+                cancellationToken).ConfigureAwait(false);
             return false;
         }
 
@@ -446,7 +466,7 @@ public sealed class SchedulerOrchestrator
             // EncinaError.Message can carry personal data (e.g. a data-subject id), so only
             // the error code is logged and stored (#1259 review).
             Log.DispatchFailed(_logger, message.Id, errorCode);
-            await MarkAsFailedAsync(message, errorCode, cancellationToken).ConfigureAwait(false);
+            await MarkAsFailedAsync(message, new ScheduledFailure(errorCode, errorCode), cancellationToken).ConfigureAwait(false);
             return false;
         }
 
@@ -502,15 +522,59 @@ public sealed class SchedulerOrchestrator
             }).ConfigureAwait(false);
     }
 
-    private async Task MarkAsFailedAsync(IScheduledMessage message, string errorMessage, CancellationToken cancellationToken)
+    // Reason is what the store keeps in ErrorMessage (an error code, an exception type or a fixed text, never
+    // EncinaError.Message); ErrorCode is what a dead letter records.
+    private readonly record struct ScheduledFailure(string Reason, string ErrorCode, Exception? Exception = null);
+
+    private async Task MarkAsFailedAsync(IScheduledMessage message, ScheduledFailure failure, CancellationToken cancellationToken)
     {
         var decision = _retryPolicy.Compute(message.RetryCount, _options.MaxRetries, _timeProvider.GetUtcNow().UtcDateTime);
-        var storeResult = await _store.MarkAsFailedAsync(message.Id, errorMessage, decision.NextRetryAtUtc, cancellationToken).ConfigureAwait(false);
+
+        // The dead letter is captured before the dead-lettered state is recorded: when the capture fails the
+        // message keeps its state and runs (and is captured) again in a later cycle, instead of ending without
+        // its dead letter. The capture logs its own failure; it is idempotent on the message id. A capture the dead
+        // letter queue rejects can never succeed, so the dead-lettered state is recorded anyway.
+        if (decision.IsDeadLettered && !await CapturedOrRejectedAsync(message, failure, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        var storeResult = await _store.MarkAsFailedAsync(message.Id, failure.Reason, decision.NextRetryAtUtc, cancellationToken).ConfigureAwait(false);
         if (storeResult.IsLeft)
         {
             var storeError = storeResult.LeftToArray()[0];
             Log.StoreMarkAsFailedError(_logger, message.Id, storeError.GetCode().IfNone("unknown"));
         }
+    }
+
+    // False only when the capture failed in a way worth trying again (the message then stays due).
+    private async Task<bool> CapturedOrRejectedAsync(IScheduledMessage message, ScheduledFailure failure, CancellationToken cancellationToken)
+    {
+        var captured = await CaptureDeadLetterAsync(message, failure, cancellationToken).ConfigureAwait(false);
+        return captured.IsRight || !DeadLetterSourceCapture.IsRetryable(captured.LeftToArray()[0]);
+    }
+
+    // The stored type name and content are captured as they are (IMessageSerializer wrote the content, so
+    // the replay reads it back).
+    private Task<Either<EncinaError, Unit>> CaptureDeadLetterAsync(
+        IScheduledMessage message,
+        ScheduledFailure failure,
+        CancellationToken cancellationToken)
+    {
+        if (_deadLetterCapture is null)
+            return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+
+        return _deadLetterCapture.CaptureSerializedAsync(
+            message.RequestType,
+            message.Content,
+            new DeadLetterContext(
+                EncinaErrors.Create(failure.ErrorCode, "Scheduled message used up its retries"),
+                failure.Exception,
+                DeadLetterSourcePatterns.Scheduling,
+                message.RetryCount + 1,
+                DeadLetterInputs.AsUtc(message.CreatedAtUtc),
+                SourceMessageId: message.Id.ToString("D")),
+            cancellationToken);
     }
 }
 

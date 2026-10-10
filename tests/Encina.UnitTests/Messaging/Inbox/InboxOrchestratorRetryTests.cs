@@ -31,7 +31,7 @@ public sealed class InboxOrchestratorRetryTests
 
         for (var i = 0; i < maxRetries; i++)
         {
-            var failed = await orchestrator.ProcessAsync(MessageId, "Req", "corr", null, handler);
+            var failed = await orchestrator.ProcessAsync(new object(), MessageId, "Req", "corr", null, handler);
             failed.IsLeft.ShouldBeTrue();
             failed.LeftToArray()[0].GetCode().IfNone(string.Empty).ShouldBe("inbox.processing_failed");
         }
@@ -39,7 +39,7 @@ public sealed class InboxOrchestratorRetryTests
         runs.ShouldBe(maxRetries);
         store.Message!.RetryCount.ShouldBe(maxRetries);
 
-        var rejected = await orchestrator.ProcessAsync(MessageId, "Req", "corr", null, handler);
+        var rejected = await orchestrator.ProcessAsync(new object(), MessageId, "Req", "corr", null, handler);
 
         rejected.IsLeft.ShouldBeTrue();
         rejected.LeftToArray()[0].GetCode().IfNone(string.Empty).ShouldBe(InboxErrorCodes.MaxRetriesExceeded);
@@ -59,8 +59,8 @@ public sealed class InboxOrchestratorRetryTests
             return ValueTask.FromResult<Either<EncinaError, string>>(EncinaErrors.Create("biz.rule", "business rule"));
         };
 
-        var first = await orchestrator.ProcessAsync(MessageId, "Req", "corr", null, handler);
-        var second = await orchestrator.ProcessAsync(MessageId, "Req", "corr", null, handler);
+        var first = await orchestrator.ProcessAsync(new object(), MessageId, "Req", "corr", null, handler);
+        var second = await orchestrator.ProcessAsync(new object(), MessageId, "Req", "corr", null, handler);
 
         first.IsLeft.ShouldBeTrue();
         second.IsLeft.ShouldBeTrue();
@@ -93,7 +93,7 @@ public sealed class InboxOrchestratorRetryTests
         var orchestrator = CreateOrchestrator(store, 3);
 
         var result = await orchestrator.ProcessAsync<string>(
-            MessageId, "Req", "corr", null,
+            new object(), MessageId, "Req", "corr", null,
             () => ValueTask.FromResult<Either<EncinaError, string>>(EncinaErrors.Create("biz.rule", "business rule")));
 
         result.IsLeft.ShouldBeTrue();
@@ -109,7 +109,7 @@ public sealed class InboxOrchestratorRetryTests
         await cts.CancelAsync();
 
         var act = async () => await orchestrator.ProcessAsync<string>(
-            MessageId, "Req", "corr", null, () => throw new OperationCanceledException(cts.Token), cts.Token);
+            new object(), MessageId, "Req", "corr", null, () => throw new OperationCanceledException(cts.Token), cts.Token);
 
         await act.ShouldThrowAsync<OperationCanceledException>();
         store.Message!.RetryCount.ShouldBe(0);
@@ -122,7 +122,7 @@ public sealed class InboxOrchestratorRetryTests
         var orchestrator = CreateOrchestrator(store, 3);
 
         var result = await orchestrator.ProcessAsync<string>(
-            MessageId, "Req", "corr", null, () => throw new OperationCanceledException());
+            new object(), MessageId, "Req", "corr", null, () => throw new OperationCanceledException());
 
         result.IsLeft.ShouldBeTrue();
         store.Message!.RetryCount.ShouldBe(1);
@@ -141,8 +141,8 @@ public sealed class InboxOrchestratorRetryTests
             return ValueTask.FromResult<Either<EncinaError, int>>(0);
         };
 
-        await orchestrator.ProcessAsync(MessageId, "Req", "corr", null, handler);
-        var second = await orchestrator.ProcessAsync(MessageId, "Req", "corr", null, handler);
+        await orchestrator.ProcessAsync(new object(), MessageId, "Req", "corr", null, handler);
+        var second = await orchestrator.ProcessAsync(new object(), MessageId, "Req", "corr", null, handler);
 
         runs.ShouldBe(1);
         second.IsRight.ShouldBeTrue();
@@ -188,7 +188,7 @@ public sealed class InboxOrchestratorRetryTests
         var orchestrator = CreateOrchestrator(store, 3);
 
         var result = await orchestrator.ProcessAsync<string>(
-            MessageId, "Req", "corr", null, () => throw new InvalidOperationException("boom"));
+            new object(), MessageId, "Req", "corr", null, () => throw new InvalidOperationException("boom"));
 
         result.IsLeft.ShouldBeTrue();
         result.LeftToArray()[0].GetCode().IfNone(string.Empty).ShouldBe("test.mark_failed");
@@ -198,7 +198,7 @@ public sealed class InboxOrchestratorRetryTests
     {
         var orchestrator = CreateOrchestrator(store, 3);
         var runs = 0;
-        var result = await orchestrator.ProcessAsync(MessageId, "Req", "corr", null, () =>
+        var result = await orchestrator.ProcessAsync(new object(), MessageId, "Req", "corr", null, () =>
         {
             runs++;
             return ValueTask.FromResult<Either<EncinaError, string>>("ok");

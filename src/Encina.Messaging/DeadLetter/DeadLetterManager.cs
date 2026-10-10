@@ -326,7 +326,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
             return new ReplayStep(EncinaErrors.Create(plan.ErrorCode, plan.ErrorText!), MessageRejected: true);
         }
 
-        // Replay through IEncina.Send, typed by the request's runtime type
+        // Replay through IEncina.Publish (notifications) or IEncina.Send, typed by the runtime type
         var attempt = await ReplayRequestAsync(plan.Encina!, plan.Request!, messageId, cancellationToken).ConfigureAwait(false);
 
         return new ReplayStep(await FinishReplayAsync(messageId, attempt.Result, attempt.OutcomeCode, cancellationToken).ConfigureAwait(false));
@@ -389,7 +389,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
     {
         try
         {
-            var outcome = await RuntimeTypeRequestDispatcher.SendAsync(encina, request, cancellationToken).ConfigureAwait(false);
+            var outcome = await DispatchAsync(encina, request, cancellationToken).ConfigureAwait(false);
 
             // A Left outcome is a failed replay: the request ran and its handler (or a behavior) failed.
             // Only the error code travels: EncinaError.Message can carry personal data, and this
@@ -409,6 +409,12 @@ public sealed class DeadLetterManager : IDeadLetterManager
             return FailedAttempt(messageId, $"Replay failed: {innerException.GetType().FullName}", DeadLetterErrorCodes.ReplayFailed);
         }
     }
+
+    // A notification (an outbox dead letter) is published again; anything else is sent as a request.
+    private static ValueTask<Either<EncinaError, Unit>> DispatchAsync(IEncina encina, object request, CancellationToken cancellationToken)
+        => request is INotification notification
+            ? encina.Publish(notification, cancellationToken)
+            : RuntimeTypeRequestDispatcher.SendAsync(encina, request, cancellationToken);
 
     private ReplayAttempt FailedAttempt(Guid messageId, string error, string outcomeCode)
     {

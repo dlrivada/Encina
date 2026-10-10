@@ -28,7 +28,7 @@ A request enters the inbox when its type implements the marker interface `IIdemp
 
 ## How a delivery is processed
 
-The pipeline behavior calls `InboxOrchestrator.ProcessAsync`, which takes the `MessageId`, the request type, a correlation id, optional `InboxMetadata`, a callback that runs your handler and a `CancellationToken`. It asks `IInboxStore` for the message and then follows one of three paths.
+The pipeline behavior calls `InboxOrchestrator.ProcessAsync`, which takes the request, the `MessageId`, the request type, a correlation id, optional `InboxMetadata`, a callback that runs your handler and a `CancellationToken`. It asks `IInboxStore` for the message and then follows one of three paths.
 
 ```mermaid
 flowchart TD
@@ -56,6 +56,8 @@ flowchart TD
 `InboxOptions.MaxRetries` is the maximum number of handler attempts. For sequential deliveries of a message the handler runs at most `MaxRetries` times; with the default of 3 it runs three times. Two limits apply. The inbox does not serialize concurrent redeliveries of the same message, so two concurrent deliveries can both read the same `RetryCount` and both run the handler. And an attempt that crashes the process before `MarkAsFailedAsync` completes is not counted.
 
 Each attempt that throws is recorded by `IInboxStore.MarkAsFailedAsync`. That method is the single place where the message's `RetryCount` grows, by exactly one per failed attempt. When `RetryCount` reaches `MaxRetries`, the next delivery is rejected with `inbox.max_retries_exceeded` and the handler does not run.
+
+With the dead letter queue on and `DeadLetterOptions.IntegrateWithInbox` set, the attempt that brings `RetryCount` to `MaxRetries` stores the request in the dead letter queue (see [Dead letter queue](../features/dead-letter-queue.md#what-each-source-captures)); a retryable capture failure is returned instead of `inbox.processing_failed`, while a rejected capture is not (see the dead letter page).
 
 Timeline for `MaxRetries = 3` when the handler throws every time:
 

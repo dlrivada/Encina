@@ -404,8 +404,9 @@ public static class MessagingServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers the Dead Letter Queue pattern's store, factory, orchestrator, manager, health check and
-    /// cleanup processor when <paramref name="useDeadLetterQueue"/> is enabled; registers nothing otherwise.
+    /// Registers the Dead Letter Queue pattern's store, factory, orchestrator, manager, source capture
+    /// (<see cref="DeadLetterSourceCapture"/>), health check and cleanup processor when
+    /// <paramref name="useDeadLetterQueue"/> is enabled; registers nothing otherwise.
     /// </summary>
     /// <typeparam name="TStore">The dead letter store implementation type.</typeparam>
     /// <typeparam name="TFactory">The dead letter message factory implementation type.</typeparam>
@@ -453,6 +454,10 @@ public static class MessagingServiceCollectionExtensions
         services.TryAddScoped<IDeadLetterMessageFactory, TFactory>();
         services.TryAddScoped<DeadLetterOrchestrator>();
         services.TryAddScoped<IDeadLetterManager, DeadLetterManager>();
+
+        // The built-in sources (recoverability, outbox, inbox, scheduling, sagas) take it as an optional
+        // dependency and capture their terminal failures through it, each behind its IntegrateWith* flag.
+        services.TryAddSingleton<DeadLetterSourceCapture>();
 
         // TryAddEnumerable so the health check coexists with other IEncinaHealthCheck registrations in any order.
         services.TryAddSingleton(new DeadLetterHealthCheckOptions());

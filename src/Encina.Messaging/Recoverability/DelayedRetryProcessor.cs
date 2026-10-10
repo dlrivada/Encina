@@ -30,6 +30,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
     private readonly RecoverabilityOptions _options;
     private readonly ILogger<DelayedRetryProcessor> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly DeadLetter.DeadLetterSourceCapture? _deadLetterCapture;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -53,11 +54,20 @@ public sealed class DelayedRetryProcessor : BackgroundService
     /// <param name="options">The recoverability options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="timeProvider">Optional time provider for the failed message timestamps.</param>
+    /// <param name="deadLetterCapture">
+    /// Optional dead letter capture, registered with the dead letter queue: the permanent failure that ends a
+    /// delayed retry chain is captured once (keyed by the chain's <see cref="FailedMessage.Id"/>) while
+    /// <c>DeadLetterOptions.IntegrateWithRecoverability</c> is on. A row that could not be re-dispatched (unknown
+    /// type, unreadable payload) is captured from its stored type name and content. The capture runs before the
+    /// row is failed: when it fails in a retryable way, the row stays pending for a later cycle and
+    /// <c>OnPermanentFailure</c> waits; a capture the queue rejects (<c>dlq.capture_rejected</c>) fails the row anyway.
+    /// </param>
     public DelayedRetryProcessor(
         IServiceScopeFactory scopeFactory,
         RecoverabilityOptions options,
         ILogger<DelayedRetryProcessor> logger,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null)
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(options);
@@ -67,6 +77,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         _options = options;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _deadLetterCapture = deadLetterCapture;
     }
 
     /// <inheritdoc />
@@ -162,13 +173,16 @@ public sealed class DelayedRetryProcessor : BackgroundService
         {
             DelayedRetryProcessorLog.ProcessingException(_logger, ex.ForLogging(), message.Id, message.RequestType);
             var errorText = ex.GetType().FullName ?? ex.GetType().Name;
-            await store.MarkAsFailedAsync(message.Id, errorText, cancellationToken).ConfigureAwait(false);
 
-            // An unexpected exception before the chain was settled is a terminal exit of the message.
-            if (!progress.Settled)
+            // An unexpected exception before the chain was settled is a terminal exit of the message; after it
+            // (a store failure after success or a scheduled next attempt) only the row is failed.
+            if (progress.Settled)
             {
-                await TryHandlePermanentFailureAsync(message, progress.Request, errorText, cancellationToken).ConfigureAwait(false);
+                await store.MarkAsFailedAsync(message.Id, errorText, cancellationToken).ConfigureAwait(false);
+                return;
             }
+
+            await TryEndChainAsync(message, store, progress.Request, errorText, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -212,32 +226,33 @@ public sealed class DelayedRetryProcessor : BackgroundService
         await ApplyDispatchResultAsync(message, store, request, result, progress, cancellationToken).ConfigureAwait(false);
     }
 
-    // A terminal exit of a row that could not be re-dispatched: the row fails and the message takes
-    // the permanent-failure path once, like every other end of the chain.
-    private async Task FailTerminallyAsync(
+    // A terminal exit of a row that could not be re-dispatched: the message takes the permanent-failure
+    // path once, like every other end of the chain.
+    private Task FailTerminallyAsync(
+        IDelayedRetryMessage message,
+        IDelayedRetryStore store,
+        object? request,
+        string errorText,
+        CancellationToken cancellationToken)
+        => EndChainAsync(message, store, request, new FailureInfo(errorText, null, false), cancellationToken);
+
+    // An exception thrown on the way to the end of the chain is logged and the row is failed, so a row that
+    // keeps throwing cannot loop; a failed dead letter capture (a Left) still leaves it pending.
+    private async Task TryEndChainAsync(
         IDelayedRetryMessage message,
         IDelayedRetryStore store,
         object? request,
         string errorText,
         CancellationToken cancellationToken)
     {
-        await store.MarkAsFailedAsync(message.Id, errorText, cancellationToken).ConfigureAwait(false);
-        await HandlePermanentFailureAsync(message, request, new FailureInfo(errorText, null, false), cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task TryHandlePermanentFailureAsync(
-        IDelayedRetryMessage message,
-        object? request,
-        string errorText,
-        CancellationToken cancellationToken)
-    {
         try
         {
-            await HandlePermanentFailureAsync(message, request, new FailureInfo(errorText, null, false), cancellationToken).ConfigureAwait(false);
+            await EndChainAsync(message, store, request, new FailureInfo(errorText, null, false), cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
         {
             DelayedRetryProcessorLog.ProcessingException(_logger, ex.ForLogging(), message.Id, message.RequestType);
+            await store.MarkAsFailedAsync(message.Id, errorText, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -271,8 +286,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
 
         // All delayed retries exhausted, a permanent error, or no next attempt could be scheduled
         var errorMessage = result.ErrorMessage ?? "Unknown error";
-        await store.MarkAsFailedAsync(message.Id, errorMessage, cancellationToken).ConfigureAwait(false);
-        await HandlePermanentFailureAsync(message, request, new FailureInfo(errorMessage, result.Attempt, true), cancellationToken).ConfigureAwait(false);
+        await EndChainAsync(message, store, request, new FailureInfo(errorMessage, result.Attempt, true), cancellationToken).ConfigureAwait(false);
     }
 
     // Only this processor decides attempt N+1 or permanent failure: the re-dispatch ran without
@@ -476,35 +490,99 @@ public sealed class DelayedRetryProcessor : BackgroundService
         return context.CreateFailedMessage(request ?? message.RequestContent) with { RequestType = message.RequestType };
     }
 
-    private async Task HandlePermanentFailureAsync(
+    // The end of the chain. The dead letter is captured before the row is failed: when the capture fails (it
+    // logs the error code) the row stays pending and a later cycle runs it and captures it again, idempotently
+    // on the chain id, instead of ending failed without its dead letter. Then OnPermanentFailure runs once.
+    private async Task EndChainAsync(
         IDelayedRetryMessage message,
+        IDelayedRetryStore store,
         object? request,
         FailureInfo failure,
         CancellationToken cancellationToken)
     {
-        DelayedRetryProcessorLog.PermanentFailure(
+        LogPermanentFailure(message);
+        var failedMessage = FailedMessageFor(message, request, failure);
+
+        if (!await CapturedOrRejectedAsync(message, request, failedMessage, cancellationToken).ConfigureAwait(false))
+            return;
+
+        await store.MarkAsFailedAsync(message.Id, failure.Text, cancellationToken).ConfigureAwait(false);
+        await InvokeOnPermanentFailureAsync(message, failedMessage, cancellationToken).ConfigureAwait(false);
+    }
+
+    private void LogPermanentFailure(IDelayedRetryMessage message)
+        => DelayedRetryProcessorLog.PermanentFailure(
             _logger,
             message.CorrelationId ?? RecoverabilityConstants.Unknown,
             message.RequestType,
             message.DelayedRetryAttempt + 1);
 
-        if (_options.OnPermanentFailure is not null)
-        {
-            var failedMessage = BuildFailedMessage(message, request, failure);
+    // Built only when someone reads it: the callback or the dead letter capture.
+    private FailedMessage? FailedMessageFor(IDelayedRetryMessage message, object? request, FailureInfo failure)
+        => _options.OnPermanentFailure is null && _deadLetterCapture is null
+            ? null
+            : BuildFailedMessage(message, request, failure);
 
-            try
-            {
-                await _options.OnPermanentFailure(failedMessage, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                DelayedRetryProcessorLog.OnPermanentFailureCallbackFailed(
-                    _logger,
-                    ex.ForLogging(),
-                    message.CorrelationId ?? RecoverabilityConstants.Unknown,
-                    message.RequestType);
-            }
+    private async Task InvokeOnPermanentFailureAsync(
+        IDelayedRetryMessage message,
+        FailedMessage? failedMessage,
+        CancellationToken cancellationToken)
+    {
+        if (_options.OnPermanentFailure is null || failedMessage is null)
+            return;
+
+        try
+        {
+            await _options.OnPermanentFailure(failedMessage, cancellationToken).ConfigureAwait(false);
         }
+        catch (Exception ex)
+        {
+            DelayedRetryProcessorLog.OnPermanentFailureCallbackFailed(
+                _logger,
+                ex.ForLogging(),
+                message.CorrelationId ?? RecoverabilityConstants.Unknown,
+                message.RequestType);
+        }
+    }
+
+    // False only when the capture failed in a way worth trying again (the row then stays pending). A capture the
+    // dead letter queue rejects can never succeed: the row is failed anyway (the capture logged the rejection).
+    private async Task<bool> CapturedOrRejectedAsync(
+        IDelayedRetryMessage message,
+        object? request,
+        FailedMessage? failedMessage,
+        CancellationToken cancellationToken)
+    {
+        var captured = await CaptureDeadLetterAsync(message, request, failedMessage, cancellationToken).ConfigureAwait(false);
+        return captured.IsRight || !DeadLetter.DeadLetterSourceCapture.IsRetryable(captured.LeftToArray()[0]);
+    }
+
+    // A row with no request object (unknown type, unreadable payload) is captured from its stored type name
+    // and content, which IMessageSerializer wrote and the replay reads back.
+    private Task<Either<EncinaError, Unit>> CaptureDeadLetterAsync(
+        IDelayedRetryMessage message,
+        object? request,
+        FailedMessage? failedMessage,
+        CancellationToken cancellationToken)
+    {
+        if (_deadLetterCapture is null || failedMessage is null)
+            return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+
+        if (request is not null)
+            return _deadLetterCapture.CaptureFailedMessageAsync(failedMessage, cancellationToken);
+
+        return _deadLetterCapture.CaptureSerializedAsync(
+            message.RequestType,
+            message.RequestContent,
+            new DeadLetter.DeadLetterContext(
+                failedMessage.Error,
+                failedMessage.Exception,
+                DeadLetter.DeadLetterSourcePatterns.Recoverability,
+                failedMessage.TotalAttempts,
+                failedMessage.FirstAttemptAtUtc,
+                failedMessage.CorrelationId,
+                failedMessage.Id.ToString("D")),
+            cancellationToken);
     }
 
     private sealed record DispatchResult(bool IsSuccess, string? ErrorMessage, bool IsPermanent, RecoverabilityContext? Attempt);

@@ -54,7 +54,7 @@ A message is stored in a `DeadLetterMessages` table (a `dead_letter_messages` co
 
 - A provider registration you already call: `AddEncinaADO`, `AddEncinaDapper`, `AddEncinaEntityFrameworkCore<TDbContext>` or `AddEncinaMongoDB`.
 - ADO.NET and Dapper stores need a connection that derives from `System.Data.Common.DbConnection` (`SqlConnection`, `NpgsqlConnection`, `MySqlConnection`). Any other `IDbConnection` is rejected with an `ArgumentException`, because the stores never fall back to synchronous calls.
-- Today nothing captures dead letters on its own: you call `DeadLetterOrchestrator` yourself. Wiring the five `IntegrateWith*` sources of `DeadLetterOptions` is tracked in [#1991](https://github.com/dlrivada/Encina/issues/1991); those flags are declared but not yet read.
+- With the queue on, the built-in sources (recoverability, outbox, inbox, scheduling and sagas) capture their terminal failures on their own; step 1 switches the queue on and "What each source captures" lists what each one stores. You call `DeadLetterOrchestrator` yourself only for your own sources (step 3).
 
 ## 1. Switch the queue on
 
@@ -144,7 +144,7 @@ The collection name is `EncinaMongoDbOptions.Collections.DeadLetterMessages` (de
 
 ## 3. Capture a failed message
 
-Resolve `DeadLetterOrchestrator` from a scope and pass the failed request with a `DeadLetterContext`. `SourceMessageId` is the idempotency key. Pass it whenever the failed item has a stable id: a retry of the same item then returns the existing dead letter. If you omit it, `DeadLetterOrchestrator` uses the new dead letter's id, so every capture is unique and nothing is deduplicated. Every store (and the fake store) throws `ArgumentException` for an empty key. It must be unique per `SourcePattern` across tenants, because the unique key has no tenant: if two tenants dead-letter the same source id, the second capture returns the first tenant's message. Use a globally unique id such as a GUID or an inbox message id, as the built-in sources do.
+The built-in sources capture on their own (see "What each source captures" below). To capture from your own source, resolve `DeadLetterOrchestrator` from a scope and pass the failed request with a `DeadLetterContext`. `SourceMessageId` is the idempotency key. Pass it whenever the failed item has a stable id: a retry of the same item then returns the existing dead letter. If you omit it, `DeadLetterOrchestrator` uses the new dead letter's id, so every capture is unique and nothing is deduplicated. Every store (and the fake store) throws `ArgumentException` for an empty key. It must be unique per `SourcePattern` across tenants, because the unique key has no tenant: if two tenants dead-letter the same source id, the second capture returns the first tenant's message. Use a globally unique id such as a GUID or an inbox message id, as the built-in sources do.
 
 ```csharp
 using Encina.Messaging.DeadLetter;
@@ -221,9 +221,71 @@ All 10 providers of the database matrix are covered ([AGENTS.md section 5](https
 - **Order.** `GetMessagesAsync` returns the oldest first (`DeadLetteredAtUtc`, then `Id`); `newestFirst: true` reverses it on the store. The `DeadLetteredAtUtc` order is the contract. The `Id` tie-break is stable within one provider only, because providers compare GUIDs in different byte orders.
 - **Tenants.** A store returns every tenant unless `DeadLetterFilter.TenantId` names one. `IDeadLetterManager` reads, replays and deletes default to the ambient `IRequestContext.TenantId` when there is one; an explicit `TenantId` on the filter wins over the ambient tenant, and `AllTenants = true` opts out for operator tooling. The cleanup processor and the health check work across the whole deployment. See "Multi-tenancy fails closed" below for what happens when no tenant is resolved.
 - **Expiry.** A message is expired when `ExpiresAtUtc <= now`, with "now" taken from `TimeProvider`. The store contract tests this boundary under a non-UTC PostgreSQL session time zone as well.
-- **Duplicates.** A repeated capture of the same `(SourcePattern, SourceMessageId)` is not an error. The PostgreSQL ADO.NET and Dapper stores insert with `ON CONFLICT ("SourcePattern", "SourceMessageId") DO NOTHING`, so no server error is raised and the capture is safe inside an open transaction.
+- **Duplicates.** A repeated capture of the same `(SourcePattern, SourceMessageId)` is not an error. The PostgreSQL ADO.NET and Dapper stores insert with `ON CONFLICT ("SourcePattern", "SourceMessageId") DO NOTHING`, so no server error is raised and the capture is safe inside an open transaction. On MongoDB without the unique index and on an EF Core lost race, a duplicate is not yet reported as `Right(false)`; this is tracked in [#2079](https://github.com/dlrivada/Encina/issues/2079).
 - **Errors.** Every store failure comes back as a `Left`; nothing is reported as "not found" or "not deleted" to hide it. `DeadLetterHealthCheck` reports Unhealthy when the store fails.
 - **Limits.** `take` is at most `DeadLetterStoreLimits.MaxPageSize`; the other lengths in `DeadLetterStoreLimits` are checked before any I/O.
+
+### What each source captures
+
+The registration also adds `DeadLetterSourceCapture`, which the built-in sources use. Each source has a flag on `DeadLetterOptions`, `true` by default; a flag set to `false` captures nothing from that source. The decisions behind this wiring are in [ADR-046](../architecture/adr/046-persistent-dead-letter-queue.md), "Decisions added with the source capture".
+
+| Flag | Captures when | `SourceMessageId` | `RequestType` and `RequestContent` | A failed capture |
+| --- | --- | --- | --- | --- |
+| `IntegrateWithRecoverability` | A permanent failure in `RecoverabilityPipelineBehavior` (a permanent error, or immediate retries exhausted with no delayed retry scheduled), or the end of a delayed-retry chain in `DelayedRetryProcessor`. A cancelled request is not captured. | `FailedMessage.Id`, the retry chain id, so one dead letter per chain | The failed request. A delayed-retry row that cannot be re-dispatched keeps its stored type name and content | In `RecoverabilityPipelineBehavior`: logged (EventId 2996 or 2997, or 2998 for a rejection); the request already returns its failure. In `DelayedRetryProcessor`: the capture runs before the row is failed, so a retryable failure is logged and the row stays pending for a later cycle (the request is dispatched again); `OnPermanentFailure` runs only after a successful capture or a rejected one (a rejection fails the row, see the bullets below) |
+| `IntegrateWithOutbox` | The failed delivery that brings the message to `OutboxOptions.MaxRetries` | The outbox message id | The stored notification type and content, kept as is | Captured before the exhausted state is recorded, so after a retryable failure the message stays un-exhausted (a rejection does not, see the bullets below), is logged (EventId 2961, operation `DeadLetterCapture`) and is delivered again later. A requeued message that is exhausted again keeps one dead letter |
+| `IntegrateWithInbox` | The attempt that uses up `InboxOptions.MaxRetries`. Only a thrown exception is an attempt: a handler `Left` is a cached business result and never retries | The inbox message id | The request object (`InboxOrchestrator.ProcessAsync` takes it as its first parameter); the tenant comes from the inbox metadata | A retryable failure is returned as the attempt's `Left`; a rejected capture (`dlq.capture_rejected`) is not, and the inbox answers as without a dead letter queue. A redelivery refused with `inbox.max_retries_exceeded` captures again idempotently, which repairs a failed capture |
+| `IntegrateWithScheduling` | The failure that the scheduling retry policy dead-letters | The scheduled message id | The stored request type and content | Captured before the state is recorded, so after a retryable failure the message stays due for a later cycle (a rejection records the dead-lettered state, see the bullets below) |
+| `IntegrateWithSagas` | `SagaOrchestrator.FailAsync` ends the saga `Failed` (in `SagaRunner`: a failed compensation, a cancelled run or an unexpected exception). A `Compensated` saga is not captured | The saga id | The saga type name and the saga data | Returned by `FailAsync` after `Failed` was stored. `SagaRunner` returns that `Left` on all three triggers instead of the original error |
+| `IntegrateWithSagas` (not found) | A handler of `IHandleSagaNotFound<TMessage>` calls `SagaNotFoundContext.MoveToDeadLetterAsync` | `SagaNotFoundContext.SourceMessageId`, the identity the caller supplies (see below) | The message itself, serialized through `IMessageSerializer`, under source pattern `Saga`. The record stores the error code `saga.not_found`; the reason text stays in memory (`DeadLetterReason`) | Returned to the handler as a `Left`; only a `Right` marks the message as moved (`WasMovedToDeadLetter`) |
+
+- While the dead letter store is failing, or a capture throws (`dlq.capture_failed`, `DeadLetterErrorCodes.CaptureFailed`), an outbox message, a scheduled message or a delayed retry row that reached its terminal failure is not marked terminal, so it is delivered or run again on every processing cycle (its handler runs again) until a capture succeeds. `MaxRetries` does not bound those repeats. Monitor EventIds 2996, 2997 and 2961 and `DeadLetterHealthCheck`. `DeadLetterSourceCapture.IsRetryable` returns `true` for these errors.
+- A capture the queue rejects is not retried (`dlq.capture_rejected`, `DeadLetterErrorCodes.CaptureRejected`; `DeadLetterSourceCapture.IsRetryable` returns `false`). It happens when an identity value is over its limit or has leading or trailing white space, when an instant is not UTC, or when the source pattern has no `IntegrateWith*` flag. The outbox records the exhausted state, scheduling the dead-lettered state, and the delayed retry processor fails the row and runs `OnPermanentFailure`; the row stays in its table for inspection and requeue. The rejection is logged (EventId 2998) and counted in `encina.dlq.store_failures_total` with operation `capture`, as is a capture that threw.
+- An inbox message id must fit the dead letter key: at most 256 characters, with no leading or trailing white space (`DeadLetterStoreLimits.SourceMessageIdMaxLength`). Otherwise the capture is rejected, and the inbox answers as it does without a dead letter queue: `inbox.processing_failed` on the terminal attempt and `inbox.max_retries_exceeded` on redeliveries. The message is never dead-lettered.
+- `SagaOrchestrator.FailAsync` returns a rejection after it stored `Failed`; the saga stays `Failed`.
+- `CaptureAsync` and `CaptureSerializedAsync` return `dlq.capture_rejected` for a source pattern that has no `IntegrateWith*` flag (for example `Choreography`), so a caller is never told that something was captured when nothing was. A built-in pattern whose flag is `false` returns success and captures nothing.
+- Every capture runs in a DI scope of its own, so on EF Core it never saves the source's tracked changes.
+- An outbox dead letter is replayed by publishing the notification again. The dead letter of a failed saga (keyed by the saga id) holds saga data, which is not a request, so its replay is normally recorded as failed (`dlq.deserialization_failed`) unless the stored saga type name resolves to a request or notification type; the record is kept for inspection. A saga-not-found dead letter holds the message itself and is replayed directly, see "Saga not found" below.
+- Outbox, scheduled and delayed-retry rows carry no tenant yet (#737, #739). Their dead letters take the ambient tenant of the running cycle, which is none for the hosted processors; under `AddEncinaTenancy` such a dead letter is seen only by an operator using `DeadLetterFilter.AllTenants`. Do not drive those cycles from a tenant-scoped request. The inbox takes the tenant from its metadata, and a saga's context sets none, so a saga dead letter also takes the ambient tenant.
+- **Saga not found.** `ISagaNotFoundDispatcher.DispatchAsync` connects `SagaNotFoundContext.MoveToDeadLetterAsync` to the capture while `IntegrateWithSagas` is on. The caller supplies the message's identity, because a saga that was not found has no state to take one from ([ADR-046](../architecture/adr/046-persistent-dead-letter-queue.md), decision 15). `MoveToDeadLetterAsync` returns `Either<EncinaError, Unit>`:
+
+    | Result | When |
+    | --- | --- |
+    | `Right` | The message was stored, or was already stored for the same `SourceMessageId`. Only this marks the message as moved |
+    | `Left` `dlq.not_configured` (`DeadLetterErrorCodes.NotConfigured`) | The dead letter queue is not registered, or `IntegrateWithSagas` is off |
+    | `Left` `dlq.source_message_id_required` (`DeadLetterErrorCodes.SourceMessageIdRequired`) | The context was created without a `sourceMessageId`. Encina never guesses a key |
+    | `Left` with the capture's error | Storing failed or was rejected (see the bullets above) |
+
+    The id must be unique among all dead letters of the `Saga` source pattern, which also holds failed sagas keyed by their saga id. Never pass `SagaId` (or the saga's id) as `sourceMessageId`: several messages can miss the same saga, and the id would collide with a failed saga's dead letter. Use an id that is unique across queues and tenants, for example the transport's globally unique message id, not a per-queue offset. A redelivery with the same id keeps one dead letter, and a duplicate id finds the existing dead letter and stores nothing new. The caller creates the context:
+
+    ```csharp
+    using Encina.Messaging.Sagas;
+
+    // sagaNotFoundDispatcher is an ISagaNotFoundDispatcher; transportMessageId comes from the transport
+    var context = new SagaNotFoundContext(
+        sagaId, sagaType, typeof(PaymentCompleted), sourceMessageId: transportMessageId);
+    var dispatched = await sagaNotFoundDispatcher.DispatchAsync(message, context, cancellationToken);
+    // Acknowledge the transport message only when dispatched is Right.
+    ```
+
+    and the handler moves the message:
+
+    ```csharp
+    using Encina.Messaging.Sagas;
+
+    public sealed class PaymentCompletedNotFoundHandler : IHandleSagaNotFound<PaymentCompleted>
+    {
+        public async Task HandleAsync(
+            PaymentCompleted message, SagaNotFoundContext context, CancellationToken cancellationToken)
+        {
+            // A Left is not swallowed here: the dispatcher returns it to the caller.
+            await context.MoveToDeadLetterAsync("Saga correlation failed", cancellationToken);
+        }
+    }
+    ```
+
+    `DispatchAsync` returns `Right` when the handler completed or no handler is registered. When the handler's last `MoveToDeadLetterAsync` call returned a `Left` and the handler then neither moved the message (a later call that succeeded) nor called `Ignore()`, `DispatchAsync` returns that `Left`, so the caller must not acknowledge the message: it is in no dead letter queue. A handler that wants to drop the message after a failed move calls `context.Ignore()` deliberately. A handler that throws yields `saga.handler.failed` (`SagaErrorCodes.HandlerFailed`), and a cancelled one `saga.handler.cancelled` (`SagaErrorCodes.HandlerCancelled`).
+
+    A saga-not-found dead letter holds the message itself. `IDeadLetterManager` replays it directly, through `IEncina.Publish` when the message is a notification and through `Send` otherwise; it is not re-correlated to a saga. A message type that is neither a request nor a notification records a failed replay.
 
 ### Multi-tenancy fails closed
 

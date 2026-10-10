@@ -143,10 +143,45 @@ public sealed class DeadLetterOrchestrator
         var requestType = runtimeType.AssemblyQualifiedName ?? runtimeType.FullName ?? runtimeType.Name;
         var requestContent = _messageSerializer.SerializeAsRuntimeType(request);
 
+        return await CaptureAsync(NewData(requestType, requestContent, context), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Adds a message to the Dead Letter Queue from its stored type name and its stored, already serialized
+    /// content, for sources that hold no request object (outbox and scheduled rows, a delayed retry whose
+    /// type cannot be resolved or whose payload cannot be read).
+    /// </summary>
+    /// <param name="requestType">The stored type name of the message.</param>
+    /// <param name="requestContent">
+    /// The stored content. It was written by <c>IMessageSerializer</c>, so it is kept as is (an encrypted
+    /// payload stays encrypted) and the replay reads it back with the same serializer.
+    /// </param>
+    /// <param name="context">The dead letter context with failure details.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>
+    /// The created dead letter message, the existing one when the source message was already captured,
+    /// or an error.
+    /// </returns>
+    public async Task<Either<EncinaError, IDeadLetterMessage>> AddSerializedAsync(
+        string requestType,
+        string requestContent,
+        DeadLetterContext context,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(requestType);
+        ArgumentNullException.ThrowIfNull(requestContent);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentException.ThrowIfNullOrEmpty(context.SourcePattern);
+
+        return await CaptureAsync(NewData(requestType, requestContent, context), cancellationToken).ConfigureAwait(false);
+    }
+
+    private DeadLetterData NewData(string requestType, string requestContent, DeadLetterContext context)
+    {
         // EncinaError.Message and Exception.Message can carry personal data (e.g. a data-subject
         // id), so the record and the log keep only the error code and the exception type (#1274).
         var (exceptionType, exceptionStackTrace) = DescribeException(context.Exception);
-        var data = NewData(
+        return NewData(
             requestType,
             requestContent,
             ErrorCodeOf(context.Error),
@@ -158,8 +193,6 @@ public sealed class DeadLetterOrchestrator
             context.CorrelationId,
             exceptionType,
             exceptionStackTrace);
-
-        return await CaptureAsync(data, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

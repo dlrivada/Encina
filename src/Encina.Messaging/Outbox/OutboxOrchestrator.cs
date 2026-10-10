@@ -34,6 +34,7 @@ public sealed class OutboxOrchestrator
     private readonly IOutboxMessageFactory _messageFactory;
     private readonly IMessageSerializer _messageSerializer;
     private readonly TimeProvider _timeProvider;
+    private readonly DeadLetter.DeadLetterSourceCapture? _deadLetterCapture;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxOrchestrator"/> class.
@@ -44,6 +45,10 @@ public sealed class OutboxOrchestrator
     /// <param name="messageFactory">Factory to create outbox messages.</param>
     /// <param name="messageSerializer">The message serializer for payload serialization/deserialization.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
+    /// <param name="deadLetterCapture">
+    /// Optional dead letter capture, registered with the dead letter queue: a message whose failure uses up
+    /// <see cref="OutboxOptions.MaxRetries"/> is captured while <c>DeadLetterOptions.IntegrateWithOutbox</c> is on.
+    /// </param>
     /// <exception cref="ArgumentException">
     /// Thrown when <see cref="OutboxOptions.MaxRetryDelay"/> is less than <see cref="OutboxOptions.BaseRetryDelay"/>.
     /// </exception>
@@ -53,8 +58,10 @@ public sealed class OutboxOrchestrator
         ILogger<OutboxOrchestrator> logger,
         IOutboxMessageFactory messageFactory,
         IMessageSerializer messageSerializer,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null)
     {
+        _deadLetterCapture = deadLetterCapture;
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -136,7 +143,8 @@ public sealed class OutboxOrchestrator
     {
         ArgumentNullException.ThrowIfNull(publishCallback);
 
-        var batchProcessor = new OutboxBatchProcessor(_store, _options, _logger, _messageSerializer, _timeProvider);
+        var batchProcessor = new OutboxBatchProcessor(
+            _store, _options, _logger, _messageSerializer, _timeProvider, deadLetterCapture: _deadLetterCapture);
         var result = await batchProcessor.ProcessAsync(publishCallback, cancellationToken).ConfigureAwait(false);
         result.IfRight(r => OutboxProcessorMetrics.Instance.RecordBatch(r));
 

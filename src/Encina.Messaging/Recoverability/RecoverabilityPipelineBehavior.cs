@@ -41,6 +41,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     private readonly ILogger<RecoverabilityPipelineBehavior<TRequest, TResponse>> _logger;
     private readonly IDelayedRetryScheduler? _delayedRetryScheduler;
     private readonly TimeProvider _timeProvider;
+    private readonly DeadLetter.DeadLetterSourceCapture? _deadLetterCapture;
     private static readonly Random Jitter = new();
 
     /// <summary>
@@ -50,11 +51,17 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     /// <param name="logger">The logger.</param>
     /// <param name="delayedRetryScheduler">Optional scheduler for delayed retries.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
+    /// <param name="deadLetterCapture">
+    /// Optional dead letter capture, registered with the dead letter queue: a permanent failure is captured
+    /// once (keyed by <see cref="FailedMessage.Id"/>) while <c>DeadLetterOptions.IntegrateWithRecoverability</c>
+    /// is on. A failed capture is logged by the capture; the request already returns its failure.
+    /// </param>
     public RecoverabilityPipelineBehavior(
         RecoverabilityOptions options,
         ILogger<RecoverabilityPipelineBehavior<TRequest, TResponse>> logger,
         IDelayedRetryScheduler? delayedRetryScheduler = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -64,6 +71,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         _logger = logger;
         _delayedRetryScheduler = delayedRetryScheduler;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _deadLetterCapture = deadLetterCapture;
     }
 
     /// <inheritdoc />
@@ -73,7 +81,8 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
     {
-        var recoverabilityContext = new RecoverabilityContext
+        // The behavior's clock stamps the chain, so a dead letter's first-failure and dead-letter instants agree.
+        var recoverabilityContext = new RecoverabilityContext(_timeProvider)
         {
             CorrelationId = context.CorrelationId,
             IdempotencyKey = context.IdempotencyKey,
@@ -404,20 +413,35 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             typeof(TRequest).Name,
             recoverabilityContext.TotalAttempts);
 
-        if (_options.OnPermanentFailure is not null)
+        // A cancelled request is not a terminal failure of the message.
+        if (_deadLetterCapture is not null && !cancellationToken.IsCancellationRequested)
         {
-            try
-            {
-                await _options.OnPermanentFailure(failedMessage, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                RecoverabilityLog.OnPermanentFailureCallbackFailed(
-                    _logger,
-                    ex.ForLogging(),
-                    recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
-                    typeof(TRequest).Name);
-            }
+            // A Left is logged by the capture (error code only); the request already returns its failure.
+            await _deadLetterCapture.CaptureFailedMessageAsync(failedMessage, cancellationToken).ConfigureAwait(false);
+        }
+
+        await InvokeOnPermanentFailureAsync(failedMessage, recoverabilityContext, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task InvokeOnPermanentFailureAsync(
+        FailedMessage failedMessage,
+        RecoverabilityContext recoverabilityContext,
+        CancellationToken cancellationToken)
+    {
+        if (_options.OnPermanentFailure is null)
+            return;
+
+        try
+        {
+            await _options.OnPermanentFailure(failedMessage, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            RecoverabilityLog.OnPermanentFailureCallbackFailed(
+                _logger,
+                ex.ForLogging(),
+                recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
+                typeof(TRequest).Name);
         }
     }
 }
