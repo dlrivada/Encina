@@ -28,8 +28,9 @@ namespace Encina.Messaging.Outbox;
 /// <para>
 /// With the dead letter queue registered and <c>DeadLetterOptions.IntegrateWithOutbox</c> on, the exhausted
 /// message is captured first (stored type name and content, keyed by the message id). When that capture
-/// fails, the exhausted state is not recorded: the message is logged with EventId 2961 (operation
-/// <c>DeadLetterCapture</c>), counted as a store error and delivered again in a later cycle.
+/// fails in a retryable way, the exhausted state is not recorded: the message is logged with EventId 2961
+/// (operation <c>DeadLetterCapture</c>), counted as a store error and delivered again in a later cycle. A capture
+/// the queue rejects (<c>dlq.capture_rejected</c>) is not retried: the exhausted state is recorded.
 /// </para>
 /// <para>
 /// Every store call is checked. When <see cref="IOutboxStore.MarkAsProcessedAsync"/> or

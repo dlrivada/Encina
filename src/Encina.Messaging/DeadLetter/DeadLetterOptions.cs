@@ -77,8 +77,9 @@ public sealed class DeadLetterOptions
     /// <c>RecoverabilityPipelineBehavior</c> after a permanent error or when immediate retries are exhausted and
     /// no delayed retry is scheduled, and in <c>DelayedRetryProcessor</c> when the last delayed retry fails or a
     /// row cannot be re-dispatched (then its stored type name and content are kept). A failed capture is
-    /// logged (EventId 2996 or 2997): in the behavior the request already returns its failure; in the processor
-    /// the row is not failed and runs again in a later cycle.
+    /// logged (EventId 2996, 2997 or 2998): in the behavior the request already returns its failure; in the
+    /// processor a retryable failure leaves the row pending for a later cycle, and a capture the queue rejects
+    /// (<see cref="DeadLetterErrorCodes.CaptureRejected"/>) fails the row anyway.
     /// </remarks>
     /// <value>Default: true.</value>
     public bool IntegrateWithRecoverability { get; set; } = true;
@@ -90,8 +91,9 @@ public sealed class DeadLetterOptions
     /// When enabled, the failed delivery that brings a message to <c>OutboxOptions.MaxRetries</c> stores its
     /// notification type and content once, keyed by the outbox message id (source pattern
     /// <see cref="DeadLetterSourcePatterns.Outbox"/>), before the exhausted state is recorded. When the capture
-    /// fails, the message is not marked exhausted and is delivered again in a later cycle. A replay publishes
-    /// the notification again.
+    /// fails in a retryable way, the message is not marked exhausted and is delivered again in a later cycle; a
+    /// capture the queue rejects (<see cref="DeadLetterErrorCodes.CaptureRejected"/>) is not retried and the
+    /// exhausted state is recorded. A replay publishes the notification again.
     /// </remarks>
     /// <value>Default: true.</value>
     public bool IntegrateWithOutbox { get; set; } = true;
@@ -103,7 +105,9 @@ public sealed class DeadLetterOptions
     /// When enabled, the failed attempt (a thrown exception) that brings a message to
     /// <c>InboxOptions.MaxRetries</c> stores its request once, keyed by the inbox message id (source pattern
     /// <see cref="DeadLetterSourcePatterns.Inbox"/>); a redelivery rejected afterwards captures it again
-    /// idempotently. When the capture fails, the attempt returns the capture's error.
+    /// idempotently. When the capture fails in a retryable way, the attempt returns the capture's error; a capture
+    /// the queue rejects (<see cref="DeadLetterErrorCodes.CaptureRejected"/>) is logged and the inbox answers as
+    /// without a dead letter queue.
     /// </remarks>
     /// <value>Default: true.</value>
     public bool IntegrateWithInbox { get; set; } = true;
@@ -115,7 +119,8 @@ public sealed class DeadLetterOptions
     /// When enabled, the failure that the scheduling retry policy dead-letters stores the message's request
     /// type and content once, keyed by the scheduled message id (source pattern
     /// <see cref="DeadLetterSourcePatterns.Scheduling"/>), before that state is recorded. When the capture
-    /// fails, the message keeps its state and runs again in a later cycle.
+    /// fails in a retryable way, the message keeps its state and runs again in a later cycle; a capture the queue
+    /// rejects (<see cref="DeadLetterErrorCodes.CaptureRejected"/>) is not retried and the state is recorded.
     /// </remarks>
     /// <value>Default: true.</value>
     public bool IntegrateWithScheduling { get; set; } = true;

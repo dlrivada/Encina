@@ -30,7 +30,7 @@ namespace Encina.Messaging.Outbox;
 /// logged with <see cref="OutboxErrorCodes.MaxRetriesExceeded"/> (EventId 2958) and counted in
 /// <c>encina.outbox.processor.messages_total{outcome="exhausted"}</c>. With the dead letter queue registered
 /// and <c>DeadLetterOptions.IntegrateWithOutbox</c> on, the message is first captured into the dead letter
-/// queue; a failed capture leaves it unexhausted for a later cycle.</description></item>
+/// queue; a retryable capture failure leaves it unexhausted for a later cycle.</description></item>
 /// <item><description>A cancellation (the host stopping, or <see cref="EncinaErrorCodes.NotificationCancelled"/>
 /// from the dispatcher) stops the batch without marking the interrupted message failed.</description></item>
 /// </list>

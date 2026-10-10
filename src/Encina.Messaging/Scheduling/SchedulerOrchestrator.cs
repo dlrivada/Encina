@@ -63,7 +63,8 @@ public sealed class SchedulerOrchestrator
     /// Optional dead letter capture, registered with the dead letter queue: while
     /// <c>DeadLetterOptions.IntegrateWithScheduling</c> is on, a message whose failure the retry policy
     /// dead-letters is captured (stored type name and content, keyed by the message id) before that state is
-    /// recorded; when the capture fails the message keeps its state and runs again in a later cycle.
+    /// recorded; when the capture fails in a retryable way the message keeps its state and runs again in a later
+    /// cycle, and a capture the queue rejects (<c>dlq.capture_rejected</c>) does not stop the state being recorded.
     /// </param>
     /// <exception cref="ArgumentNullException">
     /// Thrown when any required dependency (<paramref name="store"/>,

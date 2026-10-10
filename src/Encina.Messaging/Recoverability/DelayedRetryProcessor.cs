@@ -59,7 +59,8 @@ public sealed class DelayedRetryProcessor : BackgroundService
     /// delayed retry chain is captured once (keyed by the chain's <see cref="FailedMessage.Id"/>) while
     /// <c>DeadLetterOptions.IntegrateWithRecoverability</c> is on. A row that could not be re-dispatched (unknown
     /// type, unreadable payload) is captured from its stored type name and content. The capture runs before the
-    /// row is failed: when it fails, the row stays pending for a later cycle and <c>OnPermanentFailure</c> waits.
+    /// row is failed: when it fails in a retryable way, the row stays pending for a later cycle and
+    /// <c>OnPermanentFailure</c> waits; a capture the queue rejects (<c>dlq.capture_rejected</c>) fails the row anyway.
     /// </param>
     public DelayedRetryProcessor(
         IServiceScopeFactory scopeFactory,
