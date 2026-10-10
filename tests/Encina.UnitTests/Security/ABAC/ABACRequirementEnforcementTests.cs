@@ -284,6 +284,8 @@ public sealed class ABACRequirementEnforcementTests
             new ObligationExecutor(handlers ?? [], NullLogger<ObligationExecutor>.Instance),
             Compiler,
             Options.Create(new ABACOptions { EnforcementMode = mode }),
+            Substitute.For<global::Encina.Security.ABAC.DecisionAudit.IABACDecisionRecorder>(),
+            TimeProvider.System,
             pepLogger ?? NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
     }
 

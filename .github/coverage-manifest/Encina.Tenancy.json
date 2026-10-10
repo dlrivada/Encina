@@ -125,12 +125,12 @@
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
       "targets": {
-        "unit": 90,
-        "guard": 3
+        "unit": 95,
+        "guard": 70
       },
       "justifications": {
-        "unit": "Unit tests register the services and resolve each one, and the new marker registration is asserted by a registration test.",
-        "guard": "Guard tests reach only the null-argument check of AddEncinaTenancy; the registration logic around it is covered by the unit flag."
+        "unit": "Unit tests cover the default and configured registrations, custom stores, the multi-tenancy marker and the TenancyInUse registration.",
+        "guard": "Guard tests reject null services and register every tenancy service, the marker included."
       }
     },
     "Stores/InMemoryTenantStore.cs": {

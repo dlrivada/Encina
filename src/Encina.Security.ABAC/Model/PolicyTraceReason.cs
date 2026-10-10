@@ -15,5 +15,13 @@ public enum PolicyTraceReason
     TargetNotMatched = 2,
 
     /// <summary>The target of the policy (set) could not be evaluated, so its effect is indeterminate.</summary>
-    TargetIndeterminate = 3
+    TargetIndeterminate = 3,
+
+    /// <summary>
+    /// The policy or condition was not evaluated: an earlier requirement already decided the request
+    /// (a short-circuited condition), or the required policy does not exist or could not be read.
+    /// The node's effect is <see cref="Effect.NotApplicable"/>, or <see cref="Effect.Indeterminate"/>
+    /// when the policy could not be read.
+    /// </summary>
+    NotEvaluated = 4
 }

@@ -38,6 +38,21 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddEncinaTenancy_RegistersTheMultiTenancyMarkerOtherPackagesCheck()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        services.AddEncinaTenancy();
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+
+        // Assert
+        provider.GetRequiredService<IServiceProviderIsService>().IsService(typeof(MultiTenancyMarker)).ShouldBeTrue();
+        provider.GetRequiredService<MultiTenancyMarker>().ShouldNotBeNull();
+    }
+
+    [Fact]
     public void AddEncinaTenancy_WithConfiguration_AppliesOptions()
     {
         // Arrange

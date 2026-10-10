@@ -306,7 +306,7 @@ public sealed class ABACErrorsTests
 
         error.GetCode().IfNone("").ShouldBe(ABACErrors.FunctionErrorCode);
         error.Message.ShouldContain("integer-divide");
-        error.Message.ShouldContain("division by zero");
+        error.Message.ShouldNotContain("division by zero");
     }
 
     [Fact]

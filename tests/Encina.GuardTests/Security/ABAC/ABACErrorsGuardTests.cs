@@ -313,7 +313,7 @@ public class ABACErrorsGuardTests
     {
         var error = ABACErrors.FunctionError("string-equal", new ArgumentException("bad arg"));
         error.Message.ShouldContain("string-equal");
-        error.Message.ShouldContain("bad arg");
+        error.Message.ShouldNotContain("bad arg");
     }
 
     #endregion

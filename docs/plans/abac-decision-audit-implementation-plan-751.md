@@ -536,8 +536,8 @@ Range `SecurityABAC = (9000, 9099)` (`src/Encina/Diagnostics/EventIdRanges.cs:35
 | 9086 | Warning | Non-durable `InMemoryOperationAuditStore` |
 | 9087 | Critical | `IOperationAuditStore` not registered |
 | 9088 | Debug | Trace truncated at `MaxTraceEntries` |
-| 9089 | Debug | Duplicate decision id detected (idempotent retry) |
-| 9090 | n/a | Not used (the pipeline-order warning was dropped, A6) |
+| 9089 | Debug | Duplicate decision id detected (idempotent retry): the write reported a failure but the entry is stored |
+| 9090 | Warning | A decision audit query ran without a tenant in a multi-tenant application through `AllowCrossTenantQueries` (Phase 3; the id was freed when the pipeline-order warning was dropped, A6) |
 
 ### Estimated file count
 

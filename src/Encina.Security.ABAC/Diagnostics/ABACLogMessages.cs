@@ -183,20 +183,6 @@ internal static partial class ABACLogMessages
         ILogger logger, string entityType, string entityId, double durationMs);
 
     [LoggerMessage(
-        EventId = 9036,
-        Level = LogLevel.Error,
-        Message = "PAP {Operation} operation failed for {EntityType}: {ErrorMessage}")]
-    internal static partial void PapOperationFailed(
-        ILogger logger, string operation, string entityType, string errorMessage);
-
-    [LoggerMessage(
-        EventId = 9037,
-        Level = LogLevel.Error,
-        Message = "PAP {Operation} operation failed for {EntityType} '{EntityId}'")]
-    internal static partial void PapOperationFailedWithException(
-        ILogger logger, Exception exception, string operation, string entityType, string entityId);
-
-    [LoggerMessage(
         EventId = 9038,
         Level = LogLevel.Debug,
         Message = "PAP serialized {EntityType} to JSON ({JsonSize} bytes, {DurationMs:F2}ms)")]
@@ -209,13 +195,6 @@ internal static partial class ABACLogMessages
         Message = "Persistent PAP store connectivity verified ({PolicySetCount} policy sets, {PolicyCount} standalone policies)")]
     internal static partial void PapStoreConnectivityVerified(
         ILogger logger, int policySetCount, int policyCount);
-
-    [LoggerMessage(
-        EventId = 9040,
-        Level = LogLevel.Warning,
-        Message = "Persistent PAP store connectivity check failed: {ErrorMessage}")]
-    internal static partial void PapStoreConnectivityFailed(
-        ILogger logger, string errorMessage);
 
     // ── XACML XML Serialization Messages (9050-9059) ─────────────────
 
@@ -350,4 +329,96 @@ internal static partial class ABACLogMessages
         Message = "Unexpected error while evaluating the policy store. The decision is Indeterminate")]
     internal static partial void StoreEvaluationFailed(
         ILogger logger, Exception exception);
+
+    // ── Decision Audit (9079-9083, 9088-9090) ────────────────────────
+    // Event IDs: 9079-9083 and 9088-9090 (see EventIdRanges.SecurityABAC; 9084, 9086 and 9087 are
+    // the rest of the block reserved for the decision audit trail of #751). Codes and exception types
+    // only: never a subject, a tenant, an attribute value, an error message or an exception message.
+
+    [LoggerMessage(
+        EventId = 9079,
+        Level = LogLevel.Debug,
+        Message = "ABAC decision for {RequestType} recorded: outcome {EnforcedOutcome}, reason {ReasonCode}")]
+    internal static partial void DecisionRecorded(
+        ILogger logger, string requestType, string enforcedOutcome, string reasonCode);
+
+    [LoggerMessage(
+        EventId = 9080,
+        Level = LogLevel.Error,
+        Message = "The ABAC decision for {RequestType} could not be recorded ({FailureCode}). The request is denied (FailClosed)")]
+    internal static partial void DecisionAuditFailedAccessDenied(
+        ILogger logger, string requestType, string failureCode);
+
+    [LoggerMessage(
+        EventId = 9081,
+        Level = LogLevel.Warning,
+        Message = "The ABAC decision for {RequestType} could not be recorded ({FailureCode}). The request proceeds (BestEffort)")]
+    internal static partial void DecisionAuditFailedProceeding(
+        ILogger logger, string requestType, string failureCode);
+
+    [LoggerMessage(
+        EventId = 9082,
+        Level = LogLevel.Error,
+        Message = "The ABAC decision for {RequestType}, which was denied, could not be recorded ({FailureCode}). The denial stands")]
+    internal static partial void DecisionAuditFailedForDeniedRequest(
+        ILogger logger, string requestType, string failureCode);
+
+    [LoggerMessage(
+        EventId = 9083,
+        Level = LogLevel.Error,
+        Message = "The decision recorder threw while recording the ABAC decision for {RequestType}")]
+    internal static partial void DecisionRecorderThrew(
+        ILogger logger, Exception exception, string requestType);
+
+    [LoggerMessage(
+        EventId = 9088,
+        Level = LogLevel.Debug,
+        Message = "The evaluation trace of the ABAC decision for {RequestType} reached the limit of {MaxTraceEntries} entries and is truncated")]
+    internal static partial void EvaluationTraceTruncated(
+        ILogger logger, string requestType, int maxTraceEntries);
+
+    /// <summary>
+    /// The write of a decision record failed or timed out, but the entry with its decision id was
+    /// found committed, so the record counts as written (Event IDs 9079-9090, see EventIdRanges.SecurityABAC).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 9089,
+        Level = LogLevel.Debug,
+        Message = "The write of ABAC decision {DecisionId} reported a failure ({FailureCode}) but the entry is stored; the record counts as written")]
+    internal static partial void DecisionAlreadyStored(
+        ILogger logger, Guid decisionId, string failureCode);
+
+    /// <summary>
+    /// A decision audit query ran without a tenant in a multi-tenant application because
+    /// <c>AllowCrossTenantQueries</c> is set: the logged opt-out of the reader's tenant gate
+    /// (Event IDs 9079-9090, see EventIdRanges.SecurityABAC).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 9090,
+        Level = LogLevel.Warning,
+        Message = "A decision audit query ran without a tenant in a multi-tenant application (AllowCrossTenantQueries is set)")]
+    internal static partial void DecisionAuditCrossTenantQuery(ILogger logger);
+
+    /// <summary>
+    /// A stored decision audit entry could not be read back; the query fails with
+    /// <c>abac.decision_audit_record_unreadable</c>. The exception arrives redacted (type and stack
+    /// trace only) (Event ID 9098, see EventIdRanges.SecurityABAC).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 9098,
+        Level = LogLevel.Error,
+        Message = "A stored ABAC decision audit entry could not be read; the query fails")]
+    internal static partial void DecisionAuditRecordUnreadable(ILogger logger, Exception exception);
+
+    /// <summary>
+    /// The write of a decision record failed and the look-up that would confirm a committed entry
+    /// failed too (a store error code or an exception type, never a message), so the write stays
+    /// unconfirmed (Event ID 9099, see EventIdRanges.SecurityABAC).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 9099,
+        Level = LogLevel.Debug,
+        Message = "The write of ABAC decision {DecisionId} failed ({FailureCode}) and the look-up that would confirm it failed too ({LookupFailure}); the write stays unconfirmed")]
+    internal static partial void DecisionStoredCheckFailed(
+        ILogger logger, Guid decisionId, string failureCode, string lookupFailure);
 }

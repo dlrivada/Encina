@@ -66,10 +66,10 @@ public static class ABACDecisionAuditSchema
     /// <summary>Metadata key: <c>true</c> when the trace is incomplete.</summary>
     public const string MetadataTraceTruncated = "abac.trace_truncated";
 
-    /// <summary>Metadata key: the obligation ids, comma separated.</summary>
+    /// <summary>Metadata key: the obligation ids, as a JSON array of strings.</summary>
     public const string MetadataObligations = "abac.obligations";
 
-    /// <summary>Metadata key: the advice ids, comma separated.</summary>
+    /// <summary>Metadata key: the advice ids, as a JSON array of strings.</summary>
     public const string MetadataAdvice = "abac.advice";
 
     /// <summary>Metadata key: the attribute names by category, as a JSON string.</summary>
@@ -84,13 +84,13 @@ public static class ABACDecisionAuditSchema
     /// <summary>Metadata key: when the decision completed (round-trip format).</summary>
     public const string MetadataCompletedAtUtc = "abac.completed_at_utc";
 
-    /// <summary>Metadata key: the entry fields replaced by a hash because they exceeded their column limit.</summary>
+    /// <summary>Metadata key: the entry fields (and metadata keys) replaced by a hash because they exceeded their limit, as a JSON array of strings.</summary>
     public const string MetadataHashedFields = "abac.hashed_fields";
 
-    /// <summary>Metadata key: the entry fields stored as <c>null</c> because they could not be bounded without misleading.</summary>
+    /// <summary>Metadata key: the entry fields stored as <c>null</c> because they could not be bounded without misleading, as a JSON array of strings.</summary>
     public const string MetadataDroppedFields = "abac.dropped_fields";
 
-    /// <summary>Metadata key: the entry fields (or lists) truncated to their limit.</summary>
+    /// <summary>Metadata key: the entry fields (or lists) truncated to their limit, as a JSON array of strings.</summary>
     public const string MetadataTruncatedFields = "abac.truncated_fields";
 
     // ── Column limits (OperationAuditEntries) ────────────────────────
@@ -133,6 +133,12 @@ public static class ABACDecisionAuditSchema
     /// <summary>The maximum number of attribute names stored in <see cref="MetadataAttributeNames"/>.</summary>
     public const int MaxAttributeNames = 128;
 
-    /// <summary>The maximum length of a recorded attribute value.</summary>
+    /// <summary>
+    /// The maximum length of a recorded attribute value, and of a policy, rule, module, obligation or
+    /// advice id stored in metadata (a longer id is stored as its hash).
+    /// </summary>
     public const int MaxAttributeValueLength = 256;
+
+    /// <summary>The maximum number of obligation ids, and of advice ids, stored in one record.</summary>
+    public const int MaxListedIds = 64;
 }

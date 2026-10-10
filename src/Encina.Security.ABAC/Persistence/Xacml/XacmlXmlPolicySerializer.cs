@@ -460,10 +460,10 @@ public sealed class XacmlXmlPolicySerializer : IPolicySerializer
             {
                 var errorMsg =
                     $"Expected root element '{N.PolicySetElement.LocalName}' in XACML namespace, " +
-                    $"but found '{root?.Name.LocalName ?? "(empty)"}'. Ensure the XML is a valid XACML 3.0 PolicySet document.";
+                    "but the document root is a different element. Ensure the XML is a valid XACML 3.0 PolicySet document.";
                 ABACDiagnostics.XacmlXmlErrorTotal.Add(1);
-                ABACDiagnostics.RecordPapFailure(activity, errorMsg);
-                ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "PolicySet", errorMsg);
+                ABACDiagnostics.RecordPapFailure(activity, "InvalidRootElement");
+                ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "PolicySet", "InvalidRootElement");
                 return Left(ABACErrors.DeserializationFailed("PolicySet", errorMsg));
             }
 
@@ -480,16 +480,16 @@ public sealed class XacmlXmlPolicySerializer : IPolicySerializer
         catch (XmlException ex)
         {
             ABACDiagnostics.XacmlXmlErrorTotal.Add(1);
-            ABACDiagnostics.RecordPapFailure(activity, ex.Message);
+            ABACDiagnostics.RecordPapFailure(activity, ex.GetType().Name);
             ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "PolicySet", ex.GetType().Name);
-            return Left(ABACErrors.DeserializationFailed("PolicySet", $"XML parse error: {ex.Message}"));
+            return Left(ABACErrors.DeserializationFailed("PolicySet", $"XML parse error ({ex.GetType().Name})."));
         }
         catch (Exception ex) when (ex is ArgumentException or FormatException or InvalidOperationException)
         {
             ABACDiagnostics.XacmlXmlErrorTotal.Add(1);
-            ABACDiagnostics.RecordPapFailure(activity, ex.Message);
+            ABACDiagnostics.RecordPapFailure(activity, ex.GetType().Name);
             ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "PolicySet", ex.GetType().Name);
-            return Left(ABACErrors.DeserializationFailed("PolicySet", ex.Message));
+            return Left(ABACErrors.DeserializationFailed("PolicySet", $"Invalid XACML document ({ex.GetType().Name})."));
         }
     }
 
@@ -514,10 +514,10 @@ public sealed class XacmlXmlPolicySerializer : IPolicySerializer
             {
                 var errorMsg =
                     $"Expected root element '{N.PolicyElement.LocalName}' in XACML namespace, " +
-                    $"but found '{root?.Name.LocalName ?? "(empty)"}'. Ensure the XML is a valid XACML 3.0 Policy document.";
+                    "but the document root is a different element. Ensure the XML is a valid XACML 3.0 Policy document.";
                 ABACDiagnostics.XacmlXmlErrorTotal.Add(1);
-                ABACDiagnostics.RecordPapFailure(activity, errorMsg);
-                ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "Policy", errorMsg);
+                ABACDiagnostics.RecordPapFailure(activity, "InvalidRootElement");
+                ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "Policy", "InvalidRootElement");
                 return Left(ABACErrors.DeserializationFailed("Policy", errorMsg));
             }
 
@@ -534,16 +534,16 @@ public sealed class XacmlXmlPolicySerializer : IPolicySerializer
         catch (XmlException ex)
         {
             ABACDiagnostics.XacmlXmlErrorTotal.Add(1);
-            ABACDiagnostics.RecordPapFailure(activity, ex.Message);
+            ABACDiagnostics.RecordPapFailure(activity, ex.GetType().Name);
             ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "Policy", ex.GetType().Name);
-            return Left(ABACErrors.DeserializationFailed("Policy", $"XML parse error: {ex.Message}"));
+            return Left(ABACErrors.DeserializationFailed("Policy", $"XML parse error ({ex.GetType().Name})."));
         }
         catch (Exception ex) when (ex is ArgumentException or FormatException or InvalidOperationException)
         {
             ABACDiagnostics.XacmlXmlErrorTotal.Add(1);
-            ABACDiagnostics.RecordPapFailure(activity, ex.Message);
+            ABACDiagnostics.RecordPapFailure(activity, ex.GetType().Name);
             ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "Policy", ex.GetType().Name);
-            return Left(ABACErrors.DeserializationFailed("Policy", ex.Message));
+            return Left(ABACErrors.DeserializationFailed("Policy", $"Invalid XACML document ({ex.GetType().Name})."));
         }
     }
 

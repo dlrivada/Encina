@@ -36,12 +36,28 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 | `abac.missing_context` | `MissingContextCode` | `MissingContext` | `Type requestType` | There is no security context, it is not authenticated (`IsAuthenticated` is `false`, even when it carries a user id claim), or its `UserId` is null, empty or whitespace. The PEP denies in every enforcement mode (`Block` and `Warn`) before it collects any attribute. |
 | `encina.authorization.abac_obligation_failed` | `ObligationFailedCode` | `ObligationFailed` | `string obligationId, string? reason = null` | A mandatory obligation handler failed or was not found. Per XACML 3.0 section 7.18, access must be denied. |
 | `abac.function_not_found` | `FunctionNotFoundCode` | `FunctionNotFound` | `string functionId` | A function referenced in a policy condition is not registered in `IFunctionRegistry`. |
-| `abac.function_error` | `FunctionErrorCode` | `FunctionError` | `string functionId, Exception exception` | A registered function threw an exception during evaluation. |
+| `abac.function_error` | `FunctionErrorCode` | `FunctionError` | `string functionId, Exception exception` | A registered function threw an exception during evaluation. The message is fixed (`Function '<id>' evaluation failed.`); only the exception type is recorded, in `details["exceptionType"]`, never the exception message. |
 | `abac.variable_not_found` | `VariableNotFoundCode` | `VariableNotFound` | `string variableId` | A `VariableReference` references an undefined `VariableDefinition` within the policy. |
 | `encina.authorization.abac_condition_not_met` | `ConditionNotMetCode` | `ConditionNotMet` | `Type requestType, int conditionIndex` | A `[RequireCondition]` expression evaluated to `false`. The message is fixed. |
 | `abac.policy_change_principal_required` | `PolicyChangePrincipalRequiredCode` | `PolicyChangePrincipalRequired` | none | `PersistentPolicyAdministrationPoint` refused a mutation because the request context carries no principal. The message is fixed. |
 | `abac.policy_change_audit_failed` | `PolicyChangeAuditFailedCode` | `PolicyChangeAuditFailed` | `string cause` | The audit record of a policy change could not be written, so the change was not applied. `cause` (details) is the underlying error code or exception type. |
 | `abac.obligation_handler_exception` | `ObligationHandlerExceptionCode` | `ObligationHandlerException` | `string obligationId, Type exceptionType` | An obligation or advice handler threw instead of returning a result. The message is fixed and the exception message is never recorded. `ObligationExecutor` handles this error itself: a mandatory obligation then fails the request with `encina.authorization.abac_obligation_failed`, and advice is skipped. |
+
+### Decision audit codes
+
+Returned by the PEP, `AuditStoreABACDecisionRecorder` and `IABACDecisionAuditReader`; see [Decision audit](decision-audit.md). Their messages are fixed.
+
+| Error Code | Constant | Factory Method | Parameters | When It Occurs |
+|------------|----------|---------------|------------|----------------|
+| `abac.decision_audit_failed` | `DecisionAuditFailedCode` | `DecisionAuditFailed` | `Type requestType, string? storeErrorCode` | The decision record of a request that would proceed could not be written and `FailureMode` is `FailClosed`. A server-side failure, not an authorization denial. `details["cause"]` is the store's error code or exception type. |
+| `validation.abac_decision_audit_query_invalid` | `InvalidDecisionAuditQueryCode` | `InvalidDecisionAuditQuery` | `string reason` | A decision audit query has an invalid `pageNumber`, `pageSize`, `dateRange` or `tenantId` (named in `details["reason"]`). |
+| `abac.decision_audit_store_unavailable` | `DecisionAuditStoreUnavailableCode` | `DecisionAuditStoreUnavailable` | none | The recorder, reader or export finds no `IOperationAuditStore` registered. |
+| `abac.decision_audit_record_unreadable` | `DecisionAuditRecordUnreadableCode` | `DecisionAuditRecordUnreadable` | `string cause` | A stored entry's metadata cannot be read back by `QueryAsync` or `ExportAsync`. The message is fixed; `details["cause"]` is the exception type name. |
+| `abac.decision_audit_export_incomplete` | `DecisionAuditExportIncompleteCode` | `DecisionAuditExportIncomplete` | `int linesWritten, string causeCode` | `ExportAsync` failed on a page after lines were already written. The message is fixed; `details["linesWritten"]` is the number of lines written and `details["cause"]` is the code of the failing page. The destination holds a partial file that must be discarded. A failure before the first line returns its own error and writes nothing. |
+| `encina.authorization.abac_audit_tenant_required` | `DecisionAuditTenantRequiredCode` | `DecisionAuditTenantRequired` | none | The reader is asked for data in a multi-tenant application and the request carries no tenant (and `AllowCrossTenantQueries` is `false`). |
+| `encina.authorization.abac_audit_tenant_mismatch` | `DecisionAuditTenantMismatchCode` | `DecisionAuditTenantMismatch` | none | The query names a tenant other than the tenant of the request. Neither tenant is recorded. |
+
+The two `encina.authorization.` codes are answered with HTTP 403 and `validation.abac_decision_audit_query_invalid` with HTTP 400 by the host adapters' existing prefix rules.
 
 ## HTTP Mapping
 

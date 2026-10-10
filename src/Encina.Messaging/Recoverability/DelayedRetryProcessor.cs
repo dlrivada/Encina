@@ -1,7 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using Encina.Diagnostics;
 using Encina.Messaging.Serialization;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -26,6 +29,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly RecoverabilityOptions _options;
     private readonly ILogger<DelayedRetryProcessor> _logger;
+    private readonly TimeProvider _timeProvider;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -48,10 +52,12 @@ public sealed class DelayedRetryProcessor : BackgroundService
     /// <param name="scopeFactory">The service scope factory.</param>
     /// <param name="options">The recoverability options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">Optional time provider for the failed message timestamps.</param>
     public DelayedRetryProcessor(
         IServiceScopeFactory scopeFactory,
         RecoverabilityOptions options,
-        ILogger<DelayedRetryProcessor> logger)
+        ILogger<DelayedRetryProcessor> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(options);
@@ -60,6 +66,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         _scopeFactory = scopeFactory;
         _options = options;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -134,6 +141,8 @@ public sealed class DelayedRetryProcessor : BackgroundService
         IMessageSerializer messageSerializer,
         CancellationToken cancellationToken)
     {
+        var progress = new RetryProgress();
+
         try
         {
             DelayedRetryProcessorLog.ProcessingRetry(
@@ -142,12 +151,24 @@ public sealed class DelayedRetryProcessor : BackgroundService
                 message.RequestType,
                 message.DelayedRetryAttempt + 1);
 
-            await RetryMessageAsync(message, store, encina, messageSerializer, cancellationToken).ConfigureAwait(false);
+            await RetryMessageAsync(message, store, encina, messageSerializer, progress, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Shutdown: the row stays pending for the next run; it is never consumed or failed.
+            throw;
         }
         catch (Exception ex)
         {
             DelayedRetryProcessorLog.ProcessingException(_logger, ex.ForLogging(), message.Id, message.RequestType);
-            await store.MarkAsFailedAsync(message.Id, ex.GetType().FullName ?? ex.GetType().Name, cancellationToken).ConfigureAwait(false);
+            var errorText = ex.GetType().FullName ?? ex.GetType().Name;
+            await store.MarkAsFailedAsync(message.Id, errorText, cancellationToken).ConfigureAwait(false);
+
+            // An unexpected exception before the chain was settled is a terminal exit of the message.
+            if (!progress.Settled)
+            {
+                await TryHandlePermanentFailureAsync(message, progress.Request, errorText, cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 
@@ -156,6 +177,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         IDelayedRetryStore store,
         IEncina encina,
         IMessageSerializer messageSerializer,
+        RetryProgress progress,
         CancellationToken cancellationToken)
     {
         // Deserialize the request
@@ -163,7 +185,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         if (requestType is null)
         {
             DelayedRetryProcessorLog.UnknownRequestType(_logger, message.Id, message.RequestType);
-            await store.MarkAsFailedAsync(message.Id, $"Unknown request type: {message.RequestType}", cancellationToken).ConfigureAwait(false);
+            await FailTerminallyAsync(message, store, null, $"Unknown request type: {message.RequestType}", cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -171,15 +193,52 @@ public sealed class DelayedRetryProcessor : BackgroundService
         if (request is null)
         {
             DelayedRetryProcessorLog.DeserializationFailed(_logger, message.Id, message.RequestType);
-            await store.MarkAsFailedAsync(message.Id, "Failed to deserialize request", cancellationToken).ConfigureAwait(false);
+            await FailTerminallyAsync(message, store, null, "Failed to deserialize request", cancellationToken).ConfigureAwait(false);
             return;
         }
+
+        progress.Request = request;
 
         // Execute through Encina pipeline
         // Note: The RecoverabilityPipelineBehavior will handle any further failures
         var result = await DispatchRequestAsync(encina, request, cancellationToken).ConfigureAwait(false);
 
-        await ApplyDispatchResultAsync(message, store, request, result, cancellationToken).ConfigureAwait(false);
+        // A failure seen while shutting down (a cancelled dispatch) says nothing about the message.
+        if (!result.IsSuccess)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        await ApplyDispatchResultAsync(message, store, request, result, progress, cancellationToken).ConfigureAwait(false);
+    }
+
+    // A terminal exit of a row that could not be re-dispatched: the row fails and the message takes
+    // the permanent-failure path once, like every other end of the chain.
+    private async Task FailTerminallyAsync(
+        IDelayedRetryMessage message,
+        IDelayedRetryStore store,
+        object? request,
+        string errorText,
+        CancellationToken cancellationToken)
+    {
+        await store.MarkAsFailedAsync(message.Id, errorText, cancellationToken).ConfigureAwait(false);
+        await HandlePermanentFailureAsync(message, request, new FailureInfo(errorText, null, false), cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task TryHandlePermanentFailureAsync(
+        IDelayedRetryMessage message,
+        object? request,
+        string errorText,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await HandlePermanentFailureAsync(message, request, new FailureInfo(errorText, null, false), cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
+        {
+            DelayedRetryProcessorLog.ProcessingException(_logger, ex.ForLogging(), message.Id, message.RequestType);
+        }
     }
 
     private async Task ApplyDispatchResultAsync(
@@ -187,10 +246,12 @@ public sealed class DelayedRetryProcessor : BackgroundService
         IDelayedRetryStore store,
         object request,
         DispatchResult result,
+        RetryProgress progress,
         CancellationToken cancellationToken)
     {
         if (result.IsSuccess)
         {
+            progress.Settled = true;
             await store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
             DelayedRetryProcessorLog.RetrySucceeded(
                 _logger,
@@ -200,25 +261,36 @@ public sealed class DelayedRetryProcessor : BackgroundService
             return;
         }
 
-        // Check if there are more delayed retries available
-        var nextDelayedRetryAttempt = message.DelayedRetryAttempt + 1;
-        if (nextDelayedRetryAttempt < _options.DelayedRetries.Length)
-        {
-            // Schedule next delayed retry
-            await ScheduleNextDelayedRetryAsync(
-                message,
-                request,
-                nextDelayedRetryAttempt,
-                cancellationToken).ConfigureAwait(false);
+        progress.Settled = true;
 
+        if (await TryScheduleNextAsync(message, request, result, cancellationToken).ConfigureAwait(false))
+        {
             await store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        // All delayed retries exhausted - permanent failure
+        // All delayed retries exhausted, a permanent error, or no next attempt could be scheduled
         var errorMessage = result.ErrorMessage ?? "Unknown error";
         await store.MarkAsFailedAsync(message.Id, errorMessage, cancellationToken).ConfigureAwait(false);
-        await HandlePermanentFailureAsync(message, request, errorMessage, cancellationToken).ConfigureAwait(false);
+        await HandlePermanentFailureAsync(message, request, new FailureInfo(errorMessage, result.Attempt, true), cancellationToken).ConfigureAwait(false);
+    }
+
+    // Only this processor decides attempt N+1 or permanent failure: the re-dispatch ran without
+    // starting a chain of its own. A permanent error ends the chain at once; so does a failure to
+    // schedule the next attempt (never reported as success).
+    private async Task<bool> TryScheduleNextAsync(
+        IDelayedRetryMessage message,
+        object request,
+        DispatchResult result,
+        CancellationToken cancellationToken)
+    {
+        var nextDelayedRetryAttempt = message.DelayedRetryAttempt + 1;
+        if (result.IsPermanent || nextDelayedRetryAttempt >= _options.DelayedRetries.Length)
+        {
+            return false;
+        }
+
+        return await ScheduleNextDelayedRetryAsync(message, request, nextDelayedRetryAttempt, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<DispatchResult> DispatchRequestAsync(
@@ -226,22 +298,28 @@ public sealed class DelayedRetryProcessor : BackgroundService
         object request,
         CancellationToken cancellationToken)
     {
+        // The marker tells RecoverabilityPipelineBehavior this is a delayed-retry re-dispatch: it
+        // runs the handler with its immediate retries but starts no retry chain (#2083).
+        using var redispatch = DelayedRetryRedispatch.Begin(request);
+        var marker = redispatch.Marker;
+
         try
         {
             var outcome = await RuntimeTypeRequestDispatcher.SendAsync(encina, request, cancellationToken).ConfigureAwait(false);
+            var isPermanent = marker.Classification == ErrorClassification.Permanent;
 
             return outcome.Match(
-                Right: _ => new DispatchResult(true, null),
+                Right: _ => new DispatchResult(true, null, false, null),
                 // Only the error code: EncinaError.Message can carry personal data (#1259 review).
-                Left: error => new DispatchResult(false, error.GetCode().IfNone("encina.unknown")));
+                Left: error => new DispatchResult(false, error.GetCode().IfNone("encina.unknown"), isPermanent, marker.Attempt));
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            return new DispatchResult(false, ex.GetType().FullName ?? ex.GetType().Name);
+            return new DispatchResult(false, ex.GetType().FullName ?? ex.GetType().Name, false, marker.Attempt);
         }
     }
 
-    private async Task ScheduleNextDelayedRetryAsync(
+    private async Task<bool> ScheduleNextDelayedRetryAsync(
         IDelayedRetryMessage originalMessage,
         object request,
         int nextDelayedRetryAttempt,
@@ -253,11 +331,11 @@ public sealed class DelayedRetryProcessor : BackgroundService
         if (scheduler is null)
         {
             DelayedRetryProcessorLog.SchedulerNotConfigured(_logger);
-            return;
+            return false;
         }
 
         // Reconstruct context from the serialized data
-        var context = DeserializeContext(originalMessage.ContextContent);
+        var context = RestoreContext(originalMessage.ContextContent);
         context.IncrementDelayedRetry();
 
         var delay = _options.DelayedRetries[nextDelayedRetryAttempt];
@@ -270,48 +348,100 @@ public sealed class DelayedRetryProcessor : BackgroundService
             _options.DelayedRetries.Length,
             delay);
 
-        // Use reflection to call generic ScheduleRetryAsync
-        var requestType = Type.GetType(originalMessage.RequestType);
-        if (requestType is null)
+        var correlationId = originalMessage.CorrelationId ?? RecoverabilityConstants.Unknown;
+
+        try
         {
-            return;
+            var scheduled = await InvokeScheduleRetryAsync(
+                scheduler, originalMessage.RequestType, request, context, delay, nextDelayedRetryAttempt, cancellationToken).ConfigureAwait(false);
+
+            // Only the error code: EncinaError.Message can carry personal data.
+            scheduled.IfLeft(error => DelayedRetryProcessorLog.SchedulingNextRetryFailed(
+                _logger, correlationId, originalMessage.RequestType, error.GetCode().IfNone(RecoverabilityConstants.Unknown)));
+
+            return scheduled.IsRight;
         }
-
-        var scheduleMethod = typeof(IDelayedRetryScheduler)
-            .GetMethod(nameof(IDelayedRetryScheduler.ScheduleRetryAsync));
-
-        if (scheduleMethod is null)
+        catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
         {
-            return;
-        }
-
-        var genericMethod = scheduleMethod.MakeGenericMethod(requestType);
-        var task = (Task?)genericMethod.Invoke(scheduler, [request, context, delay, nextDelayedRetryAttempt, cancellationToken]);
-
-        if (task is not null)
-        {
-            await task.ConfigureAwait(false);
+            // A throwing scheduler is a failed schedule: the chain fails permanently, once.
+            DelayedRetryProcessorLog.SchedulingNextRetryThrew(_logger, ex.ForLogging(), correlationId, originalMessage.RequestType);
+            return false;
         }
     }
 
-    private static RecoverabilityContext DeserializeContext(string contextContent)
+    // Calls the generic IDelayedRetryScheduler.ScheduleRetryAsync<TRequest> for a request type known at run time.
+    private static async Task<Either<EncinaError, Unit>> InvokeScheduleRetryAsync(
+        IDelayedRetryScheduler scheduler,
+        string requestTypeName,
+        object request,
+        RecoverabilityContext context,
+        TimeSpan delay,
+        int delayedRetryAttempt,
+        CancellationToken cancellationToken)
     {
-        var serializable = JsonSerializer.Deserialize<SerializableRecoverabilityContext>(contextContent, JsonOptions);
+        var requestType = Type.GetType(requestTypeName);
+        var scheduleMethod = typeof(IDelayedRetryScheduler)
+            .GetMethod(nameof(IDelayedRetryScheduler.ScheduleRetryAsync));
 
-        var context = new RecoverabilityContext
+        if (requestType is null || scheduleMethod is null)
         {
-            CorrelationId = serializable?.CorrelationId,
-            IdempotencyKey = serializable?.IdempotencyKey,
-            RequestTypeName = serializable?.RequestTypeName
+            return EncinaErrors.Create(RecoverabilityErrorCodes.ScheduleRetryFailed, "The request type or the scheduler method could not be resolved.");
+        }
+
+        Task<Either<EncinaError, Unit>> task;
+        try
+        {
+            task = (Task<Either<EncinaError, Unit>>)scheduleMethod
+                .MakeGenericMethod(requestType)
+                .Invoke(scheduler, [request, context, delay, delayedRetryAttempt, cancellationToken])!;
+        }
+        catch (TargetInvocationException tie) when (tie.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
+            throw;
+        }
+
+        return await task.ConfigureAwait(false);
+    }
+
+    private static SerializableRecoverabilityContext ParseContext(string contextContent)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<SerializableRecoverabilityContext>(contextContent, JsonOptions)
+                ?? new SerializableRecoverabilityContext();
+        }
+        catch (JsonException)
+        {
+            // An unreadable persisted context must not stop the permanent-failure path.
+            return new SerializableRecoverabilityContext();
+        }
+    }
+
+    private RecoverabilityContext RestoreContext(string contextContent)
+    {
+        var serializable = ParseContext(contextContent);
+
+        var context = new RecoverabilityContext(_timeProvider)
+        {
+            CorrelationId = serializable.CorrelationId,
+            IdempotencyKey = serializable.IdempotencyKey,
+            RequestTypeName = serializable.RequestTypeName
         };
 
+        // The logical message keeps its original id and start time across the whole chain.
+        if (serializable.Id != Guid.Empty)
+        {
+            context.RestoreChain(serializable.Id, serializable.StartedAtUtc);
+        }
+
         // Restore retry counts
-        for (var i = 0; i < (serializable?.ImmediateRetryCount ?? 0); i++)
+        for (var i = 0; i < serializable.ImmediateRetryCount; i++)
         {
             context.IncrementImmediateRetry();
         }
 
-        for (var i = 0; i < (serializable?.DelayedRetryCount ?? 0); i++)
+        for (var i = 0; i < serializable.DelayedRetryCount; i++)
         {
             context.IncrementDelayedRetry();
         }
@@ -319,10 +449,37 @@ public sealed class DelayedRetryProcessor : BackgroundService
         return context;
     }
 
+    // The real failure of the last re-dispatch when the behavior reported it; otherwise a code-only error.
+    private FailedMessage BuildFailedMessage(IDelayedRetryMessage message, object? request, FailureInfo failure)
+    {
+        var context = RestoreContext(message.ContextContent);
+
+        if (failure.Dispatched)
+        {
+            // The delayed retry of this row has run: count it (the persisted count is the rows before it).
+            context.IncrementDelayedRetry();
+        }
+
+        if (failure.Attempt is { } attempt)
+        {
+            context.AbsorbRedispatch(attempt);
+        }
+        else
+        {
+            context.RecordFailedAttempt(
+                EncinaError.New($"[{RecoverabilityErrorCodes.PermanentlyFailed}] {failure.Text}"),
+                null,
+                ErrorClassification.Permanent);
+        }
+
+        // A row that could not be re-dispatched has no request object: the raw content stands in for it.
+        return context.CreateFailedMessage(request ?? message.RequestContent) with { RequestType = message.RequestType };
+    }
+
     private async Task HandlePermanentFailureAsync(
         IDelayedRetryMessage message,
-        object request,
-        string errorMessage,
+        object? request,
+        FailureInfo failure,
         CancellationToken cancellationToken)
     {
         DelayedRetryProcessorLog.PermanentFailure(
@@ -333,13 +490,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
 
         if (_options.OnPermanentFailure is not null)
         {
-            var context = DeserializeContext(message.ContextContent);
-            context.RecordFailedAttempt(
-                EncinaError.New($"[{RecoverabilityErrorCodes.PermanentlyFailed}] {errorMessage}"),
-                null,
-                ErrorClassification.Permanent);
-
-            var failedMessage = context.CreateFailedMessage(request);
+            var failedMessage = BuildFailedMessage(message, request, failure);
 
             try
             {
@@ -356,7 +507,20 @@ public sealed class DelayedRetryProcessor : BackgroundService
         }
     }
 
-    private sealed record DispatchResult(bool IsSuccess, string? ErrorMessage);
+    private sealed record DispatchResult(bool IsSuccess, string? ErrorMessage, bool IsPermanent, RecoverabilityContext? Attempt);
+
+    // What the permanent-failure path reports: the code or type text, the re-dispatch's own context
+    // when the behavior saw it, and whether a delayed retry of this row has run.
+    private sealed record FailureInfo(string Text, RecoverabilityContext? Attempt, bool Dispatched);
+
+    // Where a row got to, so an unexpected exception takes the permanent-failure path only when the
+    // chain was not already settled (a store failure after success or a scheduled next attempt does not).
+    private sealed class RetryProgress
+    {
+        public object? Request { get; set; }
+
+        public bool Settled { get; set; }
+    }
 }
 
 /// <summary>
@@ -452,5 +616,19 @@ internal static partial class DelayedRetryProcessorLog
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} OnPermanentFailure callback failed")]
     public static partial void OnPermanentFailureCallbackFailed(
+        ILogger logger, Exception ex, string correlationId, string requestType);
+
+    [LoggerMessage(
+        EventId = 5450,
+        Level = LogLevel.Error,
+        Message = "[{CorrelationId}] {RequestType} failed to schedule the next delayed retry: {ErrorCode}")]
+    public static partial void SchedulingNextRetryFailed(
+        ILogger logger, string correlationId, string requestType, string errorCode);
+
+    [LoggerMessage(
+        EventId = 5451,
+        Level = LogLevel.Error,
+        Message = "[{CorrelationId}] {RequestType} scheduling the next delayed retry threw")]
+    public static partial void SchedulingNextRetryThrew(
         ILogger logger, Exception ex, string correlationId, string requestType);
 }

@@ -54,7 +54,7 @@ public sealed record ABACDecisionRecord
 
     // ── Request ──────────────────────────────────────────────────────
 
-    /// <summary>The full name of the request type: the XACML action of the decision.</summary>
+    /// <summary>The name of the request type: the value of the XACML <c>action.name</c> attribute of the decision.</summary>
     public required string RequestType { get; init; }
 
     /// <summary>
@@ -78,8 +78,9 @@ public sealed record ABACDecisionRecord
     public required ABACEnforcementMode EnforcementMode { get; init; }
 
     /// <summary>
-    /// The effect the Policy Decision Point answered, or <c>null</c> when no decision was reached
-    /// (an exception, an unauthenticated caller, a condition decided without the PDP).
+    /// The effect of the requirement evaluation (the Policy Decision Point's answer for the required
+    /// policies; <see cref="ABAC.Effect.Deny"/> for an unmet condition or a missing policy), or <c>null</c>
+    /// when no evaluation was reached (an unauthenticated caller, an exception before the decision).
     /// </summary>
     public Effect? Effect { get; init; }
 

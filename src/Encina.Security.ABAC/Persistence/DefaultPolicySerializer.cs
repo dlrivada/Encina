@@ -73,7 +73,7 @@ public sealed class DefaultPolicySerializer : IPolicySerializer
         }
         catch (JsonException ex)
         {
-            return Left(ABACErrors.DeserializationFailed("PolicySet", ex.Message));
+            return Left(ABACErrors.DeserializationFailed("PolicySet", $"JSON parse error ({ex.GetType().Name})."));
         }
     }
 
@@ -97,7 +97,7 @@ public sealed class DefaultPolicySerializer : IPolicySerializer
         }
         catch (JsonException ex)
         {
-            return Left(ABACErrors.DeserializationFailed("Policy", ex.Message));
+            return Left(ABACErrors.DeserializationFailed("Policy", $"JSON parse error ({ex.GetType().Name})."));
         }
     }
 
