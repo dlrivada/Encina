@@ -374,6 +374,93 @@ public sealed class SagaRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_ThirdStepFailsAfterTwoExecuted_EndsCompensated()
+    {
+        // Arrange
+        var store = new FakeSagaStore();
+        var runner = CreateRunner(store);
+        var error = EncinaErrors.Create("STEP_FAILED", "Step 3 failed");
+
+        var definition = CreateDefinition(stepsWithCompensation:
+        [
+            ("Step1",
+             (data, _, _) => ValueTask.FromResult(Right<EncinaError, TestData>(data with { Value = 1 })),
+             (_, _, _) => Task.CompletedTask),
+            ("Step2",
+             (data, _, _) => ValueTask.FromResult(Right<EncinaError, TestData>(data with { Value = 2 })),
+             (_, _, _) => Task.CompletedTask),
+            ("Step3",
+             (_, _, _) => ValueTask.FromResult(Left<EncinaError, TestData>(error)),
+             null)
+        ]);
+
+        // Act
+        var result = await runner.RunAsync(definition, new TestData());
+
+        // Assert: every executed step is counted down, not just the first
+        result.IsLeft.ShouldBeTrue();
+        var saga = store.GetSagas().Single();
+        saga.Status.ShouldBe(SagaStatus.Compensated);
+        saga.CompletedAtUtc.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_SecondCompensationStepPersistFails_ReturnsOrchestratorError()
+    {
+        // Arrange: Update calls: 1-2 = AdvanceAsync, 3 = StartCompensationAsync,
+        // 4 = first CompensateStepAsync, 5 = second CompensateStepAsync.
+        var store = new FailingUpdateStore(failOnUpdate: 5);
+        var runner = CreateRunner(store);
+        var error = EncinaErrors.Create("STEP_FAILED", "Step 3 failed");
+
+        var definition = CreateDefinition(stepsWithCompensation:
+        [
+            ("Step1",
+             (data, _, _) => ValueTask.FromResult(Right<EncinaError, TestData>(data with { Value = 1 })),
+             (_, _, _) => Task.CompletedTask),
+            ("Step2",
+             (data, _, _) => ValueTask.FromResult(Right<EncinaError, TestData>(data with { Value = 2 })),
+             (_, _, _) => Task.CompletedTask),
+            ("Step3",
+             (_, _, _) => ValueTask.FromResult(Left<EncinaError, TestData>(error)),
+             null)
+        ]);
+
+        // Act
+        var result = await runner.RunAsync(definition, new TestData());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.LeftAsEnumerable().First().GetCode().IfNone(string.Empty).ShouldBe("STORE_DOWN");
+    }
+
+    [Fact]
+    public async Task RunAsync_CompensationThrowsAndFailPersistFails_ReturnsOrchestratorError()
+    {
+        // Arrange: 1 = AdvanceAsync, 2 = StartCompensationAsync, 3 = FailAsync.
+        var store = new FailingUpdateStore(failOnUpdate: 3);
+        var runner = CreateRunner(store);
+        var error = EncinaErrors.Create("STEP_FAILED", "Step 2 failed");
+
+        var definition = CreateDefinition(stepsWithCompensation:
+        [
+            ("Step1",
+             (data, _, _) => ValueTask.FromResult(Right<EncinaError, TestData>(data with { Value = 1 })),
+             (_, _, _) => throw new InvalidOperationException("boom")),
+            ("Step2",
+             (_, _, _) => ValueTask.FromResult(Left<EncinaError, TestData>(error)),
+             null)
+        ]);
+
+        // Act
+        var result = await runner.RunAsync(definition, new TestData());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.LeftAsEnumerable().First().GetCode().IfNone(string.Empty).ShouldBe("STORE_DOWN");
+    }
+
+    [Fact]
     public async Task RunAsync_FirstStepFails_EndsCompensated()
     {
         // Arrange
