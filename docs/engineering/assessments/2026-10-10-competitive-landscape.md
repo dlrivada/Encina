@@ -12,6 +12,40 @@ This page is for a maintainer or contributor who wants to know what exists aroun
 
 Encina overlaps with several product classes at once (in-process mediators, messaging frameworks, event-sourcing frameworks, privacy platforms) and is the only one found that combines an `Either`-based error model, a store matrix over ADO.NET, Dapper, EF Core and MongoDB, and in-process compliance modules. It is also pre-1.0, has a single maintainer and has no production track record, while several references have years of operations behind them and commercial support. Both statements hold together: the differentiators are real in the code, and the maturity gap is real in the issue list.
 
+## What is good
+
+Each item holds in `src/` or in a published record on 2026-10-10, and each names the topic table that compares it with the references.
+
+| Strength | Evidence | Compared in |
+|---|---|---|
+| Failures are `Either<EncinaError, T>` values across the pipeline; no surveyed .NET mediator or messaging framework was found doing this | [ADR-001](../../architecture/adr/001-railway-oriented-programming.md), [ADR-006](../../architecture/adr/006-pure-rop-exception-handling.md) | [Error model](#error-model) |
+| One store interface per messaging pattern, implemented over ADO.NET, Dapper, EF Core (SQL Server, PostgreSQL, MySQL) and MongoDB under a written rule | [`AGENTS.md`](../../../AGENTS.md) section 5; `src/Encina.Messaging` | [Messaging patterns and providers](#messaging-patterns-and-providers) |
+| Compliance modules (consent, data subject rights, retention, NIS2, AI Act and others) run in the application layer next to the pipeline and stores | `src/Encina.Compliance.*`, [SPEC-002](../../specifications/SPEC-002-eu-regulatory-readiness.md) | [Privacy and compliance](#privacy-and-compliance) |
+| Coverage, mutation and benchmark evidence is published, not claimed, and open defects are published too | [dashboards](https://dlrivada.github.io/Encina/), [SPEC-003](../../specifications/SPEC-003-closed-issue-knowledge-migration-and-quality-audit.md) | [Testing and quality evidence](#testing-and-quality-evidence) |
+| Every messaging pattern is opt-in and off by default, so a project pays only for what it uses | [`AGENTS.md`](../../../AGENTS.md) section 3 | [Messaging patterns and providers](#messaging-patterns-and-providers) |
+
+## Findings
+
+Ranked by severity. Each finding names the topic table it comes from and the issue that tracks it; issue counts are not typed here because they drift (see [Maturity of Encina today](#maturity-of-encina-today) for the live links).
+
+| Rank | Finding | Topic table | Tracked by |
+|---|---|---|---|
+| 1 | Pre-1.0 maturity: open p0 bugs, several shipped features that do not yet behave as documented, and no production track record, against references with years of operation | [Maturity](#maturity-of-encina-today) | [open p0 bugs](https://github.com/dlrivada/Encina/issues?q=is%3Aissue+is%3Aopen+label%3Abug+label%3Ap0-mandatory), Hardening milestone |
+| 2 | Differentiators weakened by open bugs: dead-letter wiring, CDC outbox handler, saga timeouts, event-sourcing upcasting and projection rebuild, cross-tenant leaks | [Messaging](#messaging-patterns-and-providers), [Sagas](#sagas-and-workflows), [Event sourcing](#event-sourcing), [Multi-tenancy](#multi-tenancy) | [#1991](https://github.com/dlrivada/Encina/issues/1991), [#1968](https://github.com/dlrivada/Encina/issues/1968), [#2208](https://github.com/dlrivada/Encina/issues/2208) |
+| 3 | No operations tooling for failed messages, where the references ship a UI or an API | [Messaging](#messaging-patterns-and-providers) | [#2229](https://github.com/dlrivada/Encina/issues/2229), [#419](https://github.com/dlrivada/Encina/issues/419), [#445](https://github.com/dlrivada/Encina/issues/445) |
+| 4 | A narrower transport list than the messaging frameworks, and no topology management from message types | [Messaging](#messaging-patterns-and-providers) | Post-1.0 transport milestone ([SPEC-000](../../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md)) |
+| 5 | Not a durable-execution engine: sagas persist state but do not replay | [Sagas and workflows](#sagas-and-workflows) | Not planned (no issue found) |
+| 6 | No source-generated dispatch or Native AOT, and no comparison benchmarks | [Mediator and CQRS core](#mediator-and-cqrs-core) | [#889](https://github.com/dlrivada/Encina/issues/889), [#2231](https://github.com/dlrivada/Encina/issues/2231) |
+| 7 | Trace context propagation through brokers is not designed yet, and lock providers lack fencing tokens | [Observability](#observability), [Distributed locks](#distributed-locks-and-leader-election) | [#1791](https://github.com/dlrivada/Encina/issues/1791), [#218](https://github.com/dlrivada/Encina/issues/218) |
+| 8 | Smaller ecosystem and no migration guide from the incumbent mediator | [Developer experience](#developer-experience) | [#85](https://github.com/dlrivada/Encina/issues/85) |
+
+## Root causes
+
+- **Pre-1.0 by policy.** The API is allowed to change and there is no release date, so features land before they are hardened ([`AGENTS.md`](../../../AGENTS.md) section 1).
+- **Single maintainer.** One person builds, reviews and operates the project, which limits throughput and rules out commercial support.
+- **Breadth before depth.** The scope covers every database provider of the matrix, several caches, many transports and a compliance suite ([SPEC-000](../../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md)); each addition multiplies the surface that must be correct.
+- **The Hardening milestone is still open.** The bug clusters named in the topic tables are the work of that milestone and later ones, not yet done.
+
 ## How to read this page
 
 - **Access date.** Every external source was read on 2026-10-10. Versions, licences and prices can change after that date.
@@ -89,7 +123,7 @@ Each table has one row per kind of finding. References are named with the source
 | Item | Finding |
 |---|---|
 | References | MediatR ([NuGet](https://www.nuget.org/packages/MediatR)), martinothamar/Mediator ([GitHub](https://github.com/martinothamar/Mediator)), LiteBus ([GitHub](https://github.com/litenova/LiteBus)), Cortex.Mediator ([NuGet](https://www.nuget.org/packages/Cortex.Mediator)), Brighter and Darker ([GitHub](https://github.com/BrighterCommand/Brighter)), Wolverine ([docs](https://wolverinefx.net/tutorials/cqrs-with-marten.html)), FastEndpoints command bus ([docs](https://fast-endpoints.com/docs/command-bus)); outside .NET: NestJS CQRS ([recipe](https://docs.nestjs.com/recipes/cqrs)), Axon ([release notes](https://docs.axoniq.io/axon-framework-reference/5.2/release-notes/major-releases/)) |
-| Encina has, they lack (as found) | Requests, notifications and streams with an `Either` result in one contract; three notification strategies (sequential, parallel, parallel-when-all); typed pre- and post-processors. Among the pure mediators found (MediatR, Mediator, LiteBus, Cortex), only Mediator's source generator advertises built-in OpenTelemetry ([README](https://github.com/martinothamar/Mediator)); Wolverine and Brighter, which are messaging frameworks, also document tracing. Encina's core emits traces and metrics too |
+| Encina has, they lack (as found) | Requests, notifications and streams with an `Either` result in one contract; three notification strategies (sequential, parallel, parallel-when-all); typed pre- and post-processors. Among the pure mediators found (MediatR, Mediator, LiteBus, Cortex), only Mediator's source generator advertises built-in OpenTelemetry, in its 3.1 previews ([README](https://github.com/martinothamar/Mediator)); Wolverine and Brighter, which are messaging frameworks, also document tracing. Encina's core emits traces and metrics too |
 | They have, Encina lacks | Source-generated dispatch and Native AOT with build-time diagnostics (Mediator, per its README); convention-based handlers without interfaces (Wolverine); explicit numeric pipeline steps (Brighter `step:`); a very large ecosystem and tutorial base (MediatR) |
 | Common | Request/handler dispatch, open-generic pipeline behaviors, pre/post processing |
 | Notes | Ordering today is by registration; a named-stage contract is planned in [#2184](https://github.com/dlrivada/Encina/issues/2184). Generators are rejected in [ADR-005](../../architecture/adr/005-reject-source-generators.md) while [#889](https://github.com/dlrivada/Encina/issues/889) plans them post-1.0 (contradiction tracked in [#1717](https://github.com/dlrivada/Encina/issues/1717)). Comparison benchmarks: [#2231](https://github.com/dlrivada/Encina/issues/2231). MediatR migration guide: [#85](https://github.com/dlrivada/Encina/issues/85) |
@@ -112,7 +146,7 @@ Each table has one row per kind of finding. References are named with the source
 | Encina has, they lack | The same outbox, inbox, saga and scheduled-message store interfaces implemented across ADO.NET, Dapper, EF Core (SQL Server, PostgreSQL, MySQL) and MongoDB under a written rule ([`AGENTS.md`](../../../AGENTS.md) section 5). By comparison the MassTransit outbox is documented for EF Core and MongoDB ([outbox](https://masstransit.massient.com/documentation/configuration/middleware/outbox)), and CAP lists four stores. Everything is opt-in and off by default. Encina also ships routing slip, scatter-gather, content router and choreography helpers, and a CDC package (`Encina.Cdc` with SQL Server, PostgreSQL, MySQL, MongoDB and Debezium connectors) that includes an outbox handler (`src/Encina.Cdc/Messaging/OutboxCdcHandler.cs`), currently broken ([#1968](https://github.com/dlrivada/Encina/issues/1968)) |
 | They have, Encina lacks | A much wider transport list (Wolverine lists about 19 transports, [guide](https://wolverinefx.net/guide/messaging/introduction.html)); topology management from message types (MassTransit, NServiceBus, Wolverine); operations tooling for failed messages: ServiceControl and ServicePulse ([pricing](https://particular.net/pricing)), Rebus Fleet Manager, CritterWatch, CAP Dashboard; Spring Modulith's publication registry statuses, completion modes and staleness monitor; years of production use |
 | Common | Transactional outbox, inbox/deduplication, delayed retries, scheduled messages, dead-letter queue; Encina's transport list (RabbitMQ, Azure Service Bus, Amazon SQS, Kafka, NATS, MQTT, Redis pub/sub, gRPC, GraphQL, in-memory) overlaps the major ones |
-| Notes | Dead-letter completion: [#1991](https://github.com/dlrivada/Encina/issues/1991), [#2203](https://github.com/dlrivada/Encina/issues/2203), operations API [#2229](https://github.com/dlrivada/Encina/issues/2229). Multi-instance row claiming: [#1251](https://github.com/dlrivada/Encina/issues/1251). Six more transports are post-1.0 (milestone "New Transport Providers"). Shipped-but-broken examples: [#2105](https://github.com/dlrivada/Encina/issues/2105), [#1969](https://github.com/dlrivada/Encina/issues/1969), [#1967](https://github.com/dlrivada/Encina/issues/1967) |
+| Notes | Dead-letter completion: [#1991](https://github.com/dlrivada/Encina/issues/1991), [#2203](https://github.com/dlrivada/Encina/issues/2203), operations API [#2229](https://github.com/dlrivada/Encina/issues/2229). Multi-instance row claiming: [#1251](https://github.com/dlrivada/Encina/issues/1251). Six more transports are post-1.0 (milestone "New Transport Providers"). Web dashboards: [#419](https://github.com/dlrivada/Encina/issues/419), [#445](https://github.com/dlrivada/Encina/issues/445) (both post-1.0). Shipped-but-broken examples: [#2105](https://github.com/dlrivada/Encina/issues/2105), [#1969](https://github.com/dlrivada/Encina/issues/1969), [#1967](https://github.com/dlrivada/Encina/issues/1967) |
 
 ### Sagas and workflows
 
@@ -130,7 +164,7 @@ Each table has one row per kind of finding. References are named with the source
 |---|---|
 | References | Marten ([martendb.io](https://martendb.io/events/)), Eventuous ([NuGet](https://www.nuget.org/packages/Eventuous)), Axon Framework and Axon Server ([axoniq.io](https://www.axoniq.io/)), KurrentDB ([docs](https://docs.kurrent.io/)) |
 | Encina has, they lack | `Encina.Marten` ties aggregates, snapshots, projections and upcasting to the mediator pipeline and the `Either` model, and `Encina.Marten.GDPR` adds subject-keyed crypto-shredding. Crypto-shredding in Axon is a separate extension ([community extension](https://github.com/everest-engineering/axon-crypto-shredding-extension), [AxonIQ docs](https://docs.axoniq.io/axon-framework-reference/5.1/data-protection/)) |
-| They have, Encina lacks | Their own event store product with high availability and routing (Axon Server, KurrentDB); Axon also covers deadlines and distributed command routing. Encina delegates storage to Marten ([ADR-027](../../architecture/adr/027-marten-as-the-event-sourcing-provider.md), [ADR-019](../../architecture/adr/019-compliance-event-sourcing-marten.md)) |
+| They have, Encina lacks | Their own event store product (Axon Server with high availability and command, query and event routing; KurrentDB with an admin UI, connectors and a managed cloud). Axon also lists sagas and deadlines as framework features (deadlines not verified). Encina delegates storage to Marten ([ADR-027](../../architecture/adr/027-marten-as-the-event-sourcing-provider.md), [ADR-019](../../architecture/adr/019-compliance-event-sourcing-marten.md)) |
 | Common | Aggregate repositories, snapshots, projections, upcasting |
 | Notes | A large cluster of open bugs says upcasting and projection rebuild are not reliable yet (for example [#2187](https://github.com/dlrivada/Encina/issues/2187) to [#2191](https://github.com/dlrivada/Encina/issues/2191), [#2157](https://github.com/dlrivada/Encina/issues/2157) to [#2164](https://github.com/dlrivada/Encina/issues/2164), [#2030](https://github.com/dlrivada/Encina/issues/2030)). EventStoreDB is deprecated and excluded from new features ([ADR-027](../../architecture/adr/027-marten-as-the-event-sourcing-provider.md)) |
 
@@ -162,7 +196,7 @@ Each table has one row per kind of finding. References are named with the source
 | Encina has, they lack | Polly-based pipeline behaviors for retry, circuit breaker, database circuit breaker, bulkhead and rate limiting that return `Either`; message-level recoverability (immediate and delayed retries) in the same package as the outbox |
 | They have, Encina lacks | Polly strategies without a dedicated Encina behavior: hedging and fallback (no `Hedg*` or fallback behavior found in `src/Encina.Polly`); Wolverine's rule language with jitter, requeue and listener pause; MassTransit's kill switch |
 | Common | Built on Polly in the .NET case; retry, breaker, bulkhead, rate limiter concepts |
-| Notes | Resilience for transports and cloud adapters is post-1.0 ([#742](https://github.com/dlrivada/Encina/issues/742), [#745](https://github.com/dlrivada/Encina/issues/745)); outbound HTTP client: [#1233](https://github.com/dlrivada/Encina/issues/1233) |
+| Notes | Resilience for the message transports and the gRPC and GraphQL providers is post-1.0 ([#742](https://github.com/dlrivada/Encina/issues/742), [#745](https://github.com/dlrivada/Encina/issues/745)); outbound HTTP client: [#1233](https://github.com/dlrivada/Encina/issues/1233) |
 
 ### Multi-tenancy
 
@@ -180,7 +214,7 @@ Each table has one row per kind of finding. References are named with the source
 |---|---|
 | References | Spring Modulith ([reference](https://docs.spring.io/spring-modulith/reference/), [verification](https://docs.spring.io/spring-modulith/reference/verification.html)); packwerk, ArchUnit, NestJS modules (unverified in the research) |
 | Encina has, they lack | Module execution context and database schema isolation (permission scripts), module-aware health checks, and `Encina.Testing.Architecture` rules |
-| They have, Encina lacks | `verify()` that rejects module cycles and access to internal packages, generated module documentation, per-module integration test slices (Spring Modulith) |
+| They have, Encina lacks | `verify()` that rejects module cycles and access to internal packages, generated module documentation, per-module integration test slices (Spring Modulith; listed in the reference index, the pages were not fetched) |
 | Common | Boundary enforcement as tests; events between modules |
 | Notes | The "Modular Monolith Architecture" milestone is post-1.0; `ModuleId` on audit entries is [#1636](https://github.com/dlrivada/Encina/issues/1636) |
 
@@ -198,9 +232,9 @@ Each table has one row per kind of finding. References are named with the source
 
 | Item | Finding |
 |---|---|
-| References | OpenTelemetry messaging conventions ([spec](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-spans/), status Development), Mediator source generator (OTel traces and metrics), Wolverine ([logging](https://wolverinefx.net/guide/logging.html)), MassTransit ([observability](https://masstransit.massient.com/documentation/configuration/observability)), NServiceBus ServicePulse |
+| References | OpenTelemetry messaging conventions ([spec](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-spans/), status Development), Mediator source generator (OTel traces and metrics in the 3.1 previews), Wolverine ([logging](https://wolverinefx.net/guide/logging.html)), MassTransit ([observability](https://masstransit.massient.com/documentation/configuration/observability)), NServiceBus ServicePulse |
 | Encina has, they lack | A governed `[LoggerMessage]` EventId registry with an architecture test ([ADR-021](../../architecture/adr/021-eventid-uniqueness-enforcement.md)); a rule that error messages never reach logs or traces; health checks across many packages |
-| They have, Encina lacks | Trace context carried through brokers (`traceparent` in message headers) and documented instrument catalogs; Wolverine's `tenant.id` tag and dead-letter metrics; bundled monitoring (ServicePulse, CritterWatch) |
+| They have, Encina lacks | Documented instrument catalogs and `ActivitySource`/meter names (MassTransit, Wolverine, including Wolverine's `tenant.id` tag and dead-letter metrics); the OpenTelemetry messaging conventions define producer-consumer correlation through links, but whether each framework carries W3C trace context in message headers was not verified for this page; bundled monitoring (ServicePulse, CritterWatch) |
 | Common | `ActivitySource` and `Meter` based telemetry on .NET |
 | Notes | The detailed gaps are in the [observability assessment](2026-10-05-observability.md); the design for trace propagation is [#1791](https://github.com/dlrivada/Encina/issues/1791); OTLP logs: [#1048](https://github.com/dlrivada/Encina/issues/1048) |
 
@@ -208,9 +242,9 @@ Each table has one row per kind of finding. References are named with the source
 
 | Item | Finding |
 |---|---|
-| References | Open Policy Agent ([pkg.go.dev](https://pkg.go.dev/github.com/open-policy-agent/opa@v1.13.2)), Cedar and Amazon Verified Permissions ([CloudTrail](https://docs.aws.amazon.com/verifiedpermissions/latest/userguide/monitoring-cloudtrail.html)), OpenFGA ([project](https://openfga.dev/project)), SpiceDB, Casbin ([jCasbin](https://github.com/apache/casbin-jcasbin)), AuthzForce CE ([features](https://authzforce-ce-fiware.readthedocs.io/en/release-8.0.1/Features.html)), WSO2 Balana, Keycloak Authorization Services |
+| References | Open Policy Agent ([pkg.go.dev](https://pkg.go.dev/github.com/open-policy-agent/opa@v1.13.2)), Cedar and Amazon Verified Permissions ([CloudTrail](https://docs.aws.amazon.com/verifiedpermissions/latest/userguide/monitoring-cloudtrail.html)), OpenFGA ([CNCF announcement](https://www.cncf.io/blog/2025/11/11/openfga-becomes-a-cncf-incubating-project/); openfga.dev did not respond from the checking machine on 2026-10-10), SpiceDB, Casbin ([jCasbin](https://github.com/apache/casbin-jcasbin)), AuthzForce CE ([features](https://authzforce-ce-fiware.readthedocs.io/en/release-8.0.1/Features.html)), WSO2 Balana, Keycloak Authorization Services |
 | Encina has, they lack | An embedded XACML-style ABAC engine (`IPolicyDecisionPoint`, combining algorithms, obligations, a persistent policy store) running inside the request pipeline with Roslyn analyzers, next to role and permission attributes, PII masking, field encryption, anti-tampering, sanitization and four secret-manager adapters. Casbin and AuthzForce are embeddable but were not found to ship the same pipeline integration or a decision audit store |
-| They have, Encina lacks | Decision logs with policy version metadata as a documented feature (OPA); a formally analysable policy language (Cedar); relationship-based authorization with consistency tokens (OpenFGA, SpiceDB); a standard policy language such as Rego |
+| They have, Encina lacks | Decision logs with policy version metadata as a documented feature (OPA); a formally analysable policy language (Cedar); relationship-based authorization (OpenFGA, SpiceDB) with consistency tokens (SpiceDB); a standard policy language such as Rego |
 | Common | Attribute-based decisions, combining algorithms, policy administration |
 | Notes | A formal audit trail for ABAC decisions is in progress ([#751](https://github.com/dlrivada/Encina/issues/751)); OPA integration is post-1.0 ([#688](https://github.com/dlrivada/Encina/issues/688)). Open fail-open bug: [#1910](https://github.com/dlrivada/Encina/issues/1910) |
 
@@ -218,9 +252,9 @@ Each table has one row per kind of finding. References are named with the source
 
 | Item | Finding |
 |---|---|
-| References | ABP GDPR module ([docs](https://abp.io/docs/10.5/modules/gdpr), Pro tier), Axon Data Protection ([docs](https://docs.axoniq.io/axon-framework-reference/5.1/data-protection/)), Fides ([PyPI](https://pypi.org/project/ethyca-fides/2.50.0rc1)), OneTrust, Microsoft Presidio ([Docker Hub](https://hub.docker.com/_/microsoft-presidio-analyzer)), Privado ([docs](https://docs.privado.ai/)), immudb ([docs](https://docs.immudb.io/master/)), Trillian Tessera ([announcement](https://blog.transparency.dev/announcing-the-alpha-release-of-trillian-tessera)), small NIS2 and AI Act tools (nisd2.eu, auditai-sdk) |
+| References | ABP GDPR module ([docs](https://abp.io/docs/10.5/modules/gdpr), Pro tier), Axon Data Protection ([docs](https://docs.axoniq.io/axon-framework-reference/5.1/data-protection/)), Fides ([PyPI](https://pypi.org/project/ethyca-fides/2.50.0rc1)), OneTrust, Microsoft Presidio ([Docker Hub](https://hub.docker.com/_/microsoft-presidio-analyzer)), Privado ([docs](https://docs.privado.ai/)), immudb ([docs](https://docs.immudb.io/)), Trillian Tessera ([announcement](https://blog.transparency.dev/announcing-the-alpha-release-of-trillian-tessera)), small NIS2 and AI Act tools (nisd2.eu, auditai-sdk) |
 | Encina has, they lack | In-process modules for consent, data subject rights, retention, lawful basis, records of processing, breach notification, cross-border transfer, data residency, NIS2 and AI Act (the `Encina.Compliance.*` packages), tied to the messaging pipeline and stores, plus subject-keyed crypto-shredding on Marten. The research found no general-purpose application framework, in any language, shipping these in the application layer; ABP's GDPR module is commercial and covers export, deletion and cookie consent |
-| They have, Encina lacks | Platform features: request-handling workflow with identity checks and deadlines, consent banners, administrator UIs (OneTrust, Fides); NER-based PII detection and image redaction (Presidio; Encina's PII package masks, it does not detect); verifiable append-only logs (immudb, Tessera); vendor-supported crypto-shredding with legal guidance (Axon) |
+| They have, Encina lacks | Platform features: request-handling workflow with identity checks and deadlines, consent management and orchestration, administrator UIs (OneTrust, Fides); NER-based PII detection and image redaction (Presidio; Encina's PII package masks, it does not detect); verifiable append-only logs (immudb, Tessera); a vendor-maintained data-protection extension for crypto-shredding (Axon; commercial, terms unverified) |
 | Common | Subject-keyed encryption as the erasure mechanism (Axon, Encina), RoPA and DPIA as records |
 | Notes | The research searched a limited set of sources; "none found" is not "none exist". Encina's modules are software controls, not legal compliance. Open correctness bugs include [#1188](https://github.com/dlrivada/Encina/issues/1188), [#1256](https://github.com/dlrivada/Encina/issues/1256), [#1943](https://github.com/dlrivada/Encina/issues/1943), [#1144](https://github.com/dlrivada/Encina/issues/1144). The scope is [SPEC-002](../../specifications/SPEC-002-eu-regulatory-readiness.md); a persistent hash-chained log is [#1240](https://github.com/dlrivada/Encina/issues/1240) |
 
@@ -229,7 +263,7 @@ Each table has one row per kind of finding. References are named with the source
 | Item | Finding |
 |---|---|
 | References | Testcontainers, Pact, FsCheck and Hypothesis, Stryker.NET ([docs](https://stryker-mutator.io/docs/stryker-net/introduction/)), PIT (most unverified in the research); in-memory test harnesses of MassTransit and NServiceBus |
-| Encina has, they lack | A family of `Encina.Testing*` packages wrapping the same tools; per-flag coverage obligations with per-file targets, a CRAP gate, per-file mutation scores and public dashboards, so the evidence is published rather than claimed ([coverage methodology](../../testing/coverage-measurement-methodology.md), [dashboards](https://dlrivada.github.io/Encina/)) |
+| Encina has, they lack | A family of `Encina.Testing*` packages wrapping the same tools; per-flag coverage obligations with per-file targets, a CRAP gate, per-file mutation scores and public dashboards, so the evidence is published rather than claimed ([coverage methodology](https://github.com/dlrivada/Encina/blob/main/docs/testing/coverage-measurement-methodology.md), [dashboards](https://dlrivada.github.io/Encina/)) |
 | They have, Encina lacks | Independent production use as evidence; a test host for sagas and handlers that mirrors the real runtime (Encina's `FakeEncina` diverges, [#2087](https://github.com/dlrivada/Encina/issues/2087)) |
 | Common | Real-database integration tests via containers, property-based and mutation testing tools |
 | Notes | The evidence machinery has its own open bugs: [#2048](https://github.com/dlrivada/Encina/issues/2048), [#1653](https://github.com/dlrivada/Encina/issues/1653), [#1760](https://github.com/dlrivada/Encina/issues/1760). Read the dashboards with that in mind |
@@ -271,14 +305,17 @@ Rows are topics; cells say whether the research found the capability. "Y" is fou
 | Sagas | P | N | N | Y | Y | Y | N | Y |
 | Durable replayable workflows | N | N | N | N | N | N | N | Y |
 | Failed-message operations UI | N | N | N | N | Y | ? (paid tool) | N | ? |
-| Multi-tenancy | P | N | N | N | P | Y | N | - |
+| Multi-tenancy | P | N | N | N | ? | Y | ? | - |
 | Built-in compliance modules | Y | N | N | N | N | N | N | N |
 | Commercial support | N | Y | N | Y | Y | Y | N | Y |
 
-## Planned work
+## Proposal
+
+The smallest effective step comes first: fix the Hardening bugs that weaken the differentiators and ship the dead-letter operations API ([#2229](https://github.com/dlrivada/Encina/issues/2229)). Everything else in the table follows the milestones already set.
 
 | Gap | Status | Issue |
 |---|---|---|
+| Hardening bugs that weaken the differentiators (p0 and the clusters named above) | 1.0 (v0.14.0 Hardening) | [open p0 bugs](https://github.com/dlrivada/Encina/issues?q=is%3Aissue+is%3Aopen+label%3Abug+label%3Ap0-mandatory) |
 | Pipeline ordering contract with named stages | 1.0 (v0.14.0 Hardening) | [#2184](https://github.com/dlrivada/Encina/issues/2184) |
 | Dead-letter queue completion | 1.0 (v0.19.0) | [#1991](https://github.com/dlrivada/Encina/issues/1991), [#2203](https://github.com/dlrivada/Encina/issues/2203) |
 | Dead-letter operations API (and optional UI) | 1.0 (v0.19.0) | [#2229](https://github.com/dlrivada/Encina/issues/2229) |
@@ -289,6 +326,7 @@ Rows are topics; cells say whether the research found the capability. "Y" is fou
 | Trace propagation through outbox and brokers, OTLP logs | Planned with a design issue | [#1791](https://github.com/dlrivada/Encina/issues/1791), [#1048](https://github.com/dlrivada/Encina/issues/1048) |
 | Formal audit trail of ABAC decisions | 1.0, in progress | [#751](https://github.com/dlrivada/Encina/issues/751) |
 | Fix the CDC outbox handler | 1.0 (Hardening) | [#1968](https://github.com/dlrivada/Encina/issues/1968) |
+| Web dashboards for operations (Aspire dashboard extensions, developer dashboard) | Post-1.0 | [#419](https://github.com/dlrivada/Encina/issues/419), [#445](https://github.com/dlrivada/Encina/issues/445) |
 | Fencing tokens on lock handles | Post-1.0 | [#218](https://github.com/dlrivada/Encina/issues/218) |
 | Source generators | Post-1.0 | [#889](https://github.com/dlrivada/Encina/issues/889) |
 | Six additional transports, more lock backends, modular-monolith milestone | Post-1.0 | [SPEC-000](../../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) |
