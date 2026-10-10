@@ -280,7 +280,7 @@ public class QueryCacheInterceptorTests
     private void EnableMultiTenancy(IRequestContext? ambient)
     {
         var isService = Substitute.For<IServiceProviderIsService>();
-        isService.IsService(typeof(global::Encina.Tenancy.ITenantProvider)).Returns(true);
+        isService.IsService(typeof(MultiTenancyMarker)).Returns(true);
         _serviceProvider.GetService(typeof(IServiceProviderIsService)).Returns(isService);
         var accessor = Substitute.For<IRequestContextAccessor>();
         accessor.RequestContext.Returns(ambient);

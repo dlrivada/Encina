@@ -58,7 +58,7 @@ All registrations use `TryAdd`, meaning you can register custom implementations 
 |----------|------|---------|-------------|
 | `EnforcementMode` | `ABACEnforcementMode` | `Block` | Controls how Deny decisions are enforced; errors deny in every mode. See [ABACEnforcementMode](#abacenforcementmode). |
 | `IncludeAdvice` | `bool` | `true` | When `true`, advice expressions from policies are included in evaluation results and executed on a best-effort basis. |
-| `AddHealthCheck` | `bool` | `false` | When `true`, registers an `ABACHealthCheck` that verifies at least one policy or policy set is loaded. Returns `Degraded` if the PAP is empty. |
+| `AddHealthCheck` | `bool` | `false` | When `true`, registers an `ABACHealthCheck` that verifies at least one policy or policy set is loaded. Returns `Degraded` if the PAP is empty. When the decision audit is enabled it also reports the audit; see [Health](decision-audit.md#health). |
 | `ValidateExpressionsAtStartup` | `bool` | `false` | When `true`, scans assemblies in `ExpressionScanAssemblies` for `RequireConditionAttribute` and compiles all EEL expressions at startup. Throws `InvalidOperationException` on failure. |
 | `ExpressionScanAssemblies` | `List<Assembly>` | `[]` | Assemblies to scan for `RequireConditionAttribute` when `ValidateExpressionsAtStartup` is `true`. If the list is empty, a debug log is emitted and no validation occurs. |
 | `CustomFunctions` | `List<(string FunctionId, IXACMLFunction Function)>` | `[]` | Custom XACML functions registered into `IFunctionRegistry` at startup, in addition to the standard XACML 3.0 built-in functions. |
@@ -79,7 +79,7 @@ services.AddEncinaSecurity(); // before AddEncinaABAC: see Registration order in
 services.AddEncinaABAC(o => o.AuditDecisions(a => a.Outcomes = ABACDecisionAuditOutcomes.Denied));
 ```
 
-The validator rejects, at start, a `WriteTimeout` of zero or less or above `int.MaxValue` milliseconds, `MaxTraceEntries` below 1, `Outcomes` with bits outside `ABACDecisionAuditOutcomes.All` and an undefined `FailureMode`. It also rejects `DecisionAudit.Enabled = true` together with `EnforcementMode = Disabled` (the disabled enforcement point bypasses evaluation and would record nothing), so the host fails to start with an `OptionsValidationException`. Registration order is explained in [Registration order](decision-audit.md#registration-order).
+The validator rejects, at start, a `WriteTimeout` of zero or less or above `int.MaxValue` milliseconds, `MaxTraceEntries` below 1, a `HealthFailureWindow` of zero or less, `Outcomes` with bits outside `ABACDecisionAuditOutcomes.All` and an undefined `FailureMode`. It also rejects `DecisionAudit.Enabled = true` together with `EnforcementMode = Disabled` (the disabled enforcement point bypasses evaluation and would record nothing), so the host fails to start with an `OptionsValidationException`. Registration order is explained in [Registration order](decision-audit.md#registration-order).
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -91,6 +91,7 @@ The validator rejects, at start, a `WriteTimeout` of zero or less or above `int.
 | `ResourceIdAttributeName` | `string` | `resourceId` | Resource attribute read as the resource id when the request does not implement `IABACResourceIdentity`. |
 | `RecordedAttributeValues` | `HashSet<string>` | empty | Names of the attributes whose values are recorded. Values are personal data, so none are recorded by default. |
 | `WriteTimeout` | `TimeSpan` | 5 seconds | Bound of one record write, raced even against a store that ignores its token; must be greater than zero and at most `int.MaxValue` milliseconds (validated at start). A failed write holds the request for at most twice this value. |
+| `HealthFailureWindow` | `TimeSpan` | 5 minutes | How long a failed audit write keeps `ABACHealthCheck` Unhealthy under `FailClosed`; must be greater than zero (validated at start). Used only when `AddHealthCheck` is `true`. See [Health](decision-audit.md#health). |
 | `AllowCrossTenantQueries` | `bool` | `false` | Lets the reader run without a tenant in a multi-tenant application (operator tooling); each such query is logged with EventId 9090. |
 
 ## ABACEnforcementMode

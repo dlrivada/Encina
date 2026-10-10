@@ -95,6 +95,21 @@ public sealed class ABACDecisionAuditOptions
     public TimeSpan WriteTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
+    /// Gets or sets how long a failed decision audit write keeps <see cref="Health.ABACHealthCheck"/>
+    /// Unhealthy under <see cref="ABACDecisionAuditFailureMode.FailClosed"/>. Default is 5 minutes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// There is no write probe: the health state changes only when a decision is audited. A failure
+    /// older than this window, with no successful write since, reads as Degraded instead of Unhealthy,
+    /// so a service that stopped receiving audited traffic does not stay Unhealthy forever. A
+    /// successful write clears the failure at once.
+    /// </para>
+    /// <para>The value must be greater than zero and is validated when the application starts.</para>
+    /// </remarks>
+    public TimeSpan HealthFailureWindow { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
     /// Gets or sets whether the decision audit reader may run without a tenant in a multi-tenant
     /// application. Default is <c>false</c>.
     /// </summary>

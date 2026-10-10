@@ -92,6 +92,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     private readonly IABACDecisionRecorder _decisionRecorder;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<ABACPipelineBehavior<TRequest, TResponse>> _logger;
+    private readonly ABACDecisionAuditHealthState? _healthState;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ABACPipelineBehavior{TRequest, TResponse}"/> class.
@@ -104,6 +105,10 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     /// <param name="decisionRecorder">The recorder that persists decision records when <see cref="ABACOptions.DecisionAudit"/> is enabled.</param>
     /// <param name="timeProvider">The clock for the timestamps of decision records; read only when the decision audit is enabled.</param>
     /// <param name="logger">Logger for ABAC evaluation tracing.</param>
+    /// <param name="healthState">
+    /// The state that receives the outcome of each decision audit write for <see cref="Health.ABACHealthCheck"/>;
+    /// <c>AddEncinaABAC</c> registers it. Optional so a behavior built by hand audits without health reporting.
+    /// </param>
     /// <remarks>
     /// The caller is read from the <see cref="IRequestContext"/> that <see cref="Handle"/> receives,
     /// so the behavior resolves no identity service of its own.
@@ -116,7 +121,8 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         IOptions<ABACOptions> options,
         IABACDecisionRecorder decisionRecorder,
         TimeProvider timeProvider,
-        ILogger<ABACPipelineBehavior<TRequest, TResponse>> logger)
+        ILogger<ABACPipelineBehavior<TRequest, TResponse>> logger,
+        ABACDecisionAuditHealthState? healthState = null)
     {
         ArgumentNullException.ThrowIfNull(pdp);
         ArgumentNullException.ThrowIfNull(attributeProvider);
@@ -134,6 +140,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         _decisionRecorder = decisionRecorder;
         _timeProvider = timeProvider;
         _logger = logger;
+        _healthState = healthState;
     }
 
     /// <inheritdoc />
@@ -569,6 +576,18 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         // abort it (the write is never linked to the client's token, A3).
         cancellationToken.ThrowIfCancellationRequested();
         var failure = await BuildAndWriteAsync(capture, verdict, requestTypeName).ConfigureAwait(false);
+
+        // The health state follows the write, not the caller: a client that left during a failing write
+        // must not hide the failure from the health check.
+        if (failure is null)
+        {
+            _healthState?.RecordWriteSucceeded();
+        }
+        else
+        {
+            _healthState?.RecordWriteFailed();
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
 
         if (failure is null)

@@ -23,6 +23,8 @@ internal sealed class ABACOptionsValidator : IValidateOptions<ABACOptions>
         [
             (audit.WriteTimeout > TimeSpan.Zero && audit.WriteTimeout <= MaxWriteTimeout,
                 "ABACOptions.DecisionAudit.WriteTimeout must be greater than zero and at most int.MaxValue milliseconds."),
+            (audit.HealthFailureWindow > TimeSpan.Zero,
+                "ABACOptions.DecisionAudit.HealthFailureWindow must be greater than zero."),
             (audit.MaxTraceEntries >= 1,
                 "ABACOptions.DecisionAudit.MaxTraceEntries must be at least 1."),
             ((audit.Outcomes & ~ABACDecisionAuditOutcomes.All) == 0,

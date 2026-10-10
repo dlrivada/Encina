@@ -101,7 +101,7 @@
         "property": 70
       },
       "justifications": {
-        "unit": "Unit tests cover every decision, the unauthenticated-caller denial, the built-in attributes, the audit record, write failures and the error paths.",
+        "unit": "Unit tests cover every decision, the unauthenticated-caller denial, the built-in attributes, the audit record, write failures and the error paths. The audit write outcome feeds the health state (success clears, failure marks).",
         "guard": "Guard tests run the constructor guards, every named-policy decision and the enabled-audit paths (write failures, anonymous caller, cancellation).",
         "contract": "Contract tests run the PEP contract for users, services and anonymous callers and the one-record-per-request, write-before-handler and fail-closed contract of the decision audit.",
         "property": "Identity and decision-audit properties run the PEP for anonymous and authenticated callers, in Block and Warn, across write outcomes and the Outcomes filter."
@@ -388,6 +388,25 @@
       "justifications": {
         "unit": "An enum has no executable line; the unit tests exercise both modes.",
         "guard": "An enum has no executable line and no parameter to guard."
+      }
+    },
+    "DecisionAudit/ABACDecisionAuditHealthState.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*State.cs",
+      "reason": "Thread-safe holder of the last decision audit write failure read by the health check",
+      "targets": {
+        "unit": 100,
+        "guard": 20,
+        "contract": 40
+      },
+      "justifications": {
+        "unit": "Unit tests record a failure, a success and a second failure against a fake clock and read the instant back, through the PEP and the health check.",
+        "guard": "Guard tests reject a null time provider; the rest of the class is behavior covered by unit tests.",
+        "contract": "The contract test resolves the singleton from the validated container and reads the initial no-failure state."
       }
     },
     "DecisionAudit/ABACDecisionAuditOptions.cs": {
@@ -1032,12 +1051,12 @@
       "defaultRule": "*HealthCheck.cs",
       "reason": "Health check with mockeable service dependencies",
       "targets": {
-        "unit": 90,
-        "guard": 9
+        "unit": 94,
+        "guard": 5
       },
       "justifications": {
-        "unit": "Unit tests drive every branch of the health check with a mocked PAP (measured 98.1%).",
-        "guard": "Guard tests cover only the constructor and argument guards; behavior is covered by unit tests (measured 9.6%)."
+        "unit": "Unit tests drive every branch of the engine check with a mocked PAP and every decision audit status (disabled, no store, in-memory store, failed write inside and outside the window under FailClosed and BestEffort, healthy) against a real provider.",
+        "guard": "Guard tests cover only the constructor and argument guards; behavior is covered by unit tests, and the decision audit step adds lines they do not reach."
       }
     },
     "Model/ABACEnforcementMode.cs": {

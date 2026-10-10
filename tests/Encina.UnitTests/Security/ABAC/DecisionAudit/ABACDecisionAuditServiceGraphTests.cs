@@ -2,6 +2,7 @@ using Encina.Security;
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.DecisionAudit;
 using Encina.Security.Audit;
+using Encina.Testing.Identity;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -129,6 +130,43 @@ public sealed class ABACDecisionAuditServiceGraphTests
         security.ShouldBeGreaterThanOrEqualTo(0);
         abac.ShouldBeGreaterThanOrEqualTo(0);
         (security < abac).ShouldBe(securityFirst);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task BothRegistrationOrders_TheResolvedBehaviorUpdatesTheSingletonHealthState(bool securityFirst)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddScoped<IOperationAuditStore, InMemoryOperationAuditStore>();
+        services.AddSingleton<IABACDecisionRecorder>(new FailingRecorder());
+        Register(services, securityFirst, options => options.AuditDecisions());
+
+        using var provider = services.BuildServiceProvider(Validated);
+        using var scope = provider.CreateScope();
+        var behavior = scope.ServiceProvider.GetServices<IPipelineBehavior<PolicyRequest, string>>()
+            .Single(b => b.GetType().GetGenericTypeDefinition() == typeof(ABACPipelineBehavior<,>));
+
+        // No policy "missing-policy" exists, so the request is denied and the failing recorder cannot
+        // write the record: the behavior resolved from the container marks the singleton state.
+        await behavior.Handle(
+            new PolicyRequest(),
+            TestRequestContext.For(TestIdentity.User("alice")),
+            () => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("ok")),
+            default);
+
+        provider.GetRequiredService<ABACDecisionAuditHealthState>().LastFailureAtUtc.ShouldNotBeNull();
+    }
+
+    [RequirePolicy("missing-policy")]
+    private sealed record PolicyRequest : IRequest<string>;
+
+    private sealed class FailingRecorder : IABACDecisionRecorder
+    {
+        public ValueTask<LanguageExt.Either<EncinaError, LanguageExt.Unit>> RecordAsync(
+            ABACDecisionRecord record, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(LanguageExt.Prelude.Left<EncinaError, LanguageExt.Unit>(EncinaErrors.Create("x", "y")));
     }
 
     [Fact]

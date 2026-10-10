@@ -162,7 +162,7 @@ public sealed class DeadLetterInputRulesAndRegistrationTests
         services.AddEncinaTenancy();
 
         using var provider = services.BuildServiceProvider();
-        provider.GetService<TenancyInUse>().ShouldBeSameAs(TenancyInUse.Instance);
+        provider.GetService<MultiTenancyMarker>().ShouldNotBeNull();
     }
 
     [Fact]

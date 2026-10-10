@@ -3,6 +3,11 @@ Encina.Security.ABAC.PolicyTraceReason.NotEvaluated = 4 -> Encina.Security.ABAC.
 Encina.Security.ABAC.ABACOptions.DecisionAudit.get -> Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOptions!
 Encina.Security.ABAC.DecisionAudit.IABACDecisionRecorder
 Encina.Security.ABAC.DecisionAudit.IABACDecisionRecorder.RecordAsync(Encina.Security.ABAC.DecisionAudit.ABACDecisionRecord! record, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditHealthState
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditHealthState.ABACDecisionAuditHealthState(System.TimeProvider! timeProvider) -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditHealthState.LastFailureAtUtc.get -> System.DateTimeOffset?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditHealthState.RecordWriteFailed() -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditHealthState.RecordWriteSucceeded() -> void
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOptions
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOptions.ABACDecisionAuditOptions() -> void
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOptions.Enabled.get -> bool
@@ -18,6 +23,8 @@ Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOptions.MaxTraceEntries.set 
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOptions.ResourceIdAttributeName.get -> string!
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOptions.ResourceIdAttributeName.set -> void
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOptions.RecordedAttributeValues.get -> System.Collections.Generic.HashSet<string!>!
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOptions.HealthFailureWindow.get -> System.TimeSpan
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOptions.HealthFailureWindow.set -> void
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.Denied = 2 -> Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.Granted = 1 -> Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes
@@ -57,7 +64,7 @@ Encina.Security.ABAC.ABACOptions.UsePersistentPAP.set -> void
 Encina.Security.ABAC.ABACOptions.UseXacmlXmlSerializer() -> Encina.Security.ABAC.ABACOptions!
 Encina.Security.ABAC.ABACOptions.RegisterXacmlXmlSerializer() -> Encina.Security.ABAC.ABACOptions!
 Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>
-Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.ABACPipelineBehavior(Encina.Security.ABAC.IPolicyDecisionPoint! pdp, Encina.Security.ABAC.IAttributeProvider! attributeProvider, Encina.Security.ABAC.ObligationExecutor! obligationExecutor, Encina.Security.ABAC.EEL.EELCompiler! eelCompiler, Microsoft.Extensions.Options.IOptions<Encina.Security.ABAC.ABACOptions!>! options, Encina.Security.ABAC.DecisionAudit.IABACDecisionRecorder! decisionRecorder, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.ABACPipelineBehavior(Encina.Security.ABAC.IPolicyDecisionPoint! pdp, Encina.Security.ABAC.IAttributeProvider! attributeProvider, Encina.Security.ABAC.ObligationExecutor! obligationExecutor, Encina.Security.ABAC.EEL.EELCompiler! eelCompiler, Microsoft.Extensions.Options.IOptions<Encina.Security.ABAC.ABACOptions!>! options, Encina.Security.ABAC.DecisionAudit.IABACDecisionRecorder! decisionRecorder, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>!>! logger, Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditHealthState? healthState = null) -> void
 Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Security.ABAC.ABACSubjectAttributes
 Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint
