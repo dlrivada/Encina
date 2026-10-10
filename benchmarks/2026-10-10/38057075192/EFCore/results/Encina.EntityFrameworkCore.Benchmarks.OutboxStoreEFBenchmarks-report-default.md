@@ -1,0 +1,16 @@
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+
+Job=ShortRun  InvocationCount=1  IterationCount=3  
+LaunchCount=1  UnrollFactor=1  WarmupCount=3  
+
+ Method                              | Mean        | Error       | StdDev     | Ratio | RatioSD | Allocated  | Alloc Ratio |
+------------------------------------ |------------:|------------:|-----------:|------:|--------:|-----------:|------------:|
+ 'AddAsync single message'           |    49.49 μs |    59.36 μs |   3.254 μs |  1.00 |    0.08 |    2.86 KB |        1.00 |
+ 'GetPendingMessagesAsync batch=10'  |   553.20 μs |   433.94 μs |  23.786 μs | 11.21 |    0.75 |  146.34 KB |       51.18 |
+ 'GetPendingMessagesAsync batch=100' | 3,643.29 μs | 1,853.41 μs | 101.592 μs | 73.82 |    4.46 | 1341.32 KB |      469.10 |
+ MarkAsProcessedAsync                |   189.93 μs |   484.22 μs |  26.541 μs |  3.85 |    0.51 |   11.91 KB |        4.16 |
