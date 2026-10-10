@@ -38,6 +38,8 @@ public sealed class ReadWriteRoutingRegistrationDapperIntegrationTests : IAsyncL
             return;
         }
 
+        await _fixture.ClearAllDataAsync();
+
         await using (var admin = new NpgsqlConnection(_fixture.ConnectionString))
         {
             await admin.OpenAsync();
