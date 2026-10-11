@@ -64,6 +64,27 @@ public sealed class ParallelDispatchStrategyTests
     }
 
     [Fact]
+    public async Task DispatchAsync_WithSingleNullHandler_DoesNotCallInvoker()
+    {
+        var strategy = new ParallelDispatchStrategy();
+        var handlers = new object?[] { null };
+        var invokerCalls = 0;
+
+        var result = await strategy.DispatchAsync(
+            handlers!,
+            new TestNotification(1),
+            (_, _, _) =>
+            {
+                Interlocked.Increment(ref invokerCalls);
+                return Task.FromResult(Left<EncinaError, Unit>(EncinaErrors.Create("test.error", "must not run")));
+            },
+            CancellationToken.None);
+
+        invokerCalls.ShouldBe(0);
+        result.IsRight.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task DispatchAsync_WithMultipleHandlers_InvokesAllInParallel()
     {
         var strategy = new ParallelDispatchStrategy();

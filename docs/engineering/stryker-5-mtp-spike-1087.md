@@ -114,6 +114,160 @@ Commands (all paths relative to the worktree root `<wt>`, `<suffix>` is the comm
 - **Consequences:** #1026 stays open; every mutation score produced by the current VsTest workflow is 0 % by construction. Follow-up work: (a) switch the mutation workflow to the MTP runner with coverage off in project mode and re-design sharding ([#1441](https://github.com/dlrivada/Encina/issues/1441), workflow change, owned by the maintainer); (b) [make the Verify snapshot tests pass when the same test process runs them repeatedly](https://github.com/dlrivada/Encina/issues/1442); (c) the Pipeline/Behaviors second shard was not measured.
 - The second shard (`Pipeline/Behaviors`) was not run for lack of time box.
 
+## 6. Phase 2e: native memory
+
+This section records what holds memory across mutant runs in the reused MTP test server, a question left open by the preceding phase 2d investigation of the reused server (phases 2a-2d are tracked in the [#1441 comment thread](https://github.com/dlrivada/Encina/issues/1441), not on this page), which saw about 5 GB retained per full-suite run and an out-of-memory kill at 12 GiB. All values were measured on 2026-10-05 on the Debug build of `Encina.UnitTests`, MTP server mode (`--server --client-port`), repeating the full suite in the same process through a JSON-RPC harness. Linux runs used the `mcr.microsoft.com/dotnet/sdk:10.0` container with `--memory 12g --cpus 4` and `DOTNET_GCHeapHardLimit=0x100000000`, `DOTNET_gcServer=0`, `DOTNET_gcConcurrent=0`, like the CI job. Verify snapshot tests error in the container because the binaries were built on Windows; this is unrelated to memory.
+
+### 6.1 Bisection by namespace (Windows, one process per namespace)
+
+Only two namespaces exceed 1 GB peak working set (WS) in a single run:
+
+| Namespace | Peak WS | GC heap | Nature |
+| --- | --- | --- | --- |
+| `Testing` | 4.5 GB | `Testing.Architecture`: 2.8 GB WS with 2.4 GB heap; `Testing.Base` and `Testing.Modules`: about 1.1 GB, mostly heap | Managed, released after the run |
+| `Security` | 3.3-3.8 GB | `Security.ABAC`: 2.35 GB WS with about 140 MB heap; `Security.ABAC.EEL`: 3.3 GB WS with about 180 MB heap | Native, outside the GC heap |
+
+Inside `Security.ABAC.EEL`, `EELCompilerTests` peaks at 1.8 GB and `EELConformanceTests` at 2.2 GB working set, each with about 1.3 GB outside the GC heap.
+
+### 6.2 Repeated runs in one server (Linux)
+
+Idle private memory in MB after runs 1-4:
+
+| Configuration | Run 1 peak WS (GB) | Idle private MB after run 1 / 2 / 3 / 4 | Outcome |
+| --- | --- | --- | --- |
+| Full suite | 7.6 GB | 7,286 / 10,087 / 11,454 / killed | Out of memory (12 GiB) in run 4 |
+| Full suite, `MALLOC_ARENA_MAX=2` | 7.6 GB | 7,628 / 9,779 / 9,723 / 9,378 | Reaches the 12 GiB cgroup peak in run 2; no improvement |
+| Full suite, `MALLOC_MMAP_THRESHOLD_=131072` and `MALLOC_TRIM_THRESHOLD_=131072` | 4.9 GB | 3,956 / 4,205 / 4,420 / 4,670 | About +230 MB per run; cgroup peak 8.9 GB after 4 runs |
+| Without `Encina.UnitTests.Security.ABAC*` | 4.4 GB | 3,877 / 3,848 / 3,913 / 3,961 | Flat |
+| Without ABAC and with the two malloc thresholds | 4.7 GB | 3,616 / 3,180 / 3,247 / 3,985 | Flat |
+
+On Windows, the same harness over 6 runs shows idle private memory oscillating between 3.0 and 6.1 GB with no trend: the Windows heap returns freed native memory to the OS, glibc does not.
+
+### 6.3 Parallelism (single Linux run, xUnit `--max-threads`)
+
+| Threads | Peak WS | Duration |
+| --- | --- | --- |
+| 1 | 7.4 GB | 190 s |
+| 2 | 6.7 GB | 102 s |
+| 4 (equals the default on 4 CPUs) | 7.4 GB | 124 s |
+| Default | 7.6 GB | 111-122 s |
+
+Limiting threads does not lower the peak meaningfully and slows the run.
+
+### 6.4 Root cause
+
+- `src/Encina.Security.ABAC/EEL/EELCompiler.cs` compiles each expression with Roslyn scripting (`CSharpScript.Create` at line 105, `CreateDelegate` at line 127) and caches the result per compiler instance.
+- `tests/Encina.UnitTests/Security/ABAC/EEL/EELCompilerTests.cs:15` and `EELConformanceTests.cs:16` hold the compiler in an instance field. xUnit creates one class instance per test, so every run recompiles the expressions of each test (the phase 2e harness counted about 76 compilations per run, including the cases of the parameterised conformance tests; the count was not re-derived from the source).
+- Each compilation leaves two kinds of memory:
+  - (a) Transient native memory that only finalizers release. glibc's dynamic mmap threshold keeps it in its arenas instead of returning it to the OS. This is the roughly 2.7 GB per-run amplification that the fixed thresholds remove.
+  - (b) A script assembly that Roslyn scripting never unloads. This is the residual growth of about 230 MB per run.
+- Classes that share a static compiler (`ABACPipelineBehaviorTests.cs:32`, `ABACRequirementEnforcementTests.cs:34`) compile once per process and do not regrow.
+- Confidence: high for the location (excluding `Encina.UnitTests.Security.ABAC*`, which includes `Security.ABAC.EEL`, removes the growth), medium for the exact split between (a) and (b).
+
+### 6.5 Stryker 5.0.0 cannot recycle the server
+
+Stryker.NET 5.0.0 has no option to recycle the test server: the pool resets only after the initial test run and after coverage capture, and servers are replaced only on timeout, crash or exit. Research is in the [#1441 comment thread](https://github.com/dlrivada/Encina/issues/1441); the upstream issue is [stryker-net#3742](https://github.com/stryker-mutator/stryker-net/issues/3742).
+
+### 6.6 Phase 2f plan
+
+| Step | Action | Why | Status |
+| --- | --- | --- | --- |
+| 1 | Set `MALLOC_MMAP_THRESHOLD_=131072` and `MALLOC_TRIM_THRESHOLD_=131072` in the mutation job environment; they reach the test host | Removes cause (a) | Done (commit 38f741ff: the mutation workflow sets both to 131072) |
+| 2 | Fix the EEL tests to share one compiler | Removes the cost at its source | In progress as [#1858](https://github.com/dlrivada/Encina/issues/1858) |
+| 3 | Keep option A of the #1441 research as a safety net: an MTP `ITestSessionLifetimeHandler` in `Encina.UnitTests`, active only when `STRYKER_MUTANT_FILE` is set, that exits at session start above a private-memory threshold so Stryker reruns the mutant on a fresh server | Bounds cause (b) | Implemented in phase 2f (see 6.7) |
+| 4 | Comment on stryker-net#3742 with these figures | Gives upstream the evidence | Open |
+
+A fresh server's first run is 2-3x slower than a warm one (70-122 s against 31-44 s locally), so recycling should be rare, not per mutant. The threshold chosen after the CI verification (6.7, "First CI verification") trades against this: at 4096 MB recycles were frequent (see "Second CI verification"), so the threshold is now 4608 MB.
+
+### 6.7 Phase 2f: test server recycler
+
+The recycler is the safety net of step 3. It ends the test server when its private memory is too high, so that Stryker reruns the mutant on a fresh server.
+
+#### Implementation
+
+| Item | Detail |
+| --- | --- |
+| Files | `tests/Encina.UnitTests/TestHost/StrykerServerRecycleBuilderHook.cs` and `tests/Encina.UnitTests/TestHost/StrykerServerRecycler.cs` |
+| Registration | A `TestingPlatformBuilderHook` item in `tests/Encina.UnitTests/Encina.UnitTests.csproj`, so the generated `SelfRegisteredExtensions` calls it. The xunit.v3 generated entry point uses Microsoft.Testing.Platform (1.9.1) only for `--server`, which is how Stryker starts the test server; other runs use xUnit's console runner and never reach the hook. |
+| Activation | Registers an `ITestSessionLifetimeHandler` only when `STRYKER_MUTANT_FILE` is set (Stryker sets it on every test server it starts) |
+| Trigger | At the start of each test session after the first one in the process, if `Process.PrivateMemorySize64` is above `ENCINA_MTP_RECYCLE_MB` (default 4608 MB, `StrykerServerRecycler.DefaultThresholdMb`; it was 6144 MB, then 4096 MB, see "Second CI verification") |
+| Action | Writes one line starting with `[encina-mtp-recycle]` and kills its own process with `Process.Kill`, not `Environment.Exit`, so no `ProcessExit` handler can delay the exit |
+| First session | Never recycles, so the fresh server of the retry cannot be ended by the hook |
+| Metric | `PrivateMemorySize64` is private bytes on Windows and `VmData` on Linux (dotnet/runtime `ProcessManager.Linux.cs`: `PrivateBytes = (long)procFsStatus.VmData`), the same metric as the 6.2 measurements |
+| Log | Stryker 5.0.0 sends the test server's stdout and stderr to `Stream.Null` unless `--log-to-file` is set, so the line is also appended to the file named by `ENCINA_MTP_RECYCLE_LOG` when that variable is set. Stryker itself logs the recycle only at debug level, as "Test run for Encina.UnitTests.dll failed on attempt 1/2; discarding crashed server". |
+
+#### Why the mutant's verdict is unaffected
+
+All links pin Stryker.NET 5.0.0 at commit `6e77a3451bac4793e9c839c3ff4055c1b30ca3af`.
+
+- [`RunAssemblyTestsInternalAsync`](https://github.com/stryker-mutator/stryker-net/blob/6e77a3451bac4793e9c839c3ff4055c1b30ca3af/src/Stryker.TestRunner.MicrosoftTestPlatform/MicrosoftTestingPlatformRunner.cs#L1184-L1244) runs up to two attempts. Any exception from the run discards the server and retries on a fresh one; only when both attempts fail does the mutant become RuntimeError.
+- [A host that exits during the run](https://github.com/stryker-mutator/stryker-net/blob/6e77a3451bac4793e9c839c3ff4055c1b30ca3af/src/Stryker.TestRunner.MicrosoftTestPlatform/AssemblyTestServer.cs#L134-L197) surfaces as an exception (the JSON-RPC connection is lost, or `ThrowIfHostCrashed` throws), never as a timeout or a result.
+- [The retry starts a new server without rediscovering tests](https://github.com/stryker-mutator/stryker-net/blob/6e77a3451bac4793e9c839c3ff4055c1b30ca3af/src/Stryker.TestRunner.MicrosoftTestPlatform/MicrosoftTestingPlatformRunner.cs#L773-L814), so its run is that process's first session.
+- [The active mutant id stays in the memory-mapped file](https://github.com/stryker-mutator/stryker-net/blob/6e77a3451bac4793e9c839c3ff4055c1b30ca3af/src/Stryker.TestRunner.MicrosoftTestPlatform/MicrosoftTestingPlatformRunner.cs#L131-L157), so the fresh server activates the same mutant.
+- The hook ends the process at session start, before any test runs, so the first attempt reports no test result.
+
+#### Measured
+
+Measured on 2026-10-05 on Windows, Debug build, Stryker 5.0.0 at concurrency 1 with coverage analysis off, scope `**/Sharding/ReplicaSelection/RoundRobinShardReplicaSelector.cs{874..1005}`. The scope holds two mutants: 4377 (statement removal) and 4378 (string mutation).
+
+| Run | `ENCINA_MTP_RECYCLE_MB` | Recycles | 4377 | 4378 | Wall time |
+| --- | --- | --- | --- | --- | --- |
+| Hook never recycles | 1000000 | 0 | Killed | Survived | 676 s |
+| Hook on | 3000 | 0 (private memory was below 3000 MB at session 2) | Killed | Survived | 568 s |
+| Hook on | 1000 | 1 | Killed | Survived | 552 s |
+| Hook on | 3000 | 1 | Killed | Killed by an unrelated test (see below) | 696 s |
+
+- No mutant was RuntimeError or Timeout in any run; 4377 was killed by the same test in every run.
+- The odd kill in the last row came from `EncinaFakerTests.RecentUtc_ShouldReturnUtcDate`, which fails at random outside UTC because `RecentUtc` labels a local time as UTC (`src/Encina.Testing.Bogus/EncinaFaker.cs` line 224, `DateTime.SpecifyKind(date.Recent(days), DateTimeKind.Utc)`). It is a test-helper bug unrelated to the hook (follow-up issue to be opened). CI runs in UTC, where it does not fail.
+- Mutant 4378 took 43 s on the warm server and 62 s when retried on a fresh one; the test-run timeout was about 116-129 s.
+- A server-mode check of the whole unit suite (JSON-RPC harness, `STRYKER_MUTANT_FILE` set, threshold 3000 MB): run 1 completed with 22,382 tests passed and 1 skipped at 5,016 MB private memory; run 2's request ended 0.8 s later with the server gone, zero test updates and the `[encina-mtp-recycle]` line. Without `STRYKER_MUTANT_FILE` (threshold 100 MB), three runs completed with no line.
+
+#### First CI verification
+
+Measured on 2026-10-06 (the figures below are read from the run's Stryker report and the local report, not typed from a dashboard). CI run 37371127806 (attempt 2) ran the custom scope `**/Dispatchers/Strategies/*.cs` with `ENCINA_MTP_RECYCLE_MB` 6144. Its report: Killed 40, Survived 22, Timeout 2, CompileError 16, Ignored 29 (109 mutants), score 65.62 %.
+
+| Criterion | Result | Evidence |
+| --- | --- | --- |
+| No RuntimeError | Met | None in the report |
+| Every "failed on attempt 1/2" is followed by a verdict for that mutant | Met | 7 crashes (mutants 712, 731, 739, 746, 773, 788, 816), each the recycle hook exiting 1-2 s after the mutant id was written; the retry on a fresh server logged the verdict about 65 s later. 712, 773, 788 and 816 Killed; 731, 739 and 746 Survived |
+| cgroup peak below 12 GiB | Not met | `cg_peak` reached 12288 MB, equal to `memory.max`, right after the 773 recycle; `oom_kill` stayed 0 |
+| Same kill set as a reference | Met | See the local reference below |
+
+The hook recycled at 6.3-7.6 GB of private memory while the replacement server, Stryker and the page cache share the cgroup. That attribution is a hypothesis; the `cg_ev_max` counter added to the telemetry (see the [mutation methodology](../testing/mutation-measurement-methodology.md)) confirms or refutes it.
+
+Local reference: Windows, concurrency 1, hook disabled with `ENCINA_MTP_RECYCLE_MB=999999999`, the same mutate globs and exclusions as CI, Stryker 5.0.0 MTP, 43 min, score 65.62 %. Compared by mutant id, with file, mutator, location and replacement, both sides have 109 mutants and 107 have the same status (Killed 39, Survived 21, Timeout 2, CompileError 16, Ignored 29 among those 107; the local totals, with the two differences below, are Killed 40 and Survived 22). The recycled mutants match: 712, 773, 788 and 816 Killed, 731, 739 and 746 Survived on both sides. The two differences are not recycled mutants:
+
+| Mutant | Location | CI | Local | Killing test |
+| --- | --- | --- | --- | --- |
+| 722 | `ParallelDispatchStrategy.cs`, Conditional (false) mutation, 46:20-48:96 | Survived | Killed | `Marten.GDPR.CryptoShreddedPropertyCacheTests.ClearCache_RemovesAllEntries` |
+| 802 | `ParallelWhenAllDispatchStrategy.cs`, Object initializer mutation, 135:47-140:10 | Killed | Survived | `Security.Secrets.SecretsMetricsTests.RecordGetSecret_RecordsDuration` |
+
+Both are kills by one test unrelated to the mutated code (shared static state or timing under parallel dispatch), so they depend on the runner, not on the recycle. The recycle does not change the verdicts: criterion 4 is met.
+
+New threshold: `ENCINA_MTP_RECYCLE_MB` and `StrykerServerRecycler.DefaultThresholdMb` go from 6144 to 4096 MB, so that the cgroup peak is expected to stay below `memory.max`; this has not run in CI yet. The cost is stated under Limits: the idle private memory after runs 1-4 on Linux with the `MALLOC_*` thresholds is 3,956 / 4,205 / 4,420 / 4,670 MB (6.2), so 4096 MB is expected to recycle roughly every other mutant. A fresh server's first session never recycles, so a lower threshold cannot cause RuntimeError.
+
+#### Second CI verification
+
+CI run 37454364141 ran the same custom scope at 4096 MB.
+
+| Measure | 6144 MB (run 37371127806) | 4096 MB (run 37454364141) |
+| --- | --- | --- |
+| cgroup peak | 12288 MB (hit `memory.max`) | 11487 MB |
+| `cg_ev_max` / high / `oom_kill` | `oom_kill` 0 | 0 / 0 / 0 |
+| Recycles | 7 | 24 |
+| Seconds per mutant | not compared | warm 52.8 s, recycled 101 s |
+| Outcome | completed | timed out at 87 min after 55 of 64 testable mutants (about 92 min projected) |
+
+4096 MB fixes the memory cap but recycles so often that the shard overruns its timeout. The new choice is 4608 MB (`ENCINA_MTP_RECYCLE_MB` and `StrykerServerRecycler.DefaultThresholdMb`), with a projected peak of about 12.0 GB. Because runner speed varied about 1.3x between two runs of the same scope, a custom scope's timeout is now `max(timeout * 1.3, 110)` minutes, capped at the 340-minute workflow ceiling; the scheduled shards' `TIMEOUTS` are unchanged. The 4608 MB threshold has not run in CI yet.
+
+#### Limits
+
+- The Linux behaviour (SIGKILL on itself, the `VmData` reading) is confirmed by run 37371127806 at 6144 MB and run 37454364141 at 4096 MB; the 4608 MB threshold has not run in CI yet.
+- The retry is a cold run with the timeout computed from the initial run. The initial run is itself cold and mutant 1 after the pool reset always runs cold, so the margin is the same as for every first mutant, but a slower runner narrows it.
+- Without the two `MALLOC_*` thresholds, private memory after one run is about 7.3 GB on Linux (6.2), above the 4,608 MB default, so every mutant after the first on a server would recycle: correct but slower.
+- Even with the thresholds, the 4,096 MB default sits below the idle private memory after runs 2-4, so recycles are frequent, not rare, and cold runs are 2-3x slower than warm ones. The mutation workflow's timeouts are still provisional; the next CI run must report seconds per mutant before they are set.
+- Remove the hook once Stryker can recycle the server ([stryker-net#3742](https://github.com/stryker-mutator/stryker-net/issues/3742)) or #1858 removes the growth and a custom-shard run confirms it.
+
 ## See also
 
 - [Stryker.NET and xUnit v3: status for Encina 1.0](Stryker-xUnit-v3.md) - the status note this spike updates.

@@ -295,5 +295,35 @@ public sealed class ParallelWhenAllDispatchStrategyTests
         details["notification"].ShouldBe(nameof(TestNotification));
     }
 
+    [Fact]
+    public async Task DispatchAsync_AggregateError_ErrorsEntriesCarryHandlerCodeAndMessage()
+    {
+        var strategy = new ParallelWhenAllDispatchStrategy();
+        var handlers = new object[] { new TestHandler("Handler1"), new TestHandler("Handler2") };
+
+        var result = await strategy.DispatchAsync(
+            handlers,
+            new TestNotification(10),
+            (h, _, _) => Task.FromResult(Left<EncinaError, Unit>(
+                EncinaErrors.Create("test.error", $"Error from {((TestHandler)h).Name}"))),
+            CancellationToken.None);
+
+        var error = result.LeftAsEnumerable().First();
+        var details = error.GetEncinaDetails();
+        var entries = details["errors"].ShouldBeAssignableTo<List<Dictionary<string, object?>>>()!;
+
+        entries.Count.ShouldBe(2);
+        foreach (var entry in entries)
+        {
+            entry.Count.ShouldBe(3);
+            entry["handler"].ShouldBe(typeof(TestHandler).FullName);
+            entry["code"].ShouldBe("test.error");
+        }
+
+        entries.Select(e => e["message"]).ShouldBe(
+            new object?[] { "Error from Handler1", "Error from Handler2" },
+            ignoreOrder: true);
+    }
+
     private sealed record TestHandler(string Name);
 }
