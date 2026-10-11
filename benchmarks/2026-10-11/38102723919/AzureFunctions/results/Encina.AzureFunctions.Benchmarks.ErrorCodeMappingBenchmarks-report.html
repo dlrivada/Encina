@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.AzureFunctions.Benchmarks.ErrorCodeMappingBenchmarks-20261011-022310</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon 6973P-C 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  DefaultJob : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  MediumRun  : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                   </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>MapAuthorizationUnauthenticated</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>10.524 ns</td><td>0.2185 ns</td><td>0.1706 ns</td><td>10.478 ns</td><td>1.40</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationForbidden</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>11.640 ns</td><td>0.0932 ns</td><td>0.0826 ns</td><td>11.675 ns</td><td>1.55</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>MapConflictError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>8.385 ns</td><td>0.0103 ns</td><td>0.0092 ns</td><td>8.383 ns</td><td>1.11</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapUnknownError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>9.223 ns</td><td>0.0113 ns</td><td>0.0105 ns</td><td>9.223 ns</td><td>1.23</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMultipleValidationErrors</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>38.180 ns</td><td>0.0651 ns</td><td>0.0577 ns</td><td>38.176 ns</td><td>5.07</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMixedErrors</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>46.814 ns</td><td>0.0597 ns</td><td>0.0499 ns</td><td>46.799 ns</td><td>6.22</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>MapValidationError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>7.529 ns</td><td>0.0272 ns</td><td>0.0241 ns</td><td>7.525 ns</td><td>1.00</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapNotFoundError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>8.143 ns</td><td>0.0097 ns</td><td>0.0091 ns</td><td>8.144 ns</td><td>1.08</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationUnauthenticated</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>10.540 ns</td><td>0.0106 ns</td><td>0.0145 ns</td><td>10.538 ns</td><td>1.35</td><td>0.08</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationForbidden</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>11.769 ns</td><td>0.1611 ns</td><td>0.2205 ns</td><td>11.726 ns</td><td>1.51</td><td>0.10</td><td>-</td><td>NA</td>
+</tr><tr><td>MapConflictError</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>8.587 ns</td><td>0.0044 ns</td><td>0.0060 ns</td><td>8.586 ns</td><td>1.10</td><td>0.07</td><td>-</td><td>NA</td>
+</tr><tr><td>MapUnknownError</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>9.335 ns</td><td>0.0092 ns</td><td>0.0135 ns</td><td>9.340 ns</td><td>1.20</td><td>0.07</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMultipleValidationErrors</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>38.192 ns</td><td>0.0427 ns</td><td>0.0626 ns</td><td>38.197 ns</td><td>4.89</td><td>0.30</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMixedErrors</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>46.682 ns</td><td>0.1214 ns</td><td>0.1779 ns</td><td>46.773 ns</td><td>5.98</td><td>0.36</td><td>-</td><td>NA</td>
+</tr><tr><td>MapValidationError</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>7.834 ns</td><td>0.3600 ns</td><td>0.5388 ns</td><td>7.597 ns</td><td>1.00</td><td>0.09</td><td>-</td><td>NA</td>
+</tr><tr><td>MapNotFoundError</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>8.572 ns</td><td>0.3672 ns</td><td>0.5267 ns</td><td>8.354 ns</td><td>1.10</td><td>0.09</td><td>-</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>
