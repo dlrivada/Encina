@@ -228,7 +228,8 @@ exit 0
     Write-Text (Join-Path $remDir 'opened.csv') "10-code-1-widget-retry.md,https://github.com/dlrivada/Encina/issues/6001`n"
     $r = Invoke-Script 'open-remediation.ps1' @('-Issue', '12')
     Assert-That 'open-remediation of #12 refuses a draft that duplicates an opened draft of the concurrent audit #10 (exit code)' ($r.Exit -ne 0) "exit $($r.Exit)"
-    Assert-That 'the refusal names both drafts and the opened issue' (($r.Text -replace '[\s|]+', '') -like '*12-code-2-widget-retry.mdduplicates10-code-1-widget-retry.mdoftheconcurrentaudit#10*issues/6001*') $r.Text
+    # The CI runner renders the error record with ANSI colour codes; strip them and the wrap gutter before comparing.
+    Assert-That 'the refusal names both drafts and the opened issue' (($r.Text -replace '\x1b\[[0-9;]*m', '' -replace '[\s|]+', '') -like '*12-code-2-widget-retry.mdduplicates10-code-1-widget-retry.mdoftheconcurrentaudit#10*issues/6001*') $r.Text
     Assert-That 'the refusal opens nothing' (-not ($r.Log | Where-Object { $_ -like 'gh issue create*' })) ($r.Log -join ' || ')
     Remove-Item -Force (Join-Path $remDir 'opened.csv')
     $r = Invoke-Script 'open-remediation.ps1' @('-Issue', '12')
