@@ -60,7 +60,7 @@ Parameters:
 board's db collections `work/<id>`, `flow/<issue>`, `audits/<n>` and
 `meta/board` up to date from GitHub (open PRs, PRs merged in the last 14 days with `Fixes #n`, closed
 issues), the git worktrees (commits ahead of `origin/main`) and, in the **main** checkout,
-`artifacts/knowledge/current-audit.json` and `progress.csv`. It is deterministic (no model), only
+`artifacts/knowledge/open-audits/<n>.json` (one per open audit; a not-yet-converted `current-audit.json` is read too) and `progress.csv`. It is deterministic (no model), only
 reads and emits `ArtifactData` batch writes (it never applies them), never deletes a document and
 never touches `dash/*`, `stats/*`, `gates/*` or `prio/*`.
 
@@ -123,9 +123,9 @@ DRY-RUN: 2 documents drift (0 would be skipped), nothing written
 ### Deviation from #1732
 
 The issue says audits come from "archived stage files". The reconciler derives them instead from
-`artifacts/knowledge/progress.csv` and `current-audit.json` (`Get-BoardFacts` in `reconcile-board.ps1`).
+`artifacts/knowledge/progress.csv` and the `open-audits/<n>.json` files (`Get-BoardFacts` in `reconcile-board.ps1`).
 `progress.csv` is the audit queue's status record, written by the audit scripts (`audit-done.ps1`
-appends a `done` row when an audit completes), and `current-audit.json` marks the open audit. The
+appends a `done` row when an audit completes), and each `open-audits/<n>.json` marks an open audit (several may be open at once). The
 stage files are archived per audit and do not carry a single status, so they cannot say whether an
 audit is open or closed.
 
@@ -160,8 +160,8 @@ New documents carry no version.
 | Open, non-bot PR that closes an issue and has no card | New card (id = the issue number). |
 | `progress.csv` row `done` | Audit `closed` / `done`. |
 | Audit missing from the board | Created. |
-| Audit in `current-audit.json` | Audit `open`. |
-| `meta/board` status | Regenerated: open audit, open PRs, PRs merged in the last 48 hours (capped at 12), card counts. Hand-written text after ` Notes: ` is preserved. On the first run an existing hand-written status that is not a generated one moves, whole, behind ` Notes: ` automatically. |
+| Audit with an `open-audits/<n>.json` (or in a not-yet-converted `current-audit.json`) | Audit `open`. |
+| `meta/board` status | Regenerated: open audits ("Audits #a #b open." when several), open PRs, PRs merged in the last 48 hours (capped at 12), card counts. Hand-written text after ` Notes: ` is preserved. On the first run an existing hand-written status that is not a generated one moves, whole, behind ` Notes: ` automatically. |
 
 The reconciler is idempotent: a second run on a reconciled board writes nothing.
 
@@ -175,7 +175,7 @@ The reconciler is idempotent: a second run on a reconciled board writes nothing.
 
 4. Audits created by the reconciler take outcome and pipeline only from progress.csv columns of those names (otherwise null) and the counts go in the note; nothing is invented.
 
-5. meta/board.current is cleared (null) when no audit is open.
+5. meta/board.current is the lowest open audit and meta/board.openAudits lists all open audits; both are cleared (null, empty) when no audit is open.
 
 6. Safety: the run aborts with an error and writes no batch file if the export lacks work/, flow/, audits/ or meta/board.json, or the versions sidecar is missing; list all four collections fully before running, so that an incomplete export can never make an existing document look new (a `set` is unpinned).
 

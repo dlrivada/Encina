@@ -1,7 +1,8 @@
 # PreToolUse hook (Agent|Task), wired unconditionally in the project .claude/settings.json (#1345): enforces
-# the SPEC-003 audit pipeline discipline — one audit open at a time, one issue per stage spawn, stages run
-# in the fixed order of tools/ai/audit/pipeline.json (never hard-coded here), no model below Sonnet, and the
-# old free-form coordinator path is closed.
+# the SPEC-003 audit pipeline discipline — one issue per stage spawn, stages run in the fixed order of
+# tools/ai/audit/pipeline.json (never hard-coded here) separately for every open audit, no model below Sonnet,
+# and the old free-form coordinator path is closed. Several audits may be open at once (#2234, pipeline.json
+# maxParallelAudits); each keeps its own order, verifier loop and exceptions, decided from its own worktree.
 #
 # Applies when the spawned subagent_type is one of the audit-stage agents (issue-archivist, issue-auditor,
 # test-auditor, remediation-drafter (#1572), audit-verifier), or docs-reviewer when its prompt names an audit
@@ -10,9 +11,12 @@
 # named, is not an audit stage and is left alone.
 #
 # Denies when:
-#   - no audit is open (artifacts/knowledge/current-audit.json, resolved from the MAIN checkout, is missing);
-#   - the prompt does not name both the open issue (#<n>) and its worktree (wia-<n>);
-#   - the prompt also names a DIFFERENT wia-<m> (batching issues into one spawn, #1345's founding failure);
+#   - no audit is open (no state file under artifacts/knowledge/open-audits/ of the MAIN checkout, and no
+#     pre-#2234 current-audit.json), or a state file cannot be read (fail closed);
+#   - the prompt names no audit worktree wia-<n>, or names several (batching issues into one spawn, #1345's
+#     founding failure);
+#   - the one wia-<n> it names is not an open audit, or the prompt does not also name the issue #<n>;
+#   (every check below then applies to THAT audit: its own worktree, pipeline file and stage order, #2234)
 #   - the requested model is one of pipeline.json's forbiddenModels (haiku);
 #   - the subagent is not the stage tools/ai/audit/pipeline.json (via Get-NextStage) reports as next —
 #     except: after the verifier's last verdict was FAIL, any stage may be re-run out of order; (#1457)
@@ -29,7 +33,7 @@
 # only way to run the audit now. Mentioning the audit by name alone does not deny, so a brief that works on
 # the audit tooling is allowed (#1744).
 #
-# Delta audits (#1763): when current-audit.json has `mode = 'delta'`, the pipeline file read is
+# Delta audits (#1763): when the audit's state file has `mode = 'delta'`, the pipeline file read is
 # tools/ai/audit/pipeline-delta.json (docs -> tests -> remediation -> verification), only its agents may be
 # spawned and the prompt must carry the delta marker (pipeline-delta.json `delta.promptMarker`).
 #
@@ -81,29 +85,43 @@ try {
     $marker = [IO.Path]::DirectorySeparatorChar + '.claude' + [IO.Path]::DirectorySeparatorChar + 'worktrees' + [IO.Path]::DirectorySeparatorChar
     $at = $mainRoot.IndexOf($marker, [StringComparison]::OrdinalIgnoreCase)
     if ($at -ge 0) { $mainRoot = $mainRoot.Substring(0, $at) }
-    $currentAuditPath = Join-Path $mainRoot 'artifacts\knowledge\current-audit.json'
 
-    if (-not (Test-Path -LiteralPath $currentAuditPath)) {
-        [Console]::Error.WriteLine('Blocked: no open SPEC-003 audit (artifacts/knowledge/current-audit.json not found). Run tools/ai/audit/audit-next.ps1 first (#1345).')
+    # #2234: several audits may be open at once, each with its own state file (artifacts/knowledge/open-audits/
+    # <n>.json, or the pre-#2234 current-audit.json until a script converts it). The prompt names the audit: the
+    # one worktree wia-<n> it mentions decides which open audit this spawn belongs to.
+    . (Join-Path $PSScriptRoot '_open-audits.ps1')
+    $open = Get-HookOpenAudits $mainRoot
+    if ($open.Unreadable.Count -gt 0) {
+        [Console]::Error.WriteLine("Blocked: the open-audit state cannot be read ($($open.Unreadable -join ', ') under artifacts/knowledge/), so this audit-stage spawn cannot be checked; repair or remove the file first (#2234, fail closed).")
         exit 2
     }
-    $audit = Get-Content -LiteralPath $currentAuditPath -Raw | ConvertFrom-Json
-    $n = [string]$audit.issue
+    if ($open.Audits.Count -eq 0) {
+        [Console]::Error.WriteLine('Blocked: no open SPEC-003 audit (artifacts/knowledge/open-audits/ has no state file). Run tools/ai/audit/audit-next.ps1 first (#1345).')
+        exit 2
+    }
+    $openList = (@($open.Audits) | ForEach-Object { "#$($_.issue) (wia-$($_.issue))" }) -join ', '
+    $namedWia = Get-WiaNumbers $prompt
+    if ($namedWia.Count -eq 0) {
+        [Console]::Error.WriteLine("Blocked: this audit-stage prompt names no audit worktree (wia-<n>); open audits: $openList. Name the issue and its worktree explicitly in every specialist spawn (#1345, #1190, #2234).")
+        exit 2
+    }
+    if ($namedWia.Count -gt 1) {
+        [Console]::Error.WriteLine("Blocked: this prompt names several audit worktrees (wia-$($namedWia -join ', wia-')); one stage spawn serves exactly one audit (#1345, #2234). Batching issues into one spawn is the exact failure this pipeline closes; spawn one agent per audit.")
+        exit 2
+    }
+    $n = $namedWia[0]
+    $audit = Get-HookAuditByIssue $open.Audits $n
+    if ($null -eq $audit) {
+        [Console]::Error.WriteLine("Blocked: the prompt names wia-$n, but #$n is not an open SPEC-003 audit (open: $openList). Start it with tools/ai/audit/audit-next.ps1 first (#1345, #2234).")
+        exit 2
+    }
     $wt = [string]$audit.worktree
-
-    $mentionsIssue = $prompt -match "#$n(\D|$)"
-    $mentionsWorktree = $prompt -match "wia-$n(\D|$)"
-    if (-not $mentionsIssue -or -not $mentionsWorktree) {
-        [Console]::Error.WriteLine("Blocked: the open SPEC-003 audit is issue #$n, worktree wia-$n, but this prompt does not name both. Name the worktree explicitly in every specialist spawn (#1345, #1190).")
-        exit 2
-    }
-    $otherWia = @([regex]::Matches($prompt, 'wia-(?<n>\d+)') | ForEach-Object { $_.Groups['n'].Value } | Where-Object { $_ -ne $n } | Select-Object -Unique)
-    if ($otherWia.Count -gt 0) {
-        [Console]::Error.WriteLine("Blocked: this prompt also mentions wia-$($otherWia -join ', wia-'), but only issue #$n is open right now (#1345). Batching issues into one spawn is the exact failure this pipeline closes.")
+    if ($prompt -notmatch "#$n(\D|$)") {
+        [Console]::Error.WriteLine("Blocked: the prompt names worktree wia-$n but not the issue #$n; name both explicitly in every specialist spawn (#1345, #1190).")
         exit 2
     }
 
-    # #1763: a delta audit (current-audit.json `mode = 'delta'`) runs tools/ai/audit/pipeline-delta.json instead
+    # #1763: a delta audit (its state file has `mode = 'delta'`) runs tools/ai/audit/pipeline-delta.json instead
     # of pipeline.json; the same file decides the order and the agent of every stage. Inlined on purpose (this
     # hook depends on nothing but the pipeline file), same decision as _audit-lib.ps1's Get-AuditPipelineFile.
     $deltaMode = ($null -ne $audit.PSObject.Properties['mode']) -and ([string]$audit.mode -eq 'delta')

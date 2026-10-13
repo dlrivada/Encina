@@ -13,7 +13,8 @@
 #                a new document needs no version. The run still exits 0 so the other writes can be applied.
 #   gh / git     open PRs (head branch, number, "Fixes #n" issues), PRs merged in the last 14 days, closed
 #                issues, `git worktree list` (+ commits ahead of origin/main), and in the MAIN checkout
-#                artifacts/knowledge/current-audit.json and progress.csv.
+#                artifacts/knowledge/open-audits/<n>.json (one per open audit, #2234; a pre-#2234
+#                current-audit.json is read too until the audit scripts convert it) and progress.csv.
 # Output
 #   -Out         a JSON array of writes [{op, collection, doc_id, if_version?, data}], only for documents
 #                whose data differ, at most 50 per file (-Out itself when it fits, else <name>-001.json,
@@ -27,8 +28,8 @@
 # Rules (see tools/ai/board/README.md): work card or flow front with a merged PR -> merged / done with the
 # merge time; open PR -> pr-open / in-progress review; a worktree with commits ahead of main and no PR ->
 # running; a running worker card with no worktree and no PR -> stopped with a note; an open PR that closes an
-# issue and has no card -> new card; audits from current-audit.json and progress.csv; meta/board.status
-# regenerated. Documents are never deleted; other collections (dash/*, stats/*, gates/*, prio/*) are never
+# issue and has no card -> new card; audits from the open-audit state files and progress.csv; meta/board.status
+# regenerated (meta/board.current is the lowest open audit, meta/board.openAudits all of them). Documents are never deleted; other collections (dash/*, stats/*, gates/*, prio/*) are never
 # touched. Dot-sourcing this file (`. reconcile-board.ps1`) defines the functions without running.
 
 param(
@@ -173,16 +174,34 @@ function Get-BoardFacts($Docs, [string]$Repo, [string]$MainRoot, [datetime]$Now,
     }
     $worktrees = $script:worktreeList
 
-    # Audits: the open one, and the history.
+    # Audits: the open ones (#2234: artifacts/knowledge/open-audits/<n>.json, one per open audit, plus a pre-#2234
+    # current-audit.json not converted yet), and the history.
     $kn = Join-Path $MainRoot 'artifacts' 'knowledge'
-    $current = $null
+    $openAudits = [System.Collections.Generic.List[object]]::new()
+    $openFiles = @()
+    $od = Join-Path $kn 'open-audits'
+    if (Test-Path -LiteralPath $od) { $openFiles += @(Get-ChildItem -LiteralPath $od -Filter '*.json' -File | Sort-Object Name | ForEach-Object { $_.FullName }) }
     $cp = Join-Path $kn 'current-audit.json'
-    if (Test-Path -LiteralPath $cp) { $current = Get-Content -LiteralPath $cp -Raw | ConvertFrom-Json -AsHashtable }
+    if (Test-Path -LiteralPath $cp) { $openFiles += $cp }
+    foreach ($file in $openFiles) {
+        # A corrupt state file, or one without a positive issue number, is skipped with a warning on stderr: it
+        # must neither abort the whole reconciliation nor create an audits/0 document (CodeRabbit on PR #2243).
+        $state = $null
+        try { $state = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json -AsHashtable } catch { $state = $null }
+        $issueNumber = 0
+        if ($state -isnot [hashtable] -or -not [int]::TryParse([string]$state['issue'], [ref]$issueNumber) -or $issueNumber -le 0) {
+            [Console]::Error.WriteLine("reconcile-board: skipped the open-audit state file $file (unreadable JSON or no positive issue number).")
+            continue
+        }
+        $state['issue'] = $issueNumber
+        if (-not @($openAudits | Where-Object { [int]$_.issue -eq $issueNumber }).Count) { $openAudits.Add($state) }
+    }
+    $openAudits = @($openAudits | Sort-Object { [int]$_.issue })
     $progress = @()
     $pp = Join-Path $kn 'progress.csv'
     if (Test-Path -LiteralPath $pp) { $progress = @(Import-Csv -LiteralPath $pp) }
     $titles = @{}
-    $needTitle = @(@($progress | Where-Object { $_.status -eq 'done' } | ForEach-Object { [int]$_.issue }) + @($(if ($current) { [int]$current.issue })) |
+    $needTitle = @(@($progress | Where-Object { $_.status -eq 'done' } | ForEach-Object { [int]$_.issue }) + @($openAudits | ForEach-Object { [int]$_.issue }) |
             Where-Object { $_ -and -not $Docs.ContainsKey("audits/$_") } | Select-Object -Unique)
     foreach ($n in $needTitle) {
         $t = (Invoke-GhJson @('issue', 'view', "$n", '--repo', $Repo, '--json', 'title'))[0]
@@ -191,7 +210,7 @@ function Get-BoardFacts($Docs, [string]$Repo, [string]$MainRoot, [datetime]$Now,
 
     return @{
         OpenPrs = $open; MergedPrs = $merged; ExtraPrs = $extra; ClosedIssues = $closedIssues
-        Worktrees = $worktrees; CurrentAudit = $current; Progress = $progress; Titles = $titles
+        Worktrees = $worktrees; OpenAudits = $openAudits; Progress = $progress; Titles = $titles
     }
 }
 
@@ -322,13 +341,18 @@ function Update-Audit($Data, [string]$Id, $Facts) {
     return $a
 }
 
+# The open audit numbered $N (#2234: several may be open), or $null.
+function Get-FactsOpenAudit($Facts, [int]$N) {
+    return @($Facts.OpenAudits | Where-Object { [int]$_.issue -eq $N }) | Select-Object -First 1
+}
+
 function New-Audit([string]$Id, $Facts, [bool]$IsOpen) {
     $row = $Facts.Progress | Where-Object { [string]$_.issue -eq $Id } | Select-Object -First 1
     $title = if ($Facts.Titles.ContainsKey($Id)) { $Facts.Titles[$Id] } else { "Audit #$Id" }
     # Nothing is invented: outcome and pipeline come from progress.csv columns of those names, else stay null.
     $columns = if ($row) { @($row.PSObject.Properties.Name) } else { @() }
     $a = @{ issue = [int]$Id; title = $title; opened = @(); outcome = $(if ('outcome' -in $columns) { $row.outcome } else { $null }); pipeline = $(if ('pipeline' -in $columns) { $row.pipeline } else { $null }); note = ''; blockedBy = @() }
-    if ($IsOpen) { $a.status = 'open'; $a.stage = 'running'; $a.verdict = $null; $a.openedUtc = [string]$Facts.CurrentAudit.startedUtc }
+    if ($IsOpen) { $a.status = 'open'; $a.stage = 'running'; $a.verdict = $null; $a.openedUtc = [string](Get-FactsOpenAudit $Facts ([int]$Id)).startedUtc }
     else {
         $a.status = 'closed'; $a.stage = 'done'
         $counts = "progress.csv: blockers $($row.findings_blocker), majors $($row.findings_major), minors $($row.findings_minor), remediation issues opened $($row.remediation_opened)."
@@ -338,7 +362,8 @@ function New-Audit([string]$Id, $Facts, [bool]$IsOpen) {
 }
 
 function Get-StatusText($Cards, $Facts, [string]$Existing, [datetime]$Now) {
-    $audit = if ($Facts.CurrentAudit) { "Audit #$($Facts.CurrentAudit.issue) open." } else {
+    $openIds = @($Facts.OpenAudits | ForEach-Object { "#$([int]$_.issue)" })
+    $audit = if ($openIds.Count -eq 1) { "Audit $($openIds[0]) open." } elseif ($openIds.Count -gt 1) { "Audits $($openIds -join ' ') open." } else {
         $last = @($Facts.Progress | Where-Object { $_.status -eq 'done' } | ForEach-Object { [int]$_.issue } | Sort-Object)[-1]
         "No audit open$(if ($last) { " (last closed: #$last)" })." }
     $prs = @($Facts.OpenPrs | Sort-Object { $_.number } | ForEach-Object { "#$($_.number)$(if ($_.isDraft) { ' (draft)' })" })
@@ -390,13 +415,14 @@ function Get-BoardChanges($Docs, $Facts, [datetime]$Now) {
     $auditIds = [System.Collections.Generic.SortedSet[int]]::new()
     foreach ($d in $Docs.Values | Where-Object { $_.Collection -eq 'audits' }) { [void]$auditIds.Add([int]$d.Id) }
     foreach ($r in $Facts.Progress | Where-Object { $_.status -eq 'done' }) { [void]$auditIds.Add([int]$r.issue) }
-    if ($Facts.CurrentAudit) { [void]$auditIds.Add([int]$Facts.CurrentAudit.issue) }
+    foreach ($o in @($Facts.OpenAudits)) { [void]$auditIds.Add([int]$o.issue) }
     foreach ($n in $auditIds) {
         $id = [string]$n
-        $isOpen = $Facts.CurrentAudit -and [int]$Facts.CurrentAudit.issue -eq $n
+        $openAudit = Get-FactsOpenAudit $Facts $n
+        $isOpen = $null -ne $openAudit
         if ($Docs.ContainsKey("audits/$id")) {
             $a = Update-Audit $Docs["audits/$id"].Data $id $Facts
-            if ($isOpen -and $a.status -ne 'open') { $a.status = 'open'; $a.stage = 'running'; $a.openedUtc = [string]$Facts.CurrentAudit.startedUtc }
+            if ($isOpen -and $a.status -ne 'open') { $a.status = 'open'; $a.stage = 'running'; $a.openedUtc = [string]$openAudit.startedUtc }
             & $add 'audits' $id $a $Docs["audits/$id"].Data
         }
         else { & $add 'audits' $id (New-Audit $id $Facts $isOpen) $null }
@@ -405,7 +431,10 @@ function Get-BoardChanges($Docs, $Facts, [datetime]$Now) {
         $m = Copy-Data $Docs['meta/board'].Data
         $status = Get-StatusText $cards.Values $Facts ([string]$m.status) $Now
         if ($status -ne [string]$m.status) { $m.status = $status; $m.updatedUtc = $nowText }
-        $m.current = $(if ($Facts.CurrentAudit) { [int]$Facts.CurrentAudit.issue } else { $null })
+        # #2234: `current` keeps the lowest open audit for the existing board view; `openAudits` lists them all.
+        $openNumbers = @($Facts.OpenAudits | ForEach-Object { [int]$_.issue } | Sort-Object)
+        $m.current = $(if ($openNumbers.Count -gt 0) { $openNumbers[0] } else { $null })
+        $m.openAudits = $openNumbers
         & $add 'meta' 'board' $m $Docs['meta/board'].Data
     }
     return $changes

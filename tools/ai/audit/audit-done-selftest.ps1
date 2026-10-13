@@ -7,12 +7,13 @@
 #      replaced, its audit verdict and record set from the verification result), the commands it would run, and
 #      that nothing was pushed or closed;
 #   2. a remediation draft that is not opened yet: audit-done refuses and changes nothing;
-#   3. a publish whose push fails: the audit worktree, the audit/99 branch and current-audit.json are kept and no
-#      pull request was created;
+#   3. a publish whose push fails: the audit worktree, the audit/99 branch and open-audits/99.json are kept and
+#      no pull request was created;
 #   4. a publish that succeeds (the retry of 3): the pull request is created with "Refs #1345" BEFORE the audit
 #      branch is deleted, the local knowledge/audit-99 branch is deleted, and the audit is closed;
 #   5. a retry once the publication is already on origin/main (the pull request was merged): nothing to commit
-#      counts as published, no push and no pull request, and the audit is closed.
+#      counts as published, no push and no pull request, and the audit is closed. That audit starts in the
+#      pre-#2234 current-audit.json, which the first run converts into open-audits/98.json (#2234 migration).
 # The git stub forwards everything to the real git EXCEPT push (recorded, never executed); the gh stub only
 # records and prints a fake URL. Nothing here can push or open a pull request.
 #
@@ -84,9 +85,12 @@ exit 0
     Git -C $main remote add origin $origin | Out-Null
     Git -C $main push -q origin main | Out-Null
 
-    $currentAudit = Join-Path $main 'artifacts\knowledge\current-audit.json'
+    # #2234: every open audit has its own state file; -Legacy writes the pre-#2234 current-audit.json instead, which
+    # the first script run converts.
+    $legacyAudit = Join-Path $main 'artifacts\knowledge\current-audit.json'
+    function Get-StatePath([int]$N) { Join-Path $main "artifacts\knowledge\open-audits\$N.json" }
     # Opens audit <n>: worktree, branch, committed stages, lessons, record, one opened remediation draft.
-    function New-OpenAudit([int]$N) {
+    function New-OpenAudit([int]$N, [switch]$Legacy) {
         $wt = Join-Path $main ".claude\worktrees\wia-$N"
         Git -C $main worktree add -q -b "audit/$N" $wt main | Out-Null
         $stagesDir = Join-Path $wt 'artifacts\knowledge\stages'
@@ -100,7 +104,8 @@ exit 0
         Write-Text (Join-Path $wt "artifacts\knowledge\issues\$N.md") (Get-AuditRecord $N)
         Write-Text (Join-Path $main "artifacts\knowledge\remediation\$N-fixture-draft.md") "<!-- issue`ntitle: [DEBT] fixture`n-->`nbody`n"
         Write-Text (Join-Path $main 'artifacts\knowledge\remediation\opened.csv') "$N-fixture-draft.md,https://github.com/dlrivada/Encina/issues/1234`n"
-        Write-Text $currentAudit (@{ issue = $N; worktree = $wt; branch = "audit/$N"; startedUtc = '2026-10-05T00:00:00Z' } | ConvertTo-Json)
+        $state = @{ issue = $N; worktree = $wt; branch = "audit/$N"; startedUtc = '2026-10-05T00:00:00Z' } | ConvertTo-Json
+        if ($Legacy) { Write-Text $legacyAudit $state } else { Write-Text (Get-StatePath $N) $state }
         return $wt
     }
 
@@ -119,6 +124,7 @@ exit 0
 
     $issue = 99
     $wt = New-OpenAudit $issue
+    $currentAudit = Get-StatePath $issue
 
     # --- 1. -NoPublish ----------------------------------------------------------------------------------------
     $env:AUDIT_STUB_FAIL_PUSH = '0'
@@ -162,7 +168,7 @@ exit 0
     $env:AUDIT_STUB_FAIL_PUSH = '1'
     $r3 = Invoke-AuditDone @()
     Assert-That 'a failed push exits 1' ($r3.Exit -eq 1) $r3.Text
-    Assert-That 'a failed push keeps the audit worktree, branch and current-audit.json' ((Test-Path $wt) -and (Test-Path $currentAudit) -and (Git -C $main branch --list "audit/$issue")) $r3.Text
+    Assert-That 'a failed push keeps the audit worktree, branch and its open-audits state file' ((Test-Path $wt) -and (Test-Path $currentAudit) -and (Git -C $main branch --list "audit/$issue")) $r3.Text
     Assert-That 'a failed push opens no pull request and deletes no audit branch' (-not ($r3.Log | Where-Object { $_ -match '^gh pr create' -or $_ -match 'branch -D audit/' }))
     Assert-That 'a failed push changed nothing local' (-not (Test-Path (Join-Path $main 'artifacts\knowledge\progress.csv')))
 
@@ -178,10 +184,13 @@ exit 0
     Assert-That 'progress.csv records the audit' ((Test-Path (Join-Path $main 'artifacts\knowledge\progress.csv')) -and ((Get-Content (Join-Path $main 'artifacts\knowledge\progress.csv')) -match "^$issue,done"))
 
     # --- 5. retry after the pull request was merged ---------------------------------------------------------
+    # #2234 migration: audit 98 is open in the pre-#2234 current-audit.json; the first script run converts it.
     $issue = 98
-    $wt = New-OpenAudit $issue
+    $wt = New-OpenAudit $issue -Legacy
+    $currentAudit = Get-StatePath $issue
     $env:AUDIT_STUB_FAIL_PUSH = '0'
-    $null = Invoke-AuditDone @('-NoPublish')
+    $r5a = Invoke-AuditDone @('-NoPublish')
+    Assert-That 'a pre-#2234 current-audit.json is converted into open-audits/98.json on the first run, and the run works' ($r5a.Exit -eq 0 -and -not (Test-Path $legacyAudit) -and (Test-Path $currentAudit) -and ((Get-Content $currentAudit -Raw | ConvertFrom-Json).worktree -eq $wt) -and $r5a.Text -like '*converted artifacts/knowledge/current-audit.json*') $r5a.Text
     Git -C $main push -q origin "knowledge/audit-${issue}:main" | Out-Null   # the "merge": origin/main now holds the publication
     $r5 = Invoke-AuditDone @()
     Assert-That 'a retry after the merge exits 0' ($r5.Exit -eq 0) $r5.Text

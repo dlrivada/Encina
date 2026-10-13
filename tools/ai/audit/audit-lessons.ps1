@@ -4,14 +4,18 @@
 # per line, each followed by an 'Applied: TODO' line the orchestrator must resolve (the commit/file that
 # applied it, or 'not applied' with the reason) before audit-done.ps1 will close the audit.
 
-param()
+#
+# #2234: -Issue <n> names the audit when several are open (optional from its wia-<n> worktree or with one open
+# audit; Resolve-OpenAudit, _audit-lib.ps1). Each audit has its own lessons.md in its own worktree.
+
+param([int]$Issue)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_audit-lib.ps1')
 
 $mainRoot = Get-MainRoot $PSScriptRoot
-$audit = Get-CurrentAudit $mainRoot
-if ($null -eq $audit) { Write-Error 'audit-lessons: no open audit (artifacts/knowledge/current-audit.json not found). Run audit-next.ps1 first.'; exit 1 }
+try { $audit = Resolve-OpenAudit $mainRoot $Issue $PSScriptRoot }
+catch { Write-Error "audit-lessons: $($_.Exception.Message)"; exit 1 }
 
 $wt = [string]$audit.worktree
 $n = [string]$audit.issue

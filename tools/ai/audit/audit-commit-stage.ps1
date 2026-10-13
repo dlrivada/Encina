@@ -47,17 +47,25 @@
 # cases caught this intermittently, since the old `2>&1 | Out-Null; if ($LASTEXITCODE -ne 0)` form sometimes
 # reported "nothing to commit" for a commit that actually raced past the check.
 
+#
+# #2234: several audits may be open at once. -Issue <n> names the audit whose branch gets the commit; it may be
+# omitted when the script runs from that audit's wia-<n> worktree, or when only one audit is open
+# (Resolve-OpenAudit, _audit-lib.ps1). The stage is committed only in that audit's own worktree, and the
+# authorship it checks is that worktree's own .authors.json, which enforce-path-ownership.ps1 fills only with
+# writes of the agent spawned for that audit.
+
 param(
     [Parameter(Mandatory, ParameterSetName = 'Stage')][string]$Stage,
-    [Parameter(Mandatory, ParameterSetName = 'Lessons')][switch]$Lessons
+    [Parameter(Mandatory, ParameterSetName = 'Lessons')][switch]$Lessons,
+    [int]$Issue
 )
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_audit-lib.ps1')
 
 $mainRoot = Get-MainRoot $PSScriptRoot
-$audit = Get-CurrentAudit $mainRoot
-if ($null -eq $audit) { Write-Error 'audit-commit-stage: no open audit (artifacts/knowledge/current-audit.json not found). Run audit-next.ps1 first.'; exit 1 }
+try { $audit = Resolve-OpenAudit $mainRoot $Issue $PSScriptRoot }
+catch { Write-Error "audit-commit-stage: $($_.Exception.Message)"; exit 1 }
 
 $wt = [string]$audit.worktree
 $n = [string]$audit.issue
@@ -108,7 +116,7 @@ if (Test-Path -LiteralPath $authorsPath) {
     catch { $unreadableReason = $_.Exception.Message }
 }
 if ($unreadableReason) {
-    Write-Error "audit-commit-stage: refusing to commit '$Stage' for #${n}: artifacts\knowledge\stages\.authors.json is unreadable: $unreadableReason; run 'pwsh -NoProfile -File tools/ai/audit/audit-stage.ps1 -RepairAuthors' from the main checkout, then have $expectedAgent re-write the '$Stage' stage artifact so it is recorded again (#1374)."
+    Write-Error "audit-commit-stage: refusing to commit '$Stage' for #${n}: artifacts\knowledge\stages\.authors.json is unreadable: $unreadableReason; run 'pwsh -NoProfile -File tools/ai/audit/audit-stage.ps1 -RepairAuthors -Issue $n' from the main checkout, then have $expectedAgent re-write the '$Stage' stage artifact so it is recorded again (#1374)."
     exit 1
 }
 if ($null -eq $authorship -or [string]$authorship.agent -ne $expectedAgent) {
@@ -122,7 +130,7 @@ if ($null -eq $authorship -or [string]$authorship.agent -ne $expectedAgent) {
 # idempotent on clean drafts, so running it again here changes nothing that was already finalized.
 if ($Stage -eq 'remediation') {
     $finalizeScript = Join-Path $PSScriptRoot 'audit-draft-remediation.ps1'
-    $finalizeOutput = & pwsh -NoProfile -File $finalizeScript -Finalize 2>&1
+    $finalizeOutput = & pwsh -NoProfile -File $finalizeScript -Finalize -Issue $n 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Error "audit-commit-stage: refusing to commit 'remediation' for #${n}: audit-draft-remediation.ps1 -Finalize is not clean (re-spawn remediation-drafter with this output):`n$($finalizeOutput -join "`n")"
         exit 1

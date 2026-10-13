@@ -11,7 +11,7 @@
 #   2. audit-next -Delta rules-2026-10 picks the first audited issue without a delta (skipping the done one and
 #      de-duplicating a redone audit), reuses the scope of the original audit (delta-scope.md carries the
 #      record's packages and the archivist/code scope lists), creates wia-99 on audit/99, records mode delta and
-#      the set in current-audit.json, and prints the first delta stage;
+#      the set in open-audits/99.json (#2234), and prints the first delta stage;
 #   3. audit-stage -Next walks the delta pipeline order docs -> tests -> remediation -> verification (never an
 #      archivist or code stage) as each stage is committed;
 #   4. audit-done -NoPublish publishes exactly docs/knowledge/audits/99/delta-2026-10/{stage files, lessons.md,
@@ -140,6 +140,8 @@ exit 0
         Write-Text (Join-Path $main "docs\knowledge\audits\issue-$n.md") "# Audit of issue #$n`n`nPUBLISHED RESULT $n`n"
     }
     Write-Text (Join-Path $main 'docs\architecture\adr\index.md') "# ADR index`n"
+    # #2234: a package under src/, so the record's `packages:` becomes the delta audit's scope.
+    Write-Text (Join-Path $main 'src\Encina.Fixture\Widget.cs') "namespace Encina.Fixture;`n"
     Git -C $main add -A | Out-Null
     Git -C $main commit -q -m 'fixture main' | Out-Null
     Git -C $main remote add origin $origin | Out-Null
@@ -151,7 +153,8 @@ exit 0
     $deltaProgress = Join-Path $knowledge "delta-progress-$set.csv"
     Write-Text $deltaProgress "98,done,0,`n"
     $progressBefore = Get-Content (Join-Path $knowledge 'progress.csv') -Raw
-    $currentAudit = Join-Path $knowledge 'current-audit.json'
+    # #2234: the open audit's own state file (one per open audit).
+    $currentAudit = Join-Path $knowledge 'open-audits\99.json'
     $wt = Join-Path $main '.claude\worktrees\wia-99'
 
     $env:AUDIT_STUB_LOG = $log
@@ -177,15 +180,15 @@ exit 0
     Assert-That 'audit-next -Delta exits 0' ($r.Exit -eq 0) $r.Text
     Assert-That 'it picked 99, the first audited issue without a delta' ($r.Text -like "*Delta audit $set of #99*") $r.Text
     $audit = Get-Content $currentAudit -Raw | ConvertFrom-Json
-    Assert-That 'current-audit.json records mode delta and the set' ($audit.mode -eq 'delta' -and $audit.set -eq $set -and $audit.issue -eq $issue -and $audit.branch -eq 'audit/99') ($audit | ConvertTo-Json -Compress)
+    Assert-That 'open-audits/99.json records mode delta, the set and the record''s packages as scope' ($audit.mode -eq 'delta' -and $audit.set -eq $set -and $audit.issue -eq $issue -and $audit.branch -eq 'audit/99' -and (@($audit.scope) -join ',') -eq 'Encina.Fixture') ($audit | ConvertTo-Json -Compress)
     Assert-That 'the audit worktree is on audit/99' ((Test-Path $wt) -and (Git -C $wt rev-parse --abbrev-ref HEAD) -ceq 'audit/99')
     $scopeFile = Join-Path $wt 'artifacts\knowledge\delta-scope.md'
     $scope = if (Test-Path $scopeFile) { Get-Content $scopeFile -Raw } else { '' }
     Assert-That 'the scope of the original audit was reused (record packages, archivist scope list)' ($scope -like '*Encina.Fixture*' -and $scope -like '*src/Encina.Fixture/Widget.cs*' -and $scope -like '*WidgetTests.cs*') $scope
     Assert-That 'no pre-draft was generated and no classify-scope ran' (-not (Test-Path (Join-Path $knowledge 'predraft')))
     Assert-That 'it prints the first delta stage with the delta marker' ($r.Text -like '*Next stage: docs (spawn docs-reviewer*delta: rules-2026-10, check only rule (a)*') $r.Text
-    $r2 = Invoke-Script 'audit-next.ps1' @('-Delta', $set)
-    Assert-That 'a second audit-next is refused while the delta audit is open' ($r2.Exit -ne 0 -and $r2.Text -like '*already open*') $r2.Text
+    $r2 = Invoke-Script 'audit-next.ps1' @('-Delta', $set, '-Issue', '99')
+    Assert-That 'audit-next -Delta -Issue 99 is refused while the delta audit of 99 is open (#2234)' ($r2.Exit -ne 0 -and $r2.Text -like '*not an audited issue without*') $r2.Text
 
     # --- 3. the delta pipeline order ---------------------------------------------------------------------------
     $stagesDir = Join-Path $wt 'artifacts\knowledge\stages'
@@ -253,6 +256,7 @@ exit 0
     $r4 = Invoke-Script 'audit-next.ps1' @('-Delta', $set)
     Assert-That 'the next delta is 97, the early audit without stage files (95 and 96 never enter the queue)' ($r4.Exit -eq 0 -and $r4.Text -like "*Delta audit $set of #97*") $r4.Text
     $wt = Join-Path $main '.claude\worktrees\wia-97'
+    $currentAudit = Join-Path $knowledge 'open-audits\97.json'
     $stagesDir = Join-Path $wt 'artifacts\knowledge\stages'
     $scopeFile = Join-Path $wt 'artifacts\knowledge\delta-scope.md'
     $scope97 = if (Test-Path $scopeFile) { Get-Content $scopeFile -Raw } else { '' }
