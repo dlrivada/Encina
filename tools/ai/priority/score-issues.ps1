@@ -533,7 +533,7 @@ if ($PSCmdlet.ParameterSetName -eq 'All') {
         $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
         $backup = Join-Path $outDir "scores.$stamp.json"
         Copy-Item -Path $ScoresFile -Destination $backup
-        Write-Output "previous scores.json backed up to $backup"
+        Write-Output "previous $(Split-Path -Leaf $ScoresFile) backed up to $backup"
     }
     $scoresOut | ConvertTo-Json -Depth 8 | Set-Content -Path $ScoresFile -Encoding utf8
 
