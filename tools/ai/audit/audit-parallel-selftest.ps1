@@ -227,7 +227,9 @@ exit 0
     Write-Text $draft10 ($draftText.Replace('Retries never stop.', 'Seen from audit #10.'))
     Write-Text (Join-Path $remDir 'opened.csv') "10-code-1-widget-retry.md,https://github.com/dlrivada/Encina/issues/6001`n"
     $r = Invoke-Script 'open-remediation.ps1' @('-Issue', '12')
-    Assert-That 'open-remediation of #12 refuses a draft that duplicates an opened draft of the concurrent audit #10, and opens nothing' ($r.Exit -ne 0 -and ($r.Text -replace '[\s|]+', '') -like '*12-code-2-widget-retry.mdduplicates10-code-1-widget-retry.mdoftheconcurrentaudit#10*issues/6001*' -and -not ($r.Log | Where-Object { $_ -like 'gh issue create*' })) $r.Text
+    Assert-That 'open-remediation of #12 refuses a draft that duplicates an opened draft of the concurrent audit #10 (exit code)' ($r.Exit -ne 0) "exit $($r.Exit)"
+    Assert-That 'the refusal names both drafts and the opened issue' (($r.Text -replace '[\s|]+', '') -like '*12-code-2-widget-retry.mdduplicates10-code-1-widget-retry.mdoftheconcurrentaudit#10*issues/6001*') $r.Text
+    Assert-That 'the refusal opens nothing' (-not ($r.Log | Where-Object { $_ -like 'gh issue create*' })) ($r.Log -join ' || ')
     Remove-Item -Force (Join-Path $remDir 'opened.csv')
     $r = Invoke-Script 'open-remediation.ps1' @('-Issue', '12')
     Assert-That 'against an unopened draft it only warns, and #12 opens first' ($r.Exit -eq 0 -and $r.Text -like '*matches 10-code-1-widget-retry.md of the concurrent audit #10, not opened yet*' -and @($r.Log | Where-Object { $_ -like 'gh issue create*' }).Count -eq 1) $r.Text
