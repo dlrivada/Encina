@@ -360,6 +360,23 @@ Assert-True ((Get-Content (Join-Path $e2ePrio 'scores.json') -Raw) -match '"numb
 $dry = pwsh -NoProfile -File $scorer -All -Resume -DryRun -Root $e2eRoot 2>&1 | Out-String
 Assert-True ($dry -match 'reuse from cached model-out: 0') 'dry run: the issue already in scores.json is not counted as a model-out reuse'
 
+Remove-Item (Join-Path $e2ePrio 'scores.json') -Force
+$dry = pwsh -NoProfile -File $scorer -All -Resume -DryRun -Root $e2eRoot 2>&1 | Out-String
+Assert-True ($dry -match 'reuse from cached model-out: 1') 'dry run: a valid cached output without a scores.json entry is counted'
+$dry = pwsh -NoProfile -File $scorer -All -DryRun -Root $e2eRoot 2>&1 | Out-String
+Assert-True ($dry -match 'reuse from cached model-out: 0') 'dry run: without -Resume nothing is reusable'
+
+# A failed model call must not leave the old output paired with the new input.
+function Invoke-PriorityModelCall {
+    param([string]$Task, [string]$InputFile, [string]$OutFile, [string]$LedgerFile)
+    return @{ ExitCode = 1; Log = 'boom' }
+}
+Write-CacheEntry $cacheJson $cacheIn $inHash $rubricHash
+$failIssue = $cacheIssue.PSObject.Copy(); $failIssue.body = "## Description`n`nBody C.`n"
+$null = Invoke-JudgedScores -IssueRecord $failIssue -UseModelCache
+$stale = Get-CachedModelJudgement -IssueRecord $failIssue -ModelOutDir $modelOutDir -ModelInDir $modelInDir -RubricHash $rubricHash -RubricChangedUtc ([datetime]'2020-01-01')
+Assert-True ($null -eq $stale) 'cache: after a failed re-score the old output is not reusable for the changed body'
+
 Remove-Item $cacheRoot, $e2eRoot -Recurse -Force -ErrorAction SilentlyContinue
 
 # --- Invalid model JSON handling (#1552 decision 4/8) ------------------------------------------

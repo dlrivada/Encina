@@ -29,7 +29,7 @@
 #                         issues.json (for tests and repeated sample runs against the same data).
 #
 # Usage:
-#   pwsh -NoProfile -File tools/ai/priority/score-issues.ps1 -All [-Limit 15] [-Resume] [-NoCollect]
+#   pwsh -NoProfile -File tools/ai/priority/score-issues.ps1 -All [-Limit 15] [-Resume] [-NoCollect] [-DryRun]
 #   pwsh -NoProfile -File tools/ai/priority/score-issues.ps1 -Issue 1552
 
 [CmdletBinding(DefaultParameterSetName = 'All')]
@@ -179,7 +179,9 @@ function Invoke-JudgedScores {
 
     $outFile = Join-Path $modelOutDir "$($IssueRecord.number).json"
     $metaFile = Join-Path $modelOutDir "$($IssueRecord.number).meta.json"
-    Remove-Item $metaFile -Force -ErrorAction SilentlyContinue
+    # The saved input is rewritten above; drop the old output and sidecar with it so a failed or
+    # aborted call can never leave an old judgement paired with the new input.
+    Remove-Item $metaFile, $outFile -Force -ErrorAction SilentlyContinue
     $ledgerFile = Join-Path $Root 'artifacts/local-ai/ledger.csv'
     $lastError = $null
     for ($attempt = 1; $attempt -le 2; $attempt++) {
@@ -471,7 +473,7 @@ if ($PSCmdlet.ParameterSetName -eq 'All') {
         foreach ($i in $rankedCandidates) {
             $num = [int]$i.number
             if ($previous.ContainsKey($num) -and $previous[$num].bodyHash -eq (Get-BodyHash -Body $i.body) -and -not $previous[$num].unscored) { $fromScores++ }
-            elseif (Get-CachedModelJudgement -IssueRecord $i -ModelOutDir $modelOutDir -ModelInDir $modelInDir -RubricHash $rubricHash -RubricChangedUtc $rubricChanged) { $fromCache++ }
+            elseif ($Resume -and (Get-CachedModelJudgement-IssueRecord $i -ModelOutDir $modelOutDir -ModelInDir $modelInDir -RubricHash $rubricHash -RubricChangedUtc $rubricChanged)) { $fromCache++ }
             else { $toScore++ }
         }
         Write-Output "dry run (no writes, no model calls): $($rankedCandidates.Count) ranked candidates; reuse from scores.json: $fromScores; reuse from cached model-out: $fromCache; would score with the model: $toScore"
