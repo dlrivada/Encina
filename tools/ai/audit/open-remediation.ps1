@@ -492,7 +492,7 @@ function Get-CrossAuditProblems($Draft, [switch]$Quiet) {
 }
 
 function Stop-CrossAudit([string[]]$Problems, [string]$Prefix) {
-    Write-Error "open-remediation: cross-audit duplicate check (#2234) failed, $Prefix$($Problems -join '; '). Run audit-draft-remediation.ps1 -Prepare -Issue $Issue again (it records the duplicate), re-run the remediation stage and the verifier, then open-remediation.ps1 again."
+    Write-Error "open-remediation: cross-audit duplicate check (#2234) failed, $Prefix$($Problems -join '; '). Run audit-draft-remediation.ps1 -Prepare -Issue $Issue again (it records the duplicate), re-run the remediation stage and the verifier, then open-remediation.ps1 again." -ErrorAction Continue
     exit 1
 }
 
