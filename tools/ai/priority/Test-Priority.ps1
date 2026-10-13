@@ -237,6 +237,148 @@ Assert-Equal 5 $resumedOverridden.scores.importance 'resume: an override still a
 Assert-Equal 'maintainer call: deprioritize on resume' $resumedOverridden.why.importance 'resume: override why replaces the resumed why'
 Assert-Equal 'override' $resumedOverridden.source.importance 'resume: override source replaces the resumed model source'
 
+# --- Model-out cache, sample runs and backups (#2233) -------------------------------------------
+# Everything runs in a temp directory with a stubbed model call: no gh, no model, nothing under the
+# real artifacts/priority.
+$cacheJson = '{"importance":{"score":80,"why":"x"},"regulatory":{"score":10,"why":"x"},"transversality":{"score":50,"why":"x"},"method":{"score":30,"why":"x"},"effort":{"score":60,"why":"x"}}'
+$cacheRoot = Join-Path ([IO.Path]::GetTempPath()) ("priority-test-" + [guid]::NewGuid().ToString('N'))
+$modelOutDir = Join-Path $cacheRoot 'artifacts/priority/model-out'
+$modelInDir = Join-Path $cacheRoot 'artifacts/priority/model-in'
+New-Item -ItemType Directory -Force -Path $modelOutDir, $modelInDir | Out-Null
+$RubricFile = Join-Path $PSScriptRoot 'rubric.md'
+$Root = $cacheRoot
+
+$script:modelCalls = 0
+function Invoke-PriorityModelCall {
+    param([string]$Task, [string]$InputFile, [string]$OutFile, [string]$LedgerFile)
+    $script:modelCalls++
+    Set-Content -Path $OutFile -Value $cacheJson -Encoding utf8
+    return @{ ExitCode = 0; Log = 'stub' }
+}
+
+$cacheIssue = [pscustomobject]@{
+    number = 5001; title = '[DEBT] Cached'; labels = @('technical-debt'); milestone = 'v0.15.0'
+    createdAt = '2026-01-01T00:00:00Z'; body = "## Description`n`nBody A.`n"; dependents = @()
+}
+$cacheIn = Get-JudgeInputText -IssueRecord $cacheIssue
+$rubricHash = Get-RubricHash -Path $RubricFile
+function Write-CacheEntry([string]$Out, [string]$InputText, [string]$MetaInputHash, [string]$MetaRubricHash) {
+    Set-Content -Path (Join-Path $modelOutDir '5001.json') -Value $Out -Encoding utf8
+    Set-Content -Path (Join-Path $modelInDir '5001.md') -Value $InputText -Encoding utf8
+    Remove-Item (Join-Path $modelOutDir '5001.meta.json') -Force -ErrorAction SilentlyContinue
+    if ($MetaInputHash) {
+        [ordered]@{ inputHash = $MetaInputHash; rubricHash = $MetaRubricHash } | ConvertTo-Json | Set-Content -Path (Join-Path $modelOutDir '5001.meta.json') -Encoding utf8
+    }
+}
+$inHash = Get-BodyHash -Body $cacheIn
+
+# Matching sidecar: no model call.
+Write-CacheEntry $cacheJson $cacheIn $inHash $rubricHash
+$script:modelCalls = 0
+$j = Invoke-JudgedScores -IssueRecord $cacheIssue -UseModelCache
+Assert-Equal 0 $script:modelCalls 'cache: matching hashes make no model call'
+Assert-Equal 80 ([double]$j.Parsed.importance.score) 'cache: matching hashes return the cached judgement'
+
+# Without -UseModelCache the model is always called, and a sidecar is written for next time.
+$script:modelCalls = 0
+$null = Invoke-JudgedScores -IssueRecord $cacheIssue
+Assert-Equal 1 $script:modelCalls 'cache: without -Resume the cached output is ignored'
+Assert-True (Test-Path (Join-Path $modelOutDir '5001.meta.json')) 'cache: a fresh model call writes the sidecar'
+$script:modelCalls = 0
+$null = Invoke-JudgedScores -IssueRecord $cacheIssue -UseModelCache
+Assert-Equal 0 $script:modelCalls 'cache: the sidecar written by a fresh call is reusable'
+
+# Changed body (same cached files): re-scored.
+$changedIssue = $cacheIssue.PSObject.Copy(); $changedIssue.body = "## Description`n`nBody B.`n"
+$script:modelCalls = 0
+$null = Invoke-JudgedScores -IssueRecord $changedIssue -UseModelCache
+Assert-Equal 1 $script:modelCalls 'cache: a mismatching body hash re-scores the issue'
+
+# Rubric changed: re-scored.
+Write-CacheEntry $cacheJson $cacheIn $inHash 'DIFFERENT'
+$script:modelCalls = 0
+$null = Invoke-JudgedScores -IssueRecord $cacheIssue -UseModelCache
+Assert-Equal 1 $script:modelCalls 'cache: a mismatching rubric hash re-scores the issue'
+
+# Invalid JSON: re-scored.
+Write-CacheEntry 'not json at all' $cacheIn $inHash $rubricHash
+$script:modelCalls = 0
+$null = Invoke-JudgedScores -IssueRecord $cacheIssue -UseModelCache
+Assert-Equal 1 $script:modelCalls 'cache: invalid JSON re-scores the issue'
+Write-CacheEntry '{"importance":{"score":80,"why":"x"}}' $cacheIn $inHash $rubricHash
+$script:modelCalls = 0
+$null = Invoke-JudgedScores -IssueRecord $cacheIssue -UseModelCache
+Assert-Equal 1 $script:modelCalls 'cache: JSON missing criteria re-scores the issue'
+
+# Legacy output (no sidecar): reused only when the saved model input matches and the file is newer than the rubric.
+Write-CacheEntry $cacheJson $cacheIn '' ''
+$script:modelCalls = 0
+$null = Invoke-JudgedScores -IssueRecord $cacheIssue -UseModelCache
+Assert-Equal 0 $script:modelCalls 'cache: a legacy output with a matching saved input is reused'
+Write-CacheEntry $cacheJson ($cacheIn + 'tampered') '' ''
+$script:modelCalls = 0
+$null = Invoke-JudgedScores -IssueRecord $cacheIssue -UseModelCache
+Assert-Equal 1 $script:modelCalls 'cache: a legacy output whose saved input differs is re-scored'
+Write-CacheEntry $cacheJson $cacheIn '' ''
+(Get-Item (Join-Path $modelOutDir '5001.json')).LastWriteTimeUtc = [datetime]'2020-01-01'
+$script:modelCalls = 0
+$null = Invoke-JudgedScores -IssueRecord $cacheIssue -UseModelCache
+Assert-Equal 1 $script:modelCalls 'cache: a legacy output older than the rubric is re-scored'
+
+# End to end through the script: -Limit never touches scores.json/board.json; a full run backs it up.
+$e2eRoot = Join-Path ([IO.Path]::GetTempPath()) ("priority-e2e-" + [guid]::NewGuid().ToString('N'))
+$e2ePrio = Join-Path $e2eRoot 'artifacts/priority'
+New-Item -ItemType Directory -Force -Path (Join-Path $e2ePrio 'model-out'), (Join-Path $e2ePrio 'model-in') | Out-Null
+[ordered]@{ issues = @($cacheIssue) } | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $e2ePrio 'issues.json') -Encoding utf8
+Set-Content (Join-Path $e2ePrio 'model-out/5001.json') -Value $cacheJson -Encoding utf8
+Set-Content (Join-Path $e2ePrio 'model-in/5001.md') -Value $cacheIn -Encoding utf8
+[ordered]@{ inputHash = $inHash; rubricHash = $rubricHash } | ConvertTo-Json | Set-Content (Join-Path $e2ePrio 'model-out/5001.meta.json') -Encoding utf8
+[IO.File]::WriteAllBytes((Join-Path $e2ePrio 'scores.json'), [Text.Encoding]::UTF8.GetBytes('{"ranked":[],"sentinel":"scores"}'))
+[IO.File]::WriteAllBytes((Join-Path $e2ePrio 'board.json'), [Text.Encoding]::UTF8.GetBytes('{"ranked":[],"sentinel":"board"}'))
+$scoresBefore = (Get-FileHash (Join-Path $e2ePrio 'scores.json')).Hash
+$boardBefore = (Get-FileHash (Join-Path $e2ePrio 'board.json')).Hash
+$scorer = Join-Path $PSScriptRoot 'score-issues.ps1'
+
+$null = pwsh -NoProfile -File $scorer -All -Limit 1 -Resume -NoCollect -Root $e2eRoot 2>&1
+Assert-Equal 0 $LASTEXITCODE 'sample run: exits 0'
+Assert-Equal $scoresBefore (Get-FileHash (Join-Path $e2ePrio 'scores.json')).Hash 'sample run: scores.json is byte-identical'
+Assert-Equal $boardBefore (Get-FileHash (Join-Path $e2ePrio 'board.json')).Hash 'sample run: board.json is byte-identical'
+Assert-True (Test-Path (Join-Path $e2ePrio 'scores.sample.json')) 'sample run: scores.sample.json is written'
+Assert-True (Test-Path (Join-Path $e2ePrio 'board.sample.json')) 'sample run: board.sample.json is written'
+Assert-Equal 0 @(Get-ChildItem $e2ePrio -Filter 'scores.2*.json').Count 'sample run: no backup is made'
+
+$null = pwsh -NoProfile -File $scorer -All -Resume -NoCollect -Root $e2eRoot 2>&1
+Assert-Equal 0 $LASTEXITCODE 'full run: exits 0'
+$backups = @(Get-ChildItem $e2ePrio -Filter 'scores.2*.json')
+Assert-Equal 1 $backups.Count 'full run: one timestamped backup of the previous scores.json'
+if ($backups.Count -eq 1) {
+    Assert-Equal $scoresBefore (Get-FileHash $backups[0].FullName).Hash 'full run: the backup is the previous scores.json, byte for byte'
+    Assert-True ($backups[0].Name -match '^scores\.\d{8}T\d{6}Z\.json$') 'full run: backup name is scores.<yyyyMMddTHHmmssZ>.json'
+}
+Assert-True ((Get-Content (Join-Path $e2ePrio 'scores.json') -Raw) -match '"number": 5001') 'full run: scores.json holds the newly scored issue'
+
+$dry = pwsh -NoProfile -File $scorer -All -Resume -DryRun -Root $e2eRoot 2>&1 | Out-String
+Assert-True ($dry -match 'reuse from cached model-out: 0') 'dry run: the issue already in scores.json is not counted as a model-out reuse'
+
+Remove-Item (Join-Path $e2ePrio 'scores.json') -Force
+$dry = pwsh -NoProfile -File $scorer -All -Resume -DryRun -Root $e2eRoot 2>&1 | Out-String
+Assert-True ($dry -match 'reuse from cached model-out: 1') 'dry run: a valid cached output without a scores.json entry is counted'
+$dry = pwsh -NoProfile -File $scorer -All -DryRun -Root $e2eRoot 2>&1 | Out-String
+Assert-True ($dry -match 'reuse from cached model-out: 0') 'dry run: without -Resume nothing is reusable'
+
+# A failed model call must not leave the old output paired with the new input.
+function Invoke-PriorityModelCall {
+    param([string]$Task, [string]$InputFile, [string]$OutFile, [string]$LedgerFile)
+    return @{ ExitCode = 1; Log = 'boom' }
+}
+Write-CacheEntry $cacheJson $cacheIn $inHash $rubricHash
+$failIssue = $cacheIssue.PSObject.Copy(); $failIssue.body = "## Description`n`nBody C.`n"
+$null = Invoke-JudgedScores -IssueRecord $failIssue -UseModelCache
+$stale = Get-CachedModelJudgement -IssueRecord $failIssue -ModelOutDir $modelOutDir -ModelInDir $modelInDir -RubricHash $rubricHash -RubricChangedUtc ([datetime]'2020-01-01')
+Assert-True ($null -eq $stale) 'cache: after a failed re-score the old output is not reusable for the changed body'
+
+Remove-Item $cacheRoot, $e2eRoot -Recurse -Force -ErrorAction SilentlyContinue
+
 # --- Invalid model JSON handling (#1552 decision 4/8) ------------------------------------------
 $validJson = '{"importance":{"score":80,"why":"x"},"regulatory":{"score":10,"why":"x"},"transversality":{"score":50,"why":"x"},"method":{"score":30,"why":"x"},"effort":{"score":60,"why":"x"}}'
 $parsedOk = ConvertFrom-PriorityModelJson -Text $validJson
