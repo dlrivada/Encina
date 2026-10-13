@@ -4,6 +4,7 @@ using Encina.Marten;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 using Shouldly;
 using static LanguageExt.Prelude;
 
@@ -45,12 +46,14 @@ public sealed class EventPublishingPipelineBehaviorIntegrationTests : IAsyncLife
         services.AddScoped(sp => sp.GetRequiredService<IDocumentStore>().LightweightSession());
         services.AddEncinaMarten(options => options.AutoPublishDomainEvents = autoPublish);
         services.AddSingleton(log);
-        services.AddScoped<IRequestHandler<PlaceOrder, Guid>, PlaceOrderHandler>();
-        services.AddScoped<IRequestHandler<AddLine, Guid>, AddLineHandler>();
-        services.AddScoped<INotificationHandler<OrderPlaced>>(
-            sp => new RecordingHandler<OrderPlaced>(sp.GetRequiredService<PublishedEventLog>(), failingHandler));
-        services.AddScoped<INotificationHandler<LineAdded>>(
-            sp => new RecordingHandler<LineAdded>(sp.GetRequiredService<PublishedEventLog>(), failure: false));
+
+        // The handlers are NSubstitute proxies built by factories, not classes declared in this
+        // assembly: other integration tests scan Encina.IntegrationTests for handlers, and a
+        // declared handler with dependencies they do not register would break their containers.
+        services.AddScoped(sp => PlaceOrderHandler(sp.GetRequiredService<IAggregateRepository<Order>>()));
+        services.AddScoped(sp => AddLineHandler(sp.GetRequiredService<IAggregateRepository<Order>>()));
+        services.AddScoped(sp => RecordingHandler<OrderPlaced>(sp.GetRequiredService<PublishedEventLog>(), failingHandler));
+        services.AddScoped(sp => RecordingHandler<LineAdded>(sp.GetRequiredService<PublishedEventLog>(), failure: false));
 
         return services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
@@ -161,52 +164,67 @@ public sealed class EventPublishingPipelineBehaviorIntegrationTests : IAsyncLife
 
     public sealed record AddLine(Guid OrderId, decimal Amount) : ICommand<Guid>;
 
-    public sealed class PlaceOrderHandler(IAggregateRepository<Order> repository) : ICommandHandler<PlaceOrder, Guid>
+    private static IRequestHandler<PlaceOrder, Guid> PlaceOrderHandler(IAggregateRepository<Order> repository)
     {
-        public async Task<Either<EncinaError, Guid>> Handle(PlaceOrder request, CancellationToken cancellationToken)
-        {
-            var saved = await repository.CreateAsync(new Order(request.OrderId, request.Name), cancellationToken);
-            return saved.Map(_ => request.OrderId);
-        }
+        var handler = Substitute.For<IRequestHandler<PlaceOrder, Guid>>();
+        handler.Handle(Arg.Any<PlaceOrder>(), Arg.Any<CancellationToken>())
+            .Returns(call => PlaceOrderAsync(repository, call.Arg<PlaceOrder>(), call.Arg<CancellationToken>()));
+        return handler;
     }
 
-    public sealed class AddLineHandler(IAggregateRepository<Order> repository) : ICommandHandler<AddLine, Guid>
+    private static async Task<Either<EncinaError, Guid>> PlaceOrderAsync(
+        IAggregateRepository<Order> repository, PlaceOrder request, CancellationToken cancellationToken)
     {
-        public async Task<Either<EncinaError, Guid>> Handle(AddLine request, CancellationToken cancellationToken)
-        {
-            var loaded = await repository.LoadAsync(request.OrderId, cancellationToken);
-            return await loaded.MatchAsync(
-                async order =>
+        var saved = await repository.CreateAsync(new Order(request.OrderId, request.Name), cancellationToken);
+        return saved.Map(_ => request.OrderId);
+    }
+
+    private static IRequestHandler<AddLine, Guid> AddLineHandler(IAggregateRepository<Order> repository)
+    {
+        var handler = Substitute.For<IRequestHandler<AddLine, Guid>>();
+        handler.Handle(Arg.Any<AddLine>(), Arg.Any<CancellationToken>())
+            .Returns(call => AddLineAsync(repository, call.Arg<AddLine>(), call.Arg<CancellationToken>()));
+        return handler;
+    }
+
+    private static async Task<Either<EncinaError, Guid>> AddLineAsync(
+        IAggregateRepository<Order> repository, AddLine request, CancellationToken cancellationToken)
+    {
+        var loaded = await repository.LoadAsync(request.OrderId, cancellationToken);
+        return await loaded.MatchAsync(
+            async order =>
+            {
+                order.AddLine(request.Amount);
+                var saved = await repository.SaveAsync(order, cancellationToken);
+                return saved.Map(_ => request.OrderId);
+            },
+            error => Task.FromResult(Left<EncinaError, Guid>(error)));
+    }
+
+    private static INotificationHandler<TNotification> RecordingHandler<TNotification>(PublishedEventLog log, bool failure)
+        where TNotification : class, INotification
+    {
+        var handler = Substitute.For<INotificationHandler<TNotification>>();
+        handler.Handle(Arg.Any<TNotification>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                if (failure)
                 {
-                    order.AddLine(request.Amount);
-                    var saved = await repository.SaveAsync(order, cancellationToken);
-                    return saved.Map(_ => request.OrderId);
-                },
-                error => Task.FromResult(Left<EncinaError, Guid>(error)));
-        }
+                    return Task.FromResult(Left<EncinaError, Unit>(EncinaErrors.Create("test.handler.failed", "handler failed")));
+                }
+
+                lock (log.Events)
+                {
+                    log.Events.Add(call.Arg<TNotification>());
+                }
+
+                return Task.FromResult(Right<EncinaError, Unit>(unit));
+            });
+        return handler;
     }
 
     public sealed class PublishedEventLog
     {
         public List<INotification> Events { get; } = [];
-    }
-
-    public sealed class RecordingHandler<TNotification>(PublishedEventLog log, bool failure) : INotificationHandler<TNotification>
-        where TNotification : INotification
-    {
-        public Task<Either<EncinaError, Unit>> Handle(TNotification notification, CancellationToken cancellationToken)
-        {
-            if (failure)
-            {
-                return Task.FromResult(Left<EncinaError, Unit>(EncinaErrors.Create("test.handler.failed", "handler failed")));
-            }
-
-            lock (log.Events)
-            {
-                log.Events.Add(notification);
-            }
-
-            return Task.FromResult(Right<EncinaError, Unit>(unit));
-        }
     }
 }
