@@ -473,7 +473,7 @@ if ($PSCmdlet.ParameterSetName -eq 'All') {
         foreach ($i in $rankedCandidates) {
             $num = [int]$i.number
             if ($previous.ContainsKey($num) -and $previous[$num].bodyHash -eq (Get-BodyHash -Body $i.body) -and -not $previous[$num].unscored) { $fromScores++ }
-            elseif ($Resume -and (Get-CachedModelJudgement-IssueRecord $i -ModelOutDir $modelOutDir -ModelInDir $modelInDir -RubricHash $rubricHash -RubricChangedUtc $rubricChanged)) { $fromCache++ }
+            elseif ($Resume -and (Get-CachedModelJudgement -IssueRecord $i -ModelOutDir $modelOutDir -ModelInDir $modelInDir -RubricHash $rubricHash -RubricChangedUtc $rubricChanged)) { $fromCache++ }
             else { $toScore++ }
         }
         Write-Output "dry run (no writes, no model calls): $($rankedCandidates.Count) ranked candidates; reuse from scores.json: $fromScores; reuse from cached model-out: $fromCache; would score with the model: $toScore"
