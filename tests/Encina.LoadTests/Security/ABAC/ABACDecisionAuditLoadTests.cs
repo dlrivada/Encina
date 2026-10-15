@@ -66,6 +66,7 @@ public static class ABACDecisionAuditLoadTests
         await RunDenialsUnderStoreFailureAsync(workerCount, testDuration, StoreFault.ReturnsLeft).ConfigureAwait(false);
         await RunDenialsUnderStoreFailureAsync(workerCount, testDuration, StoreFault.Throws).ConfigureAwait(false);
         await RunBoundedWritesAsync(workerCount).ConfigureAwait(false);
+        await RunBoundedWritesAsync(workerCount, StoreFault.NeverAnswersIncludingLookup).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -129,13 +130,15 @@ public static class ABACDecisionAuditLoadTests
     /// Scenario 3: a store that ignores its token and never answers. Each request ends at the write
     /// timeout, denied, never hanging.
     /// </summary>
-    public static async Task RunBoundedWritesAsync(int workerCount)
+    public static async Task RunBoundedWritesAsync(int workerCount, StoreFault fault = StoreFault.NeverAnswers)
     {
         Console.WriteLine();
-        Console.WriteLine("Scenario: BoundedWrites (store ignores its token)");
+        Console.WriteLine($"Scenario: BoundedWrites ({fault}: the store ignores its token)");
 
+        // The write is bound once; when the confirmation lookup also hangs it is bound a second time.
+        var bounds = fault == StoreFault.NeverAnswersIncludingLookup ? 2 : 1;
         var timeout = TimeSpan.FromMilliseconds(100);
-        var store = new FaultyOperationAuditStore(new InMemoryOperationAuditStore(), StoreFault.NeverAnswers);
+        var store = new FaultyOperationAuditStore(new InMemoryOperationAuditStore(), fault);
         await using var provider = await BuildProviderAsync(store, timeout).ConfigureAwait(false);
         var counters = new Counters();
 
@@ -158,10 +161,12 @@ public static class ABACDecisionAuditLoadTests
         var max = latencies.Max();
 
         Require(counters.HandlerCalls == 0, "The handler ran although the write timed out.");
-        Require(counters.AuditFailures + counters.Errors == total, "Some request had no failed outcome.");
+        Require(counters.Errors == 0, $"{counters.Errors} requests threw out of the enforcement point.");
+        Require(counters.AuditFailures == total, "Some request was not denied with abac.decision_audit_failed.");
 
-        // Two bounds (the write, then the lookup) plus scheduling headroom; far below a hang.
-        Require(max < timeout.TotalMilliseconds * 2 + 2_000, $"A request took {max:F0} ms; the write bound is {timeout.TotalMilliseconds:F0} ms.");
+        // The bounds in play plus one second of scheduling headroom.
+        var limit = timeout.TotalMilliseconds * bounds + 1_000;
+        Require(max < limit, $"A request took {max:F0} ms; the limit is {limit:F0} ms ({bounds} x {timeout.TotalMilliseconds:F0} ms + 1000 ms).");
 
         Console.WriteLine($"Workers: {workerCount} | Requests: {total} | Elapsed: {sw.Elapsed.TotalSeconds:F2}s | Max latency: {max:F0} ms (write bound {timeout.TotalMilliseconds:F0} ms)");
         Console.WriteLine($"Denied by audit failure: {counters.AuditFailures} | Thrown: {counters.Errors} | Handler calls: {counters.HandlerCalls}");
@@ -329,6 +334,9 @@ public static class ABACDecisionAuditLoadTests
         /// <summary>Every write waits forever, ignoring its token.</summary>
         NeverAnswers,
 
+        /// <summary>Every write waits forever, and so does the lookup by correlation id that confirms a failed write.</summary>
+        NeverAnswersIncludingLookup,
+
         /// <summary>Every write succeeds and is only counted, by outcome.</summary>
         Discards
     }
@@ -374,7 +382,9 @@ public static class ABACDecisionAuditLoadTests
             inner.GetByUserAsync(userId, fromUtc, toUtc, cancellationToken);
 
         public ValueTask<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>> GetByCorrelationIdAsync(string correlationId, CancellationToken cancellationToken = default) =>
-            inner.GetByCorrelationIdAsync(correlationId, cancellationToken);
+            fault == StoreFault.NeverAnswersIncludingLookup
+                ? new ValueTask<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>>(new TaskCompletionSource<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>>().Task)
+                : inner.GetByCorrelationIdAsync(correlationId, cancellationToken);
 
         public ValueTask<Either<EncinaError, PagedResult<OperationAuditEntry>>> QueryAsync(OperationAuditQuery query, CancellationToken cancellationToken = default) =>
             inner.QueryAsync(query, cancellationToken);

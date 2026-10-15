@@ -19,6 +19,9 @@ namespace Encina.IntegrationTests.Security.ABAC.DecisionAudit;
 /// </summary>
 public abstract class ABACDecisionAuditRoundTripTestsBase
 {
+    // Distinctive, so a negative assertion on the printed form cannot match by accident.
+    private const string RecordedMarker = "HR-department-marker";
+
     private static readonly DateTimeOffset Start = new(2026, 10, 9, 8, 0, 0, TimeSpan.Zero);
 
     /// <summary>Creates the provider's store for one DI scope (the recorder and the reader each open their own).</summary>
@@ -68,7 +71,7 @@ public abstract class ABACDecisionAuditRoundTripTestsBase
             }
         ],
         AttributeNames = new Dictionary<AttributeCategory, IReadOnlyList<string>> { [AttributeCategory.Subject] = ["department"] },
-        RecordedValues = new Dictionary<string, string> { ["department"] = "HR" },
+        RecordedValues = new Dictionary<string, string> { ["department"] = RecordedMarker },
         StartedAtUtc = Start.AddSeconds(second),
         CompletedAtUtc = Start.AddSeconds(second).AddMilliseconds(15)
     };
@@ -126,7 +129,7 @@ public abstract class ABACDecisionAuditRoundTripTestsBase
         read.ModuleId.ShouldBe("orders");
         read.EvaluatedPolicies.ShouldHaveSingleItem().DecisiveRuleIds.ShouldBe(["rule-1"]);
         read.AttributeNames["Subject"].ShouldBe(["department"]);
-        read.RecordedValues["department"].ShouldBe("HR");
+        read.RecordedValues["department"].ShouldBe(RecordedMarker);
         read.IpAddress.ShouldBe("203.0.113.9");
         read.UserAgent.ShouldBe("integration/1.0");
         read.StartedAtUtc.ShouldBe(denied.StartedAtUtc, TimeSpan.FromMilliseconds(1));
@@ -136,7 +139,9 @@ public abstract class ABACDecisionAuditRoundTripTestsBase
         var printed = read.ToString();
         printed.ShouldContain(denied.DecisionId.ToString());
         printed.ShouldNotContain("203.0.113.9");
-        printed.ShouldNotContain("HR");
+        printed.ShouldNotContain(RecordedMarker);
+        printed.ShouldNotContain(read.UserId!);
+        printed.ShouldNotContain(run);
 
         // Export: one JSON line per decision of the request type.
         using var stream = new MemoryStream();
