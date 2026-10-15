@@ -211,13 +211,13 @@ These messages carry error codes, source names and exception types only, never a
 
 | EventId | Level | Message Template | Parameters |
 |---------|-------|------------------|------------|
-| 9091 | `Warning` | `ABAC denied {RequestType}: no authenticated security context with a user is available ({ErrorCode}). The request is denied in every enforcement mode` | `requestType`, `errorCode` |
+| 9091 | `Warning` | `ABAC denied {RequestType}: the request has no authenticated caller ({ErrorCode}). The request is denied in every enforcement mode` | `requestType`, `errorCode` |
 | 9092 | `Warning` | `Retrieval of the {Source} from the policy administration point failed: {ErrorCode}. The decision is Indeterminate` | `source` (`policy sets` or `standalone policies`), `errorCode` |
 | 9093 | `Error` | `Unexpected error while evaluating the policy store. The decision is Indeterminate` | `exception` (through `ForLogging()`: type and stack trace) |
 
 ### Decision Audit Messages (9079-9090)
 
-Emitted by the Policy Enforcement Point, `AuditStoreABACDecisionRecorder` and the decision audit reader. They carry request type names, decision ids and error codes or exception types only, never an error or exception message. See [Decision audit](decision-audit.md). EventIds 9084, 9086 and 9087 come from the startup check, which runs only when the audit is enabled.
+Emitted by the Policy Enforcement Point, `AuditStoreABACDecisionRecorder` and the decision audit reader. They carry request type names, decision ids and error codes or exception types only, never an error or exception message. See [Decision audit](decision-audit.md). EventIds 9084, 9086 and 9087 come from the decision audit startup check, which runs only when the audit is enabled. EventId 9085 belongs to the enforcement-mode startup check and is logged whenever `EnforcementMode` is `Disabled`.
 
 | EventId | Level | Message Template | Parameters |
 |---------|-------|------------------|------------|
@@ -227,6 +227,7 @@ Emitted by the Policy Enforcement Point, `AuditStoreABACDecisionRecorder` and th
 | 9082 | `Error` | `The ABAC decision for {RequestType}, which was denied, could not be recorded ({FailureCode}). The denial stands` | `requestType`, `failureCode` |
 | 9083 | `Error` | `The decision recorder threw while recording the ABAC decision for {RequestType}` | `exception` (through `ForLogging()`), `requestType` |
 | 9084 | `Warning` | `The ABAC decision audit runs in BestEffort mode: a request proceeds even when its decision record cannot be written, so the trail may be incomplete` | none |
+| 9085 | `Warning` | `ABAC enforcement is disabled (EnforcementMode = Disabled): requests with [RequirePolicy] or [RequireCondition] run without any ABAC evaluation` | none; logged once at startup by `ABACEnforcementModeStartupCheck`, whether or not the decision audit is enabled |
 | 9086 | `Warning` | `The ABAC decision audit writes to InMemoryOperationAuditStore: the trail is lost when the process stops. Register a persistent IOperationAuditStore for production` | none |
 | 9087 | `Critical` | `The ABAC decision audit is enabled but no IOperationAuditStore is registered. Register one (for example through a provider package) or disable DecisionAudit` | none; the host start then fails with `InvalidOperationException` |
 | 9088 | `Debug` | `The evaluation trace of the ABAC decision for {RequestType} reached the limit of {MaxTraceEntries} entries and is truncated` | `requestType`, `maxTraceEntries` |

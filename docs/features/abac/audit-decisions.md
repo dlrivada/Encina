@@ -6,7 +6,7 @@ parent: "Features"
 
 # How to audit ABAC decisions
 
-This guide shows a developer who already runs `Encina.Security.ABAC` how to record every decision the enforcement point makes in the operation audit store, and what to check so the trail means what you expect. It is pre-1.0. The entry shape, limits and error codes are in the [decision audit reference](reference/decision-audit.md); what a row tells an auditor is in [What the ABAC decision audit tells you](audit-decisions-explained.md); the design is [ADR-047](../../architecture/adr/047-abac-decision-audit.md).
+This guide shows a developer who already runs `Encina.Security.ABAC` how to record every decision the enforcement point makes in the operation audit store, and what to check so the trail means what you expect. It is pre-1.0. The entry shape, limits and error codes are in the [decision audit reference](reference/decision-audit.md); the design is [ADR-047](../../architecture/adr/047-abac-decision-audit.md).
 
 ## Turn the audit on
 

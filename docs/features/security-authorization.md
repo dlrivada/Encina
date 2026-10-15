@@ -21,9 +21,10 @@ This guide explains how to enforce security requirements declaratively at the CQ
 9. [Observability](#observability)
 10. [Health Check](#health-check)
 11. [Error Handling](#error-handling)
-12. [Best Practices](#best-practices)
-13. [Testing](#testing)
-14. [FAQ](#faq)
+12. [ABAC Decisions and the Audit Trail](#abac-decisions-and-the-audit-trail)
+13. [Best Practices](#best-practices)
+14. [Testing](#testing)
+15. [FAQ](#faq)
 
 ---
 
@@ -391,6 +392,19 @@ Authorization failures return `EncinaError` via Railway Oriented Programming (no
 `Encina.Security` emits only `encina.authorization.*` codes, defined as `EncinaErrorCodes.Authorization*` constants in the core package. A missing security context is treated as unauthenticated.
 
 All errors include structured metadata: `requestType`, `stage` and `requirement`; the 403 errors also include `userId`.
+
+---
+
+## ABAC Decisions and the Audit Trail
+
+`Encina.Security` covers roles, permissions, claims and ownership. Fine-grained, attribute-based rules (XACML 3.0 policies and `[RequireCondition]` expressions) belong to the separate [`Encina.Security.ABAC`](https://github.com/dlrivada/Encina/blob/main/src/Encina.Security.ABAC/README.md) package, which enforces them with its own pipeline behavior. When an application needs evidence of who was allowed or denied what, `Encina.Security.ABAC` can record every ABAC decision it enforces in the operation audit store. It is opt-in (`options.AuditDecisions()`) and fail-closed by default; setup and the points to check are in [How to audit ABAC decisions](abac/audit-decisions.md).
+
+Two rules matter when both packages are used:
+
+- Register `AddEncinaSecurity` before `AddEncinaABAC`. Behaviors run in registration order, so the security gates run first and ABAC rows exist only for requests that passed them. Encina logs no warning for the opposite order; the execution-order contract is tracked in [#1783](https://github.com/dlrivada/Encina/issues/1783).
+- The ABAC record is the ABAC decision, not the final outcome of the request. A denial by `SecurityPipelineBehavior` or a failure in the handler is not in the ABAC row; join the rows of `AuditPipelineBehavior` by `CorrelationId` for the handler's own record.
+
+Details of the entry are in the [decision audit reference](abac/reference/decision-audit.md); the design is [ADR-047](../architecture/adr/047-abac-decision-audit.md).
 
 ---
 
