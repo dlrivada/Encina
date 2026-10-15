@@ -27,7 +27,7 @@ Unlike the 13 database providers (ADO.NET, Dapper, EF Core, MongoDB) which store
 
 ```mermaid
 flowchart TD
-    A["AuditPipelineBehavior<br/><i>(from Encina.Security.Audit, fire-and-forget)</i>"]
+    A["AuditPipelineBehavior<br/><i>(from Encina.Security.Audit, awaited in a child scope)</i>"]
     B["MartenOperationAuditStore<br/><i>(implements IOperationAuditStore)</i>"]
     C["AuditEventEncryptor<br/><i>PII → AES-256-GCM</i>"]
     D["Marten Event Store<br/><i>(append-only)</i>"]
@@ -40,6 +40,8 @@ flowchart TD
     D --> E
     E --> F
 ```
+
+`AuditPipelineBehavior` awaits the `IOperationAuditStore.RecordAsync` call in its own child scope (`IServiceScopeFactory`). By default (`OperationAuditOptions.FailureMode = OperationAuditFailureMode.FailClosed`) a failed write makes a successful request return the error `audit.write_failed`; `OperationAuditFailureMode.BestEffort` is the explicit opt-out and logs the dropped write at Warning.
 
 ## Configuration
 
