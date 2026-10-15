@@ -101,21 +101,33 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         var preFailure = await RunPreProcessorsAsync(preProcessors, request, context, cancellationToken).ConfigureAwait(false);
         if (preFailure.IsSome)
         {
-            return Left<EncinaError, TResponse>(preFailure.Match(err => err, () => EncinaErrors.Unknown)); // NOSONAR S6966: LanguageExt Left is a pure function
+            return ToLeft(preFailure);
         }
 
         var response = await terminal().ConfigureAwait(false);
+        return await ApplyPostProcessorsAsync(postProcessors, request, context, response, cancellationToken).ConfigureAwait(false);
+    }
 
-        // Post-processors run only when the inner pipeline succeeded
+    private static Either<EncinaError, TResponse> ToLeft(Option<EncinaError> failure)
+        => Left<EncinaError, TResponse>(failure.Match(err => err, () => EncinaErrors.Unknown)); // NOSONAR S6966: LanguageExt Left is a pure function
+
+    /// <summary>
+    /// Runs the post-processors only when the inner pipeline succeeded; a processor <c>Left</c> fails the request.
+    /// </summary>
+    private static async ValueTask<Either<EncinaError, TResponse>> ApplyPostProcessorsAsync(
+        IRequestPostProcessor<TRequest, TResponse>[] postProcessors,
+        TRequest request,
+        IRequestContext context,
+        Either<EncinaError, TResponse> response,
+        CancellationToken cancellationToken)
+    {
         if (response.IsLeft || postProcessors.Length == 0)
         {
             return response;
         }
 
-        var postFailure = await RunPostProcessorsAsync(postProcessors, request, context, (TResponse)response, cancellationToken).ConfigureAwait(false);
-        return postFailure.IsSome
-            ? Left<EncinaError, TResponse>(postFailure.Match(err => err, () => EncinaErrors.Unknown)) // NOSONAR S6966: LanguageExt Left is a pure function
-            : response;
+        var failure = await RunPostProcessorsAsync(postProcessors, request, context, (TResponse)response, cancellationToken).ConfigureAwait(false);
+        return failure.IsSome ? ToLeft(failure) : response;
     }
 
     private static async ValueTask<Option<EncinaError>> RunPreProcessorsAsync(
