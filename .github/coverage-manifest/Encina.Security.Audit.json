@@ -1,7 +1,7 @@
 {
   "package": "Encina.Security.Audit",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 39,
+  "totalFiles": 41,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -106,10 +106,53 @@
       "defaultTests": [
         "unit",
         "guard",
-        "contract"
+        "contract",
+        "integration"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 95,
+        "guard": 10,
+        "contract": 65,
+        "integration": 55
+      },
+      "justifications": {
+        "unit": "Unit tests drive every branch: ordering, both failure modes, handler Left, handler throw and cancellation, the child scope (measured 97%).",
+        "guard": "Guard tests only reach the constructor null checks; the handling logic is exercised by the other flags (measured 10%).",
+        "contract": "Contract tests run the non-auditable, auditable and skipped paths and the interface contract; the failure-mode branches are only reached by unit tests (measured 69%).",
+        "integration": "Integration tests run the awaited write on ADO SqlServer, EF Core SqlServer and MongoDB; failure branches need a failing store and are covered by unit tests (measured 59%)."
+      }
+    },
+    "OperationAuditErrors.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*Errors.cs",
+      "reason": "Static error factory",
+      "targets": {
+        "unit": 95,
+        "guard": 15,
+        "contract": 95
+      },
+      "justifications": {
+        "unit": "Unit tests build the error through the failing-store paths (measured 100%).",
+        "guard": "Guard tests cover the two null checks of WriteFailed (measured 20%).",
+        "contract": "Contract tests assert the error code and message contract (measured 100%)."
+      }
+    },
+    "OperationAuditFailureMode.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Enum without executable lines",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "An enum has no executable lines; its values are exercised through the behavior tests."
+      }
     },
     "OperationAuditQuery.cs": {
       "defaultTests": [
