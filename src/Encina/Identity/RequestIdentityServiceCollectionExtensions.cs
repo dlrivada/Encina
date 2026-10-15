@@ -91,6 +91,12 @@ public static class RequestIdentityServiceCollectionExtensions
     /// ignored; a different declaration under the same name fails startup, and so does a wildcard
     /// role or permission or a claim with a user-id claim type. Declare one identity per job and the
     /// least authority it needs; the tenant is chosen per scope.
+    /// <para>
+    /// Naming rule: a service name describes a function (for example <c>billing-reconciliation</c>),
+    /// never a person, and is never assigned to one person. The subject <c>service:&lt;name&gt;</c> is
+    /// written in clear to audit records (such as the ABAC decision audit) outside the personal-data
+    /// regime of user ids; a name that identifies a person would defeat that distinction.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="services"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException"><paramref name="name"/> breaks the name pattern or uses the reserved <c>encina.</c> prefix.</exception>
