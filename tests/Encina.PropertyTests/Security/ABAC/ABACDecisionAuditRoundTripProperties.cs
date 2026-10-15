@@ -1,5 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.DecisionAudit;
+using Encina.Security.Audit;
 
 using FsCheck;
 using FsCheck.Fluent;
@@ -74,8 +75,19 @@ public sealed class ABACDecisionAuditRoundTripProperties
                 return read.ObligationIds.SequenceEqual(record.ObligationIds)
                     && read.AdviceIds.SequenceEqual(record.AdviceIds)
                     && read.TraceTruncated == record.TraceTruncated
-                    && read.EvaluatedPolicies.Select(node => (node.PolicyId, node.Effect, node.Children.Count))
-                        .SequenceEqual(record.EvaluatedPolicies.Select(node => (node.PolicyId, node.Effect, node.Children.Count)))
+                    && System.Text.Json.JsonSerializer.Serialize(read.EvaluatedPolicies)
+                        == System.Text.Json.JsonSerializer.Serialize(record.EvaluatedPolicies)
+                    && read.UserId == record.UserId
+                    && read.ResourceId == record.ResourceId
+                    && read.RequestType == record.RequestType
+                    && read.CorrelationId == record.CorrelationId
+                    && read.ReasonCode == record.ReasonCode
+                    && read.Outcome == AuditOutcome.Denied
+                    && read.Enforced
+                    && read.EnforcementMode == record.EnforcementMode
+                    && read.IdentityKind == record.IdentityKind
+                    && read.StartedAtUtc == record.StartedAtUtc
+                    && read.CompletedAtUtc == record.CompletedAtUtc
                     && read.AttributeNames.Count == (names == 0 ? 0 : Categories.Length)
                     && read.AttributeNames.Values.All(list => list.Count == names)
                     && read.RecordedValues.OrderBy(pair => pair.Key).SequenceEqual(record.RecordedValues.OrderBy(pair => pair.Key))

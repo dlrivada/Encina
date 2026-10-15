@@ -122,10 +122,8 @@ public sealed class ABACDecisionAuditProperties
 
         var record = recorder.Records[0];
         var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(record);
-        var stored = string.Join(
-            "|",
-            new[] { entry.Action, entry.EntityType, entry.EntityId, entry.ErrorMessage, entry.UserId, entry.TenantId, entry.CorrelationId }
-                .Concat(entry.Metadata.Values.Select(value => value?.ToString())));
+        // The whole entry, every column and every metadata value.
+        var stored = System.Text.Json.JsonSerializer.Serialize(entry);
 
         return !stored.Contains(prefix, StringComparison.Ordinal)
             && !record.ToString().Contains(prefix, StringComparison.Ordinal)

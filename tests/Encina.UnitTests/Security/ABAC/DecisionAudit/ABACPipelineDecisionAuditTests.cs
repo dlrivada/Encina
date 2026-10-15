@@ -1131,10 +1131,9 @@ public sealed class ABACPipelineDecisionAuditTests
 
         var record = Single(recorder);
         var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(record);
-        var stored = string.Join(
-            "|",
-            new[] { entry.Action, entry.EntityType, entry.EntityId, entry.ErrorMessage, entry.UserId, entry.TenantId, entry.CorrelationId }
-                .Concat(entry.Metadata.Values.Select(value => value?.ToString())));
+        // The whole entry, every column (IpAddress, UserAgent, the payload fields and the hash included).
+        var stored = System.Text.Json.JsonSerializer.Serialize(entry);
+        stored.ShouldContain(ABACDecisionAuditSchema.Action);
         stored.ShouldNotContain("SENTINEL");
         record.ToString().ShouldNotContain("SENTINEL");
         record.ReasonCode.ShouldNotContain("SENTINEL");

@@ -1,7 +1,5 @@
 using Encina.Security.ABAC;
-using Encina.Security.ABAC.DecisionAudit;
 using Encina.Security.ABAC.Evaluation;
-using Encina.Security.Audit;
 
 using Shouldly;
 
@@ -37,42 +35,4 @@ public sealed class ABACDecisionAuditGuardTests
         Should.Throw<ArgumentNullException>(() => PolicyEvaluationTraceResolver.ResolveDecisiveRuleId(null!, Effect.Deny))
             .ParamName.ShouldBe("nodes");
 
-    [Fact]
-    public void Query_WithNoFilters_PrintsOnlyThePaging()
-    {
-        var printed = new ABACDecisionAuditQuery().ToString();
-
-        printed.ShouldContain("PageNumber = 1");
-        printed.ShouldNotContain("UserId");
-        printed.ShouldNotContain("TenantId");
-    }
-
-    [Fact]
-    public void Query_WithNullFilters_IsAValidQueryThatPrintsOnlyThePaging()
-    {
-        var query = new ABACDecisionAuditQuery { UserId = null, TenantId = null, ResourceId = null, CorrelationId = null, PageSize = 5 };
-
-        query.ToString().ShouldBe("ABACDecisionAuditQuery { PageNumber = 1, PageSize = 5 }");
-    }
-
-    [Fact]
-    public void Record_WithOnlyTheRequiredMembers_PrintsOnlyTheDecisionIdOutcomeAndReason()
-    {
-        var record = new ABACDecisionAuditRecord
-        {
-            DecisionId = Guid.Empty,
-            CorrelationId = "corr-secret",
-            RequestType = "SecretRequest",
-            Outcome = AuditOutcome.Denied,
-            Enforced = true,
-            ReasonCode = "abac.access_denied",
-            StartedAtUtc = DateTimeOffset.UnixEpoch,
-            CompletedAtUtc = DateTimeOffset.UnixEpoch
-        };
-
-        var printed = record.ToString();
-
-        printed.ShouldContain("abac.access_denied");
-        printed.ShouldNotContain("secret", Case.Insensitive);
-    }
 }

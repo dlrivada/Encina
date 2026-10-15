@@ -260,3 +260,5 @@ public sealed class AuditStoreABACDecisionRecorderContractTests
         read.UserId.ShouldBe("user-1");
     }
 }
+
+#pragma warning restore CA2012
