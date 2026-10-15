@@ -760,7 +760,13 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "Process and the constructor are fully exercised by OutboxPostProcessorTests (measured 100%).",
+        "guard": "Constructor null checks are asserted in the unit tests; the guard project has no separate tests for this class.",
+        "contract": "A concrete scoped processor with no public contract beyond IRequestPostProcessor, covered by ProcessorContracts for the interface."
+      }
     },
     "Outbox/OutboxProcessorBase.cs": {
       "defaultTests": [
