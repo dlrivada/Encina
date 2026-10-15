@@ -98,15 +98,10 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         IRequestContext context,
         CancellationToken cancellationToken)
     {
-        // Pre-processors: index-based iteration avoids enumerator allocation
-        for (var i = 0; i < preProcessors.Length; i++)
+        var preFailure = await RunPreProcessorsAsync(preProcessors, request, context, cancellationToken).ConfigureAwait(false);
+        if (preFailure.IsSome)
         {
-            var failure = await ExecutePreProcessorAsync(preProcessors[i], request, context, cancellationToken).ConfigureAwait(false);
-            if (failure.IsSome)
-            {
-                var error = failure.Match(err => err, () => EncinaErrors.Unknown);
-                return Left<EncinaError, TResponse>(error); // NOSONAR S6966: LanguageExt Left is a pure function
-            }
+            return Left<EncinaError, TResponse>(preFailure.Match(err => err, () => EncinaErrors.Unknown)); // NOSONAR S6966: LanguageExt Left is a pure function
         }
 
         var response = await terminal().ConfigureAwait(false);
@@ -117,19 +112,49 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
             return response;
         }
 
-        var value = (TResponse)response;
+        var postFailure = await RunPostProcessorsAsync(postProcessors, request, context, (TResponse)response, cancellationToken).ConfigureAwait(false);
+        return postFailure.IsSome
+            ? Left<EncinaError, TResponse>(postFailure.Match(err => err, () => EncinaErrors.Unknown)) // NOSONAR S6966: LanguageExt Left is a pure function
+            : response;
+    }
 
-        // Post-processors: index-based iteration avoids enumerator allocation
-        for (var i = 0; i < postProcessors.Length; i++)
+    private static async ValueTask<Option<EncinaError>> RunPreProcessorsAsync(
+        IRequestPreProcessor<TRequest>[] preProcessors,
+        TRequest request,
+        IRequestContext context,
+        CancellationToken cancellationToken)
+    {
+        // Index-based iteration avoids enumerator allocation
+        for (var i = 0; i < preProcessors.Length; i++)
         {
-            var failure = await ExecutePostProcessorAsync(postProcessors[i], request, context, value, cancellationToken).ConfigureAwait(false);
+            var failure = await ExecutePreProcessorAsync(preProcessors[i], request, context, cancellationToken).ConfigureAwait(false);
             if (failure.IsSome)
             {
-                return Left<EncinaError, TResponse>(failure.Match(err => err, () => EncinaErrors.Unknown)); // NOSONAR S6966: LanguageExt Left is a pure function
+                return failure;
             }
         }
 
-        return response;
+        return Option<EncinaError>.None;
+    }
+
+    private static async ValueTask<Option<EncinaError>> RunPostProcessorsAsync(
+        IRequestPostProcessor<TRequest, TResponse>[] postProcessors,
+        TRequest request,
+        IRequestContext context,
+        TResponse response,
+        CancellationToken cancellationToken)
+    {
+        // Index-based iteration avoids enumerator allocation
+        for (var i = 0; i < postProcessors.Length; i++)
+        {
+            var failure = await ExecutePostProcessorAsync(postProcessors[i], request, context, response, cancellationToken).ConfigureAwait(false);
+            if (failure.IsSome)
+            {
+                return failure;
+            }
+        }
+
+        return Option<EncinaError>.None;
     }
 
     /// <summary>
