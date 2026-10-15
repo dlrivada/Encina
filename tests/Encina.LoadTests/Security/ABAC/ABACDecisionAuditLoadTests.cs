@@ -75,20 +75,24 @@ public static class ABACDecisionAuditLoadTests
     public static async Task RunConcurrentEvaluationsAsync(int workerCount, TimeSpan duration)
     {
         Console.WriteLine();
-        Console.WriteLine("Scenario: ConcurrentEvaluations (audit on, in-memory store)");
+        Console.WriteLine("Scenario: ConcurrentEvaluations (audit on, counting store)");
 
-        var inner = new InMemoryOperationAuditStore();
-        await using var provider = await BuildProviderAsync(inner, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        // A store that counts and keeps nothing: the run is long and an in-memory store would grow without bound.
+        var store = new FaultyOperationAuditStore(new InMemoryOperationAuditStore(), StoreFault.Discards);
+        await using var provider = await BuildProviderAsync(store, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         var counters = new Counters();
 
         var result = await RunWorkersAsync(provider, workerCount, duration, counters, alternate: true).ConfigureAwait(false);
 
         Require(counters.Errors == 0, $"{counters.Errors} evaluations failed unexpectedly.");
+        Require(counters.AuditFailures == 0, "A request was denied for an audit failure although the store is healthy.");
         Require(counters.Permits > 0 && counters.Denials > 0, "The run produced no permit or no denial.");
-        Require(inner.Count == result.Operations, $"{result.Operations} evaluations wrote {inner.Count} records.");
+        Require(store.Written == result.Operations, $"{result.Operations} evaluations wrote {store.Written} records.");
+        Require(store.GrantedWritten == counters.Permits, "The granted records do not match the permits.");
+        Require(store.DeniedWritten == counters.Denials, "The denied records do not match the denials.");
         Require(counters.HandlerCalls == counters.Permits, "The handler ran for something other than a permit.");
 
-        result.Print(counters, inner.Count);
+        result.Print(counters, (int)store.Written);
     }
 
     /// <summary>
@@ -108,6 +112,8 @@ public static class ABACDecisionAuditLoadTests
         var result = await RunWorkersAsync(provider, workerCount, duration, counters, alternate: true).ConfigureAwait(false);
 
         Require(result.Operations > 0, "The run produced no evaluation.");
+        Require(counters.Errors == 0, $"{counters.Errors} requests threw out of the enforcement point.");
+        Require(counters.Denials > 0, "No deny kept its own denial.");
         Require(counters.HandlerCalls == 0, "The handler ran although the decision record could not be written.");
         Require(counters.Permits == 0, "A request proceeded without its decision record.");
         Require(inner.Count == 0, "The failing store kept a record.");
@@ -321,14 +327,41 @@ public static class ABACDecisionAuditLoadTests
         Throws,
 
         /// <summary>Every write waits forever, ignoring its token.</summary>
-        NeverAnswers
+        NeverAnswers,
+
+        /// <summary>Every write succeeds and is only counted, by outcome.</summary>
+        Discards
     }
 
     private sealed class FaultyOperationAuditStore(IOperationAuditStore inner, StoreFault fault) : IOperationAuditStore
     {
+        private long _granted;
+        private long _denied;
+
+        public long GrantedWritten => Interlocked.Read(ref _granted);
+
+        public long DeniedWritten => Interlocked.Read(ref _denied);
+
+        public long Written => GrantedWritten + DeniedWritten;
+
+        private ValueTask<Either<EncinaError, Unit>> Count(OperationAuditEntry entry)
+        {
+            if (entry.Outcome == AuditOutcome.Success)
+            {
+                Interlocked.Increment(ref _granted);
+            }
+            else if (entry.Outcome == AuditOutcome.Denied)
+            {
+                Interlocked.Increment(ref _denied);
+            }
+
+            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
+        }
+
         public ValueTask<Either<EncinaError, Unit>> RecordAsync(OperationAuditEntry entry, CancellationToken cancellationToken = default) =>
             fault switch
             {
+                StoreFault.Discards => Count(entry),
                 StoreFault.ReturnsLeft => ValueTask.FromResult(Left<EncinaError, Unit>(EncinaErrors.Create(code: "load.store_failed", message: "The store is down."))),
                 StoreFault.Throws => throw new InvalidOperationException("The store is down."),
                 _ => new ValueTask<Either<EncinaError, Unit>>(new TaskCompletionSource<Either<EncinaError, Unit>>().Task)

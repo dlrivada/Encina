@@ -30,6 +30,8 @@ namespace Encina.Benchmarks.Security.ABAC;
 /// </remarks>
 [MemoryDiagnoser]
 [RankColumn]
+[GroupBenchmarksBy(BenchmarkDotNet.Configs.BenchmarkLogicalGroupRule.ByCategory)]
+[CategoriesColumn]
 public class ABACDecisionAuditBenchmarks
 {
     private const string PolicyId = "bench-policy";
@@ -63,6 +65,17 @@ public class ABACDecisionAuditBenchmarks
 
         _plainContext = CreateEvaluationContext(trace: false);
         _tracedContext = CreateEvaluationContext(trace: true);
+
+        // Each benchmark must time the path it names: a permit through the PEP and a Permit from the PDP.
+        if (!await Pep_AuditOff().ConfigureAwait(false) || !await Pep_AuditOn().ConfigureAwait(false))
+        {
+            throw new InvalidOperationException("The PEP did not permit the benchmark request.");
+        }
+
+        if (await Pdp_WithoutTrace().ConfigureAwait(false) != Effect.Permit || await Pdp_WithTrace().ConfigureAwait(false) != Effect.Permit)
+        {
+            throw new InvalidOperationException("The PDP did not permit the benchmark policy.");
+        }
     }
 
     [GlobalCleanup]
@@ -75,22 +88,26 @@ public class ABACDecisionAuditBenchmarks
     }
 
     /// <summary>PEP with the decision audit off (the baseline).</summary>
+    [BenchmarkCategory("PEP")]
     [Benchmark(Baseline = true)]
     public async ValueTask<bool> Pep_AuditOff() =>
         (await _pepOff.Handle(new BenchRequest(), _context, Ok, CancellationToken.None).ConfigureAwait(false)).IsRight;
 
     /// <summary>PEP with the decision audit on: record, map and write before the handler runs.</summary>
+    [BenchmarkCategory("PEP")]
     [Benchmark]
     public async ValueTask<bool> Pep_AuditOn() =>
         (await _pepOn.Handle(new BenchRequest(), _context, Ok, CancellationToken.None).ConfigureAwait(false)).IsRight;
 
     /// <summary>PDP evaluation without a trace (the baseline of the PDP pair).</summary>
-    [Benchmark]
+    [BenchmarkCategory("PDP")]
+    [Benchmark(Baseline = true)]
     public async ValueTask<Effect> Pdp_WithoutTrace() =>
         (await _pdp.EvaluatePolicyAsync(PolicyId, _plainContext, CancellationToken.None).ConfigureAwait(false))
             .Match(Right: decision => decision.Effect, Left: _ => Effect.Indeterminate);
 
     /// <summary>PDP evaluation with the evaluation trace.</summary>
+    [BenchmarkCategory("PDP")]
     [Benchmark]
     public async ValueTask<Effect> Pdp_WithTrace() =>
         (await _pdp.EvaluatePolicyAsync(PolicyId, _tracedContext, CancellationToken.None).ConfigureAwait(false))
