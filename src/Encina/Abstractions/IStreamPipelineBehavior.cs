@@ -18,7 +18,8 @@ namespace Encina;
 /// rate limiting, enriching items with additional data, or filtering based on runtime conditions.
 /// </para>
 /// <para>
-/// Behaviors run in the order of their <see cref="PipelineStage"/> (declared with <see cref="PipelineStageAttribute"/>),
+/// <b>Phase note (#2184):</b> the stage contract is declared but not yet applied; until the order resolver lands,
+/// behaviors still run in registration order. Once applied, behaviors run in the order of their <see cref="PipelineStage"/> (declared with <see cref="PipelineStageAttribute"/>),
 /// then by <see cref="PipelineStageAttribute.Order"/>; lower values are further out. Each one can transform the stream
 /// from the next step before yielding items to the caller.
 /// </para>

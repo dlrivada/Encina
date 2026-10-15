@@ -245,6 +245,23 @@ public sealed class OutboxPostProcessorTests
     #region Process - Result
 
     [Fact]
+    public async Task Process_WhenStoreThrows_PropagatesTheException()
+    {
+        // Arrange
+        var (processor, store, messageFactory) = CreateProcessor<TestRequestWithNotifications>();
+        messageFactory.Create(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTime>())
+            .Returns(callInfo => Substitute.For<IOutboxMessage>());
+        store.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Task.FromException(new InvalidOperationException("store down")));
+        var request = new TestRequestWithNotifications { Value = 1 };
+        request.AddNotification(new TestNotification { Message = "n" });
+
+        // Act / Assert
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await processor.Process(request, CreateContext(), new TestResponse(), CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Process_WithNotifications_ReturnsRightUnit()
     {
         // Arrange

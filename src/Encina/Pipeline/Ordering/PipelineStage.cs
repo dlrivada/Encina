@@ -12,6 +12,9 @@ namespace Encina;
 /// so an undeclared step can never run around a gate.
 /// </para>
 /// <para>
+/// <b>Phase note (#2184):</b> the vocabulary is declared but not yet applied by the pipeline builders.
+/// </para>
+/// <para>
 /// The numeric values leave room between members and are part of the contract: they are never renumbered.
 /// </para>
 /// </remarks>

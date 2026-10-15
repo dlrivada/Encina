@@ -11,6 +11,7 @@ namespace Encina;
 /// step before the default order of 0. The attribute is not inherited.
 /// </para>
 /// <para>
+/// <b>Phase note (#2184):</b> the attribute is declared but not yet read by the pipeline builders.
 /// A registration-time override, when present, takes precedence over the attribute.
 /// </para>
 /// </remarks>

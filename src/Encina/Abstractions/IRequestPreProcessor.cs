@@ -13,6 +13,10 @@ namespace Encina;
 /// transaction stage); declare another with <see cref="PipelineStageAttribute"/>.
 /// </para>
 /// <para>
+/// <b>Phase note (#2184):</b> stage placement is not yet applied; until the order resolver lands, pre-processors still
+/// run before every behavior. The abort semantics below already apply.
+/// </para>
+/// <para>
 /// A <c>Left</c> result aborts the request: the inner steps and the handler do not run and the error is returned.
 /// Anything that needs wrapping, timing or catching belongs in an <see cref="IPipelineBehavior{TRequest, TResponse}"/>.
 /// </para>

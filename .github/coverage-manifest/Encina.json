@@ -111,9 +111,9 @@
       "reason": "Interfaces have no implementation to test",
       "targets": { "unit": 0, "guard": 0, "contract": 0 },
       "justifications": {
-        "unit": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts.",
-        "guard": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts.",
-        "contract": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts."
+        "unit": "Interface declaration only, no executable lines; the pipeline builder does not invoke it until a later phase of #2184, and the interface shape is asserted by ProcessorContracts.",
+        "guard": "Interface declaration only, no executable lines; the pipeline builder does not invoke it until a later phase of #2184, and the interface shape is asserted by ProcessorContracts.",
+        "contract": "Interface declaration only, no executable lines; the pipeline builder does not invoke it until a later phase of #2184, and the interface shape is asserted by ProcessorContracts."
       }
     },
     "Abstractions/IRequestPostCommitProcessor.cs": {
@@ -122,9 +122,9 @@
       "reason": "Interfaces have no implementation to test",
       "targets": { "unit": 0, "guard": 0, "contract": 0 },
       "justifications": {
-        "unit": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts.",
-        "guard": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts.",
-        "contract": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts."
+        "unit": "Interface declaration only, no executable lines; the pipeline builder does not invoke it until a later phase of #2184, and the interface shape is asserted by ProcessorContracts.",
+        "guard": "Interface declaration only, no executable lines; the pipeline builder does not invoke it until a later phase of #2184, and the interface shape is asserted by ProcessorContracts.",
+        "contract": "Interface declaration only, no executable lines; the pipeline builder does not invoke it until a later phase of #2184, and the interface shape is asserted by ProcessorContracts."
       }
     },
     "Abstractions/IRequestPostProcessor.cs": {
@@ -133,9 +133,9 @@
       "reason": "Interfaces have no implementation to test",
       "targets": { "unit": 0, "guard": 0, "contract": 0 },
       "justifications": {
-        "unit": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts.",
-        "guard": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts.",
-        "contract": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts."
+        "unit": "Interface declaration only, no executable lines; its semantics are exercised through ProcessorSemanticsTests and ProcessorContracts.",
+        "guard": "Interface declaration only, no executable lines; its semantics are exercised through ProcessorSemanticsTests and ProcessorContracts.",
+        "contract": "Interface declaration only, no executable lines; its semantics are exercised through ProcessorSemanticsTests and ProcessorContracts."
       }
     },
     "Abstractions/IRequestPreProcessor.cs": {
@@ -144,9 +144,9 @@
       "reason": "Interfaces have no implementation to test",
       "targets": { "unit": 0, "guard": 0, "contract": 0 },
       "justifications": {
-        "unit": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts.",
-        "guard": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts.",
-        "contract": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts."
+        "unit": "Interface declaration only, no executable lines; its semantics are exercised through ProcessorSemanticsTests and ProcessorContracts.",
+        "guard": "Interface declaration only, no executable lines; its semantics are exercised through ProcessorSemanticsTests and ProcessorContracts.",
+        "contract": "Interface declaration only, no executable lines; its semantics are exercised through ProcessorSemanticsTests and ProcessorContracts."
       }
     },
     "Abstractions/IStreamPipelineBehavior.cs": {
@@ -1053,9 +1053,9 @@
       "reason": "Interfaces have no implementation to test",
       "targets": { "unit": 0, "guard": 0, "contract": 0 },
       "justifications": {
-        "unit": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts.",
-        "guard": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts.",
-        "contract": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts."
+        "unit": "Interface declaration only, no executable lines; it has no implementer until a later phase of #2184.",
+        "guard": "Interface declaration only, no executable lines; it has no implementer until a later phase of #2184.",
+        "contract": "Interface declaration only, no executable lines; it has no implementer until a later phase of #2184."
       }
     },
     "Pipeline/Ordering/PipelineStage.cs": {
@@ -1064,9 +1064,9 @@
       "reason": "Enum: no executable lines",
       "targets": { "unit": 0, "guard": 0, "contract": 0 },
       "justifications": {
-        "unit": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts.",
-        "guard": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts.",
-        "contract": "Declaration only (enum or interface), no executable lines; behavior is exercised through its implementers in PipelineBuilder tests and ProcessorContracts."
+        "unit": "Enum declaration only, no executable lines; member values are asserted by PipelineStageContractTests.",
+        "guard": "Enum declaration only, no executable lines; member values are asserted by PipelineStageContractTests.",
+        "contract": "Enum declaration only, no executable lines; member values are asserted by PipelineStageContractTests."
       }
     },
     "Pipeline/Ordering/PipelineStageAttribute.cs": {
@@ -1102,11 +1102,11 @@
       ],
       "defaultRule": "*Builder.cs",
       "reason": "Fluent builder with validation",
-      "targets": { "unit": 95, "guard": 35, "contract": 30 },
+      "targets": { "unit": 95, "guard": 40, "contract": 36 },
       "justifications": {
         "unit": "Every pre/post/behavior/handler branch is exercised by EncinaTests and ProcessorSemanticsTests (measured 100%).",
-        "guard": "Guard tests reach the handler and constructor paths only; processor and behavior executors are covered by unit tests.",
-        "contract": "Contract tests resolve the builder through registration contracts and cover the dispatch path, not the processor executors."
+        "guard": "Guard tests execute the handler and constructor paths and part of the processor phases (measured about 40%); the rest is covered by unit tests.",
+        "contract": "Contract tests run the registration-driven dispatch path including part of the processor phases (measured about 37%); the executors are covered by unit tests."
       }
     },
     "Pipeline/StreamPipelineBuilder.cs": {

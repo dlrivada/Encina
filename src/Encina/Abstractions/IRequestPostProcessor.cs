@@ -14,7 +14,8 @@ namespace Encina;
 /// post-processor fails the request: errors are never swallowed.
 /// </para>
 /// <para>
-/// Its default stage is <see cref="PipelineStage.Application"/>; declare another with
+/// <b>Phase note (#2184):</b> stage placement is not yet applied; until the order resolver lands, post-processors still
+/// run after every behavior. Its default stage will be <see cref="PipelineStage.Application"/>; declare another with
 /// <see cref="PipelineStageAttribute"/>. Anything that needs wrapping, timing or catching belongs in an
 /// <see cref="IPipelineBehavior{TRequest, TResponse}"/>.
 /// </para>

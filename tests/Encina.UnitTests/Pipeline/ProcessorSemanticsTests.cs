@@ -83,6 +83,51 @@ public sealed class ProcessorSemanticsTests
         calls.ShouldBe(["pre", "handler", "post"]);
     }
 
+    [Fact]
+    public async Task PreProcessorLeft_SkipsLaterPreProcessorsAndBehaviors()
+    {
+        var calls = new List<string>();
+        var services = new ServiceCollection();
+        services.AddEncina();
+        services.AddScoped<IRequestHandler<Req, string>>(_ => new Handler(calls, false));
+        services.AddScoped<IRequestPreProcessor<Req>>(_ => new FixedPre(calls, EncinaError.New("first")));
+        services.AddScoped<IRequestPreProcessor<Req>>(_ => new FixedPre(calls, null));
+        services.AddScoped<IPipelineBehavior<Req, string>>(_ => new RecordingBehavior(calls));
+
+        await using var provider = services.BuildServiceProvider();
+        var result = await provider.GetRequiredService<IEncina>().Send(new Req(), CancellationToken.None);
+
+        result.IsLeft.ShouldBeTrue();
+        calls.ShouldBe(["pre"]);
+    }
+
+    [Fact]
+    public async Task PostProcessorLeft_SkipsLaterPostProcessors()
+    {
+        var calls = new List<string>();
+        var services = new ServiceCollection();
+        services.AddEncina();
+        services.AddScoped<IRequestHandler<Req, string>>(_ => new Handler(calls, false));
+        services.AddScoped<IRequestPostProcessor<Req, string>>(_ => new FixedPost(calls, EncinaError.New("first")));
+        services.AddScoped<IRequestPostProcessor<Req, string>>(_ => new FixedPost(calls, null));
+
+        await using var provider = services.BuildServiceProvider();
+        var result = await provider.GetRequiredService<IEncina>().Send(new Req(), CancellationToken.None);
+
+        result.IsLeft.ShouldBeTrue();
+        calls.ShouldBe(["handler", "post"]);
+    }
+
+    private sealed class RecordingBehavior(List<string> calls) : IPipelineBehavior<Req, string>
+    {
+        public ValueTask<Either<EncinaError, string>> Handle(
+            Req request, IRequestContext context, RequestHandlerCallback<string> nextStep, CancellationToken cancellationToken)
+        {
+            calls.Add("behavior");
+            return nextStep();
+        }
+    }
+
     private static async Task<Either<EncinaError, string>> SendAsync(
         List<string> calls,
         FixedPre? pre = null,
