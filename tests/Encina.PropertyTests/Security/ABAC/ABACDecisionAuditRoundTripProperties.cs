@@ -22,31 +22,31 @@ public sealed class ABACDecisionAuditRoundTripProperties
 
     private static ABACDecisionRecord Record(
         int obligations, int advice, int namesPerCategory, int recordedValues, int traceNodes, bool truncatedTrace) => new()
-    {
-        DecisionId = Guid.CreateVersion7(),
-        UserId = "user-1",
-        IdentityKind = IdentityKind.User,
-        CorrelationId = "corr-1",
-        ModuleId = "module-1",
-        RequestType = "GetOrderQuery",
-        ResourceId = "order-1",
-        EnforcedOutcome = ABACEnforcedOutcome.Denied,
-        ReasonCode = ABACErrors.AccessDeniedCode,
-        EnforcementMode = ABACEnforcementMode.Block,
-        Effect = Effect.Deny,
-        PolicyId = "policy-a",
-        RuleId = "rule-1",
-        EvaluatedPolicies = Enumerable.Range(0, traceNodes).Select(Node).ToList(),
-        TraceTruncated = truncatedTrace,
-        ObligationIds = Enumerable.Range(0, obligations).Select(i => $"obligation-{i}").ToList(),
-        AdviceIds = Enumerable.Range(0, advice).Select(i => $"advice-{i}").ToList(),
-        AttributeNames = Categories.ToDictionary(
+        {
+            DecisionId = Guid.CreateVersion7(),
+            UserId = "user-1",
+            IdentityKind = IdentityKind.User,
+            CorrelationId = "corr-1",
+            ModuleId = "module-1",
+            RequestType = "GetOrderQuery",
+            ResourceId = "order-1",
+            EnforcedOutcome = ABACEnforcedOutcome.Denied,
+            ReasonCode = ABACErrors.AccessDeniedCode,
+            EnforcementMode = ABACEnforcementMode.Block,
+            Effect = Effect.Deny,
+            PolicyId = "policy-a",
+            RuleId = "rule-1",
+            EvaluatedPolicies = Enumerable.Range(0, traceNodes).Select(Node).ToList(),
+            TraceTruncated = truncatedTrace,
+            ObligationIds = Enumerable.Range(0, obligations).Select(i => $"obligation-{i}").ToList(),
+            AdviceIds = Enumerable.Range(0, advice).Select(i => $"advice-{i}").ToList(),
+            AttributeNames = Categories.ToDictionary(
             category => category,
             category => (IReadOnlyList<string>)Enumerable.Range(0, namesPerCategory).Select(i => $"{category}-attr-{i}").ToList()),
-        RecordedValues = Enumerable.Range(0, recordedValues).ToDictionary(i => $"attr{i}", i => $"value-{i}"),
-        StartedAtUtc = DateTimeOffset.UnixEpoch,
-        CompletedAtUtc = DateTimeOffset.UnixEpoch.AddMilliseconds(3)
-    };
+            RecordedValues = Enumerable.Range(0, recordedValues).ToDictionary(i => $"attr{i}", i => $"value-{i}"),
+            StartedAtUtc = DateTimeOffset.UnixEpoch,
+            CompletedAtUtc = DateTimeOffset.UnixEpoch.AddMilliseconds(3)
+        };
 
     private static PolicyEvaluationTrace Node(int index) => new()
     {
