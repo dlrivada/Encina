@@ -248,12 +248,15 @@ public sealed class ABACDecisionAuditServiceGraphTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Abac:DecisionAudit:Enabled"] = "true" })
             .Build();
-        var builder = CreateBuilder();
+        var logs = new FakeLogCollector();
+        var builder = CreateBuilder(logs);
         builder.Services.AddEncinaABAC();
         builder.Services.Configure<ABACOptions>(configuration.GetSection("Abac"));
         using var host = builder.Build();
 
         await Should.ThrowAsync<InvalidOperationException>(() => host.StartAsync());
+
+        logs.GetSnapshot().Single(r => r.Id.Id == 9087).Level.ShouldBe(LogLevel.Critical);
     }
 
     private static void Register(IServiceCollection services, bool securityFirst, Action<ABACOptions>? configure)

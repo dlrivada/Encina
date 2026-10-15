@@ -52,7 +52,7 @@ public sealed class ABACDecisionAuditGuardTests
     {
         var query = new ABACDecisionAuditQuery { UserId = null, TenantId = null, ResourceId = null, CorrelationId = null, PageSize = 5 };
 
-        query.ToString().ShouldContain("PageSize = 5");
+        query.ToString().ShouldBe("ABACDecisionAuditQuery { PageNumber = 1, PageSize = 5 }");
     }
 
     [Fact]
