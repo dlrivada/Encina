@@ -1,0 +1,738 @@
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 8 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// start dotnet  restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/" /p:OutDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0/" /p:OutputPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0/" /p:PublishDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/publish/" in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1
+// command took 2.74 sec and exited with 0
+// start dotnet  build -c Release --no-restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/" /p:OutDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0/" /p:OutputPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0/" /p:PublishDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/publish/" --output "/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0/" in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1
+// command took 162.59 sec and exited with 0
+// ***** Done, took 00:02:45 (165.45 sec)   *****
+// Found 8 benchmarks:
+//   StreamRequestBenchmarks.Stream_SmallDataset_10Items: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+//   StreamRequestBenchmarks.Stream_MediumDataset_100Items: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+//   StreamRequestBenchmarks.Stream_LargeDataset_1000Items: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+//   StreamRequestBenchmarks.Stream_WithPipelineBehaviors: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+//   StreamRequestBenchmarks.Stream_MaterializeToList_100Items: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+//   StreamRequestBenchmarks.Stream_CountOnly_NoMaterialization: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+//   StreamRequestBenchmarks.Stream_WithCancellation_EarlyExit: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+//   StreamRequestBenchmarks.Stream_DirectHandlerInvocation_NoEncina: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+
+// **************************
+// Benchmark: StreamRequestBenchmarks.Stream_SmallDataset_10Items: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 226 227 --benchmarkName Encina.Benchmarks.StreamRequestBenchmarks.Stream_SmallDataset_10Items --job ShortRun --benchmarkId 0 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 165767.00 ns, 165.7670 us/op
+WorkloadJitting  1: 1 op, 87869920.00 ns, 87.8699 ms/op
+
+WorkloadPilot    1: 2 op, 1905085.00 ns, 952.5425 us/op
+WorkloadPilot    2: 3 op, 92778.00 ns, 30.9260 us/op
+WorkloadPilot    3: 4 op, 73690.00 ns, 18.4225 us/op
+WorkloadPilot    4: 5 op, 121912.00 ns, 24.3824 us/op
+WorkloadPilot    5: 6 op, 170423.00 ns, 28.4038 us/op
+WorkloadPilot    6: 7 op, 115562.00 ns, 16.5089 us/op
+WorkloadPilot    7: 8 op, 146247.00 ns, 18.2809 us/op
+WorkloadPilot    8: 9 op, 194679.00 ns, 21.6310 us/op
+WorkloadPilot    9: 10 op, 308619.00 ns, 30.8619 us/op
+WorkloadPilot   10: 11 op, 324523.00 ns, 29.5021 us/op
+WorkloadPilot   11: 12 op, 534987.00 ns, 44.5823 us/op
+WorkloadPilot   12: 13 op, 206537.00 ns, 15.8875 us/op
+WorkloadPilot   13: 14 op, 201600.00 ns, 14.4000 us/op
+WorkloadPilot   14: 15 op, 173538.00 ns, 11.5692 us/op
+WorkloadPilot   15: 16 op, 232346.00 ns, 14.5216 us/op
+WorkloadPilot   16: 32 op, 1198604.00 ns, 37.4564 us/op
+WorkloadPilot   17: 64 op, 929153.00 ns, 14.5180 us/op
+WorkloadPilot   18: 128 op, 1852908.00 ns, 14.4758 us/op
+WorkloadPilot   19: 256 op, 3577364.00 ns, 13.9741 us/op
+WorkloadPilot   20: 512 op, 7197201.00 ns, 14.0570 us/op
+WorkloadPilot   21: 1024 op, 14296156.00 ns, 13.9611 us/op
+WorkloadPilot   22: 2048 op, 22018599.00 ns, 10.7513 us/op
+WorkloadPilot   23: 4096 op, 38267640.00 ns, 9.3427 us/op
+WorkloadPilot   24: 8192 op, 78939450.00 ns, 9.6362 us/op
+WorkloadPilot   25: 16384 op, 157866070.00 ns, 9.6354 us/op
+WorkloadPilot   26: 32768 op, 312359531.00 ns, 9.5325 us/op
+WorkloadPilot   27: 65536 op, 627451646.00 ns, 9.5742 us/op
+
+WorkloadWarmup   1: 65536 op, 624933659.00 ns, 9.5357 us/op
+WorkloadWarmup   2: 65536 op, 620543875.00 ns, 9.4687 us/op
+WorkloadWarmup   3: 65536 op, 650790971.00 ns, 9.9303 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 65536 op, 626587189.00 ns, 9.5610 us/op
+WorkloadActual   2: 65536 op, 634282082.00 ns, 9.6784 us/op
+WorkloadActual   3: 65536 op, 632655561.00 ns, 9.6536 us/op
+
+// AfterActualRun
+WorkloadResult   1: 65536 op, 626587189.00 ns, 9.5610 us/op
+WorkloadResult   2: 65536 op, 634282082.00 ns, 9.6784 us/op
+WorkloadResult   3: 65536 op, 632655561.00 ns, 9.6536 us/op
+// GC:  50 0 0 842542648 65536
+// Threading:  0 0 65536
+
+// AfterAll
+// Benchmark Process 3872 has exited with code 0.
+
+Mean = 9.631 μs, StdErr = 0.036 μs (0.37%), N = 3, StdDev = 0.062 μs
+Min = 9.561 μs, Q1 = 9.607 μs, Median = 9.654 μs, Q3 = 9.666 μs, Max = 9.678 μs
+IQR = 0.059 μs, LowerFence = 9.519 μs, UpperFence = 9.754 μs
+ConfidenceInterval = [8.502 μs; 10.760 μs] (CI 99.9%), Margin = 1.129 μs (11.72% of Mean)
+Skewness = -0.32, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 7 (87.5 %) benchmark(s) to run. Estimated finish 2026-10-15 12:14 (0h 0m from now) **
+// **************************
+// Benchmark: StreamRequestBenchmarks.Stream_MediumDataset_100Items: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 226 227 --benchmarkName Encina.Benchmarks.StreamRequestBenchmarks.Stream_MediumDataset_100Items --job ShortRun --benchmarkId 1 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 162842.00 ns, 162.8420 us/op
+WorkloadJitting  1: 1 op, 88683551.00 ns, 88.6836 ms/op
+
+WorkloadPilot    1: 2 op, 2180295.00 ns, 1.0901 ms/op
+WorkloadPilot    2: 3 op, 351223.00 ns, 117.0743 us/op
+WorkloadPilot    3: 4 op, 323502.00 ns, 80.8755 us/op
+WorkloadPilot    4: 5 op, 472043.00 ns, 94.4086 us/op
+WorkloadPilot    5: 6 op, 863475.00 ns, 143.9125 us/op
+WorkloadPilot    6: 7 op, 1432893.00 ns, 204.6990 us/op
+WorkloadPilot    7: 8 op, 915994.00 ns, 114.4993 us/op
+WorkloadPilot    8: 9 op, 1684207.00 ns, 187.1341 us/op
+WorkloadPilot    9: 10 op, 909133.00 ns, 90.9133 us/op
+WorkloadPilot   10: 11 op, 791849.00 ns, 71.9863 us/op
+WorkloadPilot   11: 12 op, 821082.00 ns, 68.4235 us/op
+WorkloadPilot   12: 13 op, 915102.00 ns, 70.3925 us/op
+WorkloadPilot   13: 14 op, 964936.00 ns, 68.9240 us/op
+WorkloadPilot   14: 15 op, 1026388.00 ns, 68.4259 us/op
+WorkloadPilot   15: 16 op, 1073447.00 ns, 67.0904 us/op
+WorkloadPilot   16: 32 op, 2791204.00 ns, 87.2251 us/op
+WorkloadPilot   17: 64 op, 6212656.00 ns, 97.0728 us/op
+WorkloadPilot   18: 128 op, 12771157.00 ns, 99.7747 us/op
+WorkloadPilot   19: 256 op, 21020355.00 ns, 82.1108 us/op
+WorkloadPilot   20: 512 op, 32919334.00 ns, 64.2956 us/op
+WorkloadPilot   21: 1024 op, 65272053.00 ns, 63.7422 us/op
+WorkloadPilot   22: 2048 op, 130506952.00 ns, 63.7241 us/op
+WorkloadPilot   23: 4096 op, 264965184.00 ns, 64.6888 us/op
+WorkloadPilot   24: 8192 op, 523850849.00 ns, 63.9466 us/op
+
+WorkloadWarmup   1: 8192 op, 529496571.00 ns, 64.6358 us/op
+WorkloadWarmup   2: 8192 op, 532879345.00 ns, 65.0487 us/op
+WorkloadWarmup   3: 8192 op, 538269092.00 ns, 65.7067 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 8192 op, 534051163.00 ns, 65.1918 us/op
+WorkloadActual   2: 8192 op, 532682596.00 ns, 65.0247 us/op
+WorkloadActual   3: 8192 op, 535266202.00 ns, 65.3401 us/op
+
+// AfterActualRun
+WorkloadResult   1: 8192 op, 534051163.00 ns, 65.1918 us/op
+WorkloadResult   2: 8192 op, 532682596.00 ns, 65.0247 us/op
+WorkloadResult   3: 8192 op, 535266202.00 ns, 65.3401 us/op
+// GC:  42 0 0 712845048 8192
+// Threading:  0 0 8192
+
+// AfterAll
+// Benchmark Process 3885 has exited with code 0.
+
+Mean = 65.186 μs, StdErr = 0.091 μs (0.14%), N = 3, StdDev = 0.158 μs
+Min = 65.025 μs, Q1 = 65.108 μs, Median = 65.192 μs, Q3 = 65.266 μs, Max = 65.340 μs
+IQR = 0.158 μs, LowerFence = 64.872 μs, UpperFence = 65.502 μs
+ConfidenceInterval = [62.307 μs; 68.064 μs] (CI 99.9%), Margin = 2.879 μs (4.42% of Mean)
+Skewness = -0.04, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 6 (75.0 %) benchmark(s) to run. Estimated finish 2026-10-15 12:14 (0h 0m from now) **
+// **************************
+// Benchmark: StreamRequestBenchmarks.Stream_LargeDataset_1000Items: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 226 227 --benchmarkName Encina.Benchmarks.StreamRequestBenchmarks.Stream_LargeDataset_1000Items --job ShortRun --benchmarkId 2 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 167759.00 ns, 167.7590 us/op
+WorkloadJitting  1: 1 op, 90209109.00 ns, 90.2091 ms/op
+
+WorkloadPilot    1: 2 op, 3765374.00 ns, 1.8827 ms/op
+WorkloadPilot    2: 3 op, 3901207.00 ns, 1.3004 ms/op
+WorkloadPilot    3: 4 op, 3962968.00 ns, 990.7420 us/op
+WorkloadPilot    4: 5 op, 5142133.00 ns, 1.0284 ms/op
+WorkloadPilot    5: 6 op, 4448841.00 ns, 741.4735 us/op
+WorkloadPilot    6: 7 op, 5011799.00 ns, 715.9713 us/op
+WorkloadPilot    7: 8 op, 5741075.00 ns, 717.6344 us/op
+WorkloadPilot    8: 9 op, 6273277.00 ns, 697.0308 us/op
+WorkloadPilot    9: 10 op, 6944896.00 ns, 694.4896 us/op
+WorkloadPilot   10: 11 op, 7499011.00 ns, 681.7283 us/op
+WorkloadPilot   11: 12 op, 7776443.00 ns, 648.0369 us/op
+WorkloadPilot   12: 13 op, 8277239.00 ns, 636.7107 us/op
+WorkloadPilot   13: 14 op, 8824483.00 ns, 630.3202 us/op
+WorkloadPilot   14: 15 op, 9441532.00 ns, 629.4355 us/op
+WorkloadPilot   15: 16 op, 10266350.00 ns, 641.6469 us/op
+WorkloadPilot   16: 32 op, 22017819.00 ns, 688.0568 us/op
+WorkloadPilot   17: 64 op, 39371167.00 ns, 615.1745 us/op
+WorkloadPilot   18: 128 op, 79005294.00 ns, 617.2289 us/op
+WorkloadPilot   19: 256 op, 158359478.00 ns, 618.5917 us/op
+WorkloadPilot   20: 512 op, 319053530.00 ns, 623.1514 us/op
+WorkloadPilot   21: 1024 op, 653217008.00 ns, 637.9072 us/op
+
+WorkloadWarmup   1: 1024 op, 639275389.00 ns, 624.2924 us/op
+WorkloadWarmup   2: 1024 op, 636289235.00 ns, 621.3762 us/op
+WorkloadWarmup   3: 1024 op, 633473454.00 ns, 618.6264 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 1024 op, 633969342.00 ns, 619.1107 us/op
+WorkloadActual   2: 1024 op, 642795038.00 ns, 627.7295 us/op
+WorkloadActual   3: 1024 op, 641800167.00 ns, 626.7580 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1024 op, 633969342.00 ns, 619.1107 us/op
+WorkloadResult   2: 1024 op, 642795038.00 ns, 627.7295 us/op
+WorkloadResult   3: 1024 op, 641800167.00 ns, 626.7580 us/op
+// GC:  50 0 0 848514616 1024
+// Threading:  0 0 1024
+
+// AfterAll
+// Benchmark Process 3896 has exited with code 0.
+
+Mean = 624.533 μs, StdErr = 2.725 μs (0.44%), N = 3, StdDev = 4.721 μs
+Min = 619.111 μs, Q1 = 622.934 μs, Median = 626.758 μs, Q3 = 627.244 μs, Max = 627.730 μs
+IQR = 4.309 μs, LowerFence = 616.470 μs, UpperFence = 633.708 μs
+ConfidenceInterval = [538.410 μs; 710.656 μs] (CI 99.9%), Margin = 86.123 μs (13.79% of Mean)
+Skewness = -0.37, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 5 (62.5 %) benchmark(s) to run. Estimated finish 2026-10-15 12:14 (0h 0m from now) **
+// **************************
+// Benchmark: StreamRequestBenchmarks.Stream_WithPipelineBehaviors: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 226 227 --benchmarkName Encina.Benchmarks.StreamRequestBenchmarks.Stream_WithPipelineBehaviors --job ShortRun --benchmarkId 3 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 173909.00 ns, 173.9090 us/op
+WorkloadJitting  1: 1 op, 101688704.00 ns, 101.6887 ms/op
+
+WorkloadPilot    1: 2 op, 2229728.00 ns, 1.1149 ms/op
+WorkloadPilot    2: 3 op, 308990.00 ns, 102.9967 us/op
+WorkloadPilot    3: 4 op, 594995.00 ns, 148.7488 us/op
+WorkloadPilot    4: 5 op, 318474.00 ns, 63.6948 us/op
+WorkloadPilot    5: 6 op, 731899.00 ns, 121.9832 us/op
+WorkloadPilot    6: 7 op, 1355297.00 ns, 193.6139 us/op
+WorkloadPilot    7: 8 op, 872108.00 ns, 109.0135 us/op
+WorkloadPilot    8: 9 op, 1341978.00 ns, 149.1087 us/op
+WorkloadPilot    9: 10 op, 682015.00 ns, 68.2015 us/op
+WorkloadPilot   10: 11 op, 609097.00 ns, 55.3725 us/op
+WorkloadPilot   11: 12 op, 679942.00 ns, 56.6618 us/op
+WorkloadPilot   12: 13 op, 739170.00 ns, 56.8592 us/op
+WorkloadPilot   13: 14 op, 766761.00 ns, 54.7686 us/op
+WorkloadPilot   14: 15 op, 1297341.00 ns, 86.4894 us/op
+WorkloadPilot   15: 16 op, 881792.00 ns, 55.1120 us/op
+WorkloadPilot   16: 32 op, 2168207.00 ns, 67.7565 us/op
+WorkloadPilot   17: 64 op, 5127251.00 ns, 80.1133 us/op
+WorkloadPilot   18: 128 op, 9563734.00 ns, 74.7167 us/op
+WorkloadPilot   19: 256 op, 18505461.00 ns, 72.2870 us/op
+WorkloadPilot   20: 512 op, 29759932.00 ns, 58.1249 us/op
+WorkloadPilot   21: 1024 op, 55704025.00 ns, 54.3985 us/op
+WorkloadPilot   22: 2048 op, 108186394.00 ns, 52.8254 us/op
+WorkloadPilot   23: 4096 op, 233860747.00 ns, 57.0949 us/op
+WorkloadPilot   24: 8192 op, 459586346.00 ns, 56.1018 us/op
+WorkloadPilot   25: 16384 op, 875410090.00 ns, 53.4308 us/op
+
+WorkloadWarmup   1: 16384 op, 873264271.00 ns, 53.2998 us/op
+WorkloadWarmup   2: 16384 op, 874358395.00 ns, 53.3666 us/op
+WorkloadWarmup   3: 16384 op, 883216558.00 ns, 53.9073 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 16384 op, 872934165.00 ns, 53.2797 us/op
+WorkloadActual   2: 16384 op, 874411574.00 ns, 53.3698 us/op
+WorkloadActual   3: 16384 op, 878903349.00 ns, 53.6440 us/op
+
+// AfterActualRun
+WorkloadResult   1: 16384 op, 872934165.00 ns, 53.2797 us/op
+WorkloadResult   2: 16384 op, 874411574.00 ns, 53.3698 us/op
+WorkloadResult   3: 16384 op, 878903349.00 ns, 53.6440 us/op
+// GC:  50 0 0 844509136 16384
+// Threading:  0 0 16384
+
+// AfterAll
+// Benchmark Process 3909 has exited with code 0.
+
+Mean = 53.431 μs, StdErr = 0.110 μs (0.21%), N = 3, StdDev = 0.190 μs
+Min = 53.280 μs, Q1 = 53.325 μs, Median = 53.370 μs, Q3 = 53.507 μs, Max = 53.644 μs
+IQR = 0.182 μs, LowerFence = 53.052 μs, UpperFence = 53.780 μs
+ConfidenceInterval = [49.969 μs; 56.893 μs] (CI 99.9%), Margin = 3.462 μs (6.48% of Mean)
+Skewness = 0.29, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 4 (50.0 %) benchmark(s) to run. Estimated finish 2026-10-15 12:14 (0h 0m from now) **
+// **************************
+// Benchmark: StreamRequestBenchmarks.Stream_MaterializeToList_100Items: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 226 227 --benchmarkName Encina.Benchmarks.StreamRequestBenchmarks.Stream_MaterializeToList_100Items --job ShortRun --benchmarkId 4 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 172236.00 ns, 172.2360 us/op
+WorkloadJitting  1: 1 op, 91438608.00 ns, 91.4386 ms/op
+
+WorkloadPilot    1: 2 op, 2279773.00 ns, 1.1399 ms/op
+WorkloadPilot    2: 3 op, 420035.00 ns, 140.0117 us/op
+WorkloadPilot    3: 4 op, 342760.00 ns, 85.6900 us/op
+WorkloadPilot    4: 5 op, 719120.00 ns, 143.8240 us/op
+WorkloadPilot    5: 6 op, 721123.00 ns, 120.1872 us/op
+WorkloadPilot    6: 7 op, 1040118.00 ns, 148.5883 us/op
+WorkloadPilot    7: 8 op, 862333.00 ns, 107.7916 us/op
+WorkloadPilot    8: 9 op, 1675183.00 ns, 186.1314 us/op
+WorkloadPilot    9: 10 op, 981962.00 ns, 98.1962 us/op
+WorkloadPilot   10: 11 op, 836145.00 ns, 76.0132 us/op
+WorkloadPilot   11: 12 op, 865328.00 ns, 72.1107 us/op
+WorkloadPilot   12: 13 op, 963544.00 ns, 74.1188 us/op
+WorkloadPilot   13: 14 op, 1000199.00 ns, 71.4428 us/op
+WorkloadPilot   14: 15 op, 1118775.00 ns, 74.5850 us/op
+WorkloadPilot   15: 16 op, 1185324.00 ns, 74.0828 us/op
+WorkloadPilot   16: 32 op, 3271118.00 ns, 102.2224 us/op
+WorkloadPilot   17: 64 op, 6888422.00 ns, 107.6316 us/op
+WorkloadPilot   18: 128 op, 13674402.00 ns, 106.8313 us/op
+WorkloadPilot   19: 256 op, 20884843.00 ns, 81.5814 us/op
+WorkloadPilot   20: 512 op, 34155644.00 ns, 66.7102 us/op
+WorkloadPilot   21: 1024 op, 68276796.00 ns, 66.6766 us/op
+WorkloadPilot   22: 2048 op, 137006227.00 ns, 66.8976 us/op
+WorkloadPilot   23: 4096 op, 275071376.00 ns, 67.1561 us/op
+WorkloadPilot   24: 8192 op, 556163983.00 ns, 67.8911 us/op
+
+WorkloadWarmup   1: 8192 op, 544723346.00 ns, 66.4945 us/op
+WorkloadWarmup   2: 8192 op, 548404729.00 ns, 66.9439 us/op
+WorkloadWarmup   3: 8192 op, 549402710.00 ns, 67.0658 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 8192 op, 544566799.00 ns, 66.4754 us/op
+WorkloadActual   2: 8192 op, 543678581.00 ns, 66.3670 us/op
+WorkloadActual   3: 8192 op, 549664339.00 ns, 67.0977 us/op
+
+// AfterActualRun
+WorkloadResult   1: 8192 op, 544566799.00 ns, 66.4754 us/op
+WorkloadResult   2: 8192 op, 543678581.00 ns, 66.3670 us/op
+WorkloadResult   3: 8192 op, 549664339.00 ns, 67.0977 us/op
+// GC:  47 0 0 793258880 8192
+// Threading:  0 0 8192
+
+// AfterAll
+// Benchmark Process 3926 has exited with code 0.
+
+Mean = 66.647 μs, StdErr = 0.228 μs (0.34%), N = 3, StdDev = 0.394 μs
+Min = 66.367 μs, Q1 = 66.421 μs, Median = 66.475 μs, Q3 = 66.787 μs, Max = 67.098 μs
+IQR = 0.365 μs, LowerFence = 65.873 μs, UpperFence = 67.335 μs
+ConfidenceInterval = [59.453 μs; 73.840 μs] (CI 99.9%), Margin = 7.194 μs (10.79% of Mean)
+Skewness = 0.35, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 3 (37.5 %) benchmark(s) to run. Estimated finish 2026-10-15 12:14 (0h 0m from now) **
+// **************************
+// Benchmark: StreamRequestBenchmarks.Stream_CountOnly_NoMaterialization: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 226 227 --benchmarkName Encina.Benchmarks.StreamRequestBenchmarks.Stream_CountOnly_NoMaterialization --job ShortRun --benchmarkId 5 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 188230.00 ns, 188.2300 us/op
+WorkloadJitting  1: 1 op, 89970754.00 ns, 89.9708 ms/op
+
+WorkloadPilot    1: 2 op, 1984594.00 ns, 992.2970 us/op
+WorkloadPilot    2: 3 op, 318594.00 ns, 106.1980 us/op
+WorkloadPilot    3: 4 op, 325034.00 ns, 81.2585 us/op
+WorkloadPilot    4: 5 op, 467566.00 ns, 93.5132 us/op
+WorkloadPilot    5: 6 op, 1096391.00 ns, 182.7318 us/op
+WorkloadPilot    6: 7 op, 1504319.00 ns, 214.9027 us/op
+WorkloadPilot    7: 8 op, 1786368.00 ns, 223.2960 us/op
+WorkloadPilot    8: 9 op, 702876.00 ns, 78.0973 us/op
+WorkloadPilot    9: 10 op, 731619.00 ns, 73.1619 us/op
+WorkloadPilot   10: 11 op, 789294.00 ns, 71.7540 us/op
+WorkloadPilot   11: 12 op, 839810.00 ns, 69.9842 us/op
+WorkloadPilot   12: 13 op, 899349.00 ns, 69.1807 us/op
+WorkloadPilot   13: 14 op, 953549.00 ns, 68.1106 us/op
+WorkloadPilot   14: 15 op, 1010825.00 ns, 67.3883 us/op
+WorkloadPilot   15: 16 op, 1075801.00 ns, 67.2376 us/op
+WorkloadPilot   16: 32 op, 2809101.00 ns, 87.7844 us/op
+WorkloadPilot   17: 64 op, 6260608.00 ns, 97.8220 us/op
+WorkloadPilot   18: 128 op, 12563428.00 ns, 98.1518 us/op
+WorkloadPilot   19: 256 op, 21027265.00 ns, 82.1378 us/op
+WorkloadPilot   20: 512 op, 32530595.00 ns, 63.5363 us/op
+WorkloadPilot   21: 1024 op, 66270892.00 ns, 64.7177 us/op
+WorkloadPilot   22: 2048 op, 131556436.00 ns, 64.2365 us/op
+WorkloadPilot   23: 4096 op, 265085929.00 ns, 64.7182 us/op
+WorkloadPilot   24: 8192 op, 527038710.00 ns, 64.3358 us/op
+
+WorkloadWarmup   1: 8192 op, 535080525.00 ns, 65.3174 us/op
+WorkloadWarmup   2: 8192 op, 531542719.00 ns, 64.8856 us/op
+WorkloadWarmup   3: 8192 op, 532119998.00 ns, 64.9561 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 8192 op, 530107303.00 ns, 64.7104 us/op
+WorkloadActual   2: 8192 op, 528223459.00 ns, 64.4804 us/op
+WorkloadActual   3: 8192 op, 529479308.00 ns, 64.6337 us/op
+
+// AfterActualRun
+WorkloadResult   1: 8192 op, 530107303.00 ns, 64.7104 us/op
+WorkloadResult   2: 8192 op, 528223459.00 ns, 64.4804 us/op
+WorkloadResult   3: 8192 op, 529479308.00 ns, 64.6337 us/op
+// GC:  42 0 0 712845048 8192
+// Threading:  0 0 8192
+
+// AfterAll
+// Benchmark Process 3943 has exited with code 0.
+
+Mean = 64.608 μs, StdErr = 0.068 μs (0.10%), N = 3, StdDev = 0.117 μs
+Min = 64.480 μs, Q1 = 64.557 μs, Median = 64.634 μs, Q3 = 64.672 μs, Max = 64.710 μs
+IQR = 0.115 μs, LowerFence = 64.385 μs, UpperFence = 64.845 μs
+ConfidenceInterval = [62.472 μs; 66.744 μs] (CI 99.9%), Margin = 2.136 μs (3.31% of Mean)
+Skewness = -0.21, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 2 (25.0 %) benchmark(s) to run. Estimated finish 2026-10-15 12:14 (0h 0m from now) **
+// **************************
+// Benchmark: StreamRequestBenchmarks.Stream_WithCancellation_EarlyExit: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 226 227 --benchmarkName Encina.Benchmarks.StreamRequestBenchmarks.Stream_WithCancellation_EarlyExit --job ShortRun --benchmarkId 6 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 166578.00 ns, 166.5780 us/op
+WorkloadJitting  1: 1 op, 91410327.00 ns, 91.4103 ms/op
+
+WorkloadPilot    1: 2 op, 2439040.00 ns, 1.2195 ms/op
+WorkloadPilot    2: 3 op, 423591.00 ns, 141.1970 us/op
+WorkloadPilot    3: 4 op, 421267.00 ns, 105.3168 us/op
+WorkloadPilot    4: 5 op, 791217.00 ns, 158.2434 us/op
+WorkloadPilot    5: 6 op, 1661463.00 ns, 276.9105 us/op
+WorkloadPilot    6: 7 op, 1048070.00 ns, 149.7243 us/op
+WorkloadPilot    7: 8 op, 1981880.00 ns, 247.7350 us/op
+WorkloadPilot    8: 9 op, 1055791.00 ns, 117.3101 us/op
+WorkloadPilot    9: 10 op, 1075050.00 ns, 107.5050 us/op
+WorkloadPilot   10: 11 op, 1170122.00 ns, 106.3747 us/op
+WorkloadPilot   11: 12 op, 1316099.00 ns, 109.6749 us/op
+WorkloadPilot   12: 13 op, 1343309.00 ns, 103.3315 us/op
+WorkloadPilot   13: 14 op, 1425292.00 ns, 101.8066 us/op
+WorkloadPilot   14: 15 op, 1538590.00 ns, 102.5727 us/op
+WorkloadPilot   15: 16 op, 1609025.00 ns, 100.5641 us/op
+WorkloadPilot   16: 32 op, 3996168.00 ns, 124.8803 us/op
+WorkloadPilot   17: 64 op, 8792476.00 ns, 137.3824 us/op
+WorkloadPilot   18: 128 op, 17339607.00 ns, 135.4657 us/op
+WorkloadPilot   19: 256 op, 27851872.00 ns, 108.7964 us/op
+WorkloadPilot   20: 512 op, 50374944.00 ns, 98.3886 us/op
+WorkloadPilot   21: 1024 op, 100585693.00 ns, 98.2282 us/op
+WorkloadPilot   22: 2048 op, 201681134.00 ns, 98.4771 us/op
+WorkloadPilot   23: 4096 op, 406215684.00 ns, 99.1738 us/op
+WorkloadPilot   24: 8192 op, 809713443.00 ns, 98.8420 us/op
+
+WorkloadWarmup   1: 8192 op, 807910259.00 ns, 98.6219 us/op
+WorkloadWarmup   2: 8192 op, 796164178.00 ns, 97.1880 us/op
+WorkloadWarmup   3: 8192 op, 795305389.00 ns, 97.0832 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 8192 op, 801907736.00 ns, 97.8891 us/op
+WorkloadActual   2: 8192 op, 795613279.00 ns, 97.1208 us/op
+WorkloadActual   3: 8192 op, 798044016.00 ns, 97.4175 us/op
+
+// AfterActualRun
+WorkloadResult   1: 8192 op, 801907736.00 ns, 97.8891 us/op
+WorkloadResult   2: 8192 op, 795613279.00 ns, 97.1208 us/op
+WorkloadResult   3: 8192 op, 798044016.00 ns, 97.4175 us/op
+// GC:  50 1 0 842083896 8192
+// Threading:  0 0 8192
+// Exceptions:  13
+
+// AfterAll
+// Benchmark Process 3971 has exited with code 0.
+
+Mean = 97.476 μs, StdErr = 0.224 μs (0.23%), N = 3, StdDev = 0.387 μs
+Min = 97.121 μs, Q1 = 97.269 μs, Median = 97.417 μs, Q3 = 97.653 μs, Max = 97.889 μs
+IQR = 0.384 μs, LowerFence = 96.693 μs, UpperFence = 98.230 μs
+ConfidenceInterval = [90.407 μs; 104.545 μs] (CI 99.9%), Margin = 7.069 μs (7.25% of Mean)
+Skewness = 0.15, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 1 (12.5 %) benchmark(s) to run. Estimated finish 2026-10-15 12:14 (0h 0m from now) **
+// **************************
+// Benchmark: StreamRequestBenchmarks.Stream_DirectHandlerInvocation_NoEncina: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 226 227 --benchmarkName Encina.Benchmarks.StreamRequestBenchmarks.Stream_DirectHandlerInvocation_NoEncina --job ShortRun --benchmarkId 7 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 165766.00 ns, 165.7660 us/op
+WorkloadJitting  1: 1 op, 11464452.00 ns, 11.4645 ms/op
+
+OverheadJitting  2: 16 op, 300677.00 ns, 18.7923 us/op
+WorkloadJitting  2: 16 op, 356080.00 ns, 22.2550 us/op
+
+WorkloadPilot    1: 16 op, 63655.00 ns, 3.9784 us/op
+WorkloadPilot    2: 32 op, 117976.00 ns, 3.6868 us/op
+WorkloadPilot    3: 64 op, 227719.00 ns, 3.5581 us/op
+WorkloadPilot    4: 128 op, 441367.00 ns, 3.4482 us/op
+WorkloadPilot    5: 256 op, 905888.00 ns, 3.5386 us/op
+WorkloadPilot    6: 512 op, 1789113.00 ns, 3.4944 us/op
+WorkloadPilot    7: 1024 op, 3520379.00 ns, 3.4379 us/op
+WorkloadPilot    8: 2048 op, 6981881.00 ns, 3.4091 us/op
+WorkloadPilot    9: 4096 op, 14092805.00 ns, 3.4406 us/op
+WorkloadPilot   10: 8192 op, 28511484.00 ns, 3.4804 us/op
+WorkloadPilot   11: 16384 op, 56999733.00 ns, 3.4790 us/op
+WorkloadPilot   12: 32768 op, 113972300.00 ns, 3.4782 us/op
+WorkloadPilot   13: 65536 op, 226153447.00 ns, 3.4508 us/op
+WorkloadPilot   14: 131072 op, 449295831.00 ns, 3.4279 us/op
+WorkloadPilot   15: 262144 op, 877465129.00 ns, 3.3473 us/op
+
+OverheadWarmup   1: 262144 op, 384292.00 ns, 1.4660 ns/op
+OverheadWarmup   2: 262144 op, 377262.00 ns, 1.4391 ns/op
+OverheadWarmup   3: 262144 op, 377241.00 ns, 1.4391 ns/op
+OverheadWarmup   4: 262144 op, 377241.00 ns, 1.4391 ns/op
+OverheadWarmup   5: 262144 op, 416530.00 ns, 1.5889 ns/op
+OverheadWarmup   6: 262144 op, 377242.00 ns, 1.4391 ns/op
+OverheadWarmup   7: 262144 op, 377271.00 ns, 1.4392 ns/op
+
+OverheadActual   1: 262144 op, 377332.00 ns, 1.4394 ns/op
+OverheadActual   2: 262144 op, 377292.00 ns, 1.4393 ns/op
+OverheadActual   3: 262144 op, 377292.00 ns, 1.4393 ns/op
+OverheadActual   4: 262144 op, 388598.00 ns, 1.4824 ns/op
+OverheadActual   5: 262144 op, 414988.00 ns, 1.5831 ns/op
+OverheadActual   6: 262144 op, 390932.00 ns, 1.4913 ns/op
+OverheadActual   7: 262144 op, 382560.00 ns, 1.4594 ns/op
+OverheadActual   8: 262144 op, 377271.00 ns, 1.4392 ns/op
+OverheadActual   9: 262144 op, 393035.00 ns, 1.4993 ns/op
+OverheadActual  10: 262144 op, 388068.00 ns, 1.4804 ns/op
+OverheadActual  11: 262144 op, 377301.00 ns, 1.4393 ns/op
+OverheadActual  12: 262144 op, 377282.00 ns, 1.4392 ns/op
+OverheadActual  13: 262144 op, 395468.00 ns, 1.5086 ns/op
+OverheadActual  14: 262144 op, 387416.00 ns, 1.4779 ns/op
+OverheadActual  15: 262144 op, 377291.00 ns, 1.4393 ns/op
+
+WorkloadWarmup   1: 262144 op, 907732256.00 ns, 3.4627 us/op
+WorkloadWarmup   2: 262144 op, 892792501.00 ns, 3.4057 us/op
+WorkloadWarmup   3: 262144 op, 889694841.00 ns, 3.3939 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 262144 op, 889613117.00 ns, 3.3936 us/op
+WorkloadActual   2: 262144 op, 899989790.00 ns, 3.4332 us/op
+WorkloadActual   3: 262144 op, 893368304.00 ns, 3.4079 us/op
+
+// AfterActualRun
+WorkloadResult   1: 262144 op, 889230557.00 ns, 3.3921 us/op
+WorkloadResult   2: 262144 op, 899607230.00 ns, 3.4317 us/op
+WorkloadResult   3: 262144 op, 892985744.00 ns, 3.4065 us/op
+// GC:  6 0 0 104857600 262144
+// Threading:  0 0 262144
+
+// AfterAll
+// Benchmark Process 3990 has exited with code 0.
+
+Mean = 3.410 μs, StdErr = 0.012 μs (0.34%), N = 3, StdDev = 0.020 μs
+Min = 3.392 μs, Q1 = 3.399 μs, Median = 3.406 μs, Q3 = 3.419 μs, Max = 3.432 μs
+IQR = 0.020 μs, LowerFence = 3.370 μs, UpperFence = 3.449 μs
+ConfidenceInterval = [3.044 μs; 3.776 μs] (CI 99.9%), Margin = 0.366 μs (10.72% of Mean)
+Skewness = 0.18, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 0 (0.0 %) benchmark(s) to run. Estimated finish 2026-10-15 12:14 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  artifacts/performance/Core/results/Encina.Benchmarks.StreamRequestBenchmarks-report.csv
+  artifacts/performance/Core/results/Encina.Benchmarks.StreamRequestBenchmarks-report-github.md
+  artifacts/performance/Core/results/Encina.Benchmarks.StreamRequestBenchmarks-report.html
+  artifacts/performance/Core/results/Encina.Benchmarks.StreamRequestBenchmarks-report-full-compressed.json
+
+// * Detailed results *
+StreamRequestBenchmarks.Stream_SmallDataset_10Items: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+Runtime = .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 9.631 μs, StdErr = 0.036 μs (0.37%), N = 3, StdDev = 0.062 μs
+Min = 9.561 μs, Q1 = 9.607 μs, Median = 9.654 μs, Q3 = 9.666 μs, Max = 9.678 μs
+IQR = 0.059 μs, LowerFence = 9.519 μs, UpperFence = 9.754 μs
+ConfidenceInterval = [8.502 μs; 10.760 μs] (CI 99.9%), Margin = 1.129 μs (11.72% of Mean)
+Skewness = -0.32, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[9.505 μs ; 9.735 μs) | @@@
+---------------------------------------------------
+
+StreamRequestBenchmarks.Stream_MediumDataset_100Items: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+Runtime = .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 65.186 μs, StdErr = 0.091 μs (0.14%), N = 3, StdDev = 0.158 μs
+Min = 65.025 μs, Q1 = 65.108 μs, Median = 65.192 μs, Q3 = 65.266 μs, Max = 65.340 μs
+IQR = 0.158 μs, LowerFence = 64.872 μs, UpperFence = 65.502 μs
+ConfidenceInterval = [62.307 μs; 68.064 μs] (CI 99.9%), Margin = 2.879 μs (4.42% of Mean)
+Skewness = -0.04, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[64.881 μs ; 65.484 μs) | @@@
+---------------------------------------------------
+
+StreamRequestBenchmarks.Stream_LargeDataset_1000Items: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+Runtime = .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 624.533 μs, StdErr = 2.725 μs (0.44%), N = 3, StdDev = 4.721 μs
+Min = 619.111 μs, Q1 = 622.934 μs, Median = 626.758 μs, Q3 = 627.244 μs, Max = 627.730 μs
+IQR = 4.309 μs, LowerFence = 616.470 μs, UpperFence = 633.708 μs
+ConfidenceInterval = [538.410 μs; 710.656 μs] (CI 99.9%), Margin = 86.123 μs (13.79% of Mean)
+Skewness = -0.37, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[614.815 μs ; 632.026 μs) | @@@
+---------------------------------------------------
+
+StreamRequestBenchmarks.Stream_WithPipelineBehaviors: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+Runtime = .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 53.431 μs, StdErr = 0.110 μs (0.21%), N = 3, StdDev = 0.190 μs
+Min = 53.280 μs, Q1 = 53.325 μs, Median = 53.370 μs, Q3 = 53.507 μs, Max = 53.644 μs
+IQR = 0.182 μs, LowerFence = 53.052 μs, UpperFence = 53.780 μs
+ConfidenceInterval = [49.969 μs; 56.893 μs] (CI 99.9%), Margin = 3.462 μs (6.48% of Mean)
+Skewness = 0.29, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[53.107 μs ; 53.817 μs) | @@@
+---------------------------------------------------
+
+StreamRequestBenchmarks.Stream_MaterializeToList_100Items: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+Runtime = .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 66.647 μs, StdErr = 0.228 μs (0.34%), N = 3, StdDev = 0.394 μs
+Min = 66.367 μs, Q1 = 66.421 μs, Median = 66.475 μs, Q3 = 66.787 μs, Max = 67.098 μs
+IQR = 0.365 μs, LowerFence = 65.873 μs, UpperFence = 67.335 μs
+ConfidenceInterval = [59.453 μs; 73.840 μs] (CI 99.9%), Margin = 7.194 μs (10.79% of Mean)
+Skewness = 0.35, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[66.008 μs ; 67.457 μs) | @@@
+---------------------------------------------------
+
+StreamRequestBenchmarks.Stream_CountOnly_NoMaterialization: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+Runtime = .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 64.608 μs, StdErr = 0.068 μs (0.10%), N = 3, StdDev = 0.117 μs
+Min = 64.480 μs, Q1 = 64.557 μs, Median = 64.634 μs, Q3 = 64.672 μs, Max = 64.710 μs
+IQR = 0.115 μs, LowerFence = 64.385 μs, UpperFence = 64.845 μs
+ConfidenceInterval = [62.472 μs; 66.744 μs] (CI 99.9%), Margin = 2.136 μs (3.31% of Mean)
+Skewness = -0.21, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[64.374 μs ; 64.817 μs) | @@@
+---------------------------------------------------
+
+StreamRequestBenchmarks.Stream_WithCancellation_EarlyExit: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+Runtime = .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 97.476 μs, StdErr = 0.224 μs (0.23%), N = 3, StdDev = 0.387 μs
+Min = 97.121 μs, Q1 = 97.269 μs, Median = 97.417 μs, Q3 = 97.653 μs, Max = 97.889 μs
+IQR = 0.384 μs, LowerFence = 96.693 μs, UpperFence = 98.230 μs
+ConfidenceInterval = [90.407 μs; 104.545 μs] (CI 99.9%), Margin = 7.069 μs (7.25% of Mean)
+Skewness = 0.15, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[96.768 μs ; 98.242 μs) | @@@
+---------------------------------------------------
+
+StreamRequestBenchmarks.Stream_DirectHandlerInvocation_NoEncina: ShortRun(IterationCount=3, LaunchCount=1, WarmupCount=3)
+Runtime = .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 3.410 μs, StdErr = 0.012 μs (0.34%), N = 3, StdDev = 0.020 μs
+Min = 3.392 μs, Q1 = 3.399 μs, Median = 3.406 μs, Q3 = 3.419 μs, Max = 3.432 μs
+IQR = 0.020 μs, LowerFence = 3.370 μs, UpperFence = 3.449 μs
+ConfidenceInterval = [3.044 μs; 3.776 μs] (CI 99.9%), Margin = 0.366 μs (10.72% of Mean)
+Skewness = 0.18, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[3.374 μs ; 3.433 μs) | @@@
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 3.69GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+
+Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+
+| Method                                  | Mean       | Error      | StdDev    | Ratio | RatioSD | Gen0    | Gen1   | Allocated | Alloc Ratio |
+|---------------------------------------- |-----------:|-----------:|----------:|------:|--------:|--------:|-------:|----------:|------------:|
+| Stream_SmallDataset_10Items             |   9.631 μs |  1.1290 μs | 0.0619 μs |  1.00 |    0.01 |  0.7629 |      - |   12856 B |        1.00 |
+| Stream_MediumDataset_100Items           |  65.186 μs |  2.8786 μs | 0.1578 μs |  6.77 |    0.04 |  5.1270 |      - |   87017 B |        6.77 |
+| Stream_LargeDataset_1000Items           | 624.533 μs | 86.1229 μs | 4.7207 μs | 64.85 |    0.56 | 48.8281 |      - |  828628 B |       64.45 |
+| Stream_WithPipelineBehaviors            |  53.431 μs |  3.4617 μs | 0.1897 μs |  5.55 |    0.04 |  3.0518 |      - |   51545 B |        4.01 |
+| Stream_MaterializeToList_100Items       |  66.647 μs |  7.1936 μs | 0.3943 μs |  6.92 |    0.05 |  5.7373 |      - |   96833 B |        7.53 |
+| Stream_CountOnly_NoMaterialization      |  64.608 μs |  2.1362 μs | 0.1171 μs |  6.71 |    0.04 |  5.1270 |      - |   87017 B |        6.77 |
+| Stream_WithCancellation_EarlyExit       |  97.476 μs |  7.0692 μs | 0.3875 μs | 10.12 |    0.07 |  6.1035 | 0.1221 |  102793 B |        8.00 |
+| Stream_DirectHandlerInvocation_NoEncina |   3.410 μs |  0.3656 μs | 0.0200 μs |  0.35 |    0.00 |  0.0229 |      - |     400 B |        0.03 |
+// * Config Issues *
+
+// * Warnings *
+Configuration
+  Summary -> The exporter CsvExporter is already present in configuration. There may be unexpected results.
+  Summary -> The exporter HtmlExporter is already present in configuration. There may be unexpected results.
+  Summary -> The exporter MarkdownExporter-github is already present in configuration. There may be unexpected results.
+
+// * Legends *
+  Mean        : Arithmetic mean of all measurements
+  Error       : Half of 99.9% confidence interval
+  StdDev      : Standard deviation of all measurements
+  Ratio       : Mean of the ratio distribution ([Current]/[Baseline])
+  RatioSD     : Standard deviation of the ratio distribution ([Current]/[Baseline])
+  Gen0        : GC Generation 0 collects per 1000 operations
+  Gen1        : GC Generation 1 collects per 1000 operations
+  Allocated   : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  Alloc Ratio : Allocated memory ratio distribution ([Current]/[Baseline])
+  1 μs        : 1 Microsecond (0.000001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:52 (52.28 sec), executed benchmarks: 8
+
+Global total time: 00:03:37 (217.97 sec), executed benchmarks: 8
+// * Artifacts cleanup *
+Artifacts cleanup is finished
