@@ -15,7 +15,8 @@ namespace Encina.Modules;
 /// without affecting handlers in other modules.
 /// </para>
 /// <para>
-/// Behaviors are chained in reverse registration order, similar to global <see cref="IPipelineBehavior{TRequest, TResponse}"/>.
+/// Behaviors are placed by <see cref="PipelineStage"/> and <see cref="PipelineStageAttribute"/>, like global
+/// <see cref="IPipelineBehavior{TRequest, TResponse}"/>.
 /// Each one decides whether to invoke the next step or short-circuit the flow with its own response.
 /// </para>
 /// </remarks>

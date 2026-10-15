@@ -111,10 +111,18 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
 
         var response = await terminal().ConfigureAwait(false);
 
+        // Post-processors run only when the inner pipeline succeeded
+        if (response.IsLeft || postProcessors.Length == 0)
+        {
+            return response;
+        }
+
+        var value = (TResponse)response;
+
         // Post-processors: index-based iteration avoids enumerator allocation
         for (var i = 0; i < postProcessors.Length; i++)
         {
-            var failure = await ExecutePostProcessorAsync(postProcessors[i], request, context, response, cancellationToken).ConfigureAwait(false);
+            var failure = await ExecutePostProcessorAsync(postProcessors[i], request, context, value, cancellationToken).ConfigureAwait(false);
             if (failure.IsSome)
             {
                 return Left<EncinaError, TResponse>(failure.Match(err => err, () => EncinaErrors.Unknown)); // NOSONAR S6966: LanguageExt Left is a pure function
@@ -196,8 +204,8 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
     {
         try
         {
-            await preProcessor.Process(request, context, cancellationToken).ConfigureAwait(false);
-            return Option<EncinaError>.None;
+            var result = await preProcessor.Process(request, context, cancellationToken).ConfigureAwait(false);
+            return result.Match(_ => Option<EncinaError>.None, Some);
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
@@ -217,13 +225,13 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         IRequestPostProcessor<TRequest, TResponse> postProcessor,
         TRequest request,
         IRequestContext context,
-        Either<EncinaError, TResponse> response,
+        TResponse response,
         CancellationToken cancellationToken)
     {
         try
         {
-            await postProcessor.Process(request, context, response, cancellationToken).ConfigureAwait(false);
-            return Option<EncinaError>.None;
+            var result = await postProcessor.Process(request, context, response, cancellationToken).ConfigureAwait(false);
+            return result.Match(_ => Option<EncinaError>.None, Some);
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {

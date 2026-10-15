@@ -147,7 +147,7 @@ public sealed class OutboxPostProcessorTests
         var (processor, store, messageFactory) = CreateProcessor<TestRequest>();
         var request = new TestRequest { Value = 42 };
         var context = CreateContext();
-        var response = Either<EncinaError, TestResponse>.Right(new TestResponse());
+        var response = new TestResponse();
 
         // Act
         await processor.Process(request, context, response, CancellationToken.None);
@@ -168,7 +168,7 @@ public sealed class OutboxPostProcessorTests
         var (processor, store, messageFactory) = CreateProcessor<TestRequestWithNotifications>();
         var request = new TestRequestWithNotifications { Value = 42 };
         var context = CreateContext();
-        var response = Either<EncinaError, TestResponse>.Right(new TestResponse());
+        var response = new TestResponse();
 
         // Act
         await processor.Process(request, context, response, CancellationToken.None);
@@ -191,7 +191,7 @@ public sealed class OutboxPostProcessorTests
         request.AddNotification(new TestNotification { Message = "Notification 2" });
 
         var context = CreateContext();
-        var response = Either<EncinaError, TestResponse>.Right(new TestResponse());
+        var response = new TestResponse();
 
         var mockMessage = Substitute.For<IOutboxMessage>();
         messageFactory.Create(
@@ -218,7 +218,7 @@ public sealed class OutboxPostProcessorTests
         request.AddNotification(new TestNotification { Message = "Test notification message" });
 
         var context = CreateContext();
-        var response = Either<EncinaError, TestResponse>.Right(new TestResponse());
+        var response = new TestResponse();
 
         string? capturedContent = null;
         string? capturedType = null;
@@ -242,26 +242,25 @@ public sealed class OutboxPostProcessorTests
 
     #endregion
 
-    #region Process - Error Response
+    #region Process - Result
 
     [Fact]
-    public async Task Process_WithErrorResponse_DoesNotStoreNotifications()
+    public async Task Process_WithNotifications_ReturnsRightUnit()
     {
         // Arrange
         var (processor, store, messageFactory) = CreateProcessor<TestRequestWithNotifications>();
+        messageFactory.Create(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTime>())
+            .Returns(callInfo => Substitute.For<IOutboxMessage>());
         var request = new TestRequestWithNotifications { Value = 42 };
-        request.AddNotification(new TestNotification { Message = "Should not be stored" });
-
-        var context = CreateContext();
-        var error = EncinaError.New("Something went wrong");
-        var response = Either<EncinaError, TestResponse>.Left(error);
+        request.AddNotification(new TestNotification { Message = "Stored" });
 
         // Act
-        await processor.Process(request, context, response, CancellationToken.None);
+        var result = await processor.Process(request, CreateContext(), new TestResponse(), CancellationToken.None);
 
         // Assert
-        await store.DidNotReceive().AddAsync(Arg.Any<IOutboxMessage>(), Arg.Any<CancellationToken>());
-        await store.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        result.IsRight.ShouldBeTrue();
+        await store.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -279,7 +278,7 @@ public sealed class OutboxPostProcessorTests
         request.AddNotification(new TestNotification { Message = "Third" });
 
         var context = CreateContext();
-        var response = Either<EncinaError, TestResponse>.Right(new TestResponse());
+        var response = new TestResponse();
 
         var messages = new List<IOutboxMessage>();
         messageFactory.Create(
@@ -328,7 +327,7 @@ public sealed class OutboxPostProcessorTests
             request.AddNotification(new EncryptedTestNotification { SensitiveData = "patient-diagnosis-42" });
 
             var context = CreateContext();
-            var response = Either<EncinaError, TestResponse>.Right(new TestResponse());
+            var response = new TestResponse();
 
             string? capturedContent = null;
             messageFactory.Create(

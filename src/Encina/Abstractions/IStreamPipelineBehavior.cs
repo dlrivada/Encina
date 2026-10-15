@@ -18,7 +18,8 @@ namespace Encina;
 /// rate limiting, enriching items with additional data, or filtering based on runtime conditions.
 /// </para>
 /// <para>
-/// Behaviors are chained in reverse registration order. Each one can transform the stream
+/// Behaviors run in the order of their <see cref="PipelineStage"/> (declared with <see cref="PipelineStageAttribute"/>),
+/// then by <see cref="PipelineStageAttribute.Order"/>; lower values are further out. Each one can transform the stream
 /// from the next step before yielding items to the caller.
 /// </para>
 /// </remarks>

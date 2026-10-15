@@ -174,10 +174,10 @@ public class EncinaBenchmarks
     {
         private readonly CallRecorder _recorder = recorder;
 
-        public Task Process(TRequest request, IRequestContext context, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(TRequest request, IRequestContext context, CancellationToken cancellationToken)
         {
             _recorder.Register("pre");
-            return Task.CompletedTask;
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
         }
     }
 
@@ -185,10 +185,10 @@ public class EncinaBenchmarks
     {
         private readonly CallRecorder _recorder = recorder;
 
-        public Task Process(TRequest request, IRequestContext context, Either<EncinaError, TResponse> response, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(TRequest request, IRequestContext context, TResponse response, CancellationToken cancellationToken)
         {
             _recorder.Register("post");
-            return Task.CompletedTask;
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
         }
     }
 
