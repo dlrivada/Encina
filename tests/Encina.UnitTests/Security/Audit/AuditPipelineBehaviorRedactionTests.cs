@@ -1,6 +1,7 @@
 #pragma warning disable CA2012 // ValueTask instances used in NSubstitute mock setup
 
 using Encina.Security.Audit;
+using Encina.TestInfrastructure.Extensions;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -46,7 +47,7 @@ public sealed class AuditPipelineBehaviorRedactionTests
     }
 
     private AuditPipelineBehavior<RedactionCommand, Unit> CreateSut() =>
-        new(_auditStore, _entryFactory, Options.Create(new OperationAuditOptions { AuditAllCommands = true }),
+        new(SingletonScopeFactory.For(_auditStore), _entryFactory, Options.Create(new OperationAuditOptions { AuditAllCommands = true }),
             NullLogger<AuditPipelineBehavior<RedactionCommand, Unit>>.Instance);
 
     [Fact]

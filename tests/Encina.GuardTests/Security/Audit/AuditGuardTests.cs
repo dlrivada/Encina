@@ -82,7 +82,7 @@ public class AuditGuardTests
     #region AuditPipelineBehavior Guard Tests
 
     [Fact]
-    public void AuditPipelineBehavior_Constructor_NullAuditStore_ThrowsArgumentNullException()
+    public void AuditPipelineBehavior_Constructor_NullScopeFactory_ThrowsArgumentNullException()
     {
         // Arrange
         var entryFactory = Substitute.For<IOperationAuditEntryFactory>();
@@ -95,20 +95,20 @@ public class AuditGuardTests
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-            .ParamName.ShouldBe("auditStore");
+            .ParamName.ShouldBe("scopeFactory");
     }
 
     [Fact]
     public void AuditPipelineBehavior_Constructor_NullEntryFactory_ThrowsArgumentNullException()
     {
         // Arrange
-        var auditStore = Substitute.For<IOperationAuditStore>();
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
         var options = Options.Create(new OperationAuditOptions());
         var logger = Substitute.For<ILogger<AuditPipelineBehavior<TestCommand, Unit>>>();
 
         // Act
         var act = () => new AuditPipelineBehavior<TestCommand, Unit>(
-            auditStore, null!, options, logger);
+            scopeFactory, null!, options, logger);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -119,13 +119,13 @@ public class AuditGuardTests
     public void AuditPipelineBehavior_Constructor_NullOptions_ThrowsArgumentNullException()
     {
         // Arrange
-        var auditStore = Substitute.For<IOperationAuditStore>();
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
         var entryFactory = Substitute.For<IOperationAuditEntryFactory>();
         var logger = Substitute.For<ILogger<AuditPipelineBehavior<TestCommand, Unit>>>();
 
         // Act
         var act = () => new AuditPipelineBehavior<TestCommand, Unit>(
-            auditStore, entryFactory, null!, logger);
+            scopeFactory, entryFactory, null!, logger);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -136,13 +136,13 @@ public class AuditGuardTests
     public void AuditPipelineBehavior_Constructor_NullLogger_ThrowsArgumentNullException()
     {
         // Arrange
-        var auditStore = Substitute.For<IOperationAuditStore>();
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
         var entryFactory = Substitute.For<IOperationAuditEntryFactory>();
         var options = Options.Create(new OperationAuditOptions());
 
         // Act
         var act = () => new AuditPipelineBehavior<TestCommand, Unit>(
-            auditStore, entryFactory, options, null!);
+            scopeFactory, entryFactory, options, null!);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
