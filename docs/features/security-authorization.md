@@ -401,7 +401,7 @@ All errors include structured metadata: `requestType`, `stage` and `requirement`
 
 Two rules matter when both packages are used:
 
-- Register `AddEncinaSecurity` before `AddEncinaABAC`. Behaviors run in registration order, so the security gates run first and ABAC rows exist only for requests that passed them. Encina logs no warning for the opposite order; the execution-order contract is tracked in [#1783](https://github.com/dlrivada/Encina/issues/1783).
+- Register `AddEncinaSecurity` before `AddEncinaABAC`. Behaviors run in registration order, so the security gates run first and ABAC rows exist only for requests that passed them. Encina logs no warning for the opposite order; the execution-order contract is tracked in [#2184](https://github.com/dlrivada/Encina/issues/2184).
 - The ABAC record is the ABAC decision, not the final outcome of the request. A denial by `SecurityPipelineBehavior` or a failure in the handler is not in the ABAC row; join the rows of `AuditPipelineBehavior` by `CorrelationId` for the handler's own record.
 
 Details of the entry are in the [decision audit reference](abac/reference/decision-audit.md); the design is [ADR-047](../architecture/adr/047-abac-decision-audit.md).

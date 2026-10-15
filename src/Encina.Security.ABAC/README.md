@@ -182,14 +182,14 @@ Read the trail with `IABACDecisionAuditReader` (query and JSON Lines export). Pu
 
 ### Registration order
 
-Pipeline behaviors run in registration order. Call `AddEncinaSecurity` before `AddEncinaABAC` so the security gates (`[DenyAnonymous]`, roles, permissions) run first and ABAC rows exist only for requests that passed them. Encina logs no warning for the opposite order; the execution-order contract is tracked in [#1783](https://github.com/dlrivada/Encina/issues/1783). Either way, an ABAC row records the ABAC decision, not the final outcome of the request: a later behavior or the handler can still fail, and a denial by another gate is not in the ABAC row.
+Pipeline behaviors run in registration order. Call `AddEncinaSecurity` before `AddEncinaABAC` so the security gates (`[DenyAnonymous]`, roles, permissions) run first and ABAC rows exist only for requests that passed them. Encina logs no warning for the opposite order; the execution-order contract is tracked in [#2184](https://github.com/dlrivada/Encina/issues/2184). Either way, an ABAC row records the ABAC decision, not the final outcome of the request: a later behavior or the handler can still fail, and a denial by another gate is not in the ABAC row.
 
 ### Limits
 
-- No row means "not evaluated" (ABAC disabled, or a request with no ABAC attribute), never "granted".
+- No row means "not evaluated or not recorded", not that access was granted. It also happens when ABAC is disabled, the request has no ABAC attribute, the outcome is outside the `Outcomes` filter, a `BestEffort` write failed, or a write was abandoned at `WriteTimeout` (an abandoned write can still commit late).
 - A direct call to `IPolicyDecisionPoint` is not audited; only requests that pass through the enforcement point are.
 - Obligations and advice run before the row is written, so their side effects stay when a `FailClosed` write then denies the request.
-- Relational and MongoDB stores keep ids and metadata in plaintext; retention is the operation audit store's (`OperationAuditOptions.RetentionDays`, default 2555; `EnableAutoPurge`, default `false`).
+- Relational and MongoDB stores keep ids and metadata in plaintext; retention is the operation audit store's. For those stores it is `OperationAuditOptions.RetentionDays` (default 2555) and `EnableAutoPurge` (default `false`), and `AddEncinaAudit` registers the purge service only when its configure lambda sets `EnableAutoPurge` (binding from `IConfiguration` alone does not). `MartenOperationAuditStore` uses `MartenOperationAuditOptions.RetentionPeriod` and its own `EnableAutoPurge`.
 
 The setup steps are in [How to audit ABAC decisions](../../docs/features/abac/audit-decisions.md); the entry shape, limits and errors are in the [decision audit reference](../../docs/features/abac/reference/decision-audit.md).
 

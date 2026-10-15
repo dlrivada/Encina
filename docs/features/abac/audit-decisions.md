@@ -24,12 +24,12 @@ services.AddScoped<IOperationAuditStore, MyOperationAuditStore>(); // or the sto
 
 Pipeline behaviors run in registration order, so `AddEncinaSecurity` must come before `AddEncinaABAC`. The order matters for the meaning of the row: the ABAC record is the ABAC decision, not the final outcome of the request. A later behavior, or the handler, can still fail the request after ABAC let it through, and the row stays `Success`.
 
-No startup warning exists for the wrong order. The execution-order contract that will replace the convention is tracked in #1783.
+No startup warning exists for the wrong order. The execution-order contract that will replace the convention is tracked in [#2184](https://github.com/dlrivada/Encina/issues/2184).
 
 ## Read the outcome correctly
 
 - In `Warn` mode, `Success` means ABAC let the request through, not that the policy permitted it. A would-deny verdict is stored as `Success` with the metadata `abac.enforced` set to `false`. Filter on that key to find the requests Warn mode waved through. The mapping is in [Outcome mapping](reference/decision-audit.md#outcome-mapping).
-- No row means "not evaluated", never "granted". Only requests that reach the enforcement point are audited: a request without `[RequirePolicy]` or `[RequireCondition]`, one outside the `Outcomes` you selected, or one that never got that far leaves no row. Errors are exempt from the `Outcomes` filter: an indeterminate decision, an evaluation failure and an unauthenticated caller are always recorded when the audit is enabled.
+- No row means "not evaluated or not recorded", not that access was granted. A request leaves no row when it has no `[RequirePolicy]` or `[RequireCondition]`, when it never reached the enforcement point, when its outcome is outside the `Outcomes` you selected, when the write failed under `BestEffort`, or when the write was abandoned at `WriteTimeout` (an abandoned write is not cancelled and can still commit late). Errors are exempt from the `Outcomes` filter: an indeterminate decision, an evaluation failure and an unauthenticated caller are always recorded when the audit is enabled.
 - Code that calls `IPolicyDecisionPoint` directly is not audited. Only the `ABACPipelineBehavior` records decisions.
 - The row identifies who acted with `abac.identity_kind`, an explicit actor kind, and the caller in `UserId` (`service:<name>` for a service identity).
 
@@ -63,7 +63,7 @@ flowchart LR
 | Request would proceed | Denied with `abac.decision_audit_failed`; its obligations and advice already ran | Proceeds; the failure is logged |
 | Request denied anyway | Stays denied with its original error; the failure is logged | Same |
 
-An obligation handler that sends a notification or changes state therefore can have run for a request the audit then denied. Make such handlers idempotent, or move the effect to the handler of the request. The decision id of the row (`OperationAuditEntry.Id`) correlates the two. The recorder, its timeout and the retry behavior are in the [reference](reference/decision-audit.md#recorder).
+An obligation handler that sends a notification or changes state therefore can have run for a request the audit then denied. Make such handlers idempotent, or move the effect to the handler of the request. The decision id cannot join the two: obligations run before the decision id exists, the handler never receives it, and under `FailClosed` a failed write usually leaves no row to join to. The handler never receives the id; outside the stored row it appears only as the `abac.decision_id` span tag and in log events 9089 and 9099. Correlate on the request's `CorrelationId` instead: record it in the handler's own log or state, and match it against the `CorrelationId` of the operation row or the span of the same request. The recorder, its timeout and the retry behavior are in the [reference](reference/decision-audit.md#recorder).
 
 ## Combine it with the operation audit
 
@@ -72,7 +72,7 @@ When `AddEncinaAudit` and its `AuditPipelineBehavior` (package `Encina.Security.
 ## Plan storage and retention
 
 - Outside Marten, the ADO.NET, Dapper, EF Core and MongoDB operation stores keep ids and metadata in clear. `EntityId` and `TenantId` are not encrypted by any store, including `MartenOperationAuditStore`, which encrypts `UserId`, `IpAddress`, `UserAgent`, `Metadata` and the payload fields, and leaves `EntityId` and `TenantId` in clear. A resource id such as a patient id is therefore readable by anyone with access to the audit database. Use opaque ids as resource ids, or restrict access to the store. Provider notes are in [Providers](reference/decision-audit.md#providers).
-- `OperationAuditOptions.RetentionDays` defaults to 2555 days. `OperationAuditOptions.EnableAutoPurge` defaults to `false`, so nothing is purged until you enable it:
+- For the ADO.NET, Dapper, EF Core and MongoDB operation stores, `OperationAuditOptions.RetentionDays` defaults to 2555 days and `OperationAuditOptions.EnableAutoPurge` defaults to `false`, so nothing is purged until you enable it in the configure lambda of `AddEncinaAudit`:
 
 ```csharp
 services.AddEncinaAudit(options =>
@@ -81,6 +81,9 @@ services.AddEncinaAudit(options =>
     options.EnableAutoPurge = true;
 });
 ```
+
+- `AddEncinaAudit` registers its purge service only when that lambda sets `EnableAutoPurge`, so binding the options from `IConfiguration` alone does not enable purging.
+- `MartenOperationAuditStore` has its own options: `MartenOperationAuditOptions.RetentionPeriod` (default 2555 days) and `MartenOperationAuditOptions.EnableAutoPurge` (default `false`), registered with `AddEncinaAuditMarten` and purged by `MartenOperationAuditRetentionService`.
 
 ## Service identities and personal data
 

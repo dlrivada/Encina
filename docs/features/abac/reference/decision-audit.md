@@ -198,7 +198,7 @@ services.AddEncinaABAC(options =>
 
 ### Registration order
 
-Pipeline behaviors run in registration order. Call `AddEncinaSecurity` before `AddEncinaABAC` so the security behavior runs before the ABAC one. No startup warning exists for the wrong order; the execution-order contract is tracked in #1783.
+Pipeline behaviors run in registration order. Call `AddEncinaSecurity` before `AddEncinaABAC` so the security behavior runs before the ABAC one. No startup warning exists for the wrong order; the execution-order contract is tracked in [#2184](https://github.com/dlrivada/Encina/issues/2184).
 
 ```csharp
 services.AddEncinaSecurity();
