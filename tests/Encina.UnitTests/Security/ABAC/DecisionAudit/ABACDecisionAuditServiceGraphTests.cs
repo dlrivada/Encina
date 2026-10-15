@@ -4,6 +4,7 @@ using Encina.Security.ABAC.DecisionAudit;
 using Encina.Security.Audit;
 using Encina.Testing.Identity;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -210,6 +211,49 @@ public sealed class ABACDecisionAuditServiceGraphTests
         var ex = await Should.ThrowAsync<OptionsValidationException>(() => host.StartAsync());
 
         ex.Message.ShouldContain("EnforcementMode.Disabled");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AuditEnabledThroughIConfigurationBinding_IsReadFromTheBoundOptionsInBothOrders(bool securityFirst)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Abac:DecisionAudit:Enabled"] = "true",
+                ["Abac:DecisionAudit:FailureMode"] = "BestEffort",
+                ["Abac:DecisionAudit:Outcomes"] = "Denied",
+                ["Abac:DecisionAudit:WriteTimeout"] = "00:00:02"
+            })
+            .Build();
+        var builder = CreateBuilder();
+        builder.Services.AddScoped<IOperationAuditStore, InMemoryOperationAuditStore>();
+        Register(builder.Services, securityFirst, configure: null);
+        builder.Services.Configure<ABACOptions>(configuration.GetSection("Abac"));
+        using var host = builder.Build();
+
+        await StartAndStopAsync(host);
+
+        var audit = host.Services.GetRequiredService<IOptions<ABACOptions>>().Value.DecisionAudit;
+        audit.Enabled.ShouldBeTrue();
+        audit.FailureMode.ShouldBe(ABACDecisionAuditFailureMode.BestEffort);
+        audit.Outcomes.ShouldBe(ABACDecisionAuditOutcomes.Denied);
+        audit.WriteTimeout.ShouldBe(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task AuditEnabledThroughIConfigurationBindingWithoutAStore_FailsTheHostStart()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Abac:DecisionAudit:Enabled"] = "true" })
+            .Build();
+        var builder = CreateBuilder();
+        builder.Services.AddEncinaABAC();
+        builder.Services.Configure<ABACOptions>(configuration.GetSection("Abac"));
+        using var host = builder.Build();
+
+        await Should.ThrowAsync<InvalidOperationException>(() => host.StartAsync());
     }
 
     private static void Register(IServiceCollection services, bool securityFirst, Action<ABACOptions>? configure)

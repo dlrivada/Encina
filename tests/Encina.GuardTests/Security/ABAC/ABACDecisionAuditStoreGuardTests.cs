@@ -176,4 +176,40 @@ public sealed class ABACDecisionAuditStoreGuardTests
 
         (await Reader().ExportAsync(new ABACDecisionAuditQuery(), stream)).IsRight.ShouldBeTrue();
     }
+
+    [Fact]
+    public async Task Reader_ExportAsync_RangeEndingBeforeItStarts_ReturnsLeftAndWritesNothing()
+    {
+        using var stream = new MemoryStream();
+        var query = new ABACDecisionAuditQuery { FromUtc = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc), ToUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) };
+
+        var result = await Reader().ExportAsync(query, stream);
+
+        result.IsLeft.ShouldBeTrue();
+        stream.Length.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Reader_WithoutAStore_ReturnsStoreUnavailableForQueryAndExport()
+    {
+        var reader = new ServiceCollection().AddLogging().AddEncinaABAC().BuildServiceProvider()
+            .CreateScope().ServiceProvider.GetRequiredService<IABACDecisionAuditReader>();
+
+        var query = await reader.QueryAsync(new ABACDecisionAuditQuery());
+        var export = await reader.ExportAsync(new ABACDecisionAuditQuery(), Stream.Null);
+
+        query.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty)).ShouldBe(ABACErrors.DecisionAuditStoreUnavailableCode);
+        export.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty)).ShouldBe(ABACErrors.DecisionAuditStoreUnavailableCode);
+    }
+
+    [Fact]
+    public async Task Recorder_RecordAsync_WithoutAStore_ReturnsStoreUnavailable()
+    {
+        var scopes = new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+        var recorder = new AuditStoreABACDecisionRecorder(scopes, AbacOptions, TimeProvider.System, NullLogger<AuditStoreABACDecisionRecorder>.Instance);
+
+        var result = await recorder.RecordAsync(ValidRecord());
+
+        result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty)).ShouldBe(ABACErrors.DecisionAuditStoreUnavailableCode);
+    }
 }

@@ -148,6 +148,53 @@ public sealed class ABACDecisionAuditEntryMapperProperties
                     && !error.Exception.Map(exception => exception.ToString()).IfNone(string.Empty).Contains(message, StringComparison.Ordinal));
         });
 
+    // A write that failed (reported or thrown) counts as written exactly when the lookup of a fresh
+    // scope finds the entry; otherwise the store's code is reported, or its exception propagates.
+    [Property(MaxTest = 60)]
+    public Property AFailedWrite_CountsAsWrittenExactlyWhenTheLookupFindsTheEntry() =>
+        Prop.ForAll(
+            Gen.Elements(false, true).ToArbitrary(), Gen.Elements(false, true).ToArbitrary(), Gen.Elements(false, true).ToArbitrary(),
+            (throws, entryPresent, lookupFails) =>
+            {
+                OperationAuditEntry? written = null;
+                var store = NSubstitute.Substitute.For<IOperationAuditStore>();
+                store.RecordAsync(NSubstitute.Arg.Any<OperationAuditEntry>(), NSubstitute.Arg.Any<CancellationToken>())
+                    .Returns(call =>
+                    {
+                        written = call.Arg<OperationAuditEntry>();
+                        return throws
+                            ? throw new InvalidOperationException("down")
+                            : ValueTask.FromResult(LanguageExt.Prelude.Left<EncinaError, LanguageExt.Unit>(EncinaErrors.Create("store.down", "down")));
+                    });
+                store.GetByCorrelationIdAsync(NSubstitute.Arg.Any<string>(), NSubstitute.Arg.Any<CancellationToken>())
+                    .Returns(_ => ValueTask.FromResult(lookupFails
+                        ? LanguageExt.Prelude.Left<EncinaError, IReadOnlyList<OperationAuditEntry>>(EncinaErrors.Create("lookup.down", "down"))
+                        : LanguageExt.Prelude.Right<EncinaError, IReadOnlyList<OperationAuditEntry>>(entryPresent ? [written!] : [])));
+                var scopes = new Microsoft.Extensions.DependencyInjection.ServiceCollection()
+                    .AddScoped(_ => store)
+                    .BuildServiceProvider()
+                    .GetRequiredService<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>();
+                var recorder = new AuditStoreABACDecisionRecorder(
+                    scopes,
+                    Microsoft.Extensions.Options.Options.Create(new ABACOptions()),
+                    TimeProvider.System,
+                    Microsoft.Extensions.Logging.Abstractions.NullLogger<AuditStoreABACDecisionRecorder>.Instance);
+
+                var confirmed = entryPresent && !lookupFails;
+                try
+                {
+                    var result = recorder.RecordAsync(Record(3, 3, 3, 3, 3, 3)).AsTask().GetAwaiter().GetResult();
+
+                    return confirmed
+                        ? result.IsRight
+                        : !throws && result.Match(Right: _ => false, Left: error => error.GetCode().IfNone(string.Empty) == "store.down");
+                }
+                catch (InvalidOperationException)
+                {
+                    return throws && !confirmed;
+                }
+            });
+
     [Property(MaxTest = 100)]
     public Property EntryToRecord_KeepsEveryValueTheEntryStores() =>
         Prop.ForAll(Length(), Length(), Length(), (user, resource, agent) =>

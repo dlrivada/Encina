@@ -5,6 +5,7 @@ using Encina.Security.ABAC.DecisionAudit;
 using Encina.Security.ABAC.EEL;
 using Encina.Testing.Identity;
 
+using FsCheck;
 using FsCheck.Xunit;
 
 using LanguageExt;
@@ -49,7 +50,7 @@ public sealed class ABACDecisionAuditProperties
     }
 
     private static (bool Proceeds, Recorder Recorder) Run(
-        byte effectCode, bool warn, bool bestEffort, byte writeCode, byte outcomesCode, bool enabled)
+        byte effectCode, bool warn, bool bestEffort, byte writeCode, byte outcomesCode, bool enabled, string? statusMessage = null)
     {
         var effect = Effects[effectCode % Effects.Length];
         var recorder = new Recorder(writeCode % 3);
@@ -66,7 +67,10 @@ public sealed class ABACDecisionAuditProperties
                 Effect = effect,
                 Obligations = [],
                 Advice = [],
-                EvaluationDuration = TimeSpan.Zero
+                EvaluationDuration = TimeSpan.Zero,
+                Status = statusMessage is null
+                    ? null
+                    : new DecisionStatus { StatusCode = "processing-error", StatusMessage = statusMessage }
             })));
 
         var attributes = Substitute.For<IAttributeProvider>();
@@ -101,6 +105,32 @@ public sealed class ABACDecisionAuditProperties
     // mode lets through; Indeterminate never proceeds.
     private static bool ProceedsWithoutAudit(Effect effect, bool warn) =>
         effect == Effect.Permit || (warn && effect is Effect.Deny or Effect.NotApplicable);
+
+    // The sentinel prefix is what the assertion looks for, so a random suffix cannot collide with the
+    // fixed text of the record by chance.
+    [Property(MaxTest = 200)]
+    public bool AStatusMessageOfTheDecision_NeverAppearsInTheRecordOrTheStoredEntry(
+        byte effectCode, bool warn, bool bestEffort, NonEmptyString suffix)
+    {
+        const string prefix = "STATUS-MESSAGE-SENTINEL:";
+        var (_, recorder) = Run(effectCode, warn, bestEffort, writeCode: 0, outcomesCode: 7, enabled: true, statusMessage: prefix + suffix.Get);
+
+        if (recorder.Records.Count != 1)
+        {
+            return false;
+        }
+
+        var record = recorder.Records[0];
+        var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(record);
+        var stored = string.Join(
+            "|",
+            new[] { entry.Action, entry.EntityType, entry.EntityId, entry.ErrorMessage, entry.UserId, entry.TenantId, entry.CorrelationId }
+                .Concat(entry.Metadata.Values.Select(value => value?.ToString())));
+
+        return !stored.Contains(prefix, StringComparison.Ordinal)
+            && !record.ToString().Contains(prefix, StringComparison.Ordinal)
+            && !record.ReasonCode.Contains(prefix, StringComparison.Ordinal);
+    }
 
     [Property(MaxTest = 300)]
     public bool AuditDisabled_NeverWritesAndDecidesAsWithoutAudit(byte effectCode, bool warn, bool bestEffort, byte writeCode, byte outcomesCode)
