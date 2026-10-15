@@ -7,6 +7,15 @@ using static LanguageExt.Prelude;
 
 var options = LoadHarnessOptions.Parse(Environment.GetCommandLineArgs().Skip(1).ToArray());
 
+// A named scenario replaces the default send/publish harness.
+var scenarioArgs = Environment.GetCommandLineArgs().Skip(1).ToArray();
+var scenarioIndex = System.Array.IndexOf(scenarioArgs, "--scenario");
+if (scenarioIndex >= 0 && scenarioIndex + 1 < scenarioArgs.Length && scenarioArgs[scenarioIndex + 1] == "abac-decision-audit")
+{
+    await Encina.LoadTests.Security.ABAC.ABACDecisionAuditLoadTests.RunAllAsync(options.SendWorkers, options.Duration).ConfigureAwait(false);
+    return;
+}
+
 Console.WriteLine("Encina Load Harness");
 Console.WriteLine($"Duration: {options.Duration}. Send workers: {options.SendWorkers}. Publish workers: {options.PublishWorkers}.");
 

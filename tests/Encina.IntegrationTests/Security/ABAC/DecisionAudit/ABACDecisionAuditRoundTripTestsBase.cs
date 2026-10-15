@@ -132,6 +132,12 @@ public abstract class ABACDecisionAuditRoundTripTestsBase
         read.StartedAtUtc.ShouldBe(denied.StartedAtUtc, TimeSpan.FromMilliseconds(1));
         read.CompletedAtUtc.ShouldBe(denied.CompletedAtUtc, TimeSpan.FromMilliseconds(1));
 
+        // The printed form never carries the subject, the client address or a recorded value.
+        var printed = read.ToString();
+        printed.ShouldContain(denied.DecisionId.ToString());
+        printed.ShouldNotContain("203.0.113.9");
+        printed.ShouldNotContain("HR");
+
         // Export: one JSON line per decision of the request type.
         using var stream = new MemoryStream();
         var exported = await reader.ExportAsync(new ABACDecisionAuditQuery { RequestType = requestType }, stream);
@@ -139,6 +145,32 @@ public abstract class ABACDecisionAuditRoundTripTestsBase
         var lines = Encoding.UTF8.GetString(stream.ToArray()).Split('\n', StringSplitOptions.RemoveEmptyEntries);
         lines.Length.ShouldBe(2);
         lines.ShouldAllBe(line => JsonDocument.Parse(line).RootElement.GetProperty("schema").GetString() == ABACDecisionAuditSchema.SchemaVersion);
+    }
+
+    [Fact]
+    public async Task Record_WrittenTwiceWithTheSameDecisionId_IsIdempotentAndStoredOnce()
+    {
+        if (!IsAvailable)
+        {
+            Assert.Skip("The database of this provider is not available.");
+        }
+
+        // A retried write reuses the decision id as the entry id. The real store rejects the duplicate
+        // (or accepts it as an upsert); either way the recorder reports success and one row remains.
+        var run = Guid.NewGuid().ToString("N")[..12];
+        var decision = Record($"RetryOrderCommand_{run}", $"corr-retry-{run}", $"user-{run}", ABACEnforcedOutcome.Granted, ABACDecisionAuditSchema.PermitReasonCode, 2);
+
+        await using var provider = BuildProvider();
+        var recorder = provider.GetRequiredService<IABACDecisionRecorder>();
+        ShouldBeWritten(await recorder.RecordAsync(decision));
+        await WaitForReadsAsync();
+        ShouldBeWritten(await recorder.RecordAsync(decision));
+        await WaitForReadsAsync();
+
+        await using var scope = provider.CreateAsyncScope();
+        var reader = scope.ServiceProvider.GetRequiredService<IABACDecisionAuditReader>();
+        var stored = await QueryAsync(reader, new ABACDecisionAuditQuery { CorrelationId = decision.CorrelationId });
+        stored.ShouldHaveSingleItem().DecisionId.ShouldBe(decision.DecisionId);
     }
 
     private static void ShouldBeWritten(LanguageExt.Either<EncinaError, LanguageExt.Unit> result) =>
