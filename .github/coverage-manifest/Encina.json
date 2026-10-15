@@ -656,7 +656,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "*Extensions.cs default; DI tests with ValidateOnBuild and ValidateScopes"
+      "reason": "*Extensions.cs default; DI tests with ValidateOnBuild and ValidateScopes",
+      "targets": { "unit": 90, "guard": 30 },
+      "justifications": {
+        "unit": "Registration of the identity model, the validated option maps and the scope factory aliases is driven by the DI registration tests with ValidateOnBuild and ValidateScopes.",
+        "guard": "The null services guard and the invalid name guard of the public AddEncinaServiceIdentity are the only argument guards; the internal built-in overload is reached through unit tests."
+      }
     },
     "Identity/ServiceIdentityBuilder.cs": {
       "defaultTests": [
