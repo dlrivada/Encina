@@ -252,7 +252,7 @@ public sealed class OutboxPostProcessorTests
         messageFactory.Create(
             Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTime>())
             .Returns(callInfo => Substitute.For<IOutboxMessage>());
-        store.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Task.FromException<int>(new InvalidOperationException("store down")));
+        store.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Task.FromException<Either<EncinaError, Unit>>(new InvalidOperationException("store down")));
         var request = new TestRequestWithNotifications { Value = 1 };
         request.AddNotification(new TestNotification { Message = "n" });
 
