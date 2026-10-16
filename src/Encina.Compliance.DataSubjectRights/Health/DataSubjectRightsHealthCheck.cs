@@ -131,7 +131,18 @@ public sealed class DataSubjectRightsHealthCheck : IHealthCheck
             },
             Left: error =>
             {
-                warnings.Add($"Failed to check for overdue requests: {error.GetCode().IfNone("encina.unknown")}");
+                var code = error.GetCode().IfNone("encina.unknown");
+
+                // The health probe runs outside any tenant's request, so in a multi-tenant
+                // application the tenant-scoped overdue query is refused by design (#1963): the
+                // check is skipped, not a configuration warning.
+                if (code == DSRErrors.TenantRequiredCode)
+                {
+                    data["overdueRequestCheck"] = "skipped: no tenant context";
+                    return;
+                }
+
+                warnings.Add($"Failed to check for overdue requests: {code}");
             });
 
         // 4. Verify personal data locator is resolvable (optional, degraded if missing)

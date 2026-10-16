@@ -34,6 +34,7 @@ public class DefaultDSRServiceMethodGuardTests
             Substitute.For<ICacheProvider>(),
             Options.Create(new DataSubjectRightsOptions()),
             TimeProvider.System,
+            new RequestContextAccessor(),
             NullLogger<DefaultDSRService>.Instance);
     }
 

@@ -443,6 +443,39 @@ public class ProcessingRestrictionPipelineBehaviorTests
         _nextStepCalled.ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task Handle_TenantRequired_BlockMode_FailsClosedAndDoesNotCallNext()
+    {
+        _extractor.ExtractSubjectId(Arg.Any<PersonalDataCommand>(), Arg.Any<IRequestContext>())
+            .Returns("subject-1");
+        _dsrService.HasActiveRestrictionAsync("subject-1", Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, bool>(DSRErrors.TenantRequired("HasActiveRestriction")));
+
+        var behavior = CreateBehavior<PersonalDataCommand>();
+
+        var result = await behavior.Handle(new PersonalDataCommand("subject-1"), _context, NextStep(), CancellationToken.None);
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.TenantRequiredCode));
+        _nextStepCalled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_TenantRequired_WarnMode_ProceedsWithoutBlocking()
+    {
+        _extractor.ExtractSubjectId(Arg.Any<PersonalDataCommand>(), Arg.Any<IRequestContext>())
+            .Returns("subject-1");
+        _dsrService.HasActiveRestrictionAsync("subject-1", Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, bool>(DSRErrors.TenantRequired("HasActiveRestriction")));
+
+        var behavior = CreateBehavior<PersonalDataCommand>(DSREnforcementMode.Warn);
+
+        var result = await behavior.Handle(new PersonalDataCommand("subject-1"), _context, NextStep(), CancellationToken.None);
+
+        result.IsRight.ShouldBeTrue();
+        _nextStepCalled.ShouldBeTrue();
+    }
+
     // ================================================================
     // Different attribute types
     // ================================================================

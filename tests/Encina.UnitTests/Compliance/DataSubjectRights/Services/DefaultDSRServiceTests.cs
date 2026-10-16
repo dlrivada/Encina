@@ -71,6 +71,7 @@ public class DefaultDSRServiceTests
             _cache,
             options,
             _timeProvider,
+            new RequestContextAccessor(),
             _logger,
             _encina);
 
@@ -82,7 +83,7 @@ public class DefaultDSRServiceTests
         Should.Throw<ArgumentNullException>(() => new DefaultDSRService(
             null!, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _optionsAccessor, _timeProvider, _logger))
+            _optionsAccessor, _timeProvider, new RequestContextAccessor(), _logger))
             .ParamName.ShouldBe("repository");
     }
 
@@ -92,7 +93,7 @@ public class DefaultDSRServiceTests
         Should.Throw<ArgumentNullException>(() => new DefaultDSRService(
             _repository, null!, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _optionsAccessor, _timeProvider, _logger))
+            _optionsAccessor, _timeProvider, new RequestContextAccessor(), _logger))
             .ParamName.ShouldBe("readModelRepository");
     }
 
@@ -102,7 +103,7 @@ public class DefaultDSRServiceTests
         Should.Throw<ArgumentNullException>(() => new DefaultDSRService(
             _repository, _readModelRepository, null!, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _optionsAccessor, _timeProvider, _logger))
+            _optionsAccessor, _timeProvider, new RequestContextAccessor(), _logger))
             .ParamName.ShouldBe("locator");
     }
 
@@ -112,7 +113,7 @@ public class DefaultDSRServiceTests
         Should.NotThrow(() => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _optionsAccessor, _timeProvider, _logger, encina: null));
+            _optionsAccessor, _timeProvider, new RequestContextAccessor(), _logger, encina: null));
     }
 
     #endregion
@@ -588,7 +589,7 @@ public class DefaultDSRServiceTests
         var requestId = Guid.NewGuid();
         var readModel = CreateReadModel(requestId);
 
-        _cache.GetAsync<DSRRequestReadModel>($"dsr:request:{requestId}", Arg.Any<CancellationToken>())
+        _cache.GetAsync<DSRRequestReadModel>($"dsr:tenant:-:request:{requestId}", Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DSRRequestReadModel?>(readModel));
 
         // Act
@@ -644,7 +645,7 @@ public class DefaultDSRServiceTests
     public async Task HasActiveRestrictionAsync_CachedTrue_ShouldReturnTrue()
     {
         // Arrange
-        _cache.GetAsync<bool?>("dsr:restriction:subject-1", Arg.Any<CancellationToken>())
+        _cache.GetAsync<bool?>("dsr:tenant:-:restriction:subject-1", Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<bool?>(true));
 
         // Act

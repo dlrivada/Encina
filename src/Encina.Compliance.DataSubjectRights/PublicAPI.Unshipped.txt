@@ -284,6 +284,7 @@ const Encina.Compliance.DataSubjectRights.DSRErrors.RequestNotFoundCode = "dsr.r
 const Encina.Compliance.DataSubjectRights.DSRErrors.RestrictionActiveCode = "dsr.restriction_active" -> string!
 const Encina.Compliance.DataSubjectRights.DSRErrors.StoreErrorCode = "dsr.store_error" -> string!
 const Encina.Compliance.DataSubjectRights.DSRErrors.SubjectNotFoundCode = "dsr.subject_not_found" -> string!
+const Encina.Compliance.DataSubjectRights.DSRErrors.TenantRequiredCode = "dsr.tenant_required" -> string!
 static Encina.Compliance.DataSubjectRights.DSRErrors.DeadlineExpired(string! requestId, System.DateTimeOffset deadlineUtc) -> Encina.EncinaError
 static Encina.Compliance.DataSubjectRights.DSRErrors.ErasureFailed(string! subjectId, string! message) -> Encina.EncinaError
 static Encina.Compliance.DataSubjectRights.DSRErrors.ExemptionApplies(string! subjectId, Encina.Compliance.DataSubjectRights.ErasureExemption exemption, string! reason) -> Encina.EncinaError
@@ -300,6 +301,7 @@ static Encina.Compliance.DataSubjectRights.DSRErrors.RequestNotFound(string! req
 static Encina.Compliance.DataSubjectRights.DSRErrors.RestrictionActive(string! subjectId) -> Encina.EncinaError
 static Encina.Compliance.DataSubjectRights.DSRErrors.StoreError(string! operation, string! message) -> Encina.EncinaError
 static Encina.Compliance.DataSubjectRights.DSRErrors.SubjectNotFound(string! subjectId) -> Encina.EncinaError
+static Encina.Compliance.DataSubjectRights.DSRErrors.TenantRequired(string! operation) -> Encina.EncinaError
 Encina.Compliance.DataSubjectRights.CompositePersonalDataLocator
 Encina.Compliance.DataSubjectRights.CompositePersonalDataLocator.CompositePersonalDataLocator(System.Collections.Generic.IEnumerable<Encina.Compliance.DataSubjectRights.IPersonalDataLocator!>! locators, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.DataSubjectRights.CompositePersonalDataLocator!>! logger) -> void
 Encina.Compliance.DataSubjectRights.CompositePersonalDataLocator.LocateAllDataAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.DataSubjectRights.PersonalDataLocation!>!>>
@@ -354,6 +356,8 @@ Encina.Compliance.DataSubjectRights.DataSubjectRightsOptions.TrackAuditTrail.set
 Encina.Compliance.DataSubjectRights.DataSubjectRightsOptions.AssembliesToScan.get -> System.Collections.Generic.List<System.Reflection.Assembly!>!
 Encina.Compliance.DataSubjectRights.DataSubjectRightsOptions.DefaultErasableCategories.get -> System.Collections.Generic.HashSet<Encina.Compliance.DataSubjectRights.PersonalDataCategory>!
 Encina.Compliance.DataSubjectRights.DataSubjectRightsOptions.DefaultPortableCategories.get -> System.Collections.Generic.HashSet<Encina.Compliance.DataSubjectRights.PersonalDataCategory>!
+Encina.Compliance.DataSubjectRights.DataSubjectRightsOptions.RequireTenantContext.get -> bool?
+Encina.Compliance.DataSubjectRights.DataSubjectRightsOptions.RequireTenantContext.set -> void
 Encina.Compliance.DataSubjectRights.Health.DataSubjectRightsHealthCheck
 Encina.Compliance.DataSubjectRights.Health.DataSubjectRightsHealthCheck.DataSubjectRightsHealthCheck(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.DataSubjectRights.Health.DataSubjectRightsHealthCheck!>! logger) -> void
 Encina.Compliance.DataSubjectRights.Health.DataSubjectRightsHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!

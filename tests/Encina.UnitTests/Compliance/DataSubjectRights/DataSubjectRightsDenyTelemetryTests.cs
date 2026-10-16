@@ -128,6 +128,9 @@ public sealed class DataSubjectRightsDenyTelemetryTests
         repository.SaveAsync(Arg.Any<DSRRequestAggregate>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(Right<EncinaError, Unit>(unit)));
 
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(tenantId is null ? null : RequestContext.CreateForTest(tenantId: tenantId));
+
         var logger = new FakeLogger<DefaultDSRService>();
         var service = new DefaultDSRService(
             repository,
@@ -139,6 +142,7 @@ public sealed class DataSubjectRightsDenyTelemetryTests
             Substitute.For<ICacheProvider>(),
             Options.Create(new DataSubjectRightsOptions()),
             new FakeTimeProvider(),
+            accessor,
             logger);
         return (service, logger);
     }

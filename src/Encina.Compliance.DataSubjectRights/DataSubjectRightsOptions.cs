@@ -96,6 +96,34 @@ public sealed class DataSubjectRightsOptions
     public bool EnableOmnibusArticle12RefusalGrounds { get; set; }
 
     /// <summary>
+    /// Gets or sets whether <c>IDSRService</c> queries and lifecycle commands fail closed when no
+    /// tenant is present in the ambient <see cref="IRequestContext"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every query already filters by <c>DSRRequestReadModel.TenantId</c> using the ambient tenant,
+    /// and a request that belongs to another tenant is reported as not found, so a request scoped
+    /// to one tenant never observes or mutates another tenant's requests or restrictions (#1963).
+    /// This flag only controls what happens when the ambient tenant itself is missing.
+    /// </para>
+    /// <para>
+    /// The default is <c>null</c> (auto-detect, fail-closed by default in a multi-tenant
+    /// application, SPEC-002 DEC-006/DEC-009): when <c>Encina.Tenancy</c> is registered
+    /// (<c>Encina.Tenancy.ITenantProvider</c> is resolvable), a missing ambient tenant returns
+    /// <see cref="DSRErrors.TenantRequiredCode"/> instead of running an unscoped operation; when
+    /// tenancy is not registered at all, the operation runs without a tenant (the behavior
+    /// single-tenant applications expect without configuration).
+    /// </para>
+    /// <para>
+    /// Set explicitly to override the auto-detected behavior: <c>true</c> always fails closed, even
+    /// in an application that has not registered <c>Encina.Tenancy</c>. <c>false</c> is an explicit
+    /// opt-out that always allows an unscoped operation even when multi-tenancy is enabled; the
+    /// service logs this opt-out once at startup so it is never silent.
+    /// </para>
+    /// </remarks>
+    public bool? RequireTenantContext { get; set; }
+
+    /// <summary>
     /// Gets or sets whether to register a DSR health check with <c>IHealthChecksBuilder</c>.
     /// </summary>
     /// <remarks>
