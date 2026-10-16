@@ -200,6 +200,52 @@ public sealed class PipelineOrderValidationHostedServiceTests
     }
 
     [Fact]
+    public async Task StartAsync_TransientFactoryResult_IsDisposed_Synchronously()
+    {
+        var probe = new DisposeProbe();
+        using var harness = Create(services =>
+            services.AddTransient<IPipelineBehavior<Req, string>>(_ => new DisposableGate(probe)));
+
+        await harness.Service.StartAsync(CancellationToken.None);
+
+        probe.Disposed.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task StartAsync_TransientFactoryResult_IsDisposed_Asynchronously()
+    {
+        var probe = new DisposeProbe();
+        using var harness = Create(services =>
+            services.AddTransient<IPipelineBehavior<Req, string>>(_ => new AsyncDisposableGate(probe)));
+
+        await harness.Service.StartAsync(CancellationToken.None);
+
+        probe.AsyncDisposed.ShouldBe(1);
+        probe.Disposed.ShouldBe(0);
+    }
+
+    // A singleton belongs to the container until the provider is disposed; a scoped instance is disposed exactly once,
+    // by the validation scope that owns it, never a second time by the service
+    [Theory]
+    [InlineData(ServiceLifetime.Singleton, 0)]
+    [InlineData(ServiceLifetime.Scoped, 1)]
+    public async Task StartAsync_AliasFactoryToAContainerOwnedInstance_IsNotDisposedByTheService(ServiceLifetime lifetime, int expectedDisposals)
+    {
+        var probe = new DisposeProbe();
+        using var harness = Create(services =>
+        {
+            Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.Add(
+                services, new ServiceDescriptor(typeof(DisposableGate), _ => new DisposableGate(probe), lifetime));
+            Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.Add(
+                services, new ServiceDescriptor(typeof(IPipelineBehavior<Req, string>), sp => sp.GetRequiredService<DisposableGate>(), lifetime));
+        });
+
+        await harness.Service.StartAsync(CancellationToken.None);
+
+        probe.Disposed.ShouldBe(expectedDisposals);
+    }
+
+    [Fact]
     public async Task StartAsync_OpenGenericBehavior_IsClosedOverTheHandlerArgumentsAndConstraintViolationsAreSkipped()
     {
         _registry.Set(typeof(Generic<,>), (PipelineStage)7, 0);
@@ -393,6 +439,27 @@ public sealed class PipelineOrderValidationHostedServiceTests
     }
 
     private sealed class OtherGate : Gate;
+
+    private sealed class DisposeProbe
+    {
+        public int Disposed { get; set; }
+
+        public int AsyncDisposed { get; set; }
+    }
+
+    private sealed class DisposableGate(DisposeProbe probe) : Gate, IDisposable
+    {
+        public void Dispose() => probe.Disposed++;
+    }
+
+    private sealed class AsyncDisposableGate(DisposeProbe probe) : Gate, IAsyncDisposable
+    {
+        public ValueTask DisposeAsync()
+        {
+            probe.AsyncDisposed++;
+            return ValueTask.CompletedTask;
+        }
+    }
 
     private sealed class StreamGate : IStreamPipelineBehavior<StreamReq, int>
     {

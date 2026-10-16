@@ -73,6 +73,9 @@ internal sealed class PipelineOrderResolver
     /// <summary>Gets the logger of the resolver (collapse and placement diagnostics arrive with the observability phase).</summary>
     internal ILogger Logger => _logger;
 
+    /// <summary>Gets the validation rules enforced before a pipeline is cached.</summary>
+    internal PipelineOrderRuleSet Rules => _rules;
+
     /// <summary>Gets how many permutations were computed (a cache hit does not count).</summary>
     internal int Computations => Volatile.Read(ref _computations);
 

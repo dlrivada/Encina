@@ -85,6 +85,69 @@ public sealed class PipelineOrderValidationContracts
         exception.Message.ShouldContain("Gate");
     }
 
+    [Fact]
+    public async Task HostedService_OverTheRealRegistrations_StartsAValidRequestAndStreamPipelineAndWarmsTheCache()
+    {
+        var services = new ServiceCollection();
+        services.AddEncina();
+        services.AddScoped<IRequestHandler<Req, string>, Handler>();
+        services.AddScoped<IPipelineBehavior<Req, string>, Gate>();
+        services.AddScoped<IPipelineBehavior<Req, string>>(_ => new Gate());
+        services.AddScoped<IRequestPreProcessor<Req>, Pre>();
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(OpenGate<,>));
+        services.AddScoped<IStreamRequestHandler<StreamReq, int>, StreamHandler>();
+        services.AddScoped<IStreamPipelineBehavior<StreamReq, int>, StreamGate>();
+        await using var provider = services.BuildServiceProvider();
+        var resolver = provider.GetRequiredService<PipelineOrderResolver>();
+        var service = new PipelineOrderValidationHostedService(
+            provider, provider.GetRequiredService<PipelineRegistrationSnapshot>(), resolver);
+
+        await service.StartAsync(CancellationToken.None);
+        await service.StopAsync(CancellationToken.None);
+
+        resolver.Computations.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task HostedService_WithR4Enforced_FailsStartAsyncOnADeadCommandBehaviorRegistration()
+    {
+        var services = new ServiceCollection();
+        services.AddEncina();
+        services.AddScoped(typeof(ICommandPipelineBehavior<,>), typeof(OpenGate<,>));
+        await using var provider = services.BuildServiceProvider();
+        var snapshot = provider.GetRequiredService<PipelineRegistrationSnapshot>();
+        var resolver = new PipelineOrderResolver(
+            provider.GetRequiredService<PipelineStageRegistry>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<PipelineOrderResolver>.Instance,
+            snapshot,
+            PipelineOrderRuleSet.All);
+        var service = new PipelineOrderValidationHostedService(provider, snapshot, resolver);
+
+        var exception = await Should.ThrowAsync<InvalidOperationException>(() => service.StartAsync(CancellationToken.None));
+
+        exception.Message.ShouldStartWith("Pipeline order rule R4 failed");
+        exception.Message.ShouldContain("ICommandPipelineBehavior");
+    }
+
+    [Fact]
+    public async Task HostedService_OverTheRealRegistrations_ReportsAThrowingFactoryAsAResolutionError()
+    {
+        var services = new ServiceCollection();
+        services.AddEncina();
+        services.AddScoped<IRequestHandler<Req, string>, Handler>();
+        services.AddScoped<IPipelineBehavior<Req, string>>(_ => throw new InvalidOperationException("detail"));
+        await using var provider = services.BuildServiceProvider();
+        var service = new PipelineOrderValidationHostedService(
+            provider,
+            provider.GetRequiredService<PipelineRegistrationSnapshot>(),
+            provider.GetRequiredService<PipelineOrderResolver>());
+
+        var exception = await Should.ThrowAsync<InvalidOperationException>(() => service.StartAsync(CancellationToken.None));
+
+        exception.Message.ShouldContain("resolution failed");
+        exception.Message.ShouldNotContain("detail");
+    }
+
     private static void Violate(string ruleId)
     {
         Type builtIn = typeof(EncinaMetrics);
@@ -121,6 +184,39 @@ public sealed class PipelineOrderValidationContracts
         => new(type, PipelineStepKind.Behavior, stage, 0, source);
 
     private sealed record Req : IRequest<string>;
+
+    private sealed record StreamReq : IStreamRequest<int>;
+
+    private sealed class Pre : IRequestPreProcessor<Req>
+    {
+        public ValueTask<Either<EncinaError, Unit>> Process(Req request, IRequestContext context, CancellationToken cancellationToken)
+            => ValueTask.FromResult(Either<EncinaError, Unit>.Right(Unit.Default));
+    }
+
+    private sealed class OpenGate<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+        where TRequest : IRequest<TResponse>
+    {
+        public ValueTask<Either<EncinaError, TResponse>> Handle(
+            TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
+            => nextStep();
+    }
+
+    private sealed class StreamHandler : IStreamRequestHandler<StreamReq, int>
+    {
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
+            StreamReq request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+    }
+
+    private sealed class StreamGate : IStreamPipelineBehavior<StreamReq, int>
+    {
+        public IAsyncEnumerable<Either<EncinaError, int>> Handle(
+            StreamReq request, IRequestContext context, StreamHandlerCallback<int> nextStep, CancellationToken cancellationToken)
+            => nextStep();
+    }
 
     private sealed class Handler : IRequestHandler<Req, string>
     {

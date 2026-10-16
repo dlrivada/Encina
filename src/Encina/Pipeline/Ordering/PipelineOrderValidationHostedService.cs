@@ -45,7 +45,7 @@ internal sealed class PipelineOrderValidationHostedService : IHostedService
     }
 
     /// <inheritdoc />
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         _resolver.ValidateRegistrations();
 
@@ -53,53 +53,51 @@ internal sealed class PipelineOrderValidationHostedService : IHostedService
         foreach (var handlerType in _snapshot.GetClosedHandlerServiceTypes())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ValidatePipeline(scope.ServiceProvider, handlerType);
+            await ValidatePipelineAsync(scope.ServiceProvider, handlerType).ConfigureAwait(false);
         }
-
-        return Task.CompletedTask;
     }
 
     /// <inheritdoc />
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    private void ValidatePipeline(IServiceProvider provider, Type handlerType)
+    private async ValueTask ValidatePipelineAsync(IServiceProvider provider, Type handlerType)
     {
         var arguments = handlerType.GenericTypeArguments;
         if (handlerType.GetGenericTypeDefinition() == typeof(IStreamRequestHandler<,>))
         {
             var streamKey = typeof(IStreamPipelineBehavior<,>).MakeGenericType(arguments);
-            Warm(provider, streamKey, [(streamKey, PipelineStepKind.Behavior)]);
+            await WarmAsync(provider, streamKey, [(streamKey, PipelineStepKind.Behavior)]).ConfigureAwait(false);
             return;
         }
 
         var key = typeof(IPipelineBehavior<,>).MakeGenericType(arguments);
-        Warm(provider, key,
+        await WarmAsync(provider, key,
         [
             (key, PipelineStepKind.Behavior),
             (typeof(IRequestPreProcessor<>).MakeGenericType(arguments[0]), PipelineStepKind.PreProcessor),
             (typeof(IRequestPostProcessor<,>).MakeGenericType(arguments), PipelineStepKind.PostProcessor),
             (typeof(IRequestErrorProcessor<,>).MakeGenericType(arguments), PipelineStepKind.ErrorProcessor),
             (typeof(IRequestPostCommitProcessor<,>).MakeGenericType(arguments), PipelineStepKind.PostCommitProcessor)
-        ]);
+        ]).ConfigureAwait(false);
     }
 
     // The sequence mirrors the builders (behaviors first, then pre, post, error and post-commit processors), so the
     // runtime resolution of the same pipeline is a cache hit
-    private void Warm(IServiceProvider provider, Type pipelineKey, (Type ServiceType, PipelineStepKind Kind)[] sources)
+    private async ValueTask WarmAsync(IServiceProvider provider, Type pipelineKey, (Type ServiceType, PipelineStepKind Kind)[] sources)
     {
         var candidates = new List<PipelineStepCandidate>();
         foreach (var (serviceType, kind) in sources)
         {
             foreach (var registration in _snapshot.GetRegistrations(serviceType))
             {
-                candidates.Add(Describe(provider, pipelineKey, registration, kind, candidates.Count));
+                candidates.Add(await DescribeAsync(provider, pipelineKey, registration, kind, candidates.Count).ConfigureAwait(false));
             }
         }
 
         _resolver.Warm(pipelineKey, [.. candidates]);
     }
 
-    private static PipelineStepCandidate Describe(
+    private static async ValueTask<PipelineStepCandidate> DescribeAsync(
         IServiceProvider provider,
         Type pipelineKey,
         PipelineRegistration registration,
@@ -121,8 +119,26 @@ internal sealed class PipelineOrderValidationHostedService : IHostedService
         }
         finally
         {
-            // Only the type was needed; the scope does not track an instance created by calling the factory directly
-            (instance as IDisposable)?.Dispose();
+            await DisposeIfOwnedAsync(instance, registration.Descriptor).ConfigureAwait(false);
+        }
+    }
+
+    // Only the type was needed. A transient factory result belongs to nobody else and is released here; the result
+    // of a singleton or scoped factory (for example an alias to a container-owned instance) belongs to the container
+    private static async ValueTask DisposeIfOwnedAsync(object instance, ServiceDescriptor descriptor)
+    {
+        if (descriptor.Lifetime != ServiceLifetime.Transient)
+        {
+            return;
+        }
+
+        if (instance is IAsyncDisposable asyncDisposable)
+        {
+            await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+        }
+        else if (instance is IDisposable disposable)
+        {
+            disposable.Dispose();
         }
     }
 

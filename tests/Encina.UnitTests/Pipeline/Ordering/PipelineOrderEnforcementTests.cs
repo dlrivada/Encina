@@ -218,6 +218,19 @@ public sealed class PipelineOrderEnforcementTests
         services.ShouldContain(descriptor => descriptor.ServiceType == typeof(PipelineOrderResolver));
     }
 
+    [Fact]
+    public void AddEncina_ProductionResolver_EnforcesOnlyTheStagedRules_AndRegistersNoValidationHostedService()
+    {
+        // Pins the Phase 3 state: R3 and R4 and the hosted service are switched on in the Phase 5 PR, which must
+        // change this test deliberately together with the built-in stage migration
+        var services = new ServiceCollection();
+        services.AddEncina();
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<PipelineOrderResolver>().Rules.ShouldBe(PipelineOrderRuleSet.Staged);
+        services.ShouldNotContain(descriptor => descriptor.ImplementationType == typeof(PipelineOrderValidationHostedService));
+    }
+
     #region Send (no host)
 
     [Fact]

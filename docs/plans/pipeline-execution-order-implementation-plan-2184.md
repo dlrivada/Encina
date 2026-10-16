@@ -319,10 +319,10 @@ REFERENCE FILES: src/Encina/Core/ServiceCollectionExtensions.cs:41-91, src/Encin
 
 1. `Core/EncinaConfiguration.cs`: add `AddPipelineBehavior(Type pipelineBehaviorType, PipelineStage stage, int order = 0)` and `AddPipelineBehavior<TBehavior>(PipelineStage stage, int order = 0)`; the same overloads for `AddRequestPreProcessor`, `AddRequestPostProcessor`; new `AddRequestErrorProcessor(Type)`/`<T>()` and `AddRequestPostCommitProcessor(Type)`/`<T>()` with and without stage; new `AddStreamPipelineBehavior(Type)`/`<T>()` with and without stage. Overrides are stored in a list and copied into `PipelineStageRegistry` at the end of `AddEncina`. The existing validation of concrete, assignable types (`:121-141`, `:153-205`) is reused.
 2. `Core/EncinaConfiguration.cs:237-253`: `RegisterPipelineBehavior` registers only `IPipelineBehavior<,>`; the `ICommandPipelineBehavior<,>` / `IQueryPipelineBehavior<,>` descriptors (`:242-251`) are deleted (they are never resolved; R4 would now reject them).
-3. `Core/ServiceCollectionExtensions.cs:41-91`: `TryAddSingleton<PipelineStageRegistry>` (shared across `AddEncina` calls), `TryAddSingleton<PipelineOrderResolver>`, `TryAddSingleton<PipelineRegistrationSnapshot>`, `TryAddScoped<IEncinaPipelineInspector, EncinaPipelineInspector>`, `TryAddEnumerable` of the hosted service; register scanned error and post-commit processors (new scanner cases, task 4).
+3. `Core/ServiceCollectionExtensions.cs:41-91`: `TryAddSingleton<PipelineStageRegistry>` (shared across `AddEncina` calls), `TryAddSingleton<PipelineOrderResolver>`, `TryAddSingleton<PipelineRegistrationSnapshot>`, `TryAddScoped<IEncinaPipelineInspector, EncinaPipelineInspector>`; the `TryAddEnumerable` of `PipelineOrderValidationHostedService` is added in the Phase 5 PR together with rules R3 and R4 (Phase 3 "Enablement"), not here; register scanned error and post-commit processors (new scanner cases, task 4).
 4. `EncinaAssemblyScanner` (`Dispatchers/MediatorAssemblyScanner.cs:40-82`): scan `IRequestErrorProcessor<,>` and `IRequestPostCommitProcessor<,>`; delete the shadow sharding skip (`:107-113`) only if #2032 has registered them as `IPipelineBehavior<,>` (otherwise keep it; the skip exists because their dependencies are optional).
 5. `Pipeline/Ordering/EncinaPipelineInspector.cs` (internal sealed): resolves candidates in its own scope, runs the resolver (validation included) and maps to `PipelineStepDescription`.
-6. DI test (unit): `AddEncina` with every new registration builds with `ValidateOnBuild = true` and `ValidateScopes = true`; a second `AddEncina` call does not duplicate the registry, resolver or hosted service.
+6. DI test (unit): `AddEncina` with every new registration builds with `ValidateOnBuild = true` and `ValidateScopes = true`; a second `AddEncina` call does not duplicate the registry, resolver or snapshot (and, from the Phase 5 PR, the hosted service).
 
 </details>
 
@@ -331,7 +331,7 @@ REFERENCE FILES: src/Encina/Core/ServiceCollectionExtensions.cs:41-91, src/Encin
 
 ```text
 CONTEXT: Phases 1-3 added the stage model, resolver, steps and validator. EncinaConfiguration (src/Encina/Core/EncinaConfiguration.cs) has AddPipelineBehavior(Type) and processor registration without stages, and registers dead ICommand/IQueryPipelineBehavior descriptors at :242-251.
-TASK: Add the stage-aware registration overloads (behaviors, the four processor kinds, stream behaviors), copy overrides into PipelineStageRegistry, delete the dead ICommand/IQuery descriptors, register registry/resolver/snapshot as singletons, the inspector as scoped and the validation hosted service with TryAddEnumerable, extend the scanner to the two new processor interfaces, implement EncinaPipelineInspector.
+TASK: Add the stage-aware registration overloads (behaviors, the four processor kinds, stream behaviors), copy overrides into PipelineStageRegistry, delete the dead ICommand/IQuery descriptors, register registry/resolver/snapshot as singletons, the inspector as scoped (the validation hosted service is registered in the Phase 5 PR, not here), extend the scanner to the two new processor interfaces, implement EncinaPipelineInspector.
 KEY RULES: registration completeness (AGENTS.md section 3): a DI test builds the provider with ValidateOnBuild and ValidateScopes; TryAdd* everywhere so repeated AddEncina calls are idempotent; XML docs with examples on every new public overload; PublicAPI.Unshipped.txt via mechanical-fixer; CRAP <= 10.
 REFERENCE FILES: src/Encina/Core/EncinaConfiguration.cs, src/Encina/Core/ServiceCollectionExtensions.cs, src/Encina/Dispatchers/MediatorAssemblyScanner.cs, tests/Encina.UnitTests/Core/PipelineBehaviorRegistrationTests.cs.
 ```
@@ -532,7 +532,7 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, docs/architecture/adr/inde
 | `PipelineBuilder<TRequest, TResponse>` | `src/Encina/Pipeline/PipelineBuilder.cs:34-241` | Composition loop reused over the permuted array; processor executors deleted |
 | `StreamPipelineBuilder<TRequest, TItem>` | `src/Encina/Pipeline/StreamPipelineBuilder.cs:32-108` | Same permutation for stream behaviors |
 | `EncinaConfiguration` | `src/Encina/Core/EncinaConfiguration.cs:14-274` | Stage-aware overloads; dead descriptors `:242-251` removed |
-| `AddEncina` | `src/Encina/Core/ServiceCollectionExtensions.cs:41-91` | Registers resolver, registry, snapshot, inspector, hosted service |
+| `AddEncina` | `src/Encina/Core/ServiceCollectionExtensions.cs:41-91` | Registers resolver, registry, snapshot, inspector; hosted service from the Phase 5 PR |
 | `EncinaAssemblyScanner` (`Dispatchers/MediatorAssemblyScanner.cs`) | `src/Encina/Dispatchers/MediatorAssemblyScanner.cs:40-128` | Scans the two new processor interfaces |
 | `ModuleBehaviorAdapter<,,>` | `src/Encina/Modules/ModuleBehaviorAdapter.cs:29`; registered by factory at `ModuleBehaviorServiceCollectionExtensions.cs:59-69,:109` | Reports the wrapped behavior's stage and identity |
 | `RequestHandlerWrapper` | `src/Encina/Core/Encina.cs:165-184` | Creates the builder per `Send` |
