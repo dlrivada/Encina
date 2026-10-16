@@ -228,7 +228,7 @@ public sealed class PipelineStageConfigurationTests
 
         var steps = await scope.ServiceProvider.GetRequiredService<IEncinaPipelineInspector>().DescribeAsync<Req, string>();
 
-        var mine =steps.Where(step => step.StepType.DeclaringType == typeof(PipelineStageConfigurationTests)).ToArray();
+        var mine = steps.Where(step => step.StepType.DeclaringType == typeof(PipelineStageConfigurationTests)).ToArray();
         mine.ShouldBe(
         [
             new PipelineStepDescription(typeof(AuditBehavior), PipelineStepKind.Behavior, PipelineStage.Audit, 0, PipelineStepSource.Attribute),
