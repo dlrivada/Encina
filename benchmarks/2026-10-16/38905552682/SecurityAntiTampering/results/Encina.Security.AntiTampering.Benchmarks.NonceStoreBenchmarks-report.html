@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Security.AntiTampering.Benchmarks.NonceStoreBenchmarks-20261016-140109</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  Job-NUBXJZ : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method</th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean     </th><th>Error   </th><th>StdDev </th><th>Median   </th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Add</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>1,311.60 ns</td><td>69.390 ns</td><td>71.259 ns</td><td>1,330.59 ns</td><td>1.00</td><td>0.08</td><td>0.0076</td><td>0.0057</td><td>144 B</td><td>1.00</td>
+</tr><tr><td>Exists_Hit</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>59.31 ns</td><td>0.069 ns</td><td>0.073 ns</td><td>59.32 ns</td><td>0.05</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>Exists_Miss</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>22.33 ns</td><td>0.023 ns</td><td>0.027 ns</td><td>22.32 ns</td><td>0.02</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>Cleanup</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>5,475,466.15 ns</td><td>9,378.670 ns</td><td>10,800.490 ns</td><td>5,478,872.39 ns</td><td>4,186.33</td><td>222.85</td><td>7.8125</td><td>-</td><td>209656 B</td><td>1,455.94</td>
+</tr><tr><td>Add</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>1,635.42 ns</td><td>14,732.291 ns</td><td>807.527 ns</td><td>1,192.30 ns</td><td>1.15</td><td>0.64</td><td>0.0076</td><td>0.0057</td><td>144 B</td><td>1.00</td>
+</tr><tr><td>Exists_Hit</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>55.78 ns</td><td>0.225 ns</td><td>0.012 ns</td><td>55.78 ns</td><td>0.04</td><td>0.01</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>Exists_Miss</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>22.28 ns</td><td>0.423 ns</td><td>0.023 ns</td><td>22.28 ns</td><td>0.02</td><td>0.01</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>Cleanup</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>5,453,005.67 ns</td><td>334,514.507 ns</td><td>18,335.869 ns</td><td>5,460,321.05 ns</td><td>3,817.91</td><td>1,273.06</td><td>7.8125</td><td>-</td><td>209656 B</td><td>1,455.94</td>
+</tr></tbody></table>
+</body>
+</html>

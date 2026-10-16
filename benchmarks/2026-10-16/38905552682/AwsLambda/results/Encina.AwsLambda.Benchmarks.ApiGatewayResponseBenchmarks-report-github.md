@@ -1,0 +1,26 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon 6973P-C 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  DefaultJob : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+
+
+```
+| Method                       | Job        | IterationCount | LaunchCount | WarmupCount | Mean        | Error     | StdDev    | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|----------------------------- |----------- |--------------- |------------ |------------ |------------:|----------:|----------:|------:|--------:|-------:|----------:|------------:|
+| ToCreatedResponse_Success    | DefaultJob | Default        | Default     | Default     |   650.54 ns |  7.404 ns |  5.780 ns |  1.34 |    0.04 | 0.0057 |     480 B |        0.97 |
+| ToNoContentResponse_Success  | DefaultJob | Default        | Default     | Default     |    12.53 ns |  0.268 ns |  0.426 ns |  0.03 |    0.00 | 0.0006 |      48 B |        0.10 |
+| ToHttpApiResponse_Success    | DefaultJob | Default        | Default     | Default     |   490.65 ns |  9.623 ns | 11.818 ns |  1.01 |    0.04 | 0.0057 |     496 B |        1.00 |
+| ToHttpApiResponse_Error      | DefaultJob | Default        | Default     | Default     | 1,006.70 ns | 17.715 ns | 13.831 ns |  2.08 |    0.07 | 0.0134 |    1232 B |        2.48 |
+| ToApiGatewayResponse_Error   | DefaultJob | Default        | Default     | Default     | 1,033.98 ns |  7.995 ns |  7.479 ns |  2.14 |    0.06 | 0.0134 |    1232 B |        2.48 |
+| ToApiGatewayResponse_Success | DefaultJob | Default        | Default     | Default     |   484.32 ns |  8.996 ns | 15.275 ns |  1.00 |    0.04 | 0.0057 |     496 B |        1.00 |
+|                              |            |                |             |             |             |           |           |       |         |        |           |             |
+| ToCreatedResponse_Success    | ShortRun   | 3              | 1           | 3           |   651.85 ns | 32.169 ns |  1.763 ns |  1.36 |    0.00 | 0.0057 |     480 B |        0.97 |
+| ToNoContentResponse_Success  | ShortRun   | 3              | 1           | 3           |    13.32 ns |  0.987 ns |  0.054 ns |  0.03 |    0.00 | 0.0006 |      48 B |        0.10 |
+| ToHttpApiResponse_Success    | ShortRun   | 3              | 1           | 3           |   473.36 ns | 18.560 ns |  1.017 ns |  0.98 |    0.00 | 0.0057 |     496 B |        1.00 |
+| ToHttpApiResponse_Error      | ShortRun   | 3              | 1           | 3           | 1,006.78 ns | 75.474 ns |  4.137 ns |  2.09 |    0.01 | 0.0134 |    1232 B |        2.48 |
+| ToApiGatewayResponse_Error   | ShortRun   | 3              | 1           | 3           |   984.49 ns | 69.971 ns |  3.835 ns |  2.05 |    0.01 | 0.0134 |    1232 B |        2.48 |
+| ToApiGatewayResponse_Success | ShortRun   | 3              | 1           | 3           |   480.83 ns |  3.589 ns |  0.197 ns |  1.00 |    0.00 | 0.0057 |     496 B |        1.00 |

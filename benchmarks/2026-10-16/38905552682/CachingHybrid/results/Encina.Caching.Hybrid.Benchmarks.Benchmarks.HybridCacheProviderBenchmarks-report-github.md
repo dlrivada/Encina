@@ -1,0 +1,36 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  Job-NUBXJZ : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+
+
+```
+| Method                        | Job        | IterationCount | LaunchCount | WarmupCount | Mean      | Error     | StdDev    | Ratio | RatioSD | Gen0   | Gen1   | Allocated | Alloc Ratio |
+|------------------------------ |----------- |--------------- |------------ |------------ |----------:|----------:|----------:|------:|--------:|-------:|-------:|----------:|------------:|
+| ExistsAsync_False             | Job-NUBXJZ | 20             | Default     | 5           |  1.162 μs | 0.0040 μs | 0.0045 μs |  0.83 |    0.00 | 0.0362 |      - |     616 B |        1.24 |
+| ExistsAsync_True              | Job-NUBXJZ | 20             | Default     | 5           |  1.210 μs | 0.0047 μs | 0.0050 μs |  0.87 |    0.00 | 0.0362 |      - |     616 B |        1.24 |
+| GetAsync_CacheHit             | Job-NUBXJZ | 20             | Default     | 5           |  1.393 μs | 0.0033 μs | 0.0037 μs |  1.00 |    0.00 | 0.0286 |      - |     496 B |        1.00 |
+| GetAsync_CacheMiss            | Job-NUBXJZ | 20             | Default     | 5           |  1.113 μs | 0.0036 μs | 0.0040 μs |  0.80 |    0.00 | 0.0362 |      - |     616 B |        1.24 |
+| GetOrSetAsync_CacheHit        | Job-NUBXJZ | 20             | Default     | 5           |  1.405 μs | 0.0030 μs | 0.0034 μs |  1.01 |    0.00 | 0.0324 |      - |     560 B |        1.13 |
+| GetOrSetAsync_CacheMiss       | Job-NUBXJZ | 20             | Default     | 5           |  7.054 μs | 0.1545 μs | 0.1654 μs |  5.06 |    0.12 | 0.1068 | 0.0992 |    1792 B |        3.61 |
+| GetOrSetAsync_WithTags        | Job-NUBXJZ | 20             | Default     | 5           | 11.766 μs | 0.9080 μs | 0.9715 μs |  8.45 |    0.68 | 0.1221 | 0.1068 |    2216 B |        4.47 |
+| RemoveAsync                   | Job-NUBXJZ | 20             | Default     | 5           |  4.469 μs | 0.0768 μs | 0.0854 μs |  3.21 |    0.06 | 0.0610 |      - |    1136 B |        2.29 |
+| RemoveByTagAsync              | Job-NUBXJZ | 20             | Default     | 5           | 10.596 μs | 0.2536 μs | 0.2491 μs |  7.61 |    0.17 | 0.1373 | 0.1221 |    2448 B |        4.94 |
+| SetAsync                      | Job-NUBXJZ | 20             | Default     | 5           |  4.414 μs | 0.1518 μs | 0.1625 μs |  3.17 |    0.11 | 0.0610 | 0.0534 |    1064 B |        2.15 |
+| SetWithSlidingExpirationAsync | Job-NUBXJZ | 20             | Default     | 5           |  4.337 μs | 0.1364 μs | 0.1340 μs |  3.11 |    0.09 | 0.0610 | 0.0534 |    1072 B |        2.16 |
+|                               |            |                |             |             |           |           |           |       |         |        |        |           |             |
+| ExistsAsync_False             | ShortRun   | 3              | 1           | 3           |  1.136 μs | 0.0824 μs | 0.0045 μs |  0.80 |    0.00 | 0.0362 |      - |     616 B |        1.24 |
+| ExistsAsync_True              | ShortRun   | 3              | 1           | 3           |  1.196 μs | 0.0410 μs | 0.0022 μs |  0.84 |    0.00 | 0.0362 |      - |     616 B |        1.24 |
+| GetAsync_CacheHit             | ShortRun   | 3              | 1           | 3           |  1.427 μs | 0.0214 μs | 0.0012 μs |  1.00 |    0.00 | 0.0286 |      - |     496 B |        1.00 |
+| GetAsync_CacheMiss            | ShortRun   | 3              | 1           | 3           |  1.171 μs | 0.0306 μs | 0.0017 μs |  0.82 |    0.00 | 0.0362 |      - |     616 B |        1.24 |
+| GetOrSetAsync_CacheHit        | ShortRun   | 3              | 1           | 3           |  1.424 μs | 0.0402 μs | 0.0022 μs |  1.00 |    0.00 | 0.0324 |      - |     560 B |        1.13 |
+| GetOrSetAsync_CacheMiss       | ShortRun   | 3              | 1           | 3           |  6.728 μs | 0.4129 μs | 0.0226 μs |  4.71 |    0.01 | 0.1068 | 0.0992 |    1792 B |        3.61 |
+| GetOrSetAsync_WithTags        | ShortRun   | 3              | 1           | 3           | 10.244 μs | 3.4838 μs | 0.1910 μs |  7.18 |    0.12 | 0.1678 | 0.1526 |    3391 B |        6.84 |
+| RemoveAsync                   | ShortRun   | 3              | 1           | 3           |  4.478 μs | 0.7167 μs | 0.0393 μs |  3.14 |    0.02 | 0.0610 |      - |    1136 B |        2.29 |
+| RemoveByTagAsync              | ShortRun   | 3              | 1           | 3           |  9.803 μs | 1.9859 μs | 0.1089 μs |  6.87 |    0.07 | 0.1373 | 0.1221 |    2448 B |        4.94 |
+| SetAsync                      | ShortRun   | 3              | 1           | 3           |  4.090 μs | 0.3505 μs | 0.0192 μs |  2.87 |    0.01 | 0.0610 | 0.0534 |    1064 B |        2.15 |
+| SetWithSlidingExpirationAsync | ShortRun   | 3              | 1           | 3           |  4.099 μs | 1.2920 μs | 0.0708 μs |  2.87 |    0.04 | 0.0610 | 0.0534 |    1072 B |        2.16 |

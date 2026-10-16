@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.AzureFunctions.Benchmarks.ErrorCodeMappingBenchmarks-20261016-140518</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                   </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>MapAuthorizationUnauthenticated</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>16.16 ns</td><td>0.013 ns</td><td>0.010 ns</td><td>1.37</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationForbidden</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>18.18 ns</td><td>0.035 ns</td><td>0.031 ns</td><td>1.54</td><td>-</td><td>NA</td>
+</tr><tr><td>MapConflictError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>14.36 ns</td><td>0.010 ns</td><td>0.009 ns</td><td>1.22</td><td>-</td><td>NA</td>
+</tr><tr><td>MapUnknownError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>15.92 ns</td><td>0.029 ns</td><td>0.024 ns</td><td>1.35</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMultipleValidationErrors</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>61.47 ns</td><td>0.100 ns</td><td>0.088 ns</td><td>5.22</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMixedErrors</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>75.89 ns</td><td>0.081 ns</td><td>0.068 ns</td><td>6.44</td><td>-</td><td>NA</td>
+</tr><tr><td>MapValidationError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>11.78 ns</td><td>0.004 ns</td><td>0.003 ns</td><td>1.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapNotFoundError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>13.13 ns</td><td>0.030 ns</td><td>0.028 ns</td><td>1.11</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationUnauthenticated</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>15.94 ns</td><td>0.276 ns</td><td>0.015 ns</td><td>1.38</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationForbidden</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>17.97 ns</td><td>0.386 ns</td><td>0.021 ns</td><td>1.56</td><td>-</td><td>NA</td>
+</tr><tr><td>MapConflictError</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>14.04 ns</td><td>0.164 ns</td><td>0.009 ns</td><td>1.22</td><td>-</td><td>NA</td>
+</tr><tr><td>MapUnknownError</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>15.63 ns</td><td>0.785 ns</td><td>0.043 ns</td><td>1.35</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMultipleValidationErrors</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>60.60 ns</td><td>0.190 ns</td><td>0.010 ns</td><td>5.25</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMixedErrors</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>76.32 ns</td><td>1.964 ns</td><td>0.108 ns</td><td>6.61</td><td>-</td><td>NA</td>
+</tr><tr><td>MapValidationError</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>11.55 ns</td><td>0.017 ns</td><td>0.001 ns</td><td>1.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapNotFoundError</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>13.34 ns</td><td>0.170 ns</td><td>0.009 ns</td><td>1.15</td><td>-</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>

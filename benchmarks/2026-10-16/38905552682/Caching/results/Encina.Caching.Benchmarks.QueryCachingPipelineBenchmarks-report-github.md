@@ -1,0 +1,35 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+
+WarmupCount=3  
+
+```
+| Method                              | Job        | IterationCount | LaunchCount | concurrencyLevel | Mean       | Error         | StdDev      | Ratio | RatioSD | Gen0   | Gen1   | Allocated | Alloc Ratio |
+|------------------------------------ |----------- |--------------- |------------ |----------------- |-----------:|--------------:|------------:|------:|--------:|-------:|-------:|----------:|------------:|
+| **Pipeline_CacheMiss**                  | **Job-YFEFPZ** | **10**             | **Default**     | **?**                |   **9.649 μs** |     **0.3243 μs** |   **0.1930 μs** |  **1.00** |    **0.03** | **0.1068** | **0.0458** |   **1.98 KB** |        **1.00** |
+| Pipeline_CacheHit                   | Job-YFEFPZ | 10             | Default     | ?                |   9.114 μs |     0.0481 μs |   0.0286 μs |  0.94 |    0.02 | 0.1526 |      - |   2.55 KB |        1.29 |
+| Pipeline_SequentialDifferentQueries | Job-YFEFPZ | 10             | Default     | ?                | 101.922 μs |     5.2984 μs |   3.1530 μs | 10.57 |    0.37 | 1.9531 | 1.3428 |     38 KB |       19.23 |
+| Pipeline_SequentialSameQuery        | Job-YFEFPZ | 10             | Default     | ?                |  45.286 μs |     0.2495 μs |   0.1651 μs |  4.69 |    0.09 | 0.7324 |      - |  12.19 KB |        6.17 |
+|                                     |            |                |             |                  |            |               |             |       |         |        |        |           |             |
+| Pipeline_CacheMiss                  | ShortRun   | 3              | 1           | ?                |   9.808 μs |     6.4367 μs |   0.3528 μs |  1.00 |    0.04 | 0.1068 | 0.0458 |   1.98 KB |        1.00 |
+| Pipeline_CacheHit                   | ShortRun   | 3              | 1           | ?                |   9.505 μs |     0.1548 μs |   0.0085 μs |  0.97 |    0.03 | 0.1526 |      - |   2.55 KB |        1.29 |
+| Pipeline_SequentialDifferentQueries | ShortRun   | 3              | 1           | ?                | 108.674 μs |   374.9015 μs |  20.5496 μs | 11.09 |    1.85 | 1.0986 | 0.4883 |  18.99 KB |        9.61 |
+| Pipeline_SequentialSameQuery        | ShortRun   | 3              | 1           | ?                |  46.805 μs |     2.7839 μs |   0.1526 μs |  4.78 |    0.15 | 0.7324 |      - |  12.19 KB |        6.17 |
+|                                     |            |                |             |                  |            |               |             |       |         |        |        |           |             |
+| **Pipeline_ConcurrentAccess**           | **Job-YFEFPZ** | **10**             | **Default**     | **10**               |  **75.710 μs** |     **1.9839 μs** |   **1.0376 μs** |     **?** |       **?** | **0.9766** | **0.2441** |  **17.62 KB** |           **?** |
+|                                     |            |                |             |                  |            |               |             |       |         |        |        |           |             |
+| Pipeline_ConcurrentAccess           | ShortRun   | 3              | 1           | 10               |  80.004 μs |   211.6994 μs |  11.6040 μs |     ? |       ? | 0.9766 | 0.2441 |  17.62 KB |           ? |
+|                                     |            |                |             |                  |            |               |             |       |         |        |        |           |             |
+| **Pipeline_ConcurrentAccess**           | **Job-YFEFPZ** | **10**             | **Default**     | **50**               | **385.418 μs** |    **20.5233 μs** |  **12.2131 μs** |     **?** |       **?** | **4.8828** | **1.4648** |  **87.47 KB** |           **?** |
+|                                     |            |                |             |                  |            |               |             |       |         |        |        |           |             |
+| Pipeline_ConcurrentAccess           | ShortRun   | 3              | 1           | 50               | 402.754 μs | 1,053.6141 μs |  57.7521 μs |     ? |       ? | 4.8828 | 1.4648 |  87.47 KB |           ? |
+|                                     |            |                |             |                  |            |               |             |       |         |        |        |           |             |
+| **Pipeline_ConcurrentAccess**           | **Job-YFEFPZ** | **10**             | **Default**     | **100**              | **758.322 μs** |    **34.5427 μs** |  **18.0665 μs** |     **?** |       **?** | **9.7656** | **2.9297** | **174.78 KB** |           **?** |
+|                                     |            |                |             |                  |            |               |             |       |         |        |        |           |             |
+| Pipeline_ConcurrentAccess           | ShortRun   | 3              | 1           | 100              | 804.315 μs | 1,873.9608 μs | 102.7181 μs |     ? |       ? | 9.7656 | 2.9297 | 174.78 KB |           ? |

@@ -1,0 +1,45 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon 6973P-C 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+
+WarmupCount=3  
+
+```
+| Method                        | Job        | IterationCount | LaunchCount | subscriberCount | messageCount | Mean            | Error         | StdDev       | Ratio | RatioSD | Gen0   | Gen1   | Allocated | Alloc Ratio |
+|------------------------------ |----------- |--------------- |------------ |---------------- |------------- |----------------:|--------------:|-------------:|------:|--------:|-------:|-------:|----------:|------------:|
+| **PublishAsync_NoSubscriber**     | **Job-YFEFPZ** | **10**             | **Default**     | **?**               | **?**            |        **480.5 ns** |       **1.15 ns** |      **0.60 ns** |  **2.35** |    **0.06** | **0.0019** |      **-** |     **168 B** |        **1.31** |
+| SubscribeAndUnsubscribe       | Job-YFEFPZ | 10             | Default     | ?               | ?            |      1,845.9 ns |      40.95 ns |     24.37 ns |  9.04 |    0.26 | 0.0076 | 0.0057 |     776 B |        6.06 |
+| PublishAsync_SingleSubscriber | Job-YFEFPZ | 10             | Default     | ?               | ?            |        204.4 ns |       9.58 ns |      5.70 ns |  1.00 |    0.04 | 0.0014 |      - |     128 B |        1.00 |
+|                               |            |                |             |                 |              |                 |               |              |       |         |        |        |           |             |
+| PublishAsync_NoSubscriber     | ShortRun   | 3              | 1           | ?               | ?            |        476.2 ns |      18.45 ns |      1.01 ns |  2.23 |    0.15 | 0.0019 |      - |     168 B |        1.31 |
+| SubscribeAndUnsubscribe       | ShortRun   | 3              | 1           | ?               | ?            |      1,856.8 ns |     560.73 ns |     30.74 ns |  8.68 |    0.58 | 0.0076 | 0.0057 |     776 B |        6.06 |
+| PublishAsync_SingleSubscriber | ShortRun   | 3              | 1           | ?               | ?            |        214.6 ns |     307.64 ns |     16.86 ns |  1.00 |    0.09 | 0.0014 |      - |     128 B |        1.00 |
+|                               |            |                |             |                 |              |                 |               |              |       |         |        |        |           |             |
+| **MultipleSubscribers**           | **Job-YFEFPZ** | **10**             | **Default**     | **5**               | **?**            | **10,192,892.0 ns** |   **9,433.15 ns** |  **4,933.72 ns** |     **?** |       **?** |      **-** |      **-** |    **1856 B** |           **?** |
+|                               |            |                |             |                 |              |                 |               |              |       |         |        |        |           |             |
+| MultipleSubscribers           | ShortRun   | 3              | 1           | 5               | ?            | 10,184,165.4 ns |  64,600.42 ns |  3,540.97 ns |     ? |       ? |      - |      - |    1856 B |           ? |
+|                               |            |                |             |                 |              |                 |               |              |       |         |        |        |           |             |
+| **PublishBurst**                  | **Job-YFEFPZ** | **10**             | **Default**     | **?**               | **10**           |      **2,485.2 ns** |     **108.82 ns** |     **71.98 ns** |     **?** |       **?** | **0.0191** |      **-** |    **1856 B** |           **?** |
+|                               |            |                |             |                 |              |                 |               |              |       |         |        |        |           |             |
+| PublishBurst                  | ShortRun   | 3              | 1           | ?               | 10           |      2,387.7 ns |     116.05 ns |      6.36 ns |     ? |       ? | 0.0191 |      - |    1856 B |           ? |
+|                               |            |                |             |                 |              |                 |               |              |       |         |        |        |           |             |
+| **MultipleSubscribers**           | **Job-YFEFPZ** | **10**             | **Default**     | **10**              | **?**            | **10,168,522.2 ns** |  **19,423.69 ns** | **11,558.73 ns** |     **?** |       **?** |      **-** |      **-** |    **2456 B** |           **?** |
+|                               |            |                |             |                 |              |                 |               |              |       |         |        |        |           |             |
+| MultipleSubscribers           | ShortRun   | 3              | 1           | 10              | ?            | 10,180,808.5 ns | 220,630.68 ns | 12,093.51 ns |     ? |       ? |      - |      - |    2456 B |           ? |
+|                               |            |                |             |                 |              |                 |               |              |       |         |        |        |           |             |
+| **MultipleSubscribers**           | **Job-YFEFPZ** | **10**             | **Default**     | **20**              | **?**            | **10,169,244.7 ns** |  **18,880.22 ns** | **12,488.10 ns** |     **?** |       **?** |      **-** |      **-** |    **3656 B** |           **?** |
+|                               |            |                |             |                 |              |                 |               |              |       |         |        |        |           |             |
+| MultipleSubscribers           | ShortRun   | 3              | 1           | 20              | ?            | 10,164,950.2 ns | 216,345.14 ns | 11,858.61 ns |     ? |       ? |      - |      - |    3656 B |           ? |
+|                               |            |                |             |                 |              |                 |               |              |       |         |        |        |           |             |
+| **PublishBurst**                  | **Job-YFEFPZ** | **10**             | **Default**     | **?**               | **50**           |     **12,516.6 ns** |     **530.55 ns** |    **350.93 ns** |     **?** |       **?** | **0.1068** |      **-** |    **9216 B** |           **?** |
+|                               |            |                |             |                 |              |                 |               |              |       |         |        |        |           |             |
+| PublishBurst                  | ShortRun   | 3              | 1           | ?               | 50           |     12,433.1 ns |  15,673.38 ns |    859.11 ns |     ? |       ? | 0.1068 |      - |    9216 B |           ? |
+|                               |            |                |             |                 |              |                 |               |              |       |         |        |        |           |             |
+| **PublishBurst**                  | **Job-YFEFPZ** | **10**             | **Default**     | **?**               | **100**          |     **24,369.3 ns** |   **1,048.15 ns** |    **693.29 ns** |     **?** |       **?** | **0.2136** |      **-** |   **18416 B** |           **?** |
+|                               |            |                |             |                 |              |                 |               |              |       |         |        |        |           |             |
+| PublishBurst                  | ShortRun   | 3              | 1           | ?               | 100          |     24,137.0 ns |  18,041.78 ns |    988.93 ns |     ? |       ? | 0.2136 |      - |   18416 B |           ? |
