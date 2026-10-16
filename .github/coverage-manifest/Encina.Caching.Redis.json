@@ -18,7 +18,15 @@
     },
     "RedisCacheProvider.cs": {
       "defaultTests": ["unit", "guard", "integration"],
-      "reason": "Cache provider with 12 ThrowIfNull guards. Integration tests exercise with real Redis via Testcontainers."
+      "reason": "Cache provider with 12 ThrowIfNull guards. Integration tests exercise with real Redis via Testcontainers.",
+      "targets": {
+        "unit": 95,
+        "guard": 17
+      },
+      "justifications": {
+        "unit": "Measured 96%; the uncovered lines are the lock-key and server-selection error branches, which the integration tests exercise.",
+        "guard": "Null guards of the public methods (measured 17%)."
+      }
     },
     "RedisDistributedLockProvider.cs": {
       "defaultTests": ["unit", "guard"],
