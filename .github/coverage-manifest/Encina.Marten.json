@@ -166,14 +166,14 @@
       "defaultRule": "*Query.cs",
       "reason": "Query DTO",
       "targets": {
-        "unit": 30,
+        "unit": 49,
         "guard": 30,
         "integration": 75
       },
       "justifications": {
-        "unit": "Unit tests cover the argument validation of every reader; the query paths need a real Marten session and are covered by the integration flag (measured 23%).",
+        "unit": "Unit tests cover the argument validation and the store-failure path of every reader (redacted logging, scope restored); the query bodies run Marten LINQ over a real session, which only the integration flag reaches (measured 49%).",
         "guard": "Guard tests cover the null and empty argument checks of the public readers (measured 30%).",
-        "integration": "Real PostgreSQL integration tests drive by-id, by-correlation, by-causation, ancestor and descendant chains, filters, paging, missing events and the no-decrypt path; the remainder is the generated LoggerMessage error logging (measured 75%)."
+        "integration": "Real PostgreSQL tests drive by-id, by-correlation, by-causation, ancestor and descendant chains, filters, paging, missing events and the no-decrypt path; the rest is generated error-logging code reached only on store failure (measured 75%)."
       }
     },
     "Projections/InlineProjectionDispatcher.cs": {
