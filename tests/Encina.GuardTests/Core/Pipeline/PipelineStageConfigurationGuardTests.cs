@@ -94,6 +94,20 @@ public sealed class PipelineStageConfigurationGuardTests
         services.ShouldBeEmpty();
     }
 
+    [Fact]
+    public void Inspector_NullScopeFactory_ThrowsArgumentNullException()
+        => Should.Throw<ArgumentNullException>(() => new EncinaPipelineInspector(
+                null!,
+                new PipelineOrderResolver(new PipelineStageRegistry(), Microsoft.Extensions.Logging.Abstractions.NullLogger<PipelineOrderResolver>.Instance)))
+            .ParamName.ShouldBe("scopeFactory");
+
+    [Fact]
+    public void Inspector_NullResolver_ThrowsArgumentNullException()
+        => Should.Throw<ArgumentNullException>(() => new EncinaPipelineInspector(
+                new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+                null!))
+            .ParamName.ShouldBe("resolver");
+
     private abstract class AbstractType;
 
     private sealed class Unrelated;
