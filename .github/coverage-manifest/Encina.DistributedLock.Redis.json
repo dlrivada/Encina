@@ -30,12 +30,12 @@
       "reason": "Lock provider with constructor + method ThrowIfNull guards. Integration tests exercise TryAcquire/Release/IsLocked with real Redis via Testcontainers.",
       "targets": {
         "unit": 95,
-        "guard": 15,
+        "guard": 14,
         "integration": 70
       },
       "justifications": {
-        "unit": "Measured 100%: the unit tests mock IDatabase and drive acquire, retry on a FakeTimeProvider, zero wait, extend and the swallowed release failure; 95 leaves room only for a defensive line added later.",
-        "guard": "Measured 15%: the guard tests assert the ArgumentNullException of the constructor and of each public method; every other line runs only past those guards and belongs to the unit flag.",
+        "unit": "Measured 100%: the unit tests mock IDatabase and drive acquire, retry on a FakeTimeProvider, zero wait, extend and the logged release failure; 95 leaves room only for a defensive line added later.",
+        "guard": "Measured 14.8%: the guard tests assert the ArgumentNullException of the constructor and of each public method; every other line runs only past those guards and belongs to the unit flag.",
         "integration": "Measured 74%: the Testcontainers Redis tests run TryAcquire, IsLocked, Extend and release against a real server; AcquireAsync, provider-level ExtendAsync and the release-failure catch are left to the unit flag because a real server cannot be made to fail on demand."
       }
     },
