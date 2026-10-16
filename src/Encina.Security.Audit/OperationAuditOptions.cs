@@ -77,6 +77,16 @@ public sealed class OperationAuditOptions
     public bool AuditAllQueries { get; set; }
 
     /// <summary>
+    /// Gets or sets what happens to a request whose audit entry cannot be built or written.
+    /// </summary>
+    /// <remarks>
+    /// Default is <see cref="OperationAuditFailureMode.FailClosed"/>: a request that succeeded returns
+    /// <see cref="OperationAuditErrors.WriteFailedCode"/> instead. <see cref="OperationAuditFailureMode.BestEffort"/>
+    /// is an explicit opt-out that logs every dropped write at Warning.
+    /// </remarks>
+    public OperationAuditFailureMode FailureMode { get; set; } = OperationAuditFailureMode.FailClosed;
+
+    /// <summary>
     /// Gets or sets whether to compute and include SHA-256 hash of request payloads.
     /// </summary>
     /// <remarks>

@@ -82,13 +82,21 @@ Encina.Security.Audit.OperationAuditOptions.IsExcluded(System.Type! requestType)
 Encina.Security.Audit.OperationAuditOptions.IsQueryIncluded(System.Type! queryType) -> bool
 Encina.Security.Audit.OperationAuditOptions.RetentionDays.get -> int
 Encina.Security.Audit.OperationAuditOptions.RetentionDays.set -> void
+Encina.Security.Audit.OperationAuditOptions.FailureMode.get -> Encina.Security.Audit.OperationAuditFailureMode
+Encina.Security.Audit.OperationAuditOptions.FailureMode.set -> void
+Encina.Security.Audit.OperationAuditFailureMode
+Encina.Security.Audit.OperationAuditFailureMode.BestEffort = 1 -> Encina.Security.Audit.OperationAuditFailureMode
+Encina.Security.Audit.OperationAuditFailureMode.FailClosed = 0 -> Encina.Security.Audit.OperationAuditFailureMode
+Encina.Security.Audit.OperationAuditErrors
+const Encina.Security.Audit.OperationAuditErrors.WriteFailedCode = "audit.write_failed" -> string!
+static Encina.Security.Audit.OperationAuditErrors.WriteFailed(string! requestType, string! causeCode) -> Encina.EncinaError
 Encina.Security.Audit.AuditOutcome
 Encina.Security.Audit.AuditOutcome.Denied = 2 -> Encina.Security.Audit.AuditOutcome
 Encina.Security.Audit.AuditOutcome.Error = 3 -> Encina.Security.Audit.AuditOutcome
 Encina.Security.Audit.AuditOutcome.Failure = 1 -> Encina.Security.Audit.AuditOutcome
 Encina.Security.Audit.AuditOutcome.Success = 0 -> Encina.Security.Audit.AuditOutcome
 Encina.Security.Audit.AuditPipelineBehavior<TRequest, TResponse>
-Encina.Security.Audit.AuditPipelineBehavior<TRequest, TResponse>.AuditPipelineBehavior(Encina.Security.Audit.IOperationAuditStore! auditStore, Encina.Security.Audit.IOperationAuditEntryFactory! entryFactory, Microsoft.Extensions.Options.IOptions<Encina.Security.Audit.OperationAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Audit.AuditPipelineBehavior<TRequest, TResponse>!>! logger, System.TimeProvider? timeProvider = null) -> void
+Encina.Security.Audit.AuditPipelineBehavior<TRequest, TResponse>.AuditPipelineBehavior(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Encina.Security.Audit.IOperationAuditEntryFactory! entryFactory, Microsoft.Extensions.Options.IOptions<Encina.Security.Audit.OperationAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Audit.AuditPipelineBehavior<TRequest, TResponse>!>! logger, System.TimeProvider? timeProvider = null) -> void
 Encina.Security.Audit.AuditPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Security.Audit.OperationAuditQuery
 Encina.Security.Audit.OperationAuditQuery.UserId.get -> string?

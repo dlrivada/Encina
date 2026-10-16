@@ -1,5 +1,6 @@
 using Encina.Security.Audit;
 using LanguageExt;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -33,7 +34,7 @@ public sealed class AuditPipelineBehaviorContractTests
         var logger = NullLogger<AuditPipelineBehavior<NonAuditableQuery, string>>.Instance;
 
         var sut = new AuditPipelineBehavior<NonAuditableQuery, string>(
-            auditStore, entryFactory, options, logger);
+            ScopeFactoryFor(auditStore), entryFactory, options, logger);
 
         var request = new NonAuditableQuery();
         var context = RequestContext.CreateForTest();
@@ -79,7 +80,7 @@ public sealed class AuditPipelineBehaviorContractTests
         var logger = NullLogger<AuditPipelineBehavior<AuditableCommand, Unit>>.Instance;
 
         var sut = new AuditPipelineBehavior<AuditableCommand, Unit>(
-            auditStore, entryFactory, options, logger);
+            ScopeFactoryFor(auditStore), entryFactory, options, logger);
 
         var request = new AuditableCommand();
         var context = RequestContext.CreateForTest();
@@ -118,7 +119,7 @@ public sealed class AuditPipelineBehaviorContractTests
         var logger = NullLogger<AuditPipelineBehavior<SkippedCommand, Unit>>.Instance;
 
         var sut = new AuditPipelineBehavior<SkippedCommand, Unit>(
-            auditStore, entryFactory, options, logger);
+            ScopeFactoryFor(auditStore), entryFactory, options, logger);
 
         var request = new SkippedCommand();
         var context = RequestContext.CreateForTest();
@@ -143,13 +144,20 @@ public sealed class AuditPipelineBehaviorContractTests
         var logger = NullLogger<AuditPipelineBehavior<AuditableCommand, Unit>>.Instance;
 
         var sut = new AuditPipelineBehavior<AuditableCommand, Unit>(
-            auditStore, entryFactory, options, logger);
+            ScopeFactoryFor(auditStore), entryFactory, options, logger);
 
         sut.ShouldBeAssignableTo<IPipelineBehavior<AuditableCommand, Unit>>(
             "AuditPipelineBehavior must implement IPipelineBehavior");
     }
 
     #region Helpers
+
+    // Scopes resolve the given store, as the behavior now resolves it per request.
+    private static IServiceScopeFactory ScopeFactoryFor(IOperationAuditStore auditStore) =>
+        new ServiceCollection()
+            .AddSingleton(auditStore)
+            .BuildServiceProvider()
+            .GetRequiredService<IServiceScopeFactory>();
 
     private static OperationAuditEntry CreateTestEntry()
     {

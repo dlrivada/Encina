@@ -1,4 +1,5 @@
 using Encina.Security.Audit;
+using Encina.TestInfrastructure.Extensions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -13,6 +14,7 @@ namespace Encina.UnitTests.Security.Audit;
 public class AuditPipelineBehaviorTests : IDisposable
 {
     private readonly IOperationAuditStore _auditStore;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOperationAuditEntryFactory _entryFactory;
     private readonly IOptions<OperationAuditOptions> _options;
     private readonly ILogger<AuditPipelineBehavior<TestCommand, Unit>> _commandLogger;
@@ -25,6 +27,7 @@ public class AuditPipelineBehaviorTests : IDisposable
         _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(_ => new ValueTask<Either<EncinaError, Unit>>(Unit.Default));
 #pragma warning restore CA2012
+        _scopeFactory = SingletonScopeFactory.For(_auditStore);
 
         _entryFactory = Substitute.For<IOperationAuditEntryFactory>();
 
@@ -99,7 +102,7 @@ public class AuditPipelineBehaviorTests : IDisposable
         var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(start);
         var options = Options.Create(new OperationAuditOptions { AuditAllCommands = true });
         var behavior = new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, options, _commandLogger, clock);
+            _scopeFactory, _entryFactory, options, _commandLogger, clock);
 
         // Act: the handler takes 3 seconds on the fake clock
         await behavior.Handle(
@@ -133,7 +136,7 @@ public class AuditPipelineBehaviorTests : IDisposable
         // Arrange
         var options = Options.Create(new OperationAuditOptions { AuditAllCommands = true });
         var behavior = new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, options, _commandLogger);
+            _scopeFactory, _entryFactory, options, _commandLogger);
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
@@ -158,7 +161,7 @@ public class AuditPipelineBehaviorTests : IDisposable
         // Arrange
         var options = Options.Create(new OperationAuditOptions { AuditAllCommands = false });
         var behavior = new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, options, _commandLogger);
+            _scopeFactory, _entryFactory, options, _commandLogger);
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
@@ -184,7 +187,7 @@ public class AuditPipelineBehaviorTests : IDisposable
         ClearBehaviorCache();
         var options = Options.Create(new OperationAuditOptions { AuditAllQueries = false });
         var behavior = new AuditPipelineBehavior<TestQuery, string>(
-            _auditStore, _entryFactory, options, _queryLogger);
+            _scopeFactory, _entryFactory, options, _queryLogger);
 
         var request = new TestQuery();
         var context = RequestContext.CreateForTest();
@@ -210,7 +213,7 @@ public class AuditPipelineBehaviorTests : IDisposable
         ClearBehaviorCache();
         var options = Options.Create(new OperationAuditOptions { AuditAllQueries = true });
         var behavior = new AuditPipelineBehavior<TestQuery, string>(
-            _auditStore, _entryFactory, options, _queryLogger);
+            _scopeFactory, _entryFactory, options, _queryLogger);
 
         var request = new TestQuery();
         var context = RequestContext.CreateForTest();
@@ -237,7 +240,7 @@ public class AuditPipelineBehaviorTests : IDisposable
         var options = Options.Create(new OperationAuditOptions { AuditAllQueries = false });
         var logger = Substitute.For<ILogger<AuditPipelineBehavior<AuditableQuery, string>>>();
         var behavior = new AuditPipelineBehavior<AuditableQuery, string>(
-            _auditStore, _entryFactory, options, logger);
+            _scopeFactory, _entryFactory, options, logger);
 
         var request = new AuditableQuery();
         var context = RequestContext.CreateForTest();
@@ -264,7 +267,7 @@ public class AuditPipelineBehaviorTests : IDisposable
         var options = Options.Create(new OperationAuditOptions { AuditAllCommands = true });
         var logger = Substitute.For<ILogger<AuditPipelineBehavior<SkippedCommand, Unit>>>();
         var behavior = new AuditPipelineBehavior<SkippedCommand, Unit>(
-            _auditStore, _entryFactory, options, logger);
+            _scopeFactory, _entryFactory, options, logger);
 
         var request = new SkippedCommand();
         var context = RequestContext.CreateForTest();
@@ -293,7 +296,7 @@ public class AuditPipelineBehaviorTests : IDisposable
         var options = Options.Create(OperationAuditOptions);
 
         var behavior = new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, options, _commandLogger);
+            _scopeFactory, _entryFactory, options, _commandLogger);
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
@@ -321,7 +324,7 @@ public class AuditPipelineBehaviorTests : IDisposable
     {
         // Arrange
         var behavior = new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, _options, _commandLogger);
+            _scopeFactory, _entryFactory, _options, _commandLogger);
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
@@ -345,7 +348,7 @@ public class AuditPipelineBehaviorTests : IDisposable
     {
         // Arrange
         var behavior = new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, _options, _commandLogger);
+            _scopeFactory, _entryFactory, _options, _commandLogger);
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
@@ -370,7 +373,7 @@ public class AuditPipelineBehaviorTests : IDisposable
     {
         // Arrange
         var behavior = new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, _options, _commandLogger);
+            _scopeFactory, _entryFactory, _options, _commandLogger);
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
@@ -395,7 +398,7 @@ public class AuditPipelineBehaviorTests : IDisposable
     {
         // Arrange
         var behavior = new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, _options, _commandLogger);
+            _scopeFactory, _entryFactory, _options, _commandLogger);
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
@@ -420,7 +423,7 @@ public class AuditPipelineBehaviorTests : IDisposable
     {
         // Arrange
         var behavior = new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, _options, _commandLogger);
+            _scopeFactory, _entryFactory, _options, _commandLogger);
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
@@ -449,7 +452,7 @@ public class AuditPipelineBehaviorTests : IDisposable
     {
         // Arrange
         var behavior = new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, _options, _commandLogger);
+            _scopeFactory, _entryFactory, _options, _commandLogger);
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
@@ -476,7 +479,7 @@ public class AuditPipelineBehaviorTests : IDisposable
     {
         // Arrange
         var behavior = new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, _options, _commandLogger);
+            _scopeFactory, _entryFactory, _options, _commandLogger);
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
@@ -501,7 +504,7 @@ public class AuditPipelineBehaviorTests : IDisposable
     }
 
     [Fact]
-    public async Task Handle_WhenAuditStoreFailure_ShouldNotFailRequest()
+    public async Task Handle_WhenAuditStoreFailure_UnderBestEffort_ShouldNotFailRequest()
     {
         // Arrange
 #pragma warning disable CA2012 // Use ValueTasks correctly - NSubstitute internally manages the ValueTask
@@ -510,7 +513,7 @@ public class AuditPipelineBehaviorTests : IDisposable
 #pragma warning restore CA2012
 
         var behavior = new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, _options, _commandLogger);
+            _scopeFactory, _entryFactory, Options.Create(new OperationAuditOptions { FailureMode = OperationAuditFailureMode.BestEffort }), _commandLogger);
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
@@ -523,7 +526,7 @@ public class AuditPipelineBehaviorTests : IDisposable
     }
 
     [Fact]
-    public async Task Handle_WhenAuditStoreThrows_ShouldNotFailRequest()
+    public async Task Handle_WhenAuditStoreThrows_UnderBestEffort_ShouldNotFailRequest()
     {
         // Arrange
 #pragma warning disable CA2012 // Use ValueTasks correctly - NSubstitute internally manages the ValueTask
@@ -532,7 +535,7 @@ public class AuditPipelineBehaviorTests : IDisposable
 #pragma warning restore CA2012
 
         var behavior = new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, _options, _commandLogger);
+            _scopeFactory, _entryFactory, Options.Create(new OperationAuditOptions { FailureMode = OperationAuditFailureMode.BestEffort }), _commandLogger);
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
@@ -549,7 +552,7 @@ public class AuditPipelineBehaviorTests : IDisposable
     #region Constructor Guard Tests
 
     [Fact]
-    public void Constructor_WithNullAuditStore_ShouldThrowArgumentNullException()
+    public void Constructor_WithNullScopeFactory_ShouldThrowArgumentNullException()
     {
         // Act
         var act = () => new AuditPipelineBehavior<TestCommand, Unit>(
@@ -557,7 +560,7 @@ public class AuditPipelineBehaviorTests : IDisposable
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-                .ParamName.ShouldBe("auditStore");
+                .ParamName.ShouldBe("scopeFactory");
     }
 
     [Fact]
@@ -565,7 +568,7 @@ public class AuditPipelineBehaviorTests : IDisposable
     {
         // Act
         var act = () => new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, null!, _options, _commandLogger);
+            _scopeFactory, null!, _options, _commandLogger);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -577,7 +580,7 @@ public class AuditPipelineBehaviorTests : IDisposable
     {
         // Act
         var act = () => new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, null!, _commandLogger);
+            _scopeFactory, _entryFactory, null!, _commandLogger);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -589,7 +592,7 @@ public class AuditPipelineBehaviorTests : IDisposable
     {
         // Act
         var act = () => new AuditPipelineBehavior<TestCommand, Unit>(
-            _auditStore, _entryFactory, _options, null!);
+            _scopeFactory, _entryFactory, _options, null!);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
