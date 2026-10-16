@@ -4,8 +4,8 @@
 
 ## Justification
 
-### 1. Fire-and-Forget Pattern
-`AuditPipelineBehavior` records audit entries asynchronously without blocking the request pipeline. The audit write is intentionally non-blocking — benchmarking it measures async scheduling overhead, not meaningful application performance.
+### 1. Awaited Audit Write
+`AuditPipelineBehavior` awaits each audit write before the request returns, in a child scope of its own. The write is on the request's critical path, so its cost is store I/O latency plus scope creation; benchmarking only the in-memory orchestration would not measure the real cost of the write.
 
 ### 2. Store Performance is Provider-Dependent
 Audit write performance depends entirely on the backing store (SQL Server, PostgreSQL, etc.), not on the Encina audit layer. Benchmarking the InMemory store is meaningless; benchmarking real DB stores belongs in integration tests.
