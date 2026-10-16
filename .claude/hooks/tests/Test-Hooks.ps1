@@ -1247,6 +1247,39 @@ try {
         Invoke-HookCase $ownership ($payload | ConvertTo-Json -Compress) $expected $label $hookAgent
     }
 
+    # #2244: the transcript folder (~/.claude/projects) lies outside the project, but an audit-stage agent may not
+    # write there (its own spawn prompt is what the #2234 binding reads); every other agent still may.
+    $transcriptFile = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.claude\projects\D--x\sess\subagents\agent-a1.jsonl'
+    $transcriptUpper = $transcriptFile.ToUpperInvariant()
+    foreach ($stageAgent in 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier', 'docs-reviewer', 'remediation-drafter') {
+        $tp = @{ tool_name = 'Write'; cwd = $wt; agent_type = $stageAgent; agent_id = 'a1'; tool_input = @{ file_path = $transcriptFile } }
+        Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 2 "enforce-path-ownership (#2244): $stageAgent may not Write under ~/.claude/projects" $stageAgent
+    }
+    $tp = @{ tool_name = 'Write'; cwd = $wt; agent_type = 'issue-auditor'; agent_id = 'a1'; tool_input = @{ file_path = $transcriptUpper } }
+    Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 2 'enforce-path-ownership (#2244): the transcript-folder deny is case-insensitive' 'issue-auditor'
+    $tp = @{ tool_name = 'PowerShell'; cwd = $wt; agent_type = 'issue-auditor'; agent_id = 'a1'; tool_input = @{ command = "Set-Content -LiteralPath '$transcriptFile' -Value 'x'" } }
+    Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 2 'enforce-path-ownership (#2244): shell vector, Set-Content under ~/.claude/projects by an audit-stage agent is denied' 'issue-auditor'
+    $tp = @{ tool_name = 'Write'; cwd = $wt; agent_type = 'issue-auditor'; agent_id = 'a1'; tool_input = @{ file_path = ($transcriptFile -replace '/', '\') -replace '^', '\\?\' } }
+    Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 2 'enforce-path-ownership (#2244): the \\?\ form of the transcript folder is denied for an audit-stage agent' 'issue-auditor'
+    $uncPath = '\\server\share\x.txt'
+    $longPath = Join-Path ([Environment]::GetFolderPath('UserProfile')) (('a/../' * 90) + 'x.txt')
+    foreach ($pair in @(@('UNC', $uncPath), @('over-400-character', $longPath))) {
+        $tp = @{ tool_name = 'Write'; cwd = $wt; agent_type = 'issue-auditor'; agent_id = 'a1'; tool_input = @{ file_path = $pair[1] } }
+        Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 2 "enforce-path-ownership (#2244): a $($pair[0]) path is denied for an audit-stage agent (fail closed)" 'issue-auditor'
+        $tp = @{ tool_name = 'Write'; cwd = $wt; agent_type = 'mechanical-fixer'; agent_id = 'a1'; tool_input = @{ file_path = $pair[1] } }
+        Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 0 "enforce-path-ownership (#2244): a $($pair[0]) path is still allowed for a non-audit agent" 'mechanical-fixer'
+    }
+    $tp = @{ tool_name = 'Write'; cwd = $wt; agent_type = 'issue-auditor'; agent_id = 'a1'; tool_input = @{ file_path = ($transcriptFile -replace '\\', '/') } }
+    Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 2 'enforce-path-ownership (#2244): forward-slash form of the transcript folder is denied' 'issue-auditor'
+    $tp = @{ tool_name = 'Write'; cwd = $wt; agent_type = 'issue-auditor'; agent_id = 'a1'; tool_input = @{ file_path = ($transcriptFile -replace 'projects', 'projects-other') } }
+    Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 0 'enforce-path-ownership (#2244): a sibling folder named projects-other is not denied' 'issue-auditor'
+    $tp = @{ tool_name = 'Write'; cwd = $wt; agent_type = 'mechanical-fixer'; agent_id = 'a1'; tool_input = @{ file_path = $transcriptFile } }
+    Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 0 'enforce-path-ownership (#2244): a non-audit agent may still Write under ~/.claude/projects' 'mechanical-fixer'
+    $tp = @{ tool_name = 'PowerShell'; cwd = $wt; agent_type = 'mechanical-fixer'; agent_id = 'a1'; tool_input = @{ command = "Set-Content -LiteralPath '$transcriptFile' -Value 'x'" } }
+    Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 0 'enforce-path-ownership (#2244): a non-audit agent may still Set-Content under ~/.claude/projects' 'mechanical-fixer'
+    $tp = @{ tool_name = 'Write'; cwd = $wt; tool_input = @{ file_path = $transcriptFile } }
+    Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 0 'enforce-path-ownership (#2244): the orchestrator may still Write under ~/.claude/projects (memory, handoffs)' $null
+
     # #1345 review blocker: git itself is a bypass vector for the stage-ownership check — `git checkout <rev>
     # -- <path>` / `git restore <path>` can overwrite a stage artifact's content without going through the
     # Write/Edit tool or any of the shell-write APIs above; `git commit`/`apply`/`am`, run as the command's own
