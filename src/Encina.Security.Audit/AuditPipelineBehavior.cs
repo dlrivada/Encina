@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Transactions;
 
 using Encina.Diagnostics;
+using Encina.Security.Audit.Diagnostics;
 
 using LanguageExt;
 
@@ -25,7 +26,8 @@ namespace Encina.Security.Audit;
 /// </para>
 /// <para>
 /// <b>Failure mode:</b> with <see cref="OperationAuditFailureMode.FailClosed"/> (the default) a request that
-/// succeeded returns <see cref="OperationAuditErrors.WriteFailedCode"/> when its audit write fails; with
+/// succeeded returns <see cref="OperationAuditErrors.WriteFailedCode"/> when its audit write fails, or
+/// <see cref="OperationAuditErrors.MaskingFailedCode"/> when its payload could not be masked; with
 /// <see cref="OperationAuditFailureMode.BestEffort"/> the failure is only logged at Warning. The handler's own
 /// <c>Left</c> or exception is never replaced.
 /// </para>
@@ -238,7 +240,10 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
     /// The write uses <see cref="CancellationToken.None"/> by design; the store owns its timeout. An ambient
     /// <see cref="System.Transactions.Transaction"/> is suppressed so the entry never enlists in the request's transaction.
     /// </remarks>
-    /// <returns>Right when written; Left with <see cref="OperationAuditErrors.WriteFailedCode"/> otherwise (already logged).</returns>
+    /// <returns>
+    /// Right when written; otherwise Left (already logged) with <see cref="OperationAuditErrors.MaskingFailedCode"/>
+    /// when the payload could not be masked, or <see cref="OperationAuditErrors.WriteFailedCode"/>.
+    /// </returns>
     private async Task<Either<EncinaError, LanguageExt.Unit>> RecordAuditEntryAsync(
         TRequest request,
         TResponse? response,
@@ -251,7 +256,7 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
 
         try
         {
-            var entry = _entryFactory.Create(
+            var built = _entryFactory.Create(
                 request,
                 response,
                 context,
@@ -260,28 +265,69 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
                 startedAtUtc,
                 _timeProvider.GetUtcNow());
 
-            // Suppress any ambient System.Transactions scope of the request: the audit row must not
-            // enlist in it (it would roll back with the request or escalate to a distributed transaction).
-            using var isolation = new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled);
-            await using var scope = _scopeFactory.CreateAsyncScope();
-            var store = scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
-            var result = await store.RecordAsync(entry, CancellationToken.None).ConfigureAwait(false);
-
-            return result.Match<Either<EncinaError, LanguageExt.Unit>>(
-                Right: unit => unit,
-                Left: error =>
-                {
-                    var code = error.GetCode().IfNone("encina.unknown");
-                    LogAuditRecordingFailed(_logger, requestType, code, _options.FailureMode);
-                    return OperationAuditErrors.WriteFailed(requestType, code);
-                });
+            // A Left from the factory (a masking failure) means no entry exists: nothing is stored and the
+            // factory's error, which carries a code and never a message, is the result.
+            return await built.Match(
+                Left: error => Task.FromResult(LogFactoryFailure(requestType, error)),
+                Right: entry => WriteEntryAsync(requestType, entry)).ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogAuditRecordingException(_logger, requestType, _options.FailureMode, ex.ForLogging());
             return OperationAuditErrors.WriteFailed(requestType, ex.GetType().Name);
         }
     }
+
+    /// <summary>
+    /// Logs and counts a Left of the entry factory. The log carries the error code and the cause exception type
+    /// from the error details, never a message; the counter is tagged with the error code and request type only.
+    /// </summary>
+    private Either<EncinaError, LanguageExt.Unit> LogFactoryFailure(string requestType, EncinaError error)
+    {
+        var code = error.GetCode().IfNone("encina.unknown");
+        var cause = error.GetDetails().TryGetValue("cause", out var value) ? value?.ToString() ?? "unknown" : "unknown";
+        LogEntryNotBuilt(_logger, requestType, code, cause, _options.FailureMode);
+
+        if (code == OperationAuditErrors.MaskingFailedCode)
+        {
+            OperationAuditMeter.MaskingFailuresTotal.Add(
+                1,
+                new KeyValuePair<string, object?>(OperationAuditMeter.TagErrorCode, code),
+                new KeyValuePair<string, object?>(OperationAuditMeter.TagRequestType, requestType));
+        }
+
+        return error;
+    }
+
+    private async Task<Either<EncinaError, LanguageExt.Unit>> WriteEntryAsync(string requestType, OperationAuditEntry entry)
+    {
+        // Suppress any ambient System.Transactions scope of the request: the audit row must not
+        // enlist in it (it would roll back with the request or escalate to a distributed transaction).
+        using var isolation = new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled);
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
+        var result = await store.RecordAsync(entry, CancellationToken.None).ConfigureAwait(false);
+
+        return result.Match<Either<EncinaError, LanguageExt.Unit>>(
+            Right: unit => unit,
+            Left: error =>
+            {
+                var code = error.GetCode().IfNone("encina.unknown");
+                LogAuditRecordingFailed(_logger, requestType, code, _options.FailureMode);
+                return OperationAuditErrors.WriteFailed(requestType, code);
+            });
+    }
+
+    [LoggerMessage(
+        EventId = 5012,
+        Level = LogLevel.Warning,
+        Message = "Audit entry for {RequestType} was not built: {ErrorCode}, cause {CauseType} (failure mode {FailureMode})")]
+    private static partial void LogEntryNotBuilt(
+        ILogger logger,
+        string requestType,
+        string errorCode,
+        string causeType,
+        OperationAuditFailureMode failureMode);
 
     [LoggerMessage(
         EventId = 5000,

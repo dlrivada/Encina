@@ -10,9 +10,10 @@ namespace Encina.Security.Audit;
 /// it is hashed or logged.
 /// </para>
 /// <para>
-/// The default implementation (<see cref="NullPiiMasker"/>) performs no masking.
-/// When the <c>Encina.Security.PII</c> package is available, register a custom
-/// implementation that performs actual PII detection and masking.
+/// The audit module requires a registered masker and has no default: <see cref="NullPiiMasker"/> performs no
+/// masking and is registered only by the explicit opt-out <see cref="OperationAuditOptions.AllowUnmaskedPayloads"/>.
+/// Register <see cref="DefaultSensitiveDataRedactor"/>, or the masker of the <c>Encina.Security.PII</c> package,
+/// or your own implementation that performs actual PII detection and masking.
 /// </para>
 /// <para>
 /// <b>Common PII to mask:</b>

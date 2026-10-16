@@ -75,6 +75,8 @@ When `AddEncinaAudit` and its `AuditPipelineBehavior` (package `Encina.Security.
 - For the ADO.NET, Dapper, EF Core and MongoDB operation stores, `OperationAuditOptions.RetentionDays` defaults to 2555 days and `OperationAuditOptions.EnableAutoPurge` defaults to `false`, so nothing is purged until you enable it in the configure lambda of `AddEncinaAudit`:
 
 ```csharp
+// AddEncinaAudit requires an IPiiMasker at startup (or call AddEncinaPII() instead)
+services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
 services.AddEncinaAudit(options =>
 {
     options.RetentionDays = 2555;

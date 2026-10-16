@@ -1,5 +1,6 @@
 using Encina.Security.Audit;
 using Encina.Testing.Identity;
+using Encina.UnitTests.Support;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -35,7 +36,7 @@ public class DefaultOperationAuditEntryFactoryTests
             correlationId: "correlation-789");
 
         // Act
-        var entry = _factory.Create(request, context, AuditOutcome.Success, null);
+        var entry = _factory.Create(request, context, AuditOutcome.Success, null).Entry();
 
         // Assert
         entry.Id.ShouldNotBe(Guid.Empty);
@@ -58,7 +59,7 @@ public class DefaultOperationAuditEntryFactoryTests
         var context = RequestContext.CreateForTest();
 
         // Act
-        var entry = _factory.Create(request, context, AuditOutcome.Failure, "Validation failed");
+        var entry = _factory.Create(request, context, AuditOutcome.Failure, "Validation failed").Entry();
 
         // Assert
         entry.Outcome.ShouldBe(AuditOutcome.Failure);
@@ -73,7 +74,7 @@ public class DefaultOperationAuditEntryFactoryTests
         var context = RequestContext.CreateForTest();
 
         // Act
-        var entry = _factory.Create(request, context, AuditOutcome.Success, null);
+        var entry = _factory.Create(request, context, AuditOutcome.Success, null).Entry();
 
         // Assert
         entry.RequestPayloadHash.ShouldNotBeNullOrEmpty();
@@ -90,7 +91,7 @@ public class DefaultOperationAuditEntryFactoryTests
         var context = RequestContext.CreateForTest();
 
         // Act
-        var entry = factory.Create(request, context, AuditOutcome.Success, null);
+        var entry = factory.Create(request, context, AuditOutcome.Success, null).Entry();
 
         // Assert
         entry.RequestPayloadHash.ShouldBeNull();
@@ -106,8 +107,8 @@ public class DefaultOperationAuditEntryFactoryTests
         var context = RequestContext.CreateForTest();
 
         // Act
-        var entry1 = _factory.Create(request1, context, AuditOutcome.Success, null);
-        var entry2 = _factory.Create(request2, context, AuditOutcome.Success, null);
+        var entry1 = _factory.Create(request1, context, AuditOutcome.Success, null).Entry();
+        var entry2 = _factory.Create(request2, context, AuditOutcome.Success, null).Entry();
 
         // Assert
         entry1.RequestPayloadHash.ShouldBe(entry2.RequestPayloadHash);
@@ -122,8 +123,8 @@ public class DefaultOperationAuditEntryFactoryTests
         var context = RequestContext.CreateForTest();
 
         // Act
-        var entry1 = _factory.Create(request1, context, AuditOutcome.Success, null);
-        var entry2 = _factory.Create(request2, context, AuditOutcome.Success, null);
+        var entry1 = _factory.Create(request1, context, AuditOutcome.Success, null).Entry();
+        var entry2 = _factory.Create(request2, context, AuditOutcome.Success, null).Entry();
 
         // Assert
         entry1.RequestPayloadHash.ShouldNotBe(entry2.RequestPayloadHash);
@@ -151,7 +152,7 @@ public class DefaultOperationAuditEntryFactoryTests
         var context = RequestContext.CreateForTest();
 
         // Act
-        var entry = _factory.Create(request, context, AuditOutcome.Success, null);
+        var entry = _factory.Create(request, context, AuditOutcome.Success, null).Entry();
 
         // Assert
         entry.EntityType.ShouldBe("CustomEntity");
@@ -166,7 +167,7 @@ public class DefaultOperationAuditEntryFactoryTests
         var context = RequestContext.CreateForTest();
 
         // Act
-        var entry = _factory.Create(request, context, AuditOutcome.Success, null);
+        var entry = _factory.Create(request, context, AuditOutcome.Success, null).Entry();
 
         // Assert
         entry.RequestPayloadHash.ShouldBeNull();
@@ -180,7 +181,7 @@ public class DefaultOperationAuditEntryFactoryTests
         var context = RequestContext.CreateForTest();
 
         // Act
-        var entry = _factory.Create(request, context, AuditOutcome.Success, null);
+        var entry = _factory.Create(request, context, AuditOutcome.Success, null).Entry();
 
         // Assert
         entry.Metadata.ShouldContainKey("SensitivityLevel");
@@ -196,7 +197,7 @@ public class DefaultOperationAuditEntryFactoryTests
             .WithMetadata("Encina.Audit.IpAddress", "192.168.1.100");
 
         // Act
-        var entry = _factory.Create(request, context, AuditOutcome.Success, null);
+        var entry = _factory.Create(request, context, AuditOutcome.Success, null).Entry();
 
         // Assert
         entry.IpAddress.ShouldBe("192.168.1.100");
@@ -211,7 +212,7 @@ public class DefaultOperationAuditEntryFactoryTests
             .WithMetadata("Encina.Audit.UserAgent", "Mozilla/5.0");
 
         // Act
-        var entry = _factory.Create(request, context, AuditOutcome.Success, null);
+        var entry = _factory.Create(request, context, AuditOutcome.Success, null).Entry();
 
         // Assert
         entry.UserAgent.ShouldBe("Mozilla/5.0");
@@ -227,7 +228,7 @@ public class DefaultOperationAuditEntryFactoryTests
             .WithMetadata("Encina.Audit.Internal", "should-be-skipped");
 
         // Act
-        var entry = _factory.Create(request, context, AuditOutcome.Success, null);
+        var entry = _factory.Create(request, context, AuditOutcome.Success, null).Entry();
 
         // Assert
         entry.Metadata.ShouldContainKey("CustomKey");
@@ -243,7 +244,7 @@ public class DefaultOperationAuditEntryFactoryTests
         var context = RequestContext.CreateForTest();
 
         // Act
-        var act = () => _factory.Create<CreateOrderCommand>(null!, context, AuditOutcome.Success, null);
+        Action act = () => _factory.Create<CreateOrderCommand>(null!, context, AuditOutcome.Success, null);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -257,7 +258,7 @@ public class DefaultOperationAuditEntryFactoryTests
         var request = new CreateOrderCommand { Id = Guid.NewGuid() };
 
         // Act
-        var act = () => _factory.Create(request, null!, AuditOutcome.Success, null);
+        Action act = () => _factory.Create(request, null!, AuditOutcome.Success, null);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -268,7 +269,7 @@ public class DefaultOperationAuditEntryFactoryTests
     public void Constructor_WithNullPiiMasker_ShouldThrowArgumentNullException()
     {
         // Act
-        var act = () => new DefaultOperationAuditEntryFactory(null!, _options);
+        Action act = () => _ = new DefaultOperationAuditEntryFactory(null!, _options);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -279,7 +280,7 @@ public class DefaultOperationAuditEntryFactoryTests
     public void Constructor_WithNullOptions_ShouldThrowArgumentNullException()
     {
         // Act
-        var act = () => new DefaultOperationAuditEntryFactory(_piiMasker, null!);
+        Action act = () => _ = new DefaultOperationAuditEntryFactory(_piiMasker, null!);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)

@@ -18,6 +18,7 @@ public sealed class AuditPipelineBehaviorRegistrationTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddEncinaAudit(o => o.FailureMode = OperationAuditFailureMode.BestEffort);
+        services.AddSingleton<IPiiMasker, NullPiiMasker>();
 
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions
         {

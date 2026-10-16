@@ -14,12 +14,15 @@ namespace Encina.UnitTests.EntityFrameworkCore;
 /// </summary>
 public sealed class OperationAuditStoreRegistrationTests
 {
-    private static ServiceProvider Build(IServiceCollection services) =>
-        services.BuildServiceProvider(new ServiceProviderOptions
+    private static ServiceProvider Build(IServiceCollection services)
+    {
+        services.AddSingleton<IPiiMasker, NullPiiMasker>();
+        return services.BuildServiceProvider(new ServiceProviderOptions
         {
             ValidateOnBuild = true,
             ValidateScopes = true
         });
+    }
 
     private static ServiceCollection NewServices()
     {

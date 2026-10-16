@@ -43,6 +43,7 @@ public static class ServiceCollectionExtensions
     /// <para>
     /// <b>Prerequisites:</b> This package requires Marten to be configured in the DI container
     /// (via <c>AddMarten()</c>) and <c>AddEncinaAudit()</c> to be called for the audit pipeline behavior.
+    /// <c>AddEncinaAudit()</c> requires an <see cref="IPiiMasker"/> to be registered, or the host fails at startup.
     /// </para>
     /// <para>
     /// <b>Store replacement:</b> Unlike satellite packages that use <c>TryAdd</c>, this method uses
@@ -59,7 +60,8 @@ public static class ServiceCollectionExtensions
     ///     options.Connection("Host=localhost;Database=myapp;...");
     /// });
     ///
-    /// // 2. Add core audit services (pipeline behavior, factory)
+    /// // 2. Add core audit services (pipeline behavior, factory); the audit module requires a PII masker
+    /// services.AddSingleton&lt;IPiiMasker, DefaultSensitiveDataRedactor&gt;();
     /// services.AddEncinaAudit(options =>
     /// {
     ///     options.AuditAllCommands = true;

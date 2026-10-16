@@ -19,6 +19,41 @@ namespace Encina.ContractTests.Security.Audit;
 public sealed class AuditPipelineBehaviorContractTests
 {
     [Fact]
+    public async Task Handle_FactoryMaskingFailure_ReturnsTheMaskingErrorAndStoresNothing()
+    {
+        // Arrange
+        AuditPipelineBehavior<AuditableCommand, Unit>.ClearCache();
+
+        var auditStore = Substitute.For<IOperationAuditStore>();
+        var entryFactory = Substitute.For<IOperationAuditEntryFactory>();
+        entryFactory.Create(
+                Arg.Any<AuditableCommand>(),
+                Arg.Any<Unit>(),
+                Arg.Any<IRequestContext>(),
+                Arg.Any<AuditOutcome>(),
+                Arg.Any<string?>(),
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<DateTimeOffset>())
+            .Returns(OperationAuditErrors.MaskingFailed(nameof(AuditableCommand), "InvalidOperationException"));
+        var sut = new AuditPipelineBehavior<AuditableCommand, Unit>(
+            ScopeFactoryFor(auditStore),
+            entryFactory,
+            Options.Create(new OperationAuditOptions { AuditAllCommands = true }),
+            NullLogger<AuditPipelineBehavior<AuditableCommand, Unit>>.Instance);
+
+        RequestHandlerCallback<Unit> next = () =>
+            ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default));
+
+        // Act
+        var result = await sut.Handle(new AuditableCommand(), RequestContext.CreateForTest(), next, CancellationToken.None);
+
+        // Assert
+        result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty))
+            .ShouldBe(OperationAuditErrors.MaskingFailedCode);
+        await auditStore.DidNotReceive().RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Handle_NonAuditableRequest_DelegatesToNextWithoutAuditing()
     {
         // Arrange

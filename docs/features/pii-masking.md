@@ -315,9 +315,13 @@ var auditMasker = provider.GetRequiredService<IPiiMasker>();
 // piiMasker == auditMasker (same instance)
 ```
 
-`DefaultAuditEntryFactory` calls `MaskForAudit` only to compute the audit entry's payload hash. It does not redact the stored payload: when `PIIMasker` is the registered `IPiiMasker`, `RequestPayload` and `ResponsePayload` are stored without PII redaction (only `DefaultSensitiveDataRedactor` redacts them). This gap is tracked in [#1835](https://github.com/dlrivada/Encina/issues/1835).
+`AddEncinaPII()` registers `PIIMasker` as `IPiiMasker` in either registration order relative to `AddEncinaAudit`. The audit module requires an `IPiiMasker` and stops the host at startup without one (see [Troubleshooting: the host stops at startup](audit-tracking.md#troubleshooting-the-host-stops-at-startup)), so this registration is what satisfies it.
 
-When masking or serialization fails, `MaskForAudit` throws instead of returning the unmasked object (the failure is logged with EventId 8022 and a redacted exception); the audit caller treats it as "no payload hash".
+The audit entry factory masks the stored `RequestPayload` and `ResponsePayload` (when `IncludeRequestPayload` or `IncludeResponsePayload` is on) and the payload hash through the registered `IPiiMasker`, including `PIIMasker`.
+
+**Limitation with `PIIMasker`:** only `DefaultSensitiveDataRedactor` masks the payload at the JSON level and honors `[Auditable(SensitiveFields = ...)]` and `OperationAuditOptions.GlobalSensitiveFields`. Any other `IPiiMasker`, including `PIIMasker` from `AddEncinaPII()`, is called as `MaskForAudit(object)` and does not receive those field lists. With `PIIMasker`, a field that is named in `SensitiveFields` or `GlobalSensitiveFields` but is not marked `[PII]` is stored as is in `RequestPayload` and `ResponsePayload`. Mark every personal-data property with `[PII]`, or register `DefaultSensitiveDataRedactor` when you rely on the field lists.
+
+When masking or serialization fails, `MaskForAudit` throws instead of returning the unmasked object (the failure is logged with EventId 8022 and a redacted exception). The audit module fails closed: `DefaultOperationAuditEntryFactory` catches the exception and returns a Left `audit.masking_failed` (`OperationAuditErrors.MaskingFailedCode`; details `requestType` and `cause`, the exception type name only) from `IOperationAuditEntryFactory.Create`, which returns `Either<EncinaError, OperationAuditEntry>`. `AuditPipelineBehavior` propagates that Left as the request's result under the default `OperationAuditFailureMode.FailClosed`; under `BestEffort` it only logs it (EventId 5000), and nothing is stored.
 
 ---
 

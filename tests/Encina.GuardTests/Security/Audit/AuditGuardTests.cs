@@ -53,7 +53,7 @@ public class AuditGuardTests
         var context = RequestContext.CreateForTest();
 
         // Act
-        var act = () => factory.Create<TestCommand>(null!, context, AuditOutcome.Success, null);
+        Action act = () => factory.Create<TestCommand>(null!, context, AuditOutcome.Success, null);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -70,7 +70,7 @@ public class AuditGuardTests
         var request = new TestCommand();
 
         // Act
-        var act = () => factory.Create(request, null!, AuditOutcome.Success, null);
+        Action act = () => factory.Create(request, null!, AuditOutcome.Success, null);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -147,6 +147,35 @@ public class AuditGuardTests
         // Assert
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("logger");
+    }
+
+    [Fact]
+    public async Task AuditPipelineBehavior_Handle_SkippedRequest_PassesThroughWithoutBuildingAnEntry()
+    {
+        // Arrange
+        var entryFactory = Substitute.For<IOperationAuditEntryFactory>();
+        var behavior = new AuditPipelineBehavior<SkippedCommand, Unit>(
+            Substitute.For<IServiceScopeFactory>(),
+            entryFactory,
+            Options.Create(new OperationAuditOptions()),
+            Substitute.For<ILogger<AuditPipelineBehavior<SkippedCommand, Unit>>>());
+        var reached = false;
+
+        // Act
+        var result = await behavior.Handle(
+            new SkippedCommand(),
+            RequestContext.CreateForTest(),
+            () =>
+            {
+                reached = true;
+                return new ValueTask<LanguageExt.Either<EncinaError, Unit>>(Unit.Default);
+            },
+            CancellationToken.None);
+
+        // Assert
+        reached.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue();
+        entryFactory.ReceivedCalls().ShouldBeEmpty();
     }
 
     #endregion
@@ -421,6 +450,9 @@ public class AuditGuardTests
 
     // Must be public for NSubstitute to create proxies
     public sealed class TestCommand : ICommand<Unit> { }
+
+    [Auditable(Skip = true)]
+    public sealed class SkippedCommand : ICommand<Unit> { }
 
     #endregion
 }

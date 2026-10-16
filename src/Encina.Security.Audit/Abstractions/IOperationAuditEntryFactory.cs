@@ -1,3 +1,5 @@
+using LanguageExt;
+
 namespace Encina.Security.Audit;
 
 /// <summary>
@@ -23,7 +25,7 @@ namespace Encina.Security.Audit;
 /// <code>
 /// public class CustomAuditEntryFactory : IOperationAuditEntryFactory
 /// {
-///     public OperationAuditEntry Create&lt;TRequest&gt;(
+///     public Either&lt;EncinaError, OperationAuditEntry&gt; Create&lt;TRequest&gt;(
 ///         TRequest request,
 ///         IRequestContext context,
 ///         AuditOutcome outcome,
@@ -44,7 +46,10 @@ public interface IOperationAuditEntryFactory
     /// <param name="context">The request context containing correlation, user, and tenant information.</param>
     /// <param name="outcome">The outcome of the operation.</param>
     /// <param name="errorMessage">The error code or exception type name (never the error message) if <paramref name="outcome"/> is not <see cref="AuditOutcome.Success"/>.</param>
-    /// <returns>A fully populated <see cref="OperationAuditEntry"/>.</returns>
+    /// <returns>
+    /// A fully populated <see cref="OperationAuditEntry"/>, or <see cref="OperationAuditErrors.MaskingFailedCode"/>
+    /// when the payload could not be masked (no entry is built, so nothing unmasked can be stored).
+    /// </returns>
     /// <remarks>
     /// <para>
     /// The factory should:
@@ -57,7 +62,7 @@ public interface IOperationAuditEntryFactory
     /// </list>
     /// </para>
     /// </remarks>
-    OperationAuditEntry Create<TRequest>(
+    Either<EncinaError, OperationAuditEntry> Create<TRequest>(
         TRequest request,
         IRequestContext context,
         AuditOutcome outcome,
@@ -75,7 +80,10 @@ public interface IOperationAuditEntryFactory
     /// <param name="errorMessage">The error code or exception type name (never the error message) if <paramref name="outcome"/> is not <see cref="AuditOutcome.Success"/>.</param>
     /// <param name="startedAtUtc">When the operation started.</param>
     /// <param name="completedAtUtc">When the operation completed.</param>
-    /// <returns>A fully populated <see cref="OperationAuditEntry"/> with timing and payload information.</returns>
+    /// <returns>
+    /// A fully populated <see cref="OperationAuditEntry"/> with timing and payload information, or
+    /// <see cref="OperationAuditErrors.MaskingFailedCode"/> when a payload could not be masked (no entry is built).
+    /// </returns>
     /// <remarks>
     /// <para>
     /// This overload captures additional information:
@@ -86,7 +94,7 @@ public interface IOperationAuditEntryFactory
     /// </list>
     /// </para>
     /// </remarks>
-    OperationAuditEntry Create<TRequest, TResponse>(
+    Either<EncinaError, OperationAuditEntry> Create<TRequest, TResponse>(
         TRequest request,
         TResponse? response,
         IRequestContext context,

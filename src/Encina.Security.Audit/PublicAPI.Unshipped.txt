@@ -84,12 +84,16 @@ Encina.Security.Audit.OperationAuditOptions.RetentionDays.get -> int
 Encina.Security.Audit.OperationAuditOptions.RetentionDays.set -> void
 Encina.Security.Audit.OperationAuditOptions.FailureMode.get -> Encina.Security.Audit.OperationAuditFailureMode
 Encina.Security.Audit.OperationAuditOptions.FailureMode.set -> void
+Encina.Security.Audit.OperationAuditOptions.AllowUnmaskedPayloads.get -> bool
+Encina.Security.Audit.OperationAuditOptions.AllowUnmaskedPayloads.set -> void
 Encina.Security.Audit.OperationAuditFailureMode
 Encina.Security.Audit.OperationAuditFailureMode.BestEffort = 1 -> Encina.Security.Audit.OperationAuditFailureMode
 Encina.Security.Audit.OperationAuditFailureMode.FailClosed = 0 -> Encina.Security.Audit.OperationAuditFailureMode
 Encina.Security.Audit.OperationAuditErrors
 const Encina.Security.Audit.OperationAuditErrors.WriteFailedCode = "audit.write_failed" -> string!
 static Encina.Security.Audit.OperationAuditErrors.WriteFailed(string! requestType, string! causeCode) -> Encina.EncinaError
+const Encina.Security.Audit.OperationAuditErrors.MaskingFailedCode = "audit.masking_failed" -> string!
+static Encina.Security.Audit.OperationAuditErrors.MaskingFailed(string! requestType, string! causeCode) -> Encina.EncinaError
 Encina.Security.Audit.AuditOutcome
 Encina.Security.Audit.AuditOutcome.Denied = 2 -> Encina.Security.Audit.AuditOutcome
 Encina.Security.Audit.AuditOutcome.Error = 3 -> Encina.Security.Audit.AuditOutcome
@@ -162,8 +166,8 @@ Encina.Security.Audit.PagedResult<T>.IsEmpty.get -> bool
 static Encina.Security.Audit.PagedResult<T>.Empty(int pageNumber = 1, int pageSize = 50) -> Encina.Security.Audit.PagedResult<T>!
 static Encina.Security.Audit.PagedResult<T>.Create(System.Collections.Generic.IReadOnlyList<T>! items, int totalCount, int pageNumber, int pageSize) -> Encina.Security.Audit.PagedResult<T>!
 Encina.Security.Audit.DefaultOperationAuditEntryFactory
-Encina.Security.Audit.DefaultOperationAuditEntryFactory.Create<TRequest>(TRequest request, Encina.IRequestContext! context, Encina.Security.Audit.AuditOutcome outcome, string? errorMessage) -> Encina.Security.Audit.OperationAuditEntry!
-Encina.Security.Audit.DefaultOperationAuditEntryFactory.Create<TRequest, TResponse>(TRequest request, TResponse? response, Encina.IRequestContext! context, Encina.Security.Audit.AuditOutcome outcome, string? errorMessage, System.DateTimeOffset startedAtUtc, System.DateTimeOffset completedAtUtc) -> Encina.Security.Audit.OperationAuditEntry!
+Encina.Security.Audit.DefaultOperationAuditEntryFactory.Create<TRequest>(TRequest request, Encina.IRequestContext! context, Encina.Security.Audit.AuditOutcome outcome, string? errorMessage) -> LanguageExt.Either<Encina.EncinaError, Encina.Security.Audit.OperationAuditEntry!>
+Encina.Security.Audit.DefaultOperationAuditEntryFactory.Create<TRequest, TResponse>(TRequest request, TResponse? response, Encina.IRequestContext! context, Encina.Security.Audit.AuditOutcome outcome, string? errorMessage, System.DateTimeOffset startedAtUtc, System.DateTimeOffset completedAtUtc) -> LanguageExt.Either<Encina.EncinaError, Encina.Security.Audit.OperationAuditEntry!>
 Encina.Security.Audit.DefaultOperationAuditEntryFactory.DefaultOperationAuditEntryFactory(Encina.Security.Audit.IPiiMasker! piiMasker, Microsoft.Extensions.Options.IOptions<Encina.Security.Audit.OperationAuditOptions!>! options) -> void
 Encina.Security.Audit.DefaultSensitiveDataRedactor
 Encina.Security.Audit.DefaultSensitiveDataRedactor.DefaultSensitiveDataRedactor(Microsoft.Extensions.Options.IOptions<Encina.Security.Audit.OperationAuditOptions!>! options) -> void
@@ -175,8 +179,8 @@ Encina.Security.Audit.DefaultSensitiveDataRedactor.RedactJsonString(string! json
 const Encina.Security.Audit.DefaultSensitiveDataRedactor.RedactedValue = "[REDACTED]" -> string!
 static readonly Encina.Security.Audit.DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns -> System.Collections.Generic.IReadOnlySet<string!>!
 Encina.Security.Audit.IOperationAuditEntryFactory
-Encina.Security.Audit.IOperationAuditEntryFactory.Create<TRequest>(TRequest request, Encina.IRequestContext! context, Encina.Security.Audit.AuditOutcome outcome, string? errorMessage) -> Encina.Security.Audit.OperationAuditEntry!
-Encina.Security.Audit.IOperationAuditEntryFactory.Create<TRequest, TResponse>(TRequest request, TResponse? response, Encina.IRequestContext! context, Encina.Security.Audit.AuditOutcome outcome, string? errorMessage, System.DateTimeOffset startedAtUtc, System.DateTimeOffset completedAtUtc) -> Encina.Security.Audit.OperationAuditEntry!
+Encina.Security.Audit.IOperationAuditEntryFactory.Create<TRequest>(TRequest request, Encina.IRequestContext! context, Encina.Security.Audit.AuditOutcome outcome, string? errorMessage) -> LanguageExt.Either<Encina.EncinaError, Encina.Security.Audit.OperationAuditEntry!>
+Encina.Security.Audit.IOperationAuditEntryFactory.Create<TRequest, TResponse>(TRequest request, TResponse? response, Encina.IRequestContext! context, Encina.Security.Audit.AuditOutcome outcome, string? errorMessage, System.DateTimeOffset startedAtUtc, System.DateTimeOffset completedAtUtc) -> LanguageExt.Either<Encina.EncinaError, Encina.Security.Audit.OperationAuditEntry!>
 Encina.Security.Audit.IOperationAuditStore
 Encina.Security.Audit.IOperationAuditStore.GetByCorrelationIdAsync(string! correlationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.Audit.OperationAuditEntry!>!>>
 Encina.Security.Audit.IOperationAuditStore.GetByEntityAsync(string! entityType, string? entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.Audit.OperationAuditEntry!>!>>

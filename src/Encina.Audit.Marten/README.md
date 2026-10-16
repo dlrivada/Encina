@@ -21,13 +21,17 @@ services.AddMarten(options =>
     options.Connection("Host=localhost;Database=myapp;...");
 });
 
-// 2. Add core audit pipeline
+// 2. Register a PII masker (required: the host fails at startup without one),
+//    or call AddEncinaPII() from Encina.Security.PII instead
+services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
+
+// 3. Add core audit pipeline
 services.AddEncinaAudit(options =>
 {
     options.AuditAllCommands = true;
 });
 
-// 3. Add Marten event-sourced audit store (replaces InMemory)
+// 4. Add Marten event-sourced audit store (replaces InMemory)
 services.AddEncinaAuditMarten(options =>
 {
     options.TemporalGranularity = TemporalKeyGranularity.Monthly;

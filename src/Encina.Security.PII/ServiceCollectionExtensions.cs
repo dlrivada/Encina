@@ -28,16 +28,16 @@ public static class ServiceCollectionExtensions
     /// for each <see cref="PIIType"/> (Email, Phone, CreditCard, SSN, Name, Address, DateOfBirth,
     /// IPAddress, Custom)</item>
     /// <item><see cref="IPIIMasker"/> → <see cref="PIIMasker"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IPiiMasker"/> → <see cref="PIIMasker"/> (Singleton, replaces <c>NullPiiMasker</c>)</item>
+    /// <item><see cref="IPiiMasker"/> → <see cref="PIIMasker"/> (Singleton, the masker the audit module requires)</item>
     /// <item><see cref="PIIMaskingPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>
-    /// <b>Important — Registration order:</b>
-    /// Call <c>AddEncinaPII()</c> <b>after</b> <c>AddEncinaAudit()</c> to correctly replace
-    /// the default <c>NullPiiMasker</c> with the PII-aware <see cref="PIIMasker"/> implementation.
-    /// The <see cref="IPiiMasker"/> registration uses <c>AddSingleton</c> (not <c>TryAdd</c>)
-    /// to ensure the real masker takes precedence over the no-op default.
+    /// <b>Audit integration:</b>
+    /// <c>AddEncinaAudit()</c> has no default <see cref="IPiiMasker"/> and stops the host at startup without one,
+    /// so this registration is what satisfies it. The <see cref="IPiiMasker"/> registration uses <c>AddSingleton</c>
+    /// (not <c>TryAdd</c>), so it wins over the <c>NullPiiMasker</c> that the audit opt-out
+    /// (<c>OperationAuditOptions.AllowUnmaskedPayloads</c>) registers, in either call order.
     /// </para>
     /// <para>
     /// <b>Custom strategies:</b>
@@ -54,7 +54,7 @@ public static class ServiceCollectionExtensions
     /// </remarks>
     /// <example>
     /// <code>
-    /// // 1. Register Audit first, then PII to replace NullPiiMasker
+    /// // 1. Register Audit and PII (in any order): PII supplies the masker the audit module requires
     /// services.AddEncinaAudit(options =>
     /// {
     ///     options.AuditAllCommands = true;
@@ -141,8 +141,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IPIIMasker, PIIMasker>();
 
         // Register IPiiMasker → PIIMasker (AddSingleton, NOT TryAdd)
-        // This replaces the NullPiiMasker registered by AddEncinaAudit().
-        // Must be called AFTER AddEncinaAudit() for correct replacement.
+        // It satisfies the masker the audit module requires and wins over the NullPiiMasker of the
+        // audit opt-out (AllowUnmaskedPayloads) in either call order.
         services.AddSingleton<IPiiMasker>(sp => (IPiiMasker)sp.GetRequiredService<IPIIMasker>());
 
         // Register pipeline behavior (TryAddEnumerable prevents duplicate registration
