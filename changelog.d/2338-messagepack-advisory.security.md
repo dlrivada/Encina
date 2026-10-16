@@ -1,0 +1,1 @@
+- Pin `MessagePack` to 2.5.303 (centrally, with direct references in `Encina.Aspire.Testing` and `Encina.NBomber`), clearing NuGet advisory GHSA-qhrr-8q5h-9q3h that reached the build through Aspire.Hosting.Testing -> StreamJsonRpc so restore succeeds with audit on (#2338).
