@@ -222,7 +222,7 @@ public sealed partial class RedisCacheProvider : ICacheProvider
             await Database.StringSetAsync(metadataKey, metadataJson, absoluteExpiration.Value).ConfigureAwait(false);
         }
 
-        LogCacheSetSliding(_logger, CacheKeyRedactor.Redact(prefixedKey),slidingExpiration, absoluteExpiration);
+        LogCacheSetSliding(_logger, CacheKeyRedactor.Redact(prefixedKey), slidingExpiration, absoluteExpiration);
     }
 
     /// <inheritdoc/>

@@ -145,13 +145,13 @@ public sealed class CacheConfiguration<TRequest> : ICacheConfiguration<TRequest>
         var parts = new List<string>();
         if (VaryByTenant && !string.IsNullOrEmpty(context.TenantId))
         {
-            parts.Add($"t:{context.TenantId}");
+            parts.Add($"t:{CacheKeyRedactor.EscapeSegment(context.TenantId)}");
         }
 
         // A non-user identity has no VaryByUser key: the caller bypasses the cache.
         if (VaryByUser)
         {
-            parts.Add($"u:{CacheUserIdentity.RequireUserId(context)}");
+            parts.Add($"u:{CacheKeyRedactor.EscapeSegment(CacheUserIdentity.RequireUserId(context))}");
         }
 
         return parts;

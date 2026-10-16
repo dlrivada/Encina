@@ -52,6 +52,13 @@ public static partial class CacheKeyRedactor
     }
 
     // Masks "{kind}{id}" in full, so an id that contains the separator does not leak its tail.
+    /// <summary>
+    /// Escapes the segment separator in a tenant or user id before it is placed in a key, so the
+    /// segment is always exactly one <c>:</c>-delimited part that <see cref="Redact"/> can mask whole.
+    /// </summary>
+    internal static string EscapeSegment(string id) =>
+        id.Replace("%", "%25", StringComparison.Ordinal).Replace(":", "%3A", StringComparison.Ordinal);
+
     private static string MaskKnown(string key, string kind, string? id) =>
         string.IsNullOrEmpty(id) ? key : key.Replace(kind + id, kind + Mask, StringComparison.Ordinal);
 

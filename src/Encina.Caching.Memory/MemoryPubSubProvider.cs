@@ -48,7 +48,7 @@ public sealed partial class MemoryPubSubProvider : IPubSubProvider
         ArgumentNullException.ThrowIfNull(message);
         cancellationToken.ThrowIfCancellationRequested();
 
-        LogPublish(_logger, channel, message);
+        LogPublish(_logger, channel);
 
         // Notify channel subscribers
         if (_channelSubscribers.TryGetValue(channel, out var subscribers))
@@ -136,7 +136,7 @@ public sealed partial class MemoryPubSubProvider : IPubSubProvider
         var handlers = _patternSubscribers.GetOrAdd(pattern, _ => new ConcurrentBag<Func<string, string, Task>>());
         handlers.Add(handler);
 
-        LogSubscribePattern(_logger, pattern);
+        LogSubscribePattern(_logger, CacheKeyRedactor.Redact(pattern));
 
         return Task.FromResult<IAsyncDisposable>(new PatternSubscription(this, pattern, handler));
     }
@@ -160,7 +160,7 @@ public sealed partial class MemoryPubSubProvider : IPubSubProvider
         cancellationToken.ThrowIfCancellationRequested();
 
         _patternSubscribers.TryRemove(pattern, out _);
-        LogUnsubscribePattern(_logger, pattern);
+        LogUnsubscribePattern(_logger, CacheKeyRedactor.Redact(pattern));
 
         return Task.CompletedTask;
     }
@@ -224,8 +224,8 @@ public sealed partial class MemoryPubSubProvider : IPubSubProvider
     [LoggerMessage(
         EventId = 3560,
         Level = LogLevel.Debug,
-        Message = "Publishing to channel {Channel}: {Message}")]
-    private static partial void LogPublish(ILogger logger, string channel, string message);
+        Message = "Publishing to channel {Channel}")]
+    private static partial void LogPublish(ILogger logger, string channel);
 
     [LoggerMessage(
         EventId = 3561,

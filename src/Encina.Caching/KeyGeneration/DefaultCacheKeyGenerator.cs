@@ -68,7 +68,7 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
 
         if (!string.IsNullOrEmpty(context.TenantId))
         {
-            parts.Add($"t:{context.TenantId}");
+            parts.Add($"t:{CacheKeyRedactor.EscapeSegment(context.TenantId)}");
         }
         else
         {
@@ -89,7 +89,7 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
 
         var result = new StringBuilder();
         var tenantPrefix = !string.IsNullOrEmpty(context.TenantId)
-            ? $"{_options.KeyPrefix}:t:{context.TenantId}:"
+            ? $"{_options.KeyPrefix}:t:{CacheKeyRedactor.EscapeSegment(context.TenantId)}:"
             : $"{_options.KeyPrefix}:";
 
         result.Append(tenantPrefix);
@@ -115,13 +115,13 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
         var varyByTenant = cacheAttribute?.VaryByTenant ?? true;
         if (varyByTenant && !string.IsNullOrEmpty(context.TenantId))
         {
-            parts.Add($"t:{context.TenantId}");
+            parts.Add($"t:{CacheKeyRedactor.EscapeSegment(context.TenantId)}");
         }
 
         // User isolation (default: false). A non-user identity has no key: the caller bypasses the cache.
         if (cacheAttribute?.VaryByUser == true)
         {
-            parts.Add($"u:{CacheUserIdentity.RequireUserId(context)}");
+            parts.Add($"u:{CacheKeyRedactor.EscapeSegment(CacheUserIdentity.RequireUserId(context))}");
         }
 
         // Request type
@@ -150,7 +150,7 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
         if (cacheAttribute.VaryByTenant && !string.IsNullOrEmpty(context.TenantId))
         {
             result.Append("t:");
-            result.Append(context.TenantId);
+            result.Append(CacheKeyRedactor.EscapeSegment(context.TenantId));
             result.Append(':');
         }
 
@@ -158,7 +158,7 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
         if (cacheAttribute.VaryByUser)
         {
             result.Append("u:");
-            result.Append(CacheUserIdentity.RequireUserId(context));
+            result.Append(CacheKeyRedactor.EscapeSegment(CacheUserIdentity.RequireUserId(context)));
             result.Append(':');
         }
 

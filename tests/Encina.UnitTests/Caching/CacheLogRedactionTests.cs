@@ -218,6 +218,83 @@ public sealed class CacheLogRedactionTests
         ShouldHoldNoIdentifier(logger);
     }
 
+    [Fact]
+    public async Task ScatterGather_StoreAndOversizeLogs_UseTheRedactedKey()
+    {
+        var inner = Substitute.For<IShardedQueryExecutor>();
+        var cache = Substitute.For<ICacheProvider>();
+        var logger = new FakeLogger<CachedShardedQueryExecutor>();
+        var options = new ScatterGatherCacheOptions { MaxCachedResultSize = 1 };
+        var sut = new CachedShardedQueryExecutor(inner, cache, Options.Create(options), logger);
+        var key = $"t:{TenantId}:u:{UserId}:report";
+        inner.ExecuteAllAsync(Arg.Any<Func<string, CancellationToken, Task<Either<EncinaError, IReadOnlyList<string>>>>>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Either<EncinaError, ShardedQueryResult<string>>.Right(new ShardedQueryResult<string>(["a"], ["shard-1"], [])),
+                Either<EncinaError, ShardedQueryResult<string>>.Right(new ShardedQueryResult<string>(["a", "b"], ["shard-1"], [])));
+
+        await sut.ExecuteAllCachedAsync<string>(key, (_, _) => throw new InvalidOperationException("not reached"));   // cached
+        await sut.ExecuteAllCachedAsync<string>(key, (_, _) => throw new InvalidOperationException("not reached"));   // oversize
+
+        var snapshot = logger.Collector.GetSnapshot();
+        snapshot.ShouldContain(r => r.Message.StartsWith("Cached scatter-gather result", StringComparison.Ordinal));
+        snapshot.ShouldContain(r => r.Message.Contains("exceeds max size", StringComparison.Ordinal));
+        ShouldHoldNoIdentifier(logger);
+    }
+
+    // ────────────────────────────────────────────────────────────
+    //  Ids that contain the segment separator
+    // ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task IdsContainingTheSeparator_AreMaskedWhole_ByTheBehaviorAndTheProviders()
+    {
+        const string colonUser = "urn:uuid:alice-1234";
+        const string colonTenant = "https://idp.example:acme";
+        var context = TestRequestContext.For(TestIdentity.User(colonUser), tenantId: colonTenant);
+        using var memoryCache = new Microsoft.Extensions.Caching.Memory.MemoryCache(
+            Options.Create(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+        var providerLogger = new FakeLogger<MemoryCacheProvider>();
+        var provider = new MemoryCacheProvider(
+            memoryCache, Options.Create(new global::Encina.Caching.Memory.MemoryCacheOptions()), providerLogger);
+        var logger = new FakeLogger<QueryCachingPipelineBehavior<PerUserQuery, string>>();
+        var sut = CreateQueryBehavior(provider, logger);
+
+        await sut.Handle(new PerUserQuery("q"), context, Fresh, CancellationToken.None);
+        await sut.Handle(new PerUserQuery("q"), context, Fresh, CancellationToken.None);
+
+        foreach (var fakeLogger in new FakeLogger[] { logger, providerLogger })
+        {
+            foreach (var record in fakeLogger.Collector.GetSnapshot())
+            {
+                record.Message.ShouldNotContain("alice");
+                record.Message.ShouldNotContain("1234");
+                record.Message.ShouldNotContain("idp.example");
+                record.Message.ShouldNotContain("acme");
+            }
+        }
+
+        providerLogger.Collector.Count.ShouldBeGreaterThan(0);
+    }
+
+    // ────────────────────────────────────────────────────────────
+    //  Pub/sub providers: the published payload is a key pattern
+    // ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task MemoryPubSubProvider_DoesNotLogThePublishedPayloadOrPatternIds()
+    {
+        var logger = new FakeLogger<MemoryPubSubProvider>();
+        var sut = new MemoryPubSubProvider(logger);
+        var pattern = $"encina:t:{TenantId}:orders:7:*";
+
+        await using var subscription = await sut.SubscribePatternAsync($"encina:t:{TenantId}:*", (_, _) => Task.CompletedTask, default);
+        await sut.PublishAsync("cache:invalidate", pattern, default);
+        await sut.UnsubscribePatternAsync($"encina:t:{TenantId}:*", default);
+
+        logger.Collector.Count.ShouldBeGreaterThanOrEqualTo(3);
+        ShouldHoldNoIdentifier(logger);
+    }
+
     // ────────────────────────────────────────────────────────────
     //  Providers: Memory, Redis (also Valkey, Dragonfly, Garnet, KeyDB), Hybrid
     // ────────────────────────────────────────────────────────────
@@ -239,7 +316,7 @@ public sealed class CacheLogRedactionTests
         await sut.RemoveAsync(RealKey, default);
         await sut.RemoveByPatternAsync($"encina:t:{TenantId}:*", default);
 
-        logger.Collector.Count.ShouldBeGreaterThanOrEqualTo(6);
+        logger.Collector.GetSnapshot().Select(r => r.Id.Id).Distinct().Count().ShouldBe(6);
         ShouldHoldNoIdentifier(logger);
     }
 
