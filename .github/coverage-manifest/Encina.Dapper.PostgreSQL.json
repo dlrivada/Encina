@@ -28,7 +28,13 @@
         "integration"
       ],
       "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
+      "reason": "Dapper store with raw SQL — needs real database",
+      "targets": {
+        "integration": 0
+      },
+      "justifications": {
+        "integration": "No integration test exists yet for the entity-change audit store (measured 0%); this change only extends its ORDER BY with the id tiebreaker and its unit tests mock the connection. Integration tests are tracked by the follow-up issue opened with this change."
+      }
     },
     "Auditing/OperationAuditStoreDapper.cs": {
       "defaultTests": [
@@ -48,7 +54,13 @@
         "integration"
       ],
       "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
+      "reason": "Dapper store with raw SQL — needs real database",
+      "targets": {
+        "integration": 87
+      },
+      "justifications": {
+        "integration": "The integration tests on a real PostgreSQL database run every read audit query path, every filter and the stable-order paging (measured 89%); only the driver-failure branches stay uncovered."
+      }
     },
     "BulkOperations/BulkOperationsDapper.cs": {
       "defaultTests": [

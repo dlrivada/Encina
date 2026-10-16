@@ -94,7 +94,13 @@
         "integration"
       ],
       "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "reason": "MongoDB store — needs real MongoDB",
+      "targets": {
+        "integration": 0
+      },
+      "justifications": {
+        "integration": "No integration test exists yet for the entity-change audit store (measured 0%); this change only extends its ORDER BY with the id tiebreaker and its unit tests mock the connection. Integration tests are tracked by the follow-up issue opened with this change."
+      }
     },
     "Auditing/OperationAuditStoreMongoDB.cs": {
       "defaultTests": [
@@ -122,7 +128,13 @@
         "integration"
       ],
       "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "reason": "MongoDB store — needs real MongoDB",
+      "targets": {
+        "integration": 84
+      },
+      "justifications": {
+        "integration": "The integration tests on a real MongoDB run every read audit query path, every filter and the stable-order paging (measured 86%); only the driver-failure branches stay uncovered."
+      }
     },
     "BulkOperations/BulkOperationsMongoDB.cs": {
       "defaultTests": [

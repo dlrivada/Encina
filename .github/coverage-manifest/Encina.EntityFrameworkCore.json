@@ -114,7 +114,13 @@
         "integration"
       ],
       "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
+      "reason": "EF Core store — needs real DbContext",
+      "targets": {
+        "integration": 0
+      },
+      "justifications": {
+        "integration": "No integration test exists yet for the entity-change audit store (measured 0%); this change only extends its ORDER BY with the id tiebreaker and its unit tests mock the connection. Integration tests are tracked by the follow-up issue opened with this change."
+      }
     },
     "Auditing/OperationAuditStoreEF.cs": {
       "defaultTests": [
@@ -148,7 +154,13 @@
         "integration"
       ],
       "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
+      "reason": "EF Core store — needs real DbContext",
+      "targets": {
+        "integration": 74
+      },
+      "justifications": {
+        "integration": "The integration tests on real SQL Server and PostgreSQL databases run every read audit query path, every filter and the stable-order paging (measured 76%); EF Core MySQL is skipped until Pomelo supports EF Core 10, and the cancellation branches stay uncovered."
+      }
     },
     "Auditing/StoreExceptionMessages.cs": {
       "defaultTests": [
