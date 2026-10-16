@@ -370,6 +370,7 @@ public sealed class DSRRequestAggregate : AggregateBase
     }
 
     /// <inheritdoc />
+    // crap-exempt: single-question switch — dispatches each domain event type to its state change
     protected override void Apply(object domainEvent)
     {
         switch (domainEvent)
