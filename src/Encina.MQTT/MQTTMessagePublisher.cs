@@ -42,6 +42,8 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher
         _options = options.Value;
     }
 
+    internal const string MessageIdProperty = "MessageId";
+
     /// <inheritdoc />
     public bool IsConnected => _client.IsConnected;
 
@@ -51,6 +53,7 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher
         string? topic = null,
         MqttQualityOfService? qos = null,
         bool retain = false,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -78,6 +81,9 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher
                 .WithPayload(payload)
                 .WithQualityOfServiceLevel(mqttQos)
                 .WithRetainFlag(retain)
+                .WithUserProperty(
+                    MessageIdProperty,
+                    System.Text.Encoding.UTF8.GetBytes(string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId))
                 .Build();
 
             await _client.PublishAsync(mqttMessage, cancellationToken).ConfigureAwait(false);

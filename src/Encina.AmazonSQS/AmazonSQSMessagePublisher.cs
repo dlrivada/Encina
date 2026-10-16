@@ -47,10 +47,16 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
         _options = options.Value;
     }
 
+    internal const string MessageIdAttribute = "MessageId";
+
+    private static string ResolveMessageId(string? messageId) =>
+        string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId;
+
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, string>> SendToQueueAsync<TMessage>(
         TMessage message,
         string? queueUrl = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -80,6 +86,11 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
                     {
                         DataType = "String",
                         StringValue = typeof(TMessage).FullName
+                    },
+                    [MessageIdAttribute] = new()
+                    {
+                        DataType = "String",
+                        StringValue = ResolveMessageId(messageId)
                     }
                 }
             };
@@ -106,6 +117,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
     public async ValueTask<Either<EncinaError, string>> PublishToTopicAsync<TMessage>(
         TMessage message,
         string? topicArn = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -135,6 +147,11 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
                     {
                         DataType = "String",
                         StringValue = typeof(TMessage).FullName
+                    },
+                    [MessageIdAttribute] = new()
+                    {
+                        DataType = "String",
+                        StringValue = ResolveMessageId(messageId)
                     }
                 }
             };
@@ -240,6 +257,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
         string messageGroupId,
         string? deduplicationId = null,
         string? queueUrl = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -265,13 +283,18 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
                 QueueUrl = effectiveQueueUrl,
                 MessageBody = JsonSerializer.Serialize(message),
                 MessageGroupId = messageGroupId,
-                MessageDeduplicationId = deduplicationId,
+                MessageDeduplicationId = deduplicationId ?? (string.IsNullOrEmpty(messageId) ? null : messageId),
                 MessageAttributes = new Dictionary<string, SqsMessageAttributeValue>
                 {
                     ["MessageType"] = new()
                     {
                         DataType = "String",
                         StringValue = typeof(TMessage).FullName
+                    },
+                    [MessageIdAttribute] = new()
+                    {
+                        DataType = "String",
+                        StringValue = ResolveMessageId(messageId)
                     }
                 }
             };

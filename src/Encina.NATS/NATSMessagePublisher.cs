@@ -61,10 +61,19 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher
         _options = options.Value;
     }
 
+    internal const string MessageIdHeader = "Nats-Msg-Id";
+
+    // Nats-Msg-Id is also the JetStream de-duplication key, so a supplied outbox id makes retries idempotent.
+    private static NatsHeaders CreateHeaders(string? messageId) => new()
+    {
+        [MessageIdHeader] = string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId
+    };
+
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
         TMessage message,
         string? subject = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -81,6 +90,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher
             await _connection.PublishAsync(
                 effectiveSubject,
                 data,
+                headers: CreateHeaders(messageId),
                 cancellationToken: cancellationToken).ConfigureAwait(false);
 
             Log.SuccessfullyPublishedMessage(_logger, effectiveSubject);
@@ -164,6 +174,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher
     public async ValueTask<Either<EncinaError, NATSPublishAck>> JetStreamPublishAsync<TMessage>(
         TMessage message,
         string? subject = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -188,6 +199,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher
             var ack = await _jetStream.PublishAsync(
                 effectiveSubject,
                 data,
+                headers: CreateHeaders(messageId),
                 cancellationToken: cancellationToken).ConfigureAwait(false);
 
             Log.SuccessfullyPublishedToJetStream(_logger, ack.Stream ?? string.Empty, ack.Seq);

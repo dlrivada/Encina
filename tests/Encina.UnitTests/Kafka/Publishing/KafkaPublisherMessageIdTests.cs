@@ -68,6 +68,39 @@ public sealed class KafkaPublisherMessageIdTests
     }
 
     [Fact]
+    public async Task ProduceBatchAsync_WithPerMessageIds_SendsEachIdInItsOwnHeader()
+    {
+        var ids = new List<string>();
+        _producer
+            .ProduceAsync(Arg.Any<string>(), Arg.Any<Message<string, byte[]>>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var sent = callInfo.Arg<Message<string, byte[]>>();
+                ids.Add(Encoding.UTF8.GetString(sent.Headers.GetLastBytes("MessageId")));
+                return Task.FromResult(new DeliveryResult<string, byte[]>
+                {
+                    Topic = "t",
+                    Partition = new Partition(0),
+                    Offset = new Offset(1),
+                    Message = sent
+                });
+            });
+
+        var result = await _publisher.ProduceBatchAsync(new[]
+        {
+            (new Payload("a"), (string?)null, (string?)"outbox-a"),
+            (new Payload("b"), null, "outbox-b"),
+            (new Payload("c"), null, null)
+        });
+
+        result.IsRight.ShouldBeTrue();
+        ids.Count.ShouldBe(3);
+        ids[0].ShouldBe("outbox-a");
+        ids[1].ShouldBe("outbox-b");
+        Guid.TryParse(ids[2], out _).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task ProduceWithHeadersAsync_CallerMessageIdHeader_IsReplacedNotDuplicated()
     {
         await _publisher.ProduceWithHeadersAsync(

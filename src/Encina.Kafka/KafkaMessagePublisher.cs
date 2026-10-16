@@ -107,7 +107,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher
 
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, IReadOnlyList<KafkaDeliveryResult>>> ProduceBatchAsync<TMessage>(
-        IEnumerable<(TMessage Message, string? Key)> messages,
+        IEnumerable<(TMessage Message, string? Key, string? MessageId)> messages,
         string? topic = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
@@ -119,9 +119,9 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher
 
         try
         {
-            foreach (var (message, key) in messages)
+            foreach (var (message, key, messageId) in messages)
             {
-                var result = await ProduceAsync(message, effectiveTopic, key, cancellationToken: cancellationToken).ConfigureAwait(false);
+                var result = await ProduceAsync(message, effectiveTopic, key, messageId, cancellationToken).ConfigureAwait(false);
 
                 var failure = CollectOrFail(result, results);
                 if (failure is not null)

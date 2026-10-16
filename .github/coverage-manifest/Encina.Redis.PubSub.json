@@ -37,11 +37,11 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "unit": 80,
+        "unit": 70,
         "guard": 20
       },
       "justifications": {
-        "unit": "Unit tests drive publish (timestamp from TimeProvider, supplied and generated message id), subscribe and error-delivery paths against a substituted subscriber.",
+        "unit": "Unit tests drive publish (timestamp from TimeProvider, supplied and generated message id) and error paths against a substituted subscriber; the subscribe paths need a ChannelMessageQueue, which has an internal constructor and exists only with a real Redis, so they belong to the integration flag.",
         "guard": "Guard tests cover the constructor and method null checks."
       }
     },

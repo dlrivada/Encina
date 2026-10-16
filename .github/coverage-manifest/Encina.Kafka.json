@@ -61,11 +61,11 @@
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
       "targets": {
-        "unit": 65,
+        "unit": 95,
         "guard": 38
       },
       "justifications": {
-        "unit": "Unit tests build the provider with ValidateOnBuild and ValidateScopes and resolve the publisher; the producer factory lambda needs a real broker and is covered by integration tests.",
+        "unit": "Unit tests build the provider with ValidateOnBuild and ValidateScopes, resolve the publisher, and run the producer factory for every Acks setting (building a producer needs no broker).",
         "guard": "Guard tests cover the null-services and null-configure paths of AddEncinaKafka."
       }
     }

@@ -77,21 +77,32 @@ public sealed class AzureServiceBusGuardTests
             () => sut.SendToQueueAsync<object>(null!).AsTask());
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("outbox-id")]
-    public async Task SendToQueueAsync_NullOrEmptyMessageId_IsNotAGuardViolation(string? messageId)
+    [Fact]
+    public async Task SendToQueueAsync_NullQueueName_FallsBackToTheConfiguredDefaultQueue()
     {
-        await using var client = CreateMockClient();
+        var client = Substitute.For<ServiceBusClient>();
+        client.CreateSender(Arg.Any<string>()).Returns(Substitute.For<ServiceBusSender>());
         var sut = new AzureServiceBusMessagePublisher(client,
             NullLogger<AzureServiceBusMessagePublisher>.Instance,
-            Options.Create(new EncinaAzureServiceBusOptions()));
+            Options.Create(new EncinaAzureServiceBusOptions { DefaultQueueName = "default-q" }));
 
-        var result = await sut.SendToQueueAsync(new object(), messageId: messageId);
+        await sut.SendToQueueAsync(new object(), queueName: null, messageId: null);
 
-        // The mock client has no real sender: the call fails with an Either error, never an argument exception.
-        result.IsLeft.ShouldBeTrue();
+        client.Received(1).CreateSender("default-q");
+    }
+
+    [Fact]
+    public async Task PublishToTopicAsync_NullTopicName_FallsBackToTheConfiguredDefaultTopic()
+    {
+        var client = Substitute.For<ServiceBusClient>();
+        client.CreateSender(Arg.Any<string>()).Returns(Substitute.For<ServiceBusSender>());
+        var sut = new AzureServiceBusMessagePublisher(client,
+            NullLogger<AzureServiceBusMessagePublisher>.Instance,
+            Options.Create(new EncinaAzureServiceBusOptions { DefaultTopicName = "default-t" }));
+
+        await sut.PublishToTopicAsync(new object(), topicName: null, messageId: null);
+
+        client.Received(1).CreateSender("default-t");
     }
 
     [Fact]

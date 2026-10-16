@@ -59,20 +59,36 @@ public sealed class KafkaGuardTests
 
     // ─── KafkaMessagePublisher method guards ───
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("outbox-id")]
-    public async Task ProduceAsync_NullOrEmptyMessageId_IsNotAGuardViolation(string? messageId)
+    [Fact]
+    public async Task ProduceAsync_NullTopicAndKey_FallBackToTheConfiguredDefaultTopic()
     {
-        var sut = new KafkaMessagePublisher(Producer,
+        var producer = Substitute.For<IProducer<string, byte[]>>();
+        var sut = new KafkaMessagePublisher(producer,
             NullLogger<KafkaMessagePublisher>.Instance,
-            Options.Create(new EncinaKafkaOptions()));
+            Options.Create(new EncinaKafkaOptions { DefaultEventTopic = "default-events" }));
 
-        // The substitute producer returns no task: the call ends in an Either error, never an argument exception.
-        var result = await sut.ProduceAsync(new object(), messageId: messageId);
+        await sut.ProduceAsync(new object(), topic: null, key: null, messageId: null);
 
-        result.IsLeft.ShouldBeTrue();
+        await producer.Received(1).ProduceAsync(
+            "default-events",
+            Arg.Is<Message<string, byte[]>>(m => !string.IsNullOrEmpty(m.Key)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ProduceWithHeadersAsync_NullTopicAndKey_FallBackToTheConfiguredDefaultTopic()
+    {
+        var producer = Substitute.For<IProducer<string, byte[]>>();
+        var sut = new KafkaMessagePublisher(producer,
+            NullLogger<KafkaMessagePublisher>.Instance,
+            Options.Create(new EncinaKafkaOptions { DefaultEventTopic = "default-events" }));
+
+        await sut.ProduceWithHeadersAsync(new object(), new Dictionary<string, byte[]>(), topic: null, key: null);
+
+        await producer.Received(1).ProduceAsync(
+            "default-events",
+            Arg.Any<Message<string, byte[]>>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
