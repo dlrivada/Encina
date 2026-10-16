@@ -18,7 +18,15 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": {
+        "unit": 95,
+        "guard": 13
+      },
+      "justifications": {
+        "unit": "Measured 100%: the unit tests drive every acquire, retry, deadline, expiry, extend and release path on a FakeTimeProvider; 95 leaves room only for a defensive line added later, never for an untested path.",
+        "guard": "Measured 13.3%: the guard tests assert the ArgumentNullException of the constructor and of each public method; every other line runs only past those guards and belongs to the unit flag."
+      }
     },
     "InMemoryLockOptions.cs": {
       "defaultTests": [
