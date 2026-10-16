@@ -177,6 +177,7 @@ public sealed class MartenOperationAuditStoreUtcFilterIntegrationTests(MartenFix
 
         await ReadAuditStableOrderCheck.AssertPagedReadsAreStableAsync(
             readStore,
+            ReadAuditStableOrderCheck.HexIdOrder,
             () => _daemon!.WaitForNonStaleData(TimeSpan.FromSeconds(60)));
     }
 

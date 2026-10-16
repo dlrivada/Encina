@@ -92,6 +92,7 @@ public class InMemoryAuditStoresStableOrderTests
         var history = (await store.GetAccessHistoryAsync("Patient", "PAT-1"))
             .Match(Right: e => e.Select(x => x.Id).ToList(), Left: _ => throw new ShouldAssertException("query failed"));
         history.ShouldBe(unpaged);
+        unpaged.ShouldBe(recorded.OrderByDescending(id => id).ToList());
     }
 
     [Fact]

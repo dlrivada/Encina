@@ -9,6 +9,12 @@ namespace Encina.IntegrationTests.Security.Audit;
 /// </summary>
 internal static class ReadAuditStableOrderCheck
 {
+    /// <summary>PostgreSQL uuid, MySQL CHAR(36), MongoDB (standard Guid representation) and Marten: ids compare as their lowercase hexadecimal text.</summary>
+    public static IComparer<Guid> HexIdOrder { get; } = Comparer<Guid>.Create((a, b) => string.CompareOrdinal(a.ToString("D"), b.ToString("D")));
+
+    /// <summary>SQL Server uniqueidentifier ordering.</summary>
+    public static IComparer<Guid> SqlServerIdOrder { get; } = Comparer<Guid>.Create((a, b) => new System.Data.SqlTypes.SqlGuid(a).CompareTo(new System.Data.SqlTypes.SqlGuid(b)));
+
     private const int EntryCount = 7;
     private const int PageSize = 3;
 
@@ -17,8 +23,11 @@ internal static class ReadAuditStableOrderCheck
     /// drop nothing, equal the unpaged read and the entity access history, and are repeatable.
     /// </summary>
     /// <param name="store">The store under test, backed by a real database.</param>
-    public static async Task AssertPagedReadsAreStableAsync(IReadAuditStore store, Func<Task>? afterRecord = null)
+    /// <param name="idOrder">How the database under test orders ids (see <see cref="HexIdOrder"/>, <see cref="SqlServerIdOrder"/>); the shared-timestamp entries must come back in descending id order.</param>
+    /// <param name="afterRecord">Optional step that waits until the recorded entries are queryable (async projections).</param>
+    public static async Task AssertPagedReadsAreStableAsync(IReadAuditStore store, IComparer<Guid> idOrder, Func<Task>? afterRecord = null)
     {
+        ArgumentNullException.ThrowIfNull(idOrder);
         ArgumentNullException.ThrowIfNull(store);
 
         var entityType = $"StableOrder{Guid.NewGuid():N}";
@@ -58,6 +67,7 @@ internal static class ReadAuditStableOrderCheck
         firstWalk.Distinct().Count().ShouldBe(EntryCount, "no entry may be repeated across pages");
         firstWalk.ToHashSet().SetEquals(recordedIds).ShouldBeTrue();
         firstWalk.ShouldBe(unpaged, "the paged walk must equal the unpaged read");
+        firstWalk.ShouldBe(recordedIds.OrderByDescending(id => id, idOrder).ToList(), "entries sharing a timestamp must be ordered by id descending");
         secondWalk.ShouldBe(firstWalk, "the order must be repeatable");
 
         var history = (await store.GetAccessHistoryAsync(entityType, entityId))

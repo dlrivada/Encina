@@ -24,7 +24,7 @@ public class ReadAuditStoreEFSqlServerIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
     {
-        await ReadAuditStableOrderCheck.AssertPagedReadsAreStableAsync(CreateStore());
+        await ReadAuditStableOrderCheck.AssertPagedReadsAreStableAsync(CreateStore(), ReadAuditStableOrderCheck.SqlServerIdOrder);
     }
 
     [Fact]

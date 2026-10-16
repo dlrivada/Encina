@@ -35,7 +35,7 @@ public class ReadAuditStoreADOMySqlIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
     {
-        await ReadAuditStableOrderCheck.AssertPagedReadsAreStableAsync(_store);
+        await ReadAuditStableOrderCheck.AssertPagedReadsAreStableAsync(_store, ReadAuditStableOrderCheck.HexIdOrder);
     }
 
     [Fact]
