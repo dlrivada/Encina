@@ -22,7 +22,7 @@ GDPR Data Subject Rights management for Encina. Provides declarative processing 
 - **Railway Oriented Programming** -- All operations return `Either<EncinaError, T>`, no exceptions
 - **Cache-Aside Pattern** -- `ICacheProvider` integration with fire-and-forget invalidation
 - **Marten Projections** -- `DSRRequestProjection` transforms events to `DSRRequestReadModel` for efficient querying
-- **Full Observability** -- OpenTelemetry tracing, structured logging (EventId 8300-8349), 5 counters + 3 histograms, health check
+- **Full Observability** -- OpenTelemetry tracing, structured logging (EventId 8300-8349), counters and histograms, health check
 - **PostgreSQL via Marten** -- Event store + document DB for event sourcing and projections
 - **.NET 10 Compatible** -- Built with latest C# features
 
@@ -180,7 +180,7 @@ var overdue = await dsrService.GetOverdueRequestsAsync();
                        |
           +------------+------------+
           |                         |
-       Complete                   Deny
+       Complete       Deny(DSRRejectionReason, explanation)
           |                         |
           v                         v
    +-----------+            +-----------+
@@ -191,6 +191,28 @@ var overdue = await dsrService.GetOverdueRequestsAsync();
   - Extend -> Extended (deadline extended by up to 2 months)
   - Expire -> Expired (deadline passed without completion)
 ```
+
+### Refusing a request
+
+`IDSRService.DenyRequestAsync` takes a `DSRRejectionReason` code and the explanation given to the data subject. Both are stored on the event stream and exposed as `RejectionReason` / `RejectionExplanation` on `DSRRequestAggregate` and `DSRRequestReadModel`.
+
+```csharp
+var denied = await dsrService.DenyRequestAsync(
+    requestId, DSRRejectionReason.Excessive, "Repeated identical requests; see request history.");
+// denied: Either<EncinaError, Unit>
+```
+
+| Code | Value | Legal basis |
+|------|-------|-------------|
+| `ManifestlyUnfounded` | 1 | GDPR Art. 12(5) |
+| `Excessive` | 2 | GDPR Art. 12(5) |
+| `IdentityNotVerifiable` | 3 | GDPR Art. 12(2) with Art. 11(2) |
+| `RestrictedByLaw` | 4 | GDPR Art. 23 |
+| `RightNotApplicable` | 5 | GDPR Art. 17(3), 20(1) or 21(1) |
+| `Other` | 99 | GDPR Art. 12(4) |
+| `AbusiveIntent` | 100 | Draft law: COM(2025) 837, amending GDPR Art. 12(5); needs `EnableOmnibusArticle12RefusalGrounds` |
+
+Encina only records `Excessive`; the controller judges repetition from the request history. `DSRRejectionReasonExtensions` provides `LegalBasis` and `IsDraftLawGround`.
 
 ## Enforcement Modes
 
@@ -210,6 +232,7 @@ var overdue = await dsrService.GetOverdueRequestsAsync();
 | `TrackAuditTrail` | `bool` | `true` | Record all DSR operations in audit store |
 | `PublishNotifications` | `bool` | `true` | Publish domain notifications for DSR lifecycle events |
 | `AutoRegisterFromAttributes` | `bool` | `true` | Scan assemblies for `[PersonalData]` at startup |
+| `EnableOmnibusArticle12RefusalGrounds` | `bool` | `false` | Accept the draft-law refusal reason `DSRRejectionReason.AbusiveIntent` (COM(2025) 837, draft amendment of GDPR Art. 12(5)); when `false`, `DenyRequestAsync` returns `dsr.rejection_reason_not_enabled` |
 | `AddHealthCheck` | `bool` | `false` | Register health check with `IHealthChecksBuilder` |
 | `AssembliesToScan` | `List<Assembly>` | `[]` | Assemblies to scan for `[PersonalData]` attributes |
 | `DefaultErasableCategories` | `HashSet<PersonalDataCategory>` | `[]` | Categories erasable by default (empty = all) |
@@ -235,6 +258,7 @@ var overdue = await dsrService.GetOverdueRequestsAsync();
 | `dsr.rectification_failed` | Data rectification operation failed (Article 16) |
 | `dsr.objection_rejected` | Objection rejected due to compelling legitimate grounds (Article 21) |
 | `dsr.invalid_request` | The DSR request is invalid |
+| `dsr.rejection_reason_not_enabled` | The refusal reason is draft law and `EnableOmnibusArticle12RefusalGrounds` is off |
 
 ## Custom Implementations
 
@@ -289,7 +313,8 @@ public class DSRIntegrationTests
 ## Observability
 
 - **Tracing**: `Encina.Compliance.DataSubjectRights` ActivitySource with DSR-specific activities (`DSR.Request`, `DSR.Erasure`, `DSR.Portability.Export`, `DSR.Restriction.Check`)
-- **Metrics**: 5 counters (`dsr.requests.total`, `dsr.erasure.fields_erased.total`, `dsr.erasure.fields_retained.total`, `dsr.portability.exports.total`, `dsr.restriction.checks.total`) and 3 histograms (`dsr.request.duration`, `dsr.erasure.duration`, `dsr.portability.duration`)
+- **Refusals**: `dsr.requests.denied.total` counts refusals (tags `dsr.right_type`, `dsr.rejection_reason`); the `DSR.AggregateCommand` activity carries the reason; log EventIds 8311 (denied) and 8312 (draft-law reason not enabled)
+- **Metrics** (a subset; the full list is in `DataSubjectRightsDiagnostics`): counters (`dsr.requests.total`, `dsr.erasure.fields_erased.total`, `dsr.erasure.fields_retained.total`, `dsr.portability.exports.total`, `dsr.restriction.checks.total`) and histograms (`dsr.request.duration`, `dsr.erasure.duration`, `dsr.portability.duration`)
 - **Logging**: Structured log events via `[LoggerMessage]` source generator (zero-allocation), event IDs 8300-8349
 - **Health Check**: Verifies required services are registered and resolvable from DI
 
@@ -309,6 +334,9 @@ This package implements key GDPR requirements:
 
 | Article | Requirement | Implementation |
 |---------|-------------|----------------|
+| **11(2), 12(2)** | Refuse when the controller cannot identify the subject | `DSRRejectionReason.IdentityNotVerifiable` |
+| **12(5)** | Refuse manifestly unfounded or excessive requests | `DSRRejectionReason.ManifestlyUnfounded`, `Excessive`; draft `AbusiveIntent` (COM(2025) 837) |
+| **23** | Restrictions by Union or Member State law | `DSRRejectionReason.RestrictedByLaw` |
 | **12(3)** | Respond within one month, extendable by 2 months | `DefaultDeadlineDays`, `MaxExtensionDays`, `DSRRequestStatus.Extended` |
 | **12(6)** | Verify identity before processing | `VerifyIdentityAsync`, `DSRRequestStatus.IdentityVerified` |
 | **15** | Right of access to personal data | `IDSRService.HandleAccessAsync`, `AccessResponse` |

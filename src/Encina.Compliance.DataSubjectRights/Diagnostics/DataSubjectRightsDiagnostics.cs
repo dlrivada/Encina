@@ -35,6 +35,10 @@ internal static class DataSubjectRightsDiagnostics
     internal const string TagFailureReason = "dsr.failure_reason";
     internal const string TagRequestType = "dsr.request_type";
     internal const string TagEnforcementMode = "dsr.enforcement_mode";
+    internal const string TagRejectionReason = "dsr.rejection_reason";
+
+    // The tenant id is an activity attribute only, never a metric tag (cardinality).
+    internal const string TagTenantId = "dsr.tenant_id";
 
     // ---- Counters: aggregate lifecycle ----
 
@@ -254,6 +258,19 @@ internal static class DataSubjectRightsDiagnostics
         activity?.SetTag(TagRequestType, requestTypeName);
         return activity;
     }
+
+    /// <summary>
+    /// Counts a denied request, tagged with the right type and the standardised rejection reason.
+    /// </summary>
+    /// <param name="reason">The rejection reason code (low-cardinality enum).</param>
+    /// <param name="rightType">The right the denied request exercised.</param>
+    /// <remarks>
+    /// Neither the data subject, the explanation text nor the tenant is a tag (#1429).
+    /// </remarks>
+    internal static void RecordDenied(DSRRejectionReason reason, DataSubjectRight rightType) =>
+        RequestsDeniedTotal.Add(1,
+            new KeyValuePair<string, object?>(TagRightType, rightType.ToString()),
+            new KeyValuePair<string, object?>(TagRejectionReason, reason.ToString()));
 
     /// <summary>
     /// Records a successful completion on an activity.

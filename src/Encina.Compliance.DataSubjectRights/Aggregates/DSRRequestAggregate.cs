@@ -104,14 +104,23 @@ public sealed class DSRRequestAggregate : AggregateBase
     public DateTimeOffset? ExtendedDeadlineAtUtc { get; private set; }
 
     /// <summary>
-    /// Reason for denying the request.
+    /// Standardised reason code for denying the request.
     /// </summary>
     /// <remarks>
-    /// Required when <see cref="Status"/> is <see cref="DSRRequestStatus.Rejected"/>.
-    /// The controller must provide reasons, inform about complaint rights (Article 77),
-    /// and judicial remedy rights (Article 79) as required by Article 12(4).
+    /// Set when <see cref="Status"/> is <see cref="DSRRequestStatus.Rejected"/>; <c>null</c> otherwise.
     /// </remarks>
-    public string? RejectionReason { get; private set; }
+    public DSRRejectionReason? RejectionReason { get; private set; }
+
+    /// <summary>
+    /// Explanation of the denial given to the data subject.
+    /// </summary>
+    /// <remarks>
+    /// Set when <see cref="Status"/> is <see cref="DSRRequestStatus.Rejected"/>.
+    /// The controller must provide reasons, inform about complaint rights (Article 77),
+    /// and judicial remedy rights (Article 79) as required by Article 12(4), and bears the
+    /// burden of demonstrating the ground (Article 12(5)).
+    /// </remarks>
+    public string? RejectionExplanation { get; private set; }
 
     /// <summary>
     /// Additional details or context provided by the data subject with the request.
@@ -243,7 +252,7 @@ public sealed class DSRRequestAggregate : AggregateBase
     }
 
     /// <summary>
-    /// Denies the DSR request with a stated reason.
+    /// Denies the DSR request with a standardised reason code and an explanation.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -255,10 +264,13 @@ public sealed class DSRRequestAggregate : AggregateBase
     /// A request may be denied from any active status (Received, IdentityVerified, InProgress, or Extended).
     /// </para>
     /// </remarks>
-    /// <param name="rejectionReason">Explanation of why the request is denied (required for Article 12(4)).</param>
+    /// <param name="rejectionReason">Standardised reason code of the refusal.</param>
+    /// <param name="rejectionExplanation">Explanation given to the data subject (required for Article 12(4) and 12(5)).</param>
     /// <param name="deniedAtUtc">Timestamp when the request was denied (UTC).</param>
     /// <exception cref="InvalidOperationException">Thrown when the request is already in a terminal status (Completed, Rejected, or Expired).</exception>
-    public void Deny(string rejectionReason, DateTimeOffset deniedAtUtc)
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="rejectionReason"/> is not a defined <see cref="DSRRejectionReason"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="rejectionExplanation"/> is null, empty or whitespace.</exception>
+    public void Deny(DSRRejectionReason rejectionReason, string rejectionExplanation, DateTimeOffset deniedAtUtc)
     {
         if (Status is DSRRequestStatus.Completed or DSRRequestStatus.Rejected or DSRRequestStatus.Expired)
         {
@@ -266,9 +278,15 @@ public sealed class DSRRequestAggregate : AggregateBase
                 $"Cannot deny a request that is in '{Status}' status. Denial is not allowed from terminal statuses.");
         }
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(rejectionReason);
+        if (!Enum.IsDefined(rejectionReason))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(rejectionReason), rejectionReason, "The rejection reason is not a defined DSRRejectionReason value.");
+        }
 
-        RaiseEvent(new DSRRequestDenied(Id, rejectionReason, deniedAtUtc, TenantId, ModuleId));
+        ArgumentException.ThrowIfNullOrWhiteSpace(rejectionExplanation);
+
+        RaiseEvent(new DSRRequestDenied(Id, rejectionReason, rejectionExplanation, deniedAtUtc, TenantId, ModuleId));
     }
 
     /// <summary>
@@ -354,50 +372,67 @@ public sealed class DSRRequestAggregate : AggregateBase
     /// <inheritdoc />
     protected override void Apply(object domainEvent)
     {
-        switch (domainEvent)
+        if (EventHandlers.TryGetValue(domainEvent.GetType(), out var handler))
         {
-            case DSRRequestSubmitted e:
-                Id = e.RequestId;
-                SubjectId = e.SubjectId;
-                RightType = e.RightType;
-                Status = DSRRequestStatus.Received;
-                ReceivedAtUtc = e.ReceivedAtUtc;
-                DeadlineAtUtc = e.DeadlineAtUtc;
-                RequestDetails = e.RequestDetails;
-                TenantId = e.TenantId;
-                ModuleId = e.ModuleId;
-                break;
-
-            case DSRRequestVerified e:
-                Status = DSRRequestStatus.IdentityVerified;
-                VerifiedAtUtc = e.VerifiedAtUtc;
-                break;
-
-            case DSRRequestProcessing e:
-                Status = DSRRequestStatus.InProgress;
-                ProcessedByUserId = e.ProcessedByUserId;
-                break;
-
-            case DSRRequestCompleted e:
-                Status = DSRRequestStatus.Completed;
-                CompletedAtUtc = e.CompletedAtUtc;
-                break;
-
-            case DSRRequestDenied e:
-                Status = DSRRequestStatus.Rejected;
-                RejectionReason = e.RejectionReason;
-                CompletedAtUtc = e.DeniedAtUtc;
-                break;
-
-            case DSRRequestExtended e:
-                Status = DSRRequestStatus.Extended;
-                ExtensionReason = e.ExtensionReason;
-                ExtendedDeadlineAtUtc = e.ExtendedDeadlineAtUtc;
-                break;
-
-            case DSRRequestExpired:
-                Status = DSRRequestStatus.Expired;
-                break;
+            handler(this, domainEvent);
         }
+    }
+
+    // One state change per event type, looked up by the exact (sealed) event type.
+    private static readonly Dictionary<Type, Action<DSRRequestAggregate, object>> EventHandlers = new()
+    {
+        [typeof(DSRRequestSubmitted)] = (a, e) => a.When((DSRRequestSubmitted)e),
+        [typeof(DSRRequestVerified)] = (a, e) => a.When((DSRRequestVerified)e),
+        [typeof(DSRRequestProcessing)] = (a, e) => a.When((DSRRequestProcessing)e),
+        [typeof(DSRRequestCompleted)] = (a, e) => a.When((DSRRequestCompleted)e),
+        [typeof(DSRRequestDenied)] = (a, e) => a.When((DSRRequestDenied)e),
+        [typeof(DSRRequestExtended)] = (a, e) => a.When((DSRRequestExtended)e),
+        [typeof(DSRRequestExpired)] = (a, _) => a.Status = DSRRequestStatus.Expired
+    };
+
+    private void When(DSRRequestSubmitted e)
+    {
+        Id = e.RequestId;
+        SubjectId = e.SubjectId;
+        RightType = e.RightType;
+        Status = DSRRequestStatus.Received;
+        ReceivedAtUtc = e.ReceivedAtUtc;
+        DeadlineAtUtc = e.DeadlineAtUtc;
+        RequestDetails = e.RequestDetails;
+        TenantId = e.TenantId;
+        ModuleId = e.ModuleId;
+    }
+
+    private void When(DSRRequestVerified e)
+    {
+        Status = DSRRequestStatus.IdentityVerified;
+        VerifiedAtUtc = e.VerifiedAtUtc;
+    }
+
+    private void When(DSRRequestProcessing e)
+    {
+        Status = DSRRequestStatus.InProgress;
+        ProcessedByUserId = e.ProcessedByUserId;
+    }
+
+    private void When(DSRRequestCompleted e)
+    {
+        Status = DSRRequestStatus.Completed;
+        CompletedAtUtc = e.CompletedAtUtc;
+    }
+
+    private void When(DSRRequestDenied e)
+    {
+        Status = DSRRequestStatus.Rejected;
+        RejectionReason = e.RejectionReason;
+        RejectionExplanation = e.RejectionExplanation;
+        CompletedAtUtc = e.DeniedAtUtc;
+    }
+
+    private void When(DSRRequestExtended e)
+    {
+        Status = DSRRequestStatus.Extended;
+        ExtensionReason = e.ExtensionReason;
+        ExtendedDeadlineAtUtc = e.ExtendedDeadlineAtUtc;
     }
 }

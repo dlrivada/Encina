@@ -11,6 +11,7 @@ using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -36,6 +37,7 @@ public class DefaultDSRServiceTests
     private readonly FakeTimeProvider _timeProvider;
     private readonly ILogger<DefaultDSRService> _logger;
     private readonly IEncina _encina;
+    private readonly IOptions<DataSubjectRightsOptions> _optionsAccessor;
     private readonly DefaultDSRService _sut;
 
     private static readonly DateTimeOffset Now = new(2026, 3, 15, 10, 0, 0, TimeSpan.Zero);
@@ -53,7 +55,13 @@ public class DefaultDSRServiceTests
         _logger = NullLogger<DefaultDSRService>.Instance;
         _encina = Substitute.For<IEncina>();
 
-        _sut = new DefaultDSRService(
+        _optionsAccessor = Options.Create(new DataSubjectRightsOptions());
+
+        _sut = CreateService(_optionsAccessor);
+    }
+
+    private DefaultDSRService CreateService(IOptions<DataSubjectRightsOptions> options) =>
+        new(
             _repository,
             _readModelRepository,
             _locator,
@@ -61,10 +69,10 @@ public class DefaultDSRServiceTests
             _portabilityExporter,
             _processingActivityRegistry,
             _cache,
+            options,
             _timeProvider,
             _logger,
             _encina);
-    }
 
     #region Constructor Validation
 
@@ -74,7 +82,7 @@ public class DefaultDSRServiceTests
         Should.Throw<ArgumentNullException>(() => new DefaultDSRService(
             null!, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _timeProvider, _logger))
+            _optionsAccessor, _timeProvider, _logger))
             .ParamName.ShouldBe("repository");
     }
 
@@ -84,7 +92,7 @@ public class DefaultDSRServiceTests
         Should.Throw<ArgumentNullException>(() => new DefaultDSRService(
             _repository, null!, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _timeProvider, _logger))
+            _optionsAccessor, _timeProvider, _logger))
             .ParamName.ShouldBe("readModelRepository");
     }
 
@@ -94,7 +102,7 @@ public class DefaultDSRServiceTests
         Should.Throw<ArgumentNullException>(() => new DefaultDSRService(
             _repository, _readModelRepository, null!, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _timeProvider, _logger))
+            _optionsAccessor, _timeProvider, _logger))
             .ParamName.ShouldBe("locator");
     }
 
@@ -104,7 +112,7 @@ public class DefaultDSRServiceTests
         Should.NotThrow(() => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _timeProvider, _logger, encina: null));
+            _optionsAccessor, _timeProvider, _logger, encina: null));
     }
 
     #endregion
@@ -256,10 +264,134 @@ public class DefaultDSRServiceTests
             .Returns(Task.FromResult(Right<EncinaError, Unit>(unit)));
 
         // Act
-        var result = await _sut.DenyRequestAsync(requestId, "Manifestly unfounded");
+        var result = await _sut.DenyRequestAsync(
+            requestId, DSRRejectionReason.ManifestlyUnfounded, "Manifestly unfounded");
 
         // Assert
         result.IsRight.ShouldBeTrue();
+        aggregate.RejectionReason.ShouldBe(DSRRejectionReason.ManifestlyUnfounded);
+        aggregate.RejectionExplanation.ShouldBe("Manifestly unfounded");
+    }
+
+    public static TheoryData<DSRRejectionReason> CurrentLawReasons =>
+        new(Enum.GetValues<DSRRejectionReason>().Where(r => !r.IsDraftLawGround));
+
+    private void ArrangeDeniableRequest(Guid requestId, DSRRequestAggregate? aggregate = null)
+    {
+        aggregate ??= DSRRequestAggregate.Submit(requestId, "subject-1", DataSubjectRight.Access, Now);
+        aggregate.ClearUncommittedEvents();
+
+        _repository.LoadAsync(requestId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Right<EncinaError, DSRRequestAggregate>(aggregate)));
+        _repository.SaveAsync(Arg.Any<DSRRequestAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Right<EncinaError, Unit>(unit)));
+    }
+
+    [Theory]
+    [MemberData(nameof(CurrentLawReasons))]
+    public async Task DenyRequestAsync_DefaultOptions_AcceptsEveryCurrentLawReason(DSRRejectionReason reason)
+    {
+        var requestId = Guid.NewGuid();
+        ArrangeDeniableRequest(requestId);
+
+        var result = await _sut.DenyRequestAsync(requestId, reason, "Explanation");
+
+        result.IsRight.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task DenyRequestAsync_DefaultOptions_RejectsAbusiveIntentAsNotEnabled()
+    {
+        var requestId = Guid.NewGuid();
+        ArrangeDeniableRequest(requestId);
+
+        var result = await _sut.DenyRequestAsync(requestId, DSRRejectionReason.AbusiveIntent, "Explanation");
+
+        var error = result.LeftAsEnumerable().Single();
+        error.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.RejectionReasonNotEnabledCode);
+        await _repository.DidNotReceive().LoadAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task DenyRequestAsync_OmnibusOptionOn_AcceptsAbusiveIntent()
+    {
+        var requestId = Guid.NewGuid();
+        ArrangeDeniableRequest(requestId);
+        var sut = CreateService(Options.Create(new DataSubjectRightsOptions { EnableOmnibusArticle12RefusalGrounds = true }));
+
+        var result = await sut.DenyRequestAsync(requestId, DSRRejectionReason.AbusiveIntent, "Explanation");
+
+        result.IsRight.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task DenyRequestAsync_BlankExplanation_ReturnsInvalidRequestWithoutLoading(string explanation)
+    {
+        var result = await _sut.DenyRequestAsync(Guid.NewGuid(), DSRRejectionReason.Other, explanation);
+
+        result.LeftAsEnumerable().Single().GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.InvalidRequestCode);
+        await _repository.DidNotReceive().LoadAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task DenyRequestAsync_UndefinedReason_ReturnsInvalidRequestWithoutLoading()
+    {
+        var result = await _sut.DenyRequestAsync(Guid.NewGuid(), (DSRRejectionReason)0, "Explanation");
+
+        result.LeftAsEnumerable().Single().GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.InvalidRequestCode);
+        await _repository.DidNotReceive().LoadAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task DenyRequestAsync_UnknownRequest_ReturnsRequestNotFound()
+    {
+        var requestId = Guid.NewGuid();
+        _repository.LoadAsync(requestId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Left<EncinaError, DSRRequestAggregate>(EncinaErrors.Create("test.missing", "missing"))));
+
+        var result = await _sut.DenyRequestAsync(requestId, DSRRejectionReason.Other, "Explanation");
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task DenyRequestAsync_TerminalRequest_ReturnsInvalidRequest()
+    {
+        var requestId = Guid.NewGuid();
+        var aggregate = DSRRequestAggregate.Submit(requestId, "subject-1", DataSubjectRight.Access, Now);
+        aggregate.Deny(DSRRejectionReason.Other, "first", Now);
+        ArrangeDeniableRequest(requestId, aggregate);
+
+        var result = await _sut.DenyRequestAsync(requestId, DSRRejectionReason.Other, "second");
+
+        result.LeftAsEnumerable().Single().GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.InvalidRequestCode);
+    }
+
+    [Fact]
+    public async Task DenyRequestAsync_SaveFails_ReturnsStoreError()
+    {
+        var requestId = Guid.NewGuid();
+        ArrangeDeniableRequest(requestId);
+        _repository.SaveAsync(Arg.Any<DSRRequestAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Left<EncinaError, Unit>(EncinaErrors.Create("test.save", "save failed"))));
+
+        var result = await _sut.DenyRequestAsync(requestId, DSRRejectionReason.Other, "Explanation");
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task DenyRequestAsync_RepositoryThrows_ReturnsServiceError()
+    {
+        var requestId = Guid.NewGuid();
+        _repository.LoadAsync(requestId, Arg.Any<CancellationToken>())
+            .Throws(new InvalidCastException("boom"));
+
+        var result = await _sut.DenyRequestAsync(requestId, DSRRejectionReason.Other, "Explanation");
+
+        result.LeftAsEnumerable().Single().GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.ServiceErrorCode);
     }
 
     #endregion

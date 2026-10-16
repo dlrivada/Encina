@@ -210,6 +210,7 @@ public sealed class DataSubjectRightsDiagnosticsSubjectIdLeakTests
             portabilityExporter ?? Substitute.For<IDataPortabilityExporter>(),
             Substitute.For<IProcessingActivityRegistry>(),
             Substitute.For<ICacheProvider>(),
+            Microsoft.Extensions.Options.Options.Create(new DataSubjectRightsOptions()),
             new FakeTimeProvider(),
             logger);
         return (service, logger);

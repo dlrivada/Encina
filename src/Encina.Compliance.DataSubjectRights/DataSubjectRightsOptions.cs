@@ -24,6 +24,7 @@ namespace Encina.Compliance.DataSubjectRights;
 ///     options.RestrictionEnforcementMode = DSREnforcementMode.Warn; // gradual adoption
 ///     options.DefaultDeadlineDays = 30;
 ///     options.AddHealthCheck = true;
+///     options.EnableOmnibusArticle12RefusalGrounds = false; // current law (default)
 ///     options.AssembliesToScan.Add(typeof(Program).Assembly);
 /// });
 /// </code>
@@ -74,6 +75,25 @@ public sealed class DataSubjectRightsOptions
     /// </para>
     /// </remarks>
     public bool FailClosedOnMissingSubjectId { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether the draft-law refusal grounds of the Digital Omnibus are accepted when a
+    /// request is denied.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Draft law: COM(2025) 837 (Digital Omnibus) proposes to amend GDPR Article 12(5) so that an
+    /// access request used for purposes other than data protection can be refused
+    /// (<see cref="DSRRejectionReason.AbusiveIntent"/>). The proposal is not adopted.
+    /// </para>
+    /// <para>
+    /// <c>false</c> (default): current law applies and <c>IDSRService.DenyRequestAsync</c> refuses a
+    /// draft ground with <see cref="DSRErrors.RejectionReasonNotEnabledCode"/>. <c>true</c>: the draft
+    /// ground is accepted. Set it only once the amendment is adopted and applies to your processing
+    /// (SPEC-002 REQ-024).
+    /// </para>
+    /// </remarks>
+    public bool EnableOmnibusArticle12RefusalGrounds { get; set; }
 
     /// <summary>
     /// Gets or sets whether to register a DSR health check with <c>IHealthChecksBuilder</c>.

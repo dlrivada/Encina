@@ -280,53 +280,57 @@ Received → IdentityVerified → InProgress → Completed
 | `IdentityVerified` | Subject identity confirmed (Article 12(6)) |
 | `InProgress` | Request actively being processed |
 | `Completed` | Request fulfilled successfully |
-| `Rejected` | Request rejected with stated reason (Article 12(4)) |
+| `Rejected` | Request refused with a reason code and an explanation (Article 12(4) and 12(5)); see [Refusing a Request](#refusing-a-request) |
 | `Extended` | Deadline extended by up to 2 additional months (Article 12(3)) |
 | `Expired` | Deadline passed without completion (potential compliance violation) |
 
-### Creating a DSR Request
+### Refusing a Request
+
+A refusal records a standardised reason code and the free-text explanation given to the data subject (Article 12(4)). The request moves to `Rejected` and the event stream keeps both values.
 
 ```csharp
-var store = serviceProvider.GetRequiredService<IDSRRequestStore>();
+var dsrService = serviceProvider.GetRequiredService<IDSRService>();
 
-var request = DSRRequest.Create(
-    id: "req-001",
-    subjectId: "subject-123",
-    rightType: DataSubjectRight.Erasure,
-    receivedAtUtc: DateTimeOffset.UtcNow,
-    requestDetails: "Customer requests deletion of all marketing data");
+var denied = await dsrService.DenyRequestAsync(
+    requestId,
+    DSRRejectionReason.Excessive,
+    "Fourth identical access request in two months; see the request history.");
 
-await store.CreateAsync(request);
+// denied: Either<EncinaError, Unit>
 ```
 
-### Updating Status
+The reason and the explanation are readable afterwards from `DSRRequestAggregate.RejectionReason` / `RejectionExplanation` and from the `DSRRequestReadModel` with the same property names.
 
-```csharp
-// Verify identity
-await store.UpdateStatusAsync("req-001", DSRRequestStatus.IdentityVerified, reason: null);
+#### Refusal reasons
 
-// Begin processing
-await store.UpdateStatusAsync("req-001", DSRRequestStatus.InProgress, reason: null);
+`DSRRejectionReasonExtensions` exposes `LegalBasis` (the citation text) and `IsDraftLawGround` for each code.
 
-// Complete
-await store.UpdateStatusAsync("req-001", DSRRequestStatus.Completed, reason: null);
+| Code | Value | Article | Law | Option |
+|------|-------|---------|-----|--------|
+| `ManifestlyUnfounded` | 1 | GDPR Art. 12(5) | Current | None |
+| `Excessive` | 2 | GDPR Art. 12(5) | Current | None |
+| `IdentityNotVerifiable` | 3 | GDPR Art. 12(2) with Art. 11(2) | Current | None |
+| `RestrictedByLaw` | 4 | GDPR Art. 23 | Current | None |
+| `RightNotApplicable` | 5 | GDPR Art. 17(3), 20(1) or 21(1) | Current | None |
+| `Other` | 99 | GDPR Art. 12(4) | Current | None |
+| `AbusiveIntent` | 100 | Draft Art. 12(5), COM(2025) 837 | Draft law, not adopted | `EnableOmnibusArticle12RefusalGrounds` |
 
-// Or reject
-await store.UpdateStatusAsync("req-001", DSRRequestStatus.Rejected,
-    reason: "Compelling legitimate grounds override subject's interests (Article 21(1))");
-```
+- `AbusiveIntent` is refused with the error code `dsr.rejection_reason_not_enabled` unless `DataSubjectRightsOptions.EnableOmnibusArticle12RefusalGrounds` is `true` (default `false`).
+- Encina only records `Excessive`: the controller judges repetition from the subject's request history and bears the burden of demonstration (Article 12(5)).
+- The per-category erasure refusal (#1188) reuses these codes, so a whole-request refusal and a per-category refusal share one vocabulary.
+
+#### Observability of a refusal
+
+A refusal increments the `dsr.requests.denied.total` counter (tags `dsr.right_type` and `dsr.rejection_reason`), runs inside a `DSR.AggregateCommand` activity tagged with the reason, and logs EventId 8311. A draft-law reason that is not enabled logs EventId 8312.
 
 ### Monitoring Deadlines
 
 ```csharp
 // Get all overdue requests
-var overdue = await store.GetOverdueRequestsAsync();
+var overdue = await dsrService.GetOverdueRequestsAsync();
 
 // Get all pending (active) requests
-var pending = await store.GetPendingRequestsAsync();
-
-// Get request history for a subject
-var history = await store.GetBySubjectIdAsync("subject-123");
+var pending = await dsrService.GetPendingRequestsAsync();
 ```
 
 ---
