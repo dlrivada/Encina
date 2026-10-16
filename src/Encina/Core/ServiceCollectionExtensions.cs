@@ -117,6 +117,13 @@ public static class ServiceCollectionExtensions
             return registered;
         }
 
+        if (existing is not null)
+        {
+            // Stage declarations written into a registry the resolver never reads would be lost silently
+            throw new InvalidOperationException(
+                "PipelineStageRegistry must be registered as a single instance; AddEncina registers it. Remove the other registration.");
+        }
+
         var created = new PipelineStageRegistry();
         services.TryAddSingleton(created);
         return created;

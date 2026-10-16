@@ -136,6 +136,16 @@ public sealed class PipelineStageConfigurationTests
     }
 
     [Fact]
+    public void AddEncina_StageRegistryRegisteredWithoutAnInstance_Throws()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<PipelineStageRegistry>();
+
+        Should.Throw<InvalidOperationException>(() => services.AddEncina())
+            .Message.ShouldContain("PipelineStageRegistry");
+    }
+
+    [Fact]
     public async Task AddEncina_WithEveryNewRegistration_BuildsWithValidateOnBuildAndValidateScopes()
     {
         var services = new ServiceCollection();
