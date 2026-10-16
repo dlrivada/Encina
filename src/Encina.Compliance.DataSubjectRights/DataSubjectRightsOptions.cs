@@ -118,7 +118,8 @@ public sealed class DataSubjectRightsOptions
     /// Set explicitly to override the auto-detected behavior: <c>true</c> always fails closed, even
     /// in an application that has not registered <c>Encina.Tenancy</c>. <c>false</c> is an explicit
     /// opt-out that always allows an unscoped operation even when multi-tenancy is enabled; the
-    /// service logs this opt-out once at startup so it is never silent.
+    /// service logs this opt-out whenever it is constructed (once per scope, because it is
+    /// registered scoped) so it is never silent.
     /// </para>
     /// </remarks>
     public bool? RequireTenantContext { get; set; }

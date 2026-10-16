@@ -111,11 +111,13 @@ public sealed class DataSubjectRightsHealthCheck : IHealthCheck
                 var code = error.GetCode().IfNone("encina.unknown");
 
                 // The health probe runs outside any tenant's request, so in a multi-tenant
-                // application the tenant-scoped overdue query is refused by design (#1963): the
-                // check is skipped, not a configuration warning.
+                // application the tenant-scoped overdue query is refused by design (#1963). The
+                // Article 12(3) deadline signal is then unknown, so the check reports Degraded
+                // (fails closed for monitoring) instead of Healthy.
                 if (code == DSRErrors.TenantRequiredCode)
                 {
                     data["overdueRequestCheck"] = "skipped: no tenant context";
+                    warnings.Add("Overdue DSR requests were not checked: the health probe has no tenant context.");
                     return 0;
                 }
 

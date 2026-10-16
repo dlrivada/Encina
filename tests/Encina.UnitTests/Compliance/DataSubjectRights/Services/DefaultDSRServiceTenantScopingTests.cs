@@ -8,6 +8,7 @@ using Encina.Compliance.GDPR;
 using Encina.Marten;
 using Encina.Marten.Projections;
 using Encina.Tenancy;
+using Encina.Testing.Shouldly;
 
 using LanguageExt;
 
@@ -112,8 +113,7 @@ public class DefaultDSRServiceTenantScopingTests
 
         var result = await CreateService().GetRequestsBySubjectAsync("subject-1");
 
-        result.IsRight.ShouldBeTrue();
-        result.ShouldBeRightAnd(rows => rows.Select(r => r.Id).ShouldBe([own.Id]));
+        result.ShouldBeSuccess(rows => rows.Select(r => r.Id).ShouldBe([own.Id]));
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class DefaultDSRServiceTenantScopingTests
 
         var result = await CreateService().GetPendingRequestsAsync();
 
-        result.ShouldBeRightAnd(rows => rows.Select(r => r.Id).ShouldBe([own.Id]));
+        result.ShouldBeSuccess(rows => rows.Select(r => r.Id).ShouldBe([own.Id]));
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class DefaultDSRServiceTenantScopingTests
 
         var result = await CreateService().GetOverdueRequestsAsync();
 
-        result.ShouldBeRightAnd(rows => rows.Select(r => r.Id).ShouldBe([own.Id]));
+        result.ShouldBeSuccess(rows => rows.Select(r => r.Id).ShouldBe([own.Id]));
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class DefaultDSRServiceTenantScopingTests
 
         var result = await CreateService().HasActiveRestrictionAsync("subject-1");
 
-        result.ShouldBeRightAnd(active => active.ShouldBeFalse());
+        result.ShouldBeSuccess(active => active.ShouldBeFalse());
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public class DefaultDSRServiceTenantScopingTests
 
         var result = await CreateService().HasActiveRestrictionAsync("subject-1");
 
-        result.ShouldBeRightAnd(active => active.ShouldBeTrue());
+        result.ShouldBeSuccess(active => active.ShouldBeTrue());
     }
 
     [Fact]
@@ -193,8 +193,7 @@ public class DefaultDSRServiceTenantScopingTests
 
         var result = await CreateService().GetRequestAsync(other.Id);
 
-        result.IsLeft.ShouldBeTrue();
-        result.ShouldBeLeftAnd(e => CodeOf(e).ShouldBe(DSRErrors.RequestNotFoundCode));
+        result.ShouldBeErrorWithCode(DSRErrors.RequestNotFoundCode);
         await _cache.DidNotReceive().SetAsync(
             Arg.Any<string>(), Arg.Any<DSRRequestReadModel>(), Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>());
     }
@@ -226,7 +225,7 @@ public class DefaultDSRServiceTenantScopingTests
 
         var result = await CreateService().GetRequestAsync(other.Id);
 
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeErrorWithCode(DSRErrors.RequestNotFoundCode);
     }
 
     [Fact]
@@ -279,8 +278,7 @@ public class DefaultDSRServiceTenantScopingTests
 
         var result = await Run(CreateService(), command, aggregate.Id);
 
-        result.IsLeft.ShouldBeTrue();
-        result.ShouldBeLeftAnd(e => CodeOf(e).ShouldBe(DSRErrors.RequestNotFoundCode));
+        result.ShouldBeErrorWithCode(DSRErrors.RequestNotFoundCode);
         await _repository.DidNotReceive().SaveAsync(Arg.Any<DSRRequestAggregate>(), Arg.Any<CancellationToken>());
     }
 
@@ -292,8 +290,7 @@ public class DefaultDSRServiceTenantScopingTests
 
         var result = await Run(CreateService(), command, Guid.NewGuid());
 
-        result.IsLeft.ShouldBeTrue();
-        result.ShouldBeLeftAnd(e => CodeOf(e).ShouldBe(DSRErrors.TenantRequiredCode));
+        result.ShouldBeErrorWithCode(DSRErrors.TenantRequiredCode);
         await _repository.DidNotReceive().LoadAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
@@ -330,7 +327,7 @@ public class DefaultDSRServiceTenantScopingTests
 
         var result = await CreateService(multiTenant: true, requireTenantContext: null).GetPendingRequestsAsync();
 
-        result.ShouldBeLeftAnd(e => CodeOf(e).ShouldBe(DSRErrors.TenantRequiredCode));
+        result.ShouldBeErrorWithCode(DSRErrors.TenantRequiredCode);
         await _readModels.DidNotReceive().QueryAsync(
             Arg.Any<Func<IQueryable<DSRRequestReadModel>, IQueryable<DSRRequestReadModel>>>(), Arg.Any<CancellationToken>());
     }
@@ -352,7 +349,7 @@ public class DefaultDSRServiceTenantScopingTests
 
         var result = await CreateService(multiTenant: false, requireTenantContext: true).GetPendingRequestsAsync();
 
-        result.ShouldBeLeftAnd(e => CodeOf(e).ShouldBe(DSRErrors.TenantRequiredCode));
+        result.ShouldBeErrorWithCode(DSRErrors.TenantRequiredCode);
     }
 
     [Fact]
@@ -445,7 +442,7 @@ public class DefaultDSRServiceTenantScopingTests
         var result = await CreateService().SubmitRequestAsync(
             "subject-1", DataSubjectRight.Restriction, tenantId: "tenant-a");
 
-        result.ShouldBeLeftAnd(e => CodeOf(e).ShouldBe(DSRErrors.TenantRequiredCode));
+        result.ShouldBeErrorWithCode(DSRErrors.TenantRequiredCode);
         await _repository.DidNotReceive().CreateAsync(Arg.Any<DSRRequestAggregate>(), Arg.Any<CancellationToken>());
     }
 
@@ -469,7 +466,7 @@ public class DefaultDSRServiceTenantScopingTests
 
         var result = await CreateService().SubmitRequestAsync("subject-1", DataSubjectRight.Restriction);
 
-        result.ShouldBeLeftAnd(e => CodeOf(e).ShouldBe(DSRErrors.TenantRequiredCode));
+        result.ShouldBeErrorWithCode(DSRErrors.TenantRequiredCode);
         await _repository.DidNotReceive().CreateAsync(Arg.Any<DSRRequestAggregate>(), Arg.Any<CancellationToken>());
     }
 
@@ -520,22 +517,8 @@ public class DefaultDSRServiceTenantScopingTests
         var result = await CreateService().HandleRestrictionAsync(
             new RestrictionRequest("subject-1", "accuracy contested", null));
 
-        result.ShouldBeLeftAnd(e => CodeOf(e).ShouldBe(DSRErrors.TenantRequiredCode));
+        result.ShouldBeErrorWithCode(DSRErrors.TenantRequiredCode);
         await _repository.DidNotReceive().CreateAsync(Arg.Any<DSRRequestAggregate>(), Arg.Any<CancellationToken>());
     }
 }
 
-file static class EitherAssertions
-{
-    public static void ShouldBeRightAnd<L, R>(this LanguageExt.Either<L, R> either, Action<R> assert)
-    {
-        either.IsRight.ShouldBeTrue("expected Right but the result was Left");
-        either.IfRight(assert);
-    }
-
-    public static void ShouldBeLeftAnd<L, R>(this LanguageExt.Either<L, R> either, Action<L> assert)
-    {
-        either.IsLeft.ShouldBeTrue("expected Left but the result was Right");
-        either.IfLeft(assert);
-    }
-}
