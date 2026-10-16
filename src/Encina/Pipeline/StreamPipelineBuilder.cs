@@ -25,8 +25,10 @@ internal interface IStreamPipelineBuilder<TRequest, TItem> // NOSONAR S2326: TRe
 /// into a single delegate per request execution.
 /// </summary>
 /// <remarks>
-/// <para><b>Pipeline Order:</b> Behaviors → Handler</para>
-/// <para><b>Behavior Composition:</b> Uses nested delegates (Russian doll pattern) to chain behaviors in registration order.</para>
+/// <para><b>Pipeline Order:</b> behaviors run from the outermost to the innermost in (<see cref="PipelineStage"/>, order,
+/// registration index) order, computed once per closed pipeline by the <see cref="PipelineOrderResolver"/>, then the handler.</para>
+/// <para><b>Behavior Composition:</b> Uses nested delegates (Russian doll pattern) over the resolved order.
+/// Stream pipelines have no processors.</para>
 /// <para><b>Error Strategy:</b> Railway Oriented Programming - errors are yielded as Left values in the stream.</para>
 /// </remarks>
 internal sealed class StreamPipelineBuilder<TRequest, TItem> : IStreamPipelineBuilder<TRequest, TItem>
@@ -36,16 +38,19 @@ internal sealed class StreamPipelineBuilder<TRequest, TItem> : IStreamPipelineBu
     private readonly IStreamRequestHandler<TRequest, TItem> _handler;
     private readonly IRequestContext _context;
     private readonly CancellationToken _cancellationToken;
+    private readonly PipelineOrderResolver _resolver;
 
     public StreamPipelineBuilder(
         TRequest request,
         IStreamRequestHandler<TRequest, TItem> handler,
         IRequestContext context,
+        PipelineOrderResolver resolver,
         CancellationToken cancellationToken)
     {
         _request = request ?? throw new ArgumentNullException(nameof(request));
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
         _context = context ?? throw new ArgumentNullException(nameof(context));
+        _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
         _cancellationToken = cancellationToken;
     }
 
@@ -53,30 +58,29 @@ internal sealed class StreamPipelineBuilder<TRequest, TItem> : IStreamPipelineBu
     /// Builds the execution pipeline by wrapping the handler with stream behaviors.
     /// </summary>
     /// <remarks>
-    /// Behaviors are applied in reverse (right-to-left) to ensure left-to-right execution order.
-    /// Example: Register A, B → Execute A → B → Handler
+    /// Behaviors are wrapped from the innermost to the outermost position of the resolved order, so the first
+    /// element of the order runs first.
     /// </remarks>
     public StreamHandlerCallback<TItem> Build(IServiceProvider serviceProvider)
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
-        // Resolve all stream behaviors from DI
         // GetServices<T>() never returns null - always empty enumeration
         var behaviors = serviceProvider.GetServices<IStreamPipelineBehavior<TRequest, TItem>>().ToArray();
 
         // Start with the innermost delegate: handler invocation
         StreamHandlerCallback<TItem> current = () => ExecuteHandlerAsync(_handler, _request, _cancellationToken);
-
-        // Wrap handler with behaviors in reverse order (creates nested delegates)
-        // This ensures behaviors execute in registration order when the pipeline runs
-        if (behaviors.Length > 0)
+        if (behaviors.Length == 0)
         {
-            for (var index = behaviors.Length - 1; index >= 0; index--)
-            {
-                var behavior = behaviors[index];
-                var nextStep = current; // Capture in closure
-                current = () => ExecuteBehaviorAsync(behavior, _request, _context, nextStep, _cancellationToken);
-            }
+            return current;
+        }
+
+        var order = _resolver.Resolve(typeof(IStreamPipelineBehavior<TRequest, TItem>), behaviors);
+        for (var index = order.Length - 1; index >= 0; index--)
+        {
+            var behavior = behaviors[order[index]];
+            var nextStep = current; // Capture in closure
+            current = () => ExecuteBehaviorAsync(behavior, _request, _context, nextStep, _cancellationToken);
         }
 
         return current;

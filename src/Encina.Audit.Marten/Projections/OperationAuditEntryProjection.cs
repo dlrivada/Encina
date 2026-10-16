@@ -262,7 +262,7 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
             EntityId = @event.EntityId,
             Outcome = (AuditOutcome)@event.Outcome,
             ErrorMessage = @event.ErrorMessage,
-            TimestampUtc = @event.TimestampUtc,
+            TimestampUtc = @event.TimestampUtc.ToUtcOffset(),
             StartedAtUtc = @event.StartedAtUtc,
             CompletedAtUtc = @event.CompletedAtUtc,
             RequestPayloadHash = @event.RequestPayloadHash,

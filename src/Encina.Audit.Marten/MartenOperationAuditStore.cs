@@ -387,12 +387,14 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
 
         if (fromUtc.HasValue)
         {
-            query = query.Where(m => m.TimestampUtc >= fromUtc.Value);
+            var from = fromUtc.Value.ToUtcOffset();
+            query = query.Where(m => m.TimestampUtc >= from);
         }
 
         if (toUtc.HasValue)
         {
-            query = query.Where(m => m.TimestampUtc <= toUtc.Value);
+            var to = toUtc.Value.ToUtcOffset();
+            query = query.Where(m => m.TimestampUtc <= to);
         }
 
         return query;
@@ -464,12 +466,14 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
 
         if (query.FromUtc.HasValue)
         {
-            q = q.Where(m => m.TimestampUtc >= query.FromUtc.Value);
+            var from = query.FromUtc.Value.ToUtcOffset();
+            q = q.Where(m => m.TimestampUtc >= from);
         }
 
         if (query.ToUtc.HasValue)
         {
-            q = q.Where(m => m.TimestampUtc <= query.ToUtc.Value);
+            var to = query.ToUtc.Value.ToUtcOffset();
+            q = q.Where(m => m.TimestampUtc <= to);
         }
 
         if (!string.IsNullOrWhiteSpace(query.IpAddress))
@@ -551,7 +555,7 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
             EntityId = model.EntityId,
             Outcome = model.Outcome,
             ErrorMessage = model.ErrorMessage,
-            TimestampUtc = model.TimestampUtc,
+            TimestampUtc = model.TimestampUtc.UtcDateTime,
             StartedAtUtc = model.StartedAtUtc,
             CompletedAtUtc = model.CompletedAtUtc,
             RequestPayloadHash = model.RequestPayloadHash,

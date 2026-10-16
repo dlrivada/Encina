@@ -176,7 +176,8 @@ public sealed partial class Encina(
         {
             var typedRequest = (TRequest)request;
             var typedHandler = (IRequestHandler<TRequest, TResponse>)handler;
-            var pipelineBuilder = new PipelineBuilder<TRequest, TResponse>(typedRequest, typedHandler, context, cancellationToken);
+            var resolver = provider.GetRequiredService<PipelineOrderResolver>();
+            var pipelineBuilder = new PipelineBuilder<TRequest, TResponse>(typedRequest, typedHandler, context, resolver, cancellationToken);
             var pipeline = pipelineBuilder.Build(provider);
             var outcome = await pipeline().ConfigureAwait(false);
             return outcome;
