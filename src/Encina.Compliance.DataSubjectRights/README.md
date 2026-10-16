@@ -238,11 +238,34 @@ Encina only records `Excessive`; the controller judges repetition from the reque
 | `DefaultErasableCategories` | `HashSet<PersonalDataCategory>` | `[]` | Categories erasable by default (empty = all) |
 | `DefaultPortableCategories` | `HashSet<PersonalDataCategory>` | `[]` | Categories included in portability exports (empty = all) |
 
+## Multi-tenancy
+
+`DefaultDSRService` reads the ambient tenant from `IRequestContextAccessor.RequestContext.TenantId` and scopes every operation to it (#1963; background in [SPEC-002](../../docs/specifications/SPEC-002-eu-regulatory-readiness.md) DEC-006 and DEC-009):
+
+- The queries `GetRequestsBySubjectAsync`, `GetPendingRequestsAsync`, `GetOverdueRequestsAsync` and `HasActiveRestrictionAsync` filter `DSRRequestReadModel.TenantId` by the ambient tenant.
+- `GetRequestAsync` and the lifecycle commands (`VerifyIdentityAsync`, `StartProcessingAsync`, `CompleteRequestAsync`, `DenyRequestAsync`, `ExtendDeadlineAsync`, `ExpireRequestAsync`) treat another tenant's request as not found (`dsr.request_not_found`) and never change it.
+- `SubmitRequestAsync` records the request under the ambient tenant when `tenantId` is `null`, and refuses a `tenantId` that contradicts it with `dsr.tenant_required`. `HandleRestrictionAsync` records the restriction under the ambient tenant.
+- Cache keys are tenant-scoped: `dsr:tenant:{tenantId|-}:request:{id}` and `dsr:tenant:{tenantId|-}:restriction:{subjectId}` (`-` when there is no tenant).
+
+`DataSubjectRightsOptions.RequireTenantContext` (`bool?`, default `null`) decides what happens when the ambient tenant is missing:
+
+| Value | Behavior |
+|-------|----------|
+| `null` (default) | Auto-detect: fail closed with `dsr.tenant_required` when `Encina.Tenancy` is registered (`ITenantProvider` resolves), otherwise run unscoped. Single-tenant applications need no configuration. |
+| `true` | Always fail closed with `dsr.tenant_required` when the tenant is missing. |
+| `false` | Explicit opt-out; a missing tenant runs an unscoped operation. Logged once at startup when `Encina.Tenancy` is registered. |
+
+Two components follow the same rule:
+
+- `ProcessingRestrictionPipelineBehavior` in `Block` mode blocks the request when the restriction lookup returns `dsr.tenant_required`, instead of the usual fail-open on store errors. In `Warn` mode the request proceeds.
+- `DataSubjectRightsHealthCheck` skips the overdue-request check (data key `overdueRequestCheck` = `skipped: no tenant context`) when the probe has no tenant in a multi-tenant application, because the tenant-scoped query is refused.
+
 ## Error Codes
 
 | Code | Meaning |
 |------|---------|
-| `dsr.request_not_found` | No DSR request found with the given identifier |
+| `dsr.request_not_found` | No DSR request found with the given identifier (or it belongs to another tenant) |
+| `dsr.tenant_required` | Tenant isolation is required and the ambient tenant is missing, or a submitted `tenantId` contradicts it (`DSRErrors.TenantRequiredCode`) |
 | `dsr.request_already_completed` | The request has already been completed and cannot be modified |
 | `dsr.identity_not_verified` | Identity verification required before processing (Article 12(6)) |
 | `dsr.restriction_active` | Processing is restricted for the data subject (Article 18) |
