@@ -302,11 +302,11 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 95, "guard": 83, "contract": 91 },
+      "targets": { "unit": 95, "guard": 86, "contract": 91 },
       "justifications": {
-        "unit": "AddEncina registration, the resolver registration and the graph checks are exercised by AddEncinaServiceGraphTests (measured 95%).",
-        "guard": "Guard tests run AddEncina with its argument validation and the registration paths (measured 83%).",
-        "contract": "Contract tests build providers through AddEncina (measured 91%)."
+        "unit": "AddEncina registration, the snapshot and resolver registration and the graph checks are exercised by AddEncinaServiceGraphTests (measured 96%).",
+        "guard": "Guard tests run AddEncina with its argument validation and the registration paths (measured 86%).",
+        "contract": "Contract tests build providers through AddEncina (measured 92%)."
       }
     },
     "Core/StreamDispatcher.cs": {
@@ -1093,6 +1093,17 @@
         "contract": "Interface declaration only, no executable lines; it has no implementer until a later phase of #2184."
       }
     },
+    "Pipeline/Ordering/EncinaBuiltInPipelineStepsAttribute.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Attribute.cs",
+      "reason": "no executable logic: an assembly marker attribute read by PipelineOrderValidator.IsBuiltIn, exercised by PipelineOrderValidatorTests",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "An assembly marker attribute with no executable lines; PipelineOrderValidatorTests read it through PipelineOrderValidator.IsBuiltIn."
+      }
+    },
     "Pipeline/Ordering/PipelineStage.cs": {
       "defaultTests": [],
       "defaultRule": "*.cs",
@@ -1167,11 +1178,11 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Cached per-pipeline step order resolver",
-      "targets": { "unit": 98, "guard": 36, "contract": 75 },
+      "targets": { "unit": 99, "guard": 47, "contract": 79 },
       "justifications": {
-        "unit": "Order key, source precedence, kind rank, module identity, registry sealing, duplicate collapsing, caching and the concurrent first build are exercised by PipelineOrderResolverTests (measured 98%).",
-        "guard": "Guard tests cover the constructor and Resolve null guards plus the empty pipeline (measured 36%); ordering logic is covered by unit tests.",
-        "contract": "Contract tests dispatch through registered behaviors, covering the resolve and cache path (measured 75%); the remaining branches are covered by unit tests."
+        "unit": "Order key, precedence, collapsing, caching, the concurrent first build, validation before caching and Warm are exercised by PipelineOrderResolverTests and PipelineOrderEnforcementTests; the one uncovered line is the double check inside the registration lock that only a race reaches (measured 99%).",
+        "guard": "Guard tests cover the constructor, Resolve and Warm null guards plus the empty pipeline; ordering logic is covered by unit tests (measured 47%).",
+        "contract": "Contract tests dispatch through registered behaviors and the real AddEncina registrations, covering resolve, cache and validation (measured 79%); the remaining branches are covered by unit tests."
       }
     },
     "Pipeline/Ordering/PipelineStageRegistry.cs": {
@@ -1182,11 +1193,58 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Registration-time stage override store",
-      "targets": { "unit": 100, "guard": 100, "contract": 43 },
+      "targets": { "unit": 100, "guard": 100, "contract": 84 },
       "justifications": {
-        "unit": "Set, TryGet, Seal, the rejection of a stage override recorded after the first pipeline was built, the open-generic key and the null guards are all executed by PipelineOrderResolverTests and PipelineOrderingGuardTests (measured 100%).",
-        "guard": "Set and Seal are executed by PipelineOrderingGuardTests, including the rejection after Seal (measured 100%).",
-        "contract": "Contract tests only construct the registry through AddEncina and read it through the resolver (measured 43%); Set and Seal are covered by unit and guard tests."
+        "unit": "Set, TryGet, Seal, Conflicts, the rejection after the first pipeline and the open-generic key are executed by PipelineOrderResolverTests and PipelineOrderValidatorTests (measured 100%).",
+        "guard": "Set, Seal, the conflict recording and the null guards are executed by PipelineOrderingGuardTests (measured 100%).",
+        "contract": "Contract tests build the registry through AddEncina and drive it through the resolver and the hosted service (measured 84%); the rest is covered by unit and guard tests."
+      }
+    },
+    "Pipeline/Ordering/PipelineOrderValidator.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Fail-closed rules R1-R7 of the pipeline order",
+      "targets": { "unit": 100, "guard": 17, "contract": 91, "property": 81 },
+      "justifications": {
+        "unit": "Every rule R1, R3, R4, R5, R6 and R7 has a passing and a failing case in PipelineOrderValidatorTests (measured 100%).",
+        "guard": "Guard tests cover the null guards of Validate, ValidateRegistrations, IsBuiltIn and NameOf; the rule logic is covered by unit tests (measured 18%).",
+        "contract": "PipelineOrderValidationContracts fails every rule through the validator and checks the built-in assembly list against src (measured 92%).",
+        "property": "PipelineOrderValidationProperties checks R1, R5 and R7 over random positions (measured 81%); R3, R4 and R6 have no random input and are covered by unit tests."
+      }
+    },
+    "Pipeline/Ordering/PipelineRegistrationSnapshot.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Read-only view of the service collection for the pipeline order validation",
+      "targets": { "unit": 100, "guard": 9, "contract": 73 },
+      "justifications": {
+        "unit": "Closed handlers, dead registrations, exact, open-generic, constrained, instance and factory descriptors are exercised by PipelineOrderValidationHostedServiceTests (measured 100%).",
+        "guard": "Guard tests cover the constructor and GetRegistrations null guards; the scanning logic is covered by unit tests (measured 10%).",
+        "contract": "Contract tests build the snapshot through AddEncina and read the real registrations (measured 74%); the open-generic branches are covered by unit tests."
+      }
+    },
+    "Pipeline/Ordering/PipelineOrderValidationHostedService.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Startup validation of every closed pipeline",
+      "targets": { "unit": 100, "guard": 13, "contract": 58 },
+      "justifications": {
+        "unit": "StartAsync is exercised for valid and invalid request and stream pipelines, factory-registered steps, a throwing factory, open-generic handlers and cancellation (measured 100%).",
+        "guard": "Guard tests cover the constructor null guards; StartAsync is covered by unit tests (measured 13%).",
+        "contract": "The contract test starts the service over the real AddEncina registrations and expects the invalid order to fail (measured 58%); the factory and stream branches are covered by unit tests."
       }
     },
     "Pipeline/Ordering/PipelineStepCandidate.cs": {

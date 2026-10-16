@@ -268,10 +268,11 @@ internal static class PipelineOrderValidator
         => left.Stage == right.Stage
         && left.Order == right.Order
         && left.StepType != right.StepType
-        && left.Source != PipelineStepSource.Default
-        && right.Source != PipelineStepSource.Default
-        && IsBuiltIn(left.StepType)
-        && IsBuiltIn(right.StepType);
+        && IsDeclaredBuiltIn(left)
+        && IsDeclaredBuiltIn(right);
+
+    private static bool IsDeclaredBuiltIn(in ResolvedStep step)
+        => step.Source != PipelineStepSource.Default && IsBuiltIn(step.StepType);
 
     private static void CheckPostCommitAfterTransaction(Type pipelineKey, ReadOnlySpan<ResolvedStep> steps)
     {

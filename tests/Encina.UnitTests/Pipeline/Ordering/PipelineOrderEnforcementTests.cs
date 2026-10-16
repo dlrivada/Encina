@@ -212,7 +212,7 @@ public sealed class PipelineOrderEnforcementTests
     {
         var services = new ServiceCollection();
 
-        services.AddApplicationMessaging(null, typeof(IEncina).Assembly);
+        services.AddApplicationMessaging((Action<EncinaConfiguration>?)null, typeof(IEncina).Assembly);
 
         services.ShouldContain(descriptor => descriptor.ServiceType == typeof(PipelineRegistrationSnapshot));
         services.ShouldContain(descriptor => descriptor.ServiceType == typeof(PipelineOrderResolver));

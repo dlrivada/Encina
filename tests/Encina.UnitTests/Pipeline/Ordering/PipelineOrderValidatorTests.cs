@@ -257,6 +257,15 @@ public sealed class PipelineOrderValidatorTests
     }
 
     [Fact]
+    public void R7_PostCommitJustBelowTheTransactionBehaviorOrder_Passes()
+    {
+        Should.NotThrow(() => Validate(
+            PipelineOrderRuleSet.PostCommitAfterTransaction,
+            Step(typeof(Custom), PipelineStage.Transaction, 0),
+            Step(typeof(PostCommit), PipelineStage.Transaction, -1, PipelineStepKind.PostCommitProcessor)));
+    }
+
+    [Fact]
     public void R7_PostCommitInAStageInsideTransaction_FailsNamingTheRuleAndTheProcessor()
     {
         var exception = Should.Throw<InvalidOperationException>(() => Validate(

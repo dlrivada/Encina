@@ -36,6 +36,24 @@ public sealed class PipelineOrderValidationContracts
     }
 
     [Fact]
+    public void BuiltInAssemblies_ListsExactlyTheProjectsUnderSrc()
+    {
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "Encina.slnx")))
+        {
+            root = root.Parent;
+        }
+
+        root.ShouldNotBeNull("the repository root (Encina.slnx) must be found above the test output");
+        var projects = new DirectoryInfo(Path.Combine(root.FullName, "src")).GetDirectories()
+            .Where(directory => directory.GetFiles("*.csproj").Length > 0)
+            .Select(directory => directory.Name);
+
+        PipelineOrderValidator.BuiltInAssemblies.OrderBy(name => name, StringComparer.Ordinal)
+            .ShouldBe(projects.OrderBy(name => name, StringComparer.Ordinal));
+    }
+
+    [Fact]
     public void AddEncina_RegistersOneSnapshotAndOneResolver_EvenWhenCalledTwice()
     {
         var services = new ServiceCollection();

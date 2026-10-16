@@ -113,9 +113,17 @@ internal sealed class PipelineOrderValidationHostedService : IHostedService
         }
 
         var instance = Instantiate(provider, pipelineKey, registration.Descriptor);
-        return instance is IPipelineStepIdentity
-            ? PipelineStepCandidate.For(instance, index)
-            : new PipelineStepCandidate(instance.GetType(), null, kind, index);
+        try
+        {
+            return instance is IPipelineStepIdentity
+                ? PipelineStepCandidate.For(instance, index)
+                : new PipelineStepCandidate(instance.GetType(), null, kind, index);
+        }
+        finally
+        {
+            // Only the type was needed; the scope does not track an instance created by calling the factory directly
+            (instance as IDisposable)?.Dispose();
+        }
     }
 
     private static object Instantiate(IServiceProvider provider, Type pipelineKey, ServiceDescriptor descriptor)
@@ -129,8 +137,7 @@ internal sealed class PipelineOrderValidationHostedService : IHostedService
             throw new InvalidOperationException(
                 $"Pipeline step resolution failed for {PipelineOrderValidator.NameOf(pipelineKey)}: "
                 + $"the factory registered for {PipelineOrderValidator.NameOf(descriptor.ServiceType)} threw {ex.GetType().Name}. "
-                + "This is a registration error, not an order rule.",
-                ex);
+                + "This is a registration error, not an order rule.");
         }
     }
 }

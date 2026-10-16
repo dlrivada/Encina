@@ -180,7 +180,7 @@ public sealed class PipelineOrderValidationHostedServiceTests
         exception.Message.ShouldContain("ArgumentException");
         exception.Message.ShouldNotContain("Pipeline order rule");
         exception.Message.ShouldNotContain("secret detail");
-        exception.InnerException.ShouldBeOfType<ArgumentException>();
+        exception.InnerException.ShouldBeNull("the factory's own message must not reach the host log");
     }
 
     [Fact]

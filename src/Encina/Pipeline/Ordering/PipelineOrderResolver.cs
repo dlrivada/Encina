@@ -140,6 +140,8 @@ internal sealed class PipelineOrderResolver
                 return;
             }
 
+            // The verdict is cached, so no later override may change it
+            _registry.Seal();
             PipelineOrderValidator.ValidateRegistrations(
                 _registry.Conflicts,
                 _snapshot is not null && _rules.HasFlag(PipelineOrderRuleSet.NoDeadRegistrations)
