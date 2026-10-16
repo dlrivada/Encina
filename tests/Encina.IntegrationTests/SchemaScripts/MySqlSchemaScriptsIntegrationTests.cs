@@ -258,7 +258,8 @@ public sealed class MySqlSchemaScriptsIntegrationTests : IAsyncLifetime
         Assert.True(found.IsSome);
         found.IfSome(a => Assert.Equal(activity.Name, a.Name));
         var duplicate = await registry.RegisterActivityAsync(activity with { Id = Guid.NewGuid() });
-        Assert.True(duplicate.IsLeft);
+        var duplicateError = duplicate.LeftToSeq().Single();
+        Assert.Equal(global::Encina.Compliance.GDPR.GDPRErrors.ProcessingActivityDuplicateCode, duplicateError.GetCode().IfNone(string.Empty));
     }
 
     private async Task RunScriptsAsync(string packageName)
