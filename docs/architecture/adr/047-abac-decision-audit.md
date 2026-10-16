@@ -2,7 +2,7 @@
 
 ## Status
 
-**Accepted** - decided by the maintainer on 2026-10-03 (fail-closed default, tenant gate) and 2026-10-09 (design choices D1 to D7 and refinements A1 to A9 of issue #751). Implemented by #751 (phases 1 to 7, documentation in phase 8), with unit, guard, contract, property and integration tests; there is no benchmark or load test of the decision audit yet (to be done in #924). The record layout, options, error codes and health states are described in the [decision audit reference](../../features/abac/reference/decision-audit.md); the phase-by-phase work is in the [implementation plan](../../plans/abac-decision-audit-implementation-plan-751.md).
+**Accepted** - decided by the maintainer on 2026-10-03 (fail-closed default, tenant gate) and 2026-10-09 (design choices D1 to D7 and refinements A1 to A9 of issue #751). Implemented by #751 (phases 1 to 7, documentation in phase 8), with unit, guard, contract, property and integration tests; there is no benchmark or load test of the decision audit yet (to be done in #2339). The record layout, options, error codes and health states are described in the [decision audit reference](../../features/abac/reference/decision-audit.md); the phase-by-phase work is in the [implementation plan](../../plans/abac-decision-audit-implementation-plan-751.md).
 
 ## Context
 
@@ -44,7 +44,7 @@ The decision is deliberately reusable. The saga audit (#750), the sharding and t
 - **A separate audit pipeline behavior:** rejected; it cannot see the `PolicyDecision` and depends on registration order.
 - **A new `IAbacAuditStore`:** rejected; it needs a store, schema, scripts and tests on all 10 providers for columns that only a later `ModuleId` feature would justify.
 - **Fire-and-forget write (the policy-administration precedent):** rejected; it swallows errors, risks a disposed `DbContext`, and lets access proceed without evidence.
-- **A buffered channel with a background writer:** deferred; it is not write-ahead and has a loss window, so it is only conceivable as an option inside `BestEffort`, after a benchmark shows the awaited write is too slow (#924).
+- **A buffered channel with a background writer:** deferred; it is not write-ahead and has a loss window, so it is only conceivable as an option inside `BestEffort`, after a benchmark shows the awaited write is too slow (#2339).
 - **Recording all attribute values:** rejected; relational stores keep metadata in plaintext, and only Marten encrypts.
 - **Convention-based resource ids (`AuditRequestConventions`):** rejected; a guessed id is not evidence.
 - **A pipeline-order startup warning:** dropped in favor of documenting the order and the execution-order contract (#2184, reserved ADR-049).
@@ -52,7 +52,7 @@ The decision is deliberately reusable. The saga audit (#750), the sharding and t
 ## Consequences
 
 - **Positive**: every ABAC decision has a queryable, evidential record before the handler runs; an operation audit store outage denies requests instead of silently losing evidence; deny rows survive a business rollback; no new store or schema; the reader and export give the compliance trail; the pattern is reusable by #750, #752 and REQ-051.
-- **Negative**: one extra scope and insert per protected request when enabled (to be benchmarked in #924; no measurement exists yet); with `FailClosed` an operation audit store outage is an application outage for protected requests; policy ids, rule ids and the trace are not queryable columns; no row means "not evaluated or not recorded", not that access was granted (the `Outcomes` filter, a failed `BestEffort` write and a write abandoned at `WriteTimeout` also leave no row, although an abandoned write can still commit late).
+- **Negative**: one extra scope and insert per protected request when enabled (to be benchmarked in #2339; no measurement exists yet); with `FailClosed` an operation audit store outage is an application outage for protected requests; policy ids, rule ids and the trace are not queryable columns; no row means "not evaluated or not recorded", not that access was granted (the `Outcomes` filter, a failed `BestEffort` write and a write abandoned at `WriteTimeout` also leave no row, although an abandoned write can still commit late).
 - **Neutral**: decisions of callers that use `IPolicyDecisionPoint` directly are not audited; auditing the reads of the audit trail is deferred to #1639; store-level tenant filtering stays in #798; the record is the ABAC decision, not the final outcome of the request, so a later behavior can still deny.
 
 ## Related
@@ -63,7 +63,7 @@ The decision is deliberately reusable. The saga audit (#750), the sharding and t
 - [ADR-018](018-cross-cutting-integration-principle.md) (audit trail as cross-cutting function 12)
 - [ADR-001](001-railway-oriented-programming.md) and [ADR-006](006-pure-rop-exception-handling.md) (`Either` contracts)
 - [SPEC-002](../../specifications/SPEC-002-eu-regulatory-readiness.md) (DEC-006 fail closed, REQ-007, REQ-051, REQ-061)
-- Issues: #751 (this decision), #750 (saga audit), #752 (sharding and tenancy audit), #1193 (evidential read audit), #1639 (audit reads of the decision-audit trail), #798 (tenant filtering), #924 (benchmarks), #1633 (operation store registration), #1634 (requirement evaluation), #1676, #1705 (request identity), #1984 (error-code family), #2184 (pipeline execution order)
+- Issues: #751 (this decision), #750 (saga audit), #752 (sharding and tenancy audit), #1193 (evidential read audit), #1639 (audit reads of the decision-audit trail), #798 (tenant filtering), #924 (generic ABAC benchmarks), #2339 (decision-audit load test and benchmark), #1633 (operation store registration), #1634 (requirement evaluation), #1676, #1705 (request identity), #1984 (error-code family), #2184 (pipeline execution order)
 
 ## Date
 
