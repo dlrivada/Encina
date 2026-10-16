@@ -63,9 +63,10 @@ public sealed class OperationAuditEntryReadModel
     public string? ErrorMessage { get; set; }
 
     /// <summary>
-    /// UTC timestamp when the operation was executed.
+    /// UTC timestamp when the operation was executed. Stored as a <see cref="DateTimeOffset"/> so
+    /// Marten maps the column to <c>timestamptz</c> and range filters accept UTC values.
     /// </summary>
-    public DateTime TimestampUtc { get; set; }
+    public DateTimeOffset TimestampUtc { get; set; }
 
     /// <summary>
     /// UTC timestamp when the operation started execution.
