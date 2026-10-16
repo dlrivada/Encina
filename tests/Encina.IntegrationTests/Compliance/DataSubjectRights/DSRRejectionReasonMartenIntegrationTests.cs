@@ -125,6 +125,7 @@ public sealed class DSRRejectionReasonMartenIntegrationTests : IAsyncLifetime
             Substitute.For<ICacheProvider>(),
             Options.Create(new DataSubjectRightsOptions()),
             TimeProvider.System,
+            new RequestContextAccessor(),
             NullLogger<DefaultDSRService>.Instance);
 
         var gated = await service.DenyRequestAsync(id, DSRRejectionReason.AbusiveIntent, "Not enabled");

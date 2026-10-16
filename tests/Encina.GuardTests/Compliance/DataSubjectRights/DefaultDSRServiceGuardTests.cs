@@ -39,7 +39,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             null!, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            _options, TimeProvider.System, new RequestContextAccessor(), NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("repository");
@@ -51,7 +51,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, null!, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            _options, TimeProvider.System, new RequestContextAccessor(), NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("readModelRepository");
@@ -63,7 +63,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, null!, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            _options, TimeProvider.System, new RequestContextAccessor(), NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("locator");
@@ -75,7 +75,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, null!,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            _options, TimeProvider.System, new RequestContextAccessor(), NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("erasureExecutor");
@@ -87,7 +87,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             null!, _processingActivityRegistry, _cache,
-            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            _options, TimeProvider.System, new RequestContextAccessor(), NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("portabilityExporter");
@@ -99,7 +99,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, null!, _cache,
-            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            _options, TimeProvider.System, new RequestContextAccessor(), NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("processingActivityRegistry");
@@ -111,7 +111,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, null!,
-            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            _options, TimeProvider.System, new RequestContextAccessor(), NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("cache");
@@ -123,7 +123,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            null!, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            null!, TimeProvider.System, new RequestContextAccessor(), NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("options");
@@ -135,10 +135,22 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _options, null!, NullLogger<DefaultDSRService>.Instance);
+            _options, null!, new RequestContextAccessor(), NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("timeProvider");
+    }
+
+    [Fact]
+    public void Constructor_NullRequestContextAccessor_ThrowsArgumentNullException()
+    {
+        var act = () => new DefaultDSRService(
+            _repository, _readModelRepository, _locator, _erasureExecutor,
+            _portabilityExporter, _processingActivityRegistry, _cache,
+            _options, TimeProvider.System, null!, NullLogger<DefaultDSRService>.Instance);
+
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("requestContextAccessor");
     }
 
     [Fact]
@@ -147,7 +159,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _options, TimeProvider.System, null!);
+            _options, TimeProvider.System, new RequestContextAccessor(), null!);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("logger");
@@ -159,7 +171,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance, encina: null);
+            _options, TimeProvider.System, new RequestContextAccessor(), NullLogger<DefaultDSRService>.Instance, encina: null);
 
         Should.NotThrow(act);
     }

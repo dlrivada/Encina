@@ -25,13 +25,14 @@ This guide explains how to manage GDPR Data Subject Rights (Articles 15-22) decl
 13. [Domain Notifications](#domain-notifications)
 14. [Configuration Options](#configuration-options)
 15. [Enforcement Modes](#enforcement-modes)
-16. [Database Providers](#database-providers)
-17. [Observability](#observability)
-18. [Health Check](#health-check)
-19. [Error Handling](#error-handling)
-20. [Best Practices](#best-practices)
-21. [Testing](#testing)
-22. [FAQ](#faq)
+16. [Multi-tenancy](#multi-tenancy)
+17. [Database Providers](#database-providers)
+18. [Observability](#observability)
+19. [Health Check](#health-check)
+20. [Error Handling](#error-handling)
+21. [Best Practices](#best-practices)
+22. [Testing](#testing)
+23. [FAQ](#faq)
 
 ---
 
@@ -609,6 +610,38 @@ services.AddEncinaDataSubjectRights(options =>
 
 ---
 
+## Multi-tenancy
+
+`DefaultDSRService` reads the ambient tenant from `IRequestContextAccessor.RequestContext.TenantId` and scopes every operation to it (#1963; see [SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) DEC-006 and DEC-009 for the fail-closed rule).
+
+| Operation | Tenant behavior |
+|-----------|-----------------|
+| `GetRequestsBySubjectAsync`, `GetPendingRequestsAsync`, `GetOverdueRequestsAsync`, `HasActiveRestrictionAsync` | Filter `DSRRequestReadModel.TenantId` by the ambient tenant |
+| `GetRequestAsync`, `VerifyIdentityAsync`, `StartProcessingAsync`, `CompleteRequestAsync`, `DenyRequestAsync`, `ExtendDeadlineAsync`, `ExpireRequestAsync` | Another tenant's request is `dsr.request_not_found` and is never changed |
+| `SubmitRequestAsync` | Uses the ambient tenant when `tenantId` is `null`; a `tenantId` that contradicts it is refused with `dsr.tenant_required` |
+| `HandleRestrictionAsync` | Records the restriction under the ambient tenant |
+
+Cache keys are tenant-scoped: `dsr:tenant:{tenantId|-}:request:{id}` and `dsr:tenant:{tenantId|-}:restriction:{subjectId}` (`-` when there is no tenant).
+
+`DataSubjectRightsOptions.RequireTenantContext` controls a missing ambient tenant:
+
+| Value | Behavior |
+|-------|----------|
+| `null` (default) | Auto-detect: fail closed with `dsr.tenant_required` when `Encina.Tenancy` is registered (`ITenantProvider` resolves), otherwise run unscoped. Single-tenant applications need no configuration. |
+| `true` | Always fail closed with `dsr.tenant_required` |
+| `false` | Explicit opt-out, logged each time the DSR service is constructed (once per scope) when `Encina.Tenancy` is registered |
+
+```csharp
+services.AddEncinaDataSubjectRights(options =>
+{
+    options.RequireTenantContext = true; // fail closed even without Encina.Tenancy
+});
+```
+
+In `Block` mode, `ProcessingRestrictionPipelineBehavior` blocks a request whose restriction lookup returns `dsr.tenant_required` (it fails closed instead of the usual fail-open on store errors); in `Warn` mode the request proceeds. `DataSubjectRightsHealthCheck` reports `Degraded` (warning "Overdue DSR requests were not checked: the health probe has no tenant context.", data key `overdueRequestCheck` = `skipped: no tenant context`) when the probe has no tenant in a multi-tenant application, because the tenant-scoped overdue query is refused and the Article 12(3) deadline signal is unknown (fail closed for monitoring); single-tenant applications are unaffected. A deadline sweep across tenants needs a per-tenant probe or a system-scope path, which does not exist yet and is tracked as follow-up work.
+
+---
+
 ## Database Providers
 
 The in-memory stores (`InMemoryDSRRequestStore`, `InMemoryDSRAuditStore`) are suitable for development and testing. For production, use a database-backed provider:
@@ -723,7 +756,8 @@ result.Match(
 
 | Code | Description |
 |------|-------------|
-| `dsr.request_not_found` | DSR request ID does not exist |
+| `dsr.request_not_found` | DSR request ID does not exist (or belongs to another tenant) |
+| `dsr.tenant_required` | Tenant isolation is required and the ambient tenant is missing, or a submitted `tenantId` contradicts it |
 | `dsr.request_already_completed` | Request is in a terminal state |
 | `dsr.identity_not_verified` | Identity verification required (Article 12(6)) |
 | `dsr.restriction_active` | Processing restriction blocks the request (Article 18) |

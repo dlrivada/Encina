@@ -83,6 +83,25 @@ internal static partial class DSRLogMessages
     internal static partial void DSRRejectionReasonNotEnabled(this ILogger logger, string rejectionReason);
 
     // ========================================================================
+    // Tenant isolation (8313-8314)
+    // Event IDs: 8313-8314 (see EventIdRanges.ComplianceDSR)
+    // ========================================================================
+
+    /// <summary>A DSR operation was refused because the tenant context is missing or contradicted.</summary>
+    [LoggerMessage(
+        EventId = 8313,
+        Level = LogLevel.Warning,
+        Message = "DSR operation rejected: the ambient request context carries no tenant or contradicts the requested tenant. Operation={Operation}")]
+    internal static partial void DSRTenantContextMissing(this ILogger logger, string operation);
+
+    /// <summary>A multi-tenant application explicitly opted out of DSR tenant-context enforcement.</summary>
+    [LoggerMessage(
+        EventId = 8314,
+        Level = LogLevel.Warning,
+        Message = "DSR tenant context enforcement explicitly disabled (RequireTenantContext=false) while Encina.Tenancy is registered. A missing ambient tenant will run an unscoped DSR operation instead of failing closed.")]
+    internal static partial void DSRTenantEnforcementOptedOut(this ILogger logger);
+
+    // ========================================================================
     // Service lifecycle (8320-8329)
     // ========================================================================
 

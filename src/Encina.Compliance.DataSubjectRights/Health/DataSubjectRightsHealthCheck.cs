@@ -83,6 +83,64 @@ public sealed class DataSubjectRightsHealthCheck : IHealthCheck
         }
     }
 
+    private static async Task<int> CheckOverdueRequestsAsync(
+        IDSRService dsrService,
+        Dictionary<string, object> data,
+        List<string> warnings,
+        CancellationToken cancellationToken)
+    {
+        var overdueResult = await dsrService.GetOverdueRequestsAsync(cancellationToken).ConfigureAwait(false);
+
+        return overdueResult.Match(
+            Right: overdueRequests =>
+            {
+                var count = overdueRequests.Count;
+                data["overdueRequestCount"] = count;
+
+                if (count > 0)
+                {
+                    warnings.Add(
+                        $"{count} overdue DSR request(s) found. "
+                        + "Per GDPR Article 12(3), responses must be provided within one month.");
+                }
+
+                return count;
+            },
+            Left: error =>
+            {
+                var code = error.GetCode().IfNone("encina.unknown");
+
+                // The health probe runs outside any tenant's request, so in a multi-tenant
+                // application the tenant-scoped overdue query is refused by design (#1963). The
+                // Article 12(3) deadline signal is then unknown, so the check reports Degraded
+                // (fails closed for monitoring) instead of Healthy.
+                if (code == DSRErrors.TenantRequiredCode)
+                {
+                    data["overdueRequestCheck"] = "skipped: no tenant context";
+                    warnings.Add("Overdue DSR requests were not checked: the health probe has no tenant context.");
+                    return 0;
+                }
+
+                warnings.Add($"Failed to check for overdue requests: {code}");
+                return 0;
+            });
+    }
+
+    private static void AddMissingOptionalServiceWarnings(IServiceProvider scopedProvider, List<string> warnings)
+    {
+        if (scopedProvider.GetService<IPersonalDataLocator>() is null)
+        {
+            warnings.Add("IPersonalDataLocator is not registered. "
+                          + "Personal data discovery will not be available for access and portability requests.");
+        }
+
+        if (scopedProvider.GetService<IDataErasureExecutor>() is null)
+        {
+            warnings.Add("IDataErasureExecutor is not registered. "
+                          + "Right-to-erasure (Article 17) operations will not be available.");
+        }
+    }
+
     private async Task<HealthCheckResult> RunChecksAsync(CancellationToken cancellationToken)
     {
         var data = new Dictionary<string, object>();
@@ -113,40 +171,11 @@ public sealed class DataSubjectRightsHealthCheck : IHealthCheck
         data["dsrServiceType"] = dsrService.GetType().Name;
 
         // 3. Check for overdue requests
-        var overdueCount = 0;
-        var overdueResult = await dsrService.GetOverdueRequestsAsync(cancellationToken).ConfigureAwait(false);
+        var overdueCount = await CheckOverdueRequestsAsync(dsrService, data, warnings, cancellationToken)
+            .ConfigureAwait(false);
 
-        overdueResult.Match(
-            Right: overdueRequests =>
-            {
-                overdueCount = overdueRequests.Count;
-                data["overdueRequestCount"] = overdueCount;
-
-                if (overdueCount > 0)
-                {
-                    warnings.Add(
-                        $"{overdueCount} overdue DSR request(s) found. "
-                        + "Per GDPR Article 12(3), responses must be provided within one month.");
-                }
-            },
-            Left: error =>
-            {
-                warnings.Add($"Failed to check for overdue requests: {error.GetCode().IfNone("encina.unknown")}");
-            });
-
-        // 4. Verify personal data locator is resolvable (optional, degraded if missing)
-        if (scopedProvider.GetService<IPersonalDataLocator>() is null)
-        {
-            warnings.Add("IPersonalDataLocator is not registered. "
-                          + "Personal data discovery will not be available for access and portability requests.");
-        }
-
-        // 5. Verify data erasure executor is resolvable (optional, degraded if missing)
-        if (scopedProvider.GetService<IDataErasureExecutor>() is null)
-        {
-            warnings.Add("IDataErasureExecutor is not registered. "
-                          + "Right-to-erasure (Article 17) operations will not be available.");
-        }
+        // 4-5. Verify the optional services are resolvable (degraded if missing)
+        AddMissingOptionalServiceWarnings(scopedProvider, warnings);
 
         _logger.DSRHealthCheckCompleted(
             warnings.Count == 0 ? "Healthy" : "Degraded",

@@ -92,6 +92,11 @@ public static class ServiceCollectionExtensions
         // Ensure TimeProvider is available (generic host registers it, but standalone DI may not)
         services.TryAddSingleton(TimeProvider.System);
 
+        // Ensure the request context accessor is available (AddEncina() registers it, but
+        // Encina.Compliance.DataSubjectRights can also be added standalone) — DefaultDSRService
+        // needs it to scope queries by the ambient tenant (#1963).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
         // Register default implementations (TryAdd allows override)
         services.TryAddScoped<IDSRService, DefaultDSRService>();
         services.TryAddScoped<IDataErasureExecutor, DefaultDataErasureExecutor>();

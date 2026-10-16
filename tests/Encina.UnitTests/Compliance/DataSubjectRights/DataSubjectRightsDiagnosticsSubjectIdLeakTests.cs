@@ -212,6 +212,7 @@ public sealed class DataSubjectRightsDiagnosticsSubjectIdLeakTests
             Substitute.For<ICacheProvider>(),
             Microsoft.Extensions.Options.Options.Create(new DataSubjectRightsOptions()),
             new FakeTimeProvider(),
+            new RequestContextAccessor(),
             logger);
         return (service, logger);
     }
