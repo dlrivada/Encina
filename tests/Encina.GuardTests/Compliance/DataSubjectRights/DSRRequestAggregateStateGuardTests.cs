@@ -117,7 +117,7 @@ public class DSRRequestAggregateStateGuardTests
     public void Deny_FromCompletedStatus_ThrowsInvalidOperationException()
     {
         var agg = CreateCompleted();
-        var act = () => agg.Deny(DSRRejectionReason.Other, "reason",Now.AddHours(4));
+        var act = () => agg.Deny(DSRRejectionReason.Other, "reason", Now.AddHours(4));
         Should.Throw<InvalidOperationException>(act);
     }
 
