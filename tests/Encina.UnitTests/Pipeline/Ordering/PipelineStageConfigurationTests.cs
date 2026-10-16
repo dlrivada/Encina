@@ -170,7 +170,7 @@ public sealed class PipelineStageConfigurationTests
     }
 
     [Fact]
-    public void AddEncina_ApplicationRegisteredHostedService_IsNotTouchedAndTheValidationOneIsAbsent()
+    public void AddEncina_DoesNotRegisterThePipelineOrderValidationHostedServiceYet()
     {
         var services = new ServiceCollection();
 
@@ -244,24 +244,61 @@ public sealed class PipelineStageConfigurationTests
     {
         var calls = new List<string>();
         var services = new ServiceCollection();
+        services.AddSingleton(calls);
         services.AddEncina(configuration => configuration
-            .AddPipelineBehavior<AuditBehavior>()
-            .AddPipelineBehavior<OverriddenBehavior>(PipelineStage.Observability));
+            .AddPipelineBehavior<RecordedAudit>()
+            .AddPipelineBehavior<RecordedOverridden>(PipelineStage.Observability));
         services.AddScoped<IRequestHandler<Req, string>>(_ => new RecordingHandler(calls));
-        services.AddScoped<IPipelineBehavior<Req, string>>(_ => new CallRecorder("audit", calls));
         await using var provider = services.BuildServiceProvider(StrictOptions);
         await using var scope = provider.CreateAsyncScope();
 
         var steps = scope.ServiceProvider.GetRequiredService<IEncinaPipelineInspector>().Describe<Req, string>();
+        var result = await scope.ServiceProvider.GetRequiredService<IEncina>().Send(new Req(), CancellationToken.None);
 
-        // Attribute says Audit, the registration says Observability (further out): the registration wins and the resolver sees it
-        var overridden = steps.Single(step => step.StepType == typeof(OverriddenBehavior));
+        // Both declare Audit by attribute; the registration moves one to Observability, which is further out
+        var overridden = steps.Single(step => step.StepType == typeof(RecordedOverridden));
         overridden.Stage.ShouldBe(PipelineStage.Observability);
         overridden.Source.ShouldBe(PipelineStepSource.Registration);
-        steps.ToList().FindIndex(step => step.StepType == typeof(OverriddenBehavior))
-            .ShouldBeLessThan(steps.ToList().FindIndex(step => step.StepType == typeof(AuditBehavior)));
-        var result = await scope.ServiceProvider.GetRequiredService<IEncina>().Send(new Req(), CancellationToken.None);
+        steps.Single(step => step.StepType == typeof(RecordedAudit)).Source.ShouldBe(PipelineStepSource.Attribute);
         result.IsRight.ShouldBeTrue();
+        calls.ShouldBe(["overridden", "audit", "handler"]);
+    }
+
+    [Fact]
+    public void ProcessorStageOverloads_DefaultToTheOrderOfTheKind_SoPostCommitStaysOutsideTransactionBehaviors()
+    {
+        var configuration = new EncinaConfiguration()
+            .AddRequestPreProcessor<PreProcessor>(PipelineStage.InputPreparation)
+            .AddRequestPostProcessor(typeof(PostProcessor), PipelineStage.Audit)
+            .AddRequestErrorProcessor<ErrorProcessor>(PipelineStage.Observability)
+            .AddRequestPostCommitProcessor<PostCommitProcessor>(PipelineStage.Transaction)
+            .AddPipelineBehavior<AuthBehavior>(PipelineStage.Transaction);
+
+        configuration.StageDeclarations.Select(declaration => declaration.Order).ShouldBe([-100, -100, -100, -100, 0]);
+
+        var services = new ServiceCollection();
+        services.AddEncina(c => c
+            .AddRequestPostCommitProcessor<PostCommitProcessor>(PipelineStage.Transaction)
+            .AddPipelineBehavior<AuthBehavior>(PipelineStage.Transaction));
+        using var provider = services.BuildServiceProvider(StrictOptions);
+        using var scope = provider.CreateScope();
+
+        // R7: the post-commit processor sits below (outside) every transaction behavior, so the pipeline is valid
+        var steps = scope.ServiceProvider.GetRequiredService<IEncinaPipelineInspector>().Describe<Req, string>()
+            .Where(step => step.StepType.DeclaringType == typeof(PipelineStageConfigurationTests)).ToArray();
+        steps.Select(step => step.StepType).ShouldBe([typeof(PostCommitProcessor), typeof(AuthBehavior)]);
+    }
+
+    [Fact]
+    public void Inspector_StepThatImplementsOnlyIAsyncDisposable_IsDisposedWithoutThrowing()
+    {
+        var services = new ServiceCollection();
+        services.AddEncina(configuration => configuration.AddPipelineBehavior<AsyncOnlyBehavior>(PipelineStage.Audit));
+        using var provider = services.BuildServiceProvider(StrictOptions);
+
+        var steps = provider.GetRequiredService<IEncinaPipelineInspector>().Describe<Req, string>();
+
+        steps.ShouldContain(step => step.StepType == typeof(AsyncOnlyBehavior));
     }
 
     [Fact]
@@ -337,7 +374,7 @@ public sealed class PipelineStageConfigurationTests
         }
     }
 
-    private sealed class CallRecorder(string name, List<string> calls) : IPipelineBehavior<Req, string>
+    private abstract class Recorded(string name, List<string> calls) : IPipelineBehavior<Req, string>
     {
         public ValueTask<Either<EncinaError, string>> Handle(
             Req request, IRequestContext context, RequestHandlerCallback<string> nextStep, CancellationToken cancellationToken)
@@ -345,6 +382,17 @@ public sealed class PipelineStageConfigurationTests
             calls.Add(name);
             return nextStep();
         }
+    }
+
+    [PipelineStage(PipelineStage.Audit)]
+    private sealed class RecordedAudit(List<string> calls) : Recorded("audit", calls);
+
+    [PipelineStage(PipelineStage.Audit)]
+    private sealed class RecordedOverridden(List<string> calls) : Recorded("overridden", calls);
+
+    private sealed class AsyncOnlyBehavior : PassThrough, IAsyncDisposable
+    {
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private abstract class PassThrough : IPipelineBehavior<Req, string>

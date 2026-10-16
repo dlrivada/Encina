@@ -65,7 +65,7 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<PipelineStageRegistry>(),
             provider.GetService<ILogger<PipelineOrderResolver>>() ?? NullLogger<PipelineOrderResolver>.Instance,
             provider.GetRequiredService<PipelineRegistrationSnapshot>()));
-        services.TryAddScoped<IEncinaPipelineInspector, EncinaPipelineInspector>();
+        services.TryAddSingleton<IEncinaPipelineInspector, EncinaPipelineInspector>();
         services.TryAddSingleton<IFunctionalFailureDetector>(NullFunctionalFailureDetector.Instance);
 
         // Register null module handler registry for when modules are not used

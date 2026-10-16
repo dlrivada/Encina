@@ -8,7 +8,7 @@ namespace Encina;
 /// implementation. A pipeline that breaks an order rule throws <see cref="InvalidOperationException"/>, as it does on its
 /// first request. Describing a pipeline instantiates its steps in a scope, validates the order and caches it, so the
 /// first call closes the stage overrides: a later <c>AddEncina</c> call that declares a stage on the same service
-/// collection fails. Steps that implement only <c>IAsyncDisposable</c> are not supported by these synchronous methods.
+/// collection fails.
 /// </remarks>
 /// <example>
 /// <code>

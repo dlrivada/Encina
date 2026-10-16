@@ -10,11 +10,15 @@ namespace Encina;
 /// <remarks>
 /// Used by <see cref="ServiceCollectionExtensions.AddEncina(IServiceCollection, Action{EncinaConfiguration}, System.Reflection.Assembly[])"/>
 /// to fine-tune automatic registrations.
+/// The stage-aware overloads take an optional <c>order</c> inside the stage. It defaults to the order the kind uses when
+/// it declares no position: 0 for behaviors and stream behaviors, -100 for pre-, post-, error- and post-commit
+/// processors, so naming only the stage of a processor keeps it outside the behaviors of that stage.
 /// </remarks>
-[System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters",
-    Justification = "Pre-1.0: every stage-aware overload takes a required PipelineStage before the optional order, so it can never be confused with the stage-less overload and calls are never ambiguous.")]
 public sealed class EncinaConfiguration
 {
+    // Every stage-aware overload takes a required PipelineStage before the optional order, so no call can bind to two overloads
+    private const string StageOverloadReason = "The stage-aware overloads take a required PipelineStage before the optional order, so a call never binds to two overloads.";
+
     private readonly HashSet<Assembly> _assemblies = [];
     private readonly List<Type> _pipelineBehaviorTypes = [];
     private readonly List<Type> _requestPreProcessorTypes = [];
@@ -138,6 +142,7 @@ public sealed class EncinaConfiguration
     /// services.AddEncina(config => config.AddPipelineBehavior&lt;TenantScopeBehavior&gt;(PipelineStage.Authorization, order: 10));
     /// </code>
     /// </example>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = StageOverloadReason)]
     public EncinaConfiguration AddPipelineBehavior<TBehavior>(PipelineStage stage, int order = 0)
         where TBehavior : class
         => AddPipelineBehavior(typeof(TBehavior), stage, order);
@@ -161,6 +166,7 @@ public sealed class EncinaConfiguration
     /// services.AddEncina(config => config.AddPipelineBehavior(typeof(TenantScopeBehavior&lt;,&gt;), PipelineStage.Authorization, 10));
     /// </code>
     /// </example>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = StageOverloadReason)]
     public EncinaConfiguration AddPipelineBehavior(Type pipelineBehaviorType, PipelineStage stage, int order = 0)
         => AddStaged(_pipelineBehaviorTypes, pipelineBehaviorType, typeof(IPipelineBehavior<,>), nameof(pipelineBehaviorType), stage, order);
 
@@ -183,7 +189,8 @@ public sealed class EncinaConfiguration
     /// services.AddEncina(config => config.AddRequestPreProcessor&lt;NormalizeInput&gt;(PipelineStage.InputPreparation));
     /// </code>
     /// </example>
-    public EncinaConfiguration AddRequestPreProcessor<TProcessor>(PipelineStage stage, int order = 0)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = StageOverloadReason)]
+    public EncinaConfiguration AddRequestPreProcessor<TProcessor>(PipelineStage stage, int order = -100)
         where TProcessor : class
         => AddRequestPreProcessor(typeof(TProcessor), stage, order);
 
@@ -205,7 +212,8 @@ public sealed class EncinaConfiguration
     /// services.AddEncina(config => config.AddRequestPreProcessor(typeof(NormalizeInput), PipelineStage.InputPreparation));
     /// </code>
     /// </example>
-    public EncinaConfiguration AddRequestPreProcessor(Type processorType, PipelineStage stage, int order = 0)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = StageOverloadReason)]
+    public EncinaConfiguration AddRequestPreProcessor(Type processorType, PipelineStage stage, int order = -100)
         => AddStaged(_requestPreProcessorTypes, processorType, typeof(IRequestPreProcessor<>), nameof(processorType), stage, order);
 
     /// <summary>
@@ -227,7 +235,8 @@ public sealed class EncinaConfiguration
     /// services.AddEncina(config => config.AddRequestPostProcessor&lt;AuditResult&gt;(PipelineStage.Audit, order: 50));
     /// </code>
     /// </example>
-    public EncinaConfiguration AddRequestPostProcessor<TProcessor>(PipelineStage stage, int order = 0)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = StageOverloadReason)]
+    public EncinaConfiguration AddRequestPostProcessor<TProcessor>(PipelineStage stage, int order = -100)
         where TProcessor : class
         => AddRequestPostProcessor(typeof(TProcessor), stage, order);
 
@@ -249,7 +258,8 @@ public sealed class EncinaConfiguration
     /// services.AddEncina(config => config.AddRequestPostProcessor(typeof(AuditResult), PipelineStage.Audit, 50));
     /// </code>
     /// </example>
-    public EncinaConfiguration AddRequestPostProcessor(Type processorType, PipelineStage stage, int order = 0)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = StageOverloadReason)]
+    public EncinaConfiguration AddRequestPostProcessor(Type processorType, PipelineStage stage, int order = -100)
         => AddStaged(_requestPostProcessorTypes, processorType, typeof(IRequestPostProcessor<,>), nameof(processorType), stage, order);
 
     /// <summary>
@@ -271,7 +281,8 @@ public sealed class EncinaConfiguration
     /// services.AddEncina(config => config.AddRequestErrorProcessor&lt;ReportFailure&gt;(PipelineStage.Observability));
     /// </code>
     /// </example>
-    public EncinaConfiguration AddRequestErrorProcessor<TProcessor>(PipelineStage stage, int order = 0)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = StageOverloadReason)]
+    public EncinaConfiguration AddRequestErrorProcessor<TProcessor>(PipelineStage stage, int order = -100)
         where TProcessor : class
         => AddRequestErrorProcessor(typeof(TProcessor), stage, order);
 
@@ -295,7 +306,8 @@ public sealed class EncinaConfiguration
     /// services.AddEncina(config => config.AddRequestErrorProcessor(typeof(ReportFailure), PipelineStage.Observability));
     /// </code>
     /// </example>
-    public EncinaConfiguration AddRequestErrorProcessor(Type processorType, PipelineStage stage, int order = 0)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = StageOverloadReason)]
+    public EncinaConfiguration AddRequestErrorProcessor(Type processorType, PipelineStage stage, int order = -100)
         => AddStaged(_requestErrorProcessorTypes, processorType, typeof(IRequestErrorProcessor<,>), nameof(processorType), stage, order);
 
     /// <summary>
@@ -317,7 +329,8 @@ public sealed class EncinaConfiguration
     /// services.AddEncina(config => config.AddRequestPostCommitProcessor&lt;PublishAfterCommit&gt;(PipelineStage.Transaction, order: -200));
     /// </code>
     /// </example>
-    public EncinaConfiguration AddRequestPostCommitProcessor<TProcessor>(PipelineStage stage, int order = 0)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = StageOverloadReason)]
+    public EncinaConfiguration AddRequestPostCommitProcessor<TProcessor>(PipelineStage stage, int order = -100)
         where TProcessor : class
         => AddRequestPostCommitProcessor(typeof(TProcessor), stage, order);
 
@@ -341,7 +354,8 @@ public sealed class EncinaConfiguration
     /// services.AddEncina(config => config.AddRequestPostCommitProcessor(typeof(PublishAfterCommit), PipelineStage.Transaction, -200));
     /// </code>
     /// </example>
-    public EncinaConfiguration AddRequestPostCommitProcessor(Type processorType, PipelineStage stage, int order = 0)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = StageOverloadReason)]
+    public EncinaConfiguration AddRequestPostCommitProcessor(Type processorType, PipelineStage stage, int order = -100)
         => AddStaged(_requestPostCommitProcessorTypes, processorType, typeof(IRequestPostCommitProcessor<,>), nameof(processorType), stage, order);
 
     /// <summary>
@@ -363,6 +377,7 @@ public sealed class EncinaConfiguration
     /// services.AddEncina(config => config.AddStreamPipelineBehavior&lt;StreamTimingBehavior&gt;(PipelineStage.Observability));
     /// </code>
     /// </example>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = StageOverloadReason)]
     public EncinaConfiguration AddStreamPipelineBehavior<TBehavior>(PipelineStage stage, int order = 0)
         where TBehavior : class
         => AddStreamPipelineBehavior(typeof(TBehavior), stage, order);
@@ -387,6 +402,7 @@ public sealed class EncinaConfiguration
     /// services.AddEncina(config => config.AddStreamPipelineBehavior(typeof(StreamTimingBehavior&lt;,&gt;), PipelineStage.Observability));
     /// </code>
     /// </example>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = StageOverloadReason)]
     public EncinaConfiguration AddStreamPipelineBehavior(Type streamBehaviorType, PipelineStage stage, int order = 0)
         => AddStaged(_streamPipelineBehaviorTypes, streamBehaviorType, typeof(IStreamPipelineBehavior<,>), nameof(streamBehaviorType), stage, order);
 
