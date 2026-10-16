@@ -167,35 +167,35 @@ public sealed class DefaultOperationAuditEntryFactory : IOperationAuditEntryFact
     private string ComputePayloadHash(object request, string[]? additionalSensitiveFields)
     {
         // Apply PII masking before hashing; a masking failure fails the entry, it is never swallowed.
-        var maskedRequest = Mask(request, additionalSensitiveFields);
-
-        var json = JsonSerializer.Serialize(maskedRequest, maskedRequest.GetType(), JsonOptions);
+        var json = MaskToJson(request, additionalSensitiveFields);
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(json));
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
     private string? SerializeAndRedactPayload(object payload, string[]? additionalSensitiveFields)
     {
-        // A masker other than the default redactor masks the object before it is serialized, so a custom
-        // masker is never bypassed on the payload path.
-        var source = _redactor is null ? Mask(payload, additionalSensitiveFields) : payload;
-        var json = JsonSerializer.Serialize(source, source.GetType(), JsonOptions);
+        var json = MaskToJson(payload, additionalSensitiveFields);
 
-        if (Encoding.UTF8.GetByteCount(json) > _options.MaxPayloadSizeBytes)
-        {
-            return null;
-        }
-
-        return _redactor is null ? json : _redactor.RedactJsonString(json, additionalSensitiveFields);
+        return Encoding.UTF8.GetByteCount(json) > _options.MaxPayloadSizeBytes ? null : json;
     }
 
-    private object Mask(object payload, string[]? additionalSensitiveFields)
+    /// <summary>
+    /// Returns the masked JSON of a payload. The default redactor masks the JSON form directly, so a sensitive
+    /// property of any type (a decimal, a Guid, an enum) never has to round-trip through a typed object; any other
+    /// masker masks the object before it is serialized, so a custom masker is never bypassed.
+    /// </summary>
+    private string MaskToJson(object payload, string[]? additionalSensitiveFields)
     {
         try
         {
-            return _redactor is not null && additionalSensitiveFields?.Length > 0
-                ? _redactor.MaskForAudit(payload, additionalSensitiveFields)
-                : _piiMasker.MaskForAudit(payload);
+            if (_redactor is not null)
+            {
+                var raw = JsonSerializer.Serialize(payload, payload.GetType(), JsonOptions);
+                return _redactor.RedactJsonString(raw, additionalSensitiveFields);
+            }
+
+            var masked = _piiMasker.MaskForAudit(payload);
+            return JsonSerializer.Serialize(masked, masked.GetType(), JsonOptions);
         }
         catch (Exception ex)
         {

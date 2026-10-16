@@ -1,6 +1,7 @@
 #pragma warning disable CA2012 // ValueTask instances used in NSubstitute mock setup
 
 using Encina.Security.Audit;
+using Encina.Security.PII;
 using Encina.UnitTests.Support;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
@@ -189,6 +190,58 @@ public sealed class AuditMaskingFailClosedTests
     }
 
     [Fact]
+    public async Task StartingAsync_OptOutOnlyThroughConfigurationBinding_ThrowsBecauseNoMaskerCanBeBuilt()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaAudit();
+        services.Configure<OperationAuditOptions>(o => o.AllowUnmaskedPayloads = true);
+        await using var provider = services.BuildServiceProvider();
+
+        var act = () => StartValidator(provider);
+
+        (await Should.ThrowAsync<InvalidOperationException>(act)).Message.ShouldContain("configure action");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task StartingAsync_AddEncinaPii_SatisfiesTheRequirementInEitherOrder(bool piiFirst)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        if (piiFirst)
+        {
+            services.AddEncinaPII();
+            services.AddEncinaAudit();
+        }
+        else
+        {
+            services.AddEncinaAudit();
+            services.AddEncinaPII();
+        }
+
+        await using var provider = services.BuildServiceProvider();
+
+        await StartValidator(provider);
+        provider.GetRequiredService<IPiiMasker>().GetType().Name.ShouldBe("PIIMasker");
+    }
+
+    [Fact]
+    public void Create_SensitiveNamedNonStringProperty_HashesAndStoresTheMaskedJsonWithoutFailing()
+    {
+        var options = Options.Create(new OperationAuditOptions { IncludeRequestPayload = true });
+        var factory = new DefaultOperationAuditEntryFactory(new DefaultSensitiveDataRedactor(options), options);
+
+        var entry = factory.Create(new ShipmentCommand(12.5m, Guid.NewGuid()), Context, AuditOutcome.Success, null);
+
+        entry.RequestPayloadHash.ShouldNotBeNullOrEmpty();
+        entry.RequestPayload.ShouldNotBeNull();
+        entry.RequestPayload.ShouldContain("[REDACTED]");
+        entry.RequestPayload.ShouldNotContain("12.5");
+    }
+
+    [Fact]
     public async Task StartingAsync_RealMasker_StartsWithoutAWarning()
     {
         var logger = new FakeLogger<OperationAuditMaskingStartupValidator>();
@@ -293,6 +346,9 @@ public sealed class AuditMaskingFailClosedTests
         new(LanguageExt.Prelude.Right<EncinaError, Unit>(Unit.Default));
 
     public sealed record PatientCommand(string Name) : ICommand<Unit>;
+
+    // "ShippingCost" contains the sensitive pattern "pin", "ApiKeyId" contains "key": non-string values.
+    public sealed record ShipmentCommand(decimal ShippingCost, Guid ApiKeyId) : ICommand<Unit>;
 
     [Auditable(SensitiveFields = ["name"])]
     public sealed class AuditedCircularCommand : ICommand<Unit>

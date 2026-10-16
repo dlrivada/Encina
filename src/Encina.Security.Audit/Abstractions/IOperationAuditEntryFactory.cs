@@ -45,6 +45,7 @@ public interface IOperationAuditEntryFactory
     /// <param name="outcome">The outcome of the operation.</param>
     /// <param name="errorMessage">The error code or exception type name (never the error message) if <paramref name="outcome"/> is not <see cref="AuditOutcome.Success"/>.</param>
     /// <returns>A fully populated <see cref="OperationAuditEntry"/>.</returns>
+    /// <exception cref="OperationAuditMaskingException">The payload could not be masked; no entry is built.</exception>
     /// <remarks>
     /// <para>
     /// The factory should:
@@ -76,6 +77,7 @@ public interface IOperationAuditEntryFactory
     /// <param name="startedAtUtc">When the operation started.</param>
     /// <param name="completedAtUtc">When the operation completed.</param>
     /// <returns>A fully populated <see cref="OperationAuditEntry"/> with timing and payload information.</returns>
+    /// <exception cref="OperationAuditMaskingException">The payload could not be masked; no entry is built.</exception>
     /// <remarks>
     /// <para>
     /// This overload captures additional information:

@@ -18,7 +18,8 @@ internal sealed class OperationAuditMaskingStartupValidator : IHostedLifecycleSe
     internal const string MissingMaskerMessage =
         "The audit module requires an IPiiMasker. Register one (for example DefaultSensitiveDataRedactor, "
         + "or AddEncinaPII() from Encina.Security.PII), or set OperationAuditOptions.AllowUnmaskedPayloads = true "
-        + "to run explicitly without masking.";
+        + "to run explicitly without masking (set it in the configure action of AddEncinaAudit, not only through "
+        + "configuration binding).";
 
     private readonly IServiceProvider _services;
     private readonly OperationAuditOptions _options;
@@ -50,7 +51,9 @@ internal sealed class OperationAuditMaskingStartupValidator : IHostedLifecycleSe
             return Task.CompletedTask;
         }
 
-        if (!_options.AllowUnmaskedPayloads)
+        // The opt-out registers NullPiiMasker only when the configure action of AddEncinaAudit sets the flag. A flag
+        // bound from IConfiguration alone leaves no masker, and the audit pipeline could not be built at all.
+        if (masker is null || !_options.AllowUnmaskedPayloads)
         {
             throw new InvalidOperationException(MissingMaskerMessage);
         }

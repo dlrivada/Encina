@@ -319,6 +319,8 @@ var auditMasker = provider.GetRequiredService<IPiiMasker>();
 
 The audit entry factory masks the stored `RequestPayload` and `ResponsePayload` (when `IncludeRequestPayload` or `IncludeResponsePayload` is on) and the payload hash through the registered `IPiiMasker`, including `PIIMasker`.
 
+**Limitation with `PIIMasker`:** only `DefaultSensitiveDataRedactor` masks the payload at the JSON level and honors `[Auditable(SensitiveFields = ...)]` and `OperationAuditOptions.GlobalSensitiveFields`. Any other `IPiiMasker`, including `PIIMasker` from `AddEncinaPII()`, is called as `MaskForAudit(object)` and does not receive those field lists. With `PIIMasker`, a field that is named in `SensitiveFields` or `GlobalSensitiveFields` but is not marked `[PII]` is stored as is in `RequestPayload` and `ResponsePayload`. Mark every personal-data property with `[PII]`, or register `DefaultSensitiveDataRedactor` when you rely on the field lists.
+
 When masking or serialization fails, `MaskForAudit` throws instead of returning the unmasked object (the failure is logged with EventId 8022 and a redacted exception). The audit module fails closed: `DefaultOperationAuditEntryFactory` throws `OperationAuditMaskingException`, `AuditPipelineBehavior` returns the error code `audit.masking_failed` (under the default `OperationAuditFailureMode.FailClosed`; under `BestEffort` it only logs), and nothing is stored.
 
 ---

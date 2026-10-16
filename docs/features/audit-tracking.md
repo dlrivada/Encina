@@ -896,8 +896,8 @@ public interface IPiiMasker
 
 | Implementation | Description |
 |----------------|-------------|
-| `DefaultSensitiveDataRedactor` | JSON-based field redaction (register it yourself) |
-| `PIIMasker` (`Encina.Security.PII`) | Attribute-based masking, registered as `IPiiMasker` by `AddEncinaPII()` in either registration order |
+| `DefaultSensitiveDataRedactor` | JSON-based field redaction (register it yourself); the only masker that honors `[Auditable(SensitiveFields = ...)]` and `OperationAuditOptions.GlobalSensitiveFields` |
+| `PIIMasker` (`Encina.Security.PII`) | Attribute-based masking (`[PII]` properties), registered as `IPiiMasker` by `AddEncinaPII()` in either registration order. It is called as `MaskForAudit(object)` and does not receive the sensitive-field lists, so fields named there but not marked `[PII]` are stored as is in `RequestPayload` and `ResponsePayload` |
 | `NullPiiMasker` | No redaction; registered only by the opt-out `AllowUnmaskedPayloads = true` |
 | Your own `IPiiMasker` | Any custom implementation; it masks the payloads and the payload hash |
 
@@ -918,7 +918,7 @@ services.AddEncinaAudit(options =>
 When no `IPiiMasker` is registered, or only `NullPiiMasker` is, the startup validator (`IHostedLifecycleService.StartingAsync`) throws before any request is audited:
 
 ```text
-System.InvalidOperationException: The audit module requires an IPiiMasker. Register one (for example DefaultSensitiveDataRedactor, or AddEncinaPII() from Encina.Security.PII), or set OperationAuditOptions.AllowUnmaskedPayloads = true to run explicitly without masking.
+System.InvalidOperationException: The audit module requires an IPiiMasker. Register one (for example DefaultSensitiveDataRedactor, or AddEncinaPII() from Encina.Security.PII), or set OperationAuditOptions.AllowUnmaskedPayloads = true to run explicitly without masking (set it in the configure action of AddEncinaAudit, not only through configuration binding).
 ```
 
 Fix it by registering a masker, in any order relative to `AddEncinaAudit`:
@@ -935,7 +935,7 @@ The only opt-out is explicit. It registers `NullPiiMasker` and logs a Warning (E
 services.AddEncinaAudit(options => options.AllowUnmaskedPayloads = true);
 ```
 
-The flag is read from the configure lambda at registration time, so binding it from `IConfiguration` alone does not enable it.
+The flag is read from the configure action at registration time. If it is set only through `IConfiguration` binding, no `NullPiiMasker` is registered and the startup validator still throws the exception above when no masker is registered, even though `AllowUnmaskedPayloads` is `true` in the bound options. Set it in the configure action of `AddEncinaAudit`.
 
 ### Auto-Purge Configuration
 
