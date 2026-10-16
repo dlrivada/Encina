@@ -586,7 +586,15 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "unit": 100,
+        "guard": 4
+      },
+      "justifications": {
+        "unit": "Unit tests drive every branch: healthy, warning, critical, the combined stuck and expired count, and the store-error path for each of the two queries (measured 100% line coverage).",
+        "guard": "Guard tests reach only the constructor null check; the check body is covered by the unit flag (measured 4.9%)."
+      }
     },
     "Health/SchedulingHealthCheck.cs": {
       "defaultTests": [

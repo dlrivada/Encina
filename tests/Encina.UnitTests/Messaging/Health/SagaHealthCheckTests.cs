@@ -93,17 +93,52 @@ public sealed class SagaHealthCheckTests
     }
 
     [Fact]
-    public async Task CheckHealthAsync_StoreReturnsError_CountsAsZero()
+    public async Task CheckHealthAsync_BothCallsReturnError_ReturnsUnhealthyWithoutMessage()
     {
         _store.GetStuckSagasAsync(Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Either<EncinaError, IEnumerable<ISagaState>>.Left(EncinaError.New("error")));
+            .Returns(Either<EncinaError, IEnumerable<ISagaState>>.Left(EncinaError.New("secret-detail")));
         _store.GetExpiredSagasAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Either<EncinaError, IEnumerable<ISagaState>>.Left(EncinaError.New("error")));
+            .Returns(Either<EncinaError, IEnumerable<ISagaState>>.Left(EncinaError.New("secret-detail")));
 
         var sut = new SagaHealthCheck(_store);
         var result = await sut.CheckHealthAsync(CancellationToken.None);
 
-        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldNotContain("secret-detail");
+        result.Data["error"].ShouldBe("encina.unknown");
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_StuckCallReturnsError_ReturnsUnhealthyWithErrorCode()
+    {
+        _store.GetStuckSagasAsync(Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, IEnumerable<ISagaState>>.Left(EncinaErrors.Create("saga.stuck_failed", "secret-detail")));
+
+        var sut = new SagaHealthCheck(_store);
+        var result = await sut.CheckHealthAsync(CancellationToken.None);
+
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("saga.stuck_failed");
+        result.Description!.ShouldNotContain("secret-detail");
+        result.Data["error"].ShouldBe("saga.stuck_failed");
+        await _store.DidNotReceive().GetExpiredSagasAsync(Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_ExpiredCallReturnsError_ReturnsUnhealthyWithErrorCode()
+    {
+        _store.GetStuckSagasAsync(Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, IEnumerable<ISagaState>>.Right(Array.Empty<ISagaState>()));
+        _store.GetExpiredSagasAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, IEnumerable<ISagaState>>.Left(EncinaErrors.Create("saga.expired_failed", "secret-detail")));
+
+        var sut = new SagaHealthCheck(_store);
+        var result = await sut.CheckHealthAsync(CancellationToken.None);
+
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("saga.expired_failed");
+        result.Description!.ShouldNotContain("secret-detail");
+        result.Data["error"].ShouldBe("saga.expired_failed");
     }
 
     private static IEnumerable<ISagaState> CreateSagas(int count)

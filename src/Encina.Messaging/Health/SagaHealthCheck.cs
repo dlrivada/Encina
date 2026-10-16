@@ -48,18 +48,23 @@ public class SagaHealthCheck : EncinaHealthCheck
             _options.SagaCriticalThreshold + 1,
             cancellationToken).ConfigureAwait(false);
 
-        var stuckCount = stuckSagasResult.Match(
-            Right: sagas => sagas.Count(),
-            Left: _ => 0);
+        if (stuckSagasResult.IsLeft)
+        {
+            return StoreFailure(stuckSagasResult.LeftToArray()[0]);
+        }
 
         // Check for expired sagas
         var expiredSagasResult = await _store.GetExpiredSagasAsync(
             _options.SagaCriticalThreshold + 1,
             cancellationToken).ConfigureAwait(false);
 
-        var expiredCount = expiredSagasResult.Match(
-            Right: sagas => sagas.Count(),
-            Left: _ => 0);
+        if (expiredSagasResult.IsLeft)
+        {
+            return StoreFailure(expiredSagasResult.LeftToArray()[0]);
+        }
+
+        var stuckCount = stuckSagasResult.RightToArray()[0].Count();
+        var expiredCount = expiredSagasResult.RightToArray()[0].Count();
 
         var data = new Dictionary<string, object>
         {
@@ -87,6 +92,15 @@ public class SagaHealthCheck : EncinaHealthCheck
         }
 
         return HealthCheckResult.Healthy("Saga store is accessible and healthy", data);
+    }
+
+    // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+    private static HealthCheckResult StoreFailure(EncinaError error)
+    {
+        var errorCode = error.GetCode().IfNone("encina.unknown");
+        return HealthCheckResult.Unhealthy(
+            $"Failed to query saga store: {errorCode}",
+            data: new Dictionary<string, object> { ["error"] = errorCode });
     }
 }
 
