@@ -108,6 +108,16 @@ public sealed class PipelineStageConfigurationGuardTests
                 null!))
             .ParamName.ShouldBe("resolver");
 
+    [Fact]
+    public void AddEncina_StageRegistryRegisteredWithoutAnInstance_ThrowsInsteadOfLosingDeclarations()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<PipelineStageRegistry>();
+
+        Should.Throw<InvalidOperationException>(() => services.AddEncina())
+            .Message.ShouldContain("PipelineStageRegistry");
+    }
+
     private abstract class AbstractType;
 
     private sealed class Unrelated;

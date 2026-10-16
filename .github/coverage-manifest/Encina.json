@@ -251,10 +251,10 @@
       ],
       "defaultRule": "*Configuration.cs",
       "reason": "Registration-time configuration of discovery, behaviors, processors and pipeline stage declarations",
-      "targets": { "unit": 95, "guard": 70 },
+      "targets": { "unit": 97, "guard": 71 },
       "justifications": {
-        "unit": "Every stage-aware and stage-less overload, the interface checks, the declaration copy into the registry and the service registration are executed by PipelineStageConfigurationTests and AddEncinaServiceGraphTests (measured 97%; the unreached lines are a duplicate-registration guard branch and the null-candidate branch of IsAssignableFromGeneric).",
-        "guard": "PipelineStageConfigurationGuardTests and EncinaConfigurationGuardTests execute the null, abstract and wrong-interface checks of every overload (measured 71%); the registration and registry-copy lines are covered by the unit run."
+        "unit": "Every stage-aware and stage-less overload, the interface checks, the declaration copy into the registry and the registrations are executed by PipelineStageConfigurationTests and AddEncinaServiceGraphTests (measured 97.0%); the three unreached lines are the abstract-type throw in AddStep (executed by the guard run), the null-candidate return of IsAssignableFromGeneric and its non-interface branch, which no caller in this file can reach because every call passes a generic interface and a non-null type.",
+        "guard": "PipelineStageConfigurationGuardTests and EncinaConfigurationGuardTests execute the null, abstract and wrong-interface checks of every overload (measured 71.0%); the remaining lines are the declaration, copy and registration code that only the unit run exercises."
       }
     },
     "Core/IDecoratedServiceFactory.cs": {
@@ -308,11 +308,11 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 96, "guard": 86, "contract": 91 },
+      "targets": { "unit": 96, "guard": 86, "contract": 92 },
       "justifications": {
-        "unit": "AddEncina registration, the stage registry, snapshot, resolver and inspector registration, the scanned error and post-commit processors and the graph checks are exercised by AddEncinaServiceGraphTests and PipelineStageConfigurationTests (measured 97%).",
-        "guard": "Guard tests run AddEncina with its argument validation and the registration paths (measured 86%).",
-        "contract": "Contract tests build providers through AddEncina (measured 92%)."
+        "unit": "AddEncina registration, the stage registry, snapshot, resolver and inspector registration, the scanned error and post-commit processors and the graph checks are exercised by AddEncinaServiceGraphTests and PipelineStageConfigurationTests (measured 96.9%); the registry-without-instance guard is covered by a unit test and a guard test.",
+        "guard": "Guard tests run AddEncina with its argument validation, the registration paths and the registry-without-instance guard (measured 86.5%).",
+        "contract": "Contract tests build providers through AddEncina and Send through the registered pipeline (measured 92.7%, previously described as 92%)."
       }
     },
     "Core/StreamDispatcher.cs": {
@@ -1106,10 +1106,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default implementation of the pipeline inspector: resolves steps in a scope and maps the resolver order to descriptions",
-      "targets": { "unit": 100, "guard": 14 },
+      "targets": { "unit": 100, "guard": 11 },
       "justifications": {
-        "unit": "Describe, DescribeStream, the empty-pipeline early return and the constructor guards are executed by PipelineStageConfigurationTests (measured 100%, no unreachable lines).",
-        "guard": "Guard tests execute only the two constructor null checks (measured 14%, 3 of 21 lines); the other 18 lines need a resolved pipeline and are covered by the unit run."
+        "unit": "Describe, DescribeStream, the empty-pipeline return, the asynchronous scope disposal and the constructor guards are executed by PipelineStageConfigurationTests (measured 100%, no unreachable lines).",
+        "guard": "Guard tests execute only the constructor null checks (measured 11.5%, 3 of 26 coverable lines); the other 23 lines need a resolved pipeline and are executed by the unit run."
       }
     },
     "Pipeline/Ordering/EncinaBuiltInPipelineStepsAttribute.cs": {
@@ -1167,11 +1167,11 @@
       ],
       "defaultRule": "*Builder.cs",
       "reason": "Fluent builder with validation",
-      "targets": { "unit": 100, "guard": 68, "contract": 68 },
+      "targets": { "unit": 100, "guard": 68, "contract": 70 },
       "justifications": {
         "unit": "Every step-resolution, ordering, fast-path and cancellation branch is exercised by StagedPipelineExecutionTests, ProcessorSemanticsTests and EncinaTests (measured 100%).",
         "guard": "Guard tests execute the constructor guards, Build and the handler-cancellation path without behaviors (measured 68%); processor wrapping is covered by unit tests.",
-        "contract": "Contract tests dispatch through registered behaviors and processors, covering the step-resolution path (measured 68%); cancellation branches are covered by unit tests."
+        "contract": "Contract tests dispatch through the registered behaviors and processors (PipelineStageRegistrationContracts and ServiceRegistrationContracts), covering the empty pipeline, the error and post-commit processor steps and the step-resolution path (measured 70.5%); the cancellation branches of the handler and behavior executors are covered by unit tests."
       }
     },
     "Pipeline/Ordering/IPipelineStepIdentity.cs": {
