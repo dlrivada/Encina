@@ -161,6 +161,25 @@ public sealed class MartenOperationAuditStoreUtcFilterIntegrationTests(MartenFix
             () => _daemon!.WaitForNonStaleData(TimeSpan.FromSeconds(60)));
     }
 
+    [Fact]
+    public async Task ReadStore_QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
+    {
+        SkipWhenUnavailable();
+
+        var session = _store!.LightweightSession();
+        var keys = new MartenTemporalKeyProvider(session, TimeProvider.System, NullLogger<MartenTemporalKeyProvider>.Instance);
+        var readStore = new MartenReadAuditStore(
+            session,
+            new AuditEventEncryptor(keys, _options, NullLogger<AuditEventEncryptor>.Instance),
+            keys,
+            _options,
+            NullLogger<MartenReadAuditStore>.Instance);
+
+        await ReadAuditStableOrderCheck.AssertPagedReadsAreStableAsync(
+            readStore,
+            () => _daemon!.WaitForNonStaleData(TimeSpan.FromSeconds(60)));
+    }
+
     private void SkipWhenUnavailable()
     {
         if (!fixture.IsAvailable)

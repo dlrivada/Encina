@@ -17,7 +17,7 @@ internal static class ReadAuditStableOrderCheck
     /// drop nothing, equal the unpaged read and the entity access history, and are repeatable.
     /// </summary>
     /// <param name="store">The store under test, backed by a real database.</param>
-    public static async Task AssertPagedReadsAreStableAsync(IReadAuditStore store)
+    public static async Task AssertPagedReadsAreStableAsync(IReadAuditStore store, Func<Task>? afterRecord = null)
     {
         ArgumentNullException.ThrowIfNull(store);
 
@@ -41,6 +41,11 @@ internal static class ReadAuditStableOrderCheck
 
             (await store.LogReadAsync(entry)).IsRight.ShouldBeTrue();
             recordedIds.Add(entry.Id);
+        }
+
+        if (afterRecord is not null)
+        {
+            await afterRecord();
         }
 
         var unpaged = await QueryIdsAsync(store, entityType, pageNumber: 1, pageSize: 100);
