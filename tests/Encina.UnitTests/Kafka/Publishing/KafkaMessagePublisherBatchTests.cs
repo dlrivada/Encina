@@ -50,9 +50,9 @@ public sealed class KafkaMessagePublisherBatchTests
         // Act
         var result = await _publisher.ProduceBatchAsync(new[]
         {
-            (new Payload("a"), (string?)null),
-            (new Payload("b"), null),
-            (new Payload("c"), null)
+            (new Payload("a"), (string?)null, (string?)null),
+            (new Payload("b"), null, null),
+            (new Payload("c"), null, null)
         });
 
         // Assert
@@ -84,9 +84,9 @@ public sealed class KafkaMessagePublisherBatchTests
         entry.Message.ShouldNotContain(SentinelMessage);
     }
 
-    private static IEnumerable<(Payload Message, string? Key)> FailingSequence()
+    private static IEnumerable<(Payload Message, string? Key, string? MessageId)> FailingSequence()
     {
-        yield return (new Payload("a"), null);
+        yield return (new Payload("a"), null, null);
         throw new InvalidOperationException(SentinelMessage);
     }
 

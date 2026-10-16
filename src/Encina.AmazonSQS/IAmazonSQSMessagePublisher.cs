@@ -13,11 +13,13 @@ public interface IAmazonSQSMessagePublisher
     /// <typeparam name="TMessage">The type of the message.</typeparam>
     /// <param name="message">The message to send.</param>
     /// <param name="queueUrl">The queue URL. If null, uses the default queue.</param>
+    /// <param name="messageId">The caller message id (for example the outbox message id) sent as the <c>MessageId</c> message attribute so consumers can deduplicate; a new id is generated only when null or empty.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Either a EncinaError or the message ID.</returns>
     ValueTask<Either<EncinaError, string>> SendToQueueAsync<TMessage>(
         TMessage message,
         string? queueUrl = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class;
 
@@ -27,11 +29,13 @@ public interface IAmazonSQSMessagePublisher
     /// <typeparam name="TMessage">The type of the message.</typeparam>
     /// <param name="message">The message to publish.</param>
     /// <param name="topicArn">The topic ARN. If null, uses the default topic.</param>
+    /// <param name="messageId">The caller message id (for example the outbox message id) sent as the <c>MessageId</c> message attribute so consumers can deduplicate; a new id is generated only when null or empty.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Either a EncinaError or the message ID.</returns>
     ValueTask<Either<EncinaError, string>> PublishToTopicAsync<TMessage>(
         TMessage message,
         string? topicArn = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class;
 
@@ -57,6 +61,7 @@ public interface IAmazonSQSMessagePublisher
     /// <param name="messageGroupId">The message group ID for FIFO ordering.</param>
     /// <param name="deduplicationId">The deduplication ID. If null, content-based deduplication is used.</param>
     /// <param name="queueUrl">The queue URL. If null, uses the default queue.</param>
+    /// <param name="messageId">The caller message id (for example the outbox message id) sent as the <c>MessageId</c> message attribute; when <paramref name="deduplicationId"/> is null it is also the deduplication id. A new attribute id is generated only when null or empty. The id used for deduplication must be 1 to 128 printable ASCII characters without spaces; otherwise the call returns a <c>SQS_INVALID_DEDUPLICATION_ID</c> error before AWS is called.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Either a EncinaError or the message ID.</returns>
     ValueTask<Either<EncinaError, string>> SendToFifoQueueAsync<TMessage>(
@@ -64,6 +69,7 @@ public interface IAmazonSQSMessagePublisher
         string messageGroupId,
         string? deduplicationId = null,
         string? queueUrl = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class;
 }

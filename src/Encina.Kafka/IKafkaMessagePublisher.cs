@@ -14,12 +14,14 @@ public interface IKafkaMessagePublisher
     /// <param name="message">The message to produce.</param>
     /// <param name="topic">The topic name. If null, uses the default topic.</param>
     /// <param name="key">The partition key. If null, round-robin partitioning is used.</param>
+    /// <param name="messageId">The message id sent in the <c>MessageId</c> header (for example the outbox message id) so consumers can deduplicate; a new id is generated only when null or empty.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Either a EncinaError or the delivery result.</returns>
     ValueTask<Either<EncinaError, KafkaDeliveryResult>> ProduceAsync<TMessage>(
         TMessage message,
         string? topic = null,
         string? key = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class;
 
@@ -27,12 +29,12 @@ public interface IKafkaMessagePublisher
     /// Produces a batch of messages to a topic.
     /// </summary>
     /// <typeparam name="TMessage">The type of the messages.</typeparam>
-    /// <param name="messages">The messages to produce with their optional keys.</param>
+    /// <param name="messages">The messages to produce with their optional keys and optional message ids (for example outbox message ids); a new id is generated for a message whose id is null or empty.</param>
     /// <param name="topic">The topic name. If null, uses the default topic.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Either a EncinaError or the list of delivery results.</returns>
     ValueTask<Either<EncinaError, IReadOnlyList<KafkaDeliveryResult>>> ProduceBatchAsync<TMessage>(
-        IEnumerable<(TMessage Message, string? Key)> messages,
+        IEnumerable<(TMessage Message, string? Key, string? MessageId)> messages,
         string? topic = null,
         CancellationToken cancellationToken = default)
         where TMessage : class;
@@ -45,6 +47,7 @@ public interface IKafkaMessagePublisher
     /// <param name="headers">The message headers.</param>
     /// <param name="topic">The topic name. If null, uses the default topic.</param>
     /// <param name="key">The partition key. If null, round-robin partitioning is used.</param>
+    /// <param name="messageId">The message id sent in the <c>MessageId</c> header (for example the outbox message id) so consumers can deduplicate; a new id is generated only when null or empty.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Either a EncinaError or the delivery result.</returns>
     ValueTask<Either<EncinaError, KafkaDeliveryResult>> ProduceWithHeadersAsync<TMessage>(
@@ -52,6 +55,7 @@ public interface IKafkaMessagePublisher
         IDictionary<string, byte[]> headers,
         string? topic = null,
         string? key = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class;
 }

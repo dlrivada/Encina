@@ -15,6 +15,7 @@ public interface IMQTTMessagePublisher
     /// <param name="topic">The topic. If null, derived from message type.</param>
     /// <param name="qos">The quality of service level. If null, uses the default QoS.</param>
     /// <param name="retain">Whether to retain the message on the broker.</param>
+    /// <param name="messageId">The message id sent as the <c>MessageId</c> MQTT 5 user property (for example the outbox message id) so consumers can deduplicate; a new id is generated only when null or empty.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Either a EncinaError or Unit on success.</returns>
     ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
@@ -22,6 +23,7 @@ public interface IMQTTMessagePublisher
         string? topic = null,
         MqttQualityOfService? qos = null,
         bool retain = false,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class;
 

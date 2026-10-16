@@ -41,10 +41,14 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
         _options = options.Value;
     }
 
+    private static string ResolveMessageId(string? messageId) =>
+        string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId;
+
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, Unit>> SendToQueueAsync<TMessage>(
         TMessage message,
         string? queueName = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -61,7 +65,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
             var serviceBusMessage = new ServiceBusMessage(JsonSerializer.SerializeToUtf8Bytes(message))
             {
                 ContentType = "application/json",
-                MessageId = Guid.NewGuid().ToString(),
+                MessageId = ResolveMessageId(messageId),
                 Subject = typeof(TMessage).Name
             };
 
@@ -87,6 +91,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
     public async ValueTask<Either<EncinaError, Unit>> PublishToTopicAsync<TMessage>(
         TMessage message,
         string? topicName = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -103,7 +108,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
             var serviceBusMessage = new ServiceBusMessage(JsonSerializer.SerializeToUtf8Bytes(message))
             {
                 ContentType = "application/json",
-                MessageId = Guid.NewGuid().ToString(),
+                MessageId = ResolveMessageId(messageId),
                 Subject = typeof(TMessage).Name
             };
 
@@ -130,6 +135,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
         TMessage message,
         DateTimeOffset scheduledEnqueueTime,
         string? queueName = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -146,7 +152,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
             var serviceBusMessage = new ServiceBusMessage(JsonSerializer.SerializeToUtf8Bytes(message))
             {
                 ContentType = "application/json",
-                MessageId = Guid.NewGuid().ToString(),
+                MessageId = ResolveMessageId(messageId),
                 Subject = typeof(TMessage).Name
             };
 

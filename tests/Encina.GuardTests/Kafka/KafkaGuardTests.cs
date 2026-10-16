@@ -60,6 +60,38 @@ public sealed class KafkaGuardTests
     // ─── KafkaMessagePublisher method guards ───
 
     [Fact]
+    public async Task ProduceAsync_NullTopicAndKey_FallBackToTheConfiguredDefaultTopic()
+    {
+        var producer = Substitute.For<IProducer<string, byte[]>>();
+        var sut = new KafkaMessagePublisher(producer,
+            NullLogger<KafkaMessagePublisher>.Instance,
+            Options.Create(new EncinaKafkaOptions { DefaultEventTopic = "default-events" }));
+
+        await sut.ProduceAsync(new object(), topic: null, key: null, messageId: null);
+
+        await producer.Received(1).ProduceAsync(
+            "default-events",
+            Arg.Is<Message<string, byte[]>>(m => !string.IsNullOrEmpty(m.Key)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ProduceWithHeadersAsync_NullTopicAndKey_FallBackToTheConfiguredDefaultTopic()
+    {
+        var producer = Substitute.For<IProducer<string, byte[]>>();
+        var sut = new KafkaMessagePublisher(producer,
+            NullLogger<KafkaMessagePublisher>.Instance,
+            Options.Create(new EncinaKafkaOptions { DefaultEventTopic = "default-events" }));
+
+        await sut.ProduceWithHeadersAsync(new object(), new Dictionary<string, byte[]>(), topic: null, key: null);
+
+        await producer.Received(1).ProduceAsync(
+            "default-events",
+            Arg.Any<Message<string, byte[]>>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ProduceAsync_NullMessage_Throws()
     {
         var sut = new KafkaMessagePublisher(Producer,

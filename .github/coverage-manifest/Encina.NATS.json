@@ -53,11 +53,13 @@
       "reason": "Default: assume testable with mocks",
       "targets": {
         "unit": 95,
-        "guard": 15
+        "guard": 15,
+        "integration": 30
       },
       "justifications": {
         "unit": "Unit tests drive every publish, request and JetStream path with a substitute connection, so nearly every line is reachable.",
-        "guard": "Guard tests cover only the argument checks at the top of each method, which are a small share of the lines."
+        "guard": "Guard tests cover only the argument checks at the top of each method, which are a small share of the lines.",
+        "integration": "The JetStream deduplication integration test drives the JetStream publish path against a NATS Testcontainers instance with JetStream enabled; core publish and request/reply are covered by unit tests."
       }
     },
     "ServiceCollectionExtensions.cs": {

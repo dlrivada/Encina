@@ -51,14 +51,16 @@ public sealed class RedisPubSubPublisherContractTests
 
         var genericMethod = method.MakeGenericMethod(typeof(TestMessage));
         var parameters = genericMethod.GetParameters();
-        parameters.Length.ShouldBe(3,
-            "PublishAsync must accept (TMessage message, string? channel, CancellationToken)");
+        parameters.Length.ShouldBe(4,
+            "PublishAsync must accept (TMessage message, string? channel, string? messageId, CancellationToken)");
 
         parameters[0].Name.ShouldBe("message");
         parameters[1].Name.ShouldBe("channel");
         parameters[1].HasDefaultValue.ShouldBeTrue("channel parameter must have a default value");
-        parameters[2].ParameterType.ShouldBe(typeof(CancellationToken));
-        parameters[2].HasDefaultValue.ShouldBeTrue("CancellationToken must have a default value");
+        parameters[2].Name.ShouldBe("messageId");
+        parameters[2].HasDefaultValue.ShouldBeTrue("messageId parameter must have a default value");
+        parameters[3].ParameterType.ShouldBe(typeof(CancellationToken));
+        parameters[3].HasDefaultValue.ShouldBeTrue("CancellationToken must have a default value");
     }
 
     /// <summary>

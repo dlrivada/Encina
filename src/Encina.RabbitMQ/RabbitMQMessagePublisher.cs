@@ -20,6 +20,7 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher
     private readonly IChannel _channel;
     private readonly ILogger<RabbitMQMessagePublisher> _logger;
     private readonly EncinaRabbitMQOptions _options;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RabbitMQMessagePublisher"/> class.
@@ -27,10 +28,12 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher
     /// <param name="channel">The shared RabbitMQ channel (owned by the DI container).</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
+    /// <param name="timeProvider">The time provider. If <c>null</c>, <see cref="TimeProvider.System"/> is used.</param>
     public RabbitMQMessagePublisher(
         IChannel channel,
         ILogger<RabbitMQMessagePublisher> logger,
-        IOptions<EncinaRabbitMQOptions> options)
+        IOptions<EncinaRabbitMQOptions> options,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(channel);
         ArgumentNullException.ThrowIfNull(logger);
@@ -39,12 +42,22 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher
         _channel = channel;
         _logger = logger;
         _options = options.Value;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
+
+    private BasicProperties CreateProperties(string? messageId) => new()
+    {
+        ContentType = "application/json",
+        DeliveryMode = _options.Durable ? DeliveryModes.Persistent : DeliveryModes.Transient,
+        MessageId = string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId,
+        Timestamp = new AmqpTimestamp(_timeProvider.GetUtcNow().ToUnixTimeSeconds())
+    };
 
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
         TMessage message,
         string? routingKey = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -57,13 +70,7 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher
             Log.PublishingMessage(_logger, typeof(TMessage).Name, _options.ExchangeName, effectiveRoutingKey);
 
             var body = JsonSerializer.SerializeToUtf8Bytes(message);
-            var properties = new BasicProperties
-            {
-                ContentType = "application/json",
-                DeliveryMode = _options.Durable ? DeliveryModes.Persistent : DeliveryModes.Transient,
-                MessageId = Guid.NewGuid().ToString(),
-                Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds())
-            };
+            var properties = CreateProperties(messageId);
 
             await _channel.BasicPublishAsync(
                 exchange: _options.ExchangeName,
@@ -93,6 +100,7 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher
     public async ValueTask<Either<EncinaError, Unit>> SendToQueueAsync<TMessage>(
         string queueName,
         TMessage message,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -104,13 +112,7 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher
             Log.SendingToQueue(_logger, typeof(TMessage).Name, queueName);
 
             var body = JsonSerializer.SerializeToUtf8Bytes(message);
-            var properties = new BasicProperties
-            {
-                ContentType = "application/json",
-                DeliveryMode = _options.Durable ? DeliveryModes.Persistent : DeliveryModes.Transient,
-                MessageId = Guid.NewGuid().ToString(),
-                Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds())
-            };
+            var properties = CreateProperties(messageId);
 
             await _channel.BasicPublishAsync(
                 exchange: string.Empty,
