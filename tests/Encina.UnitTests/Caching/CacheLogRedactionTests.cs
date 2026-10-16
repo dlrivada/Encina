@@ -266,10 +266,15 @@ public sealed class CacheLogRedactionTests
         {
             foreach (var record in fakeLogger.Collector.GetSnapshot())
             {
-                record.Message.ShouldNotContain("alice");
-                record.Message.ShouldNotContain("1234");
-                record.Message.ShouldNotContain("idp.example");
-                record.Message.ShouldNotContain("acme");
+                var texts = new List<string> { record.Message };
+                texts.AddRange((record.StructuredState ?? []).Select(p => p.Value ?? string.Empty));
+                foreach (var text in texts)
+                {
+                    text.ShouldNotContain("alice");
+                    text.ShouldNotContain("1234");
+                    text.ShouldNotContain("idp.example");
+                    text.ShouldNotContain("acme");
+                }
             }
         }
 
@@ -292,6 +297,27 @@ public sealed class CacheLogRedactionTests
         await sut.UnsubscribePatternAsync($"encina:t:{TenantId}:*", default);
 
         logger.Collector.Count.ShouldBeGreaterThanOrEqualTo(3);
+        ShouldHoldNoIdentifier(logger);
+    }
+
+    [Fact]
+    public async Task RedisPubSubProvider_DoesNotLogThePublishedPayloadOrPatternIds()
+    {
+        var connection = Substitute.For<IConnectionMultiplexer>();
+        var subscriber = Substitute.For<ISubscriber>();
+        connection.GetSubscriber(Arg.Any<object?>()).Returns(subscriber);
+        var logger = new FakeLogger<RedisPubSubProvider>();
+        var sut = new RedisPubSubProvider(connection, logger);
+        var pattern = $"encina:t:{TenantId}:orders:7:*";
+
+        await sut.PublishAsync("cache:invalidate", pattern, default);
+        await sut.SubscribePatternAsync($"encina:t:{TenantId}:*", (_, _) => Task.CompletedTask, default);
+        await sut.UnsubscribePatternAsync($"encina:t:{TenantId}:*", default);
+
+        var snapshot = logger.Collector.GetSnapshot();
+        snapshot.Count.ShouldBe(3);
+        snapshot.ShouldContain(r => r.Id.Id == 3610 && r.Message.Contains("cache:invalidate", StringComparison.Ordinal));
+        snapshot.ShouldContain(r => r.Message.Contains("t:***", StringComparison.Ordinal));
         ShouldHoldNoIdentifier(logger);
     }
 

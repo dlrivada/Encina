@@ -18,6 +18,12 @@ namespace Encina.Caching;
 /// deliberately not used: a hash of a user id is still pseudonymous personal data and links entries
 /// across logs.
 /// </para>
+/// <para>
+/// Only the <c>t:</c> and <c>u:</c> segments owned by the key generators are redacted. Request
+/// properties that an application substitutes into a <c>KeyTemplate</c> or an
+/// <c>[InvalidatesCache]</c> pattern (for example <c>orders:{CustomerId}</c>) are the application's
+/// choice and are logged as they are; use opaque identifiers in templates for sensitive ids.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -51,7 +57,6 @@ public static partial class CacheKeyRedactor
         return IdentifyingSegment().Replace(redacted, "${kind}:" + Mask);
     }
 
-    // Masks "{kind}{id}" in full, so an id that contains the separator does not leak its tail.
     /// <summary>
     /// Escapes the segment separator in a tenant or user id before it is placed in a key, so the
     /// segment is always exactly one <c>:</c>-delimited part that <see cref="Redact"/> can mask whole.
@@ -59,6 +64,7 @@ public static partial class CacheKeyRedactor
     internal static string EscapeSegment(string id) =>
         id.Replace("%", "%25", StringComparison.Ordinal).Replace(":", "%3A", StringComparison.Ordinal);
 
+    // Masks "{kind}{id}" in full, so an id that contains the separator does not leak its tail.
     private static string MaskKnown(string key, string kind, string? id) =>
         string.IsNullOrEmpty(id) ? key : key.Replace(kind + id, kind + Mask, StringComparison.Ordinal);
 
