@@ -1777,11 +1777,10 @@ public sealed class EncinaTests
     {
         private readonly PostProcessorTracker _tracker = tracker;
 
-        public Task Process(PostProcessorRequest request, IRequestContext context, Either<EncinaError, string> response, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(PostProcessorRequest request, IRequestContext context, string response, CancellationToken cancellationToken)
         {
-            response.IfRight(value => _tracker.Events.Add($"post:{value}"));
-            response.IfLeft(_ => _tracker.Events.Add("post:error"));
-            return Task.CompletedTask;
+            _tracker.Events.Add($"post:{response}");
+            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
         }
     }
 
@@ -1792,7 +1791,7 @@ public sealed class EncinaTests
 
     private sealed class AccidentallyCancellingPostProcessor : IRequestPostProcessor<EchoRequest, string>
     {
-        public Task Process(EchoRequest request, IRequestContext context, Either<EncinaError, string> response, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(EchoRequest request, IRequestContext context, string response, CancellationToken cancellationToken)
             => throw new OperationCanceledException("accidental cancellation");
     }
 
@@ -1890,10 +1889,10 @@ public sealed class EncinaTests
     {
         private readonly LifecycleTracker _tracker = tracker;
 
-        public Task Process(LifecycleRequest request, IRequestContext context, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(LifecycleRequest request, IRequestContext context, CancellationToken cancellationToken)
         {
             _tracker.Events.Add("pre");
-            return Task.CompletedTask;
+            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
         }
     }
 
@@ -1901,13 +1900,10 @@ public sealed class EncinaTests
     {
         private readonly LifecycleTracker _tracker = tracker;
 
-        public Task Process(LifecycleRequest request, IRequestContext context, Either<EncinaError, string> response, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(LifecycleRequest request, IRequestContext context, string response, CancellationToken cancellationToken)
         {
-            if (response.IsRight)
-            {
-                _tracker.Events.Add("post");
-            }
-            return Task.CompletedTask;
+            _tracker.Events.Add("post");
+            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
         }
     }
 
@@ -1964,26 +1960,26 @@ public sealed class EncinaTests
 
     private sealed class ThrowingEchoPreProcessor : IRequestPreProcessor<EchoRequest>
     {
-        public Task Process(EchoRequest request, IRequestContext context, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(EchoRequest request, IRequestContext context, CancellationToken cancellationToken)
             => throw new InvalidOperationException("pre failure");
     }
 
     private sealed class CancellingEchoPreProcessor : IRequestPreProcessor<EchoRequest>
     {
-        public Task Process(EchoRequest request, IRequestContext context, CancellationToken cancellationToken)
-            => Task.FromCanceled(cancellationToken);
+        public ValueTask<Either<EncinaError, Unit>> Process(EchoRequest request, IRequestContext context, CancellationToken cancellationToken)
+            => ValueTask.FromCanceled<Either<EncinaError, Unit>>(cancellationToken);
     }
 
     private sealed class ThrowingEchoPostProcessor : IRequestPostProcessor<EchoRequest, string>
     {
-        public Task Process(EchoRequest request, IRequestContext context, Either<EncinaError, string> response, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(EchoRequest request, IRequestContext context, string response, CancellationToken cancellationToken)
             => throw new InvalidOperationException("post failure");
     }
 
     private sealed class CancellingEchoPostProcessor : IRequestPostProcessor<EchoRequest, string>
     {
-        public Task Process(EchoRequest request, IRequestContext context, Either<EncinaError, string> response, CancellationToken cancellationToken)
-            => Task.FromCanceled(cancellationToken);
+        public ValueTask<Either<EncinaError, Unit>> Process(EchoRequest request, IRequestContext context, string response, CancellationToken cancellationToken)
+            => ValueTask.FromCanceled<Either<EncinaError, Unit>>(cancellationToken);
     }
 
     private sealed class MisleadingNotificationHandler : INotificationHandler<SampleNotification>
@@ -2089,10 +2085,11 @@ public sealed class EncinaTests
     {
         private readonly AsyncPipelineTracker _tracker = tracker;
 
-        public async Task Process(AsyncPipelineRequest request, IRequestContext context, CancellationToken cancellationToken)
+        public async ValueTask<Either<EncinaError, Unit>> Process(AsyncPipelineRequest request, IRequestContext context, CancellationToken cancellationToken)
         {
             await Task.Delay(1, cancellationToken).ConfigureAwait(false);
             _tracker.Events.Add("pre");
+            return Unit.Default;
         }
     }
 
@@ -2112,13 +2109,11 @@ public sealed class EncinaTests
     {
         private readonly AsyncPipelineTracker _tracker = tracker;
 
-        public async Task Process(AsyncPipelineRequest request, IRequestContext context, Either<EncinaError, string> response, CancellationToken cancellationToken)
+        public async ValueTask<Either<EncinaError, Unit>> Process(AsyncPipelineRequest request, IRequestContext context, string response, CancellationToken cancellationToken)
         {
             await Task.Delay(1, cancellationToken).ConfigureAwait(false);
-            if (response.IsRight)
-            {
-                _tracker.Events.Add("post");
-            }
+            _tracker.Events.Add("post");
+            return Unit.Default;
         }
     }
 

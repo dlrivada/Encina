@@ -518,22 +518,22 @@ public class EncinaConfigurationGuardTests
 
     private abstract class AbstractPreProcessor : IRequestPreProcessor<TestCommand>
     {
-        public abstract Task Process(TestCommand request, IRequestContext context, CancellationToken cancellationToken);
+        public abstract ValueTask<Either<EncinaError, Unit>> Process(TestCommand request, IRequestContext context, CancellationToken cancellationToken);
     }
 
     private sealed class ConcretePreProcessor : IRequestPreProcessor<TestCommand>
     {
-        public Task Process(TestCommand request, IRequestContext context, CancellationToken cancellationToken) => Task.CompletedTask;
+        public ValueTask<Either<EncinaError, Unit>> Process(TestCommand request, IRequestContext context, CancellationToken cancellationToken) => ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
     }
 
     private abstract class AbstractPostProcessor : IRequestPostProcessor<TestCommand, string>
     {
-        public abstract Task Process(TestCommand request, IRequestContext context, Either<EncinaError, string> response, CancellationToken cancellationToken);
+        public abstract ValueTask<Either<EncinaError, Unit>> Process(TestCommand request, IRequestContext context, string response, CancellationToken cancellationToken);
     }
 
     private sealed class ConcretePostProcessor : IRequestPostProcessor<TestCommand, string>
     {
-        public Task Process(TestCommand request, IRequestContext context, Either<EncinaError, string> response, CancellationToken cancellationToken) => Task.CompletedTask;
+        public ValueTask<Either<EncinaError, Unit>> Process(TestCommand request, IRequestContext context, string response, CancellationToken cancellationToken) => ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
     }
 
     #endregion

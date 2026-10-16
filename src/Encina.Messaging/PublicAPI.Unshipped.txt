@@ -109,7 +109,7 @@ Encina.Messaging.Outbox.OutboxOrchestrator.ProcessPendingMessagesAsync(System.Fu
 Encina.Messaging.Outbox.OutboxOrchestrator.GetPendingCountAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, int>>!
 Encina.Messaging.Outbox.OutboxPostProcessor<TRequest, TResponse>
 Encina.Messaging.Outbox.OutboxPostProcessor<TRequest, TResponse>.OutboxPostProcessor(Encina.Messaging.Outbox.IOutboxStore! outboxStore, Encina.Messaging.Outbox.IOutboxMessageFactory! messageFactory, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Outbox.OutboxPostProcessor<TRequest, TResponse>!>! logger, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, System.TimeProvider? timeProvider = null) -> void
-Encina.Messaging.Outbox.OutboxPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, LanguageExt.Either<Encina.EncinaError, TResponse> result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Messaging.Outbox.OutboxPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, TResponse response, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 const Encina.Messaging.Outbox.OutboxErrorCodes.DeserializationFailed = "outbox.deserialization_failed" -> string!
 const Encina.Messaging.Outbox.OutboxErrorCodes.MaxRetriesExceeded = "outbox.max_retries_exceeded" -> string!
 const Encina.Messaging.Outbox.OutboxErrorCodes.PublishFailed = "outbox.publish_failed" -> string!
@@ -146,7 +146,6 @@ static Encina.Messaging.MessagingLog.ProcessedAndCachedMessage(Microsoft.Extensi
 static Encina.Messaging.MessagingLog.ErrorProcessingMessage(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception, string! messageId, string? correlationId) -> void
 static Encina.Messaging.MessagingLog.StoringNotificationsInOutbox(Microsoft.Extensions.Logging.ILogger! logger, int count, string! requestType, string? correlationId) -> void
 static Encina.Messaging.MessagingLog.StoredNotificationsInOutbox(Microsoft.Extensions.Logging.ILogger! logger, int count, string? correlationId) -> void
-static Encina.Messaging.MessagingLog.SkippingOutboxStorageDueToError(Microsoft.Extensions.Logging.ILogger! logger, int count, string! errorMessage, string? correlationId) -> void
 static Encina.Messaging.MessagingLog.OutboxProcessorDisabled(Microsoft.Extensions.Logging.ILogger! logger) -> void
 static Encina.Messaging.MessagingLog.OutboxProcessorStarted(Microsoft.Extensions.Logging.ILogger! logger, System.TimeSpan interval, int batchSize) -> void
 static Encina.Messaging.MessagingLog.ErrorProcessingOutboxMessages(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception) -> void

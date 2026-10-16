@@ -1,0 +1,40 @@
+namespace Encina;
+
+/// <summary>
+/// Describes the resolved step order of a pipeline without executing it.
+/// </summary>
+/// <remarks>
+/// Steps are returned outermost first, in the order they run on the way in. This phase declares the contract;
+/// the implementation and its registration arrive with the order resolver.
+/// </remarks>
+/// <example>
+/// <code>
+/// public static void PrintPipeline(IEncinaPipelineInspector inspector)
+/// {
+///     foreach (var step in inspector.Describe&lt;PlaceOrder, OrderId&gt;())
+///     {
+///         Console.WriteLine($"{step.Stage} {step.Order} {step.StepType.Name}");
+///     }
+/// }
+/// </code>
+/// </example>
+public interface IEncinaPipelineInspector
+{
+    /// <summary>
+    /// Describes the pipeline of a request, outermost step first.
+    /// </summary>
+    /// <typeparam name="TRequest">Request type.</typeparam>
+    /// <typeparam name="TResponse">Response type.</typeparam>
+    /// <returns>The steps in execution order.</returns>
+    IReadOnlyList<PipelineStepDescription> Describe<TRequest, TResponse>()
+        where TRequest : IRequest<TResponse>;
+
+    /// <summary>
+    /// Describes the pipeline of a stream request, outermost step first.
+    /// </summary>
+    /// <typeparam name="TRequest">Stream request type.</typeparam>
+    /// <typeparam name="TItem">Item type yielded by the stream.</typeparam>
+    /// <returns>The steps in execution order.</returns>
+    IReadOnlyList<PipelineStepDescription> DescribeStream<TRequest, TItem>()
+        where TRequest : IStreamRequest<TItem>;
+}
