@@ -16,8 +16,9 @@ using DapperSagaStore = Encina.Dapper.SqlServer.Sagas.SagaStoreDapper;
 namespace Encina.IntegrationTests.SchemaScripts;
 
 /// <summary>
-/// Verifies that the <c>029_CreateDeadLetterMessagesTable.sql</c> file shipped by <c>Encina.ADO.SqlServer</c>
-/// and <c>Encina.Dapper.SqlServer</c> is valid SQL Server syntax and produces a schema that the packages' own
+/// Verifies that the <c>029_CreateDeadLetterMessagesTable.sql</c> file (#583) and the saga scripts <c>003</c> and
+/// <c>000</c> (#2206) shipped by <c>Encina.ADO.SqlServer</c>
+/// and <c>Encina.Dapper.SqlServer</c> are valid SQL Server syntax and produces a schema that the packages' own
 /// stores can read and write (#583). The fixture schema copy in <c>SqlServerSchema</c> is not used: the script
 /// runs in a database of its own, so that a table created by the fixture cannot hide a broken script.
 /// </summary>
@@ -126,6 +127,21 @@ public sealed partial class SqlServerSchemaScriptsIntegrationTests : IAsyncLifet
         ISagaState saga = dapper
             ? new DapperSagaState { SagaId = sagaId, SagaType = "Issue2206Saga", Data = "{}", Status = SagaStatus.Running, StartedAtUtc = nowUtc, LastUpdatedAtUtc = nowUtc, TimeoutAtUtc = timeoutAtUtc }
             : new AdoSagaState { SagaId = sagaId, SagaType = "Issue2206Saga", Data = "{}", Status = SagaStatus.Running, StartedAtUtc = nowUtc, LastUpdatedAtUtc = nowUtc, TimeoutAtUtc = timeoutAtUtc };
+
+        await using (var columns = new SqlCommand(
+            "SELECT COLUMN_NAME + ':' + DATA_TYPE + ':' + CAST(ISNULL(CHARACTER_MAXIMUM_LENGTH, 0) AS varchar(10)) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SagaStates' AND COLUMN_NAME IN ('Status', 'TimeoutAtUtc', 'CorrelationId', 'Metadata');",
+            connection))
+        await using (var reader = await columns.ExecuteReaderAsync())
+        {
+            var found = new List<string>();
+            while (await reader.ReadAsync())
+            {
+                found.Add(reader.GetString(0));
+            }
+
+            List<string> expectedColumns = ["Status:nvarchar:50", "TimeoutAtUtc:datetime2:0", "CorrelationId:nvarchar:256", "Metadata:nvarchar:-1"];
+            Assert.Equivalent(expectedColumns, found);
+        }
 
         (await store.AddAsync(saga)).ShouldBeRight();
 
