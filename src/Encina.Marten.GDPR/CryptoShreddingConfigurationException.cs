@@ -23,7 +23,7 @@ public enum CryptoShreddingConfigurationProblem
     /// <summary>The resolved <c>IDataErasureStrategy</c> is not the crypto-shredding router: a strategy was registered after <c>AddEncinaMartenGdpr</c>.</summary>
     ErasureStrategyBypassed = 5,
 
-    /// <summary>The resolved <c>IPersonalDataLocator</c> leaves the Marten locator out of data subject requests.</summary>
+    /// <summary>The resolved <c>IPersonalDataLocator</c> leaves a registered locator (the Marten locator or an application locator) out of data subject requests: with several locators registered it must be a <c>CompositePersonalDataLocator</c> that reaches every one.</summary>
     PersonalDataLocatorBypassed = 6,
 }
 

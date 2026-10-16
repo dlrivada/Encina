@@ -47,7 +47,7 @@ internal sealed partial class CryptoShreddingEngine
     /// <summary>Decrypts every pending owner of the frame (synchronous path, sync-over-async key access).</summary>
     internal void DecryptPending(CryptoShreddingFrame frame, object? root)
     {
-        if (frame.Pending.Count == 0)
+        if (frame.Pending.Count == 0 || frame.DecryptionSuppressed)
         {
             return;
         }
@@ -66,7 +66,7 @@ internal sealed partial class CryptoShreddingEngine
     /// </summary>
     internal async ValueTask DecryptPendingAsync(CryptoShreddingFrame frame, object? root, CancellationToken cancellationToken)
     {
-        if (frame.Pending.Count == 0)
+        if (frame.Pending.Count == 0 || frame.DecryptionSuppressed)
         {
             return;
         }

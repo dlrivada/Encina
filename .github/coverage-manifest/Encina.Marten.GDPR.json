@@ -59,7 +59,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "Unit tests build every problem message and assert it carries only type names; measured 100%.",
+        "guard": "Guard tests cover the null issues argument; measured 100%."
+      }
     },
     "CryptoShreddingDecryptionException.cs": {
       "defaultTests": [
@@ -105,7 +113,13 @@
         "unit"
       ],
       "defaultRule": "*HostedService.cs",
-      "reason": "Hosted service — StartAsync/StopAsync testable with mocks"
+      "reason": "Hosted service — StartAsync/StopAsync testable with mocks",
+      "targets": {
+        "unit": 94
+      },
+      "justifications": {
+        "unit": "Unit tests start the validator over real Marten options for every infrastructure problem including the locator rule in both registration orders; the uncovered lines are the type-load-failure and polymorphic-contract branches of the scan (measured 94.96%)."
+      }
     },
     "CryptoShreddingValidationDescriptor.cs": {
       "defaultTests": [
@@ -358,7 +372,19 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 96,
+        "contract": 84,
+        "property": 81,
+        "integration": 92
+      },
+      "justifications": {
+        "unit": "Unit tests cover frame creation, subject filter, no-decrypt suppression and disposal (measured 96.88%).",
+        "contract": "Contract tests round-trip through the real serializer and exercise the frame lifecycle (measured 84.38%).",
+        "property": "Property tests run round-trip invariants through real frames (measured 81.25%).",
+        "integration": "Real PostgreSQL reads and writes create and release frames, including the suppressed metadata reads (measured 92.71%)."
+      }
     },
     "Serialization/CryptoShreddingContractModifier.cs": {
       "defaultTests": [
@@ -382,7 +408,19 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "contract": 41,
+        "property": 56,
+        "integration": 67
+      },
+      "justifications": {
+        "unit": "Unit tests cover decrypt, tombstone, forgotten, integrity and key-store failure branches and the suppressed read (measured 95.42%).",
+        "contract": "Contract tests reach the read path through the serializer contract only (measured 41.98%).",
+        "property": "Property round-trip tests reach the read path (measured 56.49%).",
+        "integration": "Real PostgreSQL key store reads reach the happy and forgotten paths; failure branches are covered by unit tests (measured 67.94%)."
+      }
     },
     "Serialization/CryptoShreddingEngine.cs": {
       "defaultTests": [
