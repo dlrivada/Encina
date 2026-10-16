@@ -202,7 +202,7 @@ public sealed class CacheLogRedactionTests
         var inner = Substitute.For<IShardedQueryExecutor>();
         var cache = Substitute.For<ICacheProvider>();
         var logger = new FakeLogger<CachedShardedQueryExecutor>();
-        var sut = new CachedShardedQueryExecutor(inner, cache, Options.Create(new ScatterGatherCacheOptions()), logger);
+        var sut = new CachedShardedQueryExecutor(inner, cache, Options.Create(new ScatterGatherCacheOptions()), logger, Substitute.For<IPubSubProvider>());
         cache.GetAsync<ShardedQueryResult<string>>(default!, default)
             .ReturnsForAnyArgs(new ShardedQueryResult<string>(["x"], ["shard-1"], []));
 
@@ -212,8 +212,9 @@ public sealed class CacheLogRedactionTests
             (_, _) => throw new InvalidOperationException("not reached"));
         await sut.ExecuteAllCachedAsync<string>($"t:{TenantId}:u:{UserId}:all", (_, _) => throw new InvalidOperationException("not reached"));
         await sut.InvalidateAsync($"t:{TenantId}:*");
+        await sut.InvalidateShardAsync("shard-1");
 
-        logger.Collector.GetSnapshot().Count.ShouldBe(3);
+        logger.Collector.GetSnapshot().Count.ShouldBe(4);
         ShouldHoldNoIdentifier(logger);
     }
 
