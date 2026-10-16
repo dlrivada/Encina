@@ -75,7 +75,9 @@
 #
 # The rule applies to the agent named by -Agent; when the hook input names a different agent_type (a nested
 # agent that inherited the hook), the call is allowed, since that agent has its own hooks. Paths outside the
-# project are allowed.
+# project are allowed, except that the six audit-stage agents may not write under ~/.claude/projects (their own
+# transcripts, which the #2234 binding reads), nor to an unresolvable or \\?\, \\.\, UNC path (#2244). Known limit:
+# a shell write whose target is built with a variable cannot be resolved by Get-ShellWrites and is not checked.
 #
 # Both the file tools AND shell writes are covered (#1345 review): a Set-Content, Add-Content, Out-File,
 # redirection, [IO.File]/[IO.StreamWriter] call, Copy-Item/Move-Item or their Bash equivalents (cp, mv, touch,
@@ -285,6 +287,30 @@ try {
     # Checks one resolved absolute path against every ownership rule. Returns $true (allowed) or $false
     # (blocked; the reason is already on stderr). A path outside the project is always allowed.
     function Test-PathOwnership([string]$Full) {
+        # #2244: the transcript folder (~/.claude/projects/**) is outside the project, so the "outside the project"
+        # allow would let an audit-stage agent rewrite its own transcript, the first user message
+        # Get-SpawnPromptWiaNumbers trusts for the #2234 per-audit binding. Denied to the six audit-stage agents,
+        # before that allow; no other caller changes.
+        if ($Agent -in 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier', 'docs-reviewer', 'remediation-drafter') {
+            # Fail closed on a path that cannot be resolved (Get-FullPath returns $null past 400 characters) and on
+            # the \\?\, \\.\ and UNC forms, which GetFullPath leaves unchanged and so would evade the prefix test.
+            if ([string]::IsNullOrWhiteSpace($Full) -or $Full.StartsWith('\\') -or $Full.StartsWith('//')) {
+                [Console]::Error.WriteLine("Blocked: $Agent may not write to a path that cannot be resolved or that uses a \\?\, \\.\ or UNC form ('$Full'), because it could reach the Claude Code transcript folder that the per-audit binding reads (#2244, #2234, fail closed).")
+                return $false
+            }
+            $homeDir = [Environment]::GetFolderPath('UserProfile')
+            if (-not [string]::IsNullOrWhiteSpace($homeDir)) {
+                $transcriptRoot = ([System.IO.Path]::GetFullPath((Join-Path (Join-Path $homeDir '.claude') 'projects'))).TrimEnd('\', '/')
+                $fullNorm = ([System.IO.Path]::GetFullPath($Full)).TrimEnd('\', '/')
+                if ($fullNorm.Equals($transcriptRoot, [StringComparison]::OrdinalIgnoreCase) -or
+                    $fullNorm.StartsWith($transcriptRoot + '\', [StringComparison]::OrdinalIgnoreCase) -or
+                    $fullNorm.StartsWith($transcriptRoot + '/', [StringComparison]::OrdinalIgnoreCase)) {
+                    [Console]::Error.WriteLine("Blocked: '$Full' is under the Claude Code transcript folder (~/.claude/projects), which holds this $Agent's own spawn prompt; an audit-stage agent may not write there, because the per-audit binding reads that prompt (#2244, #2234).")
+                    return $false
+                }
+            }
+        }
+
         $location = Get-RepoLocation $Full $layout
         if ($null -eq $location) { return $true }
 
