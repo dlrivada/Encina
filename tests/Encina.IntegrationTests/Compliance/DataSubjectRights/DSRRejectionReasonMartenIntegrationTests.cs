@@ -128,7 +128,7 @@ public sealed class DSRRejectionReasonMartenIntegrationTests : IAsyncLifetime
             NullLogger<DefaultDSRService>.Instance);
 
         var gated = await service.DenyRequestAsync(id, DSRRejectionReason.AbusiveIntent, "Not enabled");
-        gated.IsLeft.ShouldBeTrue();
+        gated.LeftAsEnumerable().Single().GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.RejectionReasonNotEnabledCode);
 
         var denied = await service.DenyRequestAsync(id, DSRRejectionReason.RestrictedByLaw, "Art. 23 restriction");
         denied.IsRight.ShouldBeTrue();
