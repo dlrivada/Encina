@@ -1,12 +1,17 @@
 using System.Text.RegularExpressions;
 using Encina.Messaging.DeadLetter;
+using Encina.Messaging.Sagas;
 using Encina.TestInfrastructure.Fixtures;
 using Microsoft.Data.SqlClient;
 using Xunit;
 using AdoDeadLetterFactory = Encina.ADO.SqlServer.DeadLetter.DeadLetterMessageFactory;
 using AdoDeadLetterStore = Encina.ADO.SqlServer.DeadLetter.DeadLetterStoreADO;
+using AdoSagaState = Encina.ADO.SqlServer.Sagas.SagaState;
+using AdoSagaStore = Encina.ADO.SqlServer.Sagas.SagaStoreADO;
 using DapperDeadLetterFactory = Encina.Dapper.SqlServer.DeadLetter.DeadLetterMessageFactory;
 using DapperDeadLetterStore = Encina.Dapper.SqlServer.DeadLetter.DeadLetterStoreDapper;
+using DapperSagaState = Encina.Dapper.SqlServer.Sagas.SagaState;
+using DapperSagaStore = Encina.Dapper.SqlServer.Sagas.SagaStoreDapper;
 
 namespace Encina.IntegrationTests.SchemaScripts;
 
@@ -92,6 +97,62 @@ public sealed partial class SqlServerSchemaScriptsIntegrationTests : IAsyncLifet
         Assert.True((await store.AddAsync(factory.Create(Data("Script-1")))).ShouldBeRight());
         Assert.Equal(2, (await store.GetCountAsync()).ShouldBeRight());
         Assert.Equal(1, (await store.GetCountAsync(new DeadLetterFilter { SourceMessageId = "Script-1" })).ShouldBeRight());
+    }
+
+    /// <summary>
+    /// Both the stand-alone <c>003</c> script and the all-in-one <c>000</c> script create a <c>SagaStates</c> table that
+    /// the package's saga store can write and read: the status is text, <c>TimeoutAtUtc</c> exists, and the saga
+    /// can be started, read back, found as expired and updated (#2206).
+    /// </summary>
+    [Theory]
+    [InlineData("Encina.ADO.SqlServer", "003")]
+    [InlineData("Encina.ADO.SqlServer", "000")]
+    [InlineData("Encina.Dapper.SqlServer", "003")]
+    [InlineData("Encina.Dapper.SqlServer", "000")]
+    public async Task SagaScript_CreatesATableTheSagaStoreCanWriteAndRead(string packageName, string scriptPrefix)
+    {
+        await using var connection = await OpenScriptDatabaseAsync();
+        var script = await File.ReadAllTextAsync(Directory.GetFiles(FindScriptsFolder(packageName), scriptPrefix + "_*.sql").Single());
+        await RunScriptAsync(connection, script);
+
+        var dapper = packageName.Contains("Dapper", StringComparison.Ordinal);
+        ISagaStore store = dapper
+            ? new DapperSagaStore(connection)
+            : new AdoSagaStore(connection);
+
+        var nowUtc = DateTime.UtcNow;
+        var sagaId = Guid.NewGuid();
+        var timeoutAtUtc = nowUtc.AddMinutes(-5);
+        ISagaState saga = dapper
+            ? new DapperSagaState { SagaId = sagaId, SagaType = "Issue2206Saga", Data = "{}", Status = SagaStatus.Running, StartedAtUtc = nowUtc, LastUpdatedAtUtc = nowUtc, TimeoutAtUtc = timeoutAtUtc }
+            : new AdoSagaState { SagaId = sagaId, SagaType = "Issue2206Saga", Data = "{}", Status = SagaStatus.Running, StartedAtUtc = nowUtc, LastUpdatedAtUtc = nowUtc, TimeoutAtUtc = timeoutAtUtc };
+
+        (await store.AddAsync(saga)).ShouldBeRight();
+
+        var stored = await GetSomeAsync(store, sagaId);
+        Assert.Equal(SagaStatus.Running, stored.Status);
+        Assert.NotNull(stored.TimeoutAtUtc);
+
+        var expired = (await store.GetExpiredSagasAsync(10)).ShouldBeRight();
+        Assert.Contains(expired, s => s.SagaId == sagaId);
+
+        saga.Status = SagaStatus.Completed;
+        saga.CompletedAtUtc = nowUtc;
+        saga.CurrentStep = 2;
+        (await store.UpdateAsync(saga)).ShouldBeRight();
+
+        var updated = await GetSomeAsync(store, sagaId);
+        Assert.Equal(SagaStatus.Completed, updated.Status);
+        Assert.Equal(2, updated.CurrentStep);
+        Assert.DoesNotContain((await store.GetExpiredSagasAsync(10)).ShouldBeRight(), s => s.SagaId == sagaId);
+    }
+
+    private static async Task<ISagaState> GetSomeAsync(ISagaStore store, Guid sagaId)
+    {
+        var found = (await store.GetAsync(sagaId)).ShouldBeRight();
+        Assert.True(found.IsSome);
+
+        return found.IfNone(() => throw new InvalidOperationException("The saga was not found."));
     }
 
     private static DeadLetterData Data(string sourceMessageId)
