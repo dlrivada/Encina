@@ -1,3 +1,5 @@
+using Encina.Diagnostics;
+
 namespace Encina.DistributedLock.Redis;
 
 /// <summary>
@@ -78,7 +80,7 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
                 break;
             }
 
-            await Task.Delay(retry < remaining ? retry : remaining, _timeProvider, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(NextDelay(retry, remaining), _timeProvider, cancellationToken).ConfigureAwait(false);
         }
 
         LogLockFailed(_logger, resource);
@@ -111,6 +113,14 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
             await Task.Delay(retryInterval, _timeProvider, cancellationToken).ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// The wait before the next attempt: the retry interval, cut to the time left before the deadline,
+    /// and never under one millisecond, because a zero delay completes at once and would spin the loop
+    /// without ever letting a test clock advance.
+    /// </summary>
+    private static TimeSpan NextDelay(TimeSpan retry, TimeSpan remaining)
+        => TimeSpan.FromMilliseconds(Math.Max(1, Math.Min(retry.TotalMilliseconds, remaining.TotalMilliseconds)));
 
     private async Task<LockHandle?> TrySetLockAsync(string lockKey, string lockValue, string resource, TimeSpan expiry)
     {
@@ -190,6 +200,12 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
         Level = LogLevel.Debug,
         Message = "Failed to acquire lock on resource: {Resource}")]
     private static partial void LogLockFailed(ILogger logger, string resource);
+
+    [LoggerMessage(
+        EventId = 3754,
+        Level = LogLevel.Warning,
+        Message = "Failed to release lock on resource: {Resource} ({ExceptionType}); the key expires with its TTL")]
+    private static partial void LogLockReleaseFailed(ILogger logger, string resource, string exceptionType, Exception exception);
 
     /// <summary>
     /// Context information for a lock handle.
@@ -282,9 +298,11 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
 
                 LogLockReleased(_context.Logger, Resource, LockId);
             }
-            catch
+            catch (Exception ex)
             {
-                // Log but don't throw - the lock will expire anyway
+                // Do not throw from DisposeAsync: the key expires with its TTL anyway. Log only the
+                // exception type and stack trace (ForLogging), never its message.
+                LogLockReleaseFailed(_context.Logger, Resource, ex.GetType().Name, ex.ForLogging());
             }
         }
     }

@@ -75,7 +75,7 @@ public sealed partial class InMemoryDistributedLockProvider : IDistributedLockPr
                 break;
             }
 
-            await Task.Delay(retry < remaining ? retry : remaining, _timeProvider, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(NextDelay(retry, remaining), _timeProvider, cancellationToken).ConfigureAwait(false);
         }
 
         LogLockFailed(_logger, resource);
@@ -108,6 +108,14 @@ public sealed partial class InMemoryDistributedLockProvider : IDistributedLockPr
             await Task.Delay(retryInterval, _timeProvider, cancellationToken).ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// The wait before the next attempt: the retry interval, cut to the time left before the deadline,
+    /// and never under one millisecond, because a zero delay completes at once and would spin the loop
+    /// without ever letting a test clock advance.
+    /// </summary>
+    private static TimeSpan NextDelay(TimeSpan retry, TimeSpan remaining)
+        => TimeSpan.FromMilliseconds(Math.Max(1, Math.Min(retry.TotalMilliseconds, remaining.TotalMilliseconds)));
 
     private LockHandle? TryAddLock(string lockKey, string lockValue, string resource, TimeSpan expiry)
     {
@@ -187,10 +195,14 @@ public sealed partial class InMemoryDistributedLockProvider : IDistributedLockPr
 
     internal bool TryReleaseLock(string lockKey, string lockValue)
     {
-        if (_locks.TryGetValue(lockKey, out var entry) && entry.LockValue == lockValue)
+        // Compare-and-remove, so a release never deletes a newer owner's entry; it reads again when
+        // the owner's own concurrent extension replaced the entry between the read and the remove.
+        while (_locks.TryGetValue(lockKey, out var entry) && entry.LockValue == lockValue)
         {
-            // Compare-and-remove, so a release never deletes a newer owner's entry.
-            return _locks.TryRemove(new KeyValuePair<string, LockEntry>(lockKey, entry));
+            if (_locks.TryRemove(new KeyValuePair<string, LockEntry>(lockKey, entry)))
+            {
+                return true;
+            }
         }
 
         return false;

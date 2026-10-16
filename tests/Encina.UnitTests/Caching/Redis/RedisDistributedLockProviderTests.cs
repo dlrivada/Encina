@@ -1,4 +1,5 @@
 using Encina.Caching.Redis;
+using Encina.Testing.Time;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -11,6 +12,8 @@ namespace Encina.UnitTests.Caching.Redis;
 /// </summary>
 public sealed class RedisDistributedLockProviderTests
 {
+    private static readonly DateTimeOffset StartTime = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+
     private readonly IConnectionMultiplexer _connectionMultiplexer;
     private readonly IDatabase _database;
     private readonly RedisLockOptions _options;
@@ -85,9 +88,111 @@ public sealed class RedisDistributedLockProviderTests
             provider.TryAcquireAsync("resource", TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(100), cts.Token));
     }
 
+    [Fact]
+    public async Task TryAcquireAsync_WhenLockUnavailable_ReturnsNullOnceWaitElapses()
+    {
+        // Arrange
+        var time = new FakeTimeProvider(StartTime);
+        var provider = CreateProvider(time);
+        SetupStringSet(false);
+
+        // Act
+        var attempt = provider.TryAcquireAsync("resource", TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(100), CancellationToken.None);
+        var pendingBeforeDeadline = attempt.IsCompleted;
+        time.Advance(TimeSpan.FromSeconds(5));
+        var handle = await attempt;
+
+        // Assert
+        pendingBeforeDeadline.ShouldBeFalse();
+        handle.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task TryAcquireAsync_WhenLockFreedDuringWait_ReturnsHandleOnNextRetry()
+    {
+        // Arrange
+        var time = new FakeTimeProvider(StartTime);
+        var provider = CreateProvider(time);
+        SetupStringSet(false, true);
+
+        // Act
+        var attempt = provider.TryAcquireAsync("resource", TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(100), CancellationToken.None);
+        time.Advance(TimeSpan.FromMilliseconds(100));
+        var handle = await attempt;
+
+        // Assert
+        handle.ShouldNotBeNull();
+        await handle.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task TryAcquireAsync_WithZeroWait_WhenLockAvailable_ReturnsHandle()
+    {
+        // Arrange
+        var provider = CreateProvider(new FakeTimeProvider(StartTime));
+        SetupStringSet(true);
+
+        // Act
+        var handle = await provider.TryAcquireAsync("resource", TimeSpan.FromSeconds(30), TimeSpan.Zero, TimeSpan.FromMilliseconds(100), CancellationToken.None);
+
+        // Assert
+        handle.ShouldNotBeNull();
+        await handle.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task TryAcquireAsync_WithZeroWait_WhenLockUnavailable_ReturnsNullAfterOneAttempt()
+    {
+        // Arrange
+        var provider = CreateProvider(new FakeTimeProvider(StartTime));
+        SetupStringSet(false);
+
+        // Act
+        var handle = await provider.TryAcquireAsync("resource", TimeSpan.FromSeconds(30), TimeSpan.Zero, TimeSpan.FromMilliseconds(100), CancellationToken.None);
+
+        // Assert
+        handle.ShouldBeNull();
+        await _database.Received(1).StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(), Arg.Any<When>());
+    }
+
     #endregion
 
     #region AcquireAsync Tests
+
+    [Fact]
+    public async Task AcquireAsync_WhenLockFreedDuringWait_ReturnsHandleOnNextRetry()
+    {
+        // Arrange
+        var time = new FakeTimeProvider(StartTime);
+        var provider = CreateProvider(time);
+        SetupStringSet(false, true);
+
+        // Act
+        var attempt = provider.AcquireAsync("resource", TimeSpan.FromSeconds(30), CancellationToken.None);
+        var pendingBeforeRetry = attempt.IsCompleted;
+        time.Advance(TimeSpan.FromMilliseconds(100));
+        var handle = await attempt;
+
+        // Assert
+        pendingBeforeRetry.ShouldBeFalse();
+        handle.ShouldNotBeNull();
+        await handle.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task LockHandle_DisposeAsync_WhenReleaseScriptThrows_DoesNotThrow()
+    {
+        // Arrange
+        var provider = CreateProvider(new FakeTimeProvider(StartTime));
+        SetupStringSet(true);
+        _database.ScriptEvaluateAsync(Arg.Any<string>(), Arg.Any<RedisKey[]>(), Arg.Any<RedisValue[]>(), Arg.Any<CommandFlags>())
+            .Returns<Task<RedisResult>>(_ => throw new RedisConnectionException(ConnectionFailureType.SocketFailure, "connection lost"));
+        var handle = await provider.TryAcquireAsync("resource", TimeSpan.FromSeconds(30), TimeSpan.Zero, TimeSpan.FromMilliseconds(100), CancellationToken.None);
+
+        // Act & Assert
+        handle.ShouldNotBeNull();
+        await Should.NotThrowAsync(async () => await handle.DisposeAsync());
+    }
 
     [Fact]
     public async Task AcquireAsync_WithNullResource_ThrowsArgumentNullException()
@@ -213,12 +318,19 @@ public sealed class RedisDistributedLockProviderTests
 
     #region Helper Methods
 
-    private RedisDistributedLockProvider CreateProvider()
+    private RedisDistributedLockProvider CreateProvider(TimeProvider? timeProvider = null)
     {
         return new RedisDistributedLockProvider(
             _connectionMultiplexer,
             Options.Create(_options),
-            _logger);
+            _logger,
+            timeProvider);
+    }
+
+    private void SetupStringSet(bool first, params bool[] next)
+    {
+        _database.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(), Arg.Any<When>())
+            .Returns(first, next);
     }
 
     #endregion

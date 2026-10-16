@@ -508,35 +508,84 @@ public sealed class MemoryDistributedLockProviderTests
     {
         // Arrange
         var resource = _faker.Lorem.Word();
-        var acquiredCount = 0;
-        var tasks = new List<Task>();
+
+        // Act - ten parallel zero-wait attempts; every winner keeps its handle until all have finished
+        var handles = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ => Task.Run(() => _sut.TryAcquireAsync(
+            resource,
+            TimeSpan.FromMinutes(5),
+            TimeSpan.Zero,
+            TimeSpan.FromMilliseconds(1),
+            CancellationToken.None))));
+
+        // Assert - mutual exclusion: exactly one attempt holds the lock
+        handles.Count(h => h is not null).ShouldBe(1);
+
+        foreach (var handle in handles.Where(h => h is not null))
+        {
+            await handle!.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task TryAcquireAsync_WithZeroWait_WhenResourceFree_AcquiresLock()
+    {
+        // Arrange
+        var resource = _faker.Lorem.Word();
 
         // Act
-        for (var i = 0; i < 10; i++)
-        {
-            tasks.Add(Task.Run(async () =>
-            {
-                var lockHandle = await _sut.TryAcquireAsync(
-                    resource,
-                    TimeSpan.FromMinutes(5),
-                    TimeSpan.FromMilliseconds(1),
-                    TimeSpan.FromMilliseconds(1),
-                    CancellationToken.None);
+        var lockHandle = await _sut.TryAcquireAsync(
+            resource,
+            TimeSpan.FromMinutes(5),
+            TimeSpan.Zero,
+            TimeSpan.FromMilliseconds(100),
+            CancellationToken.None);
 
-                if (lockHandle is not null)
-                {
-                    Interlocked.Increment(ref acquiredCount);
-                    // Keep the lock for a bit
-                    await Task.Delay(50);
-                    await lockHandle.DisposeAsync();
-                }
-            }));
-        }
+        // Assert
+        lockHandle.ShouldNotBeNull();
+        await lockHandle.DisposeAsync();
+    }
 
-        await Task.WhenAll(tasks);
+    [Fact]
+    public async Task TryAcquireAsync_WhenLockReleasedDuringWait_AcquiresOnNextRetry()
+    {
+        // Arrange
+        var resource = _faker.Lorem.Word();
+        var firstLock = await _sut.TryAcquireAsync(
+            resource, TimeSpan.FromMinutes(5), TimeSpan.Zero, TimeSpan.FromMilliseconds(100), CancellationToken.None);
+        var secondAttempt = _sut.TryAcquireAsync(
+            resource, TimeSpan.FromMinutes(5), TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(100), CancellationToken.None);
 
-        // Assert - at least one should acquire but not all at the same time
-        acquiredCount.ShouldBeGreaterThan(0);
+        // Act
+        var pendingWhileHeld = secondAttempt.IsCompleted;
+        await firstLock!.DisposeAsync();
+        _timeProvider.Advance(TimeSpan.FromMilliseconds(100));
+        var secondLock = await secondAttempt;
+
+        // Assert
+        pendingWhileHeld.ShouldBeFalse();
+        secondLock.ShouldNotBeNull();
+        await secondLock.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task AcquireAsync_WhenResourceLocked_WaitsUntilReleased()
+    {
+        // Arrange
+        var resource = _faker.Lorem.Word();
+        var firstLock = await _sut.AcquireAsync(resource, TimeSpan.FromMinutes(5), CancellationToken.None);
+        var secondAttempt = _sut.AcquireAsync(resource, TimeSpan.FromMinutes(5), CancellationToken.None);
+
+        // Act
+        _timeProvider.Advance(TimeSpan.FromMilliseconds(100));
+        var pendingWhileHeld = secondAttempt.IsCompleted;
+        await firstLock.DisposeAsync();
+        _timeProvider.Advance(TimeSpan.FromMilliseconds(100));
+        var secondLock = await secondAttempt;
+
+        // Assert
+        pendingWhileHeld.ShouldBeFalse();
+        secondLock.ShouldNotBeNull();
+        await secondLock.DisposeAsync();
     }
 
     #endregion
