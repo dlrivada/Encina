@@ -27,6 +27,11 @@ internal readonly record struct ResolvedPosition(PipelineStage Stage, int Order,
 /// costs one pass over the candidates per request. The first computation of a pipeline runs exactly once even when
 /// several requests build it concurrently.
 /// </para>
+/// <para>
+/// Fail closed: before a permutation is cached, <see cref="PipelineOrderValidator"/> checks the rules of the enforced
+/// <see cref="PipelineOrderRuleSet"/>. A pipeline that breaks one throws <see cref="InvalidOperationException"/> on
+/// every build, so without a host it fails on its first request, before any step or handler runs.
+/// </para>
 /// </remarks>
 internal sealed class PipelineOrderResolver
 {
@@ -36,7 +41,11 @@ internal sealed class PipelineOrderResolver
 
     private readonly PipelineStageRegistry _registry;
     private readonly ILogger<PipelineOrderResolver> _logger;
+    private readonly PipelineRegistrationSnapshot? _snapshot;
+    private readonly PipelineOrderRuleSet _rules;
     private readonly ConcurrentDictionary<Type, Slot> _slots = new();
+    private readonly object _registrationGate = new();
+    private volatile bool _registrationsValid;
     private int _computations;
 
     /// <summary>
@@ -44,14 +53,28 @@ internal sealed class PipelineOrderResolver
     /// </summary>
     /// <param name="registry">Registration-time overrides.</param>
     /// <param name="logger">Logger for the resolver diagnostics.</param>
-    public PipelineOrderResolver(PipelineStageRegistry registry, ILogger<PipelineOrderResolver> logger)
+    /// <param name="snapshot">
+    /// The registrations of the host, read once before the first pipeline is cached to check rule R4 when it is enforced;
+    /// <see langword="null"/> when there is no service collection to inspect.
+    /// </param>
+    /// <param name="rules">The validation rules to enforce before a pipeline is cached.</param>
+    public PipelineOrderResolver(
+        PipelineStageRegistry registry,
+        ILogger<PipelineOrderResolver> logger,
+        PipelineRegistrationSnapshot? snapshot = null,
+        PipelineOrderRuleSet rules = PipelineOrderRuleSet.Staged)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _snapshot = snapshot;
+        _rules = rules;
     }
 
     /// <summary>Gets the logger of the resolver (collapse and placement diagnostics arrive with the observability phase).</summary>
     internal ILogger Logger => _logger;
+
+    /// <summary>Gets the validation rules enforced before a pipeline is cached.</summary>
+    internal PipelineOrderRuleSet Rules => _rules;
 
     /// <summary>Gets how many permutations were computed (a cache hit does not count).</summary>
     internal int Computations => Volatile.Read(ref _computations);
@@ -76,7 +99,60 @@ internal sealed class PipelineOrderResolver
         var current = slot.Current;
         return current is not null && current.Matches(steps)
             ? current.Order
-            : Refresh(slot, steps);
+            : Refresh(pipelineKey, slot, steps);
+    }
+
+    /// <summary>
+    /// Computes, validates and caches the order of a pipeline described by types instead of instances, as the startup
+    /// validation does. A later <see cref="Resolve"/> over instances of the same step types is a cache hit.
+    /// </summary>
+    /// <param name="pipelineKey">The closed pipeline type the candidates belong to.</param>
+    /// <param name="candidates">The candidates in the registration sequence the builder resolves.</param>
+    /// <exception cref="InvalidOperationException">An order rule is broken.</exception>
+    public void Warm(Type pipelineKey, PipelineStepCandidate[] candidates)
+    {
+        ArgumentNullException.ThrowIfNull(pipelineKey);
+        ArgumentNullException.ThrowIfNull(candidates);
+
+        var slot = _slots.GetOrAdd(pipelineKey, static _ => new Slot());
+        lock (slot)
+        {
+            if (slot.Current?.Matches(candidates) != true)
+            {
+                Store(pipelineKey, slot, candidates);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Checks the rules that concern the registrations of the whole host (R4, R6) once. It repeats on every call until
+    /// the registrations are valid, so a broken host never starts and never serves a request.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">R4 or R6 is broken.</exception>
+    public void ValidateRegistrations()
+    {
+        if (_registrationsValid)
+        {
+            return;
+        }
+
+        lock (_registrationGate)
+        {
+            if (_registrationsValid)
+            {
+                return;
+            }
+
+            // The verdict is cached, so no later override may change it
+            _registry.Seal();
+            PipelineOrderValidator.ValidateRegistrations(
+                _registry.Conflicts,
+                _snapshot is not null && _rules.HasFlag(PipelineOrderRuleSet.NoDeadRegistrations)
+                    ? _snapshot.GetDeadPipelineRegistrations()
+                    : [],
+                _rules);
+            _registrationsValid = true;
+        }
     }
 
     /// <summary>
@@ -95,24 +171,44 @@ internal sealed class PipelineOrderResolver
             : DefaultFor(candidate.Kind);
     }
 
-    private int[] Refresh(Slot slot, IReadOnlyList<object> steps)
+    private int[] Refresh(Type pipelineKey, Slot slot, IReadOnlyList<object> steps)
     {
         lock (slot)
         {
             var current = slot.Current;
-            if (current is not null && current.Matches(steps))
-            {
-                return current.Order;
-            }
-
-            // A cached pipeline would not see a later override: from the first computation on the registry is closed
-            _registry.Seal();
-            var candidates = Describe(steps);
-            var created = new CachedOrder(Signature(candidates), Compute(candidates));
-            slot.Current = created;
-            Interlocked.Increment(ref _computations);
-            return created.Order;
+            return current is not null && current.Matches(steps)
+                ? current.Order
+                : Store(pipelineKey, slot, Describe(steps));
         }
+    }
+
+    // Validates before caching, so a pipeline that breaks a rule is never cached and never runs
+    private int[] Store(Type pipelineKey, Slot slot, PipelineStepCandidate[] candidates)
+    {
+        // A cached pipeline would not see a later override: from the first computation on the registry is closed
+        _registry.Seal();
+        ValidateRegistrations();
+
+        var kept = CollapseDuplicates(candidates);
+        var keys = BuildKeys(candidates, kept);
+        Array.Sort(keys, kept, KeyComparer);
+        PipelineOrderValidator.Validate(pipelineKey, ToResolved(candidates, kept, keys), _rules);
+
+        slot.Current = new CachedOrder(Signature(candidates), kept);
+        Interlocked.Increment(ref _computations);
+        return kept;
+    }
+
+    private static ResolvedStep[] ToResolved(PipelineStepCandidate[] candidates, int[] kept, SortKey[] keys)
+    {
+        var resolved = new ResolvedStep[kept.Length];
+        for (var i = 0; i < resolved.Length; i++)
+        {
+            var candidate = candidates[kept[i]];
+            resolved[i] = new ResolvedStep(candidate.StepType, candidate.Kind, keys[i].Stage, keys[i].Order, keys[i].Source);
+        }
+
+        return resolved;
     }
 
     private static PipelineStepCandidate[] Describe(IReadOnlyList<object> steps)
@@ -126,17 +222,15 @@ internal sealed class PipelineOrderResolver
         return candidates;
     }
 
-    private int[] Compute(PipelineStepCandidate[] candidates)
+    private SortKey[] BuildKeys(PipelineStepCandidate[] candidates, int[] kept)
     {
-        var kept = CollapseDuplicates(candidates);
         var keys = new SortKey[kept.Length];
         for (var i = 0; i < kept.Length; i++)
         {
             keys[i] = BuildKey(candidates[kept[i]]);
         }
 
-        Array.Sort(keys, kept, KeyComparer);
-        return kept;
+        return keys;
     }
 
     private static int[] CollapseDuplicates(PipelineStepCandidate[] candidates)
@@ -161,6 +255,7 @@ internal sealed class PipelineOrderResolver
         return new SortKey(
             position.Stage,
             position.Order,
+            position.Source,
             rank,
             rank < BehaviorRank ? candidate.StepType.FullName ?? candidate.StepType.Name : null,
             candidate.RegistrationIndex);
@@ -233,7 +328,7 @@ internal sealed class PipelineOrderResolver
         return signature;
     }
 
-    private readonly record struct SortKey(PipelineStage Stage, int Order, int Rank, string? Name, int Index);
+    private readonly record struct SortKey(PipelineStage Stage, int Order, PipelineStepSource Source, int Rank, string? Name, int Index);
 
     private sealed class Slot
     {
@@ -254,6 +349,24 @@ internal sealed class PipelineOrderResolver
             for (var i = 0; i < signature.Length; i++)
             {
                 if (!IsSame(signature[i], PipelineStepCandidate.For(steps[i], i)))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public bool Matches(PipelineStepCandidate[] candidates)
+        {
+            if (candidates.Length != signature.Length)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < signature.Length; i++)
+            {
+                if (!IsSame(signature[i], candidates[i]))
                 {
                     return false;
                 }
