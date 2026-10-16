@@ -56,11 +56,11 @@ public sealed partial class MemoryCacheProvider : ICacheProvider
 
         if (_cache.TryGetValue(key, out var value))
         {
-            LogCacheHit(_logger, key);
+            LogCacheHit(_logger, CacheKeyRedactor.Redact(key));
             return Task.FromResult((T?)value);
         }
 
-        LogCacheMiss(_logger, key);
+        LogCacheMiss(_logger, CacheKeyRedactor.Redact(key));
         return Task.FromResult(default(T?));
     }
 
@@ -88,7 +88,7 @@ public sealed partial class MemoryCacheProvider : ICacheProvider
         });
 
         _cache.Set(key, value, options);
-        LogCacheSet(_logger, key, expiration ?? _options.DefaultExpiration);
+        LogCacheSet(_logger, CacheKeyRedactor.Redact(key), expiration ?? _options.DefaultExpiration);
 
         return Task.CompletedTask;
     }
@@ -101,7 +101,7 @@ public sealed partial class MemoryCacheProvider : ICacheProvider
 
         _cache.Remove(key);
         _keyTracker.TryRemove(key, out _);
-        LogCacheRemove(_logger, key);
+        LogCacheRemove(_logger, CacheKeyRedactor.Redact(key));
 
         return Task.CompletedTask;
     }
@@ -121,7 +121,7 @@ public sealed partial class MemoryCacheProvider : ICacheProvider
             _keyTracker.TryRemove(key, out _);
         }
 
-        LogCacheRemovePattern(_logger, pattern, keysToRemove.Count);
+        LogCacheRemovePattern(_logger, CacheKeyRedactor.Redact(pattern), keysToRemove.Count);
 
         return Task.CompletedTask;
     }
@@ -148,7 +148,7 @@ public sealed partial class MemoryCacheProvider : ICacheProvider
 
         if (_cache.TryGetValue(key, out var existingValue))
         {
-            LogCacheHit(_logger, key);
+            LogCacheHit(_logger, CacheKeyRedactor.Redact(key));
             return (T)existingValue!;
         }
 
@@ -171,7 +171,7 @@ public sealed partial class MemoryCacheProvider : ICacheProvider
             return await factory(cancellationToken).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
-        LogCacheSet(_logger, key, expiration ?? _options.DefaultExpiration);
+        LogCacheSet(_logger, CacheKeyRedactor.Redact(key), expiration ?? _options.DefaultExpiration);
 
         return result!;
     }
@@ -209,7 +209,7 @@ public sealed partial class MemoryCacheProvider : ICacheProvider
         });
 
         _cache.Set(key, value, options);
-        LogCacheSetSliding(_logger, key, slidingExpiration, absoluteExpiration);
+        LogCacheSetSliding(_logger, CacheKeyRedactor.Redact(key), slidingExpiration, absoluteExpiration);
 
         return Task.CompletedTask;
     }

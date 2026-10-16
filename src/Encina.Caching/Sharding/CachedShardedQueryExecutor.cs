@@ -128,7 +128,7 @@ public sealed class CachedShardedQueryExecutor : IShardedQueryExecutor
 
         if (cached is not null)
         {
-            _logger.LogDebug("Cache hit for scatter-gather query '{CacheKey}'", cacheKey);
+            _logger.LogDebug("Cache hit for scatter-gather query '{CacheKey}'", CacheKeyRedactor.Redact(cacheKey));
             return Either<EncinaError, ShardedQueryResult<T>>.Right(cached);
         }
 
@@ -148,7 +148,7 @@ public sealed class CachedShardedQueryExecutor : IShardedQueryExecutor
 
                 _logger.LogDebug(
                     "Cached scatter-gather result for '{CacheKey}' ({Count} items, TTL {Duration})",
-                    cacheKey,
+                    CacheKeyRedactor.Redact(cacheKey),
                     queryResult.Results.Count,
                     duration);
             }
@@ -156,7 +156,7 @@ public sealed class CachedShardedQueryExecutor : IShardedQueryExecutor
             {
                 _logger.LogDebug(
                     "Scatter-gather result for '{CacheKey}' exceeds max size ({Count} > {Max}), not caching",
-                    cacheKey,
+                    CacheKeyRedactor.Redact(cacheKey),
                     queryResult.Results.Count,
                     _options.MaxCachedResultSize);
             }
@@ -197,7 +197,7 @@ public sealed class CachedShardedQueryExecutor : IShardedQueryExecutor
 
         if (cached is not null)
         {
-            _logger.LogDebug("Cache hit for scatter-gather all-shards query '{CacheKey}'", cacheKey);
+            _logger.LogDebug("Cache hit for scatter-gather all-shards query '{CacheKey}'", CacheKeyRedactor.Redact(cacheKey));
             return Either<EncinaError, ShardedQueryResult<T>>.Right(cached);
         }
 
@@ -236,7 +236,7 @@ public sealed class CachedShardedQueryExecutor : IShardedQueryExecutor
         var fullPattern = $"{DefaultKeyPrefix}:{cacheKeyPattern}";
         await _cache.RemoveByPatternAsync(fullPattern, cancellationToken).ConfigureAwait(false);
 
-        _logger.LogDebug("Invalidated scatter-gather cache entries matching '{Pattern}'", fullPattern);
+        _logger.LogDebug("Invalidated scatter-gather cache entries matching '{Pattern}'", CacheKeyRedactor.Redact(fullPattern));
 
         if (_pubSub is not null)
         {
