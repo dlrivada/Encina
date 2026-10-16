@@ -1,7 +1,11 @@
 using System.Reflection;
 
+using Encina.Marten.Projections;
+
 using Marten;
 using Marten.Events.Projections;
+
+using Microsoft.Extensions.DependencyInjection;
 
 using Shouldly;
 
@@ -43,6 +47,23 @@ public sealed class ProjectionsNeverTakeServiceProviderTests
 
         projections.ShouldContain(t => t.Name == "OperationAuditEntryProjection");
         projections.ShouldContain(t => t.Name == "ConsentProjection");
+        projections.ShouldContain(t => t.Name == "DPAProjection" || t.Name == "DataLocationProjection");
+    }
+
+    [Fact]
+    public void Rule_FailsForIProjectionImplementationWithServiceProvider()
+    {
+        var violations = FindViolations([typeof(BadIProjectionServiceProvider)]);
+
+        violations.ShouldHaveSingleItem().ShouldContain(".ctor");
+    }
+
+    [Fact]
+    public void Rule_FailsForProjectionWithServiceScopeFactory()
+    {
+        var violations = FindViolations([typeof(BadIProjectionScopeFactory)]);
+
+        violations.ShouldHaveSingleItem().ShouldContain(".ctor");
     }
 
     [Fact]
@@ -78,7 +99,7 @@ public sealed class ProjectionsNeverTakeServiceProviderTests
             var members = type.GetConstructors(all).Cast<MethodBase>().Concat(type.GetMethods(all));
             foreach (var member in members)
             {
-                if (member.GetParameters().Any(p => p.ParameterType == typeof(IServiceProvider)))
+                if (member.GetParameters().Any(p => IsServiceLocator(p.ParameterType)))
                 {
                     violations.Add($"{type.FullName}.{member.Name}");
                 }
@@ -86,6 +107,12 @@ public sealed class ProjectionsNeverTakeServiceProviderTests
         }
 
         return violations;
+    }
+
+    private static bool IsServiceLocator(Type parameterType)
+    {
+        var type = parameterType.IsByRef ? parameterType.GetElementType()! : parameterType;
+        return typeof(IServiceProvider).IsAssignableFrom(type) || type == typeof(IServiceScopeFactory);
     }
 
     private static bool IsProjection(Type type)
@@ -140,6 +167,30 @@ public sealed class ProjectionsNeverTakeServiceProviderTests
     private sealed class BadConstructorProjection : EventProjection
     {
         public BadConstructorProjection(IServiceProvider services)
+        {
+        }
+    }
+
+    private sealed class FixtureReadModel : IReadModel
+    {
+        public Guid Id { get; set; }
+    }
+
+    private abstract class FixtureIProjection : IProjection<FixtureReadModel>
+    {
+        public string ProjectionName => "fixture";
+    }
+
+    private sealed class BadIProjectionServiceProvider : FixtureIProjection
+    {
+        public BadIProjectionServiceProvider(IServiceProvider services)
+        {
+        }
+    }
+
+    private sealed class BadIProjectionScopeFactory : FixtureIProjection
+    {
+        public BadIProjectionScopeFactory(IServiceScopeFactory scopes)
         {
         }
     }
