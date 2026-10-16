@@ -374,7 +374,7 @@ All issues are reported at once. The host does not start; one `CryptoShreddingCo
 | `ContractModifierMissing` | The modifier is not installed, was replaced, or a resolver placed ahead of it produced a contract |
 | `ProjectionSkipsSerializationErrors` | Marten's `Projections.Errors.SkipSerializationErrors` is `true` |
 | `ErasureStrategyBypassed` | The resolved `IDataErasureStrategy` is not the crypto-shredding router: a strategy was registered after `AddEncinaMartenGdpr` |
-| `PersonalDataLocatorBypassed` | More than one `IPersonalDataLocator` is registered and the resolved one is neither the Marten locator nor a `CompositePersonalDataLocator` that contains it |
+| `PersonalDataLocatorBypassed` | More than one `IPersonalDataLocator` is registered and the resolved one (the last registration) is not a `CompositePersonalDataLocator` that reaches every registered locator type, nested composites included; the message and `ComponentType` list the full names of the types left out |
 
 Startup also logs warning 8478 when a subject-id property is itself marked `[PersonalData]` (use pseudonymous ids), and warning 8484 when the in-memory key store is in use. With `ValidateOnStartup = false` the validator logs the opt-out at Warning (EventId 8462) and returns; misconfigured types then fail on first use and the installation check still runs on the first write.
 
@@ -549,8 +549,21 @@ Registration order:
 | You register | Before `AddEncinaMartenGdpr` | After `AddEncinaMartenGdpr` |
 |--------------|------------------------------|-----------------------------|
 | A custom `IDataErasureStrategy` | It becomes the router's inner strategy and receives only locations of other locators | It bypasses the router: startup stops with `ErasureStrategyBypassed` |
-| Another `IPersonalDataLocator` | Resolve a `CompositePersonalDataLocator` that includes the Marten locator | Same: otherwise startup stops with `PersonalDataLocatorBypassed` |
+| Another `IPersonalDataLocator` | The Marten locator, registered later, shadows it: startup stops with `PersonalDataLocatorBypassed` unless a composite registered last reaches both | It shadows the Marten locator: same failure unless a composite registered last reaches both |
 | `AddEncinaDataSubjectRights` | Its default strategy becomes the inner strategy | Its `TryAdd` is a no-op |
+
+With more than one `IPersonalDataLocator` registered, the last registration is the one that resolves, in either order. Startup passes only when that one is a `CompositePersonalDataLocator` that reaches every registered locator type (nested composites count; composites themselves are not required). Registering `services.AddScoped<IPersonalDataLocator, CompositePersonalDataLocator>()` does not work because the composite would contain itself; register it with a factory, after `AddEncinaMartenGdpr` and after your own locator (`ApplicationLocator` stands for your `IPersonalDataLocator` implementation):
+
+```csharp
+services.AddScoped<ApplicationLocator>();
+services.AddScoped<IPersonalDataLocator>(sp => sp.GetRequiredService<ApplicationLocator>());
+services.AddEncinaMartenGdpr(options => { /* ... */ });
+
+// Registered last, so it is the resolved locator.
+services.AddScoped<IPersonalDataLocator>(sp => new CompositePersonalDataLocator(
+    [sp.GetRequiredService<ApplicationLocator>(), ActivatorUtilities.CreateInstance<MartenEventPersonalDataLocator>(sp)],
+    sp.GetRequiredService<ILogger<CompositePersonalDataLocator>>()));
+```
 
 `CompositePersonalDataLocator` returns `Left` when any inner locator fails, so a failing Marten locator fails the request instead of being dropped.
 
@@ -601,7 +614,7 @@ isForgotten.IfRight(forgotten =>
 
 Projections, snapshots and read models are encrypted too. `SnapshotEnvelope<T>.State` and documents that Marten serializes carry tokens, and subclasses of `AggregateBase` and `Entity<TId>` from `Encina.DomainModeling` work as owners (those types keep their `Id` and leave uncommitted and domain events out of the serialized form). A copy of the data in a type that does not carry the attributes is not encrypted.
 
-Read failures surface: a projection that deserializes an event whose data cannot be decrypted fails instead of receiving the placeholder (see [Async daemon and projections](#async-daemon-and-projections)). Other readers of the whole event store that deserialize through the crypto serializer, `MartenEventMetadataQuery` and `MartenProjectionManager`, return `Left` when any returned event cannot be decrypted. A mode that reads metadata without decrypting is tracked as a follow-up.
+Read failures surface: a projection that deserializes an event whose data cannot be decrypted fails instead of receiving the placeholder (see [Async daemon and projections](#async-daemon-and-projections)). `MartenProjectionManager`, which deserializes events through the crypto serializer, returns `Left` when any returned event cannot be decrypted. The metadata readers of `IEventMetadataQuery` (events by correlation id, events by causation id, causal chain, event by id) do not decrypt: protected fields keep their stored `cs2` token and no subject key is fetched, so one undecryptable event does not make them return `Left`. Do not read business data from the events they return.
 
 ---
 
@@ -803,7 +816,7 @@ A `CryptoShreddingConfigurationException` instead means a type is misconfigured;
 - **A settable property that the application fills from PII** (for example `Summary = Contact.Email`) cannot be detected and is stored in plaintext. Computed getters are rejected; derived settable values are the application's responsibility.
 - **Erasure is subject-wide** ([#1144](https://github.com/dlrivada/Encina/issues/1144)).
 - **Key lifecycle events are not published.** `PublishEvents` is reserved; `SubjectForgottenEvent` and `SubjectKeyRotatedEvent` exist but nothing publishes them yet.
-- **Metadata queries over undecryptable events fail** (see [Projection Handling](#projection-handling)).
+- **Metadata queries return tokens, not values**: protected fields of the events they return stay as stored `cs2` tokens (see [Projection Handling](#projection-handling)).
 - **In-memory key store** loses keys on restart ([#1191](https://github.com/dlrivada/Encina/issues/1191)).
 
 ---
