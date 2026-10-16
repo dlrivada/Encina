@@ -52,8 +52,11 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
     private const int MaxDeduplicationIdLength = 128;
 
     // SQS allows alphanumerics and punctuation, which is every printable ASCII character except the space.
-    private static bool IsValidDeduplicationId(string id) =>
-        id.Length is > 0 and <= MaxDeduplicationIdLength && id.All(c => c is > ' ' and <= '~');
+    private static bool IsValidOrAbsentDeduplicationId(string? id) =>
+        id is null || (id.Length is > 0 and <= MaxDeduplicationIdLength && id.All(c => c is > ' ' and <= '~'));
+
+    private static string? ResolveDeduplicationId(string? deduplicationId, string? messageId) =>
+        deduplicationId ?? (string.IsNullOrEmpty(messageId) ? null : messageId);
 
     private static string ResolveMessageId(string? messageId) =>
         string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId;
@@ -280,9 +283,9 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
                     "Queue URL is not configured."));
         }
 
-        var effectiveDeduplicationId = deduplicationId ?? (string.IsNullOrEmpty(messageId) ? null : messageId);
+        var effectiveDeduplicationId = ResolveDeduplicationId(deduplicationId, messageId);
 
-        if (effectiveDeduplicationId is not null && !IsValidDeduplicationId(effectiveDeduplicationId))
+        if (!IsValidOrAbsentDeduplicationId(effectiveDeduplicationId))
         {
             return Left<EncinaError, string>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
