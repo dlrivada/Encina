@@ -99,11 +99,26 @@ public class ServiceCollectionValidationTests
         });
 
         using var provider = services.BuildServiceProvider(Validation);
-        ConfigureStoreOptions(provider);
+        var storeOptions = ConfigureStoreOptions(provider);
 
         var registry = provider.GetRequiredService<EventUpcasterRegistry>();
         registry.HasUpcasterFor(nameof(ValidationOldEvent)).ShouldBeTrue();
+
         registry.GetAllUpcasters().Count(u => u.SourceEventTypeName == nameof(ValidationOldEvent)).ShouldBe(1);
+
+        // The upcaster must reach Marten, not only the Encina registry. Marten exposes no public
+        // list of legacy upcasters; Events.Upcast adds one entry to the event graph's name map
+        // (EventGraph._byEventName), so a skipped call leaves it at the baseline of a fresh store.
+        EventNameMapCount(storeOptions).ShouldBe(EventNameMapCount(new StoreOptions()) + 1);
+    }
+
+    private static int EventNameMapCount(StoreOptions storeOptions)
+    {
+        var field = typeof(global::Marten.Events.EventGraph)
+            .GetField("_byEventName", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        field.ShouldNotBeNull("Marten changed EventGraph internals; update this probe.");
+        var map = field.GetValue(storeOptions.Events);
+        return (int)map!.GetType().GetProperty("Count")!.GetValue(map)!;
     }
 
     [Fact]
@@ -124,13 +139,15 @@ public class ServiceCollectionValidationTests
         act.ShouldThrow<InvalidOperationException>().Message.ShouldContain(nameof(ValidationOldEvent));
     }
 
-    private static void ConfigureStoreOptions(ServiceProvider provider)
+    private static StoreOptions ConfigureStoreOptions(ServiceProvider provider)
     {
         var storeOptions = new StoreOptions();
         foreach (var configure in provider.GetServices<IConfigureOptions<StoreOptions>>())
         {
             configure.Configure(storeOptions);
         }
+
+        return storeOptions;
     }
 
     private static ServiceCollection CreateServicesWithHostDependencies()
