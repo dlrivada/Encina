@@ -84,6 +84,22 @@
         "integration": "Real Marten/PostgreSQL tests run create, save, disabled option and failing handler through IEncina.Send; only the same-session pass-through and cancellation paths stay uncovered (measured above 90%)."
       }
     },
+    "EventReadScope.cs": {
+      "defaultTests": [
+        "unit",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal ambient AsyncLocal scope read by the crypto-shredding serializer",
+      "targets": {
+        "unit": 100,
+        "integration": 100
+      },
+      "justifications": {
+        "unit": "Unit tests exercise default, nested suppression, restore on dispose and flow into awaited work; measured 100%.",
+        "integration": "Real metadata reads on PostgreSQL set and restore the scope on every public reader; measured 100%."
+      }
+    },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
       "defaultRule": "GlobalSuppressions.cs",
@@ -148,7 +164,17 @@
         "guard"
       ],
       "defaultRule": "*Query.cs",
-      "reason": "Query DTO"
+      "reason": "Query DTO",
+      "targets": {
+        "unit": 30,
+        "guard": 30,
+        "integration": 75
+      },
+      "justifications": {
+        "unit": "Unit tests cover the argument validation of every reader; the query paths need a real Marten session and are covered by the integration flag (measured 23%).",
+        "guard": "Guard tests cover the null and empty argument checks of the public readers (measured 30%).",
+        "integration": "Real PostgreSQL integration tests drive by-id, by-correlation, by-causation, ancestor and descendant chains, filters, paging, missing events and the no-decrypt path; the remainder is the generated LoggerMessage error logging (measured 75%)."
+      }
     },
     "Projections/InlineProjectionDispatcher.cs": {
       "defaultTests": [
