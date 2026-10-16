@@ -185,6 +185,37 @@ public sealed class MartenEventMetadataQueryTests
         RedactedExceptionLogAssert.LoggedOnlyRedacted(logger, sentinel);
     }
 
+    [Theory]
+    [InlineData("correlation")]
+    [InlineData("causation")]
+    [InlineData("ancestors")]
+    [InlineData("descendants")]
+    public async Task Readers_StoreFails_ReturnQueryFailed_LogRedactedException_AndRestoreTheDecryptionScope(string reader)
+    {
+        // Arrange
+        const string sentinel = "SENTINEL-EVENT-STORE-77c";
+        var logger = new FakeLogger<MartenEventMetadataQuery>();
+        _mockStore.QuerySession().Throws(new InvalidOperationException(sentinel));
+        var query = new MartenEventMetadataQuery(_mockStore, logger);
+
+        // Act
+        var result = reader switch
+        {
+            "correlation" => (await query.GetEventsByCorrelationIdAsync("corr")).Map(_ => 0),
+            "causation" => (await query.GetEventsByCausationIdAsync("cause")).Map(_ => 0),
+            "ancestors" => (await query.GetCausalChainAsync(Guid.NewGuid(), CausalChainDirection.Ancestors)).Map(_ => 0),
+            _ => (await query.GetCausalChainAsync(Guid.NewGuid(), CausalChainDirection.Descendants)).Map(_ => 0),
+        };
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.LeftToSeq().Head.GetCode().Match(
+            code => code.ShouldBe(MartenErrorCodes.QueryFailed),
+            () => throw new ShouldAssertException("Expected error code but got none"));
+        RedactedExceptionLogAssert.LoggedOnlyRedacted(logger, sentinel);
+        EventReadScope.IsDecryptionSuppressed.ShouldBeFalse();
+    }
+
     [Fact]
     public void CausalChainDirection_HasExpectedValues()
     {
