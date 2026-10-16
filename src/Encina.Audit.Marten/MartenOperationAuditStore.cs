@@ -168,7 +168,7 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
             }
 
             var readModels = await query
-                .OrderByDescending(m => m.TimestampUtc)
+                .OrderByDescending(m => m.TimestampUtc).ThenByDescending(m => m.Id)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -205,7 +205,7 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
             var query = ApplyUserFilter(_session.Query<OperationAuditEntryReadModel>(), userId, fromUtc, toUtc);
 
             var readModels = await query
-                .OrderByDescending(m => m.TimestampUtc)
+                .OrderByDescending(m => m.TimestampUtc).ThenByDescending(m => m.Id)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -235,7 +235,7 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
         {
             var readModels = await _session.Query<OperationAuditEntryReadModel>()
                 .Where(m => m.CorrelationId == correlationId)
-                .OrderBy(m => m.TimestampUtc)
+                .OrderBy(m => m.TimestampUtc).ThenBy(m => m.Id)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -287,7 +287,7 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
             {
                 // Must materialize all then filter in-memory for duration
                 var allMatches = await q
-                    .OrderByDescending(m => m.TimestampUtc)
+                    .OrderByDescending(m => m.TimestampUtc).ThenByDescending(m => m.Id)
                     .ToListAsync(cancellationToken)
                     .ConfigureAwait(false);
 
@@ -298,7 +298,7 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
                 // Use Marten's server-side count and pagination
                 totalCount = await q.CountAsync(cancellationToken).ConfigureAwait(false);
                 readModels = await q
-                    .OrderByDescending(m => m.TimestampUtc)
+                    .OrderByDescending(m => m.TimestampUtc).ThenByDescending(m => m.Id)
                     .Skip((pageNumber - 1) * pageSize)
                     .Take(pageSize)
                     .ToListAsync(cancellationToken)

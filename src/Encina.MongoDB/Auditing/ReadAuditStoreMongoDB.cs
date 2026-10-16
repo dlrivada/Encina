@@ -87,7 +87,7 @@ public sealed class ReadAuditStoreMongoDB : IReadAuditStore
 
             var documents = await _collection
                 .Find(filter)
-                .SortByDescending(d => d.AccessedAtUtc)
+                .SortByDescending(d => d.AccessedAtUtc).ThenByDescending(d => d.Id)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -119,7 +119,7 @@ public sealed class ReadAuditStoreMongoDB : IReadAuditStore
 
             var documents = await _collection
                 .Find(filter)
-                .SortByDescending(d => d.AccessedAtUtc)
+                .SortByDescending(d => d.AccessedAtUtc).ThenByDescending(d => d.Id)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -156,7 +156,7 @@ public sealed class ReadAuditStoreMongoDB : IReadAuditStore
             // Get paginated results
             var documents = await _collection
                 .Find(filter)
-                .SortByDescending(d => d.AccessedAtUtc)
+                .SortByDescending(d => d.AccessedAtUtc).ThenByDescending(d => d.Id)
                 .Skip(skip)
                 .Limit(pageSize)
                 .ToListAsync(cancellationToken)

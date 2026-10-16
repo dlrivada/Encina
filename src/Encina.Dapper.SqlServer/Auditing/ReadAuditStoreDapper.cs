@@ -62,7 +62,7 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
                    [CorrelationId], [Purpose], [AccessMethod], [EntityCount], [Metadata]
             FROM [{_tableName}]
             WHERE [EntityType] = @EntityType AND [EntityId] = @EntityId
-            ORDER BY [AccessedAtUtc] DESC";
+            ORDER BY [AccessedAtUtc] DESC, [Id] DESC";
 
         _selectByUserSql = $@"
             SELECT [Id], [EntityType], [EntityId], [UserId], [TenantId], [AccessedAtUtc],
@@ -71,7 +71,7 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
             WHERE [UserId] = @UserId
               AND [AccessedAtUtc] >= @FromUtc
               AND [AccessedAtUtc] <= @ToUtc
-            ORDER BY [AccessedAtUtc] DESC";
+            ORDER BY [AccessedAtUtc] DESC, [Id] DESC";
 
         _purgeSql = $@"
             DELETE FROM [{_tableName}]
@@ -247,7 +247,7 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
                        [CorrelationId], [Purpose], [AccessMethod], [EntityCount], [Metadata]
                 FROM [{_tableName}]
                 {whereClauseStr}
-                ORDER BY [AccessedAtUtc] DESC
+                ORDER BY [AccessedAtUtc] DESC, [Id] DESC
                 OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
 
             parameters.Add("Offset", offset);

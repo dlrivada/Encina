@@ -2,6 +2,7 @@ using Encina.Audit.Marten;
 using Encina.Audit.Marten.Crypto;
 using Encina.Audit.Marten.Projections;
 using Encina.IntegrationTests.Infrastructure.Marten.Fixtures;
+using Encina.IntegrationTests.Security.Audit;
 using Encina.Security.Audit;
 
 using JasperFx.Events.Daemon;
@@ -148,6 +149,16 @@ public sealed class MartenOperationAuditStoreUtcFilterIntegrationTests(MartenFix
         var entry = page.Items.ShouldHaveSingleItem();
         entry.TimestampUtc.Kind.ShouldBe(DateTimeKind.Utc);
         entry.TimestampUtc.ShouldBe(Base);
+    }
+
+    [Fact]
+    public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
+    {
+        SkipWhenUnavailable();
+
+        await OperationAuditStableOrderCheck.AssertPagedReadsAreStableAsync(
+            CreateStore(),
+            () => _daemon!.WaitForNonStaleData(TimeSpan.FromSeconds(60)));
     }
 
     private void SkipWhenUnavailable()

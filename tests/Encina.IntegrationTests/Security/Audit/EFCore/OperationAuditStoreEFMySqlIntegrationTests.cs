@@ -25,6 +25,12 @@ public class OperationAuditStoreEFMySqlIntegrationTests : IAsyncLifetime
         await _fixture.EnsureSchemaCreatedAsync<AuditTestDbContext>();
     }
 
+    [Fact]
+    public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
+    {
+        await OperationAuditStableOrderCheck.AssertPagedReadsAreStableAsync(CreateStore());
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _fixture.ClearAllDataAsync();

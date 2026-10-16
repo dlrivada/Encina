@@ -80,7 +80,7 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
         {
             var entities = await _dbContext.Set<ReadAuditEntryEntity>()
                 .Where(e => e.EntityType == entityType && e.EntityId == entityId)
-                .OrderByDescending(e => e.AccessedAtUtc)
+                .OrderByDescending(e => e.AccessedAtUtc).ThenByDescending(e => e.Id)
                 .ToListAsync(cancellationToken);
 
             var entries = entities.Select(ReadAuditEntryMapper.MapToRecord).ToList();
@@ -108,7 +108,7 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
                 .Where(e => e.UserId == userId)
                 .Where(e => e.AccessedAtUtc >= fromUtc)
                 .Where(e => e.AccessedAtUtc <= toUtc)
-                .OrderByDescending(e => e.AccessedAtUtc)
+                .OrderByDescending(e => e.AccessedAtUtc).ThenByDescending(e => e.Id)
                 .ToListAsync(cancellationToken);
 
             var entries = entities.Select(ReadAuditEntryMapper.MapToRecord).ToList();
@@ -187,7 +187,7 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
 
             // Apply pagination
             var entities = await dbQuery
-                .OrderByDescending(e => e.AccessedAtUtc)
+                .OrderByDescending(e => e.AccessedAtUtc).ThenByDescending(e => e.Id)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync(cancellationToken);

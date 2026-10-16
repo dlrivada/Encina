@@ -59,7 +59,7 @@ public sealed class AuditLogStoreEF : IAuditLogStore
 
         var entities = await _dbContext.Set<AuditLogEntryEntity>()
             .Where(e => e.EntityType == entityType && e.EntityId == entityId)
-            .OrderByDescending(e => e.TimestampUtc)
+            .OrderByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id)
             .ToListAsync(cancellationToken);
 
         return entities.Select(MapToRecord);

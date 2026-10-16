@@ -32,6 +32,12 @@ public class ReadAuditStoreADOMySqlIntegrationTests : IAsyncLifetime
         _store = new ReadAuditStoreADO(_connection);
     }
 
+    [Fact]
+    public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
+    {
+        await ReadAuditStableOrderCheck.AssertPagedReadsAreStableAsync(_store);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await ClearDataAsync();

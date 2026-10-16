@@ -81,7 +81,7 @@ public sealed class InMemoryReadAuditStore : IReadAuditStore
         var entries = _entries.Values
             .Where(e => e.EntityType.Equals(entityType, StringComparison.OrdinalIgnoreCase))
             .Where(e => e.EntityId == entityId)
-            .OrderByDescending(e => e.AccessedAtUtc)
+            .OrderByDescending(e => e.AccessedAtUtc).ThenByDescending(e => e.Id)
             .ToList();
 
         return ValueTask.FromResult<Either<EncinaError, IReadOnlyList<ReadAuditEntry>>>(
@@ -107,7 +107,7 @@ public sealed class InMemoryReadAuditStore : IReadAuditStore
             .Where(e => e.UserId == userId)
             .Where(e => e.AccessedAtUtc >= fromUtc)
             .Where(e => e.AccessedAtUtc <= toUtc)
-            .OrderByDescending(e => e.AccessedAtUtc)
+            .OrderByDescending(e => e.AccessedAtUtc).ThenByDescending(e => e.Id)
             .ToList();
 
         return ValueTask.FromResult<Either<EncinaError, IReadOnlyList<ReadAuditEntry>>>(
@@ -183,7 +183,7 @@ public sealed class InMemoryReadAuditStore : IReadAuditStore
         var totalCount = allResults.Count;
 
         var items = allResults
-            .OrderByDescending(e => e.AccessedAtUtc)
+            .OrderByDescending(e => e.AccessedAtUtc).ThenByDescending(e => e.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToList();
