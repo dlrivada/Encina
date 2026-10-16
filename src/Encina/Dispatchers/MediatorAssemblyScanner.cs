@@ -97,9 +97,10 @@ internal static class EncinaAssemblyScanner
             return;
         }
 
-        // Skip ModuleBehaviorAdapter - it has 3 type parameters but IPipelineBehavior has 2
-        // It is registered explicitly via AddEncinaModuleBehavior extension method
-        if (type.FullName?.StartsWith("Encina.Modules.ModuleBehaviorAdapter`", StringComparison.Ordinal) is true)
+        // Skip adapted steps (ModuleBehaviorAdapter and the processor steps): they wrap another
+        // instance, so they are never services. ModuleBehaviorAdapter is registered explicitly via the
+        // AddEncinaModuleBehavior extension method; the pipeline builders wrap processors per request.
+        if (typeof(IPipelineStepIdentity).IsAssignableFrom(type))
         {
             return;
         }

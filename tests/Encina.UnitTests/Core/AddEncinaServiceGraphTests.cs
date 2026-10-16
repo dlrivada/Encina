@@ -34,6 +34,7 @@ public sealed class AddEncinaServiceGraphTests
         typeof(IRequestContextScopeFactory),
         typeof(IInternalRequestContextScopeFactory),
         typeof(IServiceIdentityCatalog),
+        typeof(PipelineOrderResolver),
     ];
 
     // Open generics the closing helpers genuinely cannot close. Empty on purpose: add a type here
