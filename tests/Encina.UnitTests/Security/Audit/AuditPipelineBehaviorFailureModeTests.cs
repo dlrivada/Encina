@@ -1,5 +1,6 @@
 #pragma warning disable CA2012 // ValueTask instances used in NSubstitute mock setup
 
+using System.Transactions;
 using Encina.Security.Audit;
 using Encina.TestInfrastructure.Extensions;
 using Encina.UnitTests.Support;
@@ -219,7 +220,17 @@ public sealed class AuditPipelineBehaviorFailureModeTests
     public async Task Handle_WritesInAChildScopeThatIsDisposedAndNeverTouchesTheRequestScope()
     {
         var services = new ServiceCollection();
-        services.AddScoped<IOperationAuditStore, ScopedStore>();
+        var instances = new List<ScopedStore>();
+        services.AddScoped<IOperationAuditStore>(_ =>
+        {
+            var created = new ScopedStore();
+            lock (instances)
+            {
+                instances.Add(created);
+            }
+
+            return created;
+        });
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         await using var requestScope = provider.CreateAsyncScope();
         var requestStore = (ScopedStore)requestScope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
@@ -230,34 +241,53 @@ public sealed class AuditPipelineBehaviorFailureModeTests
         result.IsRight.ShouldBeTrue();
         requestStore.Writes.ShouldBe(0, "the request scope's store is never used");
         requestStore.Disposed.ShouldBeFalse("the request scope is untouched");
-        var childStore = ScopedStore.Instances.Single(s => !ReferenceEquals(s, requestStore) && s.Writes == 1);
+        var childStore = instances.Single(s => !ReferenceEquals(s, requestStore) && s.Writes == 1);
         childStore.Writes.ShouldBe(1);
         childStore.Disposed.ShouldBeTrue("the child scope is disposed once the write completes");
+    }
+
+    [Fact]
+    public async Task Handle_WithAnAmbientTransactionScope_WritesOutsideItAndSurvivesItsRollback()
+    {
+        var services = new ServiceCollection();
+        var store = new ScopedStore();
+        services.AddScoped<IOperationAuditStore>(_ => store);
+        await using var provider = services.BuildServiceProvider();
+        var sut = CreateSut(null, provider.GetRequiredService<IServiceScopeFactory>());
+
+        Transaction? ambientAfterwards;
+        using (var ambient = new TransactionScope(TransactionScopeOption.Required, TransactionScopeAsyncFlowOption.Enabled))
+        {
+            Transaction.Current.ShouldNotBeNull();
+            var result = await HandleAsync(sut);
+
+            result.IsRight.ShouldBeTrue();
+            ambientAfterwards = Transaction.Current;
+
+            // ambient is disposed without Complete(): the request "rolls back"
+        }
+
+        store.Writes.ShouldBe(1);
+        store.TransactionAtWrite.ShouldBeNull("the audit write must not enlist in the request's transaction");
+        ambientAfterwards.ShouldNotBeNull("the caller's ambient transaction is restored after the write");
     }
 
     public sealed record FailureModeCommand : ICommand<Unit>;
 
     private sealed class ScopedStore : IOperationAuditStore, IDisposable
     {
-        public static List<ScopedStore> Instances { get; } = [];
-
-        public ScopedStore()
-        {
-            lock (Instances)
-            {
-                Instances.Add(this);
-            }
-        }
-
         public int Writes { get; private set; }
 
         public bool Disposed { get; private set; }
+
+        public Transaction? TransactionAtWrite { get; private set; }
 
         public void Dispose() => Disposed = true;
 
         public ValueTask<Either<EncinaError, Unit>> RecordAsync(OperationAuditEntry entry, CancellationToken cancellationToken = default)
         {
             Writes++;
+            TransactionAtWrite = Transaction.Current;
             return new(Unit.Default);
         }
 

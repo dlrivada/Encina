@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using System.Transactions;
 
 using Encina.Diagnostics;
 
@@ -233,6 +234,10 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
     /// outlives the request's DbContext or connection and the write survives a request rollback. The
     /// write deliberately ignores the request's cancellation token: a cancelled request is still audited.
     /// </summary>
+    /// <remarks>
+    /// The write uses <see cref="CancellationToken.None"/> by design; the store owns its timeout. An ambient
+    /// <see cref="System.Transactions.Transaction"/> is suppressed so the entry never enlists in the request's transaction.
+    /// </remarks>
     /// <returns>Right when written; Left with <see cref="OperationAuditErrors.WriteFailedCode"/> otherwise (already logged).</returns>
     private async Task<Either<EncinaError, LanguageExt.Unit>> RecordAuditEntryAsync(
         TRequest request,
@@ -255,6 +260,9 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
                 startedAtUtc,
                 _timeProvider.GetUtcNow());
 
+            // Suppress any ambient System.Transactions scope of the request: the audit row must not
+            // enlist in it (it would roll back with the request or escalate to a distributed transaction).
+            using var isolation = new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled);
             await using var scope = _scopeFactory.CreateAsyncScope();
             var store = scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
             var result = await store.RecordAsync(entry, CancellationToken.None).ConfigureAwait(false);
