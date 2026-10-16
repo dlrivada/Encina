@@ -102,41 +102,37 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
     {
         // GetServices<T>() never returns null - always empty enumeration
         var behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>().ToArray();
-        var pre = serviceProvider.GetServices<IRequestPreProcessor<TRequest>>().ToArray();
-        var post = serviceProvider.GetServices<IRequestPostProcessor<TRequest, TResponse>>().ToArray();
-        var error = serviceProvider.GetServices<IRequestErrorProcessor<TRequest, TResponse>>().ToArray();
-        var postCommit = serviceProvider.GetServices<IRequestPostCommitProcessor<TRequest, TResponse>>().ToArray();
+        var processors = WrapProcessors(serviceProvider);
 
-        if (pre.Length + post.Length + error.Length + postCommit.Length == 0)
-        {
-            // No processor to wrap: the resolved behaviors are the steps
-            candidates = behaviors.Length == 0 ? [] : DescribeSteps(behaviors);
-            return behaviors;
-        }
-
-        var steps = new IPipelineBehavior<TRequest, TResponse>[behaviors.Length + pre.Length + post.Length + error.Length + postCommit.Length];
-        var next = Append(steps, 0, behaviors, static behavior => behavior);
-        next = Append(steps, next, pre, static processor => new PreProcessorStep<TRequest, TResponse>(processor));
-        next = Append(steps, next, post, static processor => new PostProcessorStep<TRequest, TResponse>(processor));
-        next = Append(steps, next, error, static processor => new ErrorProcessorStep<TRequest, TResponse>(processor));
-        Append(steps, next, postCommit, static processor => new PostCommitProcessorStep<TRequest, TResponse>(processor));
-
-        candidates = DescribeSteps(steps);
+        // No processor to wrap: the resolved behaviors are the steps
+        var steps = processors is null ? behaviors : [.. behaviors, .. processors];
+        candidates = steps.Length == 0 ? [] : DescribeSteps(steps);
         return steps;
     }
 
-    private static int Append<TSource>(
-        IPipelineBehavior<TRequest, TResponse>[] steps,
-        int index,
-        TSource[] sources,
-        Func<TSource, IPipelineBehavior<TRequest, TResponse>> toStep)
+    private static List<IPipelineBehavior<TRequest, TResponse>>? WrapProcessors(IServiceProvider serviceProvider)
     {
-        for (var i = 0; i < sources.Length; i++)
-        {
-            steps[index++] = toStep(sources[i]);
-        }
+        List<IPipelineBehavior<TRequest, TResponse>>? steps = null;
+        AddSteps(ref steps, serviceProvider.GetServices<IRequestPreProcessor<TRequest>>().ToArray(),
+            static processor => new PreProcessorStep<TRequest, TResponse>(processor));
+        AddSteps(ref steps, serviceProvider.GetServices<IRequestPostProcessor<TRequest, TResponse>>().ToArray(),
+            static processor => new PostProcessorStep<TRequest, TResponse>(processor));
+        AddSteps(ref steps, serviceProvider.GetServices<IRequestErrorProcessor<TRequest, TResponse>>().ToArray(),
+            static processor => new ErrorProcessorStep<TRequest, TResponse>(processor));
+        AddSteps(ref steps, serviceProvider.GetServices<IRequestPostCommitProcessor<TRequest, TResponse>>().ToArray(),
+            static processor => new PostCommitProcessorStep<TRequest, TResponse>(processor));
+        return steps;
+    }
 
-        return index;
+    private static void AddSteps<TProcessor>(
+        ref List<IPipelineBehavior<TRequest, TResponse>>? steps,
+        TProcessor[] processors,
+        Func<TProcessor, IPipelineBehavior<TRequest, TResponse>> toStep)
+    {
+        for (var i = 0; i < processors.Length; i++)
+        {
+            (steps ??= []).Add(toStep(processors[i]));
+        }
     }
 
     private static PipelineStepCandidate[] DescribeSteps(IPipelineBehavior<TRequest, TResponse>[] steps)
