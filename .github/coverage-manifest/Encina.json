@@ -246,10 +246,16 @@
     },
     "Core/EncinaConfiguration.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
+      "reason": "Registration-time configuration of discovery, behaviors, processors and pipeline stage declarations",
+      "targets": { "unit": 95, "guard": 70 },
+      "justifications": {
+        "unit": "Every stage-aware and stage-less overload, the interface checks, the declaration copy into the registry and the service registration are executed by PipelineStageConfigurationTests and AddEncinaServiceGraphTests (measured 97%; the unreached lines are a duplicate-registration guard branch and the null-candidate branch of IsAssignableFromGeneric).",
+        "guard": "PipelineStageConfigurationGuardTests and EncinaConfigurationGuardTests execute the null, abstract and wrong-interface checks of every overload (measured 71%); the registration and registry-copy lines are covered by the unit run."
+      }
     },
     "Core/IDecoratedServiceFactory.cs": {
       "defaultTests": [],
@@ -302,9 +308,9 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 95, "guard": 86, "contract": 91 },
+      "targets": { "unit": 96, "guard": 86, "contract": 91 },
       "justifications": {
-        "unit": "AddEncina registration, the snapshot and resolver registration and the graph checks are exercised by AddEncinaServiceGraphTests (measured 96%).",
+        "unit": "AddEncina registration, the stage registry, snapshot, resolver and inspector registration, the scanned error and post-commit processors and the graph checks are exercised by AddEncinaServiceGraphTests and PipelineStageConfigurationTests (measured 97%).",
         "guard": "Guard tests run AddEncina with its argument validation and the registration paths (measured 86%).",
         "contract": "Contract tests build providers through AddEncina (measured 92%)."
       }
@@ -441,11 +447,11 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 96, "guard": 87, "contract": 93 },
+      "targets": { "unit": 98, "guard": 92, "contract": 98 },
       "justifications": {
-        "unit": "Handler, behavior and processor discovery and every scanner exclusion are exercised by the scanner unit tests and AddEncinaServiceGraphTests (measured 96%).",
-        "guard": "Guard tests cover the scan entry point and most discovery branches (measured 87%).",
-        "contract": "Contract tests assert the scanner discovers every pipeline behavior (measured 93%)."
+        "unit": "Handler, behavior and processor discovery and every scanner exclusion are exercised by the scanner unit tests and AddEncinaServiceGraphTests (measured 98.7%); the one unreached line is the ReflectionTypeLoadException fallback of GetLoadableTypes, which needs an assembly that cannot load all its types.",
+        "guard": "Guard tests execute the scan guard clause and the scan of the assembly (measured 92.3%); the lines that route handlers and notifications are covered by the unit and contract runs.",
+        "contract": "Contract tests assert the scanner discovers every pipeline behavior (measured 98.7%); the one unreached line is the ReflectionTypeLoadException fallback of GetLoadableTypes, which needs an assembly that cannot load all its types."
       }
     },
     "Dispatchers/Strategies/INotificationDispatchStrategy.cs": {
@@ -1088,9 +1094,22 @@
       "reason": "Interfaces have no implementation to test",
       "targets": { "unit": 0, "guard": 0, "contract": 0 },
       "justifications": {
-        "unit": "Interface declaration only, no executable lines; it has no implementer until a later phase of #2184.",
-        "guard": "Interface declaration only, no executable lines; it has no implementer until a later phase of #2184.",
-        "contract": "Interface declaration only, no executable lines; it has no implementer until a later phase of #2184."
+        "unit": "Interface declaration only, no executable lines; EncinaPipelineInspector implements it.",
+        "guard": "Interface declaration only, no executable lines; EncinaPipelineInspector implements it.",
+        "contract": "Interface declaration only, no executable lines; EncinaPipelineInspector implements it."
+      }
+    },
+    "Pipeline/Ordering/EncinaPipelineInspector.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default implementation of the pipeline inspector: resolves steps in a scope and maps the resolver order to descriptions",
+      "targets": { "unit": 100, "guard": 14 },
+      "justifications": {
+        "unit": "Describe, DescribeStream, the empty-pipeline early return and the constructor guards are executed by PipelineStageConfigurationTests (measured 100%, no unreachable lines).",
+        "guard": "Guard tests execute only the two constructor null checks (measured 14%, 3 of 21 lines); the other 18 lines need a resolved pipeline and are covered by the unit run."
       }
     },
     "Pipeline/Ordering/EncinaBuiltInPipelineStepsAttribute.cs": {
