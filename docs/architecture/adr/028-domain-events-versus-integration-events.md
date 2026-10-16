@@ -4,6 +4,8 @@
 
 **Accepted** - decided in issues #312, #373 and #384 (2026); recorded as an ADR on 2026-09-22 from the project history.
 
+> **Amendment 2026-10-16 ([#2381](https://github.com/dlrivada/Encina/issues/2381)):** the in-process dispatch of domain events described below does not apply to event-sourced modules (Marten). Their domain events are also delivered with guarantees: written to the Outbox in the same Marten session and processed idempotently through the Inbox ([#2383](https://github.com/dlrivada/Encina/issues/2383)). Integration events still leave the process only through the Outbox. The required modules are in [ADR-050](050-modules-may-require-modules.md).
+
 ## Context
 
 A single "event" concept was serving two purposes: facts raised inside an aggregate and consumed by handlers in the same process, and messages published to other systems. Mixing them coupled external contracts to internal domain types, made bounded-context isolation impossible to enforce, and left the choice between in-process dispatch and reliable publication to each call site.

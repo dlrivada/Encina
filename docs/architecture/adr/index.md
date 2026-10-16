@@ -45,6 +45,7 @@ has_children: true
 | [046](046-persistent-dead-letter-queue.md) | Persistent Dead Letter Queue: Oldest-First Contract, Idempotent Capture, Tenant Column |
 | [047](047-abac-decision-audit.md) | ABAC Decisions Are Audited Write-Ahead at the Enforcement Point, Fail-Closed |
 | [048](048-inbox-record-vs-business-transaction.md) | The Inbox Record and the Business Transaction: Enlisted and Independent Writes |
+| [050](050-modules-may-require-modules.md) | A Module May Require Other Modules When It Needs Them for Its Guarantees |
 
 ## Reserved numbers
 
