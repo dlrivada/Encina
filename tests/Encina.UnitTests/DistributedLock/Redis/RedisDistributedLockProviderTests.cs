@@ -1,5 +1,6 @@
 using Encina.DistributedLock;
 using Encina.DistributedLock.Redis;
+using Encina.Testing.Time;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis;
 
@@ -10,6 +11,8 @@ namespace Encina.UnitTests.DistributedLock.Redis;
 /// </summary>
 public class RedisDistributedLockProviderTests
 {
+    private static readonly DateTimeOffset StartTime = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+
     private readonly IOptions<RedisLockOptions> _options;
     private readonly ILogger<RedisDistributedLockProvider> _logger;
 
@@ -190,14 +193,137 @@ public class RedisDistributedLockProviderTests
                 Arg.Any<When>())
             .Returns(false);
 
-        var provider = new RedisDistributedLockProvider(connection, _options, _logger);
+        var time = new FakeTimeProvider(StartTime);
+        var provider = new RedisDistributedLockProvider(connection, _options, _logger, time);
 
-        // Act — very short wait
+        // Act — the wait runs on the fake clock, so advancing it ends the attempt (#531)
+        var attempt = provider.TryAcquireAsync("res", TimeSpan.FromSeconds(30),
+            TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(100), CancellationToken.None);
+        var pendingBeforeDeadline = attempt.IsCompleted;
+        time.Advance(TimeSpan.FromSeconds(5));
+        var handle = await attempt;
+
+        // Assert
+        pendingBeforeDeadline.ShouldBeFalse();
+        handle.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task TryAcquireAsync_WhenLockFreedDuringWait_ReturnsHandleOnNextRetry()
+    {
+        // Arrange
+        var connection = Substitute.For<IConnectionMultiplexer>();
+        var db = Substitute.For<IDatabase>();
+        connection.GetDatabase(Arg.Any<int>(), Arg.Any<object>()).Returns(db);
+        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(),
+                Arg.Any<When>())
+            .Returns(false, true);
+
+        var time = new FakeTimeProvider(StartTime);
+        var provider = new RedisDistributedLockProvider(connection, _options, _logger, time);
+
+        // Act
+        var attempt = provider.TryAcquireAsync("res", TimeSpan.FromSeconds(30),
+            TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(100), CancellationToken.None);
+        time.Advance(TimeSpan.FromMilliseconds(100));
+        var handle = await attempt;
+
+        // Assert
+        handle.ShouldNotBeNull();
+        await handle.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task TryAcquireAsync_WithZeroWait_WhenLockAvailable_ReturnsHandle()
+    {
+        // Arrange
+        var connection = Substitute.For<IConnectionMultiplexer>();
+        var db = Substitute.For<IDatabase>();
+        connection.GetDatabase(Arg.Any<int>(), Arg.Any<object>()).Returns(db);
+        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(),
+                Arg.Any<When>())
+            .Returns(true);
+
+        var provider = new RedisDistributedLockProvider(connection, _options, _logger, new FakeTimeProvider(StartTime));
+
+        // Act
         var handle = await provider.TryAcquireAsync("res", TimeSpan.FromSeconds(30),
-            TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(10), CancellationToken.None);
+            TimeSpan.Zero, TimeSpan.FromMilliseconds(100), CancellationToken.None);
+
+        // Assert
+        handle.ShouldNotBeNull();
+        await handle.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task TryAcquireAsync_WithZeroWait_WhenLockUnavailable_ReturnsNullAfterOneAttempt()
+    {
+        // Arrange
+        var connection = Substitute.For<IConnectionMultiplexer>();
+        var db = Substitute.For<IDatabase>();
+        connection.GetDatabase(Arg.Any<int>(), Arg.Any<object>()).Returns(db);
+        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(),
+                Arg.Any<When>())
+            .Returns(false);
+
+        var provider = new RedisDistributedLockProvider(connection, _options, _logger, new FakeTimeProvider(StartTime));
+
+        // Act
+        var handle = await provider.TryAcquireAsync("res", TimeSpan.FromSeconds(30),
+            TimeSpan.Zero, TimeSpan.FromMilliseconds(100), CancellationToken.None);
 
         // Assert
         handle.ShouldBeNull();
+        await db.Received(1).StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(),
+            Arg.Any<When>());
+    }
+
+    [Fact]
+    public async Task AcquireAsync_WhenLockFreedDuringWait_ReturnsHandleOnNextRetry()
+    {
+        // Arrange
+        var connection = Substitute.For<IConnectionMultiplexer>();
+        var db = Substitute.For<IDatabase>();
+        connection.GetDatabase(Arg.Any<int>(), Arg.Any<object>()).Returns(db);
+        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(),
+                Arg.Any<When>())
+            .Returns(false, true);
+
+        var time = new FakeTimeProvider(StartTime);
+        var provider = new RedisDistributedLockProvider(connection, _options, _logger, time);
+
+        // Act
+        var attempt = provider.AcquireAsync("res", TimeSpan.FromSeconds(30), CancellationToken.None);
+        var pendingBeforeRetry = attempt.IsCompleted;
+        time.Advance(TimeSpan.FromMilliseconds(100));
+        var handle = await attempt;
+
+        // Assert
+        pendingBeforeRetry.ShouldBeFalse();
+        handle.ShouldNotBeNull();
+        await handle.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task AcquireAsync_WhenCancelledWhileWaiting_ThrowsOperationCanceledException()
+    {
+        // Arrange
+        var connection = Substitute.For<IConnectionMultiplexer>();
+        var db = Substitute.For<IDatabase>();
+        connection.GetDatabase(Arg.Any<int>(), Arg.Any<object>()).Returns(db);
+        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(),
+                Arg.Any<When>())
+            .Returns(false);
+
+        var provider = new RedisDistributedLockProvider(connection, _options, _logger, new FakeTimeProvider(StartTime));
+        using var cts = new CancellationTokenSource();
+        var attempt = provider.AcquireAsync("res", TimeSpan.FromSeconds(30), cts.Token);
+
+        // Act
+        await cts.CancelAsync();
+
+        // Assert
+        await Should.ThrowAsync<OperationCanceledException>(() => attempt);
     }
 
     [Fact]

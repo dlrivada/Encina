@@ -59,25 +59,26 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
         var lockValue = Guid.NewGuid().ToString();
         var deadline = _timeProvider.GetUtcNow().UtcDateTime.Add(wait);
 
-        while (_timeProvider.GetUtcNow().UtcDateTime < deadline)
+        // Always attempt at least once, so a zero wait still takes a free lock. The retry delay
+        // runs on the injected TimeProvider (as the deadline does), so a test clock drives the
+        // whole wait (#531).
+        while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var acquired = await Database.StringSetAsync(
-                lockKey,
-                lockValue,
-                expiry,
-                When.NotExists).ConfigureAwait(false);
-
-            if (acquired)
+            var handle = await TrySetLockAsync(lockKey, lockValue, resource, expiry).ConfigureAwait(false);
+            if (handle is not null)
             {
-                var now = _timeProvider.GetUtcNow().UtcDateTime;
-                LogLockAcquired(_logger, resource, lockValue);
-                var context = new LockHandleContext(Database, lockKey, lockValue, resource, now, now.Add(expiry), _logger, _timeProvider);
-                return new LockHandle(context);
+                return handle;
             }
 
-            await Task.Delay(retry, cancellationToken).ConfigureAwait(false);
+            var remaining = deadline - _timeProvider.GetUtcNow().UtcDateTime;
+            if (remaining <= TimeSpan.Zero)
+            {
+                break;
+            }
+
+            await Task.Delay(retry < remaining ? retry : remaining, _timeProvider, cancellationToken).ConfigureAwait(false);
         }
 
         LogLockFailed(_logger, resource);
@@ -101,22 +102,33 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var acquired = await Database.StringSetAsync(
-                lockKey,
-                lockValue,
-                expiry,
-                When.NotExists).ConfigureAwait(false);
-
-            if (acquired)
+            var handle = await TrySetLockAsync(lockKey, lockValue, resource, expiry).ConfigureAwait(false);
+            if (handle is not null)
             {
-                var now = _timeProvider.GetUtcNow().UtcDateTime;
-                LogLockAcquired(_logger, resource, lockValue);
-                var context = new LockHandleContext(Database, lockKey, lockValue, resource, now, now.Add(expiry), _logger, _timeProvider);
-                return new LockHandle(context);
+                return handle;
             }
 
-            await Task.Delay(retryInterval, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(retryInterval, _timeProvider, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    private async Task<LockHandle?> TrySetLockAsync(string lockKey, string lockValue, string resource, TimeSpan expiry)
+    {
+        var acquired = await Database.StringSetAsync(
+            lockKey,
+            lockValue,
+            expiry,
+            When.NotExists).ConfigureAwait(false);
+
+        if (!acquired)
+        {
+            return null;
+        }
+
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        LogLockAcquired(_logger, resource, lockValue);
+        var context = new LockHandleContext(Database, lockKey, lockValue, resource, now, now.Add(expiry), _logger, _timeProvider);
+        return new LockHandle(context);
     }
 
     /// <inheritdoc/>
