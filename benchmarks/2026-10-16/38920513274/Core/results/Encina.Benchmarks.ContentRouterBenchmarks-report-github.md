@@ -1,0 +1,29 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.86GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+
+WarmupCount=3  
+
+```
+| Method                       | Job        | IterationCount | LaunchCount | Mean       | Error     | StdDev   | Ratio | Gen0   | Allocated | Alloc Ratio |
+|----------------------------- |----------- |--------------- |------------ |-----------:|----------:|---------:|------:|-------:|----------:|------------:|
+| SimpleRoute_SingleCondition  | Job-YFEFPZ | 10             | Default     | 2,040.4 ns |  11.86 ns |  7.84 ns |  1.00 | 0.0572 |     984 B |        1.00 |
+| ComplexRoute_FirstMatch      | Job-YFEFPZ | 10             | Default     | 1,495.6 ns |   3.95 ns |  2.06 ns |  0.73 | 0.0343 |     584 B |        0.59 |
+| ComplexRoute_DefaultFallback | Job-YFEFPZ | 10             | Default     | 1,540.6 ns |   2.15 ns |  1.42 ns |  0.76 | 0.0343 |     584 B |        0.59 |
+| ManyRoutes_FirstMatch        | Job-YFEFPZ | 10             | Default     | 2,174.5 ns |   7.22 ns |  4.77 ns |  1.07 | 0.0610 |    1024 B |        1.04 |
+| ManyRoutes_LateMatch         | Job-YFEFPZ | 10             | Default     | 2,155.3 ns |   9.13 ns |  5.43 ns |  1.06 | 0.0610 |    1024 B |        1.04 |
+| BuildDefinition_Simple       | Job-YFEFPZ | 10             | Default     |   395.9 ns |   3.68 ns |  2.43 ns |  0.19 | 0.0348 |     584 B |        0.59 |
+| BuildDefinition_Complex      | Job-YFEFPZ | 10             | Default     |   671.7 ns |  10.00 ns |  6.61 ns |  0.33 | 0.0782 |    1320 B |        1.34 |
+|                              |            |                |             |            |           |          |       |        |           |             |
+| SimpleRoute_SingleCondition  | ShortRun   | 3              | 1           | 2,086.9 ns | 148.59 ns |  8.14 ns |  1.00 | 0.0572 |     984 B |        1.00 |
+| ComplexRoute_FirstMatch      | ShortRun   | 3              | 1           | 1,513.1 ns |  49.88 ns |  2.73 ns |  0.73 | 0.0343 |     584 B |        0.59 |
+| ComplexRoute_DefaultFallback | ShortRun   | 3              | 1           | 1,520.6 ns | 269.54 ns | 14.77 ns |  0.73 | 0.0343 |     584 B |        0.59 |
+| ManyRoutes_FirstMatch        | ShortRun   | 3              | 1           | 2,117.2 ns | 153.60 ns |  8.42 ns |  1.01 | 0.0610 |    1024 B |        1.04 |
+| ManyRoutes_LateMatch         | ShortRun   | 3              | 1           | 2,137.5 ns |  63.53 ns |  3.48 ns |  1.02 | 0.0610 |    1024 B |        1.04 |
+| BuildDefinition_Simple       | ShortRun   | 3              | 1           |   391.8 ns |  21.53 ns |  1.18 ns |  0.19 | 0.0348 |     584 B |        0.59 |
+| BuildDefinition_Complex      | ShortRun   | 3              | 1           |   639.3 ns |  10.03 ns |  0.55 ns |  0.31 | 0.0782 |    1320 B |        1.34 |
