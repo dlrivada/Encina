@@ -399,12 +399,14 @@ public sealed class ErrorMessageLeakTests
     [InlineData("outbox")]
     [InlineData("inbox")]
     [InlineData("scheduling")]
+    [InlineData("saga")]
     public async Task HealthChecks_StoreFailure_ReportsOnlyTheErrorCode(string check)
     {
         HealthCheckResult result = check switch
         {
             "outbox" => await CheckOutboxHealthAsync(),
             "inbox" => await CheckInboxHealthAsync(),
+            "saga" => await CheckSagaHealthAsync(),
             _ => await CheckSchedulingHealthAsync()
         };
 
@@ -429,6 +431,15 @@ public sealed class ErrorMessageLeakTests
         store.GetExpiredMessagesAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, IEnumerable<IInboxMessage>>(SensitiveError));
         var check = new InboxHealthCheck(store);
+        return await check.CheckHealthAsync(CancellationToken.None);
+    }
+
+    private static async Task<HealthCheckResult> CheckSagaHealthAsync()
+    {
+        var store = Substitute.For<ISagaStore>();
+        store.GetStuckSagasAsync(Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IEnumerable<ISagaState>>(SensitiveError));
+        var check = new SagaHealthCheck(store);
         return await check.CheckHealthAsync(CancellationToken.None);
     }
 
