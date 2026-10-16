@@ -1,0 +1,3 @@
+- OpenTelemetry decorators and activity sources now set activity status descriptions and tags with only the error code or the exception type name, never `EncinaError.Message` or an exception message (#2134).
+- New public helper `Encina.Diagnostics.ActivityStatusDescriptions` (`ForError`, `ForException`) produces the status description recorded on spans.
+- `MigrationActivitySource.Complete` and `ReshardingActivitySource.Complete` parameter renamed from `errorMessage` to `errorCode` to match what is recorded.

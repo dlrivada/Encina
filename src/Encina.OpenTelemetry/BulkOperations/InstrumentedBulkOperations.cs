@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Diagnostics;
 using LanguageExt;
@@ -38,7 +39,7 @@ internal sealed class InstrumentedBulkOperations<TEntity> : IBulkOperations<TEnt
 
         result.Match(
             Right: rows => BulkOperationsActivitySource.Complete(activity, rows),
-            Left: e => BulkOperationsActivitySource.Failed(activity, null, e.Message));
+            Left: e => BulkOperationsActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -53,7 +54,7 @@ internal sealed class InstrumentedBulkOperations<TEntity> : IBulkOperations<TEnt
 
         result.Match(
             Right: rows => BulkOperationsActivitySource.Complete(activity, rows),
-            Left: e => BulkOperationsActivitySource.Failed(activity, null, e.Message));
+            Left: e => BulkOperationsActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -68,7 +69,7 @@ internal sealed class InstrumentedBulkOperations<TEntity> : IBulkOperations<TEnt
 
         result.Match(
             Right: rows => BulkOperationsActivitySource.Complete(activity, rows),
-            Left: e => BulkOperationsActivitySource.Failed(activity, null, e.Message));
+            Left: e => BulkOperationsActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -83,7 +84,7 @@ internal sealed class InstrumentedBulkOperations<TEntity> : IBulkOperations<TEnt
 
         result.Match(
             Right: rows => BulkOperationsActivitySource.Complete(activity, rows),
-            Left: e => BulkOperationsActivitySource.Failed(activity, null, e.Message));
+            Left: e => BulkOperationsActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -98,7 +99,7 @@ internal sealed class InstrumentedBulkOperations<TEntity> : IBulkOperations<TEnt
 
         result.Match(
             Right: entities => BulkOperationsActivitySource.Complete(activity, entities.Count),
-            Left: e => BulkOperationsActivitySource.Failed(activity, null, e.Message));
+            Left: e => BulkOperationsActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }

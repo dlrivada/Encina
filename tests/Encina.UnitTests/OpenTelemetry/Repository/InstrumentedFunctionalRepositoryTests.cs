@@ -139,4 +139,18 @@ public sealed class InstrumentedFunctionalRepositoryTests
 
         result.ShouldBeError();
     }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenInnerFails_StatusIsErrorCodeNeverMessage()
+    {
+        using var capture = new ActivityStatusCapture();
+        var secret = "SECRET-" + Guid.NewGuid().ToString("N");
+        var error = EncinaErrors.Create("test.repo_failure", "row " + secret);
+        var inner = new StubFunctionalRepository { GetByIdResult = Either<EncinaError, TestEntity>.Left(error) };
+        var sut = new InstrumentedFunctionalRepository<TestEntity, Guid>(inner, "Test");
+
+        await sut.GetByIdAsync(Guid.NewGuid());
+
+        capture.ShouldHaveErrorStatus("test.repo_failure", secret);
+    }
 }

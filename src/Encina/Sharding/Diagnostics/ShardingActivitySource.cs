@@ -371,10 +371,9 @@ internal static class ShardingActivitySource
     /// Marks a read/write connection acquisition activity as failed.
     /// </summary>
     /// <param name="activity">The connection activity to mark as failed.</param>
-    /// <param name="errorCode">The error code.</param>
-    /// <param name="errorMessage">The error message.</param>
+    /// <param name="errorCode">The error code. Only the code is recorded: the error message can carry personal data (#2134).</param>
     internal static void ReadWriteConnectFailed(
-        Activity? activity, string? errorCode, string? errorMessage)
+        Activity? activity, string errorCode)
     {
         if (activity is null)
         {
@@ -386,7 +385,7 @@ internal static class ShardingActivitySource
             activity.SetTag(ActivityTagNames.FailureCode, errorCode);
         }
 
-        activity.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity.SetStatus(ActivityStatusCode.Error, errorCode);
         activity.Dispose();
     }
 

@@ -46,7 +46,7 @@ internal static class MartenAuditActivitySource
     internal const string TagQueryType = "audit.marten.query_type";
     internal const string TagResultCount = "audit.marten.result_count";
     internal const string TagDestroyedCount = "audit.marten.destroyed_count";
-    internal const string TagErrorMessage = "audit.marten.error_message";
+    internal const string TagErrorCode = "audit.marten.error_code";
 
     // ── Activity starters ────────────────────────────────────────────────
 
@@ -142,19 +142,21 @@ internal static class MartenAuditActivitySource
     }
 
     /// <summary>Marks an activity as failed.</summary>
-    internal static void Failed(Activity? activity, string? errorMessage)
+    /// <param name="activity">The activity to mark as failed.</param>
+    /// <param name="errorCode">The error code. Only the code is recorded: the error message can carry personal data (#2134).</param>
+    internal static void Failed(Activity? activity, string errorCode)
     {
         if (activity is null)
         {
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(errorMessage))
+        if (!string.IsNullOrWhiteSpace(errorCode))
         {
-            activity.SetTag(TagErrorMessage, errorMessage);
+            activity.SetTag(TagErrorCode, errorCode);
         }
 
-        activity.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity.SetStatus(ActivityStatusCode.Error, errorCode);
         activity.Dispose();
     }
 }

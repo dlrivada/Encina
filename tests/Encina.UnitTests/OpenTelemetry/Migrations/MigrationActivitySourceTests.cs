@@ -54,7 +54,7 @@ public sealed class MigrationActivitySourceTests
                 null,
                 MigrationOutcome.Failed,
                 durationMs: 1234.5,
-                errorMessage: "Connection timeout"));
+                errorCode: "migration.connection_timeout"));
         ex.ShouldBeNull();
     }
 }

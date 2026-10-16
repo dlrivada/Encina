@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using Encina.Diagnostics;
 using Encina.Security.Secrets.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -101,11 +102,11 @@ internal sealed class SecretInjectionPipelineBehavior<TRequest, TResponse> : IPi
 
         if (injectionResult.IsLeft)
         {
-            var errorMessage = injectionResult.Match(
+            var errorCode = injectionResult.Match(
                 Right: _ => string.Empty,
-                Left: e => e.Message);
+                Left: e => ActivityStatusDescriptions.ForError(e));
 
-            RecordFailure(activity, startedAt, requestTypeName, errorMessage);
+            RecordFailure(activity, startedAt, requestTypeName, errorCode);
             return injectionResult.Match<Either<EncinaError, TResponse>>(
                 Right: _ => default!,
                 Left: e => e);
@@ -149,11 +150,11 @@ internal sealed class SecretInjectionPipelineBehavior<TRequest, TResponse> : IPi
     /// <summary>
     /// Records a failed pipeline operation with tracing and metrics.
     /// </summary>
-    private void RecordFailure(Activity? activity, long startedAt, string requestTypeName, string errorMessage)
+    private void RecordFailure(Activity? activity, long startedAt, string requestTypeName, string errorCode)
     {
         if (_options.EnableTracing)
         {
-            SecretsDiagnostics.RecordFailure(activity, errorMessage);
+            SecretsDiagnostics.RecordFailure(activity, errorCode);
         }
 
         if (_options.EnableMetrics)

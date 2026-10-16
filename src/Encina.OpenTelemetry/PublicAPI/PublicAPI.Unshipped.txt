@@ -158,7 +158,7 @@ Encina.OpenTelemetry.Migrations.MigrationActivitySource
 const Encina.OpenTelemetry.Migrations.MigrationActivitySource.SourceName = "Encina.Migration" -> string!
 static Encina.OpenTelemetry.Migrations.MigrationActivitySource.StartMigrationCoordination(System.Guid migrationId, Encina.Sharding.Migrations.MigrationStrategy strategy, int shardCount) -> System.Diagnostics.Activity?
 static Encina.OpenTelemetry.Migrations.MigrationActivitySource.StartShardMigration(string! shardId, System.Guid migrationId) -> System.Diagnostics.Activity?
-static Encina.OpenTelemetry.Migrations.MigrationActivitySource.Complete(System.Diagnostics.Activity? activity, Encina.Sharding.Migrations.MigrationOutcome outcome, double? durationMs = null, string? errorMessage = null) -> void
+static Encina.OpenTelemetry.Migrations.MigrationActivitySource.Complete(System.Diagnostics.Activity? activity, Encina.Sharding.Migrations.MigrationOutcome outcome, double? durationMs = null, string? errorCode = null) -> void
 Encina.OpenTelemetry.Enrichers.MigrationActivityEnricher
 static Encina.OpenTelemetry.Enrichers.MigrationActivityEnricher.EnrichWithMigrationResult(System.Diagnostics.Activity? activity, System.Guid migrationId, Encina.Sharding.Migrations.MigrationStrategy strategy, int totalShards, int succeededCount, int failedCount, double totalDurationMs) -> void
 static Encina.OpenTelemetry.Enrichers.MigrationActivityEnricher.EnrichWithDriftDetection(System.Diagnostics.Activity? activity, bool hasDrift, int driftedShardCount, string? baselineShardId) -> void
@@ -192,7 +192,7 @@ Encina.OpenTelemetry.Resharding.ReshardingActivitySource
 const Encina.OpenTelemetry.Resharding.ReshardingActivitySource.SourceName = "Encina.Resharding" -> string!
 static Encina.OpenTelemetry.Resharding.ReshardingActivitySource.StartReshardingExecution(System.Guid reshardingId, int stepCount, long estimatedRows) -> System.Diagnostics.Activity?
 static Encina.OpenTelemetry.Resharding.ReshardingActivitySource.StartPhaseExecution(System.Guid reshardingId, Encina.Sharding.Resharding.ReshardingPhase phase) -> System.Diagnostics.Activity?
-static Encina.OpenTelemetry.Resharding.ReshardingActivitySource.Complete(System.Diagnostics.Activity? activity, bool succeeded, double? durationMs = null, string? errorMessage = null) -> void
+static Encina.OpenTelemetry.Resharding.ReshardingActivitySource.Complete(System.Diagnostics.Activity? activity, bool succeeded, double? durationMs = null, string? errorCode = null) -> void
 Encina.OpenTelemetry.Resharding.ReshardingActivityEnricher
 static Encina.OpenTelemetry.Resharding.ReshardingActivityEnricher.EnrichWithReshardingResult(System.Diagnostics.Activity? activity, System.Guid reshardingId, Encina.Sharding.Resharding.ReshardingPhase finalPhase, int phaseCount, double totalDurationMs) -> void
 static Encina.OpenTelemetry.Resharding.ReshardingActivityEnricher.EnrichWithShardCopy(System.Diagnostics.Activity? activity, string! sourceShardId, string! targetShardId, long rowsAffected) -> void
