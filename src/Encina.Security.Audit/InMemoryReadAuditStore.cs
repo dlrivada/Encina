@@ -130,8 +130,23 @@ public sealed class InMemoryReadAuditStore : IReadAuditStore
         var pageNumber = Math.Max(1, query.PageNumber);
         var pageSize = Math.Clamp(query.PageSize, 1, ReadAuditQuery.MaxPageSize);
 
-        var filtered = _entries.Values.AsEnumerable();
+        var filtered = ApplyAccessFilters(ApplyIdentityFilters(_entries.Values.AsEnumerable(), query), query);
 
+        var allResults = filtered.ToList();
+        var totalCount = allResults.Count;
+
+        var items = allResults
+            .OrderByDescending(e => e.AccessedAtUtc).ThenByDescending(e => e.Id)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        var result = PagedResult<ReadAuditEntry>.Create(items, totalCount, pageNumber, pageSize);
+        return ValueTask.FromResult<Either<EncinaError, PagedResult<ReadAuditEntry>>>(Right(result));
+    }
+
+    private static IEnumerable<ReadAuditEntry> ApplyIdentityFilters(IEnumerable<ReadAuditEntry> filtered, ReadAuditQuery query)
+    {
         if (!string.IsNullOrWhiteSpace(query.UserId))
         {
             filtered = filtered.Where(e => e.UserId == query.UserId);
@@ -152,6 +167,16 @@ public sealed class InMemoryReadAuditStore : IReadAuditStore
             filtered = filtered.Where(e => e.EntityId == query.EntityId);
         }
 
+        if (!string.IsNullOrWhiteSpace(query.CorrelationId))
+        {
+            filtered = filtered.Where(e => e.CorrelationId == query.CorrelationId);
+        }
+
+        return filtered;
+    }
+
+    private static IEnumerable<ReadAuditEntry> ApplyAccessFilters(IEnumerable<ReadAuditEntry> filtered, ReadAuditQuery query)
+    {
         if (query.AccessMethod.HasValue)
         {
             filtered = filtered.Where(e => e.AccessMethod == query.AccessMethod.Value);
@@ -164,11 +189,6 @@ public sealed class InMemoryReadAuditStore : IReadAuditStore
                 e.Purpose.Contains(query.Purpose, StringComparison.OrdinalIgnoreCase));
         }
 
-        if (!string.IsNullOrWhiteSpace(query.CorrelationId))
-        {
-            filtered = filtered.Where(e => e.CorrelationId == query.CorrelationId);
-        }
-
         if (query.FromUtc.HasValue)
         {
             filtered = filtered.Where(e => e.AccessedAtUtc >= query.FromUtc.Value);
@@ -179,17 +199,7 @@ public sealed class InMemoryReadAuditStore : IReadAuditStore
             filtered = filtered.Where(e => e.AccessedAtUtc <= query.ToUtc.Value);
         }
 
-        var allResults = filtered.ToList();
-        var totalCount = allResults.Count;
-
-        var items = allResults
-            .OrderByDescending(e => e.AccessedAtUtc).ThenByDescending(e => e.Id)
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .ToList();
-
-        var result = PagedResult<ReadAuditEntry>.Create(items, totalCount, pageNumber, pageSize);
-        return ValueTask.FromResult<Either<EncinaError, PagedResult<ReadAuditEntry>>>(Right(result));
+        return filtered;
     }
 
     /// <inheritdoc/>
