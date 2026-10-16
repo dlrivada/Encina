@@ -1,18 +1,24 @@
 using System.Text.RegularExpressions;
 using Encina.Messaging.DeadLetter;
+using Encina.Messaging.Sagas;
 using Encina.TestInfrastructure.Fixtures;
 using Microsoft.Data.SqlClient;
 using Xunit;
 using AdoDeadLetterFactory = Encina.ADO.SqlServer.DeadLetter.DeadLetterMessageFactory;
 using AdoDeadLetterStore = Encina.ADO.SqlServer.DeadLetter.DeadLetterStoreADO;
+using AdoSagaState = Encina.ADO.SqlServer.Sagas.SagaState;
+using AdoSagaStore = Encina.ADO.SqlServer.Sagas.SagaStoreADO;
 using DapperDeadLetterFactory = Encina.Dapper.SqlServer.DeadLetter.DeadLetterMessageFactory;
 using DapperDeadLetterStore = Encina.Dapper.SqlServer.DeadLetter.DeadLetterStoreDapper;
+using DapperSagaState = Encina.Dapper.SqlServer.Sagas.SagaState;
+using DapperSagaStore = Encina.Dapper.SqlServer.Sagas.SagaStoreDapper;
 
 namespace Encina.IntegrationTests.SchemaScripts;
 
 /// <summary>
-/// Verifies that the <c>029_CreateDeadLetterMessagesTable.sql</c> file shipped by <c>Encina.ADO.SqlServer</c>
-/// and <c>Encina.Dapper.SqlServer</c> is valid SQL Server syntax and produces a schema that the packages' own
+/// Verifies that the <c>029_CreateDeadLetterMessagesTable.sql</c> file (#583) and the saga scripts <c>003</c> and
+/// <c>000</c> (#2206) shipped by <c>Encina.ADO.SqlServer</c>
+/// and <c>Encina.Dapper.SqlServer</c> are valid SQL Server syntax and produces a schema that the packages' own
 /// stores can read and write (#583). The fixture schema copy in <c>SqlServerSchema</c> is not used: the script
 /// runs in a database of its own, so that a table created by the fixture cannot hide a broken script.
 /// </summary>
@@ -92,6 +98,77 @@ public sealed partial class SqlServerSchemaScriptsIntegrationTests : IAsyncLifet
         Assert.True((await store.AddAsync(factory.Create(Data("Script-1")))).ShouldBeRight());
         Assert.Equal(2, (await store.GetCountAsync()).ShouldBeRight());
         Assert.Equal(1, (await store.GetCountAsync(new DeadLetterFilter { SourceMessageId = "Script-1" })).ShouldBeRight());
+    }
+
+    /// <summary>
+    /// Both the stand-alone <c>003</c> script and the all-in-one <c>000</c> script create a <c>SagaStates</c> table that
+    /// the package's saga store can write and read: the status is text, <c>TimeoutAtUtc</c> exists, and the saga
+    /// can be started, read back, found as expired and updated (#2206).
+    /// </summary>
+    [Theory]
+    [InlineData("Encina.ADO.SqlServer", "003")]
+    [InlineData("Encina.ADO.SqlServer", "000")]
+    [InlineData("Encina.Dapper.SqlServer", "003")]
+    [InlineData("Encina.Dapper.SqlServer", "000")]
+    public async Task SagaScript_CreatesATableTheSagaStoreCanWriteAndRead(string packageName, string scriptPrefix)
+    {
+        await using var connection = await OpenScriptDatabaseAsync();
+        var script = await File.ReadAllTextAsync(Directory.GetFiles(FindScriptsFolder(packageName), scriptPrefix + "_*.sql").Single());
+        await RunScriptAsync(connection, script);
+
+        var dapper = packageName.Contains("Dapper", StringComparison.Ordinal);
+        ISagaStore store = dapper
+            ? new DapperSagaStore(connection)
+            : new AdoSagaStore(connection);
+
+        var nowUtc = DateTime.UtcNow;
+        var sagaId = Guid.NewGuid();
+        var timeoutAtUtc = nowUtc.AddMinutes(-5);
+        ISagaState saga = dapper
+            ? new DapperSagaState { SagaId = sagaId, SagaType = "Issue2206Saga", Data = "{}", Status = SagaStatus.Running, StartedAtUtc = nowUtc, LastUpdatedAtUtc = nowUtc, TimeoutAtUtc = timeoutAtUtc }
+            : new AdoSagaState { SagaId = sagaId, SagaType = "Issue2206Saga", Data = "{}", Status = SagaStatus.Running, StartedAtUtc = nowUtc, LastUpdatedAtUtc = nowUtc, TimeoutAtUtc = timeoutAtUtc };
+
+        await using (var columns = new SqlCommand(
+            "SELECT COLUMN_NAME + ':' + DATA_TYPE + ':' + CAST(ISNULL(CHARACTER_MAXIMUM_LENGTH, 0) AS varchar(10)) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SagaStates' AND COLUMN_NAME IN ('Status', 'TimeoutAtUtc', 'CorrelationId', 'Metadata');",
+            connection))
+        await using (var reader = await columns.ExecuteReaderAsync())
+        {
+            var found = new List<string>();
+            while (await reader.ReadAsync())
+            {
+                found.Add(reader.GetString(0));
+            }
+
+            List<string> expectedColumns = ["Status:nvarchar:50", "TimeoutAtUtc:datetime2:0", "CorrelationId:nvarchar:256", "Metadata:nvarchar:-1"];
+            Assert.Equivalent(expectedColumns, found);
+        }
+
+        (await store.AddAsync(saga)).ShouldBeRight();
+
+        var stored = await GetSomeAsync(store, sagaId);
+        Assert.Equal(SagaStatus.Running, stored.Status);
+        Assert.NotNull(stored.TimeoutAtUtc);
+
+        var expired = (await store.GetExpiredSagasAsync(10)).ShouldBeRight();
+        Assert.Contains(expired, s => s.SagaId == sagaId);
+
+        saga.Status = SagaStatus.Completed;
+        saga.CompletedAtUtc = nowUtc;
+        saga.CurrentStep = 2;
+        (await store.UpdateAsync(saga)).ShouldBeRight();
+
+        var updated = await GetSomeAsync(store, sagaId);
+        Assert.Equal(SagaStatus.Completed, updated.Status);
+        Assert.Equal(2, updated.CurrentStep);
+        Assert.DoesNotContain((await store.GetExpiredSagasAsync(10)).ShouldBeRight(), s => s.SagaId == sagaId);
+    }
+
+    private static async Task<ISagaState> GetSomeAsync(ISagaStore store, Guid sagaId)
+    {
+        var found = (await store.GetAsync(sagaId)).ShouldBeRight();
+        Assert.True(found.IsSome);
+
+        return found.IfNone(() => throw new InvalidOperationException("The saga was not found."));
     }
 
     private static DeadLetterData Data(string sourceMessageId)
