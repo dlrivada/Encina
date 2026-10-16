@@ -26,36 +26,42 @@ public sealed class DSRRequestAggregateEventCoverageTests
             a.Status.ShouldBe(DSRRequestStatus.Received);
             a.SubjectId.ShouldBe("subject-1");
             a.TenantId.ShouldBe("tenant-1");
-        }),
+        }
+        ),
         [typeof(DSRRequestVerified)] = (new DSRRequestVerified(Id, "admin", Now.AddHours(1), "tenant-1", "module-1"), a =>
         {
             a.Status.ShouldBe(DSRRequestStatus.IdentityVerified);
             a.VerifiedAtUtc.ShouldBe(Now.AddHours(1));
-        }),
+        }
+        ),
         [typeof(DSRRequestProcessing)] = (new DSRRequestProcessing(Id, "worker", Now.AddHours(2), "tenant-1", "module-1"), a =>
         {
             a.Status.ShouldBe(DSRRequestStatus.InProgress);
             a.ProcessedByUserId.ShouldBe("worker");
-        }),
+        }
+        ),
         [typeof(DSRRequestCompleted)] = (new DSRRequestCompleted(Id, Now.AddHours(3), "tenant-1", "module-1"), a =>
         {
             a.Status.ShouldBe(DSRRequestStatus.Completed);
             a.CompletedAtUtc.ShouldBe(Now.AddHours(3));
-        }),
+        }
+        ),
         [typeof(DSRRequestDenied)] = (new DSRRequestDenied(
             Id, DSRRejectionReason.Excessive, "repeated", Now.AddHours(4), "tenant-1", "module-1"), a =>
         {
             a.Status.ShouldBe(DSRRequestStatus.Rejected);
             a.RejectionReason.ShouldBe(DSRRejectionReason.Excessive);
             a.RejectionExplanation.ShouldBe("repeated");
-        }),
+        }
+        ),
         [typeof(DSRRequestExtended)] = (new DSRRequestExtended(
             Id, "complex", Now.AddDays(90), Now.AddDays(20), "tenant-1", "module-1"), a =>
         {
             a.Status.ShouldBe(DSRRequestStatus.Extended);
             a.ExtensionReason.ShouldBe("complex");
             a.ExtendedDeadlineAtUtc.ShouldBe(Now.AddDays(90));
-        }),
+        }
+        ),
         [typeof(DSRRequestExpired)] = (new DSRRequestExpired(Id, Now.AddDays(100), "tenant-1", "module-1"), a =>
             a.Status.ShouldBe(DSRRequestStatus.Expired))
     };
