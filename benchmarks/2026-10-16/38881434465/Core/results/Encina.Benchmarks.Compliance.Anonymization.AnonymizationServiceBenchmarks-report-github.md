@@ -1,0 +1,21 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+
+Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+
+```
+| Method                                    | Mean       | Error      | StdDev    | Ratio | RatioSD | Rank | Gen0    | Gen1   | Allocated | Alloc Ratio |
+|------------------------------------------ |-----------:|-----------:|----------:|------:|--------:|-----:|--------:|-------:|----------:|------------:|
+| &#39;Tokenize: UUID format&#39;                   |  14.563 μs | 12.2455 μs | 0.6712 μs |  1.00 |    0.06 |    5 |  0.2136 | 0.0763 |    3624 B |        1.00 |
+| &#39;Tokenize: prefixed format&#39;               |  14.576 μs |  2.2660 μs | 0.1242 μs |  1.00 |    0.04 |    5 |  0.2594 | 0.1221 |    4877 B |        1.35 |
+| &#39;Pseudonymize: AES-256-GCM&#39;               |   4.592 μs |  0.7218 μs | 0.0396 μs |  0.32 |    0.01 |    3 |  0.0305 |      - |     632 B |        0.17 |
+| &#39;Pseudonymize: HMAC-SHA256&#39;               |   2.209 μs |  0.2483 μs | 0.0136 μs |  0.15 |    0.01 |    2 |  0.0229 |      - |     384 B |        0.11 |
+| &#39;Pseudonymize + Depseudonymize roundtrip&#39; |   7.617 μs |  1.1392 μs | 0.0624 μs |  0.52 |    0.02 |    4 |  0.0610 |      - |    1088 B |        0.30 |
+| &#39;Anonymize: data masking (2 fields)&#39;      |   1.421 μs |  0.1751 μs | 0.0096 μs |  0.10 |    0.00 |    1 |  0.0553 |      - |     936 B |        0.26 |
+| &#39;Risk assessment: 100-record dataset&#39;     | 319.837 μs | 16.4790 μs | 0.9033 μs | 21.99 |    0.86 |    6 | 17.0898 | 0.4883 |  291296 B |       80.38 |
