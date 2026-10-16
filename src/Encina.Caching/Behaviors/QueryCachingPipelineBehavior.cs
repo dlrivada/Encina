@@ -35,6 +35,12 @@ namespace Encina.Caching;
 /// written only while the context still reports that same identity; a request whose scope ended
 /// meanwhile runs its handler without the cache, so no response is ever shared across callers.
 /// </para>
+/// <para>
+/// When multi-tenancy is enabled (the <see cref="MultiTenancyMarker"/> is registered) and the request
+/// context carries no tenant, a request that varies by tenant (the default) bypasses the cache with no
+/// read and no write, and logs a Debug message (EventId 3513) with the request type only. Without
+/// multi-tenancy the behavior is unchanged.
+/// </para>
 /// </remarks>
 public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
@@ -44,6 +50,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
     private readonly CachingOptions _options;
     private readonly ILogger<QueryCachingPipelineBehavior<TRequest, TResponse>> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly bool _multiTenant;
     private static readonly CacheAttribute? CacheAttribute = typeof(TRequest).GetCustomAttribute<CacheAttribute>();
 
     /// <summary>
@@ -54,12 +61,17 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
     /// <param name="options">The caching options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="timeProvider">The time provider for testing.</param>
+    /// <param name="multiTenancy">
+    /// The multi-tenancy marker (registered by <c>AddEncinaTenancy</c>); when present, a request that varies
+    /// by tenant and carries no tenant bypasses the cache.
+    /// </param>
     public QueryCachingPipelineBehavior(
         ICacheProvider cacheProvider,
         ICacheKeyGenerator keyGenerator,
         IOptions<CachingOptions> options,
         ILogger<QueryCachingPipelineBehavior<TRequest, TResponse>> logger,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        MultiTenancyMarker? multiTenancy = null)
     {
         ArgumentNullException.ThrowIfNull(cacheProvider);
         ArgumentNullException.ThrowIfNull(keyGenerator);
@@ -71,6 +83,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         _options = options.Value;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _multiTenant = multiTenancy is not null;
     }
 
     /// <inheritdoc/>
@@ -87,7 +100,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         // The identity is read once: it reads Anonymous as soon as its scope ends (#1892), so the
         // bypass decision and the key are taken from this snapshot, never from a second read.
         var identity = context.Identity;
-        if (!ShouldUseCache(identity))
+        if (!ShouldUseCache(context, identity))
         {
             return await nextStep().ConfigureAwait(false);
         }
@@ -117,10 +130,18 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
 
     // Caching is enabled, the request has [Cache], and a per-user entry has a user: any other
     // identity bypasses the cache (no read, no write).
-    private bool ShouldUseCache(RequestIdentity? identity)
+    private bool ShouldUseCache(IRequestContext context, RequestIdentity? identity)
     {
         if (!_options.EnableQueryCaching || CacheAttribute is null)
         {
+            return false;
+        }
+
+        // Fail closed for the cache, not the query: with multi-tenancy on, a tenant-scoped entry
+        // without a tenant would be the tenant-less key shared by every tenant's callers.
+        if (CacheAttribute.VaryByTenant && _multiTenant && string.IsNullOrWhiteSpace(context.TenantId))
+        {
+            LogTenantMissingBypassed(_logger, typeof(TRequest).Name);
             return false;
         }
 
@@ -307,6 +328,14 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         ILogger logger,
         string requestType,
         IdentityKind identityKind);
+
+    [LoggerMessage(
+        EventId = 3513,
+        Level = LogLevel.Debug,
+        Message = "{RequestType} varies by tenant but multi-tenancy is enabled and the request context has no tenant; the cache is bypassed (no read, no write)")]
+    private static partial void LogTenantMissingBypassed(
+        ILogger logger,
+        string requestType);
 }
 
 /// <summary>
