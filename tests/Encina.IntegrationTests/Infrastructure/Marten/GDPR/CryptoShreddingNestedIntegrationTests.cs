@@ -215,6 +215,44 @@ public sealed class CryptoShreddingNestedIntegrationTests : IAsyncLifetime
         descendants.IfRight(c => c.Single().Id.ShouldBe(eventId));
     }
 
+    [Fact]
+    public async Task MetadataReaders_ApplyFiltersAndPaging_AndReportAMissingEvent()
+    {
+        var correlationId = $"corr-{Guid.NewGuid():N}";
+        var streamId = Guid.NewGuid();
+        await using (var session = _store.LightweightSession())
+        {
+            session.CorrelationId = correlationId;
+            session.Events.Append(streamId, NestedVisit($"patient-{Guid.NewGuid():N}", null), NestedVisit($"patient-{Guid.NewGuid():N}", null));
+            await session.SaveChangesAsync();
+        }
+
+        var query = new global::Encina.Marten.MartenEventMetadataQuery(_store, NullLogger<global::Encina.Marten.MartenEventMetadataQuery>.Instance);
+        var options = new global::Encina.Marten.EventQueryOptions
+        {
+            StreamId = streamId,
+            EventTypes = ["nested_visit_recorded"],
+            FromTimestamp = DateTimeOffset.UtcNow.AddHours(-1),
+            ToTimestamp = DateTimeOffset.UtcNow.AddHours(1),
+            Take = 1,
+        };
+
+        var page = await query.GetEventsByCorrelationIdAsync(correlationId, options);
+        var missing = await query.GetEventByIdAsync(Guid.NewGuid());
+        var noChain = await query.GetCausalChainAsync(Guid.NewGuid(), global::Encina.Marten.CausalChainDirection.Descendants);
+
+        page.IsRight.ShouldBeTrue();
+        page.IfRight(r =>
+        {
+            r.TotalCount.ShouldBe(2);
+            r.Events.Count.ShouldBe(1);
+            r.HasMore.ShouldBeTrue();
+        });
+        missing.IsLeft.ShouldBeTrue();
+        noChain.IsRight.ShouldBeTrue();
+        noChain.IfRight(c => c.ShouldBeEmpty());
+    }
+
     private async Task CorruptStoredTokenAsync(Guid streamId)
     {
         await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
