@@ -1,5 +1,6 @@
 #pragma warning disable CA2012 // ValueTask instances used in NSubstitute mock setup
 
+using System.Diagnostics.Metrics;
 using Encina.Security.Audit;
 using Encina.Security.PII;
 using Encina.UnitTests.Support;
@@ -275,9 +276,115 @@ public sealed class AuditMaskingFailClosedTests
         result.Match(Right: _ => string.Empty, Left: e => e.Message).ShouldNotContain(Sentinel);
         store.Count.ShouldBe(0);
         var warning = logger.Collector.GetSnapshot().Single(r => r.Level == LogLevel.Warning);
-        warning.Id.Id.ShouldBe(5000);
+        warning.Id.Id.ShouldBe(5012);
         warning.Message.ShouldContain(OperationAuditErrors.MaskingFailedCode);
+        warning.Message.ShouldContain(nameof(InvalidOperationException));
         RedactedExceptionLogAssert.NeverLoggedRaw(logger, Sentinel);
+    }
+
+    [Theory]
+    [InlineData(OperationAuditFailureMode.FailClosed)]
+    [InlineData(OperationAuditFailureMode.BestEffort)]
+    public async Task Handle_MaskingFailure_IsCountedInBothFailureModes(OperationAuditFailureMode mode)
+    {
+        var measurements = new List<(long Value, string? Code, string? RequestType)>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Meter.Name == "Encina.OperationAudit" && instrument.Name == "operation_audit.masking_failures.total")
+            {
+                l.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
+        {
+            var code = tags.ToArray().FirstOrDefault(t => t.Key == "error_code").Value as string;
+            var requestType = tags.ToArray().FirstOrDefault(t => t.Key == "request_type").Value as string;
+            lock (measurements)
+            {
+                measurements.Add((value, code, requestType));
+            }
+        });
+        listener.Start();
+        var sut = CreateBehavior(
+            new ThrowingMasker(),
+            new InMemoryOperationAuditStore(),
+            new FakeLogger<AuditPipelineBehavior<PatientCommand, Unit>>(),
+            mode);
+
+        await sut.Handle(new PatientCommand("Ana"), Context, Ok, CancellationToken.None);
+
+        lock (measurements)
+        {
+            measurements.ShouldContain((1L, OperationAuditErrors.MaskingFailedCode, nameof(PatientCommand)));
+        }
+    }
+
+    [Fact]
+    public async Task Handle_FactoryLeftWithAnotherCode_IsLoggedButNotCountedAsAMaskingFailure()
+    {
+        var count = 0;
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Name == "operation_audit.masking_failures.total")
+            {
+                l.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+        {
+            if (tags.ToArray().Any(t => t.Key == "request_type" && (t.Value as string) == nameof(OtherCommand)))
+            {
+                Interlocked.Increment(ref count);
+            }
+        });
+        listener.Start();
+        var factory = NSubstitute.Substitute.For<IOperationAuditEntryFactory>();
+        factory.Create(
+                NSubstitute.Arg.Any<OtherCommand>(), NSubstitute.Arg.Any<object?>(), NSubstitute.Arg.Any<IRequestContext>(),
+                NSubstitute.Arg.Any<AuditOutcome>(), NSubstitute.Arg.Any<string?>(),
+                NSubstitute.Arg.Any<DateTimeOffset>(), NSubstitute.Arg.Any<DateTimeOffset>())
+            .Returns(EncinaErrors.Create("custom.factory_failed", "no entry"));
+        var logger = new FakeLogger<AuditPipelineBehavior<OtherCommand, Unit>>();
+        AuditPipelineBehavior<OtherCommand, Unit>.ClearCache();
+        var services = new ServiceCollection();
+        services.AddSingleton<IOperationAuditStore>(new InMemoryOperationAuditStore());
+        var sut = new AuditPipelineBehavior<OtherCommand, Unit>(
+            services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+            factory,
+            Options.Create(new OperationAuditOptions { AuditAllCommands = true }),
+            logger);
+
+        var result = await sut.Handle(new OtherCommand(), Context, Ok, CancellationToken.None);
+
+        result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty)).ShouldBe("custom.factory_failed");
+        logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 5012);
+        count.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Handle_StoreThrowsAFatalException_Propagates()
+    {
+        var store = NSubstitute.Substitute.For<IOperationAuditStore>();
+        store.RecordAsync(NSubstitute.Arg.Any<OperationAuditEntry>(), NSubstitute.Arg.Any<CancellationToken>())
+#pragma warning disable CA2201 // simulates a fatal runtime exception on purpose
+            .Returns<ValueTask<Either<EncinaError, Unit>>>(_ => throw new OutOfMemoryException());
+#pragma warning restore CA2201
+        var logger = new FakeLogger<AuditPipelineBehavior<PatientCommand, Unit>>();
+        var services = new ServiceCollection();
+        services.AddSingleton(store);
+        AuditPipelineBehavior<PatientCommand, Unit>.ClearCache();
+        var options = new OperationAuditOptions { AuditAllCommands = true };
+        var sut = new AuditPipelineBehavior<PatientCommand, Unit>(
+            services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+            new DefaultOperationAuditEntryFactory(new UpperCaseMasker(), Options.Create(options)),
+            Options.Create(options),
+            logger);
+
+        var act = () => sut.Handle(new PatientCommand("Ana"), Context, Ok, CancellationToken.None).AsTask();
+
+        await Should.ThrowAsync<OutOfMemoryException>(act);
     }
 
     [Fact]
@@ -291,7 +398,7 @@ public sealed class AuditMaskingFailClosedTests
 
         result.IsRight.ShouldBeTrue();
         store.Count.ShouldBe(0);
-        logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 5000 && r.Level == LogLevel.Warning);
+        logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 5012 && r.Level == LogLevel.Warning);
         RedactedExceptionLogAssert.NeverLoggedRaw(logger, Sentinel);
     }
 
@@ -491,6 +598,8 @@ public sealed class AuditMaskingFailClosedTests
         new(LanguageExt.Prelude.Right<EncinaError, Unit>(Unit.Default));
 
     public sealed record PatientCommand(string Name) : ICommand<Unit>;
+
+    public sealed record OtherCommand : ICommand<Unit>;
 
     public sealed record CredentialsCommand(string UserName, string Password) : ICommand<Unit>;
 

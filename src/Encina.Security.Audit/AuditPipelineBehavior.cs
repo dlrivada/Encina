@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Transactions;
 
 using Encina.Diagnostics;
+using Encina.Security.Audit.Diagnostics;
 
 using LanguageExt;
 
@@ -270,16 +271,31 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
                 Left: error => Task.FromResult(LogFactoryFailure(requestType, error)),
                 Right: entry => WriteEntryAsync(requestType, entry)).ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogAuditRecordingException(_logger, requestType, _options.FailureMode, ex.ForLogging());
             return OperationAuditErrors.WriteFailed(requestType, ex.GetType().Name);
         }
     }
 
+    /// <summary>
+    /// Logs and counts a Left of the entry factory. The log carries the error code and the cause exception type
+    /// from the error details, never a message; the counter is tagged with the error code and request type only.
+    /// </summary>
     private Either<EncinaError, LanguageExt.Unit> LogFactoryFailure(string requestType, EncinaError error)
     {
-        LogAuditRecordingFailed(_logger, requestType, error.GetCode().IfNone("encina.unknown"), _options.FailureMode);
+        var code = error.GetCode().IfNone("encina.unknown");
+        var cause = error.GetDetails().TryGetValue("cause", out var value) ? value?.ToString() ?? "unknown" : "unknown";
+        LogEntryNotBuilt(_logger, requestType, code, cause, _options.FailureMode);
+
+        if (code == OperationAuditErrors.MaskingFailedCode)
+        {
+            OperationAuditMeter.MaskingFailuresTotal.Add(
+                1,
+                new KeyValuePair<string, object?>(OperationAuditMeter.TagErrorCode, code),
+                new KeyValuePair<string, object?>(OperationAuditMeter.TagRequestType, requestType));
+        }
+
         return error;
     }
 
@@ -301,6 +317,17 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
                 return OperationAuditErrors.WriteFailed(requestType, code);
             });
     }
+
+    [LoggerMessage(
+        EventId = 5012,
+        Level = LogLevel.Warning,
+        Message = "Audit entry for {RequestType} was not built: {ErrorCode}, cause {CauseType} (failure mode {FailureMode})")]
+    private static partial void LogEntryNotBuilt(
+        ILogger logger,
+        string requestType,
+        string errorCode,
+        string causeType,
+        OperationAuditFailureMode failureMode);
 
     [LoggerMessage(
         EventId = 5000,
