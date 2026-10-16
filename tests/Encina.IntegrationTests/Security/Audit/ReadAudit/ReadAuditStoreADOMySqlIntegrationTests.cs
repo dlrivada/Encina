@@ -38,6 +38,12 @@ public class ReadAuditStoreADOMySqlIntegrationTests : IAsyncLifetime
         await ReadAuditStableOrderCheck.AssertPagedReadsAreStableAsync(_store);
     }
 
+    [Fact]
+    public async Task QueryAsync_EveryFilter_SelectsTheMatchingEntry()
+    {
+        await ReadAuditFilterCheck.AssertEveryFilterSelectsTheRightEntryAsync(_store);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await ClearDataAsync();

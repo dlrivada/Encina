@@ -27,6 +27,12 @@ public class ReadAuditStoreEFSqlServerIntegrationTests : IAsyncLifetime
         await ReadAuditStableOrderCheck.AssertPagedReadsAreStableAsync(CreateStore());
     }
 
+    [Fact]
+    public async Task QueryAsync_EveryFilter_SelectsTheMatchingEntry()
+    {
+        await ReadAuditFilterCheck.AssertEveryFilterSelectsTheRightEntryAsync(CreateStore());
+    }
+
     private ReadAuditStoreEF CreateStore() => new(_fixture.CreateDbContext<AuditTestDbContext>());
 
     private static ReadAuditEntry CreateTestEntry(
