@@ -247,6 +247,8 @@ public sealed class CryptoShreddingStartupValidationHostedServiceTests(Misconfig
 
         CryptoShreddingStartupValidationHostedService.MissingLocatorTypes(both, [app, marten, both]).ShouldBeEmpty();
         CryptoShreddingStartupValidationHostedService.MissingLocatorTypes(nested, [app, marten, nested]).ShouldBeEmpty();
+        CryptoShreddingStartupValidationHostedService.MissingLocatorTypes(both, [app, new ApplicationLocator(), marten, both]).ShouldBeEmpty();
+        CryptoShreddingStartupValidationHostedService.MissingLocatorTypes(marten, [app, new ApplicationLocator(), marten]).ShouldBe([typeof(ApplicationLocator)]);
         CryptoShreddingStartupValidationHostedService.MissingLocatorTypes(marten, [app, marten]).ShouldBe([typeof(ApplicationLocator)]);
         CryptoShreddingStartupValidationHostedService.MissingLocatorTypes(app, [marten, app]).ShouldBe([typeof(MartenEventPersonalDataLocator)]);
         CryptoShreddingStartupValidationHostedService.MissingLocatorTypes(new CompositePersonalDataLocator([app], logger), [app, marten])

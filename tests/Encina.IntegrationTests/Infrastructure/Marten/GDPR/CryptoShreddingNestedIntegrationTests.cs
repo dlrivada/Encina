@@ -45,6 +45,7 @@ public sealed class CryptoShreddingNestedIntegrationTests : IAsyncLifetime
             opts.DatabaseSchemaName = _schema;
             opts.AutoCreateSchemaObjects = AutoCreate.All;
             opts.Events.MetadataConfig.CorrelationIdEnabled = true;
+            opts.Events.MetadataConfig.CausationIdEnabled = true;
         }).UseLightweightSessions();
         services.AddEncinaDataSubjectRights();
         services.AddEncinaMartenGdpr(o =>
@@ -176,9 +177,11 @@ public sealed class CryptoShreddingNestedIntegrationTests : IAsyncLifetime
         var subject = $"patient-{Guid.NewGuid():N}";
         var streamId = Guid.NewGuid();
         var correlationId = $"corr-{Guid.NewGuid():N}";
+        var causationId = Guid.NewGuid().ToString();
         await using (var session = _store.LightweightSession())
         {
             session.CorrelationId = correlationId;
+            session.CausationId = causationId;
             session.Events.Append(streamId, NestedVisit(subject, therapist: null));
             await session.SaveChangesAsync();
         }
@@ -203,6 +206,13 @@ public sealed class CryptoShreddingNestedIntegrationTests : IAsyncLifetime
         byCorrelation.IfRight(r => r.Events.Single().Id.ShouldBe(eventId));
         chain.IsRight.ShouldBeTrue();
         chain.IfRight(c => c.Single().Id.ShouldBe(eventId));
+
+        var byCausation = await query.GetEventsByCausationIdAsync(causationId);
+        var descendants = await query.GetCausalChainAsync(eventId, global::Encina.Marten.CausalChainDirection.Descendants);
+        byCausation.IsRight.ShouldBeTrue();
+        byCausation.IfRight(r => r.Events.Single().Id.ShouldBe(eventId));
+        descendants.IsRight.ShouldBeTrue();
+        descendants.IfRight(c => c.Single().Id.ShouldBe(eventId));
     }
 
     private async Task CorruptStoredTokenAsync(Guid streamId)
