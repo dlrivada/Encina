@@ -56,6 +56,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
         try
         {
             Log.QueryingByCorrelationId(_logger, correlationId);
+            using var noDecrypt = EventReadScope.SuppressDecryption();
             return await QueryEventsByMetadataAsync(
                 e => e.CorrelationId == correlationId,
                 options,
@@ -89,6 +90,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
         try
         {
             Log.QueryingByCausationId(_logger, causationId);
+            using var noDecrypt = EventReadScope.SuppressDecryption();
             return await QueryEventsByMetadataAsync(
                 e => e.CausationId == causationId,
                 options,
@@ -131,6 +133,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
         try
         {
             Log.QueryingCausalChain(_logger, eventId, direction.ToString(), maxDepth);
+            using var noDecrypt = EventReadScope.SuppressDecryption();
 
             return direction == CausalChainDirection.Ancestors
                 ? await GetAncestorChainAsync(eventId, maxDepth, cancellationToken).ConfigureAwait(false)
@@ -199,7 +202,6 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
         options ??= new EventQueryOptions();
         var take = Math.Min(options.Take, MaxTakeLimit);
 
-        using var noDecrypt = EventReadScope.SuppressDecryption();
         await using var session = _store.QuerySession();
 
         var query = session.Events.QueryAllRawEvents().Where(filter);
@@ -266,7 +268,6 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
         var currentEventId = eventId;
         var depth = 0;
 
-        using var noDecrypt = EventReadScope.SuppressDecryption();
         await using var session = _store.QuerySession();
 
         while (depth < maxDepth && !cancellationToken.IsCancellationRequested)
@@ -325,7 +326,6 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
 
         toProcess.Enqueue(eventId);
 
-        using var noDecrypt = EventReadScope.SuppressDecryption();
         await using var session = _store.QuerySession();
 
         // First, get the root event
