@@ -258,7 +258,7 @@ Encina only records `Excessive`; the controller judges repetition from the reque
 Two components follow the same rule:
 
 - `ProcessingRestrictionPipelineBehavior` in `Block` mode blocks the request when the restriction lookup returns `dsr.tenant_required`, instead of the usual fail-open on store errors. In `Warn` mode the request proceeds.
-- `DataSubjectRightsHealthCheck` skips the overdue-request check (data key `overdueRequestCheck` = `skipped: no tenant context`) when the probe has no tenant in a multi-tenant application, because the tenant-scoped query is refused.
+- `DataSubjectRightsHealthCheck` reports `Degraded` (warning "Overdue DSR requests were not checked: the health probe has no tenant context.", data key `overdueRequestCheck` = `skipped: no tenant context`) when the probe has no tenant in a multi-tenant application, because the tenant-scoped overdue query is refused and the Article 12(3) deadline signal is unknown (fail closed for monitoring). Single-tenant applications are unaffected. A deadline sweep across tenants needs a per-tenant probe or a system-scope path, which does not exist yet and is tracked as follow-up work.
 
 ## Error Codes
 

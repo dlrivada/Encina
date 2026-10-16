@@ -638,7 +638,7 @@ services.AddEncinaDataSubjectRights(options =>
 });
 ```
 
-In `Block` mode, `ProcessingRestrictionPipelineBehavior` blocks a request whose restriction lookup returns `dsr.tenant_required` (it fails closed instead of the usual fail-open on store errors); in `Warn` mode the request proceeds. `DataSubjectRightsHealthCheck` skips the overdue-request check (`overdueRequestCheck` = `skipped: no tenant context`) when the probe has no tenant in a multi-tenant application.
+In `Block` mode, `ProcessingRestrictionPipelineBehavior` blocks a request whose restriction lookup returns `dsr.tenant_required` (it fails closed instead of the usual fail-open on store errors); in `Warn` mode the request proceeds. `DataSubjectRightsHealthCheck` reports `Degraded` (warning "Overdue DSR requests were not checked: the health probe has no tenant context.", data key `overdueRequestCheck` = `skipped: no tenant context`) when the probe has no tenant in a multi-tenant application, because the tenant-scoped overdue query is refused and the Article 12(3) deadline signal is unknown (fail closed for monitoring); single-tenant applications are unaffected. A deadline sweep across tenants needs a per-tenant probe or a system-scope path, which does not exist yet and is tracked as follow-up work.
 
 ---
 
