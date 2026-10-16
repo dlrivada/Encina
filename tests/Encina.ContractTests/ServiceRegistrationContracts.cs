@@ -49,7 +49,7 @@ public sealed class ServiceRegistrationContracts
     }
 
     [Fact]
-    public void CommandPipelineConfigurationRegistersSpecializedDescriptor()
+    public void CommandPipelineConfigurationRegistersOnlyThePipelineDescriptor()
     {
         var services = new ServiceCollection();
 
@@ -63,14 +63,12 @@ public sealed class ServiceRegistrationContracts
             && ImplementationMatches(d, typeof(SampleCommandPipelineBehavior<,>))
             && d.Lifetime == ServiceLifetime.Scoped);
 
-        services.ShouldContain(d =>
-            d.ServiceType == typeof(ICommandPipelineBehavior<,>)
-            && ImplementationMatches(d, typeof(SampleCommandPipelineBehavior<,>))
-            && d.Lifetime == ServiceLifetime.Scoped);
+        // The builder resolves only IPipelineBehavior<,>: a specialized descriptor would never be used (#2184)
+        services.ShouldNotContain(d => d.ServiceType == typeof(ICommandPipelineBehavior<,>));
     }
 
     [Fact]
-    public void QueryPipelineConfigurationRegistersSpecializedDescriptor()
+    public void QueryPipelineConfigurationRegistersOnlyThePipelineDescriptor()
     {
         var services = new ServiceCollection();
 
@@ -84,10 +82,7 @@ public sealed class ServiceRegistrationContracts
             && ImplementationMatches(d, typeof(SampleQueryPipelineBehavior<,>))
             && d.Lifetime == ServiceLifetime.Scoped);
 
-        services.ShouldContain(d =>
-            d.ServiceType == typeof(IQueryPipelineBehavior<,>)
-            && ImplementationMatches(d, typeof(SampleQueryPipelineBehavior<,>))
-            && d.Lifetime == ServiceLifetime.Scoped);
+        services.ShouldNotContain(d => d.ServiceType == typeof(IQueryPipelineBehavior<,>));
     }
 
     [Fact]

@@ -97,7 +97,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
     /// wrapped only when registered, so a pipeline without processors allocates no step and reuses the resolved
     /// behavior array. The resolver reads the steps in place, so no per-request description is allocated.
     /// </remarks>
-    private static IPipelineBehavior<TRequest, TResponse>[] ResolveSteps(IServiceProvider serviceProvider)
+    internal static IPipelineBehavior<TRequest, TResponse>[] ResolveSteps(IServiceProvider serviceProvider)
     {
         // GetServices<T>() never returns null - always empty enumeration
         var behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>().ToArray();

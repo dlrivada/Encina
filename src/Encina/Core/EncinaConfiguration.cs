@@ -11,12 +11,18 @@ namespace Encina;
 /// Used by <see cref="ServiceCollectionExtensions.AddEncina(IServiceCollection, Action{EncinaConfiguration}, System.Reflection.Assembly[])"/>
 /// to fine-tune automatic registrations.
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters",
+    Justification = "Pre-1.0: every stage-aware overload takes a required PipelineStage before the optional order, so it can never be confused with the stage-less overload and calls are never ambiguous.")]
 public sealed class EncinaConfiguration
 {
     private readonly HashSet<Assembly> _assemblies = [];
     private readonly List<Type> _pipelineBehaviorTypes = [];
     private readonly List<Type> _requestPreProcessorTypes = [];
     private readonly List<Type> _requestPostProcessorTypes = [];
+    private readonly List<Type> _requestErrorProcessorTypes = [];
+    private readonly List<Type> _requestPostCommitProcessorTypes = [];
+    private readonly List<Type> _streamPipelineBehaviorTypes = [];
+    private readonly List<PipelineStageDeclaration> _stageDeclarations = [];
 
     /// <summary>
     /// Lifetime applied to handlers registered through scanning.
@@ -36,6 +42,10 @@ public sealed class EncinaConfiguration
     internal IReadOnlyList<Type> PipelineBehaviorTypes => _pipelineBehaviorTypes;
     internal IReadOnlyList<Type> RequestPreProcessorTypes => _requestPreProcessorTypes;
     internal IReadOnlyList<Type> RequestPostProcessorTypes => _requestPostProcessorTypes;
+    internal IReadOnlyList<Type> RequestErrorProcessorTypes => _requestErrorProcessorTypes;
+    internal IReadOnlyList<Type> RequestPostCommitProcessorTypes => _requestPostCommitProcessorTypes;
+    internal IReadOnlyList<Type> StreamPipelineBehaviorTypes => _streamPipelineBehaviorTypes;
+    internal IReadOnlyList<PipelineStageDeclaration> StageDeclarations => _stageDeclarations;
 
     /// <summary>
     /// Sets the lifetime used for handlers registered through scanning.
@@ -116,29 +126,43 @@ public sealed class EncinaConfiguration
         => AddPipelineBehavior(typeof(TBehavior));
 
     /// <summary>
+    /// Adds a generic behavior to the pipeline and places it in a stage, overriding any
+    /// <see cref="PipelineStageAttribute"/> on the type.
+    /// </summary>
+    /// <typeparam name="TBehavior">Behavior type.</typeparam>
+    /// <param name="stage">Stage in which the behavior runs.</param>
+    /// <param name="order">Order inside the stage; lower is further out.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// services.AddEncina(config => config.AddPipelineBehavior&lt;TenantScopeBehavior&gt;(PipelineStage.Authorization, order: 10));
+    /// </code>
+    /// </example>
+    public EncinaConfiguration AddPipelineBehavior<TBehavior>(PipelineStage stage, int order = 0)
+        where TBehavior : class
+        => AddPipelineBehavior(typeof(TBehavior), stage, order);
+
+    /// <summary>
     /// Adds a specific behavior to the pipeline.
     /// </summary>
     public EncinaConfiguration AddPipelineBehavior(Type pipelineBehaviorType)
-    {
-        ArgumentNullException.ThrowIfNull(pipelineBehaviorType);
+        => AddStep(_pipelineBehaviorTypes, pipelineBehaviorType, typeof(IPipelineBehavior<,>), nameof(pipelineBehaviorType));
 
-        if (!pipelineBehaviorType.IsClass || pipelineBehaviorType.IsAbstract)
-        {
-            throw new ArgumentException($"{pipelineBehaviorType.Name} must be a concrete class type.", nameof(pipelineBehaviorType));
-        }
-
-        if (!typeof(IPipelineBehavior<,>).IsAssignableFromGeneric(pipelineBehaviorType))
-        {
-            throw new ArgumentException($"{pipelineBehaviorType.Name} does not implement IPipelineBehavior<,>.", nameof(pipelineBehaviorType));
-        }
-
-        if (!_pipelineBehaviorTypes.Contains(pipelineBehaviorType))
-        {
-            _pipelineBehaviorTypes.Add(pipelineBehaviorType);
-        }
-
-        return this;
-    }
+    /// <summary>
+    /// Adds a specific behavior to the pipeline and places it in a stage, overriding any
+    /// <see cref="PipelineStageAttribute"/> on the type.
+    /// </summary>
+    /// <param name="pipelineBehaviorType">Behavior type; an open generic type covers every closed pipeline.</param>
+    /// <param name="stage">Stage in which the behavior runs.</param>
+    /// <param name="order">Order inside the stage; lower is further out.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// services.AddEncina(config => config.AddPipelineBehavior(typeof(TenantScopeBehavior&lt;,&gt;), PipelineStage.Authorization, 10));
+    /// </code>
+    /// </example>
+    public EncinaConfiguration AddPipelineBehavior(Type pipelineBehaviorType, PipelineStage stage, int order = 0)
+        => AddStaged(_pipelineBehaviorTypes, pipelineBehaviorType, typeof(IPipelineBehavior<,>), nameof(pipelineBehaviorType), stage, order);
 
     /// <summary>
     /// Adds a generic pre-processor to the pipeline.
@@ -148,29 +172,41 @@ public sealed class EncinaConfiguration
         => AddRequestPreProcessor(typeof(TProcessor));
 
     /// <summary>
+    /// Adds a generic pre-processor to the pipeline and places it in a stage.
+    /// </summary>
+    /// <typeparam name="TProcessor">Processor type.</typeparam>
+    /// <param name="stage">Stage in which the processor runs.</param>
+    /// <param name="order">Order inside the stage; lower is further out.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// services.AddEncina(config => config.AddRequestPreProcessor&lt;NormalizeInput&gt;(PipelineStage.InputPreparation));
+    /// </code>
+    /// </example>
+    public EncinaConfiguration AddRequestPreProcessor<TProcessor>(PipelineStage stage, int order = 0)
+        where TProcessor : class
+        => AddRequestPreProcessor(typeof(TProcessor), stage, order);
+
+    /// <summary>
     /// Adds a specific pre-processor to the pipeline.
     /// </summary>
     public EncinaConfiguration AddRequestPreProcessor(Type processorType)
-    {
-        ArgumentNullException.ThrowIfNull(processorType);
+        => AddStep(_requestPreProcessorTypes, processorType, typeof(IRequestPreProcessor<>), nameof(processorType));
 
-        if (!processorType.IsClass || processorType.IsAbstract)
-        {
-            throw new ArgumentException($"{processorType.Name} must be a concrete class type.", nameof(processorType));
-        }
-
-        if (!typeof(IRequestPreProcessor<>).IsAssignableFromGeneric(processorType))
-        {
-            throw new ArgumentException($"{processorType.Name} does not implement IRequestPreProcessor<>.", nameof(processorType));
-        }
-
-        if (!_requestPreProcessorTypes.Contains(processorType))
-        {
-            _requestPreProcessorTypes.Add(processorType);
-        }
-
-        return this;
-    }
+    /// <summary>
+    /// Adds a specific pre-processor to the pipeline and places it in a stage.
+    /// </summary>
+    /// <param name="processorType">Processor type.</param>
+    /// <param name="stage">Stage in which the processor runs.</param>
+    /// <param name="order">Order inside the stage; lower is further out.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// services.AddEncina(config => config.AddRequestPreProcessor(typeof(NormalizeInput), PipelineStage.InputPreparation));
+    /// </code>
+    /// </example>
+    public EncinaConfiguration AddRequestPreProcessor(Type processorType, PipelineStage stage, int order = 0)
+        => AddStaged(_requestPreProcessorTypes, processorType, typeof(IRequestPreProcessor<>), nameof(processorType), stage, order);
 
     /// <summary>
     /// Adds a generic post-processor to the pipeline.
@@ -180,82 +216,257 @@ public sealed class EncinaConfiguration
         => AddRequestPostProcessor(typeof(TProcessor));
 
     /// <summary>
+    /// Adds a generic post-processor to the pipeline and places it in a stage.
+    /// </summary>
+    /// <typeparam name="TProcessor">Processor type.</typeparam>
+    /// <param name="stage">Stage in which the processor runs.</param>
+    /// <param name="order">Order inside the stage; lower is further out.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// services.AddEncina(config => config.AddRequestPostProcessor&lt;AuditResult&gt;(PipelineStage.Audit, order: 50));
+    /// </code>
+    /// </example>
+    public EncinaConfiguration AddRequestPostProcessor<TProcessor>(PipelineStage stage, int order = 0)
+        where TProcessor : class
+        => AddRequestPostProcessor(typeof(TProcessor), stage, order);
+
+    /// <summary>
     /// Adds a specific post-processor to the pipeline.
     /// </summary>
     public EncinaConfiguration AddRequestPostProcessor(Type processorType)
+        => AddStep(_requestPostProcessorTypes, processorType, typeof(IRequestPostProcessor<,>), nameof(processorType));
+
+    /// <summary>
+    /// Adds a specific post-processor to the pipeline and places it in a stage.
+    /// </summary>
+    /// <param name="processorType">Processor type.</param>
+    /// <param name="stage">Stage in which the processor runs.</param>
+    /// <param name="order">Order inside the stage; lower is further out.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// services.AddEncina(config => config.AddRequestPostProcessor(typeof(AuditResult), PipelineStage.Audit, 50));
+    /// </code>
+    /// </example>
+    public EncinaConfiguration AddRequestPostProcessor(Type processorType, PipelineStage stage, int order = 0)
+        => AddStaged(_requestPostProcessorTypes, processorType, typeof(IRequestPostProcessor<,>), nameof(processorType), stage, order);
+
+    /// <summary>
+    /// Adds a generic error processor to the pipeline; it runs in its default stage.
+    /// </summary>
+    public EncinaConfiguration AddRequestErrorProcessor<TProcessor>()
+        where TProcessor : class
+        => AddRequestErrorProcessor(typeof(TProcessor));
+
+    /// <summary>
+    /// Adds a generic error processor to the pipeline and places it in a stage.
+    /// </summary>
+    /// <typeparam name="TProcessor">Processor type.</typeparam>
+    /// <param name="stage">Stage in which the processor runs.</param>
+    /// <param name="order">Order inside the stage; lower is further out.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// services.AddEncina(config => config.AddRequestErrorProcessor&lt;ReportFailure&gt;(PipelineStage.Observability));
+    /// </code>
+    /// </example>
+    public EncinaConfiguration AddRequestErrorProcessor<TProcessor>(PipelineStage stage, int order = 0)
+        where TProcessor : class
+        => AddRequestErrorProcessor(typeof(TProcessor), stage, order);
+
+    /// <summary>
+    /// Adds a specific error processor to the pipeline; it runs in its default stage.
+    /// </summary>
+    /// <param name="processorType">Processor type implementing <see cref="IRequestErrorProcessor{TRequest, TResponse}"/>.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    public EncinaConfiguration AddRequestErrorProcessor(Type processorType)
+        => AddStep(_requestErrorProcessorTypes, processorType, typeof(IRequestErrorProcessor<,>), nameof(processorType));
+
+    /// <summary>
+    /// Adds a specific error processor to the pipeline and places it in a stage.
+    /// </summary>
+    /// <param name="processorType">Processor type implementing <see cref="IRequestErrorProcessor{TRequest, TResponse}"/>.</param>
+    /// <param name="stage">Stage in which the processor runs.</param>
+    /// <param name="order">Order inside the stage; lower is further out.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// services.AddEncina(config => config.AddRequestErrorProcessor(typeof(ReportFailure), PipelineStage.Observability));
+    /// </code>
+    /// </example>
+    public EncinaConfiguration AddRequestErrorProcessor(Type processorType, PipelineStage stage, int order = 0)
+        => AddStaged(_requestErrorProcessorTypes, processorType, typeof(IRequestErrorProcessor<,>), nameof(processorType), stage, order);
+
+    /// <summary>
+    /// Adds a generic post-commit processor to the pipeline; it runs in its default stage.
+    /// </summary>
+    public EncinaConfiguration AddRequestPostCommitProcessor<TProcessor>()
+        where TProcessor : class
+        => AddRequestPostCommitProcessor(typeof(TProcessor));
+
+    /// <summary>
+    /// Adds a generic post-commit processor to the pipeline and places it in a stage.
+    /// </summary>
+    /// <typeparam name="TProcessor">Processor type.</typeparam>
+    /// <param name="stage">Stage in which the processor runs.</param>
+    /// <param name="order">Order inside the stage; lower is further out.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// services.AddEncina(config => config.AddRequestPostCommitProcessor&lt;PublishAfterCommit&gt;(PipelineStage.Transaction, order: -200));
+    /// </code>
+    /// </example>
+    public EncinaConfiguration AddRequestPostCommitProcessor<TProcessor>(PipelineStage stage, int order = 0)
+        where TProcessor : class
+        => AddRequestPostCommitProcessor(typeof(TProcessor), stage, order);
+
+    /// <summary>
+    /// Adds a specific post-commit processor to the pipeline; it runs in its default stage.
+    /// </summary>
+    /// <param name="processorType">Processor type implementing <see cref="IRequestPostCommitProcessor{TRequest, TResponse}"/>.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    public EncinaConfiguration AddRequestPostCommitProcessor(Type processorType)
+        => AddStep(_requestPostCommitProcessorTypes, processorType, typeof(IRequestPostCommitProcessor<,>), nameof(processorType));
+
+    /// <summary>
+    /// Adds a specific post-commit processor to the pipeline and places it in a stage.
+    /// </summary>
+    /// <param name="processorType">Processor type implementing <see cref="IRequestPostCommitProcessor{TRequest, TResponse}"/>.</param>
+    /// <param name="stage">Stage in which the processor runs.</param>
+    /// <param name="order">Order inside the stage; lower is further out.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// services.AddEncina(config => config.AddRequestPostCommitProcessor(typeof(PublishAfterCommit), PipelineStage.Transaction, -200));
+    /// </code>
+    /// </example>
+    public EncinaConfiguration AddRequestPostCommitProcessor(Type processorType, PipelineStage stage, int order = 0)
+        => AddStaged(_requestPostCommitProcessorTypes, processorType, typeof(IRequestPostCommitProcessor<,>), nameof(processorType), stage, order);
+
+    /// <summary>
+    /// Adds a generic stream behavior to the stream pipeline.
+    /// </summary>
+    public EncinaConfiguration AddStreamPipelineBehavior<TBehavior>()
+        where TBehavior : class
+        => AddStreamPipelineBehavior(typeof(TBehavior));
+
+    /// <summary>
+    /// Adds a generic stream behavior to the stream pipeline and places it in a stage.
+    /// </summary>
+    /// <typeparam name="TBehavior">Stream behavior type.</typeparam>
+    /// <param name="stage">Stage in which the behavior runs.</param>
+    /// <param name="order">Order inside the stage; lower is further out.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// services.AddEncina(config => config.AddStreamPipelineBehavior&lt;StreamTimingBehavior&gt;(PipelineStage.Observability));
+    /// </code>
+    /// </example>
+    public EncinaConfiguration AddStreamPipelineBehavior<TBehavior>(PipelineStage stage, int order = 0)
+        where TBehavior : class
+        => AddStreamPipelineBehavior(typeof(TBehavior), stage, order);
+
+    /// <summary>
+    /// Adds a specific stream behavior to the stream pipeline.
+    /// </summary>
+    /// <param name="streamBehaviorType">Behavior type implementing <see cref="IStreamPipelineBehavior{TRequest, TItem}"/>.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    public EncinaConfiguration AddStreamPipelineBehavior(Type streamBehaviorType)
+        => AddStep(_streamPipelineBehaviorTypes, streamBehaviorType, typeof(IStreamPipelineBehavior<,>), nameof(streamBehaviorType));
+
+    /// <summary>
+    /// Adds a specific stream behavior to the stream pipeline and places it in a stage.
+    /// </summary>
+    /// <param name="streamBehaviorType">Behavior type implementing <see cref="IStreamPipelineBehavior{TRequest, TItem}"/>.</param>
+    /// <param name="stage">Stage in which the behavior runs.</param>
+    /// <param name="order">Order inside the stage; lower is further out.</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// services.AddEncina(config => config.AddStreamPipelineBehavior(typeof(StreamTimingBehavior&lt;,&gt;), PipelineStage.Observability));
+    /// </code>
+    /// </example>
+    public EncinaConfiguration AddStreamPipelineBehavior(Type streamBehaviorType, PipelineStage stage, int order = 0)
+        => AddStaged(_streamPipelineBehaviorTypes, streamBehaviorType, typeof(IStreamPipelineBehavior<,>), nameof(streamBehaviorType), stage, order);
+
+    internal void RegisterConfiguredPipelineBehaviors(IServiceCollection services)
+        => RegisterAll(services, _pipelineBehaviorTypes, typeof(IPipelineBehavior<,>));
+
+    internal void RegisterConfiguredRequestPreProcessors(IServiceCollection services)
+        => RegisterAll(services, _requestPreProcessorTypes, typeof(IRequestPreProcessor<>));
+
+    internal void RegisterConfiguredRequestPostProcessors(IServiceCollection services)
+        => RegisterAll(services, _requestPostProcessorTypes, typeof(IRequestPostProcessor<,>));
+
+    internal void RegisterConfiguredRequestErrorProcessors(IServiceCollection services)
+        => RegisterAll(services, _requestErrorProcessorTypes, typeof(IRequestErrorProcessor<,>));
+
+    internal void RegisterConfiguredRequestPostCommitProcessors(IServiceCollection services)
+        => RegisterAll(services, _requestPostCommitProcessorTypes, typeof(IRequestPostCommitProcessor<,>));
+
+    internal void RegisterConfiguredStreamPipelineBehaviors(IServiceCollection services)
+        => RegisterAll(services, _streamPipelineBehaviorTypes, typeof(IStreamPipelineBehavior<,>));
+
+    /// <summary>
+    /// Copies the registration-time stage declarations into the registry the order resolver reads.
+    /// </summary>
+    internal void ApplyStageDeclarations(PipelineStageRegistry registry)
     {
-        ArgumentNullException.ThrowIfNull(processorType);
+        ArgumentNullException.ThrowIfNull(registry);
 
-        if (!processorType.IsClass || processorType.IsAbstract)
+        foreach (var declaration in _stageDeclarations)
         {
-            throw new ArgumentException($"{processorType.Name} must be a concrete class type.", nameof(processorType));
+            registry.Set(declaration.StepType, declaration.Stage, declaration.Order);
+        }
+    }
+
+    private EncinaConfiguration AddStaged(
+        List<Type> target,
+        Type stepType,
+        Type genericInterface,
+        string parameterName,
+        PipelineStage stage,
+        int order)
+    {
+        AddStep(target, stepType, genericInterface, parameterName);
+        _stageDeclarations.Add(new PipelineStageDeclaration(stepType, stage, order));
+        return this;
+    }
+
+    private EncinaConfiguration AddStep(List<Type> target, Type stepType, Type genericInterface, string parameterName)
+    {
+        ArgumentNullException.ThrowIfNull(stepType, parameterName);
+
+        if (!stepType.IsClass || stepType.IsAbstract)
+        {
+            throw new ArgumentException($"{stepType.Name} must be a concrete class type.", parameterName);
         }
 
-        if (!typeof(IRequestPostProcessor<,>).IsAssignableFromGeneric(processorType))
+        if (!genericInterface.IsAssignableFromGeneric(stepType))
         {
-            throw new ArgumentException($"{processorType.Name} does not implement IRequestPostProcessor<,>.", nameof(processorType));
+            var interfaceName = genericInterface.Name[..genericInterface.Name.IndexOf('`')];
+            var arity = new string(',', genericInterface.GetGenericArguments().Length - 1);
+            throw new ArgumentException($"{stepType.Name} does not implement {interfaceName}<{arity}>.", parameterName);
         }
 
-        if (!_requestPostProcessorTypes.Contains(processorType))
+        if (!target.Contains(stepType))
         {
-            _requestPostProcessorTypes.Add(processorType);
+            target.Add(stepType);
         }
 
         return this;
     }
 
-    internal void RegisterConfiguredPipelineBehaviors(IServiceCollection services)
+    private static void RegisterAll(IServiceCollection services, List<Type> types, Type genericInterface)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        foreach (var behaviorType in _pipelineBehaviorTypes)
+        foreach (var type in types)
         {
-            RegisterPipelineBehavior(services, behaviorType);
+            var serviceType = ResolveServiceType(type, genericInterface);
+            services.TryAddEnumerable(ServiceDescriptor.Scoped(serviceType, type));
         }
-    }
-
-    internal void RegisterConfiguredRequestPreProcessors(IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        foreach (var processorType in _requestPreProcessorTypes)
-        {
-            RegisterProcessor(services, processorType, typeof(IRequestPreProcessor<>));
-        }
-    }
-
-    internal void RegisterConfiguredRequestPostProcessors(IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        foreach (var processorType in _requestPostProcessorTypes)
-        {
-            RegisterProcessor(services, processorType, typeof(IRequestPostProcessor<,>));
-        }
-    }
-
-    private static void RegisterPipelineBehavior(IServiceCollection services, Type behaviorType)
-    {
-        var pipelineServiceType = ResolveServiceType(behaviorType, typeof(IPipelineBehavior<,>));
-        services.TryAddEnumerable(ServiceDescriptor.Scoped(pipelineServiceType, behaviorType));
-
-        if (typeof(ICommandPipelineBehavior<,>).IsAssignableFromGeneric(behaviorType))
-        {
-            var commandServiceType = ResolveServiceType(behaviorType, typeof(ICommandPipelineBehavior<,>));
-            services.TryAddEnumerable(ServiceDescriptor.Scoped(commandServiceType, behaviorType));
-        }
-
-        if (typeof(IQueryPipelineBehavior<,>).IsAssignableFromGeneric(behaviorType))
-        {
-            var queryServiceType = ResolveServiceType(behaviorType, typeof(IQueryPipelineBehavior<,>));
-            services.TryAddEnumerable(ServiceDescriptor.Scoped(queryServiceType, behaviorType));
-        }
-    }
-
-    private static void RegisterProcessor(IServiceCollection services, Type implementationType, Type genericInterface)
-    {
-        var serviceType = ResolveServiceType(implementationType, genericInterface);
-        services.TryAddEnumerable(ServiceDescriptor.Scoped(serviceType, implementationType));
     }
 
     private static Type ResolveServiceType(Type implementationType, Type genericInterface)
@@ -272,6 +483,14 @@ public sealed class EncinaConfiguration
         return interfaceType;
     }
 }
+
+/// <summary>
+/// One registration-time placement of a pipeline step type, copied into the <see cref="PipelineStageRegistry"/>.
+/// </summary>
+/// <param name="StepType">Behavior or processor type.</param>
+/// <param name="Stage">Declared stage.</param>
+/// <param name="Order">Declared order inside the stage.</param>
+internal readonly record struct PipelineStageDeclaration(Type StepType, PipelineStage Stage, int Order);
 
 internal static class TypeExtensions
 {

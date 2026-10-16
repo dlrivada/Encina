@@ -4,8 +4,9 @@ namespace Encina;
 /// Describes the resolved step order of a pipeline without executing it.
 /// </summary>
 /// <remarks>
-/// Steps are returned outermost first, in the order they run on the way in. This phase declares the contract;
-/// the implementation and its registration arrive with the order resolver.
+/// Steps are returned outermost first, in the order they run on the way in. <c>AddEncina</c> registers the default
+/// implementation. A pipeline that breaks an order rule throws <see cref="InvalidOperationException"/>, as it does on its
+/// first request.
 /// </remarks>
 /// <example>
 /// <code>
