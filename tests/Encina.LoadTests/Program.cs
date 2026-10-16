@@ -5,7 +5,23 @@ using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
 
-var options = LoadHarnessOptions.Parse(Environment.GetCommandLineArgs().Skip(1).ToArray());
+var commandLine = Environment.GetCommandLineArgs().Skip(1).ToArray();
+var options = LoadHarnessOptions.Parse(commandLine);
+
+// A named scenario replaces the default send/publish harness; an unknown name is an error, never a silent default run.
+var scenarioIndex = System.Array.IndexOf(commandLine, "--scenario");
+if (scenarioIndex >= 0)
+{
+    var scenario = scenarioIndex + 1 < commandLine.Length ? commandLine[scenarioIndex + 1] : string.Empty;
+    if (scenario != "abac-decision-audit")
+    {
+        Console.Error.WriteLine($"Unknown scenario '{scenario}'. Known scenarios: abac-decision-audit.");
+        return 2;
+    }
+
+    await Encina.LoadTests.Security.ABAC.ABACDecisionAuditLoadTests.RunAllAsync(options.SendWorkers, options.Duration).ConfigureAwait(false);
+    return 0;
+}
 
 Console.WriteLine("Encina Load Harness");
 Console.WriteLine($"Duration: {options.Duration}. Send workers: {options.SendWorkers}. Publish workers: {options.PublishWorkers}.");
@@ -41,6 +57,7 @@ await Task.WhenAll(sendTasks.Concat(publishTasks));
 await throughputTask.ConfigureAwait(false);
 
 metrics.PrintSummary(options.Duration, throughputSampler.ToSummary());
+return 0;
 
 static async Task ExecuteSendWorkerAsync(int workerId, IServiceScopeFactory scopeFactory, LoadMetrics metrics, CancellationToken cancellationToken)
 {
