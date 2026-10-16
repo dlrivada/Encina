@@ -1,0 +1,29 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+
+WarmupCount=3  
+
+```
+| Method                     | Job        | IterationCount | LaunchCount | Mean      | Error     | StdDev    | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|--------------------------- |----------- |--------------- |------------ |----------:|----------:|----------:|------:|--------:|-------:|----------:|------------:|
+| Sign_SHA256_MediumPayload  | Job-YFEFPZ | 10             | Default     |  3.218 μs | 0.0147 μs | 0.0097 μs |  1.20 |    0.00 | 0.1068 |   1.77 KB |        1.00 |
+| Sign_SHA384_SmallPayload   | Job-YFEFPZ | 10             | Default     |  3.438 μs | 0.0164 μs | 0.0109 μs |  1.28 |    0.01 | 0.1106 |   1.82 KB |        1.03 |
+| Sign_SHA512_SmallPayload   | Job-YFEFPZ | 10             | Default     |  3.564 μs | 0.0136 μs | 0.0081 μs |  1.33 |    0.00 | 0.1144 |   1.88 KB |        1.07 |
+| Sign_SHA256_LargePayload   | Job-YFEFPZ | 10             | Default     | 39.084 μs | 0.0843 μs | 0.0502 μs | 14.58 |    0.05 | 0.0610 |   1.77 KB |        1.00 |
+| Sign_SHA256_SmallPayload   | Job-YFEFPZ | 10             | Default     |  2.681 μs | 0.0124 μs | 0.0082 μs |  1.00 |    0.00 | 0.1068 |   1.77 KB |        1.00 |
+| SignAndVerify_Roundtrip    | Job-YFEFPZ | 10             | Default     |  5.617 μs | 0.0116 μs | 0.0076 μs |  2.10 |    0.01 | 0.2136 |   3.51 KB |        1.99 |
+| Verify_SHA256_SmallPayload | Job-YFEFPZ | 10             | Default     |  2.968 μs | 0.0136 μs | 0.0081 μs |  1.11 |    0.00 | 0.1106 |   1.81 KB |        1.03 |
+|                            |            |                |             |           |           |           |       |         |        |           |             |
+| Sign_SHA256_MediumPayload  | ShortRun   | 3              | 1           |  3.425 μs | 0.7134 μs | 0.0391 μs |  1.29 |    0.01 | 0.1068 |   1.77 KB |        1.00 |
+| Sign_SHA384_SmallPayload   | ShortRun   | 3              | 1           |  3.550 μs | 0.4856 μs | 0.0266 μs |  1.33 |    0.01 | 0.1106 |   1.82 KB |        1.03 |
+| Sign_SHA512_SmallPayload   | ShortRun   | 3              | 1           |  3.430 μs | 0.1197 μs | 0.0066 μs |  1.29 |    0.00 | 0.1144 |   1.88 KB |        1.07 |
+| Sign_SHA256_LargePayload   | ShortRun   | 3              | 1           | 39.108 μs | 1.9423 μs | 0.1065 μs | 14.67 |    0.05 | 0.0610 |   1.77 KB |        1.00 |
+| Sign_SHA256_SmallPayload   | ShortRun   | 3              | 1           |  2.665 μs | 0.1136 μs | 0.0062 μs |  1.00 |    0.00 | 0.1068 |   1.77 KB |        1.00 |
+| SignAndVerify_Roundtrip    | ShortRun   | 3              | 1           |  5.654 μs | 0.0623 μs | 0.0034 μs |  2.12 |    0.00 | 0.2136 |   3.51 KB |        1.99 |
+| Verify_SHA256_SmallPayload | ShortRun   | 3              | 1           |  3.118 μs | 0.0695 μs | 0.0038 μs |  1.17 |    0.00 | 0.1106 |   1.81 KB |        1.03 |
