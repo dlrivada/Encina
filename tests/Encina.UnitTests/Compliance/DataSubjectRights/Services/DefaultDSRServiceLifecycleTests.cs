@@ -109,11 +109,23 @@ public sealed class DefaultDSRServiceLifecycleTests
     public async Task Command_ValidRequest_Succeeds(Command command)
     {
         var id = Guid.NewGuid();
-        ArrangeLoad(id, Aggregate(command, id));
+        var aggregate = Aggregate(command, id);
+        ArrangeLoad(id, aggregate);
 
         var result = await Run(command, id);
 
         result.IsRight.ShouldBeTrue();
+        aggregate.Status.ShouldBe(command switch
+        {
+            Command.VerifyIdentity => DSRRequestStatus.IdentityVerified,
+            Command.StartProcessing => DSRRequestStatus.InProgress,
+            Command.Complete => DSRRequestStatus.Completed,
+            Command.Deny => DSRRequestStatus.Rejected,
+            Command.Extend => DSRRequestStatus.Extended,
+            _ => DSRRequestStatus.Expired
+        });
+        aggregate.UncommittedEvents.Count.ShouldBe(1);
+        await _repository.Received(1).SaveAsync(aggregate, Arg.Any<CancellationToken>());
     }
 
     [Theory]

@@ -19,7 +19,6 @@ public static class DSRRejectionReasonExtensions
         /// Gets the legal basis of the reason as citation text.
         /// </summary>
         /// <remarks>Returns an empty string for a value that is not a defined member.</remarks>
-        // crap-exempt: single-question switch — maps each reason to its legal basis
         public string LegalBasis => reason switch
         {
             DSRRejectionReason.ManifestlyUnfounded => "GDPR Art. 12(5)",
