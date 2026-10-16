@@ -211,8 +211,9 @@ public sealed class DefaultOperationAuditEntryFactory : IOperationAuditEntryFact
             var masked = _piiMasker.MaskForAudit(payload);
             return JsonSerializer.Serialize(masked, masked.GetType(), JsonOptions);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            // A fatal exception is never turned into a Left; it propagates (as in PIIMasker).
             return OperationAuditErrors.MaskingFailed(requestTypeName, ex.GetType().Name);
         }
     }

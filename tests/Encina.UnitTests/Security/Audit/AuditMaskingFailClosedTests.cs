@@ -44,6 +44,16 @@ public sealed class AuditMaskingFailClosedTests
     }
 
     [Fact]
+    public void Create_MaskerThrowsAFatalException_PropagatesInsteadOfBecomingALeft()
+    {
+        var factory = CreateFactory(new OutOfMemoryMasker());
+
+        Action act = () => factory.Create(new PatientCommand("Ana"), Context, AuditOutcome.Success, null);
+
+        Should.Throw<OutOfMemoryException>(act);
+    }
+
+    [Fact]
     public void Create_UnserializableAuditableRequest_ReturnsMaskingFailed()
     {
         var options = Options.Create(new OperationAuditOptions());
@@ -504,6 +514,15 @@ public sealed class AuditMaskingFailClosedTests
 
         public object MaskForAudit(object request) => throw new InvalidOperationException(Sentinel);
     }
+
+#pragma warning disable CA2201 // simulates a fatal runtime exception on purpose
+    private sealed class OutOfMemoryMasker : IPiiMasker
+    {
+        public T MaskForAudit<T>(T request) where T : notnull => throw new OutOfMemoryException();
+
+        public object MaskForAudit(object request) => throw new OutOfMemoryException();
+    }
+#pragma warning restore CA2201
 
     private sealed class UpperCaseMasker : IPiiMasker
     {
