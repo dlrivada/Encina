@@ -47,7 +47,8 @@ The maintainer chose to implement full nested encryption rather than reject nest
 - Limits that no serializer hook can cover are documented, not enforced: Marten `Patch`, duplicated fields, raw `JsonDocument` upcasters.
 - Erasure is subject-wide whatever `FieldName` or `ErasureScope.SpecificFields` say, until the key model changes (#1144). The key model, a durable default key store and tenant-scoped keys belong to #1144 and #1191 and will change the token and its associated data; v2 reserves no key scope.
 - With the in-memory key store (the default) every key is lost on restart and older encrypted data then fails to read, instead of reading as the placeholder. The startup validator logs warning 8484 when it is in use.
-- Readers of the whole event store that deserialize through the crypto serializer (`MartenEventMetadataQuery`, `MartenProjectionManager`, the DSR locator) fail when any event they return cannot be decrypted. The locator limits decryption to the requested subject.
+- Readers of the whole event store that need decrypted events (`MartenProjectionManager`, whose rebuild replays them, and the DSR locator) fail when any event they return cannot be decrypted. The locator limits decryption to the requested subject.
+- Amendment 2026-10-16 (#1773): the `IEventMetadataQuery` readers (`MartenEventMetadataQuery`) read inside an ambient no-decrypt scope (`EventReadScope`, honoured by `CryptoShreddingFrame.DecryptionSuppressed`). Protected fields keep their stored `cs2` token and no subject key is fetched, so these readers do not fail on an undecryptable event. The events they return carry tokens and must not be appended or stored again.
 - Snapshots and read models are encrypted for the first time. `Encina.DomainModeling` base types gain the serialization attributes that make them valid owners.
 
 ## References

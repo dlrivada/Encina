@@ -816,7 +816,7 @@ A `CryptoShreddingConfigurationException` instead means a type is misconfigured;
 - **A settable property that the application fills from PII** (for example `Summary = Contact.Email`) cannot be detected and is stored in plaintext. Computed getters are rejected; derived settable values are the application's responsibility.
 - **Erasure is subject-wide** ([#1144](https://github.com/dlrivada/Encina/issues/1144)).
 - **Key lifecycle events are not published.** `PublishEvents` is reserved; `SubjectForgottenEvent` and `SubjectKeyRotatedEvent` exist but nothing publishes them yet.
-- **Metadata queries return tokens, not values**: protected fields of the events they return stay as stored `cs2` tokens (see [Projection Handling](#projection-handling)).
+- **Metadata queries return tokens, not values**: protected fields of the events they return stay as stored `cs2` tokens (see [Projection Handling](#projection-handling)). Do not append or store these events again: the write path would encrypt the token as if it were plaintext. Read business data through the event stream.
 - **In-memory key store** loses keys on restart ([#1191](https://github.com/dlrivada/Encina/issues/1191)).
 
 ---
