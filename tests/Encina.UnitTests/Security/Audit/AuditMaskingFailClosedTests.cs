@@ -24,6 +24,9 @@ public sealed class AuditMaskingFailClosedTests
 
     private static readonly IRequestContext Context = RequestContext.CreateForTest();
 
+    private static readonly System.Text.Json.JsonSerializerOptions CamelCase =
+        new() { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+
     // -- Factory ---------------------------------------------------------------------------------------------------
 
     [Fact]
@@ -41,7 +44,7 @@ public sealed class AuditMaskingFailClosedTests
     }
 
     [Fact]
-    public void Create_RedactorFailsOnTheSensitiveFieldsPath_ReturnsMaskingFailed()
+    public void Create_UnserializableAuditableRequest_ReturnsMaskingFailed()
     {
         var options = Options.Create(new OperationAuditOptions());
         var factory = new DefaultOperationAuditEntryFactory(new DefaultSensitiveDataRedactor(options), options);
@@ -113,6 +116,119 @@ public sealed class AuditMaskingFailClosedTests
         var result = factory.Create(request, Context, AuditOutcome.Success, null);
 
         LeftOf(result).GetCode().IfNone(string.Empty).ShouldBe(OperationAuditErrors.MaskingFailedCode);
+    }
+
+    [Fact]
+    public void Create_Hash_IsOverTheMaskedJsonNotTheRawRequest()
+    {
+        var options = Options.Create(new OperationAuditOptions());
+        var factory = new DefaultOperationAuditEntryFactory(new DefaultSensitiveDataRedactor(options), options);
+
+        var first = factory.Create(new CredentialsCommand("ana", "secret-one"), Context, AuditOutcome.Success, null).Entry();
+        var second = factory.Create(new CredentialsCommand("ana", "secret-two"), Context, AuditOutcome.Success, null).Entry();
+        var otherUser = factory.Create(new CredentialsCommand("bea", "secret-one"), Context, AuditOutcome.Success, null).Entry();
+
+        first.RequestPayloadHash.ShouldBe(second.RequestPayloadHash);
+        first.RequestPayloadHash.ShouldNotBe(otherUser.RequestPayloadHash);
+    }
+
+    [Fact]
+    public void Create_HashWithACustomMasker_IsTheSha256OfTheMaskedJson()
+    {
+        var options = Options.Create(new OperationAuditOptions());
+        var factory = new DefaultOperationAuditEntryFactory(new UpperCaseMasker(), options);
+        var maskedJson = System.Text.Json.JsonSerializer.Serialize(
+            new PatientCommand("ANA"),
+            CamelCase);
+        var expected = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(maskedJson)))
+            .ToLowerInvariant();
+
+        var entry = factory.Create(new PatientCommand("Ana"), Context, AuditOutcome.Success, null).Entry();
+
+        entry.RequestPayloadHash.ShouldBe(expected);
+    }
+
+    [Fact]
+    public void Create_OnlyTheHashEnabled_StoresNoPayload()
+    {
+        var options = Options.Create(new OperationAuditOptions { IncludePayloadHash = true });
+        var factory = new DefaultOperationAuditEntryFactory(new UpperCaseMasker(), options);
+
+        var entry = factory.Create(new PatientCommand("Ana"), Context, AuditOutcome.Success, null).Entry();
+
+        entry.RequestPayloadHash.ShouldNotBeNull();
+        entry.RequestPayload.ShouldBeNull();
+        entry.ResponsePayload.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Create_OnlyTheRequestPayloadEnabled_StoresNoHash()
+    {
+        var options = Options.Create(new OperationAuditOptions { IncludePayloadHash = false, IncludeRequestPayload = true });
+        var factory = new DefaultOperationAuditEntryFactory(new UpperCaseMasker(), options);
+
+        var entry = factory.Create(new PatientCommand("Ana"), Context, AuditOutcome.Success, null).Entry();
+
+        entry.RequestPayloadHash.ShouldBeNull();
+        entry.RequestPayload.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Create_ResponsePayloadOnSuccess_IsMaskedByTheRedactor()
+    {
+        var options = Options.Create(new OperationAuditOptions { IncludePayloadHash = false, IncludeResponsePayload = true });
+        var factory = new DefaultOperationAuditEntryFactory(new DefaultSensitiveDataRedactor(options), options);
+        var now = DateTimeOffset.UtcNow;
+
+        var entry = factory.Create(
+            new PatientCommand("Ana"), new CredentialsCommand("ana", "secret-one"), Context, AuditOutcome.Success, null, now, now).Entry();
+
+        entry.ResponsePayload.ShouldNotBeNull();
+        entry.ResponsePayload.ShouldContain("[REDACTED]");
+        entry.ResponsePayload.ShouldNotContain("secret-one");
+    }
+
+    [Fact]
+    public void Create_ResponsePayloadEnabledButNoResponse_StoresNoResponsePayload()
+    {
+        var options = Options.Create(new OperationAuditOptions { IncludePayloadHash = false, IncludeResponsePayload = true });
+        var factory = new DefaultOperationAuditEntryFactory(new UpperCaseMasker(), options);
+
+        var entry = factory.Create(new PatientCommand("Ana"), Context, AuditOutcome.Success, null).Entry();
+
+        entry.ResponsePayload.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_HandlerLeftAndMaskingFailure_FailClosed_KeepsTheHandlersLeft()
+    {
+        var store = new InMemoryOperationAuditStore();
+        var logger = new FakeLogger<AuditPipelineBehavior<PatientCommand, Unit>>();
+        var sut = CreateBehavior(new ThrowingMasker(), store, logger, OperationAuditFailureMode.FailClosed);
+        var handlerError = EncinaErrors.Create("handler.failed", "handler said no");
+
+        var result = await sut.Handle(
+            new PatientCommand("Ana"),
+            Context,
+            () => new ValueTask<Either<EncinaError, Unit>>(LanguageExt.Prelude.Left<EncinaError, Unit>(handlerError)),
+            CancellationToken.None);
+
+        result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty)).ShouldBe("handler.failed");
+        store.Count.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Handle_HandlerThrowsAndMaskingFails_RethrowsTheHandlersException()
+    {
+        var store = new InMemoryOperationAuditStore();
+        var logger = new FakeLogger<AuditPipelineBehavior<PatientCommand, Unit>>();
+        var sut = CreateBehavior(new ThrowingMasker(), store, logger, OperationAuditFailureMode.FailClosed);
+
+        var act = () => sut.Handle(
+            new PatientCommand("Ana"), Context, () => throw new ArgumentException("handler boom"), CancellationToken.None).AsTask();
+
+        (await Should.ThrowAsync<ArgumentException>(act)).Message.ShouldBe("handler boom");
+        store.Count.ShouldBe(0);
     }
 
     [Fact]
@@ -365,6 +481,8 @@ public sealed class AuditMaskingFailClosedTests
         new(LanguageExt.Prelude.Right<EncinaError, Unit>(Unit.Default));
 
     public sealed record PatientCommand(string Name) : ICommand<Unit>;
+
+    public sealed record CredentialsCommand(string UserName, string Password) : ICommand<Unit>;
 
     // "ShippingCost" contains the sensitive pattern "pin", "ApiKeyId" contains "key": non-string values.
     public sealed record ShipmentCommand(decimal ShippingCost, Guid ApiKeyId) : ICommand<Unit>;

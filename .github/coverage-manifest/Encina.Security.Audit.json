@@ -11,7 +11,13 @@
     "Abstractions/IOperationAuditEntryFactory.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interfaces have no implementation to test",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "An interface has no executable lines; this change only alters the return type to Either<EncinaError, OperationAuditEntry>."
+      }
     },
     "Abstractions/IOperationAuditStore.cs": {
       "defaultTests": [],
@@ -218,11 +224,11 @@
       "reason": "Factory with creation logic",
       "targets": {
         "unit": 100,
-        "guard": 85
+        "guard": 90
       },
       "justifications": {
         "unit": "Unit tests cover payload, metadata and identity steps, the masking failure and the fail-closed error (measured 100%).",
-        "guard": "Guard tests cover the argument validation (measured 85%)."
+        "guard": "Guard tests cover the argument validation (measured 90%)."
       }
     },
     "DefaultSensitiveDataRedactor.cs": {

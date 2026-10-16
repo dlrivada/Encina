@@ -43,7 +43,14 @@
     },
     "PIIErrors.cs": { "defaultTests": ["unit"], "reason": "Static error factories — no guards" },
     "PIILoggerExtensions.cs": { "defaultTests": ["unit", "guard"], "reason": "Logger extensions with ThrowIfNull guards" },
-    "PIIMasker.cs": { "defaultTests": ["unit", "guard", "property"], "reason": "Core masker with ThrowIfNull guards and masking invariants. Property tests verify round-trip and format invariants." },
+    "PIIMasker.cs": {
+      "defaultTests": ["unit", "guard", "property"],
+      "reason": "Core masker with ThrowIfNull guards and masking invariants. Property tests verify round-trip and format invariants.",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "Only two comments changed in this file; its behavior is covered by the existing masker tests."
+      }
+    },
     "PIIMaskingPipelineBehavior.cs": { "defaultTests": ["unit", "guard"], "reason": "Pipeline behavior with ThrowIfNull guards on constructor" },
     "PIIOptions.cs": { "defaultTests": ["unit", "guard"], "reason": "Options with ThrowIfNull validation guards" },
     "PIIOptionsValidator.cs": { "defaultTests": ["unit", "guard"], "reason": "Options validator with a ThrowIfNull guard on Validate" },
@@ -51,7 +58,7 @@
     "ServiceCollectionExtensions.cs": {
       "defaultTests": ["unit", "guard"],
       "reason": "DI registration with ThrowIfNull guard",
-      "targets": { "unit": 95, "guard": 0 },
+      "targets": { "unit": 97, "guard": 0 },
       "justifications": {
         "unit": "Unit tests build the provider for AddEncinaPII and resolve every registration (measured 97%).",
         "guard": "No guard test exists for this registration and this change only edits comments; the ThrowIfNull is executed by the unit tests."
