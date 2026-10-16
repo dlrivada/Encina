@@ -14,6 +14,7 @@ namespace Encina;
 internal sealed class PipelineStageRegistry
 {
     private readonly ConcurrentDictionary<Type, (PipelineStage Stage, int Order)> _overrides = new();
+    private readonly object _gate = new();
     private bool _sealed;
 
     /// <summary>
@@ -26,21 +27,30 @@ internal sealed class PipelineStageRegistry
     public void Set(Type stepType, PipelineStage stage, int order)
     {
         ArgumentNullException.ThrowIfNull(stepType);
-        if (Volatile.Read(ref _sealed))
+        lock (_gate)
         {
-            throw new InvalidOperationException(
-                $"The pipeline stage override for '{stepType.Name}' was recorded after the first pipeline was built. " +
-                "Record every stage override while configuring services, before the first request runs.");
-        }
+            if (_sealed)
+            {
+                throw new InvalidOperationException(
+                    $"The pipeline stage override for '{stepType.Name}' was recorded after the first pipeline was built. " +
+                    "Record every stage override while configuring services, before the first request runs.");
+            }
 
-        _overrides[Normalize(stepType)] = (stage, order);
+            _overrides[Normalize(stepType)] = (stage, order);
+        }
     }
 
     /// <summary>
     /// Rejects every later <see cref="Set"/>. Called by the order resolver when it computes its first pipeline,
     /// because a cached pipeline would not see a later override.
     /// </summary>
-    public void Seal() => Volatile.Write(ref _sealed, true);
+    public void Seal()
+    {
+        lock (_gate)
+        {
+            _sealed = true;
+        }
+    }
 
     /// <summary>
     /// Looks up the override of a step type.
