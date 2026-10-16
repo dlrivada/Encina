@@ -17,6 +17,9 @@ internal sealed class PostProcessorStep<TRequest, TResponse>(IRequestPostProcess
     public PipelineStepKind Kind => PipelineStepKind.PostProcessor;
 
     /// <inheritdoc />
+    public Type? ModuleType => null;
+
+    /// <inheritdoc />
     public PipelineStage? DeclaredStage => PipelineStageLookup.Find(StepType)?.Stage;
 
     /// <inheritdoc />

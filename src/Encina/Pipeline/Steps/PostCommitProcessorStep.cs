@@ -19,6 +19,9 @@ internal sealed class PostCommitProcessorStep<TRequest, TResponse>(IRequestPostC
     public PipelineStepKind Kind => PipelineStepKind.PostCommitProcessor;
 
     /// <inheritdoc />
+    public Type? ModuleType => null;
+
+    /// <inheritdoc />
     public PipelineStage? DeclaredStage => PipelineStageLookup.Find(StepType)?.Stage;
 
     /// <inheritdoc />
@@ -56,7 +59,7 @@ internal sealed class PostCommitProcessorStep<TRequest, TResponse>(IRequestPostC
                 ["request"] = typeof(TRequest).FullName,
                 ["stage"] = "postcommitprocessor"
             };
-            return Either<EncinaError, Unit>.Left(EncinaErrors.Create(EncinaErrorCodes.PostProcessorCancelled, message, ex, metadata));
+            return Either<EncinaError, Unit>.Left(EncinaErrors.Create(EncinaErrorCodes.PostCommitProcessorCancelled, message, ex, metadata));
         }
         // Pure ROP: any other exception is a bug in the processor and propagates (fail-fast)
     }

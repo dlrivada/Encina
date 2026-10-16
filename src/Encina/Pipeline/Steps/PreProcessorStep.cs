@@ -17,6 +17,9 @@ internal sealed class PreProcessorStep<TRequest, TResponse>(IRequestPreProcessor
     public PipelineStepKind Kind => PipelineStepKind.PreProcessor;
 
     /// <inheritdoc />
+    public Type? ModuleType => null;
+
+    /// <inheritdoc />
     public PipelineStage? DeclaredStage => PipelineStageLookup.Find(StepType)?.Stage;
 
     /// <inheritdoc />

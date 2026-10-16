@@ -176,6 +176,48 @@ public sealed class StagedPipelineExecutionTests
     }
 
     [Fact]
+    public async Task ErrorProcessor_ObservesTheLeftOfAPostProcessor_WhateverTheTypeNames()
+    {
+        var calls = new List<string>();
+        var observed = new ErrorObserver(calls);
+
+        var result = await SendAsync(calls, services =>
+        {
+            // AaaFailingPost sorts before ErrorObserver by name; the kind rank still nests the error processor outside
+            services.AddScoped<IRequestPostProcessor<Req, string>>(_ => new AaaFailingPost(calls));
+            services.AddScoped<IRequestErrorProcessor<Req, string>>(_ => observed);
+        });
+
+        result.IsLeft.ShouldBeTrue();
+        observed.Observed!.Value.Message.ShouldBe("post failed");
+        calls.ShouldBe(["handler", "aaa-post", "error"]);
+    }
+
+    [Fact]
+    public async Task Send_RegistryOverrideAfterTheFirstPipeline_IsRejected()
+    {
+        var calls = new List<string>();
+        var registry = new PipelineStageRegistry();
+
+        await SendAsync(calls, services =>
+        {
+            services.AddSingleton(registry);
+            services.AddScoped<IPipelineBehavior<Req, string>>(_ => new Observe(calls));
+        });
+
+        Should.Throw<InvalidOperationException>(() => registry.Set(typeof(Undeclared), PipelineStage.Observability, 0));
+    }
+
+    private sealed class AaaFailingPost(List<string> calls) : IRequestPostProcessor<Req, string>
+    {
+        public ValueTask<Either<EncinaError, Unit>> Process(Req request, IRequestContext context, string response, CancellationToken cancellationToken)
+        {
+            calls.Add("aaa-post");
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(EncinaError.New("post failed"));
+        }
+    }
+
+    [Fact]
     public async Task ErrorProcessor_CancelledObserver_StillReturnsTheOriginalError()
     {
         var calls = new List<string>();
@@ -277,7 +319,7 @@ public sealed class StagedPipelineExecutionTests
     }
 
     [Fact]
-    public async Task PostCommitProcessor_Cancelled_MapsToThePostProcessorCancelledCode()
+    public async Task PostCommitProcessor_Cancelled_MapsToThePostCommitProcessorCancelledCode()
     {
         var calls = new List<string>();
         using var cts = new CancellationTokenSource();
@@ -285,7 +327,7 @@ public sealed class StagedPipelineExecutionTests
         var result = await SendAsync(calls, services => services.AddScoped<IRequestPostCommitProcessor<Req, string>>(_ => new CancellingPostCommit(cts)), token: cts.Token);
 
         result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error => error.GetEncinaCode().ShouldBe(EncinaErrorCodes.PostProcessorCancelled));
+        result.IfLeft(error => error.GetEncinaCode().ShouldBe(EncinaErrorCodes.PostCommitProcessorCancelled));
     }
 
     #endregion

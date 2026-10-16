@@ -12,6 +12,12 @@ internal interface IPipelineStepIdentity
     /// <summary>Gets the kind of the step.</summary>
     PipelineStepKind Kind { get; }
 
+    /// <summary>
+    /// Gets the module the step is scoped to, or <see langword="null"/> when it is not module-scoped. Two steps of the
+    /// same <see cref="StepType"/> for different modules behave differently, so they are not duplicates.
+    /// </summary>
+    Type? ModuleType { get; }
+
     /// <summary>Gets the stage declared by a <see cref="PipelineStageAttribute"/> on <see cref="StepType"/>, if any.</summary>
     PipelineStage? DeclaredStage { get; }
 

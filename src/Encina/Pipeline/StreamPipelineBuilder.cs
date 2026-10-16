@@ -75,7 +75,7 @@ internal sealed class StreamPipelineBuilder<TRequest, TItem> : IStreamPipelineBu
             return current;
         }
 
-        var order = _resolver.Resolve(typeof(IStreamPipelineBehavior<TRequest, TItem>), DescribeSteps(behaviors));
+        var order = _resolver.Resolve(typeof(IStreamPipelineBehavior<TRequest, TItem>), behaviors);
         for (var index = order.Length - 1; index >= 0; index--)
         {
             var behavior = behaviors[order[index]];
@@ -84,17 +84,6 @@ internal sealed class StreamPipelineBuilder<TRequest, TItem> : IStreamPipelineBu
         }
 
         return current;
-    }
-
-    private static PipelineStepCandidate[] DescribeSteps(IStreamPipelineBehavior<TRequest, TItem>[] behaviors)
-    {
-        var candidates = new PipelineStepCandidate[behaviors.Length];
-        for (var i = 0; i < behaviors.Length; i++)
-        {
-            candidates[i] = PipelineStepCandidate.For(behaviors[i], i);
-        }
-
-        return candidates;
     }
 
     private static async IAsyncEnumerable<Either<EncinaError, TItem>> ExecuteHandlerAsync(

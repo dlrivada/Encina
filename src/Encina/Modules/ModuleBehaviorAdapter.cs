@@ -72,6 +72,9 @@ internal sealed class ModuleBehaviorAdapter<TModule, TRequest, TResponse> : IPip
     public PipelineStepKind Kind => PipelineStepKind.ModuleBehavior;
 
     /// <inheritdoc />
+    public Type? ModuleType => typeof(TModule);
+
+    /// <inheritdoc />
     public PipelineStage? DeclaredStage => PipelineStageLookup.Find(StepType)?.Stage;
 
     /// <inheritdoc />

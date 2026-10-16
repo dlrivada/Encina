@@ -17,6 +17,9 @@ internal sealed class ErrorProcessorStep<TRequest, TResponse>(IRequestErrorProce
     public PipelineStepKind Kind => PipelineStepKind.ErrorProcessor;
 
     /// <inheritdoc />
+    public Type? ModuleType => null;
+
+    /// <inheritdoc />
     public PipelineStage? DeclaredStage => PipelineStageLookup.Find(StepType)?.Stage;
 
     /// <inheritdoc />

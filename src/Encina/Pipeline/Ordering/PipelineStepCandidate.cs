@@ -16,6 +16,9 @@ internal readonly record struct PipelineStepCandidate(
     /// <summary>Gets the type the step stands for: the wrapped type of an adapted step, otherwise the runtime type.</summary>
     public Type StepType => Identity?.StepType ?? RuntimeType;
 
+    /// <summary>Gets the module the step is scoped to, or <see langword="null"/>.</summary>
+    public Type? ModuleType => Identity?.ModuleType;
+
     /// <summary>
     /// Creates the candidate of a resolved behavior instance.
     /// </summary>

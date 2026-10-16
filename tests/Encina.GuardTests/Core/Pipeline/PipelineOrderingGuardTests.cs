@@ -46,6 +46,16 @@ public class PipelineOrderingGuardTests
         position.ShouldBe((PipelineStage.Caching, 4));
     }
 
+    [Fact]
+    public void Registry_Set_AfterSeal_ThrowsInvalidOperationExceptionNamingTheType()
+    {
+        var registry = new PipelineStageRegistry();
+        registry.Seal();
+
+        Should.Throw<InvalidOperationException>(() => registry.Set(typeof(string), PipelineStage.Application, 0))
+            .Message.ShouldContain("String");
+    }
+
     #endregion
 
     #region PipelineOrderResolver
@@ -75,7 +85,7 @@ public class PipelineOrderingGuardTests
     public void Resolver_Resolve_NullCandidates_Throws()
     {
         Should.Throw<ArgumentNullException>(() => Resolver.Resolve(typeof(string), null!))
-            .ParamName.ShouldBe("candidates");
+            .ParamName.ShouldBe("steps");
     }
 
     [Fact]

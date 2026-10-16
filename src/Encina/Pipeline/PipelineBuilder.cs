@@ -69,7 +69,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
-        var steps = ResolveSteps(serviceProvider, out var candidates);
+        var steps = ResolveSteps(serviceProvider);
 
         // Start with the innermost delegate: handler invocation
         RequestHandlerCallback<TResponse> current = () => ExecuteHandlerAsync(_handler, _request, _cancellationToken);
@@ -78,7 +78,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
             return current;
         }
 
-        var order = _resolver.Resolve(typeof(IPipelineBehavior<TRequest, TResponse>), candidates);
+        var order = _resolver.Resolve(typeof(IPipelineBehavior<TRequest, TResponse>), steps);
         for (var index = order.Length - 1; index >= 0; index--)
         {
             var step = steps[order[index]];
@@ -90,24 +90,19 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
     }
 
     /// <summary>
-    /// Resolves the behaviors from DI, wraps the processors into steps and describes every step to the resolver.
+    /// Resolves the behaviors from DI and wraps the registered processors into steps.
     /// </summary>
     /// <remarks>
     /// Behaviors come first in DI order, then pre-, post-, error- and post-commit processors. Processors are
-    /// wrapped only when registered, so a pipeline without processors allocates no step.
+    /// wrapped only when registered, so a pipeline without processors allocates no step and reuses the resolved
+    /// behavior array. The resolver reads the steps in place, so no per-request description is allocated.
     /// </remarks>
-    private static IPipelineBehavior<TRequest, TResponse>[] ResolveSteps(
-        IServiceProvider serviceProvider,
-        out PipelineStepCandidate[] candidates)
+    private static IPipelineBehavior<TRequest, TResponse>[] ResolveSteps(IServiceProvider serviceProvider)
     {
         // GetServices<T>() never returns null - always empty enumeration
         var behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>().ToArray();
         var processors = WrapProcessors(serviceProvider);
-
-        // No processor to wrap: the resolved behaviors are the steps
-        var steps = processors is null ? behaviors : [.. behaviors, .. processors];
-        candidates = steps.Length == 0 ? [] : DescribeSteps(steps);
-        return steps;
+        return processors is null ? behaviors : [.. behaviors, .. processors];
     }
 
     private static List<IPipelineBehavior<TRequest, TResponse>>? WrapProcessors(IServiceProvider serviceProvider)
@@ -133,17 +128,6 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         {
             (steps ??= []).Add(toStep(processors[i]));
         }
-    }
-
-    private static PipelineStepCandidate[] DescribeSteps(IPipelineBehavior<TRequest, TResponse>[] steps)
-    {
-        var candidates = new PipelineStepCandidate[steps.Length];
-        for (var i = 0; i < steps.Length; i++)
-        {
-            candidates[i] = PipelineStepCandidate.For(steps[i], i);
-        }
-
-        return candidates;
     }
 
     /// <summary>

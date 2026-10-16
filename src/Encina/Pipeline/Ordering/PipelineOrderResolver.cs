@@ -13,14 +13,16 @@ internal readonly record struct ResolvedPosition(PipelineStage Stage, int Order,
 /// </summary>
 /// <remarks>
 /// <para>
-/// The order key is (stage, order, processors before behaviors, then <see cref="Type.FullName"/> for processors and the
-/// registration index for behaviors). Registration order therefore only breaks ties between behaviors that declare the
+/// The order key is (stage, order, kind rank, then <see cref="Type.FullName"/> for processors and the registration index
+/// for behaviors). The kind rank is pre-processor, error processor, post-processor, post-commit processor, behavior, so at
+/// equal position the nesting is fixed (an error processor also observes the <c>Left</c> of a post-processor) and the type
+/// name only breaks ties inside one kind. Registration order only breaks ties between behaviors that declare the
 /// same stage and order. The position of a step comes from, in this precedence, the <see cref="PipelineStageRegistry"/>,
 /// the <see cref="PipelineStageAttribute"/>, and the default of its kind (behaviors <c>Application</c>/0;
 /// pre, post and error processors <c>Application</c>/-100; post-commit processors <c>Transaction</c>/-100).
 /// </para>
 /// <para>
-/// Steps with the same identity (same step type and kind) are collapsed to the one with the lowest registration index.
+/// Steps with the same identity (same step type, kind and module) are collapsed to the one with the lowest registration index.
 /// The permutation is cached per closed pipeline type and recomputed only when the sequence of step types differs, which
 /// costs one pass over the candidates per request. The first computation of a pipeline runs exactly once even when
 /// several requests build it concurrently.
@@ -28,6 +30,8 @@ internal readonly record struct ResolvedPosition(PipelineStage Stage, int Order,
 /// </remarks>
 internal sealed class PipelineOrderResolver
 {
+    private const int BehaviorRank = 4;
+
     private static readonly Comparer<SortKey> KeyComparer = Comparer<SortKey>.Create(CompareKeys);
 
     private readonly PipelineStageRegistry _registry;
@@ -53,24 +57,26 @@ internal sealed class PipelineOrderResolver
     internal int Computations => Volatile.Read(ref _computations);
 
     /// <summary>
-    /// Returns the execution order of the candidates, outermost first.
+    /// Returns the execution order of the steps, outermost first.
     /// </summary>
-    /// <param name="pipelineKey">The closed pipeline type the candidates belong to.</param>
-    /// <param name="candidates">The resolved steps, in registration order.</param>
+    /// <param name="pipelineKey">The closed pipeline type the steps belong to.</param>
+    /// <param name="steps">
+    /// The resolved behaviors and processor steps, in registration order. A cache hit reads them in place and allocates nothing.
+    /// </param>
     /// <returns>
-    /// Indexes into <paramref name="candidates"/>, outermost first; collapsed duplicates are omitted.
+    /// Indexes into <paramref name="steps"/>, outermost first; collapsed duplicates are omitted.
     /// The array is shared with the cache and must not be modified.
     /// </returns>
-    public int[] Resolve(Type pipelineKey, IReadOnlyList<PipelineStepCandidate> candidates)
+    public int[] Resolve(Type pipelineKey, IReadOnlyList<object> steps)
     {
         ArgumentNullException.ThrowIfNull(pipelineKey);
-        ArgumentNullException.ThrowIfNull(candidates);
+        ArgumentNullException.ThrowIfNull(steps);
 
         var slot = _slots.GetOrAdd(pipelineKey, static _ => new Slot());
         var current = slot.Current;
-        return current is not null && current.Matches(candidates)
+        return current is not null && current.Matches(steps)
             ? current.Order
-            : Refresh(slot, candidates);
+            : Refresh(slot, steps);
     }
 
     /// <summary>
@@ -89,16 +95,19 @@ internal sealed class PipelineOrderResolver
             : DefaultFor(candidate.Kind);
     }
 
-    private int[] Refresh(Slot slot, IReadOnlyList<PipelineStepCandidate> candidates)
+    private int[] Refresh(Slot slot, IReadOnlyList<object> steps)
     {
         lock (slot)
         {
             var current = slot.Current;
-            if (current is not null && current.Matches(candidates))
+            if (current is not null && current.Matches(steps))
             {
                 return current.Order;
             }
 
+            // A cached pipeline would not see a later override: from the first computation on the registry is closed
+            _registry.Seal();
+            var candidates = Describe(steps);
             var created = new CachedOrder(Signature(candidates), Compute(candidates));
             slot.Current = created;
             Interlocked.Increment(ref _computations);
@@ -106,7 +115,18 @@ internal sealed class PipelineOrderResolver
         }
     }
 
-    private int[] Compute(IReadOnlyList<PipelineStepCandidate> candidates)
+    private static PipelineStepCandidate[] Describe(IReadOnlyList<object> steps)
+    {
+        var candidates = new PipelineStepCandidate[steps.Count];
+        for (var i = 0; i < candidates.Length; i++)
+        {
+            candidates[i] = PipelineStepCandidate.For(steps[i], i);
+        }
+
+        return candidates;
+    }
+
+    private int[] Compute(PipelineStepCandidate[] candidates)
     {
         var kept = CollapseDuplicates(candidates);
         var keys = new SortKey[kept.Length];
@@ -119,13 +139,13 @@ internal sealed class PipelineOrderResolver
         return kept;
     }
 
-    private static int[] CollapseDuplicates(IReadOnlyList<PipelineStepCandidate> candidates)
+    private static int[] CollapseDuplicates(PipelineStepCandidate[] candidates)
     {
-        var seen = new HashSet<(Type, PipelineStepKind)>();
-        var kept = new List<int>(candidates.Count);
-        for (var i = 0; i < candidates.Count; i++)
+        var seen = new HashSet<(Type, PipelineStepKind, Type?)>();
+        var kept = new List<int>(candidates.Length);
+        for (var i = 0; i < candidates.Length; i++)
         {
-            if (seen.Add((candidates[i].StepType, candidates[i].Kind)))
+            if (seen.Add((candidates[i].StepType, candidates[i].Kind, candidates[i].ModuleType)))
             {
                 kept.Add(i);
             }
@@ -137,12 +157,12 @@ internal sealed class PipelineOrderResolver
     private SortKey BuildKey(in PipelineStepCandidate candidate)
     {
         var position = ResolvePosition(candidate);
-        var processor = IsProcessor(candidate.Kind);
+        var rank = RankOf(candidate.Kind);
         return new SortKey(
             position.Stage,
             position.Order,
-            processor ? 0 : 1,
-            processor ? candidate.StepType.FullName ?? candidate.StepType.Name : null,
+            rank,
+            rank < BehaviorRank ? candidate.StepType.FullName ?? candidate.StepType.Name : null,
             candidate.RegistrationIndex);
     }
 
@@ -189,16 +209,25 @@ internal sealed class PipelineOrderResolver
         _ => new ResolvedPosition(PipelineStage.Application, 0, PipelineStepSource.Default)
     };
 
-    private static bool IsProcessor(PipelineStepKind kind)
-        => kind is PipelineStepKind.PreProcessor or PipelineStepKind.PostProcessor
-            or PipelineStepKind.ErrorProcessor or PipelineStepKind.PostCommitProcessor;
-
-    private static (Type, PipelineStepKind)[] Signature(IReadOnlyList<PipelineStepCandidate> candidates)
+    // Rank at equal (stage, order): the kind decides before the type name, so the nesting is fixed:
+    // pre (outermost), error, post, post-commit, then behaviors. An error processor therefore also observes the
+    // Left of a post-processor, and a pre-processor aborts before either runs.
+    // crap-exempt: single-question switch — maps a step kind to its rank at equal position
+    private static int RankOf(PipelineStepKind kind) => kind switch
     {
-        var signature = new (Type, PipelineStepKind)[candidates.Count];
+        PipelineStepKind.PreProcessor => 0,
+        PipelineStepKind.ErrorProcessor => 1,
+        PipelineStepKind.PostProcessor => 2,
+        PipelineStepKind.PostCommitProcessor => 3,
+        _ => BehaviorRank
+    };
+
+    private static (Type, PipelineStepKind, Type?)[] Signature(PipelineStepCandidate[] candidates)
+    {
+        var signature = new (Type, PipelineStepKind, Type?)[candidates.Length];
         for (var i = 0; i < signature.Length; i++)
         {
-            signature[i] = (candidates[i].StepType, candidates[i].Kind);
+            signature[i] = (candidates[i].StepType, candidates[i].Kind, candidates[i].ModuleType);
         }
 
         return signature;
@@ -211,20 +240,23 @@ internal sealed class PipelineOrderResolver
         public volatile CachedOrder? Current;
     }
 
-    private sealed class CachedOrder((Type, PipelineStepKind)[] signature, int[] order)
+    private sealed class CachedOrder((Type, PipelineStepKind, Type?)[] signature, int[] order)
     {
         public int[] Order { get; } = order;
 
-        public bool Matches(IReadOnlyList<PipelineStepCandidate> candidates)
+        public bool Matches(IReadOnlyList<object> steps)
         {
-            if (candidates.Count != signature.Length)
+            if (steps.Count != signature.Length)
             {
                 return false;
             }
 
             for (var i = 0; i < signature.Length; i++)
             {
-                if (signature[i].Item1 != candidates[i].StepType || signature[i].Item2 != candidates[i].Kind)
+                var candidate = PipelineStepCandidate.For(steps[i], i);
+                if (signature[i].Item1 != candidate.StepType
+                    || signature[i].Item2 != candidate.Kind
+                    || signature[i].Item3 != candidate.ModuleType)
                 {
                     return false;
                 }

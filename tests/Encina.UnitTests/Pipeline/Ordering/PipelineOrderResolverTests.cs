@@ -16,13 +16,9 @@ public sealed class PipelineOrderResolverTests
         => new(_registry, NullLogger<PipelineOrderResolver>.Instance);
 
     private static IEnumerable<Type> Ordered(PipelineOrderResolver resolver, params object[] steps)
-        => OrderedOf(resolver, Candidates(steps), steps);
+        => resolver.Resolve(Key, steps).Select(index => PipelineStepCandidate.For(steps[index], index).StepType);
 
-    private static IEnumerable<Type> OrderedOf(PipelineOrderResolver resolver, PipelineStepCandidate[] candidates, object[] steps)
-        => resolver.Resolve(Key, candidates).Select(index => PipelineStepCandidate.For(steps[index], index).StepType);
-
-    private static PipelineStepCandidate[] Candidates(object[] steps)
-        => [.. steps.Select(PipelineStepCandidate.For)];
+    private static object[] Candidates(object[] steps) => steps;
 
     #region Order key
 
@@ -78,6 +74,19 @@ public sealed class PipelineOrderResolverTests
         var result = Ordered(CreateResolver(), first, second);
 
         result.ShouldBe([typeof(PreA), typeof(PreB)]);
+    }
+
+    [Fact]
+    public void Resolve_ProcessorKindsAtEqualPosition_NestPreThenErrorThenPost_WhateverTheTypeNames()
+    {
+        // By type name alone the order would be ErrorA, PostA, PreA; the kind rank decides first
+        var result = Ordered(
+            CreateResolver(),
+            new PostProcessorStep<Req, string>(new PostA()),
+            new PreProcessorStep<Req, string>(new PreA()),
+            new ErrorProcessorStep<Req, string>(new ErrorA()));
+
+        result.ShouldBe([typeof(PreA), typeof(ErrorA), typeof(PostA)]);
     }
 
     [Fact]
@@ -231,6 +240,49 @@ public sealed class PipelineOrderResolverTests
     }
 
     [Fact]
+    public void Resolve_OneModuleBehaviorClassForTwoModules_KeepsBothAdapters()
+    {
+        var shared = new DualModuleBehavior();
+        object[] steps =
+        [
+            Adapter(shared),
+            new ModuleBehaviorAdapter<OtherModule, Req, string>(shared, new OtherModule(), NullModuleHandlerRegistry.Instance)
+        ];
+
+        CreateResolver().Resolve(Key, steps).Length.ShouldBe(2);
+    }
+
+    [Fact]
+    public void Resolve_SameModuleBehaviorAdaptedTwiceForTheSameModule_IsCollapsed()
+    {
+        var shared = new DualModuleBehavior();
+        object[] steps = [Adapter(shared), Adapter(shared)];
+
+        CreateResolver().Resolve(Key, steps).ShouldBe([0]);
+    }
+
+    [Fact]
+    public void Resolve_SealsTheRegistry_SoALaterOverrideIsRejected()
+    {
+        var resolver = CreateResolver();
+        resolver.Resolve(Key, [new Authn()]);
+
+        var act = () => _registry.Set(typeof(Authn), PipelineStage.Validation, 0);
+
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("Authn");
+    }
+
+    [Fact]
+    public void ResolvePosition_DoesNotSealTheRegistry_OnlyAComputedPipelineDoes()
+    {
+        _registry.Set(typeof(Authn), PipelineStage.Validation, 1);
+        var resolver = CreateResolver();
+
+        resolver.ResolvePosition(PipelineStepCandidate.For(new Authn(), 0)).Stage.ShouldBe(PipelineStage.Validation);
+        Should.NotThrow(() => _registry.Set(typeof(Authn), PipelineStage.Validation, 2));
+    }
+
+    [Fact]
     public void Resolve_OneProcessorTypeImplementingTwoKinds_IsNotCollapsed()
     {
         var both = new PreAndPost();
@@ -311,7 +363,7 @@ public sealed class PipelineOrderResolverTests
         var resolver = CreateResolver();
 
         Should.Throw<ArgumentNullException>(() => resolver.Resolve(null!, [])).ParamName.ShouldBe("pipelineKey");
-        Should.Throw<ArgumentNullException>(() => resolver.Resolve(Key, null!)).ParamName.ShouldBe("candidates");
+        Should.Throw<ArgumentNullException>(() => resolver.Resolve(Key, null!)).ParamName.ShouldBe("steps");
     }
 
     [Fact]
@@ -337,6 +389,28 @@ public sealed class PipelineOrderResolverTests
         public void ConfigureServices(IServiceCollection services)
         {
         }
+    }
+
+    private sealed class OtherModule : IModule
+    {
+        public string Name => "Other";
+
+        public void ConfigureServices(IServiceCollection services)
+        {
+        }
+    }
+
+    private sealed class DualModuleBehavior :
+        IModulePipelineBehavior<FakeModule, Req, string>,
+        IModulePipelineBehavior<OtherModule, Req, string>
+    {
+        ValueTask<Either<EncinaError, string>> IModulePipelineBehavior<FakeModule, Req, string>.Handle(
+            Req request, IRequestContext context, RequestHandlerCallback<string> nextStep, CancellationToken cancellationToken)
+            => nextStep();
+
+        ValueTask<Either<EncinaError, string>> IModulePipelineBehavior<OtherModule, Req, string>.Handle(
+            Req request, IRequestContext context, RequestHandlerCallback<string> nextStep, CancellationToken cancellationToken)
+            => nextStep();
     }
 
     private static ModuleBehaviorAdapter<FakeModule, Req, string> Adapter(IModulePipelineBehavior<FakeModule, Req, string> inner)
