@@ -301,7 +301,11 @@ try {
             $homeDir = [Environment]::GetFolderPath('UserProfile')
             if (-not [string]::IsNullOrWhiteSpace($homeDir)) {
                 $transcriptRoot = ([System.IO.Path]::GetFullPath((Join-Path (Join-Path $homeDir '.claude') 'projects'))).TrimEnd('\', '/')
-                $fullNorm = ([System.IO.Path]::GetFullPath($Full)).TrimEnd('\', '/')
+                try { $fullNorm = ([System.IO.Path]::GetFullPath($Full)).TrimEnd('\', '/') }
+                catch {
+                    [Console]::Error.WriteLine("Blocked: $Agent may not write to '$Full', which cannot be normalised ($($_.Exception.Message)); it could reach the Claude Code transcript folder (#2244, #2234, fail closed).")
+                    return $false
+                }
                 if ($fullNorm.Equals($transcriptRoot, [StringComparison]::OrdinalIgnoreCase) -or
                     $fullNorm.StartsWith($transcriptRoot + '\', [StringComparison]::OrdinalIgnoreCase) -or
                     $fullNorm.StartsWith($transcriptRoot + '/', [StringComparison]::OrdinalIgnoreCase)) {

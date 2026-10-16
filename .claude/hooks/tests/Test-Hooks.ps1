@@ -1261,6 +1261,14 @@ try {
     Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 2 'enforce-path-ownership (#2244): shell vector, Set-Content under ~/.claude/projects by an audit-stage agent is denied' 'issue-auditor'
     $tp = @{ tool_name = 'Write'; cwd = $wt; agent_type = 'issue-auditor'; agent_id = 'a1'; tool_input = @{ file_path = ($transcriptFile -replace '/', '\') -replace '^', '\\?\' } }
     Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 2 'enforce-path-ownership (#2244): the \\?\ form of the transcript folder is denied for an audit-stage agent' 'issue-auditor'
+    $uncPath = '\\server\share\x.txt'
+    $longPath = Join-Path ([Environment]::GetFolderPath('UserProfile')) (('a/../' * 90) + 'x.txt')
+    foreach ($pair in @(@('UNC', $uncPath), @('over-400-character', $longPath))) {
+        $tp = @{ tool_name = 'Write'; cwd = $wt; agent_type = 'issue-auditor'; agent_id = 'a1'; tool_input = @{ file_path = $pair[1] } }
+        Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 2 "enforce-path-ownership (#2244): a $($pair[0]) path is denied for an audit-stage agent (fail closed)" 'issue-auditor'
+        $tp = @{ tool_name = 'Write'; cwd = $wt; agent_type = 'mechanical-fixer'; agent_id = 'a1'; tool_input = @{ file_path = $pair[1] } }
+        Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 0 "enforce-path-ownership (#2244): a $($pair[0]) path is still allowed for a non-audit agent" 'mechanical-fixer'
+    }
     $tp = @{ tool_name = 'Write'; cwd = $wt; agent_type = 'issue-auditor'; agent_id = 'a1'; tool_input = @{ file_path = ($transcriptFile -replace '\\', '/') } }
     Invoke-HookCase $ownership ($tp | ConvertTo-Json -Compress) 2 'enforce-path-ownership (#2244): forward-slash form of the transcript folder is denied' 'issue-auditor'
     $tp = @{ tool_name = 'Write'; cwd = $wt; agent_type = 'issue-auditor'; agent_id = 'a1'; tool_input = @{ file_path = ($transcriptFile -replace 'projects', 'projects-other') } }
