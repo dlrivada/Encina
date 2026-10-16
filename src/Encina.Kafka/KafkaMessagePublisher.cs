@@ -42,11 +42,17 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher
         _options = options.Value;
     }
 
+    private const string MessageIdHeader = "MessageId";
+
+    private static string ResolveMessageId(string? messageId) =>
+        string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId;
+
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, KafkaDeliveryResult>> ProduceAsync<TMessage>(
         TMessage message,
         string? topic = null,
         string? key = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -64,7 +70,8 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher
                 Value = JsonSerializer.SerializeToUtf8Bytes(message),
                 Headers = new Headers
                 {
-                    { "MessageType", System.Text.Encoding.UTF8.GetBytes(typeof(TMessage).FullName ?? typeof(TMessage).Name) }
+                    { "MessageType", System.Text.Encoding.UTF8.GetBytes(typeof(TMessage).FullName ?? typeof(TMessage).Name) },
+                    { MessageIdHeader, System.Text.Encoding.UTF8.GetBytes(ResolveMessageId(messageId)) }
                 }
             };
 
@@ -114,7 +121,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher
         {
             foreach (var (message, key) in messages)
             {
-                var result = await ProduceAsync(message, effectiveTopic, key, cancellationToken).ConfigureAwait(false);
+                var result = await ProduceAsync(message, effectiveTopic, key, cancellationToken: cancellationToken).ConfigureAwait(false);
 
                 var failure = CollectOrFail(result, results);
                 if (failure is not null)
@@ -155,6 +162,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher
         IDictionary<string, byte[]> headers,
         string? topic = null,
         string? key = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -174,6 +182,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher
             }
 
             kafkaHeaders.Add("MessageType", System.Text.Encoding.UTF8.GetBytes(typeof(TMessage).FullName ?? typeof(TMessage).Name));
+            kafkaHeaders.Add(MessageIdHeader, System.Text.Encoding.UTF8.GetBytes(ResolveMessageId(messageId)));
 
             var kafkaMessage = new Message<string, byte[]>
             {

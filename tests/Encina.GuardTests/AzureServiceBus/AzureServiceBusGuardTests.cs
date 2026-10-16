@@ -77,6 +77,23 @@ public sealed class AzureServiceBusGuardTests
             () => sut.SendToQueueAsync<object>(null!).AsTask());
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("outbox-id")]
+    public async Task SendToQueueAsync_NullOrEmptyMessageId_IsNotAGuardViolation(string? messageId)
+    {
+        await using var client = CreateMockClient();
+        var sut = new AzureServiceBusMessagePublisher(client,
+            NullLogger<AzureServiceBusMessagePublisher>.Instance,
+            Options.Create(new EncinaAzureServiceBusOptions()));
+
+        var result = await sut.SendToQueueAsync(new object(), messageId: messageId);
+
+        // The mock client has no real sender: the call fails with an Either error, never an argument exception.
+        result.IsLeft.ShouldBeTrue();
+    }
+
     [Fact]
     public async Task PublishToTopicAsync_NullMessage_Throws()
     {

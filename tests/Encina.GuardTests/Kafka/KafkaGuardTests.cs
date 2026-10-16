@@ -59,6 +59,22 @@ public sealed class KafkaGuardTests
 
     // ─── KafkaMessagePublisher method guards ───
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("outbox-id")]
+    public async Task ProduceAsync_NullOrEmptyMessageId_IsNotAGuardViolation(string? messageId)
+    {
+        var sut = new KafkaMessagePublisher(Producer,
+            NullLogger<KafkaMessagePublisher>.Instance,
+            Options.Create(new EncinaKafkaOptions()));
+
+        // The substitute producer returns no task: the call ends in an Either error, never an argument exception.
+        var result = await sut.ProduceAsync(new object(), messageId: messageId);
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
     [Fact]
     public async Task ProduceAsync_NullMessage_Throws()
     {

@@ -43,7 +43,8 @@ public static class ServiceCollectionExtensions
             return ConnectionMultiplexer.Connect(configOptions);
         });
 
-        services.TryAddScoped<IRedisPubSubMessagePublisher, RedisPubSubMessagePublisher>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddScoped<IRedisPubSubMessagePublisher,RedisPubSubMessagePublisher>();
 
         return services;
     }

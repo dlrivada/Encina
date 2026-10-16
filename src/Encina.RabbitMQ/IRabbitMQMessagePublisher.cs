@@ -13,11 +13,16 @@ public interface IRabbitMQMessagePublisher
     /// <typeparam name="TMessage">The type of the message.</typeparam>
     /// <param name="message">The message to publish.</param>
     /// <param name="routingKey">The routing key for the message.</param>
+    /// <param name="messageId">
+    /// The broker message id (for example the outbox message id) so consumers can deduplicate;
+    /// a new id is generated only when <c>null</c> or empty.
+    /// </param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Either a EncinaError or Unit on success.</returns>
     ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
         TMessage message,
         string? routingKey = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class;
 
@@ -27,11 +32,16 @@ public interface IRabbitMQMessagePublisher
     /// <typeparam name="TMessage">The type of the message.</typeparam>
     /// <param name="queueName">The name of the queue.</param>
     /// <param name="message">The message to send.</param>
+    /// <param name="messageId">
+    /// The broker message id (for example the outbox message id) so consumers can deduplicate;
+    /// a new id is generated only when <c>null</c> or empty.
+    /// </param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Either a EncinaError or Unit on success.</returns>
     ValueTask<Either<EncinaError, Unit>> SendToQueueAsync<TMessage>(
         string queueName,
         TMessage message,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class;
 

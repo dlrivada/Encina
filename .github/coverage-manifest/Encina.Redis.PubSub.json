@@ -35,7 +35,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 80,
+        "guard": 20
+      },
+      "justifications": {
+        "unit": "Unit tests drive publish (timestamp from TimeProvider, supplied and generated message id), subscribe and error-delivery paths against a substituted subscriber.",
+        "guard": "Guard tests cover the constructor and method null checks."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -43,7 +51,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 80,
+        "guard": 4
+      },
+      "justifications": {
+        "unit": "Unit tests register the publisher and resolve it with the connection multiplexer substituted; the multiplexer factory lambda needs a real Redis and is covered by integration tests.",
+        "guard": "Guard tests only reach the null-services check; the registration body is exercised by the unit flag."
+      }
     }
   }
 }

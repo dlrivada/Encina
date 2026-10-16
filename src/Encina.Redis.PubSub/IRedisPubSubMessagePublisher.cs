@@ -13,11 +13,13 @@ public interface IRedisPubSubMessagePublisher
     /// <typeparam name="TMessage">The type of the message.</typeparam>
     /// <param name="message">The message to publish.</param>
     /// <param name="channel">The channel name. If null, uses the default channel.</param>
+    /// <param name="messageId">The message id carried in the envelope (for example the outbox message id) so consumers can deduplicate; a new id is generated only when null or empty.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Either a EncinaError or the number of subscribers that received the message.</returns>
     ValueTask<Either<EncinaError, long>> PublishAsync<TMessage>(
         TMessage message,
         string? channel = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class;
 
