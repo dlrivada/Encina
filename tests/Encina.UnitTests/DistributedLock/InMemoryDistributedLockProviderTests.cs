@@ -444,6 +444,23 @@ public class InMemoryDistributedLockProviderTests
     }
 
     [Fact]
+    public async Task LockHandle_ExtendAsync_AfterLockExpiredAndWasTakenOver_ShouldReturnFalse()
+    {
+        // Arrange
+        var provider = CreateProvider();
+        var expiredLock = await provider.TryAcquireAsync("test-resource", Expiry, Wait, Retry, CancellationToken.None) as ILockHandle;
+        _time.Advance(Expiry);
+        await using var newLock = await provider.TryAcquireAsync("test-resource", Expiry, TimeSpan.Zero, Retry, CancellationToken.None);
+
+        // Act
+        var extended = await expiredLock!.ExtendAsync(TimeSpan.FromMinutes(10));
+
+        // Assert
+        newLock.ShouldNotBeNull();
+        extended.ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task LockHandle_ExtendAsync_AfterDispose_ShouldReturnFalse()
     {
         // Arrange
