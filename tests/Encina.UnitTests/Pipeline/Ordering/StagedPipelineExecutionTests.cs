@@ -314,6 +314,22 @@ public sealed class StagedPipelineExecutionTests
     }
 
     [Fact]
+    public async Task Stream_NoHandlerRegistered_YieldsAHandlerMissingError()
+    {
+        var services = new ServiceCollection();
+        services.AddEncina();
+        await using var provider = services.BuildServiceProvider();
+
+        var errors = new List<string>();
+        await foreach (var item in provider.GetRequiredService<IEncina>().Stream(new StreamReq(), CancellationToken.None))
+        {
+            item.IfLeft(error => errors.Add(error.GetEncinaCode()));
+        }
+
+        errors.ShouldBe([EncinaErrorCodes.HandlerMissing]);
+    }
+
+    [Fact]
     public async Task Stream_NoBehaviors_CallsTheHandlerDirectly()
     {
         var calls = new List<string>();

@@ -1,3 +1,4 @@
+using Encina.Modules;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Encina.GuardTests.Core.Pipeline;
@@ -81,6 +82,45 @@ public class PipelineOrderingGuardTests
     public void Resolver_Resolve_NoCandidates_ReturnsEmptyOrder()
     {
         Resolver.Resolve(typeof(IStreamPipelineBehavior<StreamCommand, int>), []).ShouldBeEmpty();
+    }
+
+    #endregion
+
+    #region ModuleBehaviorAdapter
+
+    [Fact]
+    public void ModuleAdapter_Constructor_NullInnerBehavior_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => new ModuleBehaviorAdapter<AdapterModule, StreamCommandRequest, string>(
+            null!, new AdapterModule(), Substitute.For<IModuleHandlerRegistry>()))
+            .ParamName.ShouldBe("innerBehavior");
+    }
+
+    [Fact]
+    public void ModuleAdapter_Constructor_NullModule_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => new ModuleBehaviorAdapter<AdapterModule, StreamCommandRequest, string>(
+            Substitute.For<IModulePipelineBehavior<AdapterModule, StreamCommandRequest, string>>(), null!, Substitute.For<IModuleHandlerRegistry>()))
+            .ParamName.ShouldBe("module");
+    }
+
+    [Fact]
+    public void ModuleAdapter_Constructor_NullRegistry_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => new ModuleBehaviorAdapter<AdapterModule, StreamCommandRequest, string>(
+            Substitute.For<IModulePipelineBehavior<AdapterModule, StreamCommandRequest, string>>(), new AdapterModule(), null!))
+            .ParamName.ShouldBe("handlerRegistry");
+    }
+
+    public sealed class StreamCommandRequest : IRequest<string>;
+
+    public sealed class AdapterModule : IModule
+    {
+        public string Name => "Adapter";
+
+        public void ConfigureServices(IServiceCollection services)
+        {
+        }
     }
 
     #endregion

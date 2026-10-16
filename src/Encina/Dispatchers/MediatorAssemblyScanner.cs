@@ -83,38 +83,33 @@ internal static class EncinaAssemblyScanner
 
     private static void TryAddPipelineBehavior(Type type, Type implementedInterface, ScanResultBuilder result)
     {
-        // Skip nested types - they are typically test helpers or private implementations
-        // that have constructor dependencies which won't be registered in the DI container
-        if (type.IsNested)
-        {
-            return;
-        }
-
-        // Skip ValidationPipelineBehavior - it requires ValidationOrchestrator
-        // which is only registered by validation packages (FluentValidation, DataAnnotations, etc.)
-        if (type.FullName == "Encina.Validation.ValidationPipelineBehavior`2")
-        {
-            return;
-        }
-
-        // Skip adapted steps (ModuleBehaviorAdapter and the processor steps): they wrap another
-        // instance, so they are never services. ModuleBehaviorAdapter is registered explicitly via the
-        // AddEncinaModuleBehavior extension method; the pipeline builders wrap processors per request.
-        if (typeof(IPipelineStepIdentity).IsAssignableFrom(type))
-        {
-            return;
-        }
-
-        // Skip shadow sharding pipeline behaviors - they require IShadowShardRouter
-        // and ShadowShardingOptions, which are only registered when shadow sharding is
-        // explicitly enabled via ShadingOptions.UseShadowSharding (AddShadowSharding).
-        if (type.FullName?.StartsWith("Encina.Sharding.Shadow.Behaviors.", StringComparison.Ordinal) is true)
+        if (IsExcludedFromScanning(type))
         {
             return;
         }
 
         AddWithOpenGenericFallback(result.Pipelines, implementedInterface, type, typeof(IPipelineBehavior<,>));
     }
+
+    /// <summary>
+    /// Behaviors that are never auto-registered as open-generic services:
+    /// <list type="bullet">
+    /// <item>Nested types - typically test helpers or private implementations with constructor dependencies
+    /// that are not registered in the DI container.</item>
+    /// <item><c>ValidationPipelineBehavior</c> - it requires <c>ValidationOrchestrator</c>, which only the
+    /// validation packages (FluentValidation, DataAnnotations, ...) register.</item>
+    /// <item>Adapted steps (<c>ModuleBehaviorAdapter</c> and the processor steps) - they wrap another instance,
+    /// so they are never services. <c>ModuleBehaviorAdapter</c> is registered explicitly via
+    /// <c>AddEncinaModuleBehavior</c>; the pipeline builders wrap processors per request.</item>
+    /// <item>Shadow sharding behaviors - they require <c>IShadowShardRouter</c> and <c>ShadowShardingOptions</c>,
+    /// which are only registered when shadow sharding is enabled (<c>AddShadowSharding</c>).</item>
+    /// </list>
+    /// </summary>
+    private static bool IsExcludedFromScanning(Type type)
+        => type.IsNested
+            || type.FullName == "Encina.Validation.ValidationPipelineBehavior`2"
+            || typeof(IPipelineStepIdentity).IsAssignableFrom(type)
+            || type.FullName?.StartsWith("Encina.Sharding.Shadow.Behaviors.", StringComparison.Ordinal) is true;
 
     private static void AddWithOpenGenericFallback(
         List<TypeRegistration> registrations,
