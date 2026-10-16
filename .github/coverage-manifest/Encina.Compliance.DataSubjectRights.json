@@ -74,9 +74,9 @@
       },
       "justifications": {
         "unit": "Every transition and Apply branch is deterministic and testable in isolation.",
-        "guard": "Argument and state guards of each command are tested; the remaining lines are success paths.",
-        "property": "The Deny and Apply round trip is a property; the other commands are covered by examples.",
-        "integration": "The Marten round trip replays Submit, Deny and Apply through a real event store."
+        "guard": "Guard tests stop at the throwing branch of each command, so the success lines stay with the unit flag.",
+        "property": "Property tests target the Deny and Apply round trip only; the other commands are example tested.",
+        "integration": "Integration tests replay Submit and Deny through the real event store only."
       }
     },
     "Attributes/PersonalDataAttribute.cs": {
@@ -140,9 +140,9 @@
       },
       "justifications": {
         "unit": "Counters, tags and activity helpers are pure and driven by listener-based tests.",
-        "contract": "Contract tests run the service paths that start activities and count outcomes.",
-        "property": "Property tests run the deny path that counts and traces refusals.",
-        "integration": "The Marten tests run the service paths that record outcomes."
+        "contract": "Contract tests exercise only the counters and activities of the paths they drive.",
+        "property": "Property tests exercise only the deny-path counter and activity.",
+        "integration": "Integration tests exercise only the counters and activities of the paths they drive."
       }
     },
     "Diagnostics/DSRLogMessages.cs": {
@@ -228,7 +228,7 @@
         "unit": 70
       },
       "justifications": {
-        "unit": "The denied event is built and read by the aggregate and projection tests; compiler-generated record members stay partly uncovered."
+        "unit": "Every constructor and property is exercised; the compiler-generated record members (equality, ToString, Deconstruct) are not worth direct tests."
       }
     },
     "Export/CsvExportFormatWriter.cs": {
@@ -489,7 +489,7 @@
       },
       "justifications": {
         "unit": "Each Apply handler is a pure function of the event and the read model.",
-        "integration": "The Marten inline projection runs Create and the denied handler against PostgreSQL."
+        "integration": "Integration tests run Create and the denied handler only; the other Apply handlers are unit tested."
       }
     },
     "Projections/DSRRequestReadModel.cs": {
@@ -572,18 +572,18 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "unit": 70,
+        "unit": 95,
         "guard": 5,
         "contract": 20,
         "property": 12,
         "integration": 14
       },
       "justifications": {
-        "unit": "The deny path with validation, gate and telemetry is fully covered; handler operations this issue does not touch keep their existing coverage.",
+        "unit": "Every lifecycle command, query and handler failure path is unit tested; only defensive branches remain.",
         "guard": "Only the constructor guards apply; method arguments are validated by the aggregate and the deny input check.",
-        "contract": "Contract tests drive the lifecycle commands on missing requests and the deny gate.",
-        "property": "Property tests drive the deny path for every current-law reason with both option values.",
-        "integration": "The service-level deny against PostgreSQL covers the load, deny and save path."
+        "contract": "Contract tests drive the lifecycle commands on missing requests and the deny gate only.",
+        "property": "Property tests drive the deny path only.",
+        "integration": "The integration tests drive the load, deny and save path only."
       }
     },
     "SubjectIdConversion.cs": {
