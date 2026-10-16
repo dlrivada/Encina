@@ -214,7 +214,7 @@ public sealed class PipelineStageConfigurationTests
     #region Override and inspector
 
     [Fact]
-    public void Inspector_ReportsTheResolvedOrderWithStageOrderAndSource()
+    public async Task Inspector_ReportsTheResolvedOrderWithStageOrderAndSource()
     {
         var services = new ServiceCollection();
         services.AddEncina(configuration => configuration
@@ -226,9 +226,9 @@ public sealed class PipelineStageConfigurationTests
         using var provider = services.BuildServiceProvider(StrictOptions);
         using var scope = provider.CreateScope();
 
-        var steps = scope.ServiceProvider.GetRequiredService<IEncinaPipelineInspector>().Describe<Req, string>();
+        var steps = await scope.ServiceProvider.GetRequiredService<IEncinaPipelineInspector>().DescribeAsync<Req, string>();
 
-        var mine = steps.Where(step => step.StepType.DeclaringType == typeof(PipelineStageConfigurationTests)).ToArray();
+        var mine =steps.Where(step => step.StepType.DeclaringType == typeof(PipelineStageConfigurationTests)).ToArray();
         mine.ShouldBe(
         [
             new PipelineStepDescription(typeof(AuditBehavior), PipelineStepKind.Behavior, PipelineStage.Audit, 0, PipelineStepSource.Attribute),
@@ -252,7 +252,7 @@ public sealed class PipelineStageConfigurationTests
         await using var provider = services.BuildServiceProvider(StrictOptions);
         await using var scope = provider.CreateAsyncScope();
 
-        var steps = scope.ServiceProvider.GetRequiredService<IEncinaPipelineInspector>().Describe<Req, string>();
+        var steps = await scope.ServiceProvider.GetRequiredService<IEncinaPipelineInspector>().DescribeAsync<Req, string>();
         var result = await scope.ServiceProvider.GetRequiredService<IEncina>().Send(new Req(), CancellationToken.None);
 
         // Both declare Audit by attribute; the registration moves one to Observability, which is further out
@@ -265,7 +265,7 @@ public sealed class PipelineStageConfigurationTests
     }
 
     [Fact]
-    public void ProcessorStageOverloads_DefaultToTheOrderOfTheKind_SoPostCommitStaysOutsideTransactionBehaviors()
+    public async Task ProcessorStageOverloads_DefaultToTheOrderOfTheKind_SoPostCommitStaysOutsideTransactionBehaviors()
     {
         var configuration = new EncinaConfiguration()
             .AddRequestPreProcessor<PreProcessor>(PipelineStage.InputPreparation)
@@ -284,60 +284,72 @@ public sealed class PipelineStageConfigurationTests
         using var scope = provider.CreateScope();
 
         // R7: the post-commit processor sits below (outside) every transaction behavior, so the pipeline is valid
-        var steps = scope.ServiceProvider.GetRequiredService<IEncinaPipelineInspector>().Describe<Req, string>()
-            .Where(step => step.StepType.DeclaringType == typeof(PipelineStageConfigurationTests)).ToArray();
+        var described = await scope.ServiceProvider.GetRequiredService<IEncinaPipelineInspector>().DescribeAsync<Req, string>();
+        var steps = described.Where(step => step.StepType.DeclaringType == typeof(PipelineStageConfigurationTests)).ToArray();
         steps.Select(step => step.StepType).ShouldBe([typeof(PostCommitProcessor), typeof(AuthBehavior)]);
     }
 
     [Fact]
-    public void Inspector_StepThatImplementsOnlyIAsyncDisposable_IsDisposedWithoutThrowing()
+    public async Task Inspector_StepThatImplementsOnlyIAsyncDisposable_IsDisposedWithoutThrowing()
     {
         var services = new ServiceCollection();
         services.AddEncina(configuration => configuration.AddPipelineBehavior<AsyncOnlyBehavior>(PipelineStage.Audit));
-        using var provider = services.BuildServiceProvider(StrictOptions);
+        await using var provider = services.BuildServiceProvider(StrictOptions);
 
-        var steps = provider.GetRequiredService<IEncinaPipelineInspector>().Describe<Req, string>();
+        var steps = await provider.GetRequiredService<IEncinaPipelineInspector>().DescribeAsync<Req, string>();
 
         steps.ShouldContain(step => step.StepType == typeof(AsyncOnlyBehavior));
     }
 
     [Fact]
-    public void Inspector_NoSteps_ReturnsAnEmptyList()
+    public async Task Inspector_NoSteps_ReturnsAnEmptyList()
     {
         var services = new ServiceCollection();
         services.AddEncina();
         using var provider = services.BuildServiceProvider(StrictOptions);
-        using var scope = provider.CreateScope();
-        var inspector = scope.ServiceProvider.GetRequiredService<IEncinaPipelineInspector>();
+        var inspector = provider.GetRequiredService<IEncinaPipelineInspector>();
 
-        inspector.Describe<Req, string>().ShouldBeEmpty();
-        inspector.DescribeStream<StreamReq, int>().ShouldBeEmpty();
+        (await inspector.DescribeAsync<Req, string>()).ShouldBeEmpty();
+        (await inspector.DescribeStreamAsync<StreamReq, int>()).ShouldBeEmpty();
     }
 
     [Fact]
-    public void Inspector_DescribesAStreamPipeline()
+    public async Task Inspector_CancelledToken_ThrowsBeforeResolvingAnyStep()
+    {
+        var services = new ServiceCollection();
+        services.AddEncina();
+        using var provider = services.BuildServiceProvider(StrictOptions);
+        var inspector = provider.GetRequiredService<IEncinaPipelineInspector>();
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(async () => await inspector.DescribeAsync<Req, string>(cancelled.Token));
+        await Should.ThrowAsync<OperationCanceledException>(async () => await inspector.DescribeStreamAsync<StreamReq, int>(cancelled.Token));
+    }
+
+    [Fact]
+    public async Task Inspector_DescribesAStreamPipeline()
     {
         var services = new ServiceCollection();
         services.AddEncina(configuration => configuration.AddStreamPipelineBehavior<StreamBehavior>(PipelineStage.Caching, 2));
         using var provider = services.BuildServiceProvider(StrictOptions);
-        using var scope = provider.CreateScope();
 
-        var steps = scope.ServiceProvider.GetRequiredService<IEncinaPipelineInspector>().DescribeStream<StreamReq, int>();
+        var steps = await provider.GetRequiredService<IEncinaPipelineInspector>().DescribeStreamAsync<StreamReq, int>();
 
         steps.ShouldBe([new PipelineStepDescription(typeof(StreamBehavior), PipelineStepKind.Behavior, PipelineStage.Caching, 2, PipelineStepSource.Registration)]);
     }
 
     [Fact]
-    public void Inspector_TwoAddEncinaCallsPlacingOneTypeDifferently_FailsR6()
+    public async Task Inspector_TwoAddEncinaCallsPlacingOneTypeDifferently_FailsR6()
     {
         var services = new ServiceCollection();
         services.AddEncina(configuration => configuration.AddPipelineBehavior<AuthBehavior>(PipelineStage.Authorization));
         services.AddEncina(configuration => configuration.AddPipelineBehavior<AuthBehavior>(PipelineStage.Caching));
         using var provider = services.BuildServiceProvider(StrictOptions);
-        using var scope = provider.CreateScope();
+        var inspector = provider.GetRequiredService<IEncinaPipelineInspector>();
 
-        var exception = Should.Throw<InvalidOperationException>(
-            () => scope.ServiceProvider.GetRequiredService<IEncinaPipelineInspector>().Describe<Req, string>());
+        var exception = await Should.ThrowAsync<InvalidOperationException>(
+            async () => await inspector.DescribeAsync<Req, string>());
 
         exception.Message.ShouldContain("R6");
     }

@@ -28,40 +28,26 @@ internal sealed class EncinaPipelineInspector : IEncinaPipelineInspector
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<PipelineStepDescription> Describe<TRequest, TResponse>()
+    public async ValueTask<IReadOnlyList<PipelineStepDescription>> DescribeAsync<TRequest, TResponse>(
+        CancellationToken cancellationToken = default)
         where TRequest : IRequest<TResponse>
     {
-        var scope = _scopeFactory.CreateAsyncScope();
-        try
-        {
-            var steps = PipelineBuilder<TRequest, TResponse>.ResolveSteps(scope.ServiceProvider);
-            return DescribeSteps(typeof(IPipelineBehavior<TRequest, TResponse>), steps);
-        }
-        finally
-        {
-            DisposeScope(scope);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var steps = PipelineBuilder<TRequest, TResponse>.ResolveSteps(scope.ServiceProvider);
+        return DescribeSteps(typeof(IPipelineBehavior<TRequest, TResponse>), steps);
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<PipelineStepDescription> DescribeStream<TRequest, TItem>()
+    public async ValueTask<IReadOnlyList<PipelineStepDescription>> DescribeStreamAsync<TRequest, TItem>(
+        CancellationToken cancellationToken = default)
         where TRequest : IStreamRequest<TItem>
     {
-        var scope = _scopeFactory.CreateAsyncScope();
-        try
-        {
-            var steps = scope.ServiceProvider.GetServices<IStreamPipelineBehavior<TRequest, TItem>>().ToArray();
-            return DescribeSteps(typeof(IStreamPipelineBehavior<TRequest, TItem>), steps);
-        }
-        finally
-        {
-            DisposeScope(scope);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var steps = scope.ServiceProvider.GetServices<IStreamPipelineBehavior<TRequest, TItem>>().ToArray();
+        return DescribeSteps(typeof(IStreamPipelineBehavior<TRequest, TItem>), steps);
     }
-
-    // The contract is synchronous, but a step that implements only IAsyncDisposable cannot be disposed synchronously
-    private static void DisposeScope(AsyncServiceScope scope)
-        => scope.DisposeAsync().AsTask().GetAwaiter().GetResult();
 
     private PipelineStepDescription[] DescribeSteps(Type pipelineKey, IReadOnlyList<object> steps)
     {
