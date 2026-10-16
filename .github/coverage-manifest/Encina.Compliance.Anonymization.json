@@ -212,7 +212,15 @@
         "guard"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": {
+        "unit": 95,
+        "guard": 20
+      },
+      "justifications": {
+        "unit": "The in-memory audit store is pure logic and the unit tests run every method, including the ordering by id for entries sharing a timestamp (measured 100%).",
+        "guard": "The guard tests assert the argument validation of the public methods; the ordering code is covered by the unit flag."
+      }
     },
     "InMemory/InMemoryKeyProvider.cs": {
       "defaultTests": [
