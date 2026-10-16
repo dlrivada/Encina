@@ -253,10 +253,7 @@ internal sealed class PipelineOrderResolver
 
             for (var i = 0; i < signature.Length; i++)
             {
-                var candidate = PipelineStepCandidate.For(steps[i], i);
-                if (signature[i].Item1 != candidate.StepType
-                    || signature[i].Item2 != candidate.Kind
-                    || signature[i].Item3 != candidate.ModuleType)
+                if (!IsSame(signature[i], PipelineStepCandidate.For(steps[i], i)))
                 {
                     return false;
                 }
@@ -264,5 +261,8 @@ internal sealed class PipelineOrderResolver
 
             return true;
         }
+
+        private static bool IsSame((Type StepType, PipelineStepKind Kind, Type? ModuleType) expected, in PipelineStepCandidate actual)
+            => expected.StepType == actual.StepType && expected.Kind == actual.Kind && expected.ModuleType == actual.ModuleType;
     }
 }
