@@ -12,12 +12,31 @@ namespace Encina.NATS;
 /// <summary>
 /// NATS-based implementation of the message publisher.
 /// </summary>
-public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposable
+/// <remarks>
+/// The publisher does not own the injected <see cref="INatsConnection"/>; the DI container owns
+/// and disposes it, so ending a scope that resolved the publisher leaves the connection usable.
+/// </remarks>
+public sealed class NATSMessagePublisher : INATSMessagePublisher
 {
     private readonly INatsConnection _connection;
     private readonly INatsJSContext? _jetStream;
     private readonly ILogger<NATSMessagePublisher> _logger;
     private readonly EncinaNATSOptions _options;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="NATSMessagePublisher"/> class without JetStream.
+    /// This is the constructor the container uses when no JetStream context is registered.
+    /// </summary>
+    /// <param name="connection">The NATS connection.</param>
+    /// <param name="logger">The logger instance.</param>
+    /// <param name="options">The configuration options.</param>
+    public NATSMessagePublisher(
+        INatsConnection connection,
+        ILogger<NATSMessagePublisher> logger,
+        IOptions<EncinaNATSOptions> options)
+        : this(connection, null, logger, options)
+    {
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NATSMessagePublisher"/> class.
@@ -186,11 +205,5 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
                     ex,
                     $"Failed to publish message of type {typeof(TMessage).Name} to JetStream."));
         }
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
-    {
-        await _connection.DisposeAsync().ConfigureAwait(false);
     }
 }

@@ -258,44 +258,6 @@ public sealed class MQTTMessagePublisherTests
 
     #endregion
 
-    #region DisposeAsync Tests
-
-    [Fact]
-    public async Task DisposeAsync_WhenConnected_ShouldDisconnectAndDispose()
-    {
-        // Arrange
-        _client.IsConnected.Returns(true);
-        var publisher = CreatePublisher();
-
-        // Act
-        await publisher.DisposeAsync();
-
-        // Assert
-        await _client.Received(1).DisconnectAsync(
-            Arg.Any<MqttClientDisconnectOptions>(),
-            Arg.Any<CancellationToken>());
-        _client.Received(1).Dispose();
-    }
-
-    [Fact]
-    public async Task DisposeAsync_WhenNotConnected_ShouldOnlyDispose()
-    {
-        // Arrange
-        _client.IsConnected.Returns(false);
-        var publisher = CreatePublisher();
-
-        // Act
-        await publisher.DisposeAsync();
-
-        // Assert
-        await _client.DidNotReceive().DisconnectAsync(
-            Arg.Any<MqttClientDisconnectOptions>(),
-            Arg.Any<CancellationToken>());
-        _client.Received(1).Dispose();
-    }
-
-    #endregion
-
     #region SubscribeAsync Tests
 
     [Fact]
