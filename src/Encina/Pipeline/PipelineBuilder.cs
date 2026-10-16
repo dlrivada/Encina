@@ -107,6 +107,13 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         var error = serviceProvider.GetServices<IRequestErrorProcessor<TRequest, TResponse>>().ToArray();
         var postCommit = serviceProvider.GetServices<IRequestPostCommitProcessor<TRequest, TResponse>>().ToArray();
 
+        if (pre.Length + post.Length + error.Length + postCommit.Length == 0)
+        {
+            // No processor to wrap: the resolved behaviors are the steps
+            candidates = behaviors.Length == 0 ? [] : DescribeSteps(behaviors);
+            return behaviors;
+        }
+
         var steps = new IPipelineBehavior<TRequest, TResponse>[behaviors.Length + pre.Length + post.Length + error.Length + postCommit.Length];
         var next = Append(steps, 0, behaviors, static behavior => behavior);
         next = Append(steps, next, pre, static processor => new PreProcessorStep<TRequest, TResponse>(processor));
