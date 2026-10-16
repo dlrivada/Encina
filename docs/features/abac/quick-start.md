@@ -259,4 +259,5 @@ services.AddEncinaABAC(options =>
 - **[Policy Modeling (XACML 3.0)](xacml/)** -- PolicySets, combining algorithms, obligations, and advice
 - **[Encina Expression Language (EEL)](eel/)** -- full expression syntax, custom functions, Roslyn integration
 - **[Advanced Topics](advanced/)** -- custom PAP backends, obligation handlers, multi-tenancy, health checks
+- **[How to audit ABAC decisions](audit-decisions.md)** -- record every enforced decision in the operation audit store
 - **[API Reference](reference/)** -- complete API documentation for all ABAC types

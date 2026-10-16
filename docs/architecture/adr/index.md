@@ -43,6 +43,7 @@ has_children: true
 | [034](034-crypto-shredding-through-the-stj-contract.md) | Crypto-Shredding Runs Through the System.Text.Json Contract |
 | [036](036-three-audit-stores.md) | Three Purpose-Named Audit Stores: Operation, Entity Change and Read Access |
 | [046](046-persistent-dead-letter-queue.md) | Persistent Dead Letter Queue: Oldest-First Contract, Idempotent Capture, Tenant Column |
+| [047](047-abac-decision-audit.md) | ABAC Decisions Are Audited Write-Ahead at the Enforcement Point, Fail-Closed |
 | [048](048-inbox-record-vs-business-transaction.md) | The Inbox Record and the Business Transaction: Enlisted and Independent Writes |
 
 ## Reserved numbers
@@ -64,5 +65,4 @@ An ADR takes the next number that is neither used nor reserved. A plan or spike 
 | 043 | [processor-row-claiming-implementation-plan-1251.md](../../plans/processor-row-claiming-implementation-plan-1251.md) (#1251) | Processor row claiming | Reserved, ADR not written |
 | 044 | [aiact-marten-event-sourcing-implementation-plan-847.md](../../plans/aiact-marten-event-sourcing-implementation-plan-847.md) (#847) | Deterministic natural-key stream identity for compliance aggregates | Reserved, ADR not written |
 | 045 | [special-category-conditions-implementation-plan-1196.md](../../plans/special-category-conditions-implementation-plan-1196.md) (#1196) | Legal grounds: Art. 6 basis and Art. 9(2) condition as one model | Reserved, ADR not written |
-| 047 | [abac-decision-audit-implementation-plan-751.md](../../plans/abac-decision-audit-implementation-plan-751.md) (#751) | ABAC decision audit trail | Reserved, ADR not written |
 | 049 | [pipeline-execution-order-implementation-plan-2184.md](../../plans/pipeline-execution-order-implementation-plan-2184.md) (#2184) | Pipeline behavior execution-order contract (named stages) | Reserved, ADR not written |

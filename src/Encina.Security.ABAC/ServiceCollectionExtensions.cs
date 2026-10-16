@@ -75,7 +75,7 @@ public static class ServiceCollectionExtensions
     /// <see cref="ABACOptions.AuditDecisions"/>). This method never registers an
     /// <c>IOperationAuditStore</c>: the application or a provider package does. With the audit enabled and
     /// no store the host fails at start. Call <c>AddEncinaSecurity</c> before this method so the security
-    /// behavior runs before the ABAC one; the execution-order contract is tracked in #1783.
+    /// behavior runs before the ABAC one; the execution-order contract is tracked in #2184.
     /// </para>
     /// <para>
     /// <b>Policy seeding:</b>

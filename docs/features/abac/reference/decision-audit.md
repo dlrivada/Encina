@@ -6,7 +6,7 @@ parent: "Features"
 
 # ABAC Decision Audit Reference
 
-This page is for developers who enable the ABAC decision audit trail and need to look up what is recorded, which limits apply, how the recorder and the reader behave and which errors they return. It describes the trail as it exists today (pre-1.0); the design is in the [implementation plan for #751](../../../plans/abac-decision-audit-implementation-plan-751.md).
+This page is for developers who enable the ABAC decision audit trail and need to look up what is recorded, which limits apply, how the recorder and the reader behave and which errors they return. It describes the trail as it exists today (pre-1.0); the setup steps and the points to check are in [How to audit ABAC decisions](../audit-decisions.md), and the design is in the [implementation plan for #751](../../../plans/abac-decision-audit-implementation-plan-751.md).
 
 ## Overview
 
@@ -198,7 +198,7 @@ services.AddEncinaABAC(options =>
 
 ### Registration order
 
-Pipeline behaviors run in registration order. Call `AddEncinaSecurity` before `AddEncinaABAC` so the security behavior runs before the ABAC one. No startup warning exists for the wrong order; the execution-order contract is tracked in #1783.
+Pipeline behaviors run in registration order. Call `AddEncinaSecurity` before `AddEncinaABAC` so the security behavior runs before the ABAC one. No startup warning exists for the wrong order; the execution-order contract is tracked in [#2184](https://github.com/dlrivada/Encina/issues/2184).
 
 ```csharp
 services.AddEncinaSecurity();

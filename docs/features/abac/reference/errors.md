@@ -33,7 +33,7 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 | `abac.duplicate_policy` | `DuplicatePolicyCode` | `DuplicatePolicy` | `string policyId` | A policy with the same ID already exists in the PAP. |
 | `abac.duplicate_policy_set` | `DuplicatePolicySetCode` | `DuplicatePolicySet` | `string policySetId` | A policy set with the same ID already exists in the PAP. |
 | `abac.combining_failed` | `CombiningFailedCode` | `CombiningFailed` | `string algorithmId, string? reason = null` | A combining algorithm produced an Indeterminate result. |
-| `abac.missing_context` | `MissingContextCode` | `MissingContext` | `Type requestType` | There is no security context, it is not authenticated (`IsAuthenticated` is `false`, even when it carries a user id claim), or its `UserId` is null, empty or whitespace. The PEP denies in every enforcement mode (`Block` and `Warn`) before it collects any attribute. |
+| `encina.authorization.unauthenticated` | `EncinaErrorCodes.AuthorizationUnauthenticated` | `UnauthenticatedCaller` | `Type requestType` | The `IRequestContext.Identity` of the request is not authenticated (anonymous). The PEP denies in every enforcement mode except `Disabled` (`Block` and `Warn`) before it collects any attribute. The code is shared with the other authorization gates, so every host answers it as unauthenticated (HTTP 401). The message is fixed. |
 | `encina.authorization.abac_obligation_failed` | `ObligationFailedCode` | `ObligationFailed` | `string obligationId, string? reason = null` | A mandatory obligation handler failed or was not found. Per XACML 3.0 section 7.18, access must be denied. |
 | `abac.function_not_found` | `FunctionNotFoundCode` | `FunctionNotFound` | `string functionId` | A function referenced in a policy condition is not registered in `IFunctionRegistry`. |
 | `abac.function_error` | `FunctionErrorCode` | `FunctionError` | `string functionId, Exception exception` | A registered function threw an exception during evaluation. The message is fixed (`Function '<id>' evaluation failed.`); only the exception type is recorded, in `details["exceptionType"]`, never the exception message. |
@@ -70,7 +70,7 @@ Every error includes structured metadata in the `Details` dictionary:
 | Key | Present In | Value |
 |-----|-----------|-------|
 | `stage` | All errors | Always `"abac"` |
-| `requestType` | `AccessDenied`, `Indeterminate`, `RequiredPolicyNotFound`, `ConditionNotMet`, `EvaluationFailed`, `MissingContext` | Fully qualified type name of the request |
+| `requestType` | `AccessDenied`, `Indeterminate`, `RequiredPolicyNotFound`, `ConditionNotMet`, `EvaluationFailed`, `UnauthenticatedCaller` | Fully qualified type name of the request |
 | `policyId` | `AccessDenied`, `PolicyNotFound`, `RequiredPolicyNotFound`, `InvalidPolicy`, `DuplicatePolicy` | The policy identifier (for `RequiredPolicyNotFound`, the name from `[RequirePolicy]`) |
 | `conditionIndex` | `ConditionNotMet` | The zero-based position of the condition among the request's `[RequireCondition]` attributes |
 | `policySetId` | `PolicySetNotFound`, `InvalidPolicySet`, `DuplicatePolicySet` | The policy set identifier |
@@ -83,7 +83,8 @@ Every error includes structured metadata in the `Details` dictionary:
 | `functionId` | `FunctionNotFound`, `FunctionError` | The function identifier |
 | `variableId` | `VariableNotFound` | The variable identifier |
 | `exceptionType` | `EvaluationFailed`, `FunctionError`, `ObligationHandlerException` | Fully qualified exception type name |
-| `requirement` | `MissingContext` | Always `"abac_context"` |
+| `gate` | `UnauthenticatedCaller` | Always `"abac"` |
+| `requirement` | `UnauthenticatedCaller` | Always `"authenticated"` |
 
 ## Error Handling Patterns
 
@@ -98,8 +99,8 @@ result.Match(
         if (error.Code == ABACErrors.AccessDeniedCode)
             return Results.Forbid();
 
-        if (error.Code == ABACErrors.MissingContextCode)
-            return Results.Problem("Authorization context not configured.");
+        if (error.Code == EncinaErrorCodes.AuthorizationUnauthenticated)
+            return Results.Unauthorized();
 
         return Results.Problem(error.Message);
     },
@@ -156,22 +157,21 @@ Error: Access denied for 'DeletePatientRecord' by policy 'medical-records-policy
 
 **Resolution:** Verify the user has the required attributes (role, department, clearance level) that match the policy target. Check the policy rules to understand which conditions must be satisfied.
 
-### 2. Missing Context (abac.missing_context)
+### 2. Unauthenticated Caller (encina.authorization.unauthenticated)
 
-**Scenario:** The ABAC pipeline behavior executes for a request with `[RequirePolicy]` or `[RequireCondition]`, but `ISecurityContextAccessor.SecurityContext` is null, it is not authenticated (`SecurityContext.IsAuthenticated` is `false`), or its `UserId` is null, empty or whitespace.
+**Scenario:** The ABAC pipeline behavior executes for a request with `[RequirePolicy]` or `[RequireCondition]`, but the `IRequestContext.Identity` of the request is anonymous (`IsAuthenticated` is `false`).
 
 ```
-Error: Authenticated security context with a user is not available for ABAC evaluation of 'CreateOrder'. Access denied.
+Error: ABAC evaluation requires an authenticated caller. Access denied.
 ```
 
-The request is denied in every enforcement mode, `Warn` included, and no attribute is requested when there is no authenticated user. The denial is logged with EventId 9091 (request type and error code only).
+The request is denied in every enforcement mode except `Disabled`, `Warn` included, and no attribute is requested for an anonymous caller. The denial is logged with EventId 9091 (request type and error code only). When the [decision audit](decision-audit.md) is enabled the denial is always recorded, whatever `Outcomes` says, with a `null` `UserId` and `abac.identity_kind` set to `Anonymous`.
 
-**Resolution:** ABAC needs an `ISecurityContextAccessor` whose `SecurityContext` is populated and authenticated.
+**Resolution:** ABAC needs a request context that carries an authenticated identity.
 
-- The application registers `Encina.Security` (`AddEncinaSecurity`) and sets the context for every request, as shown in [Set Security Context](https://github.com/dlrivada/Encina/blob/main/src/Encina.Security/README.md#3-set-security-context).
-- Background jobs and scheduled messages set a context with a service identity: a `ClaimsIdentity` created with an authentication type (for example `new ClaimsIdentity(claims, "service")`), so `IsAuthenticated` is true, and with a `sub` or `NameIdentifier` claim.
-- A request meant to run without a user must not carry `[RequirePolicy]` or `[RequireCondition]` (or ABAC must run in `Disabled` mode).
-- Populating the context automatically, for example from `HttpContext.User`, is tracked by #1705.
+- In HTTP, call `app.UseEncinaContext()` after `UseAuthentication()` so the context carries the authenticated user.
+- Background jobs and scheduled messages declare a service identity (`AddEncinaServiceIdentity("name")`) and run the work inside `IRequestContextScopeFactory.RunAsServiceAsync`.
+- A request meant to run without a caller must not carry `[RequirePolicy]` or `[RequireCondition]` (or ABAC must run in `Disabled` mode).
 
 ### 3. Obligation Failed (encina.authorization.abac_obligation_failed)
 

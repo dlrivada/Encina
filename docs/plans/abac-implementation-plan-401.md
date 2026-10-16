@@ -4,6 +4,7 @@
 > **Type**: Feature
 > **Complexity**: Very High (11 phases, cross-cutting, ~168-190 files)
 > **Estimated Scope**: ~6,000-8,000 lines of production code + ~5,000-6,500 lines of tests + ~3,000-4,000 lines of documentation
+> **Follow-up**: the decision audit trail is planned in [abac-decision-audit-implementation-plan-751.md](abac-decision-audit-implementation-plan-751.md) (#751).
 
 ---
 

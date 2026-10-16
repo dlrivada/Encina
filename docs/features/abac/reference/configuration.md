@@ -36,10 +36,15 @@ The method accepts an optional `Action<ABACOptions>` delegate. When omitted, all
 | `IPolicyInformationPoint` | `DefaultPolicyInformationPoint` | Singleton |
 | `IAttributeProvider` | `DefaultAttributeProvider` | Scoped |
 | `ObligationExecutor` | Self | Scoped |
-| `ABACPipelineBehavior<TRequest, TResponse>` | Self | Transient |
+| `ABACPipelineBehavior<TRequest, TResponse>` | Self (added with `TryAddEnumerable`) | Transient |
 | `EELCompiler` | Self | Singleton |
+| Request identity model | `AddEncinaRequestIdentity()`; the PEP reads the caller from `IRequestContext.Identity` | See the identity registration |
+| `IABACDecisionRecorder` | `AuditStoreABACDecisionRecorder` | Singleton |
+| `IABACDecisionAuditReader` | `ABACDecisionAuditReader` | Scoped |
+| `ABACDecisionAuditHealthState` | Self | Singleton |
+| `TimeProvider` | `TimeProvider.System` | Singleton |
 
-All registrations use `TryAdd`, meaning you can register custom implementations **before** calling `AddEncinaABAC()` and they will not be overwritten.
+All registrations use `TryAdd`, meaning you can register custom implementations **before** calling `AddEncinaABAC()` and they will not be overwritten. `AddEncinaABAC()` also registers an options validator and two startup checks (`ABACEnforcementModeStartupCheck`, `ABACDecisionAuditStartupCheck`); see [DecisionAudit Options](#decisionaudit-options).
 
 **Conditional registrations:**
 
@@ -101,7 +106,7 @@ The `ABACEnforcementMode` enum controls the Policy Enforcement Point (PEP) behav
 | Value | Behavior |
 |-------|----------|
 | `Block` | **Production mode.** Deny decisions block request execution and return an `EncinaError`. Obligations are enforced. This is the default. |
-| `Warn` | **Observation mode.** Definite verdicts (a Deny, a required policy that is NotApplicable, Deny or not found, a condition that is `false`) are logged as warnings and requests proceed. Errors still deny when they decide the verdict: `abac.missing_context` (always: no security context, an unauthenticated one or an empty user id is denied in every mode before any attribute is collected), `abac.indeterminate`, `abac.evaluation_failed`, `encina.authorization.abac_obligation_failed`. When a definite denial and an error occur together among the required policies, the definite denial is the verdict and `Warn` lets the request through (see [effects](../xacml/effects.md)). Useful for validating policies before enabling enforcement. |
+| `Warn` | **Observation mode.** Definite verdicts (a Deny, a required policy that is NotApplicable, Deny or not found, a condition that is `false`) are logged as warnings and requests proceed. Errors still deny when they decide the verdict: `encina.authorization.unauthenticated` (always: an anonymous caller is denied in every mode except `Disabled`, before any attribute is collected), `abac.indeterminate`, `abac.evaluation_failed`, `encina.authorization.abac_obligation_failed`. When a definite denial and an error occur together among the required policies, the definite denial is the verdict and `Warn` lets the request through (see [effects](../xacml/effects.md)). Useful for validating policies before enabling enforcement. |
 | `Disabled` | **Bypass mode.** ABAC evaluation is completely skipped. No policies are evaluated, no obligations are executed. Useful during development or for feature-flagging ABAC. |
 
 **Gradual rollout strategy:** Start with `Warn` to observe decisions in production logs, validate that policies behave as expected, then switch to `Block`.

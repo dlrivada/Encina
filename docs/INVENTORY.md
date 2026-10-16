@@ -5808,6 +5808,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 | `Encina.Security.Secrets.GoogleCloudSecretManager` | #679 ✅ | Google Cloud Secret Manager provider (IMPLEMENTADO) | Media |
 | `Encina.Security.ABAC` | #401 ✅ | Attribute-Based Access Control with XACML 3.0 (IMPLEMENTADO) | Media |
 | `Encina.Security.ABAC` (Persistent PAP) | #691 ✅ | Database-backed PAP with IPolicyStore, caching, 11 providers (IMPLEMENTADO) | Media |
+| `Encina.Security.ABAC` (Decision audit) | #751 ✅ | Write-ahead, fail-closed audit of every ABAC decision through `IOperationAuditStore`, typed reader and JSON Lines export, ADR-047 (IMPLEMENTADO) | Alta |
 
 #### Labels Nuevas Creadas (Security - 2)
 
