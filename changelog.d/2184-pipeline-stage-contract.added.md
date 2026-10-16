@@ -1,0 +1,1 @@
+- Pipeline stage contract vocabulary (#2184, phase 1): `PipelineStage` (16 stages), `PipelineStageAttribute`, `PipelineStepDescription` with `PipelineStepKind` and `PipelineStepSource`, `IEncinaPipelineInspector`, and the new `IRequestErrorProcessor<,>` and `IRequestPostCommitProcessor<,>` contracts. Pipeline order does not change yet.

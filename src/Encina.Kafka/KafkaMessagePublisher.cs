@@ -11,7 +11,12 @@ namespace Encina.Kafka;
 /// <summary>
 /// Kafka-based implementation of the message publisher.
 /// </summary>
-public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
+/// <remarks>
+/// The publisher does not own the injected producer; the DI container owns and disposes it, so
+/// ending a scope that resolved the publisher neither flushes nor disposes the shared producer.
+/// Every publish awaits its delivery report, so no message is pending when the scope ends.
+/// </remarks>
+public sealed class KafkaMessagePublisher : IKafkaMessagePublisher
 {
     private readonly IProducer<string, byte[]> _producer;
     private readonly ILogger<KafkaMessagePublisher> _logger;
@@ -199,12 +204,5 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
                     ex,
                     $"Failed to produce message of type {typeof(TMessage).Name} with headers."));
         }
-    }
-
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _producer.Flush(TimeSpan.FromSeconds(10));
-        _producer.Dispose();
     }
 }

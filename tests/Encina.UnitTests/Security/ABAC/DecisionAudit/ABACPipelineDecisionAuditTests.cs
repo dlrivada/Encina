@@ -1110,6 +1110,37 @@ public sealed class ABACPipelineDecisionAuditTests
 
     #endregion
 
+    #region Status message
+
+    [Theory]
+    [InlineData(Effect.Permit)]
+    [InlineData(Effect.Deny)]
+    [InlineData(Effect.NotApplicable)]
+    [InlineData(Effect.Indeterminate)]
+    public async Task StatusMessageOfThePdpDecision_NeverReachesTheRecordOrTheStoredEntry(Effect effect)
+    {
+        const string sentinel = "STATUS-MESSAGE-SENTINEL patient Alice 12345";
+        var decision = Decision(effect) with
+        {
+            Status = new DecisionStatus { StatusCode = "processing-error", StatusMessage = sentinel }
+        };
+        var recorder = new RecordingRecorder();
+        var behavior = Behavior<PolicyARequest>(Pdp(("policy-a", decision)), Options(), recorder);
+
+        await SendAsync(behavior, new PolicyARequest("order-1"));
+
+        var record = Single(recorder);
+        var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(record);
+        // The whole entry, every column (IpAddress, UserAgent, the payload fields and the hash included).
+        var stored = System.Text.Json.JsonSerializer.Serialize(entry);
+        stored.ShouldContain(ABACDecisionAuditSchema.Action);
+        stored.ShouldNotContain("SENTINEL");
+        record.ToString().ShouldNotContain("SENTINEL");
+        record.ReasonCode.ShouldNotContain("SENTINEL");
+    }
+
+    #endregion
+
     #region Registration
 
     [Fact]

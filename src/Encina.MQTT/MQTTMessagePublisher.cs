@@ -12,7 +12,11 @@ namespace Encina.MQTT;
 /// <summary>
 /// MQTT-based implementation of the message publisher.
 /// </summary>
-public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposable
+/// <remarks>
+/// The publisher does not own the injected <see cref="IMqttClient"/>; the DI container owns
+/// and disposes it, so ending a scope that resolved the publisher leaves the client connected.
+/// </remarks>
+public sealed class MQTTMessagePublisher : IMQTTMessagePublisher
 {
     private readonly IMqttClient _client;
     private readonly ILogger<MQTTMessagePublisher> _logger;
@@ -160,17 +164,6 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposab
         var subscription = new MqttPatternSubscription<TMessage>((MqttClient)_client, topicFilter, handler, _logger);
 
         return subscription;
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
-    {
-        if (_client.IsConnected)
-        {
-            await _client.DisconnectAsync().ConfigureAwait(false);
-        }
-
-        _client.Dispose();
     }
 }
 

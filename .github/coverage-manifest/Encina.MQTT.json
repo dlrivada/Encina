@@ -30,7 +30,15 @@
     },
     "MQTTMessagePublisher.cs": {
       "defaultTests": ["unit", "guard"],
-      "reason": "Publisher using IMqttClient (mockeable interface from MQTTnet). Covers PublishAsync, ConnectAsync, topic derivation, QoS mapping, serialization"
+      "reason": "Publisher using IMqttClient (mockeable interface from MQTTnet). Covers PublishAsync, ConnectAsync, topic derivation, QoS mapping, serialization",
+      "targets": {
+        "unit": 85,
+        "guard": 10
+      },
+      "justifications": {
+        "unit": "Unit tests cover publishing and the subscribe calls; the subscription wrappers need a real MqttClient and are left to integration tests.",
+        "guard": "Guard tests cover the constructor and method argument checks only, a small share of this large file."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": ["unit", "guard"],

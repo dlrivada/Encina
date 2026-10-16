@@ -10,14 +10,12 @@ namespace Encina.UnitTests.RabbitMQ.Publishing;
 /// </summary>
 public sealed class RabbitMQMessagePublisherTests
 {
-    private readonly IConnection _connection;
     private readonly IChannel _channel;
     private readonly ILogger<RabbitMQMessagePublisher> _logger;
     private readonly IOptions<EncinaRabbitMQOptions> _options;
 
     public RabbitMQMessagePublisherTests()
     {
-        _connection = Substitute.For<IConnection>();
         _channel = Substitute.For<IChannel>();
         _logger = Substitute.For<ILogger<RabbitMQMessagePublisher>>();
         // Enable logging for coverage of LoggerMessage generated code
@@ -32,20 +30,11 @@ public sealed class RabbitMQMessagePublisherTests
     #region Constructor Guard Clause Tests
 
     [Fact]
-    public void Constructor_WithNullConnection_ThrowsArgumentNullException()
-    {
-        // Arrange & Act & Assert
-        var ex = Assert.Throws<ArgumentNullException>(() =>
-            new RabbitMQMessagePublisher(null!, _channel, _logger, _options));
-        ex.ParamName.ShouldBe("connection");
-    }
-
-    [Fact]
     public void Constructor_WithNullChannel_ThrowsArgumentNullException()
     {
         // Arrange & Act & Assert
         var ex = Assert.Throws<ArgumentNullException>(() =>
-            new RabbitMQMessagePublisher(_connection, null!, _logger, _options));
+            new RabbitMQMessagePublisher(null!, _logger, _options));
         ex.ParamName.ShouldBe("channel");
     }
 
@@ -54,7 +43,7 @@ public sealed class RabbitMQMessagePublisherTests
     {
         // Arrange & Act & Assert
         var ex = Assert.Throws<ArgumentNullException>(() =>
-            new RabbitMQMessagePublisher(_connection, _channel, null!, _options));
+            new RabbitMQMessagePublisher(_channel, null!, _options));
         ex.ParamName.ShouldBe("logger");
     }
 
@@ -63,7 +52,7 @@ public sealed class RabbitMQMessagePublisherTests
     {
         // Arrange & Act & Assert
         var ex = Assert.Throws<ArgumentNullException>(() =>
-            new RabbitMQMessagePublisher(_connection, _channel, _logger, null!));
+            new RabbitMQMessagePublisher(_channel, _logger, null!));
         ex.ParamName.ShouldBe("options");
     }
 
@@ -307,24 +296,6 @@ public sealed class RabbitMQMessagePublisherTests
 
     #endregion
 
-    #region DisposeAsync Tests
-
-    [Fact]
-    public async Task DisposeAsync_ShouldCloseChannelAndConnection()
-    {
-        // Arrange
-        var publisher = CreatePublisher();
-
-        // Act
-        await publisher.DisposeAsync();
-
-        // Assert
-        await _channel.Received(1).CloseAsync(Arg.Any<CancellationToken>());
-        await _connection.Received(1).CloseAsync(Arg.Any<CancellationToken>());
-    }
-
-    #endregion
-
     #region PublishAsync with Durable=false Tests
 
     [Fact]
@@ -336,7 +307,7 @@ public sealed class RabbitMQMessagePublisherTests
             ExchangeName = "test-exchange",
             Durable = false
         });
-        var publisher = new RabbitMQMessagePublisher(_connection, _channel, _logger, options);
+        var publisher = new RabbitMQMessagePublisher(_channel, _logger, options);
         var message = new TestMessage { Id = 1, Content = "Test" };
 
         // Act
@@ -355,7 +326,7 @@ public sealed class RabbitMQMessagePublisherTests
             ExchangeName = "test-exchange",
             Durable = false
         });
-        var publisher = new RabbitMQMessagePublisher(_connection, _channel, _logger, options);
+        var publisher = new RabbitMQMessagePublisher(_channel, _logger, options);
         var message = new TestMessage { Id = 1, Content = "Test" };
 
         // Act
@@ -371,7 +342,7 @@ public sealed class RabbitMQMessagePublisherTests
 
     private RabbitMQMessagePublisher CreatePublisher()
     {
-        return new RabbitMQMessagePublisher(_connection, _channel, _logger, _options);
+        return new RabbitMQMessagePublisher(_channel, _logger, _options);
     }
 
     private void ConfigureChannelToThrow(Exception exception)

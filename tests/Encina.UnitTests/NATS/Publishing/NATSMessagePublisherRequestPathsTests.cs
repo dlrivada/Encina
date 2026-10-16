@@ -14,7 +14,7 @@ namespace Encina.UnitTests.NATS.Publishing;
 /// Unit tests for the request/reply paths of <see cref="NATSMessagePublisher.RequestAsync{TRequest, TResponse}"/>:
 /// the reply, an empty reply, the timeout and the failure.
 /// </summary>
-public sealed class NATSMessagePublisherRequestPathsTests : IAsyncDisposable
+public sealed class NATSMessagePublisherRequestPathsTests
 {
     private const string SentinelMessage = "sentinel-secret-message";
 
@@ -30,8 +30,6 @@ public sealed class NATSMessagePublisherRequestPathsTests : IAsyncDisposable
             _logger,
             Options.Create(new EncinaNATSOptions { SubjectPrefix = "test" }));
     }
-
-    public ValueTask DisposeAsync() => _publisher.DisposeAsync();
 
     [Fact]
     public async Task RequestAsync_WithAReply_ReturnsTheDeserializedResponse()

@@ -200,17 +200,17 @@ public sealed class ServiceRegistrationContracts
 
     private sealed class SampleRequestPreProcessor<TRequest> : IRequestPreProcessor<TRequest>
     {
-        public Task Process(TRequest request, IRequestContext context, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(TRequest request, IRequestContext context, CancellationToken cancellationToken)
         {
-            return Task.CompletedTask;
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
         }
     }
 
     private sealed class SampleRequestPostProcessor<TRequest, TResponse> : IRequestPostProcessor<TRequest, TResponse>
     {
-        public Task Process(TRequest request, IRequestContext context, Either<EncinaError, TResponse> response, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(TRequest request, IRequestContext context, TResponse response, CancellationToken cancellationToken)
         {
-            return Task.CompletedTask;
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
         }
     }
 

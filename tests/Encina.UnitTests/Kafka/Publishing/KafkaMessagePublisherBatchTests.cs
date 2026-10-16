@@ -10,7 +10,7 @@ namespace Encina.UnitTests.Kafka.Publishing;
 /// Unit tests for the failure paths of <see cref="KafkaMessagePublisher.ProduceBatchAsync{TMessage}"/>:
 /// a message that fails to produce and a source sequence that fails while it is enumerated.
 /// </summary>
-public sealed class KafkaMessagePublisherBatchTests : IDisposable
+public sealed class KafkaMessagePublisherBatchTests
 {
     private const string SentinelMessage = "sentinel-secret-message";
 
@@ -25,8 +25,6 @@ public sealed class KafkaMessagePublisherBatchTests : IDisposable
             _logger,
             Options.Create(new EncinaKafkaOptions { DefaultEventTopic = "test-events" }));
     }
-
-    public void Dispose() => _publisher.Dispose();
 
     [Fact]
     public async Task ProduceBatchAsync_WhenTheSecondMessageFails_ReturnsThatErrorAndStopsProducing()
