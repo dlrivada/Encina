@@ -94,7 +94,10 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
 
         var cacheKey = _keyGenerator.GenerateKey<TRequest, TResponse>(request, KeyContext(context, identity));
 
-        var (found, cachedValue) = await TryGetForCallerAsync(cacheKey, context, identity, cancellationToken).ConfigureAwait(false);
+        // Log sites receive the key with its tenant and user segments redacted, never the real key.
+        var logKey = CacheKeyRedactor.Redact(cacheKey, context.TenantId, identity?.UserId);
+
+        var (found, cachedValue) = await TryGetForCallerAsync(cacheKey, logKey, context, identity, cancellationToken).ConfigureAwait(false);
         if (found)
         {
             return cachedValue!;
@@ -105,7 +108,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         // Cache successful responses only, and never a response produced after the user's scope ended.
         if (result.IsRight && IsSameCaller(context, identity))
         {
-            await TryCacheResultAsync(result, cacheKey, context.CorrelationId, cancellationToken)
+            await TryCacheResultAsync(result, cacheKey, logKey, context.CorrelationId, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -134,6 +137,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
     // not serve a hit read after the scope ended: the caller is no longer that user.
     private async ValueTask<(bool Found, TResponse? Value)> TryGetForCallerAsync(
         string cacheKey,
+        string logKey,
         IRequestContext context,
         RequestIdentity? identity,
         CancellationToken cancellationToken)
@@ -143,14 +147,14 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
             return (false, default);
         }
 
-        var cached = await TryGetFromCacheAsync(cacheKey, context.CorrelationId, cancellationToken).ConfigureAwait(false);
+        var cached = await TryGetFromCacheAsync(cacheKey, logKey, context.CorrelationId, cancellationToken).ConfigureAwait(false);
         if (!cached.Found || !IsSameCaller(context, identity))
         {
             return (false, default);
         }
 
         // Only a hit that is served is logged and extends a sliding entry.
-        LogCacheHit(_logger, typeof(TRequest).Name, cacheKey, context.CorrelationId);
+        LogCacheHit(_logger, typeof(TRequest).Name, logKey, context.CorrelationId);
         if (CacheAttribute!.SlidingExpiration)
         {
             _ = _cacheProvider.RefreshAsync(cacheKey, cancellationToken);
@@ -170,6 +174,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
 
     private async ValueTask<(bool Found, TResponse? Value)> TryGetFromCacheAsync(
         string cacheKey,
+        string logKey,
         string correlationId,
         CancellationToken cancellationToken)
     {
@@ -180,7 +185,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
 
             if (cached is null)
             {
-                LogCacheMiss(_logger, typeof(TRequest).Name, cacheKey, correlationId);
+                LogCacheMiss(_logger, typeof(TRequest).Name, logKey, correlationId);
                 return (false, default);
             }
 
@@ -188,7 +193,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         }
         catch (Exception ex)
         {
-            LogCacheError(_logger, typeof(TRequest).Name, cacheKey, ex.ForLogging());
+            LogCacheError(_logger, typeof(TRequest).Name, logKey, ex.ForLogging());
 
             if (_options.ThrowOnCacheErrors)
             {
@@ -202,6 +207,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
     private async Task TryCacheResultAsync(
         Either<EncinaError, TResponse> result,
         string cacheKey,
+        string logKey,
         string correlationId,
         CancellationToken cancellationToken)
     {
@@ -215,11 +221,11 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
 
             await StoreCacheEntryAsync(entry, cacheKey, cancellationToken).ConfigureAwait(false);
 
-            LogCacheSet(_logger, typeof(TRequest).Name, cacheKey, CacheAttribute!.DurationSeconds, correlationId);
+            LogCacheSet(_logger, typeof(TRequest).Name, logKey, CacheAttribute!.DurationSeconds, correlationId);
         }
         catch (Exception ex)
         {
-            LogCacheError(_logger, typeof(TRequest).Name, cacheKey, ex.ForLogging());
+            LogCacheError(_logger, typeof(TRequest).Name, logKey, ex.ForLogging());
 
             if (_options.ThrowOnCacheErrors)
             {

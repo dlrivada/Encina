@@ -46,7 +46,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Every line of CacheConfiguration key generation is exercised, including the escaped tenant and user segments.",
+        "guard": "GenerateKey has no ArgumentNullException guards; the request is nullable by design, so there is no guard surface in this file."
+      }
     },
     "Attributes/CacheAttribute.cs": {
       "defaultTests": [
@@ -79,7 +87,15 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 100,
+        "guard": 28
+      },
+      "justifications": {
+        "unit": "Every line is exercised by the unit tests, including the redacted log paths of the invalidation flow.",
+        "guard": "Constructor and Handle null guards are the only guard surface."
+      }
     },
     "Behaviors/DistributedIdempotencyPipelineBehavior.cs": {
       "defaultTests": [
@@ -99,12 +115,12 @@
       "defaultRule": "*PipelineBehavior.cs",
       "reason": "Mediator pipeline with mockeable next delegate",
       "targets": {
-        "unit": 85,
+        "unit": 90,
         "guard": 20,
         "contract": 0
       },
       "justifications": {
-        "unit": "Security-relevant VaryByUser bypass and identity-race paths are unit tested; the uncovered lines are cache-error and sliding-refresh branches (measured 87%).",
+        "unit": "Security-relevant VaryByUser bypass and identity-race paths are unit tested; the uncovered lines are the sliding-expiration store and refresh branches (measured 91%).",
         "guard": "Constructor and Handle null guards only (measured 21%).",
         "contract": "The behavior implements no Encina-owned abstract contract beyond IPipelineBehavior, whose contract is asserted on the core dispatcher; its observable rules (bypass, per-user isolation, identity race) are behavioral and covered by unit tests, so no contract target applies."
       }
@@ -142,6 +158,22 @@
       "defaultRule": "*HealthCheck.cs",
       "reason": "Health check with mockeable service dependencies"
     },
+    "KeyGeneration/CacheKeyRedactor.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Static redaction helper used by every cache log site",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Five-line pure function; every branch is a unit test case.",
+        "guard": "The key parameter is nullable by design and the helper returns an empty string, so there is no null-guard throw to cover; the null and empty cases are unit tested."
+      }
+    },
     "KeyGeneration/CacheUserIdentity.cs": {
       "defaultTests": [
         "unit"
@@ -161,7 +193,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 11
+      },
+      "justifications": {
+        "unit": "Measured 95%; the uncovered lines are unreachable defensive null branches.",
+        "guard": "Guard tests assert every ArgumentNullException of the constructor and of each public method (the guard statements are the only lines a guard test can reach, because the call throws before the rest runs); the remaining lines are covered by the unit flag. Measured 11%."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -185,7 +225,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 98,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Hit, miss, oversize, store, invalidation and shard invalidation paths are unit tested; the remaining lines are trivial.",
+        "guard": "No guard test exists for this executor today; its null guards are asserted in its unit tests."
+      }
     },
     "Sharding/CachedShardTopologyProvider.cs": {
       "defaultTests": [

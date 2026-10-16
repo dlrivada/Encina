@@ -151,7 +151,7 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
         // Local invalidation
         await _cacheProvider.RemoveByPatternAsync(pattern, cancellationToken).ConfigureAwait(false);
 
-        LogCacheInvalidated(_logger, typeof(TRequest).Name, pattern, correlationId);
+        LogCacheInvalidated(_logger, typeof(TRequest).Name, CacheKeyRedactor.Redact(pattern), correlationId);
 
         // Cross-instance invalidation via pub/sub
         if (broadcast && _options.EnablePubSubInvalidation && _pubSubProvider is not null)
@@ -174,11 +174,11 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
                 pattern,
                 cancellationToken).ConfigureAwait(false);
 
-            LogInvalidationBroadcast(_logger, pattern, _options.InvalidationChannel, correlationId);
+            LogInvalidationBroadcast(_logger, CacheKeyRedactor.Redact(pattern), _options.InvalidationChannel, correlationId);
         }
         catch (Exception ex)
         {
-            LogPubSubError(_logger, pattern, _options.InvalidationChannel, ex.ForLogging());
+            LogPubSubError(_logger, CacheKeyRedactor.Redact(pattern), _options.InvalidationChannel, ex.ForLogging());
 
             if (_options.ThrowOnCacheErrors)
             {

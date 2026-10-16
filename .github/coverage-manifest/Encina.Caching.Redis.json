@@ -18,7 +18,15 @@
     },
     "RedisCacheProvider.cs": {
       "defaultTests": ["unit", "guard", "integration"],
-      "reason": "Cache provider with 12 ThrowIfNull guards. Integration tests exercise with real Redis via Testcontainers."
+      "reason": "Cache provider with 12 ThrowIfNull guards. Integration tests exercise with real Redis via Testcontainers.",
+      "targets": {
+        "unit": 95,
+        "guard": 24
+      },
+      "justifications": {
+        "unit": "Measured 96%; the uncovered lines are the lock-key and server-selection error branches, which the integration tests exercise.",
+        "guard": "A guard test asserts every ArgumentNullException of the constructor and of each public method; the other lines of the provider run only past those guards and are the unit flag's."
+      }
     },
     "RedisDistributedLockProvider.cs": {
       "defaultTests": ["unit", "guard"],
@@ -26,7 +34,15 @@
     },
     "RedisPubSubProvider.cs": {
       "defaultTests": ["unit", "guard"],
-      "reason": "Pub/sub provider with 14 ThrowIfNull guards"
+      "reason": "Pub/sub provider with 14 ThrowIfNull guards",
+      "targets": {
+        "unit": 88,
+        "guard": 26
+      },
+      "justifications": {
+        "unit": "Measured 88.5%; the uncovered lines are the live subscriber message callbacks that need a real Redis, exercised by the Redis integration tests.",
+        "guard": "Measured 26%. A guard test asserts every ArgumentNullException of the pub/sub provider's constructor and of each public method; the other lines of the provider run only past those guards and are the unit flag's."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": ["unit", "guard"],
