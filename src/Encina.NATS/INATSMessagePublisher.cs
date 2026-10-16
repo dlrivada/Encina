@@ -47,7 +47,7 @@ public interface INATSMessagePublisher
     /// <typeparam name="TMessage">The type of the message.</typeparam>
     /// <param name="message">The message to publish.</param>
     /// <param name="subject">The subject. If null, derived from message type.</param>
-    /// <param name="messageId">The message id sent in the <c>Nats-Msg-Id</c> header, which JetStream uses to drop duplicates; a new id is generated only when null or empty.</param>
+    /// <param name="messageId">The message id sent in the <c>Nats-Msg-Id</c> header. JetStream drops a repeated id only inside the stream's <c>Duplicates</c> window (2 minutes by default), so this is not a permanent idempotency guarantee; a new id is generated only when null or empty.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Either a EncinaError or the publish acknowledgment.</returns>
     ValueTask<Either<EncinaError, NATSPublishAck>> JetStreamPublishAsync<TMessage>(

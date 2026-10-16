@@ -113,6 +113,16 @@ public sealed class KafkaPublisherMessageIdTests
     }
 
     [Fact]
+    public async Task ProduceWithHeadersAsync_CallerMessageTypeHeader_IsReplacedNotDuplicated()
+    {
+        await _publisher.ProduceWithHeadersAsync(
+            new Payload("a"),
+            new Dictionary<string, byte[]> { ["MessageType"] = Encoding.UTF8.GetBytes("caller") });
+
+        _sent!.Headers.Count(h => h.Key == "MessageType").ShouldBe(1);
+    }
+
+    [Fact]
     public async Task ProduceWithHeadersAsync_WithoutMessageId_GeneratesANewGuid()
     {
         await _publisher.ProduceWithHeadersAsync(new Payload("a"), new Dictionary<string, byte[]>());

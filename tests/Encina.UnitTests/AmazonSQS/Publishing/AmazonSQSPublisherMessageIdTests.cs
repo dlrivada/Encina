@@ -83,6 +83,37 @@ public sealed class AmazonSQSPublisherMessageIdTests
         request.MessageAttributes["MessageId"].StringValue.ShouldBe("outbox-4");
     }
 
+    [Theory]
+    [InlineData("has space")]
+    [InlineData("café")]
+    public async Task SendToFifoQueueAsync_WithInvalidCharacters_ReturnsErrorWithoutCallingAws(string id)
+    {
+        var result = await _publisher.SendToFifoQueueAsync(new Payload("a"), "group", messageId: id);
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe("SQS_INVALID_DEDUPLICATION_ID"));
+        _sqs.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task SendToFifoQueueAsync_WithTooLongDeduplicationId_ReturnsErrorWithoutCallingAws()
+    {
+        var result = await _publisher.SendToFifoQueueAsync(new Payload("a"), "group", deduplicationId: new string('x', 129));
+
+        result.IsLeft.ShouldBeTrue();
+        _sqs.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task SendToFifoQueueAsync_WithMaximumLengthId_IsAccepted()
+    {
+        var id = new string('x', 128);
+
+        await _publisher.SendToFifoQueueAsync(new Payload("a"), "group", messageId: id);
+
+        SentSqsRequest().MessageDeduplicationId.ShouldBe(id);
+    }
+
     [Fact]
     public async Task SendToFifoQueueAsync_WithoutAnyId_LeavesDeduplicationToTheQueue()
     {

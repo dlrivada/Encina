@@ -31,4 +31,18 @@ public sealed class KafkaRegistrationFactoryTests
         producer.ShouldNotBeNull();
         producer.Dispose();
     }
+
+    [Fact]
+    public void AddEncinaKafka_WithRealProducerFactory_BuildsWithScopeAndBuildValidation()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaKafka(o => o.BootstrapServers = "localhost:1");
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        using var scope = provider.CreateScope();
+
+        scope.ServiceProvider.GetRequiredService<IKafkaMessagePublisher>().ShouldNotBeNull();
+    }
 }

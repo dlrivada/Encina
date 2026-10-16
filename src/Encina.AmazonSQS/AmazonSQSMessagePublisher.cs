@@ -49,6 +49,12 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
     internal const string MessageIdAttribute = "MessageId";
 
+    private const int MaxDeduplicationIdLength = 128;
+
+    // SQS allows alphanumerics and punctuation, which is every printable ASCII character except the space.
+    private static bool IsValidDeduplicationId(string id) =>
+        id.Length is > 0 and <= MaxDeduplicationIdLength && id.All(c => c is > ' ' and <= '~');
+
     private static string ResolveMessageId(string? messageId) =>
         string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId;
 
@@ -274,6 +280,16 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
                     "Queue URL is not configured."));
         }
 
+        var effectiveDeduplicationId = deduplicationId ?? (string.IsNullOrEmpty(messageId) ? null : messageId);
+
+        if (effectiveDeduplicationId is not null && !IsValidDeduplicationId(effectiveDeduplicationId))
+        {
+            return Left<EncinaError, string>( // NOSONAR S6966: LanguageExt Left is a pure function
+                EncinaErrors.Create(
+                    "SQS_INVALID_DEDUPLICATION_ID",
+                    $"A FIFO deduplication id must be 1 to {MaxDeduplicationIdLength} printable ASCII characters without spaces."));
+        }
+
         try
         {
             Log.SendingFifoMessage(_logger, typeof(TMessage).Name, effectiveQueueUrl, messageGroupId);
@@ -283,7 +299,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
                 QueueUrl = effectiveQueueUrl,
                 MessageBody = JsonSerializer.Serialize(message),
                 MessageGroupId = messageGroupId,
-                MessageDeduplicationId = deduplicationId ?? (string.IsNullOrEmpty(messageId) ? null : messageId),
+                MessageDeduplicationId = effectiveDeduplicationId,
                 MessageAttributes = new Dictionary<string, SqsMessageAttributeValue>
                 {
                     ["MessageType"] = new()

@@ -61,5 +61,21 @@ public sealed class RedisPubSubPublisherTimeAndMessageIdTests
         Guid.TryParse(SentEnvelope().GetProperty("MessageId").GetString(), out _).ShouldBeTrue();
     }
 
+    [Fact]
+    public void AddEncinaRedisPubSub_RegistersTimeProviderAndPassesProviderValidation()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(Substitute.For<IConnectionMultiplexer>());
+        services.AddEncinaRedisPubSub();
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        using var scope = provider.CreateScope();
+
+        provider.GetRequiredService<TimeProvider>().ShouldBeSameAs(TimeProvider.System);
+        scope.ServiceProvider.GetRequiredService<IRedisPubSubMessagePublisher>().ShouldNotBeNull();
+    }
+
     private sealed record Payload(string Value);
 }

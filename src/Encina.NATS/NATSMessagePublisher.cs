@@ -63,7 +63,8 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher
 
     internal const string MessageIdHeader = "Nats-Msg-Id";
 
-    // Nats-Msg-Id is also the JetStream de-duplication key, so a supplied outbox id makes retries idempotent.
+    // Nats-Msg-Id is also the JetStream de-duplication key; duplicates are dropped only inside the stream's
+    // Duplicates window (2 minutes by default), so this is not a permanent idempotency guarantee.
     private static NatsHeaders CreateHeaders(string? messageId) => new()
     {
         [MessageIdHeader] = string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId

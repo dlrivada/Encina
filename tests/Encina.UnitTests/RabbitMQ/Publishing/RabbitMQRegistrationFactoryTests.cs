@@ -1,5 +1,6 @@
 using Encina.RabbitMQ;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 
 namespace Encina.UnitTests.RabbitMQ.Publishing;
 
@@ -21,7 +22,7 @@ public sealed class RabbitMQRegistrationFactoryTests
 
         using var provider = services.BuildServiceProvider();
 
-        Should.Throw<Exception>(() => provider.GetRequiredService<IConnection>());
+        Should.Throw<BrokerUnreachableException>(() => provider.GetRequiredService<IConnection>());
     }
 
     [Fact]

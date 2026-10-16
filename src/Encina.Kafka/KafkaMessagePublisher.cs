@@ -181,7 +181,8 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher
                 kafkaHeaders.Add(header.Key, header.Value);
             }
 
-            kafkaHeaders.Add("MessageType", System.Text.Encoding.UTF8.GetBytes(typeof(TMessage).FullName ?? typeof(TMessage).Name));
+            kafkaHeaders.Remove("MessageType");
+            kafkaHeaders.Add("MessageType",System.Text.Encoding.UTF8.GetBytes(typeof(TMessage).FullName ?? typeof(TMessage).Name));
             kafkaHeaders.Remove(MessageIdHeader);
             kafkaHeaders.Add(MessageIdHeader, System.Text.Encoding.UTF8.GetBytes(ResolveMessageId(messageId)));
 
