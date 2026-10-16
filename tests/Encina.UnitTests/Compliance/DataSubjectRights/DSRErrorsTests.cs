@@ -249,6 +249,21 @@ public class DSRErrorsTests
 
     #endregion
 
+    #region RejectionReasonNotEnabled Tests
+
+    [Fact]
+    public void RejectionReasonNotEnabled_ShouldReturnCodeAndNameReasonAndOption()
+    {
+        var error = DSRErrors.RejectionReasonNotEnabled(DSRRejectionReason.AbusiveIntent);
+
+        error.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.RejectionReasonNotEnabledCode);
+        DSRErrors.RejectionReasonNotEnabledCode.ShouldBe("dsr.rejection_reason_not_enabled");
+        error.Message.ShouldContain("AbusiveIntent");
+        error.Message.ShouldContain(nameof(DataSubjectRightsOptions.EnableOmnibusArticle12RefusalGrounds));
+    }
+
+    #endregion
+
     #region Error Code Constants Tests
 
     [Fact]

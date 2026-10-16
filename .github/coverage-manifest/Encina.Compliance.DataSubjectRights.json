@@ -1,7 +1,7 @@
 {
   "package": "Encina.Compliance.DataSubjectRights",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 62,
+  "totalFiles": 63,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -59,7 +59,19 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 85,
+        "property": 40,
+        "integration": 40
+      },
+      "justifications": {
+        "unit": "Every transition and Apply branch is deterministic and testable in isolation.",
+        "guard": "Argument and state guards of each command are tested; the remaining lines are success paths.",
+        "property": "The Deny and Apply round trip is a property; the other commands are covered by examples.",
+        "integration": "The Marten round trip replays Submit, Deny and Apply through a real event store."
+      }
     },
     "Attributes/PersonalDataAttribute.cs": {
       "defaultTests": [
@@ -82,7 +94,13 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO — defaults verification"
+      "reason": "Configuration POCO — defaults verification",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "The options are plain properties with defaults and each one is asserted."
+      }
     },
     "DataSubjectRightsOptionsValidator.cs": {
       "defaultTests": [
@@ -107,7 +125,19 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "contract": 70,
+        "property": 60,
+        "integration": 60
+      },
+      "justifications": {
+        "unit": "Counters, tags and activity helpers are pure and driven by listener-based tests.",
+        "contract": "Contract tests run the service paths that start activities and count outcomes.",
+        "property": "Property tests run the deny path that counts and traces refusals.",
+        "integration": "The Marten tests run the service paths that record outcomes."
+      }
     },
     "Diagnostics/DSRLogMessages.cs": {
       "defaultTests": [],
@@ -143,7 +173,13 @@
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "Every factory is a pure function asserted for its code and message."
+      }
     },
     "DSRMartenExtensions.cs": {
       "defaultTests": [
@@ -175,7 +211,13 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 70
+      },
+      "justifications": {
+        "unit": "The denied event is built and read by the aggregate and projection tests; compiler-generated record members stay partly uncovered."
+      }
     },
     "Export/CsvExportFormatWriter.cs": {
       "defaultTests": [
@@ -249,13 +291,35 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Model/DSRRequest.cs": {
+    "Model/DSRRejectionReason.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "The enum declaration has no executable lines; its values are exercised through the extension, aggregate and service tests."
+      }
+    },
+    "Model/DSRRejectionReasonExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Both extension properties are pure and every enum member is a test case.",
+        "guard": "The extension takes no reference-type argument, so there is no null guard to test."
+      }
     },
     "Model/DSRRequestStatus.cs": {
       "defaultTests": [
@@ -406,7 +470,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "integration": 40
+      },
+      "justifications": {
+        "unit": "Each Apply handler is a pure function of the event and the read model.",
+        "integration": "The Marten inline projection runs Create and the denied handler against PostgreSQL."
+      }
     },
     "Projections/DSRRequestReadModel.cs": {
       "defaultTests": [
@@ -414,7 +486,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "integration": 80
+      },
+      "justifications": {
+        "unit": "The read model is plain properties set by the projection tests.",
+        "integration": "The read model is stored and read through Marten in the round-trip tests."
+      }
     },
     "Requests/AccessRequest.cs": {
       "defaultTests": [
@@ -478,7 +558,21 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 70,
+        "guard": 5,
+        "contract": 20,
+        "property": 12,
+        "integration": 14
+      },
+      "justifications": {
+        "unit": "The deny path with validation, gate and telemetry is fully covered; handler operations this issue does not touch keep their existing coverage.",
+        "guard": "Only the constructor guards apply; method arguments are validated by the aggregate and the deny input check.",
+        "contract": "Contract tests drive the lifecycle commands on missing requests and the deny gate.",
+        "property": "Property tests drive the deny path for every current-law reason with both option values.",
+        "integration": "The service-level deny against PostgreSQL covers the load, deny and save path."
+      }
     },
     "SubjectIdConversion.cs": {
       "defaultTests": [

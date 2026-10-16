@@ -103,14 +103,22 @@ public sealed class DSRRequestReadModel : IReadModel
     public DateTimeOffset? ExtendedDeadlineAtUtc { get; set; }
 
     /// <summary>
-    /// Reason for denying the request.
+    /// Standardised reason code for denying the request.
     /// </summary>
     /// <remarks>
-    /// Required when <see cref="Status"/> is <see cref="DSRRequestStatus.Rejected"/>.
+    /// Set when <see cref="Status"/> is <see cref="DSRRequestStatus.Rejected"/>; <c>null</c> otherwise.
+    /// </remarks>
+    public DSRRejectionReason? RejectionReason { get; set; }
+
+    /// <summary>
+    /// Explanation of the denial given to the data subject.
+    /// </summary>
+    /// <remarks>
+    /// Set when <see cref="Status"/> is <see cref="DSRRequestStatus.Rejected"/>.
     /// The controller must provide reasons, inform about complaint rights (Article 77),
     /// and judicial remedy rights (Article 79) as required by Article 12(4).
     /// </remarks>
-    public string? RejectionReason { get; set; }
+    public string? RejectionExplanation { get; set; }
 
     /// <summary>
     /// Additional details or context provided by the data subject with the request.

@@ -134,7 +134,7 @@ public sealed class DSRRequestProjection :
     /// Updates the read model when the DSR request is denied.
     /// </summary>
     /// <remarks>
-    /// Sets status to <see cref="DSRRequestStatus.Rejected"/> and records the denial reason.
+    /// Sets status to <see cref="DSRRequestStatus.Rejected"/> and records the denial reason code and explanation.
     /// Per GDPR Article 12(4), the controller must inform the data subject of the reasons,
     /// their right to lodge a complaint (Article 77), and judicial remedy rights (Article 79).
     /// </remarks>
@@ -146,6 +146,7 @@ public sealed class DSRRequestProjection :
     {
         current.Status = DSRRequestStatus.Rejected;
         current.RejectionReason = domainEvent.RejectionReason;
+        current.RejectionExplanation = domainEvent.RejectionExplanation;
         current.CompletedAtUtc = domainEvent.DeniedAtUtc;
         current.LastModifiedAtUtc = domainEvent.DeniedAtUtc;
         current.Version++;

@@ -13,6 +13,7 @@ using Encina.Marten.Projections;
 using LanguageExt;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using static LanguageExt.Prelude;
 
@@ -51,6 +52,7 @@ internal sealed class DefaultDSRService : IDSRService
     private readonly IDataPortabilityExporter _portabilityExporter;
     private readonly IProcessingActivityRegistry _processingActivityRegistry;
     private readonly ICacheProvider _cache;
+    private readonly DataSubjectRightsOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DefaultDSRService> _logger;
     private readonly IEncina? _encina;
@@ -66,6 +68,7 @@ internal sealed class DefaultDSRService : IDSRService
         IDataPortabilityExporter portabilityExporter,
         IProcessingActivityRegistry processingActivityRegistry,
         ICacheProvider cache,
+        IOptions<DataSubjectRightsOptions> options,
         TimeProvider timeProvider,
         ILogger<DefaultDSRService> logger,
         IEncina? encina = null)
@@ -77,6 +80,7 @@ internal sealed class DefaultDSRService : IDSRService
         ArgumentNullException.ThrowIfNull(portabilityExporter);
         ArgumentNullException.ThrowIfNull(processingActivityRegistry);
         ArgumentNullException.ThrowIfNull(cache);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
@@ -87,6 +91,7 @@ internal sealed class DefaultDSRService : IDSRService
         _portabilityExporter = portabilityExporter;
         _processingActivityRegistry = processingActivityRegistry;
         _cache = cache;
+        _options = options.Value;
         _timeProvider = timeProvider;
         _logger = logger;
         _encina = encina;
@@ -264,11 +269,54 @@ internal sealed class DefaultDSRService : IDSRService
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, Unit>> DenyRequestAsync(
         Guid requestId,
-        string rejectionReason,
+        DSRRejectionReason rejectionReason,
+        string rejectionExplanation,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Denying DSR request '{RequestId}'", requestId);
+        using var activity = DataSubjectRightsDiagnostics.StartAggregateCommand("Deny", requestId);
+        activity?.SetTag(DataSubjectRightsDiagnostics.TagRejectionReason, rejectionReason.ToString());
 
+        Either<EncinaError, Unit> result = ValidateDenyInput(rejectionReason, rejectionExplanation) is { } invalid
+            ? invalid
+            : await DenyCoreAsync(requestId, rejectionReason, rejectionExplanation, activity, cancellationToken);
+
+        result.IfRight(_ => DataSubjectRightsDiagnostics.RecordCompleted(activity));
+        result.IfLeft(error => DataSubjectRightsDiagnostics.RecordFailed(activity, error.GetCode().IfNone("encina.unknown")));
+        return result;
+    }
+
+    /// <summary>
+    /// Validates the input of a denial at the service boundary: a defined reason, a non-blank
+    /// explanation and, for a draft-law ground, the option that enables it.
+    /// </summary>
+    private EncinaError? ValidateDenyInput(DSRRejectionReason rejectionReason, string rejectionExplanation)
+    {
+        if (!Enum.IsDefined(rejectionReason))
+        {
+            return DSRErrors.InvalidRequest("The rejection reason is not a defined value.");
+        }
+
+        if (string.IsNullOrWhiteSpace(rejectionExplanation))
+        {
+            return DSRErrors.InvalidRequest("A rejection explanation is required.");
+        }
+
+        if (rejectionReason.IsDraftLawGround && !_options.EnableOmnibusArticle12RefusalGrounds)
+        {
+            _logger.DSRRejectionReasonNotEnabled(rejectionReason.ToString());
+            return DSRErrors.RejectionReasonNotEnabled(rejectionReason);
+        }
+
+        return null;
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> DenyCoreAsync(
+        Guid requestId,
+        DSRRejectionReason rejectionReason,
+        string rejectionExplanation,
+        Activity? activity,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var loadResult = await _repository.LoadAsync(requestId, cancellationToken);
@@ -277,14 +325,13 @@ internal sealed class DefaultDSRService : IDSRService
                 RightAsync: async aggregate =>
                 {
                     var deniedAtUtc = _timeProvider.GetUtcNow();
-                    aggregate.Deny(rejectionReason, deniedAtUtc);
+                    aggregate.Deny(rejectionReason, rejectionExplanation, deniedAtUtc);
                     var saveResult = await _repository.SaveAsync(aggregate, cancellationToken);
 
                     return saveResult.Match<Either<EncinaError, Unit>>(
                         Right: _ =>
                         {
-                            InvalidateRequestCache(requestId);
-                            InvalidateRestrictionCache(aggregate.SubjectId);
+                            OnRequestDenied(aggregate, rejectionReason, activity);
                             return Unit.Default;
                         },
                         Left: error => error);
@@ -301,6 +348,19 @@ internal sealed class DefaultDSRService : IDSRService
             _logger.DSRServiceError("DenyRequest", ex.GetType().Name, ex.ForLogging());
             return DSRErrors.ServiceError("DenyRequest", ex);
         }
+    }
+
+    private void OnRequestDenied(DSRRequestAggregate aggregate, DSRRejectionReason rejectionReason, Activity? activity)
+    {
+        if (aggregate.TenantId is not null)
+        {
+            activity?.SetTag(DataSubjectRightsDiagnostics.TagTenantId, aggregate.TenantId);
+        }
+
+        DataSubjectRightsDiagnostics.RecordDenied(rejectionReason, aggregate.RightType);
+        _logger.DSRRequestDenied(aggregate.RightType.ToString(), rejectionReason.ToString());
+        InvalidateRequestCache(aggregate.Id);
+        InvalidateRestrictionCache(aggregate.SubjectId);
     }
 
     /// <inheritdoc />

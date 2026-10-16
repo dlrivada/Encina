@@ -8,6 +8,7 @@ using Encina.Marten;
 using Encina.Marten.Projections;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using NSubstitute;
 
@@ -31,6 +32,7 @@ public class DefaultDSRServiceMethodGuardTests
             Substitute.For<IDataPortabilityExporter>(),
             Substitute.For<IProcessingActivityRegistry>(),
             Substitute.For<ICacheProvider>(),
+            Options.Create(new DataSubjectRightsOptions()),
             TimeProvider.System,
             NullLogger<DefaultDSRService>.Instance);
     }

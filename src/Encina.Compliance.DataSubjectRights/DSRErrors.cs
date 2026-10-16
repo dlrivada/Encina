@@ -71,6 +71,9 @@ public static class DSRErrors
     /// <summary>Error code when a DSR request is invalid.</summary>
     public const string InvalidRequestCode = "dsr.invalid_request";
 
+    /// <summary>Error code when a draft-law rejection reason is used while its option is off.</summary>
+    public const string RejectionReasonNotEnabledCode = "dsr.rejection_reason_not_enabled";
+
     /// <summary>Error code when a DSR service operation fails unexpectedly.</summary>
     public const string ServiceErrorCode = "dsr.service_error";
 
@@ -375,6 +378,23 @@ public static class DSRErrors
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyStageDSR] = MetadataKeyStageDSR
+            });
+
+    /// <summary>
+    /// Creates an error when a draft-law rejection reason is used while
+    /// <see cref="DataSubjectRightsOptions.EnableOmnibusArticle12RefusalGrounds"/> is off.
+    /// </summary>
+    /// <param name="reason">The rejection reason that is not enabled.</param>
+    /// <returns>An error naming the reason and the option, never the data subject.</returns>
+    public static EncinaError RejectionReasonNotEnabled(DSRRejectionReason reason) =>
+        EncinaErrors.Create(
+            code: RejectionReasonNotEnabledCode,
+            message: $"Rejection reason '{reason}' is draft law ({reason.LegalBasis}) and is not enabled. " +
+                $"Set {nameof(DataSubjectRightsOptions)}.{nameof(DataSubjectRightsOptions.EnableOmnibusArticle12RefusalGrounds)} to accept it.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStageDSR] = MetadataKeyStageDSR,
+                ["rejectionReason"] = reason.ToString()
             });
 
     /// <summary>

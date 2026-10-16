@@ -8,6 +8,7 @@ using Encina.Marten;
 using Encina.Marten.Projections;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using NSubstitute;
 
@@ -28,6 +29,7 @@ public class DefaultDSRServiceGuardTests
     private readonly IProcessingActivityRegistry _processingActivityRegistry =
         Substitute.For<IProcessingActivityRegistry>();
     private readonly ICacheProvider _cache = Substitute.For<ICacheProvider>();
+    private readonly IOptions<DataSubjectRightsOptions> _options = Options.Create(new DataSubjectRightsOptions());
 
     #region Constructor Guard Tests
 
@@ -37,7 +39,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             null!, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("repository");
@@ -49,7 +51,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, null!, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("readModelRepository");
@@ -61,7 +63,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, null!, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("locator");
@@ -73,7 +75,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, null!,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("erasureExecutor");
@@ -85,7 +87,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             null!, _processingActivityRegistry, _cache,
-            TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("portabilityExporter");
@@ -97,7 +99,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, null!, _cache,
-            TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("processingActivityRegistry");
@@ -109,10 +111,22 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, null!,
-            TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("cache");
+    }
+
+    [Fact]
+    public void Constructor_NullOptions_ThrowsArgumentNullException()
+    {
+        var act = () => new DefaultDSRService(
+            _repository, _readModelRepository, _locator, _erasureExecutor,
+            _portabilityExporter, _processingActivityRegistry, _cache,
+            null!, TimeProvider.System, NullLogger<DefaultDSRService>.Instance);
+
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -121,7 +135,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            null!, NullLogger<DefaultDSRService>.Instance);
+            _options, null!, NullLogger<DefaultDSRService>.Instance);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("timeProvider");
@@ -133,7 +147,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            TimeProvider.System, null!);
+            _options, TimeProvider.System, null!);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("logger");
@@ -145,7 +159,7 @@ public class DefaultDSRServiceGuardTests
         var act = () => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            TimeProvider.System, NullLogger<DefaultDSRService>.Instance, encina: null);
+            _options, TimeProvider.System, NullLogger<DefaultDSRService>.Instance, encina: null);
 
         Should.NotThrow(act);
     }

@@ -28,33 +28,18 @@ Encina.Compliance.DataSubjectRights.DSRAuditEntry.OccurredAtUtc.init -> void
 Encina.Compliance.DataSubjectRights.DSRAuditEntry.PerformedByUserId.get -> string?
 Encina.Compliance.DataSubjectRights.DSRAuditEntry.PerformedByUserId.init -> void
 Encina.Compliance.DataSubjectRights.DSRErrors
-Encina.Compliance.DataSubjectRights.DSRRequest
-Encina.Compliance.DataSubjectRights.DSRRequest.CompletedAtUtc.get -> System.DateTimeOffset?
-Encina.Compliance.DataSubjectRights.DSRRequest.CompletedAtUtc.init -> void
-Encina.Compliance.DataSubjectRights.DSRRequest.DeadlineAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.DataSubjectRights.DSRRequest.DeadlineAtUtc.init -> void
-Encina.Compliance.DataSubjectRights.DSRRequest.ExtendedDeadlineAtUtc.get -> System.DateTimeOffset?
-Encina.Compliance.DataSubjectRights.DSRRequest.ExtendedDeadlineAtUtc.init -> void
-Encina.Compliance.DataSubjectRights.DSRRequest.ExtensionReason.get -> string?
-Encina.Compliance.DataSubjectRights.DSRRequest.ExtensionReason.init -> void
-Encina.Compliance.DataSubjectRights.DSRRequest.Id.get -> string!
-Encina.Compliance.DataSubjectRights.DSRRequest.Id.init -> void
-Encina.Compliance.DataSubjectRights.DSRRequest.ProcessedByUserId.get -> string?
-Encina.Compliance.DataSubjectRights.DSRRequest.ProcessedByUserId.init -> void
-Encina.Compliance.DataSubjectRights.DSRRequest.ReceivedAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.DataSubjectRights.DSRRequest.ReceivedAtUtc.init -> void
-Encina.Compliance.DataSubjectRights.DSRRequest.RejectionReason.get -> string?
-Encina.Compliance.DataSubjectRights.DSRRequest.RejectionReason.init -> void
-Encina.Compliance.DataSubjectRights.DSRRequest.RequestDetails.get -> string?
-Encina.Compliance.DataSubjectRights.DSRRequest.RequestDetails.init -> void
-Encina.Compliance.DataSubjectRights.DSRRequest.RightType.get -> Encina.Compliance.DataSubjectRights.DataSubjectRight
-Encina.Compliance.DataSubjectRights.DSRRequest.RightType.init -> void
-Encina.Compliance.DataSubjectRights.DSRRequest.Status.get -> Encina.Compliance.DataSubjectRights.DSRRequestStatus
-Encina.Compliance.DataSubjectRights.DSRRequest.Status.init -> void
-Encina.Compliance.DataSubjectRights.DSRRequest.SubjectId.get -> string!
-Encina.Compliance.DataSubjectRights.DSRRequest.SubjectId.init -> void
-Encina.Compliance.DataSubjectRights.DSRRequest.VerifiedAtUtc.get -> System.DateTimeOffset?
-Encina.Compliance.DataSubjectRights.DSRRequest.VerifiedAtUtc.init -> void
+Encina.Compliance.DataSubjectRights.DSRRejectionReason
+Encina.Compliance.DataSubjectRights.DSRRejectionReason.AbusiveIntent = 100 -> Encina.Compliance.DataSubjectRights.DSRRejectionReason
+Encina.Compliance.DataSubjectRights.DSRRejectionReason.Excessive = 2 -> Encina.Compliance.DataSubjectRights.DSRRejectionReason
+Encina.Compliance.DataSubjectRights.DSRRejectionReason.IdentityNotVerifiable = 3 -> Encina.Compliance.DataSubjectRights.DSRRejectionReason
+Encina.Compliance.DataSubjectRights.DSRRejectionReason.ManifestlyUnfounded = 1 -> Encina.Compliance.DataSubjectRights.DSRRejectionReason
+Encina.Compliance.DataSubjectRights.DSRRejectionReason.Other = 99 -> Encina.Compliance.DataSubjectRights.DSRRejectionReason
+Encina.Compliance.DataSubjectRights.DSRRejectionReason.RestrictedByLaw = 4 -> Encina.Compliance.DataSubjectRights.DSRRejectionReason
+Encina.Compliance.DataSubjectRights.DSRRejectionReason.RightNotApplicable = 5 -> Encina.Compliance.DataSubjectRights.DSRRejectionReason
+Encina.Compliance.DataSubjectRights.DSRRejectionReasonExtensions
+Encina.Compliance.DataSubjectRights.DSRRejectionReasonExtensions.extension(Encina.Compliance.DataSubjectRights.DSRRejectionReason)
+Encina.Compliance.DataSubjectRights.DSRRejectionReasonExtensions.extension(Encina.Compliance.DataSubjectRights.DSRRejectionReason).IsDraftLawGround.get -> bool
+Encina.Compliance.DataSubjectRights.DSRRejectionReasonExtensions.extension(Encina.Compliance.DataSubjectRights.DSRRejectionReason).LegalBasis.get -> string!
 Encina.Compliance.DataSubjectRights.DSRRequestStatus
 Encina.Compliance.DataSubjectRights.DSRRequestStatus.Completed = 3 -> Encina.Compliance.DataSubjectRights.DSRRequestStatus
 Encina.Compliance.DataSubjectRights.DSRRequestStatus.Expired = 6 -> Encina.Compliance.DataSubjectRights.DSRRequestStatus
@@ -293,6 +278,7 @@ const Encina.Compliance.DataSubjectRights.DSRErrors.InvalidRequestCode = "dsr.in
 const Encina.Compliance.DataSubjectRights.DSRErrors.LocatorFailedCode = "dsr.locator_failed" -> string!
 const Encina.Compliance.DataSubjectRights.DSRErrors.ObjectionRejectedCode = "dsr.objection_rejected" -> string!
 const Encina.Compliance.DataSubjectRights.DSRErrors.RectificationFailedCode = "dsr.rectification_failed" -> string!
+const Encina.Compliance.DataSubjectRights.DSRErrors.RejectionReasonNotEnabledCode = "dsr.rejection_reason_not_enabled" -> string!
 const Encina.Compliance.DataSubjectRights.DSRErrors.RequestAlreadyCompletedCode = "dsr.request_already_completed" -> string!
 const Encina.Compliance.DataSubjectRights.DSRErrors.RequestNotFoundCode = "dsr.request_not_found" -> string!
 const Encina.Compliance.DataSubjectRights.DSRErrors.RestrictionActiveCode = "dsr.restriction_active" -> string!
@@ -308,12 +294,12 @@ static Encina.Compliance.DataSubjectRights.DSRErrors.InvalidRequest(string! mess
 static Encina.Compliance.DataSubjectRights.DSRErrors.LocatorFailed(string! subjectId, string! message) -> Encina.EncinaError
 static Encina.Compliance.DataSubjectRights.DSRErrors.ObjectionRejected(string! subjectId, string! processingPurpose, string! reason) -> Encina.EncinaError
 static Encina.Compliance.DataSubjectRights.DSRErrors.RectificationFailed(string! subjectId, string! fieldName, string! message) -> Encina.EncinaError
+static Encina.Compliance.DataSubjectRights.DSRErrors.RejectionReasonNotEnabled(Encina.Compliance.DataSubjectRights.DSRRejectionReason reason) -> Encina.EncinaError
 static Encina.Compliance.DataSubjectRights.DSRErrors.RequestAlreadyCompleted(string! requestId) -> Encina.EncinaError
 static Encina.Compliance.DataSubjectRights.DSRErrors.RequestNotFound(string! requestId) -> Encina.EncinaError
 static Encina.Compliance.DataSubjectRights.DSRErrors.RestrictionActive(string! subjectId) -> Encina.EncinaError
 static Encina.Compliance.DataSubjectRights.DSRErrors.StoreError(string! operation, string! message) -> Encina.EncinaError
 static Encina.Compliance.DataSubjectRights.DSRErrors.SubjectNotFound(string! subjectId) -> Encina.EncinaError
-static Encina.Compliance.DataSubjectRights.DSRRequest.Create(string! id, string! subjectId, Encina.Compliance.DataSubjectRights.DataSubjectRight rightType, System.DateTimeOffset receivedAtUtc, string? requestDetails = null) -> Encina.Compliance.DataSubjectRights.DSRRequest!
 Encina.Compliance.DataSubjectRights.CompositePersonalDataLocator
 Encina.Compliance.DataSubjectRights.CompositePersonalDataLocator.CompositePersonalDataLocator(System.Collections.Generic.IEnumerable<Encina.Compliance.DataSubjectRights.IPersonalDataLocator!>! locators, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.DataSubjectRights.CompositePersonalDataLocator!>! logger) -> void
 Encina.Compliance.DataSubjectRights.CompositePersonalDataLocator.LocateAllDataAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.DataSubjectRights.PersonalDataLocation!>!>>
@@ -349,6 +335,8 @@ Encina.Compliance.DataSubjectRights.DataSubjectRightsOptions
 Encina.Compliance.DataSubjectRights.DataSubjectRightsOptions.DataSubjectRightsOptions() -> void
 Encina.Compliance.DataSubjectRights.DataSubjectRightsOptions.RestrictionEnforcementMode.get -> Encina.Compliance.DataSubjectRights.DSREnforcementMode
 Encina.Compliance.DataSubjectRights.DataSubjectRightsOptions.RestrictionEnforcementMode.set -> void
+Encina.Compliance.DataSubjectRights.DataSubjectRightsOptions.EnableOmnibusArticle12RefusalGrounds.get -> bool
+Encina.Compliance.DataSubjectRights.DataSubjectRightsOptions.EnableOmnibusArticle12RefusalGrounds.set -> void
 Encina.Compliance.DataSubjectRights.ProcessingRestrictionPipelineBehavior<TRequest, TResponse>
 Encina.Compliance.DataSubjectRights.ProcessingRestrictionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Compliance.DataSubjectRights.DataSubjectRightsOptions.AddHealthCheck.get -> bool
@@ -374,7 +362,7 @@ Encina.Compliance.DataSubjectRights.ServiceCollectionExtensions
 static Encina.Compliance.DataSubjectRights.ServiceCollectionExtensions.AddEncinaDataSubjectRights(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Compliance.DataSubjectRights.DataSubjectRightsOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Encina.Compliance.DataSubjectRights.Abstractions.IDSRService
 Encina.Compliance.DataSubjectRights.Abstractions.IDSRService.CompleteRequestAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.DataSubjectRights.Abstractions.IDSRService.DenyRequestAsync(System.Guid requestId, string! rejectionReason, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.DataSubjectRights.Abstractions.IDSRService.DenyRequestAsync(System.Guid requestId, Encina.Compliance.DataSubjectRights.DSRRejectionReason rejectionReason, string! rejectionExplanation, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Compliance.DataSubjectRights.Abstractions.IDSRService.ExpireRequestAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Compliance.DataSubjectRights.Abstractions.IDSRService.ExtendDeadlineAsync(System.Guid requestId, string! extensionReason, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Compliance.DataSubjectRights.Abstractions.IDSRService.GetOverdueRequestsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.DataSubjectRights.Projections.DSRRequestReadModel!>!>>
@@ -397,7 +385,7 @@ Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.DSRRequestAgg
 Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.CompletedAtUtc.get -> System.DateTimeOffset?
 Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.Complete(System.DateTimeOffset completedAtUtc) -> void
 Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.DeadlineAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.Deny(string! rejectionReason, System.DateTimeOffset deniedAtUtc) -> void
+Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.Deny(Encina.Compliance.DataSubjectRights.DSRRejectionReason rejectionReason, string! rejectionExplanation, System.DateTimeOffset deniedAtUtc) -> void
 Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.Expire(System.DateTimeOffset expiredAtUtc) -> void
 Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.Extend(string! extensionReason, System.DateTimeOffset extendedAtUtc) -> void
 Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.ExtendedDeadlineAtUtc.get -> System.DateTimeOffset?
@@ -407,7 +395,8 @@ Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.IsOverdue(Sys
 Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.ModuleId.get -> string?
 Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.ProcessedByUserId.get -> string?
 Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.ReceivedAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.RejectionReason.get -> string?
+Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.RejectionReason.get -> Encina.Compliance.DataSubjectRights.DSRRejectionReason?
+Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.RejectionExplanation.get -> string?
 Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.RequestDetails.get -> string?
 Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.RightType.get -> Encina.Compliance.DataSubjectRights.DataSubjectRight
 Encina.Compliance.DataSubjectRights.Aggregates.DSRRequestAggregate.StartProcessing(string? processedByUserId, System.DateTimeOffset startedAtUtc) -> void
@@ -470,13 +459,15 @@ Encina.Compliance.DataSubjectRights.Events.DSRRequestCompleted.RequestId.init ->
 Encina.Compliance.DataSubjectRights.Events.DSRRequestCompleted.TenantId.get -> string?
 Encina.Compliance.DataSubjectRights.Events.DSRRequestCompleted.TenantId.init -> void
 Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied
-Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied.DSRRequestDenied(System.Guid RequestId, string! RejectionReason, System.DateTimeOffset DeniedAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied.DSRRequestDenied(System.Guid RequestId, Encina.Compliance.DataSubjectRights.DSRRejectionReason RejectionReason, string! RejectionExplanation, System.DateTimeOffset DeniedAtUtc, string? TenantId, string? ModuleId) -> void
 Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied.DeniedAtUtc.get -> System.DateTimeOffset
 Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied.DeniedAtUtc.init -> void
 Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied.ModuleId.get -> string?
 Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied.ModuleId.init -> void
-Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied.RejectionReason.get -> string!
+Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied.RejectionReason.get -> Encina.Compliance.DataSubjectRights.DSRRejectionReason
 Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied.RejectionReason.init -> void
+Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied.RejectionExplanation.get -> string!
+Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied.RejectionExplanation.init -> void
 Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied.RequestId.get -> System.Guid
 Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied.RequestId.init -> void
 Encina.Compliance.DataSubjectRights.Events.DSRRequestDenied.TenantId.get -> string?
@@ -537,8 +528,10 @@ Encina.Compliance.DataSubjectRights.Projections.DSRRequestReadModel.ExtensionRea
 Encina.Compliance.DataSubjectRights.Projections.DSRRequestReadModel.ExtensionReason.set -> void
 Encina.Compliance.DataSubjectRights.Projections.DSRRequestReadModel.ExtendedDeadlineAtUtc.get -> System.DateTimeOffset?
 Encina.Compliance.DataSubjectRights.Projections.DSRRequestReadModel.ExtendedDeadlineAtUtc.set -> void
-Encina.Compliance.DataSubjectRights.Projections.DSRRequestReadModel.RejectionReason.get -> string?
+Encina.Compliance.DataSubjectRights.Projections.DSRRequestReadModel.RejectionReason.get -> Encina.Compliance.DataSubjectRights.DSRRejectionReason?
 Encina.Compliance.DataSubjectRights.Projections.DSRRequestReadModel.RejectionReason.set -> void
+Encina.Compliance.DataSubjectRights.Projections.DSRRequestReadModel.RejectionExplanation.get -> string?
+Encina.Compliance.DataSubjectRights.Projections.DSRRequestReadModel.RejectionExplanation.set -> void
 Encina.Compliance.DataSubjectRights.Projections.DSRRequestReadModel.RequestDetails.get -> string?
 Encina.Compliance.DataSubjectRights.Projections.DSRRequestReadModel.RequestDetails.set -> void
 Encina.Compliance.DataSubjectRights.Projections.DSRRequestReadModel.ProcessedByUserId.get -> string?

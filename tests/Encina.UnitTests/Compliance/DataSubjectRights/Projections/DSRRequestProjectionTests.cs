@@ -166,14 +166,16 @@ public class DSRRequestProjectionTests
         // Arrange
         var model = CreateDefaultReadModel();
         var deniedAt = Now.AddHours(1);
-        var @event = new DSRRequestDenied(DefaultId, "Manifestly unfounded", deniedAt, "tenant-1", "module-1");
+        var @event = new DSRRequestDenied(
+            DefaultId, DSRRejectionReason.Excessive, "Repeated three times", deniedAt, "tenant-1", "module-1");
 
         // Act
         var result = _projection.Apply(@event, model, DefaultContext);
 
         // Assert
         result.Status.ShouldBe(DSRRequestStatus.Rejected);
-        result.RejectionReason.ShouldBe("Manifestly unfounded");
+        result.RejectionReason.ShouldBe(DSRRejectionReason.Excessive);
+        result.RejectionExplanation.ShouldBe("Repeated three times");
         result.CompletedAtUtc.ShouldBe(deniedAt);
         result.LastModifiedAtUtc.ShouldBe(deniedAt);
         result.Version.ShouldBe(2);

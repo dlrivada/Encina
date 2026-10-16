@@ -343,11 +343,12 @@ public class DSRRequestAggregateTests
         var deniedAt = Now.AddHours(1);
 
         // Act
-        aggregate.Deny("Manifestly unfounded request", deniedAt);
+        aggregate.Deny(DSRRejectionReason.ManifestlyUnfounded, "Manifestly unfounded request", deniedAt);
 
         // Assert
         aggregate.Status.ShouldBe(DSRRequestStatus.Rejected);
-        aggregate.RejectionReason.ShouldBe("Manifestly unfounded request");
+        aggregate.RejectionReason.ShouldBe(DSRRejectionReason.ManifestlyUnfounded);
+        aggregate.RejectionExplanation.ShouldBe("Manifestly unfounded request");
         aggregate.CompletedAtUtc.ShouldBe(deniedAt);
     }
 
@@ -358,7 +359,7 @@ public class DSRRequestAggregateTests
         var aggregate = CreateVerifiedAggregate();
 
         // Act
-        aggregate.Deny("Cannot verify identity sufficiently", Now.AddHours(2));
+        aggregate.Deny(DSRRejectionReason.IdentityNotVerifiable, "Cannot verify identity sufficiently", Now.AddHours(2));
 
         // Assert
         aggregate.Status.ShouldBe(DSRRequestStatus.Rejected);
@@ -371,7 +372,7 @@ public class DSRRequestAggregateTests
         var aggregate = CreateInProgressAggregate();
 
         // Act
-        aggregate.Deny("Exemption applies", Now.AddDays(5));
+        aggregate.Deny(DSRRejectionReason.RightNotApplicable, "Exemption applies", Now.AddDays(5));
 
         // Assert
         aggregate.Status.ShouldBe(DSRRequestStatus.Rejected);
@@ -384,7 +385,7 @@ public class DSRRequestAggregateTests
         var aggregate = CreateExtendedAggregate();
 
         // Act
-        aggregate.Deny("No longer applicable", Now.AddDays(35));
+        aggregate.Deny(DSRRejectionReason.RestrictedByLaw, "No longer applicable", Now.AddDays(35));
 
         // Assert
         aggregate.Status.ShouldBe(DSRRequestStatus.Rejected);
@@ -397,23 +398,55 @@ public class DSRRequestAggregateTests
         var aggregate = CreateReceivedAggregate();
 
         // Act
-        aggregate.Deny("Reason", Now.AddHours(1));
+        aggregate.Deny(DSRRejectionReason.Excessive, "Reason", Now.AddHours(1));
 
         // Assert
-        aggregate.UncommittedEvents[^1].ShouldBeOfType<DSRRequestDenied>();
+        var denied = aggregate.UncommittedEvents[^1].ShouldBeOfType<DSRRequestDenied>();
+        denied.RejectionReason.ShouldBe(DSRRejectionReason.Excessive);
+        denied.RejectionExplanation.ShouldBe("Reason");
+    }
+
+    [Theory]
+    [InlineData(DSRRejectionReason.ManifestlyUnfounded)]
+    [InlineData(DSRRejectionReason.Excessive)]
+    [InlineData(DSRRejectionReason.IdentityNotVerifiable)]
+    [InlineData(DSRRejectionReason.RestrictedByLaw)]
+    [InlineData(DSRRejectionReason.RightNotApplicable)]
+    [InlineData(DSRRejectionReason.Other)]
+    [InlineData(DSRRejectionReason.AbusiveIntent)]
+    public void Deny_EveryDefinedReason_ShouldBeAccepted(DSRRejectionReason reason)
+    {
+        var aggregate = CreateReceivedAggregate();
+
+        aggregate.Deny(reason, "Explanation", Now.AddHours(1));
+
+        aggregate.RejectionReason.ShouldBe(reason);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(6)]
+    [InlineData(101)]
+    public void Deny_UndefinedReason_ShouldThrowArgumentOutOfRange(int value)
+    {
+        var aggregate = CreateReceivedAggregate();
+
+        Action act = () => aggregate.Deny((DSRRejectionReason)value, "Explanation", Now.AddHours(1));
+
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Deny_InvalidRejectionReason_ShouldThrow(string? reason)
+    public void Deny_InvalidRejectionExplanation_ShouldThrow(string? explanation)
     {
         // Arrange
         var aggregate = CreateReceivedAggregate();
 
         // Act
-        Action act = () => aggregate.Deny(reason!, Now.AddHours(1));
+        Action act = () => aggregate.Deny(DSRRejectionReason.Other, explanation!, Now.AddHours(1));
 
         // Assert
         Should.Throw<ArgumentException>(act);
@@ -429,7 +462,7 @@ public class DSRRequestAggregateTests
         var aggregate = CreateAggregateInStatus(terminalStatus);
 
         // Act
-        Action act = () => aggregate.Deny("Reason", Now.AddHours(1));
+        Action act = () => aggregate.Deny(DSRRejectionReason.Other, "Reason", Now.AddHours(1));
 
         // Assert
         Should.Throw<InvalidOperationException>(act).Message.ShouldContain($"'{terminalStatus}'");
@@ -683,7 +716,7 @@ public class DSRRequestAggregateTests
     {
         // Arrange
         var aggregate = CreateReceivedAggregate();
-        aggregate.Deny("Reason", Now.AddHours(1));
+        aggregate.Deny(DSRRejectionReason.Other, "Reason", Now.AddHours(1));
 
         // Act / Assert
         aggregate.IsOverdue(Now.AddDays(31)).ShouldBeFalse();
@@ -769,7 +802,7 @@ public class DSRRequestAggregateTests
         var aggregate = DSRRequestAggregate.Submit(
             DefaultId, "subject-1", DataSubjectRight.Objection, Now);
 
-        aggregate.Deny("Manifestly unfounded", Now.AddHours(1));
+        aggregate.Deny(DSRRejectionReason.ManifestlyUnfounded, "Manifestly unfounded", Now.AddHours(1));
 
         // Assert
         aggregate.Status.ShouldBe(DSRRequestStatus.Rejected);
@@ -847,7 +880,7 @@ public class DSRRequestAggregateTests
     private static DSRRequestAggregate CreateRejectedAggregate()
     {
         var aggregate = CreateReceivedAggregate();
-        aggregate.Deny("Manifestly unfounded", Now.AddHours(1));
+        aggregate.Deny(DSRRejectionReason.ManifestlyUnfounded, "Manifestly unfounded", Now.AddHours(1));
         return aggregate;
     }
 

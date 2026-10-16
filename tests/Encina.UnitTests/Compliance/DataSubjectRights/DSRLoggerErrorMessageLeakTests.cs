@@ -328,6 +328,7 @@ public sealed class DSRLoggerErrorMessageLeakTests
             Substitute.For<IDataPortabilityExporter>(),
             registry ?? Substitute.For<IProcessingActivityRegistry>(),
             Substitute.For<ICacheProvider>(),
+            Microsoft.Extensions.Options.Options.Create(new DataSubjectRightsOptions()),
             new FakeTimeProvider(),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<DefaultDSRService>.Instance,
             encina);

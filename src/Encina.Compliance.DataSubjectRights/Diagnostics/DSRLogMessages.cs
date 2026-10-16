@@ -64,6 +64,25 @@ internal static partial class DSRLogMessages
     internal static partial void DSRHealthCheckCompleted(this ILogger logger, string status, int overdueRequestCount);
 
     // ========================================================================
+    // Refusal of a request (8311-8312)
+    // Event IDs: 8311-8312 (see EventIdRanges.ComplianceDSR)
+    // ========================================================================
+
+    /// <summary>DSR request denied with a standardised reason code.</summary>
+    [LoggerMessage(
+        EventId = 8311,
+        Level = LogLevel.Information,
+        Message = "DSR request denied. RightType={RightType}, RejectionReason={RejectionReason}")]
+    internal static partial void DSRRequestDenied(this ILogger logger, string rightType, string rejectionReason);
+
+    /// <summary>A draft-law rejection reason was used while its option is off.</summary>
+    [LoggerMessage(
+        EventId = 8312,
+        Level = LogLevel.Warning,
+        Message = "DSR rejection reason is draft law and not enabled. RejectionReason={RejectionReason}")]
+    internal static partial void DSRRejectionReasonNotEnabled(this ILogger logger, string rejectionReason);
+
+    // ========================================================================
     // Service lifecycle (8320-8329)
     // ========================================================================
 

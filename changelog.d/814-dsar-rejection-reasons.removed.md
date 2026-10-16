@@ -1,0 +1,1 @@
+- `Encina.Compliance.DataSubjectRights`: the unused pre-Marten `DSRRequest` record was removed; the Marten read model `DSRRequestReadModel` is the query shape (#814).
