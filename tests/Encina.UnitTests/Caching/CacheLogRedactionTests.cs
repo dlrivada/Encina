@@ -210,9 +210,10 @@ public sealed class CacheLogRedactionTests
             ["shard-1"],
             $"t:{TenantId}:u:{UserId}:report",
             (_, _) => throw new InvalidOperationException("not reached"));
+        await sut.ExecuteAllCachedAsync<string>($"t:{TenantId}:u:{UserId}:all", (_, _) => throw new InvalidOperationException("not reached"));
         await sut.InvalidateAsync($"t:{TenantId}:*");
 
-        logger.Collector.GetSnapshot().Count.ShouldBe(2);
+        logger.Collector.GetSnapshot().Count.ShouldBe(3);
         ShouldHoldNoIdentifier(logger);
     }
 
