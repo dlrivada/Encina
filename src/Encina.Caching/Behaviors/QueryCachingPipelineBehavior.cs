@@ -132,20 +132,28 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
     // identity bypasses the cache (no read, no write).
     private bool ShouldUseCache(IRequestContext context, RequestIdentity? identity)
     {
-        if (!_options.EnableQueryCaching || CacheAttribute is null)
+        return _options.EnableQueryCaching
+            && CacheAttribute is not null
+            && TenantAllowsCache(context)
+            && UserAllowsCache(identity);
+    }
+
+    // Fail closed for the cache, not the query: with multi-tenancy on, a tenant-scoped entry
+    // without a tenant would be the tenant-less key shared by every tenant's callers.
+    private bool TenantAllowsCache(IRequestContext context)
+    {
+        if (!CacheAttribute!.VaryByTenant || !_multiTenant || !string.IsNullOrWhiteSpace(context.TenantId))
         {
-            return false;
+            return true;
         }
 
-        // Fail closed for the cache, not the query: with multi-tenancy on, a tenant-scoped entry
-        // without a tenant would be the tenant-less key shared by every tenant's callers.
-        if (CacheAttribute.VaryByTenant && _multiTenant && string.IsNullOrWhiteSpace(context.TenantId))
-        {
-            LogTenantMissingBypassed(_logger, typeof(TRequest).Name);
-            return false;
-        }
+        LogTenantMissingBypassed(_logger, typeof(TRequest).Name);
+        return false;
+    }
 
-        if (!CacheAttribute.VaryByUser || CacheUserIdentity.IsUser(identity))
+    private bool UserAllowsCache(RequestIdentity? identity)
+    {
+        if (!CacheAttribute!.VaryByUser || CacheUserIdentity.IsUser(identity))
         {
             return true;
         }
