@@ -465,6 +465,39 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
     }
 
     [Fact]
+    public void Read_DecryptionSuppressed_KeepsTokensAndFetchesNoKey()
+    {
+        var real = new InMemorySubjectKeyProvider(new FakeTimeProvider(), NullLogger<InMemorySubjectKeyProvider>.Instance);
+        using var writer = new CryptoHarness(real);
+        var json = writer.Serializer.ToJson(Nested(Subject));
+
+        NestedEvent read;
+        using (global::Encina.Marten.EventReadScope.SuppressDecryption())
+        {
+            read = _harness.FromJson<NestedEvent>(json);
+        }
+
+        read.Contact!.Email.ShouldStartWith(CryptoShreddingToken.Prefix);
+        _keys.ReceivedCalls().ShouldBeEmpty();
+        global::Encina.Marten.EventReadScope.IsDecryptionSuppressed.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task ReadAsync_DecryptionSuppressed_KeepsTokensAndFetchesNoKey()
+    {
+        var real = new InMemorySubjectKeyProvider(new FakeTimeProvider(), NullLogger<InMemorySubjectKeyProvider>.Instance);
+        using var writer = new CryptoHarness(real);
+        var json = writer.Serializer.ToJson(Nested(Subject));
+
+        using var suppressed = global::Encina.Marten.EventReadScope.SuppressDecryption();
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
+        var read = await _harness.Serializer.FromJsonAsync<NestedEvent>(stream);
+
+        read.Contact!.Email.ShouldStartWith(CryptoShreddingToken.Prefix);
+        _keys.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
     public void ImplicitScope_OptionsUsedOutsideTheSerializer_StillEncryptAndDecrypt()
     {
         var real = new InMemorySubjectKeyProvider(new FakeTimeProvider(), NullLogger<InMemorySubjectKeyProvider>.Instance);

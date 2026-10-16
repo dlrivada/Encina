@@ -44,6 +44,7 @@ public sealed class CryptoShreddingNestedIntegrationTests : IAsyncLifetime
             opts.Connection(_fixture.ConnectionString);
             opts.DatabaseSchemaName = _schema;
             opts.AutoCreateSchemaObjects = AutoCreate.All;
+            opts.Events.MetadataConfig.CorrelationIdEnabled = true;
         }).UseLightweightSessions();
         services.AddEncinaDataSubjectRights();
         services.AddEncinaMartenGdpr(o =>
@@ -167,6 +168,51 @@ public sealed class CryptoShreddingNestedIntegrationTests : IAsyncLifetime
         {
             (await session.LoadAsync<VisitReadModel>(document.Id))!.Contact!.Email.ShouldBe("[REDACTED]");
         }
+    }
+
+    [Fact]
+    public async Task MetadataReaders_ReadWithoutDecrypting_SoAnUndecryptableEventDoesNotBlockThem()
+    {
+        var subject = $"patient-{Guid.NewGuid():N}";
+        var streamId = Guid.NewGuid();
+        var correlationId = $"corr-{Guid.NewGuid():N}";
+        await using (var session = _store.LightweightSession())
+        {
+            session.CorrelationId = correlationId;
+            session.Events.Append(streamId, NestedVisit(subject, therapist: null));
+            await session.SaveChangesAsync();
+        }
+
+        Guid eventId;
+        await using (var session = _store.QuerySession())
+        {
+            eventId = (await session.Events.FetchStreamAsync(streamId)).Single().Id;
+        }
+
+        await CorruptStoredTokenAsync(streamId);
+        await Should.ThrowAsync<Exception>(() => FetchAsync(streamId));
+
+        var query = new global::Encina.Marten.MartenEventMetadataQuery(_store, NullLogger<global::Encina.Marten.MartenEventMetadataQuery>.Instance);
+        var byId = await query.GetEventByIdAsync(eventId);
+        var byCorrelation = await query.GetEventsByCorrelationIdAsync(correlationId);
+        var chain = await query.GetCausalChainAsync(eventId);
+
+        byId.IsRight.ShouldBeTrue();
+        byId.IfRight(e => e.Data.ShouldBeOfType<NestedVisitRecorded>().Contact!.Email.ShouldBe("cs2:garbage"));
+        byCorrelation.IsRight.ShouldBeTrue();
+        byCorrelation.IfRight(r => r.Events.Single().Id.ShouldBe(eventId));
+        chain.IsRight.ShouldBeTrue();
+        chain.IfRight(c => c.Single().Id.ShouldBe(eventId));
+    }
+
+    private async Task CorruptStoredTokenAsync(Guid streamId)
+    {
+        await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"update {_schema}.mt_events set data = jsonb_set(data, '{{Contact,Email}}', '\"cs2:garbage\"') where stream_id = @streamId";
+        command.Parameters.AddWithValue("streamId", streamId);
+        await command.ExecuteNonQueryAsync();
     }
 
     private static NestedVisitRecorded NestedVisit(string subject, string? therapist) => new()

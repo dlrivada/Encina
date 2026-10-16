@@ -115,18 +115,55 @@ internal sealed class CryptoShreddingStartupValidationHostedService : IHostedLif
         }
     }
 
+    // Last registration wins, so with several locators the resolved one must aggregate all the others; otherwise
+    // the shadowed locators are silently left out of access and erasure (fail closed).
     private void CheckLocator(IServiceProvider scoped)
     {
-        var resolved = scoped.GetService<IPersonalDataLocator>();
-        if (scoped.GetServices<IPersonalDataLocator>().Count() > 1 && !IncludesMartenLocator(resolved))
+        var registered = scoped.GetServices<IPersonalDataLocator>().ToList();
+        if (registered.Count <= 1)
         {
-            throw Infrastructure(CryptoShreddingConfigurationProblem.PersonalDataLocatorBypassed, resolved!.GetType());
+            return;
+        }
+
+        var missing = MissingLocatorTypes(scoped.GetService<IPersonalDataLocator>(), registered);
+        if (missing.Count > 0)
+        {
+            throw Infrastructure(
+                CryptoShreddingConfigurationProblem.PersonalDataLocatorBypassed,
+                string.Join(", ", missing.Select(type => type.FullName ?? type.Name)));
         }
     }
 
-    internal static bool IncludesMartenLocator(IPersonalDataLocator? locator) =>
-        locator is MartenEventPersonalDataLocator
-        || (locator is CompositePersonalDataLocator composite && composite.Locators.Any(l => l is MartenEventPersonalDataLocator));
+    /// <summary>
+    /// Returns the registered locator types (composites aside) that the resolved locator does not reach, directly
+    /// or through nested composites.
+    /// </summary>
+    internal static IReadOnlyList<Type> MissingLocatorTypes(IPersonalDataLocator? resolved, IEnumerable<IPersonalDataLocator> registered)
+    {
+        var reachable = new HashSet<Type>();
+        CollectReachable(resolved, reachable);
+        return [.. registered
+            .Select(locator => locator.GetType())
+            .Where(type => type != typeof(CompositePersonalDataLocator) && !reachable.Contains(type))
+            .Distinct()];
+    }
+
+    private static void CollectReachable(IPersonalDataLocator? locator, HashSet<Type> reachable)
+    {
+        if (locator is null)
+        {
+            return;
+        }
+
+        reachable.Add(locator.GetType());
+        if (locator is CompositePersonalDataLocator composite)
+        {
+            foreach (var inner in composite.Locators)
+            {
+                CollectReachable(inner, reachable);
+            }
+        }
+    }
 
     private void WarnInMemoryKeyStore(IServiceProvider scoped)
     {
@@ -136,9 +173,11 @@ internal sealed class CryptoShreddingStartupValidationHostedService : IHostedLif
         }
     }
 
-    private CryptoShreddingConfigurationException Infrastructure(CryptoShreddingConfigurationProblem problem, Type component)
+    private CryptoShreddingConfigurationException Infrastructure(CryptoShreddingConfigurationProblem problem, Type component) =>
+        Infrastructure(problem, component.FullName ?? component.Name);
+
+    private CryptoShreddingConfigurationException Infrastructure(CryptoShreddingConfigurationProblem problem, string componentName)
     {
-        var componentName = component.FullName ?? component.Name;
         _logger.CryptoShreddingInfrastructureInvalid(problem.ToString(), componentName);
         return new CryptoShreddingConfigurationException(problem, [], componentName);
     }

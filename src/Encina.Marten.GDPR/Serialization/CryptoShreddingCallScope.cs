@@ -109,7 +109,11 @@ internal sealed class CryptoShreddingFrame : IDisposable, IAsyncDisposable
         Operation = operation;
         RootType = rootType;
         SubjectFilter = subjectFilter;
+        DecryptionSuppressed = operation == CryptoOperation.Decrypt && EventReadScope.IsDecryptionSuppressed;
     }
+
+    /// <summary>Gets a value indicating whether the call reads without decrypting (a metadata read): tokens stay and no key is fetched.</summary>
+    internal bool DecryptionSuppressed { get; }
 
     internal CryptoOperation Operation { get; }
 

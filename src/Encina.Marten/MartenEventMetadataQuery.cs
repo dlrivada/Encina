@@ -162,6 +162,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
 
         try
         {
+            using var noDecrypt = EventReadScope.SuppressDecryption();
             await using var session = _store.QuerySession();
             var eventData = await session.Events
                 .QueryAllRawEvents()
@@ -198,6 +199,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
         options ??= new EventQueryOptions();
         var take = Math.Min(options.Take, MaxTakeLimit);
 
+        using var noDecrypt = EventReadScope.SuppressDecryption();
         await using var session = _store.QuerySession();
 
         var query = session.Events.QueryAllRawEvents().Where(filter);
@@ -264,6 +266,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
         var currentEventId = eventId;
         var depth = 0;
 
+        using var noDecrypt = EventReadScope.SuppressDecryption();
         await using var session = _store.QuerySession();
 
         while (depth < maxDepth && !cancellationToken.IsCancellationRequested)
@@ -322,6 +325,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
 
         toProcess.Enqueue(eventId);
 
+        using var noDecrypt = EventReadScope.SuppressDecryption();
         await using var session = _store.QuerySession();
 
         // First, get the root event

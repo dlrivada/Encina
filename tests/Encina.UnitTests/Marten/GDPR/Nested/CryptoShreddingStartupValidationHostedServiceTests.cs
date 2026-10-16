@@ -139,18 +139,41 @@ public sealed class CryptoShreddingStartupValidationHostedServiceTests(Misconfig
             ? new StartupValidationHost(typeof(CryptoShredderSerializer).Assembly, before: Register)
             : new StartupValidationHost(typeof(CryptoShredderSerializer).Assembly, after: Register);
 
-        if (registeredBefore)
+        var ex = Should.Throw<CryptoShreddingConfigurationException>(host.StartAsync);
+
+        ex.Problem.ShouldBe(CryptoShreddingConfigurationProblem.PersonalDataLocatorBypassed);
+
+        // The error names the locator the resolved one leaves out, never a value.
+        var missing = registeredBefore ? typeof(ApplicationLocator) : typeof(MartenEventPersonalDataLocator);
+        ex.ComponentType.ShouldBe(missing.FullName);
+        ex.Message.ShouldContain(missing.FullName!);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CompositeIncludingEveryLocator_PassesInEitherOrder(bool registeredBefore)
+    {
+        void Register(IServiceCollection s)
         {
-            // The Marten locator is registered last and resolves itself, so it takes part.
-            Should.NotThrow(host.StartAsync);
-            return;
+            s.AddScoped<ApplicationLocator>();
+            s.AddScoped<IPersonalDataLocator>(sp => sp.GetRequiredService<ApplicationLocator>());
         }
 
-        Should.Throw<CryptoShreddingConfigurationException>(host.StartAsync).Problem.ShouldBe(CryptoShreddingConfigurationProblem.PersonalDataLocatorBypassed);
+        void RegisterComposite(IServiceCollection s) =>
+            s.AddScoped<IPersonalDataLocator>(sp => new CompositePersonalDataLocator(
+                [sp.GetRequiredService<ApplicationLocator>(), ActivatorUtilities.CreateInstance<MartenEventPersonalDataLocator>(sp)],
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<CompositePersonalDataLocator>.Instance));
+
+        using var host = registeredBefore
+            ? new StartupValidationHost(typeof(CryptoShredderSerializer).Assembly, before: Register, after: RegisterComposite)
+            : new StartupValidationHost(typeof(CryptoShredderSerializer).Assembly, after: s => { Register(s); RegisterComposite(s); });
+
+        await host.StartAsync();
     }
 
     [Fact]
-    public async Task CompositeIncludingTheMartenLocator_Passes()
+    public void CompositeLeavingOutAnApplicationLocator_FailsStartupNamingIt()
     {
         using var host = new StartupValidationHost(
             typeof(CryptoShredderSerializer).Assembly,
@@ -158,11 +181,11 @@ public sealed class CryptoShreddingStartupValidationHostedServiceTests(Misconfig
             {
                 s.AddScoped<IPersonalDataLocator, ApplicationLocator>();
                 s.AddScoped<IPersonalDataLocator>(sp => new CompositePersonalDataLocator(
-                    [new ApplicationLocator(), ActivatorUtilities.CreateInstance<MartenEventPersonalDataLocator>(sp)],
+                    [ActivatorUtilities.CreateInstance<MartenEventPersonalDataLocator>(sp)],
                     Microsoft.Extensions.Logging.Abstractions.NullLogger<CompositePersonalDataLocator>.Instance));
             });
 
-        await host.StartAsync();
+        Should.Throw<CryptoShreddingConfigurationException>(host.StartAsync).ComponentType.ShouldBe(typeof(ApplicationLocator).FullName);
     }
 
     [Fact]
@@ -213,15 +236,21 @@ public sealed class CryptoShreddingStartupValidationHostedServiceTests(Misconfig
     }
 
     [Fact]
-    public void IncludesMartenLocator_RecognisesTheLocatorAndComposites()
+    public void MissingLocatorTypes_ReportsEveryRegisteredTypeTheResolvedLocatorDoesNotReach()
     {
         var marten = new MartenEventPersonalDataLocator(Substitute.For<IDocumentSession>(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<MartenEventPersonalDataLocator>.Instance);
+        var app = new ApplicationLocator();
         var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<CompositePersonalDataLocator>.Instance;
+        var both = new CompositePersonalDataLocator([app, marten], logger);
+        var nested = new CompositePersonalDataLocator([new CompositePersonalDataLocator([marten], logger), app], logger);
 
-        CryptoShreddingStartupValidationHostedService.IncludesMartenLocator(marten).ShouldBeTrue();
-        CryptoShreddingStartupValidationHostedService.IncludesMartenLocator(new CompositePersonalDataLocator([marten], logger)).ShouldBeTrue();
-        CryptoShreddingStartupValidationHostedService.IncludesMartenLocator(new CompositePersonalDataLocator([new ApplicationLocator()], logger)).ShouldBeFalse();
-        CryptoShreddingStartupValidationHostedService.IncludesMartenLocator(null).ShouldBeFalse();
+        CryptoShreddingStartupValidationHostedService.MissingLocatorTypes(both, [app, marten, both]).ShouldBeEmpty();
+        CryptoShreddingStartupValidationHostedService.MissingLocatorTypes(nested, [app, marten, nested]).ShouldBeEmpty();
+        CryptoShreddingStartupValidationHostedService.MissingLocatorTypes(marten, [app, marten]).ShouldBe([typeof(ApplicationLocator)]);
+        CryptoShreddingStartupValidationHostedService.MissingLocatorTypes(app, [marten, app]).ShouldBe([typeof(MartenEventPersonalDataLocator)]);
+        CryptoShreddingStartupValidationHostedService.MissingLocatorTypes(new CompositePersonalDataLocator([app], logger), [app, marten])
+            .ShouldBe([typeof(MartenEventPersonalDataLocator)]);
+        CryptoShreddingStartupValidationHostedService.MissingLocatorTypes(null, [app, marten]).Count.ShouldBe(2);
     }
 }
