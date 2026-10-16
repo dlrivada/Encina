@@ -46,7 +46,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Every line of CacheConfiguration key generation is exercised, including the escaped tenant and user segments.",
+        "guard": "GenerateKey has no ArgumentNullException guards; the request is nullable by design, so there is no guard surface in this file."
+      }
     },
     "Attributes/CacheAttribute.cs": {
       "defaultTests": [
@@ -185,7 +193,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 11
+      },
+      "justifications": {
+        "unit": "Measured 95%; the uncovered lines are unreachable defensive null branches.",
+        "guard": "Measured 11%; the null guards of the public methods are the whole guard surface."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -211,12 +227,12 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "unit": 95,
+        "unit": 98,
         "guard": 0
       },
       "justifications": {
-        "unit": "Hit, miss, oversize, invalidation and shard invalidation paths are unit tested; the remaining lines are trivial.",
-        "guard": "No guard test exists for this executor today; its null guards are asserted in its unit tests, and a [TEST] follow-up tracks adding a guard test."
+        "unit": "Hit, miss, oversize, store, invalidation and shard invalidation paths are unit tested; the remaining lines are trivial.",
+        "guard": "No guard test exists for this executor today; its null guards are asserted in its unit tests."
       }
     },
     "Sharding/CachedShardTopologyProvider.cs": {

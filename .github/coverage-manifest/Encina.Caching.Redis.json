@@ -34,7 +34,15 @@
     },
     "RedisPubSubProvider.cs": {
       "defaultTests": ["unit", "guard"],
-      "reason": "Pub/sub provider with 14 ThrowIfNull guards"
+      "reason": "Pub/sub provider with 14 ThrowIfNull guards",
+      "targets": {
+        "unit": 88,
+        "guard": 13
+      },
+      "justifications": {
+        "unit": "Measured 88.5%; the uncovered lines are the live subscriber message callbacks that need a real Redis, exercised by the Redis integration tests.",
+        "guard": "Measured 13.5%; the null guards of the public methods."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": ["unit", "guard"],
