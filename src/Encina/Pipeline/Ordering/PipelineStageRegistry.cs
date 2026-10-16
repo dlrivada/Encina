@@ -14,8 +14,24 @@ namespace Encina;
 internal sealed class PipelineStageRegistry
 {
     private readonly ConcurrentDictionary<Type, (PipelineStage Stage, int Order)> _overrides = new();
+    private readonly List<PipelineStageConflict> _conflicts = [];
     private readonly object _gate = new();
     private bool _sealed;
+
+    /// <summary>
+    /// Gets the declarations that placed one type at two different positions, in recording order (rule R6 of the
+    /// pipeline order validation). The later declaration wins in the registry; the conflict is what makes startup fail.
+    /// </summary>
+    public IReadOnlyList<PipelineStageConflict> Conflicts
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _conflicts];
+            }
+        }
+    }
 
     /// <summary>
     /// Records (or replaces) the override of a step type.
@@ -36,7 +52,13 @@ internal sealed class PipelineStageRegistry
                     "Record every stage override while configuring services, before the first request runs.");
             }
 
-            _overrides[Normalize(stepType)] = (stage, order);
+            var key = Normalize(stepType);
+            if (_overrides.TryGetValue(key, out var previous) && previous != (stage, order))
+            {
+                _conflicts.Add(new PipelineStageConflict(key, previous.Stage, previous.Order, stage, order));
+            }
+
+            _overrides[key] = (stage, order);
         }
     }
 

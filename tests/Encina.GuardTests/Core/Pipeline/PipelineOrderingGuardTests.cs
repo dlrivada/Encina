@@ -47,6 +47,17 @@ public class PipelineOrderingGuardTests
     }
 
     [Fact]
+    public void Registry_Set_SameTypeAtTwoPositions_RecordsAConflictInsteadOfThrowing()
+    {
+        var registry = new PipelineStageRegistry();
+        registry.Set(typeof(string), PipelineStage.Audit, 0);
+
+        Should.NotThrow(() => registry.Set(typeof(string), PipelineStage.Caching, 1));
+
+        registry.Conflicts.Count.ShouldBe(1);
+    }
+
+    [Fact]
     public void Registry_Set_AfterSeal_ThrowsInvalidOperationExceptionNamingTheType()
     {
         var registry = new PipelineStageRegistry();
@@ -92,6 +103,91 @@ public class PipelineOrderingGuardTests
     public void Resolver_Resolve_NoCandidates_ReturnsEmptyOrder()
     {
         Resolver.Resolve(typeof(IStreamPipelineBehavior<StreamCommand, int>), []).ShouldBeEmpty();
+    }
+
+    #endregion
+
+    #region PipelineOrderResolver (startup validation)
+
+    [Fact]
+    public void Resolver_Warm_NullPipelineKey_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => Resolver.Warm(null!, []))
+            .ParamName.ShouldBe("pipelineKey");
+    }
+
+    [Fact]
+    public void Resolver_Warm_NullCandidates_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => Resolver.Warm(typeof(string), null!))
+            .ParamName.ShouldBe("candidates");
+    }
+
+    #endregion
+
+    #region PipelineOrderValidator and PipelineRegistrationSnapshot
+
+    [Fact]
+    public void Validator_Validate_NullPipelineKey_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => PipelineOrderValidator.Validate(null!, [], PipelineOrderRuleSet.All))
+            .ParamName.ShouldBe("pipelineKey");
+    }
+
+    [Fact]
+    public void Validator_ValidateRegistrations_NullConflicts_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => PipelineOrderValidator.ValidateRegistrations(null!, [], PipelineOrderRuleSet.All))
+            .ParamName.ShouldBe("conflicts");
+    }
+
+    [Fact]
+    public void Validator_ValidateRegistrations_NullDeadRegistrations_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => PipelineOrderValidator.ValidateRegistrations([], null!, PipelineOrderRuleSet.All))
+            .ParamName.ShouldBe("deadRegistrations");
+    }
+
+    [Fact]
+    public void Validator_IsBuiltIn_NullType_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => PipelineOrderValidator.IsBuiltIn(null!))
+            .ParamName.ShouldBe("type");
+    }
+
+    [Fact]
+    public void Validator_NameOf_NullType_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => PipelineOrderValidator.NameOf(null!))
+            .ParamName.ShouldBe("type");
+    }
+
+    [Fact]
+    public void Snapshot_Constructor_NullServices_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => new PipelineRegistrationSnapshot(null!))
+            .ParamName.ShouldBe("services");
+    }
+
+    [Fact]
+    public void Snapshot_GetRegistrations_NullServiceType_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => new PipelineRegistrationSnapshot(new ServiceCollection()).GetRegistrations(null!))
+            .ParamName.ShouldBe("closedServiceType");
+    }
+
+    [Fact]
+    public void HostedService_Constructor_NullArguments_Throw()
+    {
+        var snapshot = new PipelineRegistrationSnapshot(new ServiceCollection());
+        using var provider = new ServiceCollection().BuildServiceProvider();
+
+        Should.Throw<ArgumentNullException>(() => new PipelineOrderValidationHostedService(null!, snapshot, Resolver))
+            .ParamName.ShouldBe("serviceProvider");
+        Should.Throw<ArgumentNullException>(() => new PipelineOrderValidationHostedService(provider, null!, Resolver))
+            .ParamName.ShouldBe("snapshot");
+        Should.Throw<ArgumentNullException>(() => new PipelineOrderValidationHostedService(provider, snapshot, null!))
+            .ParamName.ShouldBe("resolver");
     }
 
     #endregion
