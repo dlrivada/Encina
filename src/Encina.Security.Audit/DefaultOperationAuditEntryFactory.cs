@@ -22,6 +22,11 @@ namespace Encina.Security.Audit;
 /// <item>Populates context information from <see cref="IRequestContext"/></item>
 /// </list>
 /// </para>
+/// <para>
+/// <b>Fail closed:</b> when the masker or redactor throws, the factory throws
+/// <see cref="OperationAuditMaskingException"/> and builds no entry, so an unmasked payload or hash never
+/// reaches a store. Serialization failures propagate as well; nothing is swallowed.
+/// </para>
 /// </remarks>
 public sealed class DefaultOperationAuditEntryFactory : IOperationAuditEntryFactory
 {
@@ -159,63 +164,42 @@ public sealed class DefaultOperationAuditEntryFactory : IOperationAuditEntryFact
             ? SerializeAndRedactPayload(response, sensitiveFields)
             : null;
 
-    private string? ComputePayloadHash(object request, string[]? additionalSensitiveFields)
+    private string ComputePayloadHash(object request, string[]? additionalSensitiveFields)
     {
-        try
-        {
-            // Apply PII masking before hashing
-            object maskedRequest;
-            if (_redactor is not null && additionalSensitiveFields?.Length > 0)
-            {
-                maskedRequest = _redactor.MaskForAudit(request, additionalSensitiveFields);
-            }
-            else
-            {
-                maskedRequest = _piiMasker.MaskForAudit(request);
-            }
+        // Apply PII masking before hashing; a masking failure fails the entry, it is never swallowed.
+        var maskedRequest = Mask(request, additionalSensitiveFields);
 
-            // Serialize to JSON
-            var json = JsonSerializer.Serialize(maskedRequest, maskedRequest.GetType(), JsonOptions);
-            var bytes = Encoding.UTF8.GetBytes(json);
-
-            // Compute SHA-256 hash
-            var hash = SHA256.HashData(bytes);
-
-            // Convert to hex string
-            return Convert.ToHexString(hash).ToLowerInvariant();
-        }
-        catch
-        {
-            // If serialization fails, return null rather than failing the audit
-            return null;
-        }
+        var json = JsonSerializer.Serialize(maskedRequest, maskedRequest.GetType(), JsonOptions);
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(json));
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
     private string? SerializeAndRedactPayload(object payload, string[]? additionalSensitiveFields)
     {
+        // A masker other than the default redactor masks the object before it is serialized, so a custom
+        // masker is never bypassed on the payload path.
+        var source = _redactor is null ? Mask(payload, additionalSensitiveFields) : payload;
+        var json = JsonSerializer.Serialize(source, source.GetType(), JsonOptions);
+
+        if (Encoding.UTF8.GetByteCount(json) > _options.MaxPayloadSizeBytes)
+        {
+            return null;
+        }
+
+        return _redactor is null ? json : _redactor.RedactJsonString(json, additionalSensitiveFields);
+    }
+
+    private object Mask(object payload, string[]? additionalSensitiveFields)
+    {
         try
         {
-            // Serialize first
-            var json = JsonSerializer.Serialize(payload, payload.GetType(), JsonOptions);
-
-            // Check size limit
-            if (Encoding.UTF8.GetByteCount(json) > _options.MaxPayloadSizeBytes)
-            {
-                return null;
-            }
-
-            // Apply redaction if we have a redactor
-            if (_redactor is not null)
-            {
-                json = _redactor.RedactJsonString(json, additionalSensitiveFields);
-            }
-
-            return json;
+            return _redactor is not null && additionalSensitiveFields?.Length > 0
+                ? _redactor.MaskForAudit(payload, additionalSensitiveFields)
+                : _piiMasker.MaskForAudit(payload);
         }
-        catch
+        catch (Exception ex)
         {
-            // If serialization fails, return null rather than failing the audit
-            return null;
+            throw new OperationAuditMaskingException(ex);
         }
     }
 

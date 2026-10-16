@@ -48,7 +48,15 @@
     "PIIOptions.cs": { "defaultTests": ["unit", "guard"], "reason": "Options with ThrowIfNull validation guards" },
     "PIIOptionsValidator.cs": { "defaultTests": ["unit", "guard"], "reason": "Options validator with a ThrowIfNull guard on Validate" },
     "PIIType.cs": { "defaultTests": ["unit"], "reason": "Enum — no guards" },
-    "ServiceCollectionExtensions.cs": { "defaultTests": ["unit", "guard"], "reason": "DI registration with ThrowIfNull guard" },
+    "ServiceCollectionExtensions.cs": {
+      "defaultTests": ["unit", "guard"],
+      "reason": "DI registration with ThrowIfNull guard",
+      "targets": { "unit": 95, "guard": 0 },
+      "justifications": {
+        "unit": "Unit tests build the provider for AddEncinaPII and resolve every registration (measured 97%).",
+        "guard": "No guard test exists for this registration and this change only edits comments; the ThrowIfNull is executed by the unit tests."
+      }
+    },
     "Strategies/AddressMaskingStrategy.cs": { "defaultTests": ["unit"], "reason": "Masking strategy — no ThrowIfNull guards" },
     "Strategies/CreditCardMaskingStrategy.cs": { "defaultTests": ["unit"], "reason": "Masking strategy — no ThrowIfNull guards" },
     "Strategies/DateOfBirthMaskingStrategy.cs": { "defaultTests": ["unit"], "reason": "Masking strategy — no ThrowIfNull guards" },

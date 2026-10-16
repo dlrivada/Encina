@@ -461,7 +461,7 @@
 
 #### No longer applicable
 
-- The PII package implements the IPiiMasker interface from the audit package to replace the default NullPiiMasker (#397).
+- The PII package implements the IPiiMasker interface from the audit package to replace the default NullPiiMasker (#397). Since #1835 the audit module has no default masker and fails closed.
 
 ### Modules, tenancy and sharding
 

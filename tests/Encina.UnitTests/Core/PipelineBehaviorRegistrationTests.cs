@@ -221,6 +221,7 @@ public sealed class PipelineBehaviorRegistrationTests
 
     private static void AssertBothResolve(IServiceCollection services, Type first, Type second)
     {
+        services.AddSingleton<IPiiMasker, NullPiiMasker>();
         using var provider = services.BuildServiceProvider(StrictOptions);
         using var scope = provider.CreateScope();
 

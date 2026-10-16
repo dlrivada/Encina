@@ -25,7 +25,8 @@ namespace Encina.Security.Audit;
 /// </para>
 /// <para>
 /// <b>Failure mode:</b> with <see cref="OperationAuditFailureMode.FailClosed"/> (the default) a request that
-/// succeeded returns <see cref="OperationAuditErrors.WriteFailedCode"/> when its audit write fails; with
+/// succeeded returns <see cref="OperationAuditErrors.WriteFailedCode"/> when its audit write fails, or
+/// <see cref="OperationAuditErrors.MaskingFailedCode"/> when its payload could not be masked; with
 /// <see cref="OperationAuditFailureMode.BestEffort"/> the failure is only logged at Warning. The handler's own
 /// <c>Left</c> or exception is never replaced.
 /// </para>
@@ -238,7 +239,10 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
     /// The write uses <see cref="CancellationToken.None"/> by design; the store owns its timeout. An ambient
     /// <see cref="System.Transactions.Transaction"/> is suppressed so the entry never enlists in the request's transaction.
     /// </remarks>
-    /// <returns>Right when written; Left with <see cref="OperationAuditErrors.WriteFailedCode"/> otherwise (already logged).</returns>
+    /// <returns>
+    /// Right when written; otherwise Left (already logged) with <see cref="OperationAuditErrors.MaskingFailedCode"/>
+    /// when the payload could not be masked, or <see cref="OperationAuditErrors.WriteFailedCode"/>.
+    /// </returns>
     private async Task<Either<EncinaError, LanguageExt.Unit>> RecordAuditEntryAsync(
         TRequest request,
         TResponse? response,
@@ -275,6 +279,14 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
                     LogAuditRecordingFailed(_logger, requestType, code, _options.FailureMode);
                     return OperationAuditErrors.WriteFailed(requestType, code);
                 });
+        }
+        catch (OperationAuditMaskingException ex)
+        {
+            // The masker failed: no entry was built, so nothing unmasked can reach the store. Only the
+            // masker's exception type is recorded, never its message.
+            var cause = ex.InnerException ?? ex;
+            LogAuditRecordingException(_logger, requestType, _options.FailureMode, cause.ForLogging());
+            return OperationAuditErrors.MaskingFailed(requestType, cause.GetType().Name);
         }
         catch (Exception ex)
         {

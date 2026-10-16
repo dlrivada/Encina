@@ -87,6 +87,25 @@ public sealed class OperationAuditOptions
     public OperationAuditFailureMode FailureMode { get; set; } = OperationAuditFailureMode.FailClosed;
 
     /// <summary>
+    /// Gets or sets whether the audit module may run without a PII masker.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Default is <c>false</c>: the audit module requires an <see cref="IPiiMasker"/> (for example
+    /// <see cref="DefaultSensitiveDataRedactor"/> or the <c>Encina.Security.PII</c> masker) and the host fails
+    /// at startup with an <see cref="InvalidOperationException"/> when none is registered or the registered one is
+    /// <see cref="NullPiiMasker"/>.
+    /// </para>
+    /// <para>
+    /// Setting this to <c>true</c> is the only opt-out: <c>AddEncinaAudit</c> then registers
+    /// <see cref="NullPiiMasker"/> when the application registers no masker, payload hashes and payloads are built
+    /// from the unmasked request, and the host logs a warning at every startup. Read from the configure action
+    /// at registration time, like <see cref="EnableAutoPurge"/>.
+    /// </para>
+    /// </remarks>
+    public bool AllowUnmaskedPayloads { get; set; }
+
+    /// <summary>
     /// Gets or sets whether to compute and include SHA-256 hash of request payloads.
     /// </summary>
     /// <remarks>

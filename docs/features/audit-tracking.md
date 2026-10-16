@@ -788,6 +788,9 @@ The Security Audit system captures:
 ### Quick Start
 
 ```csharp
+// The audit module requires a PII masker (see "IPiiMasker Interface" below)
+services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
+
 // Enable audit trail logging
 services.AddEncinaAudit(options =>
 {
@@ -887,25 +890,52 @@ public interface IPiiMasker
 }
 ```
 
-**Built-in Implementations:**
+`AddEncinaAudit` registers no `IPiiMasker`. The audit module requires one, so that raw personal data cannot reach the audit store by omission (compliance gates fail closed, [SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) DEC-006).
+
+**Available Implementations:**
 
 | Implementation | Description |
 |----------------|-------------|
-| `NullPiiMasker` | No redaction (default) |
-| `DefaultSensitiveDataRedactor` | JSON-based field redaction |
+| `DefaultSensitiveDataRedactor` | JSON-based field redaction (register it yourself) |
+| `PIIMasker` (`Encina.Security.PII`) | Attribute-based masking, registered as `IPiiMasker` by `AddEncinaPII()` in either registration order |
+| `NullPiiMasker` | No redaction; registered only by the opt-out `AllowUnmaskedPayloads = true` |
+| Your own `IPiiMasker` | Any custom implementation; it masks the payloads and the payload hash |
 
 **Using DefaultSensitiveDataRedactor:**
 
 ```csharp
+services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
 services.AddEncinaAudit(options =>
 {
-    // Enables DefaultSensitiveDataRedactor
     options.GlobalSensitiveFields = ["Password", "ApiKey"];
 });
-
-// Or register manually
-services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
 ```
+
+**Failure behavior (fail closed):** when the masker throws, `DefaultOperationAuditEntryFactory` throws `OperationAuditMaskingException` and builds no entry. `AuditPipelineBehavior` then returns the error code `audit.masking_failed` (`OperationAuditErrors.MaskingFailedCode`) when `OperationAuditOptions.FailureMode` is `OperationAuditFailureMode.FailClosed` (the default) and only logs it under `BestEffort`. In both cases nothing is stored. `DefaultSensitiveDataRedactor` throws on malformed JSON instead of returning the unmasked input.
+
+#### Troubleshooting: the host stops at startup
+
+When no `IPiiMasker` is registered, or only `NullPiiMasker` is, the startup validator (`IHostedLifecycleService.StartingAsync`) throws before any request is audited:
+
+```text
+System.InvalidOperationException: The audit module requires an IPiiMasker. Register one (for example DefaultSensitiveDataRedactor, or AddEncinaPII() from Encina.Security.PII), or set OperationAuditOptions.AllowUnmaskedPayloads = true to run explicitly without masking.
+```
+
+Fix it by registering a masker, in any order relative to `AddEncinaAudit`:
+
+```csharp
+services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
+// or
+services.AddEncinaPII();
+```
+
+The only opt-out is explicit. It registers `NullPiiMasker` and logs a Warning (EventId 5011) at every start:
+
+```csharp
+services.AddEncinaAudit(options => options.AllowUnmaskedPayloads = true);
+```
+
+The flag is read from the configure lambda at registration time, so binding it from `IConfiguration` alone does not enable it.
 
 ### Auto-Purge Configuration
 
@@ -1196,7 +1226,9 @@ db.operation_audit_entries.createIndex({ "TenantId": 1 })
 #### InMemoryOperationAuditStore (Testing/Development)
 
 ```csharp
-// Default - InMemoryOperationAuditStore is registered automatically
+// Default store - InMemoryOperationAuditStore is registered automatically
+// (a masker is still required: register an IPiiMasker or set AllowUnmaskedPayloads)
+services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
 services.AddEncinaAudit();
 
 // For testing

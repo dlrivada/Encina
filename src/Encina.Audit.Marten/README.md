@@ -21,7 +21,8 @@ services.AddMarten(options =>
     options.Connection("Host=localhost;Database=myapp;...");
 });
 
-// 2. Add core audit pipeline
+// 2. Add core audit pipeline (requires an IPiiMasker: AddEncinaPII() or
+//    services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>(); otherwise the host fails at startup)
 services.AddEncinaAudit(options =>
 {
     options.AuditAllCommands = true;

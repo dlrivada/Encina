@@ -257,16 +257,16 @@ public class DefaultSensitiveDataRedactorTests
     #region Malformed JSON Tests
 
     [Fact]
-    public void RedactJsonString_MalformedJson_ShouldReturnOriginal()
+    public void RedactJsonString_MalformedJson_ShouldFailClosedInsteadOfReturningTheRawText()
     {
         // Arrange
         var malformedJson = """{"password":"secret"""; // Missing closing brace
 
         // Act
-        var result = _redactor.RedactJsonString(malformedJson);
+        var act = () => _redactor.RedactJsonString(malformedJson);
 
-        // Assert
-        result.ShouldBe(malformedJson);
+        // Assert - the unredacted text is never handed back
+        Should.Throw<System.Text.Json.JsonException>(act);
     }
 
     [Fact]
@@ -300,17 +300,19 @@ public class DefaultSensitiveDataRedactorTests
     }
 
     [Fact]
-    public void MaskForAudit_NonSerializableType_ShouldReturnOriginal()
+    public void MaskForAudit_NonSerializableType_ShouldFailClosedInsteadOfReturningTheOriginal()
     {
-        // Arrange - A type that might cause serialization issues
+        // Arrange - A type that cannot be serialized
         var request = new RequestWithCircularReference();
         request.Self = request; // Circular reference
 
-        // Act - Should not throw, should return original
-        var result = _redactor.MaskForAudit(request);
+        // Act
+        var actObject = () => _redactor.MaskForAudit((object)request);
+        var actGeneric = () => _redactor.MaskForAudit(request);
 
-        // Assert
-        result.ShouldBeSameAs(request);
+        // Assert - the unmasked request is never handed back
+        Should.Throw<System.Text.Json.JsonException>(actObject);
+        Should.Throw<System.Text.Json.JsonException>(actGeneric);
     }
 
     #endregion

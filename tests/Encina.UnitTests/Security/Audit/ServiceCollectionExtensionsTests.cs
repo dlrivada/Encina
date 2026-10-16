@@ -1,6 +1,7 @@
 using Encina.Security.Audit;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Shouldly;
 
@@ -18,6 +19,8 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddLogging();
 
+        services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
+
         // Act
         services.AddEncinaAudit();
         var provider = services.BuildServiceProvider();
@@ -30,7 +33,7 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddEncinaAudit_ShouldRegisterNullPiiMaskerByDefault()
+    public void AddEncinaAudit_ShouldNotRegisterAPiiMaskerByDefault()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -40,9 +43,78 @@ public class ServiceCollectionExtensionsTests
         services.AddEncinaAudit();
         var provider = services.BuildServiceProvider();
 
+        // Assert - the audit module requires a masker, it never defaults to a pass-through one
+        provider.GetService<IPiiMasker>().ShouldBeNull();
+    }
+
+    [Fact]
+    public void AddEncinaAudit_WithAllowUnmaskedPayloads_ShouldRegisterNullPiiMasker()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddEncinaAudit(options => options.AllowUnmaskedPayloads = true);
+        var provider = services.BuildServiceProvider();
+
         // Assert
-        var masker = provider.GetRequiredService<IPiiMasker>();
-        masker.ShouldBeOfType<NullPiiMasker>();
+        provider.GetRequiredService<IPiiMasker>().ShouldBeOfType<NullPiiMasker>();
+    }
+
+    [Fact]
+    public void AddEncinaAudit_WithAllowUnmaskedPayloads_ShouldKeepTheApplicationMasker()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IPiiMasker, CustomPiiMasker>();
+
+        // Act
+        services.AddEncinaAudit(options => options.AllowUnmaskedPayloads = true);
+        var provider = services.BuildServiceProvider();
+
+        // Assert
+        provider.GetRequiredService<IPiiMasker>().ShouldBeOfType<CustomPiiMasker>();
+    }
+
+    [Fact]
+    public void AddEncinaAudit_WithoutAMasker_ShouldFailValidateOnBuild()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaAudit();
+
+        // Act
+        var act = () => services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+
+        // Assert
+        Should.Throw<AggregateException>(act).Message.ShouldContain(nameof(IPiiMasker));
+    }
+
+    [Fact]
+    public void AddEncinaAudit_WithAMasker_ShouldPassValidateOnBuild()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
+        services.AddEncinaAudit();
+
+        // Act
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+
+        // Assert
+        provider.GetServices<IHostedService>().OfType<IHostedLifecycleService>().ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -67,6 +139,7 @@ public class ServiceCollectionExtensionsTests
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
 
         // Act
         services.AddEncinaAudit();
@@ -224,7 +297,7 @@ public class ServiceCollectionExtensionsTests
         services.AddLogging();
 
         // Act
-        services.AddEncinaAudit();
+        services.AddEncinaAudit(options => options.AllowUnmaskedPayloads = true);
 
         // Assert
         var descriptor = services.First(d => d.ServiceType == typeof(IPiiMasker));

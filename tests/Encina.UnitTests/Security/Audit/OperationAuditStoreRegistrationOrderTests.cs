@@ -14,12 +14,15 @@ namespace Encina.UnitTests.Security.Audit;
 /// </summary>
 public sealed class OperationAuditStoreRegistrationOrderTests
 {
-    private static ServiceProvider Build(IServiceCollection services) =>
-        services.BuildServiceProvider(new ServiceProviderOptions
+    private static ServiceProvider Build(IServiceCollection services)
+    {
+        services.AddSingleton<IPiiMasker, NullPiiMasker>();
+        return services.BuildServiceProvider(new ServiceProviderOptions
         {
             ValidateOnBuild = true,
             ValidateScopes = true
         });
+    }
 
     private static ServiceCollection NewServices()
     {
@@ -166,6 +169,7 @@ public sealed class OperationAuditStoreRegistrationOrderTests
         keyedDescriptor.KeyedImplementationInstance.ShouldBeSameAs(keyed);
         var plain = services.Single(d => !d.IsKeyedService && d.ServiceType == typeof(IOperationAuditStore));
         plain.ImplementationFactory!.Target.ShouldBeAssignableTo<IDecoratedServiceFactory>();
+        services.AddSingleton<IPiiMasker, NullPiiMasker>();
         using var provider = services.BuildServiceProvider();
         provider.GetRequiredService<IOperationAuditStore>().ShouldBeOfType<InstrumentedOperationAuditStore>();
         provider.GetRequiredKeyedService<IOperationAuditStore>("audit").ShouldBeSameAs(keyed);

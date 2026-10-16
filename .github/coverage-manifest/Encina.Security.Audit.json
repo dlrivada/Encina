@@ -1,7 +1,7 @@
 {
   "package": "Encina.Security.Audit",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 41,
+  "totalFiles": 43,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -24,7 +24,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "An interface has no executable lines; this change only edits its documentation.",
+        "guard": "An interface has no executable lines; this change only edits its documentation."
+      }
     },
     "Abstractions/IReadAuditContext.cs": {
       "defaultTests": [],
@@ -113,13 +121,13 @@
       "reason": "Mediator pipeline with mockeable next delegate",
       "targets": {
         "unit": 95,
-        "guard": 10,
+        "guard": 9,
         "contract": 65,
         "integration": 55
       },
       "justifications": {
         "unit": "Unit tests drive every branch: ordering, both failure modes, handler Left, handler throw and cancellation, the child scope (measured 97%).",
-        "guard": "Guard tests only reach the constructor null checks; the handling logic is exercised by the other flags (measured 10%).",
+        "guard": "Guard tests only reach the constructor null checks; the handling logic, including the masking-failure branch, is exercised by the other flags (measured 9.7%).",
         "contract": "Contract tests run the non-auditable, auditable and skipped paths and the interface contract; the failure-mode branches are only reached by unit tests (measured 69%).",
         "integration": "Integration tests run the awaited write on ADO SqlServer, EF Core SqlServer and MongoDB; failure branches need a failing store and are covered by unit tests (measured 59%)."
       }
@@ -134,12 +142,12 @@
       "reason": "Static error factory",
       "targets": {
         "unit": 95,
-        "guard": 15,
+        "guard": 20,
         "contract": 95
       },
       "justifications": {
         "unit": "Unit tests build the error through the failing-store paths (measured 100%).",
-        "guard": "Guard tests cover the two null checks of WriteFailed (measured 20%).",
+        "guard": "Guard tests cover the four null checks of MaskingFailed and WriteFailed (measured 20%).",
         "contract": "Contract tests assert the error code and message contract (measured 100%)."
       }
     },
@@ -152,6 +160,34 @@
       },
       "justifications": {
         "unit": "An enum has no executable lines; its values are exercised through the behavior tests."
+      }
+    },
+    "OperationAuditMaskingException.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Exception type with a fixed message",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "Both constructors are executed by the fail-closed factory and pipeline tests (measured 100%)."
+      }
+    },
+    "OperationAuditMaskingStartupValidator.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal hosted startup validator",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests cover missing masker, NullPiiMasker, a real masker, the opt-out warning and every lifecycle hook (measured 100%).",
+        "guard": "The class is internal and the guard test project has no access to it; its constructor null checks are executed by the unit tests."
       }
     },
     "OperationAuditQuery.cs": {
@@ -208,7 +244,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 85
+      },
+      "justifications": {
+        "unit": "Unit tests run the field matching, the JSON round trip and the fail-closed throws on unserializable and malformed input (measured 98%).",
+        "guard": "Guard tests assert the null checks of every public overload (measured 87%)."
+      }
     },
     "Diagnostics/ReadAuditActivitySource.cs": {
       "defaultTests": [
@@ -277,7 +321,13 @@
     "Log.cs": {
       "defaultTests": [],
       "defaultRule": "Log.cs",
-      "reason": "Source-generated [LoggerMessage] delegates, no logic"
+      "reason": "Source-generated [LoggerMessage] delegates, no logic",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "Source-generated [LoggerMessage] delegates, no logic; the new warning is asserted through the startup validator unit tests."
+      }
     },
     "Notifications/SensitiveDataAccessedNotification.cs": {
       "defaultTests": [
@@ -293,7 +343,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "Two pass-through lines, both executed (measured 100%).",
+        "guard": "The two pass-through lines are reached by the guard tests too (measured 100%)."
+      }
     },
     "PagedResult.cs": {
       "defaultTests": [
@@ -387,7 +445,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 90,
+        "guard": 80
+      },
+      "justifications": {
+        "unit": "Unit tests build the provider for both Add methods, the masker requirement and the opt-out (measured 93%).",
+        "guard": "Guard tests assert the null service collection checks (measured 82%)."
+      }
     },
     "OperationAuditStoreRegistration.cs": {
       "defaultTests": [
