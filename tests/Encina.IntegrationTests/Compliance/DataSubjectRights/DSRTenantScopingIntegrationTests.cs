@@ -64,18 +64,18 @@ public sealed class DSRTenantScopingIntegrationTests : IAsyncLifetime
             .Match(id => id, _ => throw new InvalidOperationException("Submit failed"));
 
         // Tenant A sees its own request, its restriction, and warms the caches.
-        (await tenantA.HasActiveRestrictionAsync(subjectId)).IfRight(active => active.ShouldBeTrue());
+        (await tenantA.HasActiveRestrictionAsync(subjectId)).ShouldBeRightAnd(active => active.ShouldBeTrue());
         (await tenantA.GetRequestAsync(idA)).IsRight.ShouldBeTrue();
-        (await tenantA.GetRequestsBySubjectAsync(subjectId)).IfRight(rows => rows.Select(r => r.Id).ShouldBe([idA]));
+        (await tenantA.GetRequestsBySubjectAsync(subjectId)).ShouldBeRightAnd(rows => rows.Select(r => r.Id).ShouldBe([idA]));
 
         // Tenant B, same subject id: no restriction (not even from the shared cache), no request by
         // id, no listing, nothing pending or overdue.
-        (await tenantB.HasActiveRestrictionAsync(subjectId)).IfRight(active => active.ShouldBeFalse());
-        (await tenantB.GetRequestAsync(idA)).IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.RequestNotFoundCode));
-        (await tenantB.GetRequestsBySubjectAsync(subjectId)).IfRight(rows => rows.ShouldBeEmpty());
-        (await tenantB.GetPendingRequestsAsync()).IfRight(rows => rows.ShouldNotContain(r => r.Id == idA));
-        (await tenantB.GetOverdueRequestsAsync()).IfRight(rows => rows.ShouldNotContain(r => r.Id == idA));
-        (await tenantA.GetPendingRequestsAsync()).IfRight(rows => rows.ShouldContain(r => r.Id == idA));
+        (await tenantB.HasActiveRestrictionAsync(subjectId)).ShouldBeRightAnd(active => active.ShouldBeFalse());
+        (await tenantB.GetRequestAsync(idA)).ShouldBeLeftAnd(e => e.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.RequestNotFoundCode));
+        (await tenantB.GetRequestsBySubjectAsync(subjectId)).ShouldBeRightAnd(rows => rows.ShouldBeEmpty());
+        (await tenantB.GetPendingRequestsAsync()).ShouldBeRightAnd(rows => rows.ShouldNotContain(r => r.Id == idA));
+        (await tenantB.GetOverdueRequestsAsync()).ShouldBeRightAnd(rows => rows.ShouldNotContain(r => r.Id == idA));
+        (await tenantA.GetPendingRequestsAsync()).ShouldBeRightAnd(rows => rows.ShouldContain(r => r.Id == idA));
 
         // The cache holds tenant-scoped keys only.
         _cache.Keys.ShouldNotContain(key => key == $"dsr:request:{idA}" || key == $"dsr:restriction:{subjectId}");
@@ -132,9 +132,9 @@ public sealed class DSRTenantScopingIntegrationTests : IAsyncLifetime
 
         var result = await tenantB.SubmitRequestAsync(subjectId, DataSubjectRight.Restriction, tenantId: "tenant-a");
 
-        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.TenantRequiredCode));
+        result.ShouldBeLeftAnd(e => e.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.TenantRequiredCode));
         var tenantA = CreateService(scope, "tenant-a");
-        (await tenantA.GetRequestsBySubjectAsync(subjectId)).IfRight(rows => rows.ShouldBeEmpty());
+        (await tenantA.GetRequestsBySubjectAsync(subjectId)).ShouldBeRightAnd(rows => rows.ShouldBeEmpty());
     }
 
     [Fact]
@@ -149,8 +149,8 @@ public sealed class DSRTenantScopingIntegrationTests : IAsyncLifetime
         (await tenantA.HandleRestrictionAsync(new RestrictionRequest(subjectId, "accuracy contested", null)))
             .IsRight.ShouldBeTrue();
 
-        (await tenantA.HasActiveRestrictionAsync(subjectId)).IfRight(active => active.ShouldBeTrue());
-        (await tenantB.HasActiveRestrictionAsync(subjectId)).IfRight(active => active.ShouldBeFalse());
+        (await tenantA.HasActiveRestrictionAsync(subjectId)).ShouldBeRightAnd(active => active.ShouldBeTrue());
+        (await tenantB.HasActiveRestrictionAsync(subjectId)).ShouldBeRightAnd(active => active.ShouldBeFalse());
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public sealed class DSRTenantScopingIntegrationTests : IAsyncLifetime
 
         foreach (var result in new[] { restriction.Map(_ => 0), submit.Map(_ => 0), pending.Map(_ => 0) })
         {
-            result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.TenantRequiredCode));
+            result.ShouldBeLeftAnd(e => e.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.TenantRequiredCode));
             result.IsLeft.ShouldBeTrue();
         }
     }
@@ -245,5 +245,20 @@ public sealed class DSRTenantScopingIntegrationTests : IAsyncLifetime
             factory(cancellationToken);
 
         public Task<bool> RefreshAsync(string key, CancellationToken cancellationToken) => Task.FromResult(true);
+    }
+}
+
+file static class EitherAssertions
+{
+    public static void ShouldBeRightAnd<L, R>(this LanguageExt.Either<L, R> either, Action<R> assert)
+    {
+        either.IsRight.ShouldBeTrue("expected Right but the result was Left");
+        either.IfRight(assert);
+    }
+
+    public static void ShouldBeLeftAnd<L, R>(this LanguageExt.Either<L, R> either, Action<L> assert)
+    {
+        either.IsLeft.ShouldBeTrue("expected Left but the result was Right");
+        either.IfLeft(assert);
     }
 }
