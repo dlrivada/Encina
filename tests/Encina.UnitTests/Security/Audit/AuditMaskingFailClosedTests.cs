@@ -27,28 +27,30 @@ public sealed class AuditMaskingFailClosedTests
     // -- Factory ---------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void Create_MaskerThrows_ThrowsMaskingExceptionWithAFixedMessageAndBuildsNoEntry()
+    public void Create_MaskerThrows_ReturnsMaskingFailedCarryingOnlyTheExceptionType()
     {
         var factory = CreateFactory(new ThrowingMasker());
 
-        var act = () => factory.Create(new PatientCommand("Ana"), Context, AuditOutcome.Success, null);
+        var result = factory.Create(new PatientCommand("Ana"), Context, AuditOutcome.Success, null);
 
-        var ex = Should.Throw<OperationAuditMaskingException>(act);
-        ex.Message.ShouldNotContain(Sentinel);
-        ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+        var error = LeftOf(result);
+        error.GetCode().IfNone(string.Empty).ShouldBe(OperationAuditErrors.MaskingFailedCode);
+        error.Message.ShouldNotContain(Sentinel);
+        error.GetDetails().ShouldContainKeyAndValue("cause", nameof(InvalidOperationException));
+        error.GetDetails().ShouldContainKeyAndValue("requestType", nameof(PatientCommand));
     }
 
     [Fact]
-    public void Create_RedactorFailsOnTheSensitiveFieldsPath_ThrowsMaskingException()
+    public void Create_RedactorFailsOnTheSensitiveFieldsPath_ReturnsMaskingFailed()
     {
         var options = Options.Create(new OperationAuditOptions());
         var factory = new DefaultOperationAuditEntryFactory(new DefaultSensitiveDataRedactor(options), options);
         var request = new AuditedCircularCommand();
         request.Self = request;
 
-        var act = () => factory.Create(request, Context, AuditOutcome.Success, null);
+        var result = factory.Create(request, Context, AuditOutcome.Success, null);
 
-        Should.Throw<OperationAuditMaskingException>(act);
+        LeftOf(result).GetCode().IfNone(string.Empty).ShouldBe(OperationAuditErrors.MaskingFailedCode);
     }
 
     [Fact]
@@ -61,7 +63,7 @@ public sealed class AuditMaskingFailClosedTests
         });
         var factory = new DefaultOperationAuditEntryFactory(new UpperCaseMasker(), options);
 
-        var entry = factory.Create(new PatientCommand("Ana"), Context, AuditOutcome.Success, null);
+        var entry = factory.Create(new PatientCommand("Ana"), Context, AuditOutcome.Success, null).Entry();
 
         entry.RequestPayload.ShouldNotBeNull();
         entry.RequestPayload.ShouldContain("\"ANA\"", Case.Sensitive);
@@ -69,7 +71,7 @@ public sealed class AuditMaskingFailClosedTests
     }
 
     [Fact]
-    public void Create_RequestPayloadWithAThrowingMasker_ThrowsMaskingExceptionInsteadOfStoringRawJson()
+    public void Create_RequestPayloadWithAThrowingMasker_ReturnsMaskingFailedInsteadOfStoringRawJson()
     {
         var options = Options.Create(new OperationAuditOptions
         {
@@ -78,13 +80,13 @@ public sealed class AuditMaskingFailClosedTests
         });
         var factory = new DefaultOperationAuditEntryFactory(new ThrowingMasker(), options);
 
-        var act = () => factory.Create(new PatientCommand("Ana"), Context, AuditOutcome.Success, null);
+        var result = factory.Create(new PatientCommand("Ana"), Context, AuditOutcome.Success, null);
 
-        Should.Throw<OperationAuditMaskingException>(act);
+        LeftOf(result).GetCode().IfNone(string.Empty).ShouldBe(OperationAuditErrors.MaskingFailedCode);
     }
 
     [Fact]
-    public void Create_ResponsePayloadWithAThrowingMasker_ThrowsMaskingException()
+    public void Create_ResponsePayloadWithAThrowingMasker_ReturnsMaskingFailed()
     {
         var options = Options.Create(new OperationAuditOptions
         {
@@ -94,10 +96,10 @@ public sealed class AuditMaskingFailClosedTests
         var factory = new DefaultOperationAuditEntryFactory(new ThrowingMasker(), options);
         var now = DateTimeOffset.UtcNow;
 
-        var act = () => factory.Create(
+        var result = factory.Create(
             new PatientCommand("Ana"), new PatientCommand("Bea"), Context, AuditOutcome.Success, null, now, now);
 
-        Should.Throw<OperationAuditMaskingException>(act);
+        LeftOf(result).GetCode().IfNone(string.Empty).ShouldBe(OperationAuditErrors.MaskingFailedCode);
     }
 
     [Fact]
@@ -108,18 +110,27 @@ public sealed class AuditMaskingFailClosedTests
         var request = new CircularCommand();
         request.Self = request;
 
-        var act = () => factory.Create(request, Context, AuditOutcome.Success, null);
+        var result = factory.Create(request, Context, AuditOutcome.Success, null);
 
-        Should.Throw<OperationAuditMaskingException>(act);
+        LeftOf(result).GetCode().IfNone(string.Empty).ShouldBe(OperationAuditErrors.MaskingFailedCode);
     }
 
     [Fact]
-    public void Create_ParameterlessMaskingException_HasTheFixedMessageAndNoInnerException()
+    public void Create_ResponseOverTheSizeLimit_KeepsTheEntryWithoutTheResponsePayload()
     {
-        var ex = new OperationAuditMaskingException();
+        var options = Options.Create(new OperationAuditOptions
+        {
+            IncludePayloadHash = false,
+            IncludeResponsePayload = true,
+            MaxPayloadSizeBytes = 8
+        });
+        var factory = new DefaultOperationAuditEntryFactory(new DefaultSensitiveDataRedactor(options), options);
+        var now = DateTimeOffset.UtcNow;
 
-        ex.InnerException.ShouldBeNull();
-        ex.Message.ShouldNotBeNullOrWhiteSpace();
+        var entry = factory.Create(
+            new PatientCommand("Ana"), new PatientCommand("Bea-with-a-long-name"), Context, AuditOutcome.Success, null, now, now).Entry();
+
+        entry.ResponsePayload.ShouldBeNull();
     }
 
     // -- Pipeline: Left with an error code, nothing stored --------------------------------------------------------------
@@ -137,7 +148,10 @@ public sealed class AuditMaskingFailClosedTests
             .ShouldBe(OperationAuditErrors.MaskingFailedCode);
         result.Match(Right: _ => string.Empty, Left: e => e.Message).ShouldNotContain(Sentinel);
         store.Count.ShouldBe(0);
-        RedactedExceptionLogAssert.LoggedOnlyRedacted(logger, Sentinel);
+        var warning = logger.Collector.GetSnapshot().Single(r => r.Level == LogLevel.Warning);
+        warning.Id.Id.ShouldBe(5000);
+        warning.Message.ShouldContain(OperationAuditErrors.MaskingFailedCode);
+        RedactedExceptionLogAssert.NeverLoggedRaw(logger, Sentinel);
     }
 
     [Fact]
@@ -151,8 +165,8 @@ public sealed class AuditMaskingFailClosedTests
 
         result.IsRight.ShouldBeTrue();
         store.Count.ShouldBe(0);
-        logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 5001 && r.Level == LogLevel.Warning);
-        RedactedExceptionLogAssert.LoggedOnlyRedacted(logger, Sentinel);
+        logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 5000 && r.Level == LogLevel.Warning);
+        RedactedExceptionLogAssert.NeverLoggedRaw(logger, Sentinel);
     }
 
     [Fact]
@@ -233,7 +247,7 @@ public sealed class AuditMaskingFailClosedTests
         var options = Options.Create(new OperationAuditOptions { IncludeRequestPayload = true });
         var factory = new DefaultOperationAuditEntryFactory(new DefaultSensitiveDataRedactor(options), options);
 
-        var entry = factory.Create(new ShipmentCommand(12.5m, Guid.NewGuid()), Context, AuditOutcome.Success, null);
+        var entry = factory.Create(new ShipmentCommand(12.5m, Guid.NewGuid()), Context, AuditOutcome.Success, null).Entry();
 
         entry.RequestPayloadHash.ShouldNotBeNullOrEmpty();
         entry.RequestPayload.ShouldNotBeNull();
@@ -266,7 +280,7 @@ public sealed class AuditMaskingFailClosedTests
 
         using var scope = provider.CreateScope();
         var entry = scope.ServiceProvider.GetRequiredService<IOperationAuditEntryFactory>()
-            .Create(new PatientCommand("Ana"), Context, AuditOutcome.Success, null);
+            .Create(new PatientCommand("Ana"), Context, AuditOutcome.Success, null).Entry();
         entry.RequestPayloadHash.ShouldNotBeNullOrEmpty();
     }
 
@@ -299,6 +313,11 @@ public sealed class AuditMaskingFailClosedTests
     }
 
     // -- Helpers -----------------------------------------------------------------------------------------------------
+
+    private static EncinaError LeftOf(Either<EncinaError, OperationAuditEntry> result) =>
+        result.Match(
+            Right: _ => throw new InvalidOperationException("expected a Left"),
+            Left: error => error);
 
     private static ServiceProvider BuildProvider(Action<OperationAuditOptions>? configure, IPiiMasker? masker)
     {

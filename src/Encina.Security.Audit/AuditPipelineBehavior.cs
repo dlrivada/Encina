@@ -255,7 +255,7 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
 
         try
         {
-            var entry = _entryFactory.Create(
+            var built = _entryFactory.Create(
                 request,
                 response,
                 context,
@@ -264,35 +264,42 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
                 startedAtUtc,
                 _timeProvider.GetUtcNow());
 
-            // Suppress any ambient System.Transactions scope of the request: the audit row must not
-            // enlist in it (it would roll back with the request or escalate to a distributed transaction).
-            using var isolation = new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled);
-            await using var scope = _scopeFactory.CreateAsyncScope();
-            var store = scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
-            var result = await store.RecordAsync(entry, CancellationToken.None).ConfigureAwait(false);
-
-            return result.Match<Either<EncinaError, LanguageExt.Unit>>(
-                Right: unit => unit,
-                Left: error =>
-                {
-                    var code = error.GetCode().IfNone("encina.unknown");
-                    LogAuditRecordingFailed(_logger, requestType, code, _options.FailureMode);
-                    return OperationAuditErrors.WriteFailed(requestType, code);
-                });
-        }
-        catch (OperationAuditMaskingException ex)
-        {
-            // The masker failed: no entry was built, so nothing unmasked can reach the store. Only the
-            // masker's exception type is recorded, never its message.
-            var cause = ex.InnerException ?? ex;
-            LogAuditRecordingException(_logger, requestType, _options.FailureMode, cause.ForLogging());
-            return OperationAuditErrors.MaskingFailed(requestType, cause.GetType().Name);
+            // A Left from the factory (a masking failure) means no entry exists: nothing is stored and the
+            // factory's error, which carries a code and never a message, is the result.
+            return await built.Match(
+                Left: error => Task.FromResult(LogFactoryFailure(requestType, error)),
+                Right: entry => WriteEntryAsync(requestType, entry)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             LogAuditRecordingException(_logger, requestType, _options.FailureMode, ex.ForLogging());
             return OperationAuditErrors.WriteFailed(requestType, ex.GetType().Name);
         }
+    }
+
+    private Either<EncinaError, LanguageExt.Unit> LogFactoryFailure(string requestType, EncinaError error)
+    {
+        LogAuditRecordingFailed(_logger, requestType, error.GetCode().IfNone("encina.unknown"), _options.FailureMode);
+        return error;
+    }
+
+    private async Task<Either<EncinaError, LanguageExt.Unit>> WriteEntryAsync(string requestType, OperationAuditEntry entry)
+    {
+        // Suppress any ambient System.Transactions scope of the request: the audit row must not
+        // enlist in it (it would roll back with the request or escalate to a distributed transaction).
+        using var isolation = new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled);
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
+        var result = await store.RecordAsync(entry, CancellationToken.None).ConfigureAwait(false);
+
+        return result.Match<Either<EncinaError, LanguageExt.Unit>>(
+            Right: unit => unit,
+            Left: error =>
+            {
+                var code = error.GetCode().IfNone("encina.unknown");
+                LogAuditRecordingFailed(_logger, requestType, code, _options.FailureMode);
+                return OperationAuditErrors.WriteFailed(requestType, code);
+            });
     }
 
     [LoggerMessage(

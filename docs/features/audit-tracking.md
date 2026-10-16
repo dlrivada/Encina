@@ -911,7 +911,7 @@ services.AddEncinaAudit(options =>
 });
 ```
 
-**Failure behavior (fail closed):** when the masker throws, `DefaultOperationAuditEntryFactory` throws `OperationAuditMaskingException` and builds no entry. `AuditPipelineBehavior` then returns the error code `audit.masking_failed` (`OperationAuditErrors.MaskingFailedCode`) when `OperationAuditOptions.FailureMode` is `OperationAuditFailureMode.FailClosed` (the default) and only logs it under `BestEffort`. In both cases nothing is stored. `DefaultSensitiveDataRedactor` throws on malformed JSON instead of returning the unmasked input.
+**Failure behavior (fail closed):** `IOperationAuditEntryFactory.Create(...)` (both overloads) returns `Either<EncinaError, OperationAuditEntry>`. When the masker, the redactor or the serializer fails, `DefaultOperationAuditEntryFactory` catches the exception at its boundary and returns a Left with code `audit.masking_failed` (`OperationAuditErrors.MaskingFailedCode`; details `requestType` and `cause`, the exception type name, never a message) and builds no entry. `AuditPipelineBehavior` propagates that Left as the request's result when `OperationAuditOptions.FailureMode` is `OperationAuditFailureMode.FailClosed` (the default); under `BestEffort` it only logs it (EventId 5000, the error code). In both cases nothing is stored. A custom `IOperationAuditEntryFactory` must return the `Either`; a Left means nothing is stored. `DefaultSensitiveDataRedactor` and the `IPiiMasker` implementations still throw on malformed JSON or a masking failure, as the `IPiiMasker` contract says, instead of returning the unmasked input.
 
 #### Troubleshooting: the host stops at startup
 

@@ -252,7 +252,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // Fail closed: the caller gets the exception instead of an unmasked copy; the audit factory
-            // turns it into OperationAuditMaskingException and stores nothing (#1835).
+            // turns it into an audit.masking_failed Left and stores nothing (#1835).
             PIILogMessages.AuditMaskingFailed(_logger, ex.ForLogging(), typeof(T).Name);
             throw;
         }
@@ -275,7 +275,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // Fail closed: the caller gets the exception instead of an unmasked copy; the audit factory
-            // turns it into OperationAuditMaskingException and stores nothing (#1835).
+            // turns it into an audit.masking_failed Left and stores nothing (#1835).
             PIILogMessages.AuditMaskingFailed(_logger, ex.ForLogging(), request.GetType().Name);
             throw;
         }

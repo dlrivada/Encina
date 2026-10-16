@@ -27,7 +27,7 @@ public class DefaultOperationAuditEntryFactoryGuardTests
         var context = RequestContext.CreateForTest();
         var now = DateTimeOffset.UtcNow;
 
-        var act = () => _factory.Create<TestCommand, string>(
+        Action act = () => _factory.Create<TestCommand, string>(
             null!, "response", context, AuditOutcome.Success, null, now, now);
 
         Should.Throw<ArgumentNullException>(act)
@@ -40,7 +40,7 @@ public class DefaultOperationAuditEntryFactoryGuardTests
         var request = new TestCommand();
         var now = DateTimeOffset.UtcNow;
 
-        var act = () => _factory.Create<TestCommand, string>(
+        Action act = () => _factory.Create<TestCommand, string>(
             request, "response", null!, AuditOutcome.Success, null, now, now);
 
         Should.Throw<ArgumentNullException>(act)
@@ -54,7 +54,7 @@ public class DefaultOperationAuditEntryFactoryGuardTests
         var context = RequestContext.CreateForTest();
         var now = DateTimeOffset.UtcNow;
 
-        var act = () => _factory.Create<TestCommand, string>(
+        Action act = () => _factory.Create<TestCommand, string>(
             request, "response", context, AuditOutcome.Success, null, now, now);
 
         Should.NotThrow(act);
@@ -66,7 +66,7 @@ public class DefaultOperationAuditEntryFactoryGuardTests
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
 
-        var act = () => _factory.Create(request, context, AuditOutcome.Success, null);
+        Action act = () => _factory.Create(request, context, AuditOutcome.Success, null);
 
         Should.NotThrow(act);
     }
