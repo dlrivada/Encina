@@ -44,7 +44,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.TryAddSingleton(TimeProvider.System);
-        services.TryAddScoped<IRedisPubSubMessagePublisher,RedisPubSubMessagePublisher>();
+        services.TryAddScoped<IRedisPubSubMessagePublisher, RedisPubSubMessagePublisher>();
 
         return services;
     }

@@ -60,7 +60,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.TryAddSingleton(TimeProvider.System);
-        services.TryAddScoped<IRabbitMQMessagePublisher,RabbitMQMessagePublisher>();
+        services.TryAddScoped<IRabbitMQMessagePublisher, RabbitMQMessagePublisher>();
 
         // Register health check if enabled
         if (options.ProviderHealthCheck.Enabled)
