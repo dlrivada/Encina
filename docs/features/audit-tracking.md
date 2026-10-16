@@ -854,6 +854,8 @@ Encina automatically redacts sensitive fields from audit payloads to protect PII
 **Adding Global Sensitive Fields:**
 
 ```csharp
+// DefaultSensitiveDataRedactor is the masker that honors GlobalSensitiveFields
+services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
 services.AddEncinaAudit(options =>
 {
     options.GlobalSensitiveFields = ["AccountNumber", "TaxId", "DateOfBirth"];
@@ -948,6 +950,8 @@ Automatically delete old audit entries to manage storage:
 | `PurgeIntervalHours` | `int` | `24` | Hours between purge runs |
 
 ```csharp
+// AddEncinaAudit requires an IPiiMasker at startup (or call AddEncinaPII() instead)
+services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
 services.AddEncinaAudit(options =>
 {
     options.EnableAutoPurge = true;
