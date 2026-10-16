@@ -11,8 +11,8 @@ namespace Encina;
 /// step before the default order of 0. The attribute is not inherited.
 /// </para>
 /// <para>
-/// <b>Phase note (#2184):</b> the attribute is declared but not yet read by the pipeline builders.
-/// A registration-time override, when present, takes precedence over the attribute.
+/// The pipeline builders read the attribute once per closed pipeline. A registration-time override, when present,
+/// takes precedence over the attribute; a type without the attribute runs in <see cref="PipelineStage.Application"/>.
 /// </para>
 /// </remarks>
 /// <param name="stage">Stage in which the annotated type runs.</param>

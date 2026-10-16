@@ -80,6 +80,12 @@ public static class EncinaErrorCodes
     /// <summary>Request post-processor canceled execution.</summary>
     public const string PostProcessorCancelled = "encina.postprocessor.cancelled";
 
+    /// <summary>
+    /// Request post-commit processor canceled execution after the transaction committed, so the request's data
+    /// was already persisted (unlike <see cref="PostProcessorCancelled"/>, which is raised before any commit).
+    /// </summary>
+    public const string PostCommitProcessorCancelled = "encina.postcommitprocessor.cancelled";
+
     /// <summary>Request post-processor threw an exception.</summary>
     public const string PostProcessorException = "encina.postprocessor.exception";
 

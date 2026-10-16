@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using LanguageExt;
+using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
 
 namespace Encina;
@@ -99,7 +100,8 @@ internal static class StreamDispatcher
         {
             var typedRequest = (TRequest)request;
             var typedHandler = (IStreamRequestHandler<TRequest, TItem>)handler;
-            var pipelineBuilder = new StreamPipelineBuilder<TRequest, TItem>(typedRequest, typedHandler, context, cancellationToken);
+            var resolver = provider.GetRequiredService<PipelineOrderResolver>();
+            var pipelineBuilder = new StreamPipelineBuilder<TRequest, TItem>(typedRequest, typedHandler, context, resolver, cancellationToken);
             var pipeline = pipelineBuilder.Build(provider);
 
             await foreach (var item in pipeline().ConfigureAwait(false))

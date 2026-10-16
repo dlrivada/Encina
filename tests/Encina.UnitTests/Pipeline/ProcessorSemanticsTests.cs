@@ -91,7 +91,7 @@ public sealed class ProcessorSemanticsTests
         services.AddEncina();
         services.AddScoped<IRequestHandler<Req, string>>(_ => new Handler(calls, false));
         services.AddScoped<IRequestPreProcessor<Req>>(_ => new FixedPre(calls, EncinaError.New("first")));
-        services.AddScoped<IRequestPreProcessor<Req>>(_ => new FixedPre(calls, null));
+        services.AddScoped<IRequestPreProcessor<Req>>(_ => new SecondPre(calls));
         services.AddScoped<IPipelineBehavior<Req, string>>(_ => new RecordingBehavior(calls));
 
         await using var provider = services.BuildServiceProvider();
@@ -109,13 +109,51 @@ public sealed class ProcessorSemanticsTests
         services.AddEncina();
         services.AddScoped<IRequestHandler<Req, string>>(_ => new Handler(calls, false));
         services.AddScoped<IRequestPostProcessor<Req, string>>(_ => new FixedPost(calls, EncinaError.New("first")));
-        services.AddScoped<IRequestPostProcessor<Req, string>>(_ => new FixedPost(calls, null));
+        services.AddScoped<IRequestPostProcessor<Req, string>>(_ => new SecondPost(calls));
 
         await using var provider = services.BuildServiceProvider();
         var result = await provider.GetRequiredService<IEncina>().Send(new Req(), CancellationToken.None);
 
         result.IsLeft.ShouldBeTrue();
-        calls.ShouldBe(["handler", "post"]);
+        result.IfLeft(error => error.Message.ShouldBe("first"));
+        // FixedPost sorts before SecondPost by name, so it is the outer step and runs last on the way out;
+        // SecondPost (inner) runs first and succeeds, then FixedPost fails the request.
+        calls.ShouldBe(["handler", "second-post", "post"]);
+    }
+
+    [Fact]
+    public async Task PostProcessors_OfDistinctTypes_RunInTheReverseOfTheirStepOrder()
+    {
+        var calls = new List<string>();
+        var services = new ServiceCollection();
+        services.AddEncina();
+        services.AddScoped<IRequestHandler<Req, string>>(_ => new Handler(calls, false));
+        services.AddScoped<IRequestPostProcessor<Req, string>>(_ => new SecondPost(calls));
+        services.AddScoped<IRequestPostProcessor<Req, string>>(_ => new FixedPost(calls, null));
+
+        await using var provider = services.BuildServiceProvider();
+        var result = await provider.GetRequiredService<IEncina>().Send(new Req(), CancellationToken.None);
+
+        result.IsRight.ShouldBeTrue();
+        calls.ShouldBe(["handler", "second-post", "post"]);
+    }
+
+    private sealed class SecondPre(List<string> calls) : IRequestPreProcessor<Req>
+    {
+        public ValueTask<Either<EncinaError, Unit>> Process(Req request, IRequestContext context, CancellationToken cancellationToken)
+        {
+            calls.Add("second-pre");
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+        }
+    }
+
+    private sealed class SecondPost(List<string> calls) : IRequestPostProcessor<Req, string>
+    {
+        public ValueTask<Either<EncinaError, Unit>> Process(Req request, IRequestContext context, string response, CancellationToken cancellationToken)
+        {
+            calls.Add("second-post");
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+        }
     }
 
     private sealed class RecordingBehavior(List<string> calls) : IPipelineBehavior<Req, string>

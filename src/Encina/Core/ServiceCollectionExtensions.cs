@@ -2,6 +2,8 @@ using System.Reflection;
 using Encina.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Encina;
 
@@ -57,6 +59,10 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IEncina, Encina>();
         services.AddEncinaRequestIdentity();
         services.TryAddSingleton<IEncinaMetrics, EncinaMetrics>();
+        services.TryAddSingleton<PipelineStageRegistry>();
+        services.TryAddSingleton(static provider => new PipelineOrderResolver(
+            provider.GetRequiredService<PipelineStageRegistry>(),
+            provider.GetService<ILogger<PipelineOrderResolver>>() ?? NullLogger<PipelineOrderResolver>.Instance));
         services.TryAddSingleton<IFunctionalFailureDetector>(NullFunctionalFailureDetector.Instance);
 
         // Register null module handler registry for when modules are not used
