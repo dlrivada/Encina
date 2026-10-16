@@ -629,7 +629,7 @@ Cache keys are tenant-scoped: `dsr:tenant:{tenantId|-}:request:{id}` and `dsr:te
 |-------|----------|
 | `null` (default) | Auto-detect: fail closed with `dsr.tenant_required` when `Encina.Tenancy` is registered (`ITenantProvider` resolves), otherwise run unscoped. Single-tenant applications need no configuration. |
 | `true` | Always fail closed with `dsr.tenant_required` |
-| `false` | Explicit opt-out, logged once at startup when `Encina.Tenancy` is registered |
+| `false` | Explicit opt-out, logged each time the DSR service is constructed (once per scope) when `Encina.Tenancy` is registered |
 
 ```csharp
 services.AddEncinaDataSubjectRights(options =>

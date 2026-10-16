@@ -253,7 +253,7 @@ Encina only records `Excessive`; the controller judges repetition from the reque
 |-------|----------|
 | `null` (default) | Auto-detect: fail closed with `dsr.tenant_required` when `Encina.Tenancy` is registered (`ITenantProvider` resolves), otherwise run unscoped. Single-tenant applications need no configuration. |
 | `true` | Always fail closed with `dsr.tenant_required` when the tenant is missing. |
-| `false` | Explicit opt-out; a missing tenant runs an unscoped operation. Logged once at startup when `Encina.Tenancy` is registered. |
+| `false` | Explicit opt-out; a missing tenant runs an unscoped operation. Logged each time the DSR service is constructed (once per scope) when `Encina.Tenancy` is registered. |
 
 Two components follow the same rule:
 
