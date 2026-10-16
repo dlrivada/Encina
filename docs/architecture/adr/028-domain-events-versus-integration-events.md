@@ -4,7 +4,7 @@
 
 **Accepted** - decided in issues #312, #373 and #384 (2026); recorded as an ADR on 2026-09-22 from the project history.
 
-> **Amendment 2026-10-16 ([#2381](https://github.com/dlrivada/Encina/issues/2381)):** the in-process dispatch of domain events described below does not apply to event-sourced modules (Marten). Their domain events are also delivered with guarantees: written to the Outbox in the same Marten session and processed idempotently through the Inbox ([#2383](https://github.com/dlrivada/Encina/issues/2383)). Integration events still leave the process only through the Outbox. The required modules are in [ADR-050](050-modules-may-require-modules.md).
+> **Amendment 2026-10-16 ([#2381](https://github.com/dlrivada/Encina/issues/2381)):** the in-process dispatch of domain events described below does not apply to event-sourced modules (Marten). Their domain events are also delivered with guarantees: written to the Outbox in the same Marten session and processed idempotently through the Inbox ([#2383](https://github.com/dlrivada/Encina/issues/2383)). The required modules are in [ADR-050](050-modules-may-require-modules.md).
 
 ## Context
 

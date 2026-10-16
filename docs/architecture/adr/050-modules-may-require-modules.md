@@ -2,7 +2,7 @@
 
 ## Status
 
-**Accepted** - 2026-10-16, issue [#2381](https://github.com/dlrivada/Encina/issues/2381). The general rule was decided by the maintainer on 2026-10-16 (decision 1, option a, in the comment thread of [#2239](https://github.com/dlrivada/Encina/issues/2239)). The sub-decisions the issue lists as open (in-memory implementations outside Development, how multi-instance is declared, default `EnforcementMode`, audit as a precondition of DSR, NIS2, AI Act and ABAC, forbidden combinations as errors or warnings, build order) are not decided here; each is recorded as an amendment when the maintainer picks.
+**Accepted** - 2026-10-16, issue [#2381](https://github.com/dlrivada/Encina/issues/2381). The general rule was decided by the maintainer on 2026-10-16 (decision 1, option a, in the comment thread of [#2239](https://github.com/dlrivada/Encina/issues/2239)). The sub-decisions listed in #2381 other than the ones above are not decided here (the registration mechanism per row, in-memory implementations outside Development, how multi-instance is declared, default `EnforcementMode`, audit as a precondition of DSR, NIS2, AI Act and ABAC, forbidden combinations as registration errors or warnings, how the Outbox reaches brokers, build order); each is recorded as an amendment when the maintainer picks.
 
 ## Context
 
@@ -32,7 +32,7 @@ Rules:
 
 | Module | Requires | Forbids | Condition | Source |
 | --- | --- | --- | --- | --- |
-| Event sourcing (`Encina.Marten`) | Outbox (`OutboxStoreMarten`, written in the Marten session); Inbox for domain events; Recoverability and Dead Letter Queue; processor health and metrics; multi-instance coordination | `TransactionPipelineBehavior` (the Marten session is already transactional) | Multi-instance coordination applies when more than one instance runs; how that is declared is an open sub-decision | [#2239](https://github.com/dlrivada/Encina/issues/2239), [#2383](https://github.com/dlrivada/Encina/issues/2383) |
+| Event sourcing (`Encina.Marten`) | Outbox (`OutboxStoreMarten`, written in the Marten session); Inbox for domain events; Recoverability and Dead Letter Queue; processor health and metrics; multi-instance coordination | `TransactionPipelineBehavior` (the Marten session is already transactional) | Always; how multi-instance is declared is an open sub-decision | [#2239](https://github.com/dlrivada/Encina/issues/2239), [#2383](https://github.com/dlrivada/Encina/issues/2383) |
 | Dead Letter Queue | The operation-audit adapter | | Always | [#2013](https://github.com/dlrivada/Encina/issues/2013) |
 | Operation audit | An `IPiiMasker` | | Unless the explicit, logged opt-out is set | [#1835](https://github.com/dlrivada/Encina/issues/1835) |
 | Delayed retries (Recoverability) | An `IDelayedRetryStore` | | Always, because delayed retries are on by default | [#2248](https://github.com/dlrivada/Encina/issues/2248) |
@@ -43,7 +43,7 @@ Entries for the remaining module families are not invented here. Each issue of t
 
 ### Validator pattern
 
-The validator is an `IHostedService` that throws in `StartAsync`, so that `ValidateOnBuild` and `ValidateScopes` stay green and a missing requirement fails the host before it serves traffic. Where a dependency has exactly one possible implementation, the registration may add it with `TryAdd` so the application's own registration wins. Statically detectable forbidden combinations may throw in the `AddEncina*` method. Which of these applies to a given row is decided in the issue that implements the row.
+The mechanism per row is not decided here. The recommended option of #2381 (Option A), pending the maintainer's pick, is: an `IHostedService` that throws in `StartAsync` where a dependency has several providers; `TryAdd` auto-registration where it has exactly one, so the application's own registration wins; a throw in `AddEncina*` for statically detectable forbidden combinations. Whether a forbidden combination is a registration error or a warning is likewise open; the maintainer's instruction is that it fails at startup. The issue that implements each row ([#2382](https://github.com/dlrivada/Encina/issues/2382) for the validator) settles the mechanism.
 
 ## Alternatives considered
 
@@ -53,7 +53,7 @@ The validator is an `IHostedService` that throws in `StartAsync`, so that `Valid
 
 ## Consequences
 
-- `AGENTS.md` section 3 is amended to state the rule and link this ADR.
+- `AGENTS.md` section 3 must be amended to state the rule and link this ADR (the edit is made by the orchestrator in the same PR).
 - [ADR-019](019-compliance-event-sourcing-marten.md) and [ADR-028](028-domain-events-versus-integration-events.md) carry dated amendment notes for the event-sourcing route (publication by the behavior is superseded; domain events of event-sourced modules are also delivered with guarantees, [#2383](https://github.com/dlrivada/Encina/issues/2383)).
 - Each module's requirement list is checkable by a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes`.
 - An application that enabled a module without its requirements now fails at startup. Pre-1.0 policy accepts this.
