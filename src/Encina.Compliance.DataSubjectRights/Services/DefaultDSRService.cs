@@ -1077,9 +1077,7 @@ internal sealed class DefaultDSRService : IDSRService
 
         if (tenantId is null && IsTenantContextRequired)
         {
-            _logger.DSRTenantContextMissing(operation);
-            error = DSRErrors.TenantRequired(operation);
-            return false;
+            return Refuse(operation, out tenantId, out error);
         }
 
         error = null;
@@ -1098,27 +1096,32 @@ internal sealed class DefaultDSRService : IDSRService
         var ambientTenantId = NormalizeTenant(CurrentTenantId);
         var requestedTenantId = NormalizeTenant(explicitTenantId);
 
-        if (requestedTenantId is not null
-            && ambientTenantId is not null
-            && !TenantsMatch(requestedTenantId, ambientTenantId))
+        if (Contradicts(requestedTenantId, ambientTenantId))
         {
-            _logger.DSRTenantContextMissing(operation);
-            tenantId = null;
-            error = DSRErrors.TenantRequired(operation);
-            return false;
+            return Refuse(operation, out tenantId, out error);
         }
 
         tenantId = requestedTenantId ?? ambientTenantId;
 
         if (tenantId is null && IsTenantContextRequired)
         {
-            _logger.DSRTenantContextMissing(operation);
-            error = DSRErrors.TenantRequired(operation);
-            return false;
+            return Refuse(operation, out tenantId, out error);
         }
 
         error = null;
         return true;
+    }
+
+    private static bool Contradicts(string? requestedTenantId, string? ambientTenantId) =>
+        requestedTenantId is not null && ambientTenantId is not null
+        && !TenantsMatch(requestedTenantId, ambientTenantId);
+
+    private bool Refuse(string operation, out string? tenantId, out EncinaError? error)
+    {
+        _logger.DSRTenantContextMissing(operation);
+        tenantId = null;
+        error = DSRErrors.TenantRequired(operation);
+        return false;
     }
 
     private static string? NormalizeTenant(string? tenantId) =>

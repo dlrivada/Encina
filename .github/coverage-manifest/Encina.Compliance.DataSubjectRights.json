@@ -269,7 +269,15 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "unit": 100,
+        "guard": 9
+      },
+      "justifications": {
+        "unit": "Every check branch, including the overdue check skipped for a missing tenant, is driven with mocked services, which reaches 83 of 83 lines.",
+        "guard": "Guard tests cover the constructor null checks, which reaches 8 of 83 lines; the check bodies are unit tested."
+      }
     },
     "Locators/CompositePersonalDataLocator.cs": {
       "defaultTests": [
@@ -474,7 +482,17 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 100,
+        "guard": 10,
+        "contract": 70
+      },
+      "justifications": {
+        "unit": "Every enforcement mode, subject extraction path, store-error fail-open and the tenant-required fail-closed branch is unit tested, which reaches 142 of 142 lines.",
+        "guard": "Guard tests cover the constructor and Handle null checks, which reaches 15 of 142 lines; the pipeline bodies are unit tested.",
+        "contract": "Contract tests run the behavior for blocked, warned and allowed requests, which reaches 100 of 142 lines; the subject-extraction conversions are unit tested."
+      }
     },
     "Projections/DSRRequestProjection.cs": {
       "defaultTests": [
@@ -562,7 +580,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "Registration, option wiring, the standalone request context accessor and the tenancy-aware ValidateOnBuild test cover all 36 lines.",
+        "guard": "Guard tests call the extension with null arguments and the registration paths, which reaches 36 of 36 lines."
+      }
     },
     "Services/DefaultDSRService.cs": {
       "defaultTests": [
@@ -572,18 +598,18 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "unit": 95,
+        "unit": 97,
         "guard": 7,
-        "contract": 22,
-        "property": 14,
-        "integration": 14
+        "contract": 26,
+        "property": 16,
+        "integration": 53
       },
       "justifications": {
-        "unit": "Every lifecycle command, query and handler failure path is unit tested; only defensive branches remain.",
-        "guard": "Guard tests cover the constructor guards and the null-request checks of the handler operations, which reaches 40 of 522 lines; the bodies behind them are unit tested.",
-        "contract": "Contract tests drive submit, get and the lifecycle commands on missing requests plus the deny gate, which reaches 118 of 522 lines; handler operations and queries with data are unit tested.",
-        "property": "Property tests drive the deny path only, which reaches 75 of 522 lines.",
-        "integration": "Integration tests drive submit, load, deny and save against Marten, which reaches 77 of 522 lines; the handler operations need locators and executors outside the fixture."
+        "unit": "Every lifecycle command, query, tenant-scope rule (ambient filter, not-found for another tenant, cache keys, RequireTenantContext auto-detect and logged opt-out, SubmitRequest tenant handling) and handler failure path is unit tested, which reaches 595 of 600 lines; only defensive branches remain.",
+        "guard": "Guard tests cover the constructor guards and the null-request checks of the handler operations, which reaches 46 of 600 lines; the bodies behind them are unit tested.",
+        "contract": "Contract tests drive submit, get and the lifecycle commands on missing requests plus the deny gate, which reaches 156 of 600 lines; handler operations and queries with data are unit tested.",
+        "property": "Property tests drive the deny path only, which reaches 100 of 600 lines.",
+        "integration": "Integration tests drive submit, load, every lifecycle command, the four tenant-scoped queries and the cache keys of two tenants against Marten, which reaches 323 of 600 lines; the handler operations other than restriction need locators and executors outside the fixture."
       }
     },
     "SubjectIdConversion.cs": {
