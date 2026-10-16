@@ -370,54 +370,69 @@ public sealed class DSRRequestAggregate : AggregateBase
     }
 
     /// <inheritdoc />
-    // crap-exempt: single-question switch — dispatches each domain event type to its state change
     protected override void Apply(object domainEvent)
     {
-        switch (domainEvent)
+        if (EventHandlers.TryGetValue(domainEvent.GetType(), out var handler))
         {
-            case DSRRequestSubmitted e:
-                Id = e.RequestId;
-                SubjectId = e.SubjectId;
-                RightType = e.RightType;
-                Status = DSRRequestStatus.Received;
-                ReceivedAtUtc = e.ReceivedAtUtc;
-                DeadlineAtUtc = e.DeadlineAtUtc;
-                RequestDetails = e.RequestDetails;
-                TenantId = e.TenantId;
-                ModuleId = e.ModuleId;
-                break;
-
-            case DSRRequestVerified e:
-                Status = DSRRequestStatus.IdentityVerified;
-                VerifiedAtUtc = e.VerifiedAtUtc;
-                break;
-
-            case DSRRequestProcessing e:
-                Status = DSRRequestStatus.InProgress;
-                ProcessedByUserId = e.ProcessedByUserId;
-                break;
-
-            case DSRRequestCompleted e:
-                Status = DSRRequestStatus.Completed;
-                CompletedAtUtc = e.CompletedAtUtc;
-                break;
-
-            case DSRRequestDenied e:
-                Status = DSRRequestStatus.Rejected;
-                RejectionReason = e.RejectionReason;
-                RejectionExplanation = e.RejectionExplanation;
-                CompletedAtUtc = e.DeniedAtUtc;
-                break;
-
-            case DSRRequestExtended e:
-                Status = DSRRequestStatus.Extended;
-                ExtensionReason = e.ExtensionReason;
-                ExtendedDeadlineAtUtc = e.ExtendedDeadlineAtUtc;
-                break;
-
-            case DSRRequestExpired:
-                Status = DSRRequestStatus.Expired;
-                break;
+            handler(this, domainEvent);
         }
+    }
+
+    // One state change per event type, looked up by the exact (sealed) event type.
+    private static readonly Dictionary<Type, Action<DSRRequestAggregate, object>> EventHandlers = new()
+    {
+        [typeof(DSRRequestSubmitted)] = (a, e) => a.When((DSRRequestSubmitted)e),
+        [typeof(DSRRequestVerified)] = (a, e) => a.When((DSRRequestVerified)e),
+        [typeof(DSRRequestProcessing)] = (a, e) => a.When((DSRRequestProcessing)e),
+        [typeof(DSRRequestCompleted)] = (a, e) => a.When((DSRRequestCompleted)e),
+        [typeof(DSRRequestDenied)] = (a, e) => a.When((DSRRequestDenied)e),
+        [typeof(DSRRequestExtended)] = (a, e) => a.When((DSRRequestExtended)e),
+        [typeof(DSRRequestExpired)] = (a, _) => a.Status = DSRRequestStatus.Expired
+    };
+
+    private void When(DSRRequestSubmitted e)
+    {
+        Id = e.RequestId;
+        SubjectId = e.SubjectId;
+        RightType = e.RightType;
+        Status = DSRRequestStatus.Received;
+        ReceivedAtUtc = e.ReceivedAtUtc;
+        DeadlineAtUtc = e.DeadlineAtUtc;
+        RequestDetails = e.RequestDetails;
+        TenantId = e.TenantId;
+        ModuleId = e.ModuleId;
+    }
+
+    private void When(DSRRequestVerified e)
+    {
+        Status = DSRRequestStatus.IdentityVerified;
+        VerifiedAtUtc = e.VerifiedAtUtc;
+    }
+
+    private void When(DSRRequestProcessing e)
+    {
+        Status = DSRRequestStatus.InProgress;
+        ProcessedByUserId = e.ProcessedByUserId;
+    }
+
+    private void When(DSRRequestCompleted e)
+    {
+        Status = DSRRequestStatus.Completed;
+        CompletedAtUtc = e.CompletedAtUtc;
+    }
+
+    private void When(DSRRequestDenied e)
+    {
+        Status = DSRRequestStatus.Rejected;
+        RejectionReason = e.RejectionReason;
+        RejectionExplanation = e.RejectionExplanation;
+        CompletedAtUtc = e.DeniedAtUtc;
+    }
+
+    private void When(DSRRequestExtended e)
+    {
+        Status = DSRRequestStatus.Extended;
+        ExtensionReason = e.ExtensionReason;
+        ExtendedDeadlineAtUtc = e.ExtendedDeadlineAtUtc;
     }
 }
