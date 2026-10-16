@@ -176,4 +176,17 @@ public sealed class ABACDecisionAuditStoreGuardTests
 
         (await Reader().ExportAsync(new ABACDecisionAuditQuery(), stream)).IsRight.ShouldBeTrue();
     }
+
+    [Fact]
+    public async Task Reader_ExportAsync_RangeEndingBeforeItStarts_ReturnsLeftAndWritesNothing()
+    {
+        using var stream = new MemoryStream();
+        var query = new ABACDecisionAuditQuery { FromUtc = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc), ToUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) };
+
+        var result = await Reader().ExportAsync(query, stream);
+
+        result.IsLeft.ShouldBeTrue();
+        stream.Length.ShouldBe(0);
+    }
+
 }
