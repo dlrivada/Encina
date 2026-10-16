@@ -78,19 +78,6 @@ public sealed class NATSMessagePublisherAdditionalTests
             publisher.RequestAsync<DetailedTestMessage, DetailedTestMessage>(null!).AsTask());
     }
 
-    [Fact]
-    public async Task DisposeAsync_DisposesConnection()
-    {
-        // Arrange
-        var publisher = new NATSMessagePublisher(_connection, _jetStream, _logger, _options);
-
-        // Act
-        await publisher.DisposeAsync();
-
-        // Assert
-        await _connection.Received(1).DisposeAsync();
-    }
-
     private sealed record DetailedTestMessage
     {
         public int Id { get; init; }

@@ -101,14 +101,14 @@ public sealed class AddEncinaServiceGraphTests
 
     public sealed class GraphPreProcessor : IRequestPreProcessor<GraphRequest>
     {
-        public Task Process(GraphRequest request, IRequestContext context, CancellationToken cancellationToken)
-            => Task.CompletedTask;
+        public ValueTask<Either<EncinaError, Unit>> Process(GraphRequest request, IRequestContext context, CancellationToken cancellationToken)
+            => ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
     }
 
     public sealed class GraphPostProcessor : IRequestPostProcessor<GraphRequest, GraphResponse>
     {
-        public Task Process(GraphRequest request, IRequestContext context, Either<EncinaError, GraphResponse> response, CancellationToken cancellationToken)
-            => Task.CompletedTask;
+        public ValueTask<Either<EncinaError, Unit>> Process(GraphRequest request, IRequestContext context, GraphResponse response, CancellationToken cancellationToken)
+            => ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
     }
 
     /// <summary>

@@ -76,9 +76,9 @@ Encina.IRequestContext.WithTenantId(string? tenantId) -> Encina.IRequestContext!
 Encina.IRequestHandler<TRequest, TResponse>
 Encina.IRequestHandler<TRequest, TResponse>.Handle(TRequest request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TResponse>>!
 Encina.IRequestPostProcessor<TRequest, TResponse>
-Encina.IRequestPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, LanguageExt.Either<Encina.EncinaError, TResponse> response, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.IRequestPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, TResponse response, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.IRequestPreProcessor<TRequest>
-Encina.IRequestPreProcessor<TRequest>.Process(TRequest request, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.IRequestPreProcessor<TRequest>.Process(TRequest request, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.IStreamPipelineBehavior<TRequest, TItem>
 Encina.IStreamPipelineBehavior<TRequest, TItem>.Handle(TRequest request, Encina.IRequestContext! context, Encina.StreamHandlerCallback<TItem>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<LanguageExt.Either<Encina.EncinaError, TItem>>!
 Encina.IStreamRequest<TItem>
@@ -376,6 +376,58 @@ Encina.Modules.Isolation.ModuleSchemaRegistry.GetRegisteredModules() -> System.C
 Encina.Modules.Isolation.ModuleSchemaRegistry.GetSharedSchemas() -> System.Collections.Generic.IReadOnlySet<string!>!
 Encina.Modules.Isolation.ModuleSchemaRegistry.IsModuleRegistered(string! moduleName) -> bool
 Encina.Modules.Isolation.ModuleSchemaRegistry.ModuleSchemaRegistry() -> void
+Encina.PipelineStage
+Encina.PipelineStage.Observability = 100 -> Encina.PipelineStage
+Encina.PipelineStage.Admission = 200 -> Encina.PipelineStage
+Encina.PipelineStage.Audit = 300 -> Encina.PipelineStage
+Encina.PipelineStage.Authentication = 400 -> Encina.PipelineStage
+Encina.PipelineStage.Authorization = 500 -> Encina.PipelineStage
+Encina.PipelineStage.Compliance = 600 -> Encina.PipelineStage
+Encina.PipelineStage.Presentation = 700 -> Encina.PipelineStage
+Encina.PipelineStage.InputPreparation = 800 -> Encina.PipelineStage
+Encina.PipelineStage.Validation = 900 -> Encina.PipelineStage
+Encina.PipelineStage.Caching = 1000 -> Encina.PipelineStage
+Encina.PipelineStage.Resilience = 1100 -> Encina.PipelineStage
+Encina.PipelineStage.DataRouting = 1200 -> Encina.PipelineStage
+Encina.PipelineStage.Transaction = 1300 -> Encina.PipelineStage
+Encina.PipelineStage.Idempotency = 1400 -> Encina.PipelineStage
+Encina.PipelineStage.Application = 1500 -> Encina.PipelineStage
+Encina.PipelineStage.HandlerPreparation = 1600 -> Encina.PipelineStage
+Encina.PipelineStageAttribute
+Encina.PipelineStageAttribute.Order.get -> int
+Encina.PipelineStageAttribute.Order.init -> void
+Encina.PipelineStageAttribute.PipelineStageAttribute(Encina.PipelineStage stage) -> void
+Encina.PipelineStageAttribute.Stage.get -> Encina.PipelineStage
+Encina.PipelineStepKind
+Encina.PipelineStepKind.Behavior = 0 -> Encina.PipelineStepKind
+Encina.PipelineStepKind.ModuleBehavior = 1 -> Encina.PipelineStepKind
+Encina.PipelineStepKind.PreProcessor = 2 -> Encina.PipelineStepKind
+Encina.PipelineStepKind.PostProcessor = 3 -> Encina.PipelineStepKind
+Encina.PipelineStepKind.ErrorProcessor = 4 -> Encina.PipelineStepKind
+Encina.PipelineStepKind.PostCommitProcessor = 5 -> Encina.PipelineStepKind
+Encina.PipelineStepSource
+Encina.PipelineStepSource.Attribute = 0 -> Encina.PipelineStepSource
+Encina.PipelineStepSource.Registration = 1 -> Encina.PipelineStepSource
+Encina.PipelineStepSource.Default = 2 -> Encina.PipelineStepSource
+Encina.PipelineStepDescription
+Encina.PipelineStepDescription.Kind.get -> Encina.PipelineStepKind
+Encina.PipelineStepDescription.Kind.init -> void
+Encina.PipelineStepDescription.Order.get -> int
+Encina.PipelineStepDescription.Order.init -> void
+Encina.PipelineStepDescription.PipelineStepDescription(System.Type! StepType, Encina.PipelineStepKind Kind, Encina.PipelineStage Stage, int Order, Encina.PipelineStepSource Source) -> void
+Encina.PipelineStepDescription.Source.get -> Encina.PipelineStepSource
+Encina.PipelineStepDescription.Source.init -> void
+Encina.PipelineStepDescription.Stage.get -> Encina.PipelineStage
+Encina.PipelineStepDescription.Stage.init -> void
+Encina.PipelineStepDescription.StepType.get -> System.Type!
+Encina.PipelineStepDescription.StepType.init -> void
+Encina.IEncinaPipelineInspector
+Encina.IEncinaPipelineInspector.Describe<TRequest, TResponse>() -> System.Collections.Generic.IReadOnlyList<Encina.PipelineStepDescription!>!
+Encina.IEncinaPipelineInspector.DescribeStream<TRequest, TItem>() -> System.Collections.Generic.IReadOnlyList<Encina.PipelineStepDescription!>!
+Encina.IRequestErrorProcessor<TRequest, TResponse>
+Encina.IRequestErrorProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, Encina.EncinaError failure, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Encina.IRequestPostCommitProcessor<TRequest, TResponse>
+Encina.IRequestPostCommitProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, TResponse response, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Modules.Isolation.ModuleSchemaRegistry.ModuleSchemaRegistry(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> void
 Encina.Modules.Isolation.ModuleSchemaRegistry.ValidateSqlAccess(string! moduleName, string! sql) -> Encina.Modules.Isolation.SchemaAccessValidationResult
 Encina.Modules.Isolation.PermissionScript

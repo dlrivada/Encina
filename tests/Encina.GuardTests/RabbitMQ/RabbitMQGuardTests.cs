@@ -19,25 +19,15 @@ namespace Encina.GuardTests.RabbitMQ;
 [Trait("Category", "Guard")]
 public sealed class RabbitMQGuardTests
 {
-    private static readonly IConnection Connection = Substitute.For<IConnection>();
     private static readonly IChannel Channel = Substitute.For<IChannel>();
 
     // ─── RabbitMQMessagePublisher constructor guards ───
 
     [Fact]
-    public void Constructor_NullConnection_Throws()
-    {
-        Should.Throw<ArgumentNullException>(() =>
-            new RabbitMQMessagePublisher(null!, Channel,
-                NullLogger<RabbitMQMessagePublisher>.Instance,
-                Options.Create(new EncinaRabbitMQOptions())));
-    }
-
-    [Fact]
     public void Constructor_NullChannel_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new RabbitMQMessagePublisher(Connection, null!,
+            new RabbitMQMessagePublisher(null!,
                 NullLogger<RabbitMQMessagePublisher>.Instance,
                 Options.Create(new EncinaRabbitMQOptions())));
     }
@@ -46,7 +36,7 @@ public sealed class RabbitMQGuardTests
     public void Constructor_NullLogger_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new RabbitMQMessagePublisher(Connection, Channel, null!,
+            new RabbitMQMessagePublisher(Channel, null!,
                 Options.Create(new EncinaRabbitMQOptions())));
     }
 
@@ -54,14 +44,14 @@ public sealed class RabbitMQGuardTests
     public void Constructor_NullOptions_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new RabbitMQMessagePublisher(Connection, Channel,
+            new RabbitMQMessagePublisher(Channel,
                 NullLogger<RabbitMQMessagePublisher>.Instance, null!));
     }
 
     [Fact]
     public void Constructor_ValidArgs_Constructs()
     {
-        var sut = new RabbitMQMessagePublisher(Connection, Channel,
+        var sut = new RabbitMQMessagePublisher(Channel,
             NullLogger<RabbitMQMessagePublisher>.Instance,
             Options.Create(new EncinaRabbitMQOptions()));
         sut.ShouldNotBeNull();
@@ -72,7 +62,7 @@ public sealed class RabbitMQGuardTests
     [Fact]
     public async Task PublishAsync_NullMessage_Throws()
     {
-        var sut = new RabbitMQMessagePublisher(Connection, Channel,
+        var sut = new RabbitMQMessagePublisher(Channel,
             NullLogger<RabbitMQMessagePublisher>.Instance,
             Options.Create(new EncinaRabbitMQOptions()));
 
@@ -83,7 +73,7 @@ public sealed class RabbitMQGuardTests
     [Fact]
     public async Task SendToQueueAsync_NullQueueName_Throws()
     {
-        var sut = new RabbitMQMessagePublisher(Connection, Channel,
+        var sut = new RabbitMQMessagePublisher(Channel,
             NullLogger<RabbitMQMessagePublisher>.Instance,
             Options.Create(new EncinaRabbitMQOptions()));
 
@@ -94,7 +84,7 @@ public sealed class RabbitMQGuardTests
     [Fact]
     public async Task SendToQueueAsync_NullMessage_Throws()
     {
-        var sut = new RabbitMQMessagePublisher(Connection, Channel,
+        var sut = new RabbitMQMessagePublisher(Channel,
             NullLogger<RabbitMQMessagePublisher>.Instance,
             Options.Create(new EncinaRabbitMQOptions()));
 
@@ -105,7 +95,7 @@ public sealed class RabbitMQGuardTests
     [Fact]
     public async Task RequestAsync_NullRequest_Throws()
     {
-        var sut = new RabbitMQMessagePublisher(Connection, Channel,
+        var sut = new RabbitMQMessagePublisher(Channel,
             NullLogger<RabbitMQMessagePublisher>.Instance,
             Options.Create(new EncinaRabbitMQOptions()));
 

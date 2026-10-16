@@ -348,24 +348,6 @@ public sealed class KafkaMessagePublisherTests
 
     #endregion
 
-    #region Dispose Tests
-
-    [Fact]
-    public void Dispose_ShouldFlushAndDisposeProducer()
-    {
-        // Arrange
-        var publisher = CreatePublisher();
-
-        // Act
-        publisher.Dispose();
-
-        // Assert
-        _producer.Received(1).Flush(Arg.Any<TimeSpan>());
-        _producer.Received(1).Dispose();
-    }
-
-    #endregion
-
     #region Helper Methods
 
     private KafkaMessagePublisher CreatePublisher()

@@ -525,10 +525,10 @@ public sealed class ConfigurationProperties
 
         protected abstract string Label { get; }
 
-        public Task Process(TRequest request, IRequestContext context, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(TRequest request, IRequestContext context, CancellationToken cancellationToken)
         {
             _recorder.Add($"pre:{Label}");
-            return Task.CompletedTask;
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
         }
     }
 
@@ -553,13 +553,10 @@ public sealed class ConfigurationProperties
 
         protected abstract string Label { get; }
 
-        public Task Process(TRequest request, IRequestContext context, Either<EncinaError, TResponse> response, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(TRequest request, IRequestContext context, TResponse response, CancellationToken cancellationToken)
         {
-            if (response.IsRight)
-            {
-                _recorder.Add($"post:{Label}");
-            }
-            return Task.CompletedTask;
+            _recorder.Add($"post:{Label}");
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
         }
     }
 
