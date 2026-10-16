@@ -360,23 +360,6 @@ public sealed class NATSMessagePublisherTests
 
     #endregion
 
-    #region DisposeAsync Tests
-
-    [Fact]
-    public async Task DisposeAsync_ShouldDisposeConnection()
-    {
-        // Arrange
-        var publisher = CreatePublisher();
-
-        // Act
-        await publisher.DisposeAsync();
-
-        // Assert
-        await _connection.Received(1).DisposeAsync();
-    }
-
-    #endregion
-
     #region Helper Methods
 
     private NATSMessagePublisher CreatePublisher()

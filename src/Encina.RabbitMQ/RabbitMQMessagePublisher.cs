@@ -11,9 +11,12 @@ namespace Encina.RabbitMQ;
 /// <summary>
 /// RabbitMQ-based implementation of the message publisher.
 /// </summary>
-public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsyncDisposable
+/// <remarks>
+/// The publisher does not own the injected <see cref="IChannel"/>; the DI container owns
+/// and disposes it, so ending a scope that resolved the publisher leaves the channel usable.
+/// </remarks>
+public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher
 {
-    private readonly IConnection _connection;
     private readonly IChannel _channel;
     private readonly ILogger<RabbitMQMessagePublisher> _logger;
     private readonly EncinaRabbitMQOptions _options;
@@ -21,22 +24,18 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
     /// <summary>
     /// Initializes a new instance of the <see cref="RabbitMQMessagePublisher"/> class.
     /// </summary>
-    /// <param name="connection">The RabbitMQ connection.</param>
-    /// <param name="channel">The RabbitMQ channel.</param>
+    /// <param name="channel">The shared RabbitMQ channel (owned by the DI container).</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
     public RabbitMQMessagePublisher(
-        IConnection connection,
         IChannel channel,
         ILogger<RabbitMQMessagePublisher> logger,
         IOptions<EncinaRabbitMQOptions> options)
     {
-        ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(channel);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
 
-        _connection = connection;
         _channel = channel;
         _logger = logger;
         _options = options.Value;
@@ -153,12 +152,5 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
             EncinaErrors.Create(
                 "RABBITMQ_RPC_NOT_IMPLEMENTED",
                 "RPC pattern is not yet implemented. Use MassTransit for request/reply patterns."));
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
-    {
-        await _channel.CloseAsync().ConfigureAwait(false);
-        await _connection.CloseAsync().ConfigureAwait(false);
     }
 }

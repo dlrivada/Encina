@@ -3,34 +3,36 @@ using LanguageExt;
 namespace Encina;
 
 /// <summary>
-/// Executes logic after the main handler for a given request.
+/// Executes typed logic after the handler succeeded for a given request.
 /// </summary>
 /// <typeparam name="TRequest">Observed request type.</typeparam>
 /// <typeparam name="TResponse">Response type emitted by the handler.</typeparam>
 /// <remarks>
-/// Useful for emitting notifications, cleaning resources, or persisting additional results. Runs
-/// even when the handler returned a functional error; the implementation decides how to react.
+/// <para>
+/// A post-processor runs only when the inner pipeline returned <c>Right</c>. Use
+/// <see cref="IRequestErrorProcessor{TRequest, TResponse}"/> to observe failures. A <c>Left</c> returned by a
+/// post-processor fails the request: errors are never swallowed.
+/// </para>
+/// <para>
+/// <b>Phase note (#2184):</b> stage placement is not yet applied; until the order resolver lands, post-processors still
+/// run after every behavior. Its default stage will be <see cref="PipelineStage.Application"/>; declare another with
+/// <see cref="PipelineStageAttribute"/>. Anything that needs wrapping, timing or catching belongs in an
+/// <see cref="IPipelineBehavior{TRequest, TResponse}"/>.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
-/// public sealed class AuditLogPostProcessor&lt;TRequest, TResponse&gt; : IRequestPostProcessor&lt;TRequest, TResponse&gt;
+/// public sealed class AuditLogPostProcessor&lt;TRequest, TResponse&gt;(IAuditLogger auditLogger)
+///     : IRequestPostProcessor&lt;TRequest, TResponse&gt;
 /// {
-///     private readonly IAuditLogger _auditLogger;
-///
-///     public Task Process(
+///     public async ValueTask&lt;Either&lt;EncinaError, Unit&gt;&gt; Process(
 ///         TRequest request,
 ///         IRequestContext context,
-///         Either&lt;EncinaError, TResponse&gt; response,
+///         TResponse response,
 ///         CancellationToken cancellationToken)
 ///     {
-///         await _auditLogger.LogAsync(new OperationAuditEntry
-///         {
-///             UserId = context.UserId,
-///             Action = typeof(TRequest).Name,
-///             Timestamp = context.Timestamp,
-///             Success = response.IsRight
-///         });
-///         return Task.CompletedTask;
+///         await auditLogger.LogAsync(typeof(TRequest).Name, context.CorrelationId, cancellationToken);
+///         return Unit.Default;
 ///     }
 /// }
 /// </code>
@@ -38,19 +40,16 @@ namespace Encina;
 public interface IRequestPostProcessor<in TRequest, TResponse>
 {
     /// <summary>
-    /// Executes the post-processing logic using the request and the final response.
+    /// Executes the post-processing logic using the request and the successful response.
     /// </summary>
     /// <param name="request">Original request.</param>
     /// <param name="context">Request context with correlation ID, user info, etc.</param>
-    /// <param name="response">Response returned by the pipeline.</param>
+    /// <param name="response">Response returned by the inner pipeline.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <remarks>
-    /// Post-processors have read-only access to context.
-    /// Use context for audit logging, metrics tagging, or conditional side effects.
-    /// </remarks>
-    Task Process(
+    /// <returns><c>Right</c> to keep the response; <c>Left</c> to fail the request with that error.</returns>
+    ValueTask<Either<EncinaError, Unit>> Process(
         TRequest request,
         IRequestContext context,
-        Either<EncinaError, TResponse> response,
+        TResponse response,
         CancellationToken cancellationToken);
 }

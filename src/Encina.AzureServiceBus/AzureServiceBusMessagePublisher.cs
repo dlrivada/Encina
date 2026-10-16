@@ -11,7 +11,11 @@ namespace Encina.AzureServiceBus;
 /// <summary>
 /// Azure Service Bus-based implementation of the message publisher.
 /// </summary>
-public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePublisher, IAsyncDisposable
+/// <remarks>
+/// The publisher does not own the injected <see cref="ServiceBusClient"/>; the DI container owns
+/// and disposes it, so ending a scope that resolved the publisher leaves the client usable.
+/// </remarks>
+public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePublisher
 {
     private readonly ServiceBusClient _client;
     private readonly ILogger<AzureServiceBusMessagePublisher> _logger;
@@ -196,11 +200,5 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
                     ex,
                     $"Failed to cancel scheduled message with sequence number {sequenceNumber}."));
         }
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
-    {
-        await _client.DisposeAsync().ConfigureAwait(false);
     }
 }

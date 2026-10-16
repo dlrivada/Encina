@@ -106,17 +106,6 @@ public static partial class MessagingLog
         int count,
         string? correlationId);
 
-    /// <summary>Logs when skipping outbox storage due to an error.</summary>
-    [LoggerMessage(
-        EventId = 2826,
-        Level = LogLevel.Debug,
-        Message = "Skipping outbox storage for {Count} notifications due to error: {ErrorMessage} (CorrelationId: {CorrelationId})")]
-    public static partial void SkippingOutboxStorageDueToError(
-        ILogger logger,
-        int count,
-        string errorMessage,
-        string? correlationId);
-
     // =========================================================================
     // Outbox Processor (EventIds 2827-2833)
     // =========================================================================

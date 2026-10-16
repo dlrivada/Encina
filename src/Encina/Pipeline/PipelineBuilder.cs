@@ -98,30 +98,75 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         IRequestContext context,
         CancellationToken cancellationToken)
     {
-        // Pre-processors: index-based iteration avoids enumerator allocation
+        var preFailure = await RunPreProcessorsAsync(preProcessors, request, context, cancellationToken).ConfigureAwait(false);
+        if (preFailure.IsSome)
+        {
+            return ToLeft(preFailure);
+        }
+
+        var response = await terminal().ConfigureAwait(false);
+        return await ApplyPostProcessorsAsync(postProcessors, request, context, response, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static Either<EncinaError, TResponse> ToLeft(Option<EncinaError> failure)
+        => Left<EncinaError, TResponse>(failure.Match(err => err, () => EncinaErrors.Unknown)); // NOSONAR S6966: LanguageExt Left is a pure function
+
+    /// <summary>
+    /// Runs the post-processors only when the inner pipeline succeeded; a processor <c>Left</c> fails the request.
+    /// </summary>
+    private static async ValueTask<Either<EncinaError, TResponse>> ApplyPostProcessorsAsync(
+        IRequestPostProcessor<TRequest, TResponse>[] postProcessors,
+        TRequest request,
+        IRequestContext context,
+        Either<EncinaError, TResponse> response,
+        CancellationToken cancellationToken)
+    {
+        if (response.IsLeft || postProcessors.Length == 0)
+        {
+            return response;
+        }
+
+        var failure = await RunPostProcessorsAsync(postProcessors, request, context, (TResponse)response, cancellationToken).ConfigureAwait(false);
+        return failure.IsSome ? ToLeft(failure) : response;
+    }
+
+    private static async ValueTask<Option<EncinaError>> RunPreProcessorsAsync(
+        IRequestPreProcessor<TRequest>[] preProcessors,
+        TRequest request,
+        IRequestContext context,
+        CancellationToken cancellationToken)
+    {
+        // Index-based iteration avoids enumerator allocation
         for (var i = 0; i < preProcessors.Length; i++)
         {
             var failure = await ExecutePreProcessorAsync(preProcessors[i], request, context, cancellationToken).ConfigureAwait(false);
             if (failure.IsSome)
             {
-                var error = failure.Match(err => err, () => EncinaErrors.Unknown);
-                return Left<EncinaError, TResponse>(error); // NOSONAR S6966: LanguageExt Left is a pure function
+                return failure;
             }
         }
 
-        var response = await terminal().ConfigureAwait(false);
+        return Option<EncinaError>.None;
+    }
 
-        // Post-processors: index-based iteration avoids enumerator allocation
+    private static async ValueTask<Option<EncinaError>> RunPostProcessorsAsync(
+        IRequestPostProcessor<TRequest, TResponse>[] postProcessors,
+        TRequest request,
+        IRequestContext context,
+        TResponse response,
+        CancellationToken cancellationToken)
+    {
+        // Index-based iteration avoids enumerator allocation
         for (var i = 0; i < postProcessors.Length; i++)
         {
             var failure = await ExecutePostProcessorAsync(postProcessors[i], request, context, response, cancellationToken).ConfigureAwait(false);
             if (failure.IsSome)
             {
-                return Left<EncinaError, TResponse>(failure.Match(err => err, () => EncinaErrors.Unknown)); // NOSONAR S6966: LanguageExt Left is a pure function
+                return failure;
             }
         }
 
-        return response;
+        return Option<EncinaError>.None;
     }
 
     /// <summary>
@@ -196,8 +241,8 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
     {
         try
         {
-            await preProcessor.Process(request, context, cancellationToken).ConfigureAwait(false);
-            return Option<EncinaError>.None;
+            var result = await preProcessor.Process(request, context, cancellationToken).ConfigureAwait(false);
+            return result.Match(_ => Option<EncinaError>.None, Some);
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
@@ -217,13 +262,13 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         IRequestPostProcessor<TRequest, TResponse> postProcessor,
         TRequest request,
         IRequestContext context,
-        Either<EncinaError, TResponse> response,
+        TResponse response,
         CancellationToken cancellationToken)
     {
         try
         {
-            await postProcessor.Process(request, context, response, cancellationToken).ConfigureAwait(false);
-            return Option<EncinaError>.None;
+            var result = await postProcessor.Process(request, context, response, cancellationToken).ConfigureAwait(false);
+            return result.Match(_ => Option<EncinaError>.None, Some);
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
