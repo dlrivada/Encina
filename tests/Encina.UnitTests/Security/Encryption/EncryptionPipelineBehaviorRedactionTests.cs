@@ -3,6 +3,7 @@
 using Encina.Security.Encryption;
 using Encina.Security.Encryption.Abstractions;
 using Encina.Testing.Identity;
+using Encina.UnitTests.OpenTelemetry;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
@@ -15,6 +16,7 @@ namespace Encina.UnitTests.Security.Encryption;
 /// <summary>
 /// The pipeline failure log carries the error code, never the error message (#1557).
 /// </summary>
+[Collection("ActivityListenerIsolation")]
 public sealed class EncryptionPipelineBehaviorRedactionTests : IDisposable
 {
     private const string Sentinel = "SENTINEL-encryption-error-message";
@@ -89,6 +91,42 @@ public sealed class EncryptionPipelineBehaviorRedactionTests : IDisposable
         warnings.ShouldNotBeEmpty();
         warnings.ShouldAllBe(r => !r.Message.Contains(Sentinel, StringComparison.Ordinal));
         warnings.ShouldContain(r => r.Message.Contains(Code, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Handle_DecryptFails_ActivityStatusIsTheErrorCodeNotTheMessage()
+    {
+        using var capture = new ActivityStatusCapture();
+        var secret = "SECRET-" + Guid.NewGuid().ToString("N");
+        var sut = new EncryptionPipelineBehavior<TRequestMarker, Unit>(
+            _orchestrator, TelemetryOptions, new FakeLogger<EncryptionPipelineBehavior<TRequestMarker, Unit>>());
+        _orchestrator.DecryptAsync(Arg.Any<TRequestMarker>(), Arg.Any<IRequestContext>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, TRequestMarker>>(
+                Left(EncinaErrors.Create(Code, "key " + secret))));
+
+        await sut.Handle(new TRequestMarker(), _context,
+            () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)), CancellationToken.None);
+
+        capture.ShouldHaveErrorStatus(Code, secret);
+    }
+
+    [Fact]
+    public async Task Handle_EncryptFailsWithoutCode_ActivityStatusIsTheFallbackNotTheMessage()
+    {
+        using var capture = new ActivityStatusCapture();
+        var secret = "SECRET-" + Guid.NewGuid().ToString("N");
+        var sut = new EncryptionPipelineBehavior<TRequestMarker, Unit>(
+            _orchestrator, TelemetryOptions, new FakeLogger<EncryptionPipelineBehavior<TRequestMarker, Unit>>());
+        _orchestrator.DecryptAsync(Arg.Any<TRequestMarker>(), Arg.Any<IRequestContext>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, TRequestMarker>>(Right(new TRequestMarker())));
+        _orchestrator.EncryptAsync(Arg.Any<TRequestMarker>(), Arg.Any<IRequestContext>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, TRequestMarker>>(
+                Left(EncinaError.New("raw " + secret))));
+
+        await sut.Handle(new TRequestMarker(), _context,
+            () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)), CancellationToken.None);
+
+        capture.ShouldHaveErrorStatus("Encina.unknown", secret);
     }
 
     [DecryptOnReceive]

@@ -348,7 +348,7 @@ internal sealed class DefaultDSRService : IDSRService
             : await DenyCoreAsync(requestId, rejectionReason, rejectionExplanation, activity, cancellationToken);
 
         result.IfRight(_ => DataSubjectRightsDiagnostics.RecordCompleted(activity));
-        result.IfLeft(error => DataSubjectRightsDiagnostics.RecordFailed(activity, error.GetCode().IfNone("encina.unknown")));
+        result.IfLeft(error => DataSubjectRightsDiagnostics.RecordFailed(activity, ActivityStatusDescriptions.ForError(error)));
         return result;
     }
 
@@ -580,7 +580,7 @@ internal sealed class DefaultDSRService : IDSRService
             Left: error =>
             {
                 _logger.DSRRequestFailed(rightType.ToString(), error.GetCode().IfNone("encina.unknown"));
-                RecordFailure(activity, stopwatch, rightType, error.GetCode().IfNone("encina.unknown"));
+                RecordFailure(activity, stopwatch, rightType, ActivityStatusDescriptions.ForError(error));
 
                 return (Either<EncinaError, AccessResponse>)error;
             }).ConfigureAwait(false);
@@ -665,7 +665,7 @@ internal sealed class DefaultDSRService : IDSRService
             Left: error =>
             {
                 _logger.DSRRequestFailed(rightType.ToString(), error.GetCode().IfNone("encina.unknown"));
-                RecordFailure(activity, stopwatch, rightType, error.GetCode().IfNone("encina.unknown"));
+                RecordFailure(activity, stopwatch, rightType, ActivityStatusDescriptions.ForError(error));
 
                 return Left<EncinaError, ErasureResult>(
                     DSRErrors.ErasureFailed(request.SubjectId, error.Message));
@@ -725,7 +725,7 @@ internal sealed class DefaultDSRService : IDSRService
                 Left: error =>
                 {
                     _logger.DSRRequestFailed(rightType.ToString(), error.GetCode().IfNone("encina.unknown"));
-                    RecordFailure(activity, stopwatch, rightType, error.GetCode().IfNone("encina.unknown"));
+                    RecordFailure(activity, stopwatch, rightType, ActivityStatusDescriptions.ForError(error));
                     return error;
                 });
         }
@@ -764,7 +764,7 @@ internal sealed class DefaultDSRService : IDSRService
             Left: error =>
             {
                 _logger.DSRRequestFailed(rightType.ToString(), error.GetCode().IfNone("encina.unknown"));
-                RecordFailure(activity, stopwatch, rightType, error.GetCode().IfNone("encina.unknown"));
+                RecordFailure(activity, stopwatch, rightType, ActivityStatusDescriptions.ForError(error));
 
                 return Left<EncinaError, PortabilityResponse>(error);
             });

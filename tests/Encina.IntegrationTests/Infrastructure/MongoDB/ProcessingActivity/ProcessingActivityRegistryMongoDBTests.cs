@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using Encina.Compliance.GDPR;
 using Encina.MongoDB.ProcessingActivity;
 using Encina.TestInfrastructure.Fixtures;
@@ -129,5 +131,39 @@ public sealed class ProcessingActivityRegistryMongoDBTests : IAsyncLifetime
         var activity = CreateActivity(typeof(decimal));
         var result = await store.UpdateActivityAsync(activity);
         result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Operations_WhenTheDriverThrows_ActivityStatusIsTheExceptionTypeNotTheMessage()
+    {
+        if (!_fixture.IsAvailable) return;
+        var store = CreateStore();
+        var stopped = new ConcurrentBag<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Encina.Compliance.GDPR.ProcessingActivity",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = stopped.Add
+        };
+        ActivitySource.AddActivityListener(listener);
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        var results = new[]
+        {
+            (await store.RegisterActivityAsync(CreateActivity(typeof(float)), cancelled.Token)).IsLeft,
+            (await store.GetAllActivitiesAsync(cancelled.Token)).IsLeft,
+            (await store.GetActivityByRequestTypeAsync(typeof(float), cancelled.Token)).IsLeft,
+            (await store.UpdateActivityAsync(CreateActivity(typeof(float)), cancelled.Token)).IsLeft
+        };
+
+        results.ShouldAllBe(isLeft => isLeft);
+        var errors = stopped.Where(a => a.Status == ActivityStatusCode.Error).ToList();
+        errors.Count.ShouldBe(4);
+        // A cancelled driver call throws an OperationCanceledException whose message is a sentence;
+        // the status must carry the type name only.
+        errors.ShouldAllBe(a => a.StatusDescription != null
+            && a.StatusDescription.EndsWith("Exception", StringComparison.Ordinal)
+            && !a.StatusDescription.Contains(' ', StringComparison.Ordinal));
     }
 }

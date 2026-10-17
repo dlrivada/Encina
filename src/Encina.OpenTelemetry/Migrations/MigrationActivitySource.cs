@@ -91,12 +91,12 @@ public static class MigrationActivitySource
     /// <param name="activity">The activity to complete (may be <c>null</c>).</param>
     /// <param name="outcome">The migration outcome for this span.</param>
     /// <param name="durationMs">The duration in milliseconds, if available.</param>
-    /// <param name="errorMessage">The error message, if the migration failed.</param>
+    /// <param name="errorCode">The error code, if the migration failed. Only the code is recorded: the error message can carry personal data (#2134).</param>
     public static void Complete(
         Activity? activity,
         MigrationOutcome outcome,
         double? durationMs = null,
-        string? errorMessage = null)
+        string? errorCode = null)
     {
         if (activity is null)
         {
@@ -110,9 +110,9 @@ public static class MigrationActivitySource
             activity.SetTag(ActivityTagNames.Migration.DurationMs, durationMs.Value);
         }
 
-        if (!string.IsNullOrWhiteSpace(errorMessage))
+        if (!string.IsNullOrWhiteSpace(errorCode))
         {
-            activity.SetTag(ActivityTagNames.Migration.Error, errorMessage);
+            activity.SetTag(ActivityTagNames.Migration.Error, errorCode);
         }
 
         var status = outcome switch
@@ -123,7 +123,7 @@ public static class MigrationActivitySource
             _ => ActivityStatusCode.Unset
         };
 
-        activity.SetStatus(status, errorMessage);
+        activity.SetStatus(status, errorCode);
         activity.Dispose();
     }
 }

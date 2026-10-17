@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Encina.Diagnostics;
 using Encina.Messaging.DeadLetter;
 using LanguageExt;
 
@@ -158,7 +159,7 @@ internal sealed class InstrumentedDeadLetterStore : IDeadLetterStore
         result.IfLeft(error =>
         {
             // The code only: EncinaError.Message can carry personal data (#1788).
-            activity.SetTag("encina.error_code", error.GetCode().IfNone("encina.unknown"));
+            activity.SetTag("encina.error_code", ActivityStatusDescriptions.ForError(error));
             activity.SetStatus(ActivityStatusCode.Error);
         });
         return result;

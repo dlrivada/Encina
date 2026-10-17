@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Encina.Caching;
+using Encina.Diagnostics;
 
 namespace Encina.OpenTelemetry.QueryCache;
 
@@ -56,7 +57,7 @@ internal sealed class InstrumentedCacheProvider : ICacheProvider
         }
         catch (Exception ex)
         {
-            Failed(activity, ex.Message);
+            Failed(activity, ActivityStatusDescriptions.ForException(ex));
             throw;
         }
     }
@@ -73,7 +74,7 @@ internal sealed class InstrumentedCacheProvider : ICacheProvider
         }
         catch (Exception ex)
         {
-            Failed(activity, ex.Message);
+            Failed(activity, ActivityStatusDescriptions.ForException(ex));
             throw;
         }
     }
@@ -90,7 +91,7 @@ internal sealed class InstrumentedCacheProvider : ICacheProvider
         }
         catch (Exception ex)
         {
-            Failed(activity, ex.Message);
+            Failed(activity, ActivityStatusDescriptions.ForException(ex));
             throw;
         }
     }
@@ -107,7 +108,7 @@ internal sealed class InstrumentedCacheProvider : ICacheProvider
         }
         catch (Exception ex)
         {
-            Failed(activity, ex.Message);
+            Failed(activity, ActivityStatusDescriptions.ForException(ex));
             throw;
         }
     }
@@ -125,7 +126,7 @@ internal sealed class InstrumentedCacheProvider : ICacheProvider
         }
         catch (Exception ex)
         {
-            Failed(activity, ex.Message);
+            Failed(activity, ActivityStatusDescriptions.ForException(ex));
             throw;
         }
     }
@@ -148,7 +149,7 @@ internal sealed class InstrumentedCacheProvider : ICacheProvider
         }
         catch (Exception ex)
         {
-            Failed(activity, ex.Message);
+            Failed(activity, ActivityStatusDescriptions.ForException(ex));
             throw;
         }
     }
@@ -171,7 +172,7 @@ internal sealed class InstrumentedCacheProvider : ICacheProvider
         }
         catch (Exception ex)
         {
-            Failed(activity, ex.Message);
+            Failed(activity, ActivityStatusDescriptions.ForException(ex));
             throw;
         }
     }
@@ -189,7 +190,7 @@ internal sealed class InstrumentedCacheProvider : ICacheProvider
         }
         catch (Exception ex)
         {
-            Failed(activity, ex.Message);
+            Failed(activity, ActivityStatusDescriptions.ForException(ex));
             throw;
         }
     }
@@ -308,9 +309,9 @@ internal sealed class InstrumentedCacheProvider : ICacheProvider
         activity.SetStatus(ActivityStatusCode.Ok);
     }
 
-    private static void Failed(Activity? activity, string? errorMessage)
+    private static void Failed(Activity? activity, string errorCode)
     {
-        activity?.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity?.SetStatus(ActivityStatusCode.Error, errorCode);
     }
 
     #endregion

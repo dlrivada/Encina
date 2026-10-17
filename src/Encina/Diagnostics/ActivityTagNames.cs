@@ -32,7 +32,6 @@ internal static class ActivityTagNames
     internal const string FailureReason = "Encina.failure_reason";
     internal const string FunctionalFailure = "Encina.functional_failure";
     internal const string FailureCode = "Encina.failure_code";
-    internal const string FailureMessage = "Encina.failure_message";
     internal const string PipelineFailure = "Encina.pipeline_failure";
     internal const string Cancelled = "Encina.cancelled";
 

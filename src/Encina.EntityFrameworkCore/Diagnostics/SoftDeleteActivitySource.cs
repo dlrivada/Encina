@@ -86,26 +86,4 @@ internal static class SoftDeleteActivitySource
         activity.SetStatus(ActivityStatusCode.Ok);
         activity.Dispose();
     }
-
-    /// <summary>
-    /// Marks a soft delete activity as failed.
-    /// </summary>
-    /// <param name="activity">The activity to mark as failed.</param>
-    /// <param name="errorCode">The error code.</param>
-    /// <param name="errorMessage">The error message.</param>
-    internal static void Failed(Activity? activity, string? errorCode, string? errorMessage)
-    {
-        if (activity is null)
-        {
-            return;
-        }
-
-        if (!string.IsNullOrWhiteSpace(errorCode))
-        {
-            activity.SetTag("error.code", errorCode);
-        }
-
-        activity.SetStatus(ActivityStatusCode.Error, errorMessage);
-        activity.Dispose();
-    }
 }

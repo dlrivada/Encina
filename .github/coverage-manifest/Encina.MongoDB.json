@@ -391,7 +391,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 5
+      },
+      "justifications": {
+        "unit": "The constructor creates the MongoClient and an index, so the class cannot be built without a MongoDB server; every method, including the driver-failure branch (Operations_WhenTheDriverThrows_ActivityStatusIsTheExceptionTypeNotTheMessage), is exercised by ProcessingActivityRegistryMongoDBTests (integration).",
+        "guard": "Guard tests only assert argument checks; the remaining lines are driven by unit and integration tests."
+      }
     },
     "ReadWriteSeparation/IReadWriteMongoCollectionFactory.cs": {
       "defaultTests": [

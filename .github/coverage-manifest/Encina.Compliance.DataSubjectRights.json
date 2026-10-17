@@ -207,7 +207,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 9,
+        "integration": 72
+      },
+      "justifications": {
+        "unit": "Unit tests drive the failure paths and assert the activity status carries only the error code (measured 100.00%).",
+        "guard": "Guard tests reach only the constructor argument checks (measured 9.85%).",
+        "integration": "The integration tests run the erasure against real stores (measured 72.73%)."
+      }
     },
     "Erasure/HardDeleteErasureStrategy.cs": {
       "defaultTests": [
@@ -245,7 +255,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 20
+      },
+      "justifications": {
+        "unit": "Unit tests drive the failure paths and assert the activity status carries only the error code (measured 100.00%).",
+        "guard": "Guard tests reach only the constructor argument checks (measured 20.55%)."
+      }
     },
     "Export/JsonExportFormatWriter.cs": {
       "defaultTests": [
@@ -489,7 +507,7 @@
         "contract": 76
       },
       "justifications": {
-        "unit": "Every enforcement mode, subject extraction path, store-error fail-open and the tenant-required fail-closed branch is unit tested, which reaches 142 of 142 lines.",
+        "unit": "Every enforcement mode, subject extraction path, store-error fail-open (asserting the activity status carries only the error code) and the tenant-required fail-closed branch is unit tested, which reaches 142 of 142 lines.",
         "guard": "Guard tests reach only the constructor and Handle null checks (15 of 142 lines); the pipeline bodies take no further arguments to guard and are unit tested.",
         "contract": "Contract tests run the behavior for blocked, warned, allowed and tenant-required requests, which reaches 108 of 142 lines; the remaining 34 lines are the subject-id extraction conversions for non-string and strongly typed ids and the missing-subject branches, which the unit flag covers."
       }

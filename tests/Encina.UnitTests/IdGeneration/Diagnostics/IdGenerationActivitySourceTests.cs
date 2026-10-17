@@ -104,15 +104,16 @@ public sealed class IdGenerationActivitySourceTests : IDisposable
     public void Failed_SetsErrorStatus()
     {
         var activity = IdGenerationActivitySource.StartIdGeneration("Snowflake");
-        IdGenerationActivitySource.Failed(activity, "encina.idgen.clock_drift_detected", "Clock drift");
+        IdGenerationActivitySource.Failed(activity, "encina.idgen.clock_drift_detected");
 
         activity.ShouldNotBeNull();
         activity!.Status.ShouldBe(ActivityStatusCode.Error);
+        activity.StatusDescription.ShouldBe("encina.idgen.clock_drift_detected");
     }
 
     [Fact]
     public void Failed_NullActivity_DoesNotThrow()
     {
-        Should.NotThrow(() => IdGenerationActivitySource.Failed(null, "code", "msg"));
+        Should.NotThrow(() => IdGenerationActivitySource.Failed(null, "code"));
     }
 }

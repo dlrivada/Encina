@@ -135,6 +135,35 @@ public sealed class SecretInjectionPipelineBehaviorTests : IDisposable
         _nextStepCalled.ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task Handle_OrchestratorFails_WithTracingAndMetrics_ReturnsError()
+    {
+        var behavior = CreateBehavior<TestSecretCommand, Unit>(enableTracing: true, enableMetrics: true);
+        var request = new TestSecretCommand();
+        _secretReader.GetSecretAsync("test-api-key", Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, string>>(
+                SecretsErrors.NotFound("test-api-key")));
+
+        var result = await behavior.Handle(request, _context, CreateTrackedNextStep(), CancellationToken.None);
+
+        result.IsLeft.ShouldBeTrue();
+        _nextStepCalled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_WithTracingAndMetrics_Succeeds()
+    {
+        var behavior = CreateBehavior<TestSecretCommand, Unit>(enableTracing: true, enableMetrics: true);
+        var request = new TestSecretCommand();
+        _secretReader.GetSecretAsync("test-api-key", Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, string>>("injected-key"));
+
+        var result = await behavior.Handle(request, _context, CreateTrackedNextStep(), CancellationToken.None);
+
+        result.IsRight.ShouldBeTrue();
+        _nextStepCalled.ShouldBeTrue();
+    }
+
     #endregion
 
     #region Handle - Input Validation

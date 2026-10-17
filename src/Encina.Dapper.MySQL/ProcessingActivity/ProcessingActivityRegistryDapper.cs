@@ -1,6 +1,7 @@
 using Dapper;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.GDPR.Diagnostics;
+using Encina.Diagnostics;
 using LanguageExt;
 using MySqlConnector;
 using static LanguageExt.Prelude;
@@ -74,7 +75,7 @@ public sealed class ProcessingActivityRegistryDapper : IProcessingActivityRegist
         }
         catch (Exception ex)
         {
-            ProcessingActivityDiagnostics.RecordFailure(trace, "register", ex.Message);
+            ProcessingActivityDiagnostics.RecordFailure(trace, "register", ActivityStatusDescriptions.ForException(ex));
             return Left(GDPRErrors.ProcessingActivityStoreError("RegisterActivity", ex.Message));
         }
     }
@@ -115,7 +116,7 @@ public sealed class ProcessingActivityRegistryDapper : IProcessingActivityRegist
         }
         catch (Exception ex)
         {
-            ProcessingActivityDiagnostics.RecordFailure(trace, "get_all", ex.Message);
+            ProcessingActivityDiagnostics.RecordFailure(trace, "get_all", ActivityStatusDescriptions.ForException(ex));
             return Left(GDPRErrors.ProcessingActivityStoreError("GetAllActivities", ex.Message));
         }
     }
@@ -160,7 +161,7 @@ public sealed class ProcessingActivityRegistryDapper : IProcessingActivityRegist
         }
         catch (Exception ex)
         {
-            ProcessingActivityDiagnostics.RecordFailure(trace, "get_by_request_type", ex.Message);
+            ProcessingActivityDiagnostics.RecordFailure(trace, "get_by_request_type", ActivityStatusDescriptions.ForException(ex));
             return Left(GDPRErrors.ProcessingActivityStoreError("GetActivityByRequestType", ex.Message));
         }
     }
@@ -209,7 +210,7 @@ public sealed class ProcessingActivityRegistryDapper : IProcessingActivityRegist
         }
         catch (Exception ex)
         {
-            ProcessingActivityDiagnostics.RecordFailure(trace, "update", ex.Message);
+            ProcessingActivityDiagnostics.RecordFailure(trace, "update", ActivityStatusDescriptions.ForException(ex));
             return Left(GDPRErrors.ProcessingActivityStoreError("UpdateActivity", ex.Message));
         }
     }

@@ -93,6 +93,6 @@ internal static class SecretsDiagnostics
     /// <summary>
     /// Records that an operation failed.
     /// </summary>
-    internal static void RecordFailure(Activity? activity, string errorMessage)
-        => SecretsActivitySource.RecordFailure(activity, "unknown", errorMessage);
+    internal static void RecordFailure(Activity? activity, string errorCode)
+        => SecretsActivitySource.RecordFailure(activity, errorCode);
 }
