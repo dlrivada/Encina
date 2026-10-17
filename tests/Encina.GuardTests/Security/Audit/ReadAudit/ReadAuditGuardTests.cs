@@ -192,7 +192,7 @@ public class ReadAuditGuardTests
     #region ReadAuditRetentionService Guard Tests
 
     [Fact]
-    public void ReadAuditRetentionService_Constructor_NullStore_ThrowsArgumentNullException()
+    public void ReadAuditRetentionService_Constructor_NullScopeFactory_ThrowsArgumentNullException()
     {
         // Arrange
         var options = Options.Create(new ReadAuditOptions());

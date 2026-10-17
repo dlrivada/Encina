@@ -215,10 +215,16 @@ public class ReadAuditRetentionServiceTests
     {
         // Arrange: a scoped, disposable store (as every database provider registers it)
         var created = new List<ScopedStore>();
+        var purgeCompleted = new[]
+        {
+            new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously),
+            new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var storeIndex = 0;
         var services = new ServiceCollection();
         services.AddScoped<IReadAuditStore>(_ =>
         {
-            var store = new ScopedStore();
+            var store = new ScopedStore(purgeCompleted[Interlocked.Increment(ref storeIndex) - 1]);
             lock (created)
             {
                 created.Add(store);
@@ -241,11 +247,7 @@ public class ReadAuditRetentionServiceTests
         {
             await WaitForTimerRegistrationAsync(fakeTime);
             fakeTime.Advance(TimeSpan.FromHours(1.1));
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            while (sw.ElapsedMilliseconds < 5000 && PurgedCount(created) < run)
-            {
-                await Task.Delay(10);
-            }
+            await purgeCompleted[run - 1].Task.WaitAsync(TimeSpan.FromSeconds(5));
         }
 
         await service.StopAsync(CancellationToken.None);
@@ -256,24 +258,24 @@ public class ReadAuditRetentionServiceTests
         created.ShouldAllBe(s => s.PurgeCalls == 1 && s.Disposed);
     }
 
-    private static int PurgedCount(List<ScopedStore> created)
-    {
-        lock (created)
-        {
-            return created.Count(s => s.PurgeCalls > 0);
-        }
-    }
-
     private sealed class ScopedStore : IReadAuditStore, IDisposable
     {
+        private readonly TaskCompletionSource<bool> _purgeCompleted;
         private int _purgeCalls;
         private int _disposed;
+
+        public ScopedStore(TaskCompletionSource<bool> purgeCompleted) =>
+            _purgeCompleted = purgeCompleted;
 
         public int PurgeCalls => Volatile.Read(ref _purgeCalls);
 
         public bool Disposed => Volatile.Read(ref _disposed) == 1;
 
-        public void Dispose() => Interlocked.Exchange(ref _disposed, 1);
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref _disposed, 1);
+            _purgeCompleted.TrySetResult(true);
+        }
 
         public ValueTask<Either<EncinaError, int>> PurgeEntriesAsync(
             DateTimeOffset olderThanUtc, CancellationToken cancellationToken = default)
