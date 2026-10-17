@@ -123,25 +123,4 @@ internal static class SagaActivitySource
         activity.SetStatus(ActivityStatusCode.Ok);
         activity.Dispose();
     }
-
-    /// <summary>
-    /// Marks a saga activity as failed.
-    /// </summary>
-    /// <param name="activity">The activity to mark as failed.</param>
-    /// <param name="errorCode">The error code. Only the code is recorded: the error message can carry personal data (#2134).</param>
-    internal static void Failed(Activity? activity, string errorCode)
-    {
-        if (activity is null)
-        {
-            return;
-        }
-
-        if (!string.IsNullOrWhiteSpace(errorCode))
-        {
-            activity.SetTag("error.code", errorCode);
-        }
-
-        activity.SetStatus(ActivityStatusCode.Error, errorCode);
-        activity.Dispose();
-    }
 }

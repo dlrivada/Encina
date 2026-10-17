@@ -97,25 +97,38 @@ internal sealed class SecretInjectionPipelineBehavior<TRequest, TResponse> : IPi
 
         Log.SecretInjectionStarted(_logger, requestTypeName, properties.Length);
 
-        // Perform injection
-        var injectionResult = await _orchestrator.InjectAsync(request, cancellationToken).ConfigureAwait(false);
-
-        if (injectionResult.IsLeft)
+        var failure = await InjectAsync(request, activity, startedAt, requestTypeName, cancellationToken).ConfigureAwait(false);
+        if (failure.IsSome)
         {
-            var errorCode = injectionResult.Match(
-                Right: _ => string.Empty,
-                Left: e => ActivityStatusDescriptions.ForError(e));
-
-            RecordFailure(activity, startedAt, requestTypeName, errorCode);
-            return injectionResult.Match<Either<EncinaError, TResponse>>(
-                Right: _ => default!,
-                Left: e => e);
+            return failure.Match<Either<EncinaError, TResponse>>(Some: e => e, None: () => default!);
         }
 
-        var injectedCount = injectionResult.Match(Right: v => v, Left: _ => 0);
-        RecordSuccess(activity, startedAt, requestTypeName, injectedCount);
-
         return await nextStep().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Injects the secrets and records the outcome; returns the error when the injection failed.
+    /// </summary>
+    private async ValueTask<Option<EncinaError>> InjectAsync(
+        TRequest request,
+        Activity? activity,
+        long startedAt,
+        string requestTypeName,
+        CancellationToken cancellationToken)
+    {
+        var injectionResult = await _orchestrator.InjectAsync(request, cancellationToken).ConfigureAwait(false);
+
+        return injectionResult.Match(
+            Right: injectedCount =>
+            {
+                RecordSuccess(activity, startedAt, requestTypeName, injectedCount);
+                return Option<EncinaError>.None;
+            },
+            Left: error =>
+            {
+                RecordFailure(activity, startedAt, requestTypeName, ActivityStatusDescriptions.ForError(error));
+                return Option<EncinaError>.Some(error);
+            });
     }
 
     /// <summary>
