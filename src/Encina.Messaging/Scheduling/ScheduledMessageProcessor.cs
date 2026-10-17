@@ -167,7 +167,7 @@ public sealed class ScheduledMessageProcessor : BackgroundService
                 },
                 Left: error =>
                 {
-                    var errorCode = error.GetCode().IfNone("unknown");
+                    var errorCode = ActivityStatusDescriptions.ForError(error);
                     SchedulingProcessorLog.BatchFailed(_logger, errorCode);
                     SchedulingActivitySource.Failed(activity, errorCode);
                 });
