@@ -7,6 +7,36 @@ namespace Encina.GuardTests.Core;
 /// </summary>
 public class RequestContextGuardTests
 {
+    #region TimeProvider parameter
+
+    /// <summary>
+    /// Verifies that a null TimeProvider falls back to the system clock for Create.
+    /// </summary>
+    [Fact]
+    public void Create_NullTimeProvider_FallsBackToSystemClock()
+    {
+        var before = TimeProvider.System.GetUtcNow();
+
+        var context = RequestContext.Create(null);
+
+        context.Timestamp.ShouldBeGreaterThanOrEqualTo(before);
+    }
+
+    /// <summary>
+    /// Verifies that a null TimeProvider falls back to the system clock for CreateForTest.
+    /// </summary>
+    [Fact]
+    public void CreateForTest_NullTimeProvider_FallsBackToSystemClock()
+    {
+        var before = TimeProvider.System.GetUtcNow();
+
+        var context = RequestContext.CreateForTest(timeProvider: null);
+
+        context.Timestamp.ShouldBeGreaterThanOrEqualTo(before);
+    }
+
+    #endregion
+
     #region CreateAnonymousAt(DateTimeOffset timestamp, string correlationId)
 
     /// <summary>

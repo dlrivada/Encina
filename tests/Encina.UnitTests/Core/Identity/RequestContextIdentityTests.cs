@@ -1,4 +1,5 @@
 using Encina.Testing.Identity;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.UnitTests.Core.Identity;
 
@@ -23,6 +24,38 @@ public sealed class RequestContextIdentityTests
         context.IdempotencyKey.ShouldBe("key-1");
         context.CausationId.ShouldBeNull();
         ((RequestContext)context).Origin.ShouldBe(RequestOrigin.Unspecified);
+    }
+
+    [Fact]
+    public void Create_WithTimeProvider_StampsTheProvidersTime()
+    {
+        var time = new FakeTimeProvider(Stamp);
+
+        var context = RequestContext.Create(time);
+
+        context.Timestamp.ShouldBe(Stamp);
+    }
+
+    [Fact]
+    public void CreateForTest_WithTimeProvider_StampsTheProvidersTime()
+    {
+        var time = new FakeTimeProvider(Stamp);
+
+        var context = RequestContext.CreateForTest(tenantId: "tenant-1", timeProvider: time);
+
+        context.Timestamp.ShouldBe(Stamp);
+        context.TenantId.ShouldBe("tenant-1");
+    }
+
+    [Fact]
+    public void Create_WithoutTimeProvider_UsesTheSystemClock()
+    {
+        var before = TimeProvider.System.GetUtcNow();
+
+        var context = RequestContext.Create();
+
+        context.Timestamp.ShouldBeGreaterThanOrEqualTo(before);
+        context.Timestamp.ShouldBeLessThanOrEqualTo(TimeProvider.System.GetUtcNow());
     }
 
     [Fact]

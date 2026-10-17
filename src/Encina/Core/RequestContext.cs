@@ -103,18 +103,16 @@ public sealed class RequestContext : IRequestContext
     /// <summary>
     /// Creates a new anonymous context with an auto-generated correlation ID.
     /// </summary>
+    /// <param name="timeProvider">
+    /// The clock that stamps <see cref="Timestamp"/>; <see cref="TimeProvider.System"/> when <see langword="null"/>.
+    /// </param>
     /// <returns>New context instance.</returns>
     /// <remarks>
-    /// <para>
     /// Correlation ID is extracted from <see cref="Activity.Current"/> if available,
     /// otherwise a new GUID is generated.
-    /// </para>
-    /// <para>
-    /// Timestamp is read from <see cref="TimeProvider.System"/>; use
-    /// <see cref="CreateAnonymousAt"/> with an injected <see cref="TimeProvider"/> in production code.
-    /// </para>
     /// </remarks>
-    public static IRequestContext Create() => CreateAnonymousAt(TimeProvider.System.GetUtcNow(), NewCorrelationId());
+    public static IRequestContext Create(TimeProvider? timeProvider = null) =>
+        CreateAnonymousAt((timeProvider ?? TimeProvider.System).GetUtcNow(), NewCorrelationId());
 
     /// <summary>
     /// Creates a new anonymous context stamped with <paramref name="timestamp"/>.
@@ -250,6 +248,9 @@ public sealed class RequestContext : IRequestContext
     /// <param name="tenantId">Tenant ID (optional).</param>
     /// <param name="idempotencyKey">Idempotency key (optional).</param>
     /// <param name="correlationId">Correlation ID (optional, auto-generated if not provided).</param>
+    /// <param name="timeProvider">
+    /// The clock that stamps <see cref="Timestamp"/>; <see cref="TimeProvider.System"/> when <see langword="null"/>.
+    /// </param>
     /// <returns>New anonymous context instance.</returns>
     /// <remarks>
     /// Helper method for unit tests. It never carries an authenticated identity; build authenticated
@@ -258,8 +259,13 @@ public sealed class RequestContext : IRequestContext
     public static IRequestContext CreateForTest(
         string? tenantId = null,
         string? idempotencyKey = null,
-        string? correlationId = null) =>
-        CreateAnonymousAt(TimeProvider.System.GetUtcNow(), correlationId ?? $"test-{Guid.NewGuid():N}", tenantId, idempotencyKey);
+        string? correlationId = null,
+        TimeProvider? timeProvider = null) =>
+        CreateAnonymousAt(
+            (timeProvider ?? TimeProvider.System).GetUtcNow(),
+            correlationId ?? $"test-{Guid.NewGuid():N}",
+            tenantId,
+            idempotencyKey);
 
     /// <inheritdoc />
     public IRequestContext WithMetadata(string key, object? value)
