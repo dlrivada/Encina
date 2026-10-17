@@ -64,6 +64,8 @@ public sealed class MigrationActivitySourceTests
     [InlineData(MigrationOutcome.Succeeded, ActivityStatusCode.Ok)]
     [InlineData(MigrationOutcome.Failed, ActivityStatusCode.Error)]
     [InlineData(MigrationOutcome.RolledBack, ActivityStatusCode.Error)]
+    [InlineData(MigrationOutcome.Pending, ActivityStatusCode.Unset)]
+    [InlineData(MigrationOutcome.InProgress, ActivityStatusCode.Unset)]
     public void Complete_WithListener_SetsStatusFromOutcome(MigrationOutcome outcome, ActivityStatusCode expected)
     {
         using var listener = NewListener();

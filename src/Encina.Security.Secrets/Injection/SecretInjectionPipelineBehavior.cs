@@ -91,20 +91,19 @@ internal sealed class SecretInjectionPipelineBehavior<TRequest, TResponse> : IPi
         var startedAt = Stopwatch.GetTimestamp();
 
         // Start tracing if enabled
-        using var activity = _options.EnableTracing
-            ? SecretsDiagnostics.StartSecretInjection(requestTypeName)
-            : null;
+        using var activity = StartActivity(requestTypeName);
 
         Log.SecretInjectionStarted(_logger, requestTypeName, properties.Length);
 
         var failure = await InjectAsync(request, activity, startedAt, requestTypeName, cancellationToken).ConfigureAwait(false);
-        if (failure.IsSome)
-        {
-            return failure.Match<Either<EncinaError, TResponse>>(Some: e => e, None: () => default!);
-        }
 
-        return await nextStep().ConfigureAwait(false);
+        return await failure.Match(
+            Some: error => ValueTask.FromResult<Either<EncinaError, TResponse>>(error),
+            None: () => nextStep()).ConfigureAwait(false);
     }
+
+    private Activity? StartActivity(string requestTypeName)
+        => _options.EnableTracing ? SecretsDiagnostics.StartSecretInjection(requestTypeName) : null;
 
     /// <summary>
     /// Injects the secrets and records the outcome; returns the error when the injection failed.
