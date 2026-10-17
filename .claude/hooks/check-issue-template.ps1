@@ -299,7 +299,7 @@ try {
             if ($DefaultLabel -and $labels -inotcontains $DefaultLabel) { $missing.Add("--label $DefaultLabel (the default label of the $Prefix template)") }
             # #2470: needs-decision is no longer mandatory for a [FEATURE] or [SPIKE] (the 2026-10-06 rule produced
             # 105 labels with 0 real dilemmas). It is allowed only when the body names a Dilemma (see
-            # Test-DilemmaLabel), so it marks only choices the maintainer must make.
+            # Test-HasNeedsDecision and Test-HasDilemma), so it marks only choices the maintainer must make.
             if ($Prefix -ne '[EPIC]' -and -not ($labels | Where-Object { $PriorityLabels -icontains $_ })) { $missing.Add("one priority label: --label $($PriorityLabels -join ' | ')") }
         }
         return , $missing
@@ -311,10 +311,10 @@ try {
     $issueValueOptions = @('-t', '--title', '-b', '--body', '-F', '--body-file', '-R', '--repo', '-l', '--label', '-m', '--milestone', '-a', '--assignee', '-p', '--project', '-T', '--template', '--recover')
 
     # #2470: needs-decision marks a Dilemma. $LabelOptions are the option values that carry labels; true when
-    # one of the static values names needs-decision (a variable value cannot be read, so it is not judged).
+    # one of the static values names needs-decision (a variable value cannot be read and is skipped, but a
+    # literal needs-decision next to it is still judged).
     function Test-HasNeedsDecision($LabelOptions) {
-        if ($LabelOptions | Where-Object { $_.Dynamic }) { return $false }
-        $labels = @($LabelOptions | ForEach-Object { $_.Value -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        $labels = @($LabelOptions | Where-Object { -not $_.Dynamic } | ForEach-Object { $_.Value -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
         return ($labels -icontains 'needs-decision')
     }
 
@@ -404,7 +404,7 @@ try {
         }
         $missingMeta = Get-MissingMetadata $options (-not $title[0].Dynamic) $metaPrefix $metaDefaultLabel $root
         if ($missingMeta.Count -gt 0) {
-            $dynamicNote = if ($title[0].Dynamic) { ' The title is a variable, so the default-label, needs-decision and priority checks were not judged; type the title literally to have them checked.' } else { '' }
+            $dynamicNote = if ($title[0].Dynamic) { ' The title is a variable, so the default-label and priority checks were not judged; type the title literally to have them checked.' } else { '' }
             [Console]::Error.WriteLine("Blocked: an issue is opened complete or not at all (#1926). Missing: $($missingMeta -join ' | '). Add them to the gh issue create call; the open-issue skill has the full checklist (project add, parent, blocked-by follow the create).$dynamicNote")
             exit 2
         }

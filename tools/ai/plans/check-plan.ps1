@@ -423,7 +423,7 @@ function Test-Phases($L, $Section) {
 $PlaceholderCitation = '^(-+|none|n/?a|tbd|pending|todo|\?+)\.?$'
 
 function Get-LabelValue([string]$Text, [string]$Label) {
-    $m = [regex]::Match($Text, "^\s*(?:[-*+]\s+)?\**\s*$Label\s*:\s*\**\s*(.*?)\s*\**\s*$", 'IgnoreCase')
+    $m = [regex]::Match($Text, "^\s*(?:[-*+]\s+)?\**\s*$Label\s*\**\s*:\s*\**\s*(.*?)\s*\**\s*$", 'IgnoreCase')
     if ($m.Success) { return $m.Groups[1].Value.Trim() }
     return $null
 }
@@ -451,8 +451,8 @@ function Get-ChoiceRegister($L, $Section) {
             if (-not (($h -contains 'class') -and ($h -contains 'settledby') -and ($h -contains 'verified'))) { continue }
             $ic = [Math]::Max(0, $h.IndexOf('id'))
             foreach ($r in $t.Rows) {
-                $cells = $r.Cells
-                if ($cells.Count -lt $h.Count) { continue }
+                # A row shorter than the header is judged with empty cells, so a missing citation or mark fails.
+                $cells = @($r.Cells) + @(1..([Math]::Max(0, $h.Count - @($r.Cells).Count)) | ForEach-Object { '' })
                 $n = if ($cells[$ic] -match '(\d{1,3})') { [int]$Matches[1] } else { $choices.Count + 1 }
                 $clean = { param($s) ([regex]::Replace($s, '[\*`]', '')).Trim() }
                 $choices.Add([pscustomobject]@{
@@ -482,7 +482,7 @@ function Test-Decisions($L, $Section, $DesignSection) {
         if ([string]::IsNullOrWhiteSpace($c.SettledBy) -or $c.SettledBy -match $PlaceholderCitation) {
             $gaps.Add((New-Gap 'decisions' $c.Line "$($c.Where) is $($c.Class) but has no 'Settled by:' citation (an AGENTS.md section or rule, a SPEC id, an ADR number, a law article, a link to an earlier maintainer decision or named comparable products); without a citation it is a Dilemma"))
         }
-        if ($null -eq $c.Verified -or $c.Verified -notmatch '(?i)adversarial-reviewer\s+\d{4}-\d{2}-\d{2}') {
+        if ($null -eq $c.Verified -or $c.Verified -notmatch '^(?i)adversarial-reviewer\s+\d{4}-\d{2}-\d{2}\b') {
             $gaps.Add((New-Gap 'decisions' $c.Line "$($c.Where) is $($c.Class) but is not verified: add 'Verified: adversarial-reviewer <yyyy-MM-dd>' after the adversarial-reviewer tried to break it"))
         }
     }
