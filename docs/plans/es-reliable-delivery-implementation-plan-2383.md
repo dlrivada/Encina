@@ -51,7 +51,7 @@ A commit-bound outbox written by a **store-wide Marten session listener** closes
 
 ## Design Choices
 
-Choices 1-6 were decided by the maintainer on 2026-10-16 (comment on #2239) and are recorded in `## Maintainer Decisions`. Choices 7-16 are open: each shows the agent's recommendation and awaits the maintainer's answer.
+Choices 1-6 were decided by the maintainer on 2026-10-16 (comment on #2239) and are recorded in `## Maintainer Decisions`. Choices 7-16 are settled on 2026-10-17 by elimination (no remaining dilemma); each shows the chosen option, its forcing rule and the settling reason, and is recorded in `## Maintainer Decisions` (entries 7-16).
 
 <details>
 <summary><strong>1. Module requirements — a module may require other modules (ADR-050, #2381; startup validation #2382)</strong></summary>
@@ -179,7 +179,9 @@ Choices 1-6 were decided by the maintainer on 2026-10-16 (comment on #2239) and 
 | **B) Reference: the document holds the Marten event id, stream id and sequence; the processor loads the event with `session.Events.LoadAsync(id)` at dispatch** | One copy of the data; crypto-shredding applies to the loaded event; small documents; the outbox id can be the event id | One extra read per dispatch; `IOutboxMessage.Content` carries the reference, so the shared batch processor needs a materialization hook |
 | **C) Copy, encrypted with the subject key** | Shredding the key also hides the copy | Couples the outbox to the crypto-shredding key model; extra crypto work per write |
 
-### Chosen Option: **B — reference to the committed event** (recommended, pending the maintainer)
+### Chosen Option: **B — reference to the committed event** (settled 2026-10-17)
+
+Settled 2026-10-17 by elimination: a plain copy leaves personal data that crypto-shredding cannot reach (GDPR Art. 17, ADR-019 compliance modules); C couples the outbox to the key model for no gain; the reference keeps one copy.
 
 ### Rationale
 
@@ -200,7 +202,9 @@ Choices 1-6 were decided by the maintainer on 2026-10-16 (comment on #2239) and 
 | **B) A relational table written through `session.QueueSqlCommand(...)`** | Same table shape as `OutboxStoreADO` (PostgreSQL); plain SQL claim | Encina must create and migrate the table outside Marten's schema management; two schema owners in one database |
 | **C) Reuse `OutboxStoreADO`/`OutboxStoreDapper` (PostgreSQL) enlisted in the Marten transaction** | No new store | Requires the #718 accessor to see Marten's connection; ties #2239 to #1225 (option A of that spike); the ES route would require an ADO/Dapper package |
 
-### Chosen Option: **A — Marten document with duplicated claim columns** (recommended, pending the maintainer)
+### Chosen Option: **A — Marten document with duplicated claim columns** (settled 2026-10-17)
+
+Settled 2026-10-17 by elimination: Choice 2 fixes "same Marten session"; B creates two schema owners; C ties #2239 to #1225 and forces a relational package on ES apps; Marten owns its schema (as Wolverine's Marten outbox does).
 
 ### Rationale
 
@@ -220,7 +224,9 @@ Choices 1-6 were decided by the maintainer on 2026-10-16 (comment on #2239) and 
 | **B) The Marten processor resolves the handlers and invokes each itself** | No core change | Duplicates the dispatcher (strategies, logging, tracing); #1220 builds a second copy |
 | **C) Decorate every `INotificationHandler<T>` registration** | No dispatcher change | Decoration of open generics at registration is fragile; misses handlers added later |
 
-### Chosen Option: **A — core per-handler invocation hook, shared with #1220** (recommended, pending the maintainer)
+### Chosen Option: **A — core per-handler invocation hook, shared with #1220** (settled 2026-10-17)
+
+Settled 2026-10-17 by elimination: B duplicates the dispatcher; C is fragile on open generics; #1220 needs the identical hook, so one mechanism is the only non-duplicating path (AGENTS.md §5 provider coherence).
 
 ### Rationale
 
@@ -240,7 +246,9 @@ Choices 1-6 were decided by the maintainer on 2026-10-16 (comment on #2239) and 
 | **B) Per-stream order: the claim takes only the oldest unprocessed message of each stream; a stream's next message waits until the previous one is processed or dead-lettered** | Handlers see a stream's events in commit order, which compliance handlers assume | A poisoned head blocks its stream until it is dead-lettered (bounded by `MaxRetries`); slightly more complex claim SQL (`DISTINCT ON (stream_id)`) |
 | **C) Partitioned sequential messaging (#469)** | General solution | Not built; a larger feature |
 
-### Chosen Option: **B — per-stream order** (recommended, pending the maintainer)
+### Chosen Option: **B — per-stream order** (settled 2026-10-17)
+
+Settled 2026-10-17 by elimination: Axon, EventStoreDB and the Marten daemon preserve stream order; A would break the state-machine assumptions of the compliance handlers; head-of-line blocking is bounded by `MaxRetries` and then the DLQ (Choice 1 makes the DLQ mandatory); C is a feature not built.
 
 ### Rationale
 
@@ -259,7 +267,9 @@ Choices 1-6 were decided by the maintainer on 2026-10-16 (comment on #2239) and 
 | **B) Polling plus an in-process nudge: the listener's `AfterCommitAsync` signals the local processor (a `Channel`) to run a cycle now** | Near-immediate delivery on the instance that committed; polling still recovers everything after a crash | A small signal path to test |
 | **C) PostgreSQL `LISTEN/NOTIFY`** | Wakes every instance | Connection held per instance; more infrastructure |
 
-### Chosen Option: **B — polling plus after-commit nudge** (recommended, pending the maintainer)
+### Chosen Option: **B — polling plus after-commit nudge** (settled 2026-10-17)
+
+Settled 2026-10-17 by elimination: Wolverine and MassTransit bus outbox dispatch right after commit and poll as recovery; durability is unchanged; C adds a held connection per instance; A regresses today's immediate publication.
 
 ### Rationale
 
@@ -277,7 +287,9 @@ Choices 1-6 were decided by the maintainer on 2026-10-16 (comment on #2239) and 
 | **A) `DeadLetterStoreMarten : IDeadLetterStore` (Marten documents)** | A Marten-only app needs no relational package; capture and the outbox mark can commit in one session | An 11th implementation of the DLQ contract to keep coherent (ADR-046) |
 | **B) Require a relational DLQ store (ADO/Dapper/EF PostgreSQL) on the same database** | No new store | Forces a second data-access stack on every ES app |
 
-### Chosen Option: **A — `DeadLetterStoreMarten`** (recommended, pending the maintainer)
+### Chosen Option: **A — `DeadLetterStoreMarten`** (settled 2026-10-17)
+
+Settled 2026-10-17 by elimination: Choice 1 makes the DLQ mandatory and Choice 6 says Marten is configured in one place; B forces a second data-access stack on every ES app (Marten is outside the 10-database rule, AGENTS.md §5); the ADR-046 contract tests keep coherence.
 
 ### Rationale
 
@@ -296,7 +308,9 @@ Choices 1-6 were decided by the maintainer on 2026-10-16 (comment on #2239) and 
 | **B) A Marten-internal advisory lock (`pg_try_advisory_lock` on the session connection)** | No dependency | A second lock mechanism outside the lock category; not reusable |
 | **C) No lock: rely on fenced claims for everything** | Nothing to build | Purge and requeue sweeps run concurrently on every instance |
 
-### Chosen Option: **A — `IDistributedLockProvider` with #207 first** (recommended, pending the maintainer)
+### Chosen Option: **A — `IDistributedLockProvider` with #207 first** (settled 2026-10-17)
+
+Settled 2026-10-17 by elimination: AGENTS.md §5 and SPEC-000 DEC-003 fix the lock category (the PostgreSQL provider is one of the 5); Choice 5 already names the distributed lock; B is a second lock mechanism; C leaves purge and requeue sweeps concurrent.
 
 ### Rationale
 
@@ -315,7 +329,9 @@ Choices 1-6 were decided by the maintainer on 2026-10-16 (comment on #2239) and 
 | **B) Separate `AddEncinaMartenOutbox()` / `AddEncinaMartenInbox()`, enforced by startup validation** | Explicit host code | Two more lines that are always required; a check that exists only to say "call this" |
 | **C) A new package `Encina.Marten.Messaging`** | Keeps `Encina.Marten` small | `Encina.Marten` already references `Encina.Messaging` (`src/Encina.Marten/Encina.Marten.csproj`); a package that every ES app must add anyway |
 
-### Chosen Option: **A — `AddEncinaMarten` registers the mandatory set, in `Encina.Marten`** (recommended, pending the maintainer)
+### Chosen Option: **A — `AddEncinaMarten` registers the mandatory set, in `Encina.Marten`** (settled 2026-10-17)
+
+Settled 2026-10-17 by elimination: Choice 1 = A on #2381 (auto-registration with `TryAdd`, no alternatives); B is the "call this" validation that decision rejects; C adds a package every ES app needs anyway. The keyed `IOutboxStore` is an implementation detail.
 
 ### Rationale
 
@@ -334,7 +350,9 @@ Choices 1-6 were decided by the maintainer on 2026-10-16 (comment on #2239) and 
 | **A) #2382 lands first; this plan declares its rows (required, forbidden, conditional) through `IEncinaModuleRequirements`** | One failure format; the docs table is generated from the rows | This plan's Phase 5 waits for #2382 |
 | **B) A Marten-local hosted service now (as `CryptoShreddingStartupValidationHostedService`, `src/Encina.Marten.GDPR/CryptoShreddingStartupValidationHostedService.cs:36`), replaced when #2382 lands** | No wait | Throwaway code; two failure formats for a while |
 
-### Chosen Option: **A — declare the rows through #2382** (recommended, pending the maintainer)
+### Chosen Option: **A — declare the rows through #2382** (settled 2026-10-17)
+
+Settled 2026-10-17 by elimination: AGENTS.md §3 forbids transitional code and compatibility layers; B is throwaway code; phase ordering is sequencing, not a decision.
 
 ### Rationale
 
@@ -353,7 +371,9 @@ Choices 1-6 were decided by the maintainer on 2026-10-16 (comment on #2239) and 
 | **B) Everything inside #2381's ADR-050 and its ADR-019/028 updates; only ADR-048 amended here** | Fewer documents | ADR-050 is about the module-requirements rule; mixing the delivery design into it blurs both |
 | **C) Amend ADR-019 directly with the delivery design** | One ES document | ADR-019 is about compliance aggregates on Marten; the delivery design applies to every Marten aggregate |
 
-### Chosen Option: **A — new ADR + ADR-048 amendment; ADR-019/028 via #2381** (recommended, pending the maintainer)
+### Chosen Option: **A — new ADR + ADR-048 amendment; ADR-019/028 via #2381** (settled 2026-10-17)
+
+Settled 2026-10-17 by elimination: AGENTS.md §8 requires an ADR for architectural decisions; one decision per ADR; B blurs ADR-050 (module requirements); C scopes the delivery design to compliance aggregates only.
 
 ### Rationale
 
@@ -1090,8 +1110,8 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Merge this plan (structure checked with `pwsh tools/ai/plans/check-plan.ps1 -Path docs/plans/es-reliable-delivery-implementation-plan-2383.md -Draft`).
-2. Orchestrator: comment on #2383 with the plan link; open the Module Isolation deferral issue (matrix row 11); reserve the ADR number of Choice 16 in `docs/architecture/adr/index.md` when the maintainer confirms it.
-3. When work on #2383 starts: re-check Choices 7-16 against `main`, present them to the maintainer, record the answers in `## Maintainer Decisions` (entries 7-16), and run `check-plan` without `-Draft`.
+2. Orchestrator: comment on #2383 with the plan link; open the Module Isolation deferral issue (matrix row 11); reserve the ADR number of Choice 16 in `docs/architecture/adr/index.md`.
+3. When work on #2383 starts: re-check Choices 7-16 against `main` and run `check-plan` without `-Draft`.
 4. Phases 1-4 can start before #2382; Phase 5 waits for #2382; Phase 6 needs #207.
 5. Each phase is a self-contained commit; the final PR references `Fixes #2383` and `Fixes #2239`.
 
@@ -1099,7 +1119,7 @@ REFERENCE FILES:
 
 ## Maintainer Decisions
 
-Decisions 1-6 were taken on 2026-10-16 in the comment on #2239, before this plan was written. Entries 7-16 are added when work on the issue starts.
+Decisions 1-6 were taken on 2026-10-16 in the comment on #2239, before this plan was written. Entries 7-16 were settled on 2026-10-17 by elimination (no open question remains).
 
 1. (2026-10-16) General rule, option (a): AGENTS.md §3 is amended so that a module MAY require other modules when it needs them for its guarantees; each module's closed list of required and forbidden modules is recorded in an ADR (#2381, ADR-050) and enforced by startup validation (#2382). Opt-in stays the rule for everything a module does not need. Mandatory with the event-sourcing route: reliable commit-bound delivery (Outbox), consumer idempotency (Inbox), recoverability + DLQ, processor health/metrics, multi-instance coordination. Forbidden: `TransactionPipelineBehavior`. Conditional: multi-tenancy, scheduling.
 2. (2026-10-16) Delivery mechanism, option (c): for 1.0, Marten domain events are delivered through the Outbox with an `OutboxStoreMarten` written in the same Marten session/transaction (listener before `SaveChanges`); the Marten subscription / async daemon route comes post-1.0 as an opt-in alternative (#2384). In-process publication after the command (`AutoPublishDomainEvents`) is removed; option C of #2239 is dropped.
@@ -1107,3 +1127,13 @@ Decisions 1-6 were taken on 2026-10-16 in the comment on #2239, before this plan
 4. (2026-10-16) `TransactionPipelineBehavior` with Marten, option (a): startup error (fail-fast) explaining that the Marten session is the unit of work; cross-store atomicity stays with #1225.
 5. (2026-10-16) Multi-instance coordination, option (a): always on; the processor claims rows with `FOR UPDATE SKIP LOCKED` and single-runner work takes a distributed lock (direction of ADR-043 / #1251).
 6. (2026-10-16) Compliance `Add*Aggregates`, option (b): they do not register Marten themselves; the application fails at startup with a clear message when `AddEncinaMarten` or any module the ES route requires is missing.
+7. (2026-10-17, settled by elimination) Outbox payload, option B: a reference to the committed Marten event (event id, stream id, sequence), loaded at dispatch. A plain copy leaves personal data that crypto-shredding cannot reach (GDPR Art. 17); C couples the outbox to the key model for no gain.
+8. (2026-10-17, settled by elimination) Outbox storage, option A: a Marten document `MartenOutboxMessage` with duplicated claim columns. Choice 2 fixes the same Marten session; B creates two schema owners; C ties #2239 to #1225.
+9. (2026-10-17, settled by elimination) Per-handler Inbox check, option A: a core per-handler invocation hook shared with #1220. B duplicates the dispatcher; C is fragile on open generics.
+10. (2026-10-17, settled by elimination) Ordering, option B: per-stream order. Axon, EventStoreDB and the Marten daemon preserve stream order; a poisoned head is bounded by `MaxRetries` and then the DLQ; C is not built.
+11. (2026-10-17, settled by elimination) Dispatch latency, option B: polling plus an after-commit nudge. Durability is unchanged; C adds a held connection per instance; A regresses immediate publication.
+12. (2026-10-17, settled by elimination) Dead-letter store, option A: `DeadLetterStoreMarten`. Choice 1 makes the DLQ mandatory; B forces a second data-access stack on every ES app.
+13. (2026-10-17, settled by elimination) Single-runner lock, option A: `IDistributedLockProvider` with #207 first. AGENTS.md §5 and SPEC-000 DEC-003 fix the lock category; B is a second mechanism; C leaves sweeps concurrent.
+14. (2026-10-17, settled by elimination) Registration, option A: `AddEncinaMarten` registers the mandatory set in `Encina.Marten`. Choice 1 = A on #2381; B is the "call this" validation that decision rejects; C adds a package every ES app needs anyway.
+15. (2026-10-17, settled by elimination) Startup validation, option A: declared through #2382. AGENTS.md §3 forbids transitional code; B is throwaway code.
+16. (2026-10-17, settled by elimination) Design record, option A: a new ADR for the delivery route plus an ADR-048 amendment; ADR-019/028 via #2381. AGENTS.md §8 requires an ADR per architectural decision; one decision per ADR.
