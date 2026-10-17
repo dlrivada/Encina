@@ -74,6 +74,18 @@ decision, never bypassed (#1345; the #1346 worker bypassed `block-main-checkout-
    unmet target is a finding in section (b).
 3. Check every acceptance criterion of the linked issue against the diff: `met` (name the file/line
    evidence), `not met`, or `not verifiable` (state what evidence is missing).
+   **Decision register (#2470).** Find the register of the linked issue: the Design Choices of its plan
+   (`docs/plans/*-implementation-plan-<issue>.md`: each choice with `Class:`, `Settled by:`, `Verified:`), or the issue
+   comment headed "Decision register" (`gh issue view <N> --repo dlrivada/Encina --comments`). One of these two is the
+   mandatory source; the knowledge record the PR adds (`docs/knowledge/issues/<N>.md`) is only a copy of it and never
+   replaces it (it carries no `Class` or `Verified` fields). Compare the diff with it: a decision the code takes (a default value,
+   error semantics, a storage or retention choice, a public name, behaviour on missing context, a new dependency, an
+   ordering guarantee) that is not in the register is a finding "unregistered decision" (severity `major` when the
+   choice has a consequence for users or for another provider, otherwise `minor`). The fix is to add the entry to the
+   register and classify it the same way: Trivial (cited convention), Settled (the only option that complies, with a
+   verifiable citation) or Dilemma (two or more valid options, each better in a named scenario; only the maintainer
+   decides it). Also report a Settled or Trivial entry the diff contradicts. A linked issue with no register at all is a
+   finding of its own (the orchestrator should have run `decision-extractor`).
 4. Write the security section: secrets or personal data reaching logs, activity tags, health-check results
    or plaintext storage; injection; fail-open gates instead of fail-closed. Known failure patterns to check
    (project history, same list `adversarial-reviewer` carries, since the underlying rules are the same
