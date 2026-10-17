@@ -85,6 +85,7 @@ Sub-decision 1 is the table above. Sub-decisions 2 to 8 were settled by eliminat
 - [ADR-019](019-compliance-event-sourcing-marten.md), [ADR-028](028-domain-events-versus-integration-events.md), [ADR-029](029-recoverability-error-classification.md), [ADR-036](036-three-audit-stores.md), [ADR-046](046-persistent-dead-letter-queue.md)
 - [SPEC-002](../../specifications/SPEC-002-eu-regulatory-readiness.md) DEC-006 (fail-closed gates)
 - Reserved: ADR-049 (pipeline execution order, [#2184](https://github.com/dlrivada/Encina/issues/2184)), ADR-043 (row claiming, [#1251](https://github.com/dlrivada/Encina/issues/1251)), ADR-037 (transactional outbox, [#718](https://github.com/dlrivada/Encina/issues/718))
+- [About the module dependency matrix](../module-dependency-matrix.md) (the published explanation page for the table above)
 - Issues [#2381](https://github.com/dlrivada/Encina/issues/2381), [#2239](https://github.com/dlrivada/Encina/issues/2239), [#2382](https://github.com/dlrivada/Encina/issues/2382)
 
 ## Date
