@@ -2,6 +2,7 @@ using Encina.Caching.Redis;
 using Encina.Testing.Time;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
@@ -183,15 +184,23 @@ public sealed class RedisDistributedLockProviderTests
     public async Task LockHandle_DisposeAsync_WhenReleaseScriptThrows_DoesNotThrow()
     {
         // Arrange
-        var provider = CreateProvider(new FakeTimeProvider(StartTime));
+        var logger = new FakeLogger<RedisDistributedLockProvider>();
+        var provider = CreateProvider(new FakeTimeProvider(StartTime), logger);
         SetupStringSet(true);
         _database.ScriptEvaluateAsync(Arg.Any<string>(), Arg.Any<RedisKey[]>(), Arg.Any<RedisValue[]>(), Arg.Any<CommandFlags>())
             .Returns<Task<RedisResult>>(_ => throw new RedisConnectionException(ConnectionFailureType.SocketFailure, "connection lost"));
         var handle = await provider.TryAcquireAsync("resource", TimeSpan.FromSeconds(30), TimeSpan.Zero, TimeSpan.FromMilliseconds(100), CancellationToken.None);
 
-        // Act & Assert
+        // Act
         handle.ShouldNotBeNull();
         await Should.NotThrowAsync(async () => await handle.DisposeAsync());
+
+        // Assert - the failure is logged by exception type only, never by its message
+        var entry = logger.Collector.GetSnapshot().Single(r => r.Level == LogLevel.Warning);
+        entry.Id.Id.ShouldBe(3615);
+        entry.Message.ShouldContain(nameof(RedisConnectionException));
+        entry.Message.ShouldNotContain("connection lost");
+        (entry.Exception?.Message ?? string.Empty).ShouldNotContain("connection lost");
     }
 
     [Fact]
@@ -318,12 +327,12 @@ public sealed class RedisDistributedLockProviderTests
 
     #region Helper Methods
 
-    private RedisDistributedLockProvider CreateProvider(TimeProvider? timeProvider = null)
+    private RedisDistributedLockProvider CreateProvider(TimeProvider? timeProvider = null, ILogger<RedisDistributedLockProvider>? logger = null)
     {
         return new RedisDistributedLockProvider(
             _connectionMultiplexer,
             Options.Create(_options),
-            _logger,
+            logger ?? _logger,
             timeProvider);
     }
 

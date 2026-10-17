@@ -2,6 +2,7 @@ using Encina.DistributedLock;
 using Encina.DistributedLock.Redis;
 using Encina.Testing.Time;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using StackExchange.Redis;
 
 namespace Encina.UnitTests.DistributedLock.Redis;
@@ -575,13 +576,45 @@ public class RedisDistributedLockProviderTests
         var db = CreateDatabaseThatGrantsLocks();
         db.ScriptEvaluateAsync(Arg.Any<string>(), Arg.Any<RedisKey[]>(), Arg.Any<RedisValue[]>(), Arg.Any<CommandFlags>())
             .Returns<Task<RedisResult>>(_ => throw new RedisConnectionException(ConnectionFailureType.SocketFailure, "connection lost"));
-        var handle = await AcquireHandleAsync(db, new FakeTimeProvider(StartTime));
+        var logger = new FakeLogger<RedisDistributedLockProvider>();
+        var handle = await AcquireHandleAsync(db, new FakeTimeProvider(StartTime), logger);
 
         // Act
         await Should.NotThrowAsync(async () => await handle.DisposeAsync());
 
-        // Assert
+        // Assert - released, and the failure is logged by exception type only, never by its message
         handle.IsReleased.ShouldBeTrue();
+        var entry = logger.Collector.GetSnapshot().Single(r => r.Level == LogLevel.Warning);
+        entry.Id.Id.ShouldBe(3754);
+        entry.Message.ShouldContain(nameof(RedisConnectionException));
+        entry.Message.ShouldNotContain("connection lost");
+        (entry.Exception?.Message ?? string.Empty).ShouldNotContain("connection lost");
+    }
+
+    [Fact]
+    public async Task TryAcquireAsync_WithZeroRetry_WaitsOnTheClockInsteadOfSpinning()
+    {
+        // Arrange
+        var db = Substitute.For<IDatabase>();
+        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(), Arg.Any<When>())
+            .Returns(false);
+        var connection = Substitute.For<IConnectionMultiplexer>();
+        connection.GetDatabase(Arg.Any<int>(), Arg.Any<object>()).Returns(db);
+        var time = new FakeTimeProvider(StartTime);
+        var provider = new RedisDistributedLockProvider(connection, _options, _logger, time);
+
+        // Act - a zero retry is floored to 1 ms on the fake clock, so the call waits for the clock
+        var attempt = provider.TryAcquireAsync("res", TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(1), TimeSpan.Zero, CancellationToken.None);
+        var pendingOnFrozenClock = attempt.IsCompleted;
+        time.Advance(TimeSpan.FromMilliseconds(1));
+        var attemptsAfterOneStep = db.ReceivedCalls().Count(c => c.GetMethodInfo().Name == nameof(IDatabase.StringSetAsync));
+        time.Advance(TimeSpan.FromSeconds(1));
+        var handle = await attempt;
+
+        // Assert
+        pendingOnFrozenClock.ShouldBeFalse();
+        attemptsAfterOneStep.ShouldBe(2);
+        handle.ShouldBeNull();
     }
 
     private static IDatabase CreateDatabaseThatGrantsLocks()
@@ -592,11 +625,11 @@ public class RedisDistributedLockProviderTests
         return db;
     }
 
-    private async Task<ILockHandle> AcquireHandleAsync(IDatabase db, TimeProvider time)
+    private async Task<ILockHandle> AcquireHandleAsync(IDatabase db, TimeProvider time, ILogger<RedisDistributedLockProvider>? logger = null)
     {
         var connection = Substitute.For<IConnectionMultiplexer>();
         connection.GetDatabase(Arg.Any<int>(), Arg.Any<object>()).Returns(db);
-        var provider = new RedisDistributedLockProvider(connection, _options, _logger, time);
+        var provider = new RedisDistributedLockProvider(connection, _options, logger ?? _logger, time);
 
         var handle = await provider.TryAcquireAsync("res", TimeSpan.FromSeconds(30),
             TimeSpan.Zero, TimeSpan.FromMilliseconds(100), CancellationToken.None);

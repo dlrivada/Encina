@@ -568,6 +568,45 @@ public sealed class MemoryDistributedLockProviderTests
     }
 
     [Fact]
+    public async Task TryAcquireAsync_WithZeroRetry_WaitsOnTheClockInsteadOfSpinning()
+    {
+        // Arrange
+        var resource = _faker.Lorem.Word();
+        await using var firstLock = await _sut.TryAcquireAsync(
+            resource, TimeSpan.FromMinutes(5), TimeSpan.Zero, TimeSpan.FromMilliseconds(100), CancellationToken.None);
+
+        // Act - a zero retry is floored to 1 ms on the fake clock, so the call stays pending until the clock moves
+        var secondAttempt = _sut.TryAcquireAsync(
+            resource, TimeSpan.FromMinutes(5), TimeSpan.FromSeconds(1), TimeSpan.Zero, CancellationToken.None);
+        var pendingOnFrozenClock = secondAttempt.IsCompleted;
+        _timeProvider.Advance(TimeSpan.FromSeconds(1));
+        var secondLock = await secondAttempt;
+
+        // Assert
+        pendingOnFrozenClock.ShouldBeFalse();
+        secondLock.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task LockHandle_WhenExpiredHandleIsDisposedAfterTakeover_KeepsTheNewOwnersLock()
+    {
+        // Arrange
+        var resource = _faker.Lorem.Word();
+        var expiredLock = await _sut.TryAcquireAsync(
+            resource, TimeSpan.FromMinutes(1), TimeSpan.Zero, TimeSpan.FromMilliseconds(100), CancellationToken.None);
+        _timeProvider.Advance(TimeSpan.FromMinutes(1));
+        await using var newLock = await _sut.TryAcquireAsync(
+            resource, TimeSpan.FromMinutes(5), TimeSpan.Zero, TimeSpan.FromMilliseconds(100), CancellationToken.None);
+
+        // Act
+        await expiredLock!.DisposeAsync();
+
+        // Assert
+        newLock.ShouldNotBeNull();
+        (await _sut.IsLockedAsync(resource, CancellationToken.None)).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task AcquireAsync_WhenResourceLocked_WaitsUntilReleased()
     {
         // Arrange

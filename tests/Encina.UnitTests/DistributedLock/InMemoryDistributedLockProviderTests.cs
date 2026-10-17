@@ -124,6 +124,24 @@ public class InMemoryDistributedLockProviderTests
     }
 
     [Fact]
+    public async Task TryAcquireAsync_WithZeroRetry_ShouldWaitOnTheClockInsteadOfSpinning()
+    {
+        // Arrange
+        var provider = CreateProvider();
+        await using var firstLock = await provider.TryAcquireAsync("test-resource", Expiry, Wait, Retry, CancellationToken.None);
+
+        // Act - a zero retry is floored to 1 ms on the fake clock, so the call stays pending until the clock moves
+        var secondAttempt = provider.TryAcquireAsync("test-resource", Expiry, TimeSpan.FromSeconds(1), TimeSpan.Zero, CancellationToken.None);
+        var pendingOnFrozenClock = secondAttempt.IsCompleted;
+        _time.Advance(TimeSpan.FromSeconds(1));
+        var secondLock = await secondAttempt;
+
+        // Assert
+        pendingOnFrozenClock.ShouldBeFalse();
+        secondLock.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task TryAcquireAsync_WhenHeldLockHasExpired_ShouldAcquireLock()
     {
         // Arrange
