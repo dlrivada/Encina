@@ -298,7 +298,7 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
     {
         var errorCode = failed.Match(
             Right: _ => string.Empty,
-            Left: e => e.GetCode().IfNone("encina.unknown"));
+            Left: ActivityStatusDescriptions.ForError);
 
         if (_options.EnableTracing)
         {

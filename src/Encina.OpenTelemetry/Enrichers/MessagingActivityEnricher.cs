@@ -9,6 +9,11 @@ namespace Encina.OpenTelemetry.Enrichers;
 /// <summary>
 /// Enriches OpenTelemetry activities with messaging pattern information (Outbox, Inbox, Sagas, Scheduling).
 /// </summary>
+/// <remarks>
+/// The stored <c>ErrorMessage</c> of a message or saga is never copied to a tag: it can carry
+/// personal data or SQL fragments. The error tags record only that the entity is in a failed
+/// state (<c>true</c>).
+/// </remarks>
 public static class MessagingActivityEnricher
 {
     /// <summary>
@@ -41,7 +46,7 @@ public static class MessagingActivityEnricher
 
         if (!string.IsNullOrWhiteSpace(message.ErrorMessage))
         {
-            activity.SetTag(ActivityTagNames.Messaging.Error, message.ErrorMessage);
+            activity.SetTag(ActivityTagNames.Messaging.Error, true);
         }
     }
 
@@ -75,7 +80,7 @@ public static class MessagingActivityEnricher
 
         if (!string.IsNullOrWhiteSpace(message.ErrorMessage))
         {
-            activity.SetTag(ActivityTagNames.Messaging.Error, message.ErrorMessage);
+            activity.SetTag(ActivityTagNames.Messaging.Error, true);
         }
     }
 
@@ -103,7 +108,7 @@ public static class MessagingActivityEnricher
 
         if (!string.IsNullOrWhiteSpace(sagaState.ErrorMessage))
         {
-            activity.SetTag(ActivityTagNames.Saga.Error, sagaState.ErrorMessage);
+            activity.SetTag(ActivityTagNames.Saga.Error, true);
         }
     }
 
@@ -144,7 +149,7 @@ public static class MessagingActivityEnricher
 
         if (!string.IsNullOrWhiteSpace(message.ErrorMessage))
         {
-            activity.SetTag(ActivityTagNames.Messaging.Error, message.ErrorMessage);
+            activity.SetTag(ActivityTagNames.Messaging.Error, true);
         }
     }
 }

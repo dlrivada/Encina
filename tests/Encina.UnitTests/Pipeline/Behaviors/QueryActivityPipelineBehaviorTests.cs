@@ -166,7 +166,11 @@ public sealed class QueryActivityPipelineBehaviorTests : IDisposable
         activity.GetTagItem("Encina.functional_failure").ShouldBe(true);
         activity.GetTagItem("Encina.failure_reason").ShouldBe("not.found");
         activity.GetTagItem("Encina.failure_code").ShouldBe("NF001");
-        activity.GetTagItem("Encina.failure_message").ShouldBe("Entity not found");
+        activity.GetTagItem("Encina.failure_message").ShouldBeNull();
+        foreach (var tag in activity.Tags)
+        {
+            tag.Value.ShouldNotBe("Entity not found");
+        }
     }
 
     [Fact]

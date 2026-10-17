@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Encina.Diagnostics;
 using LanguageExt;
 
 namespace Encina.Sharding.Diagnostics;
@@ -54,7 +55,7 @@ internal sealed class InstrumentedShardRouter : IShardRouter
             },
             Left: error =>
             {
-                ShardingActivitySource.RoutingFailed(activity, error.GetCode().IfNone(string.Empty));
+                ShardingActivitySource.RoutingFailed(activity, ActivityStatusDescriptions.ForError(error));
                 return string.Empty;
             });
 
@@ -84,7 +85,7 @@ internal sealed class InstrumentedShardRouter : IShardRouter
             },
             Left: error =>
             {
-                ShardingActivitySource.RoutingFailed(activity, error.GetCode().IfNone(string.Empty));
+                ShardingActivitySource.RoutingFailed(activity, ActivityStatusDescriptions.ForError(error));
                 return string.Empty;
             });
 
@@ -112,7 +113,7 @@ internal sealed class InstrumentedShardRouter : IShardRouter
             },
             Left: error =>
             {
-                ShardingActivitySource.RoutingFailed(activity, error.GetCode().IfNone(string.Empty));
+                ShardingActivitySource.RoutingFailed(activity, ActivityStatusDescriptions.ForError(error));
                 return (IReadOnlyList<string>)[];
             });
 

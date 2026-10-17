@@ -139,7 +139,7 @@ public sealed class ReadAuditRetentionService : BackgroundService
                 },
                 Left: error =>
                 {
-                    var errorCode = error.GetCode().IfNone("encina.unknown");
+                    var errorCode = ActivityStatusDescriptions.ForError(error);
                     ReadAuditLog.PurgeFailed(_logger, errorCode);
                     ReadAuditActivitySource.Failed(activity, errorCode);
                 });

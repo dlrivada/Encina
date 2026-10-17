@@ -146,12 +146,6 @@ public sealed class QueryActivityPipelineBehavior<TQuery, TResponse>(IFunctional
         {
             activity?.SetTag(ActivityTagNames.FailureCode, errorCode);
         }
-
-        var errorMessage = _failureDetector.TryGetErrorMessage(capturedFailure);
-        if (!string.IsNullOrWhiteSpace(errorMessage))
-        {
-            activity?.SetTag(ActivityTagNames.FailureMessage, errorMessage);
-        }
     }
 
     private static Unit RecordErrorOutcome(Activity? activity, EncinaError error)

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using Encina.Diagnostics;
 using Encina.Security.Encryption.Abstractions;
 using Encina.Security.Encryption.Diagnostics;
 using LanguageExt;
@@ -262,7 +263,7 @@ public sealed class EncryptionPipelineBehavior<TRequest, TResponse> : IPipelineB
     {
         var errorCode = failed.Match(
             Right: _ => string.Empty,
-            Left: e => e.GetCode().IfNone("encina.unknown"));
+            Left: ActivityStatusDescriptions.ForError);
 
         if (_options.EnableTracing)
         {

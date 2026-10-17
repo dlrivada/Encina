@@ -151,12 +151,6 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse>(IFuncti
         {
             activity?.SetTag(ActivityTagNames.FailureCode, errorCode);
         }
-
-        var errorMessage = _failureDetector.TryGetErrorMessage(capturedFailure);
-        if (!string.IsNullOrWhiteSpace(errorMessage))
-        {
-            activity?.SetTag(ActivityTagNames.FailureMessage, errorMessage);
-        }
     }
 
     private static Unit RecordErrorOutcome(Activity? activity, EncinaError error)

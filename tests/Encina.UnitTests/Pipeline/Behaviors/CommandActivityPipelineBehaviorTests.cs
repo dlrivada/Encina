@@ -166,7 +166,11 @@ public sealed class CommandActivityPipelineBehaviorTests : IDisposable
         activity.GetTagItem("Encina.functional_failure").ShouldBe(true);
         activity.GetTagItem("Encina.failure_reason").ShouldBe("payment.declined");
         activity.GetTagItem("Encina.failure_code").ShouldBe("PAY001");
-        activity.GetTagItem("Encina.failure_message").ShouldBe("Payment declined");
+        activity.GetTagItem("Encina.failure_message").ShouldBeNull();
+        foreach (var tag in activity.Tags)
+        {
+            tag.Value.ShouldNotBe("Payment declined");
+        }
     }
 
     [Fact]
