@@ -237,6 +237,53 @@ Assert-Equal 5 $resumedOverridden.scores.importance 'resume: an override still a
 Assert-Equal 'maintainer call: deprioritize on resume' $resumedOverridden.why.importance 'resume: override why replaces the resumed why'
 Assert-Equal 'override' $resumedOverridden.source.importance 'resume: override source replaces the resumed model source'
 
+# --- Urgent label bonus (#2483) ------------------------------------------------------------------
+Assert-Equal 100 (Get-PriorityUrgentBonus -Labels @('bug', 'urgent')) 'urgent: label urgent gives the 100 bonus'
+Assert-Equal 100 (Get-PriorityUrgentBonus -Labels @('URGENT')) 'urgent: label match is case-insensitive'
+Assert-Equal 100 (Get-PriorityUrgentBonus -Labels 'Urgent') 'urgent: a single string label works'
+Assert-Equal 0 (Get-PriorityUrgentBonus -Labels @('priority-critical')) 'urgent: priority-critical alone gives no bonus'
+Assert-Equal 0 (Get-PriorityUrgentBonus -Labels @('urgent-ish', 'not-urgent')) 'urgent: only the exact label counts'
+Assert-Equal 0 (Get-PriorityUrgentBonus -Labels $null) 'urgent: null labels give no bonus'
+Assert-Equal 0 (Get-PriorityUrgentBonus -Labels @()) 'urgent: empty labels give no bonus'
+
+$urgentBase = [ordered]@{ number = 1700; title = '[BUG] x'; milestone = 'v0.15.0'; createdAt = '2026-06-01T00:00:00Z'; body = $tickedBody; dependents = @() }
+$plainIssue = [ordered]@{} + $urgentBase
+$plainIssue.labels = @('bug', 'priority-critical')
+$urgentIssue = [ordered]@{} + $urgentBase
+$urgentIssue.labels = @('bug', 'Urgent')
+$noLabelsIssue = [ordered]@{} + $urgentBase
+
+$plainEntry = New-ScoredEntry -IssueRecord $plainIssue -Overrides @() -PreviousJudged $previousEntry
+$urgentEntry = New-ScoredEntry -IssueRecord $urgentIssue -Overrides @() -PreviousJudged $previousEntry
+$noLabelsEntry = New-ScoredEntry -IssueRecord $noLabelsIssue -Overrides @() -PreviousJudged $previousEntry
+Assert-Equal $plainEntry.total $noLabelsEntry.total 'urgent: an issue record without labels scores like a non-urgent one'
+Assert-True ($plainEntry.urgent -eq $false) 'urgent: priority-critical issue is not urgent'
+Assert-True ($plainEntry.flags -notcontains 'urgent') 'urgent: non-urgent entry has no urgent flag'
+Assert-Equal $plainEntry.total $plainEntry.baseTotal 'urgent: non-urgent total equals baseTotal'
+Assert-True ($urgentEntry.urgent -eq $true) 'urgent: label urgent sets urgent=true'
+Assert-True ($urgentEntry.flags -contains 'urgent') 'urgent: label urgent adds the urgent flag'
+Assert-Equal ($plainEntry.baseTotal + 100) $urgentEntry.total 'urgent: total = base + 100'
+Assert-Equal $plainEntry.baseTotal $urgentEntry.baseTotal 'urgent: baseTotal is the computed value'
+
+# An urgent issue with a low base outranks a non-urgent one with a higher base.
+$highBase = @{ Total = 90.0; CreatedAtUtc = '2026-01-01T00:00:00Z'; Id = 'high' }
+$lowUrgent = @{ Total = [Math]::Round(10.0 + $script:PriorityUrgentBonus, 1); CreatedAtUtc = '2026-06-01T00:00:00Z'; Id = 'low-urgent' }
+$rankedUrgent = Get-PriorityRankedList -Items @($highBase, $lowUrgent)
+Assert-Equal 'low-urgent' $rankedUrgent[0].Id 'urgent: low-base urgent issue ranks above a higher-base non-urgent issue'
+
+# -Resume: urgency follows the labels now, never the previous entry.
+$prevUrgent = $previousEntryRaw | ConvertTo-Json -Depth 8 | ConvertFrom-Json
+$prevUrgent | Add-Member -NotePropertyName urgent -NotePropertyValue $true
+$prevUrgent.flags = @('urgent')
+$labelRemoved = New-ScoredEntry -IssueRecord $plainIssue -Overrides @() -PreviousJudged $prevUrgent
+Assert-True ($labelRemoved.urgent -eq $false) 'resume: urgent label removed since the previous entry drops urgency'
+Assert-True ($labelRemoved.flags -notcontains 'urgent') 'resume: urgent flag is not carried from the previous entry'
+$labelAdded = New-ScoredEntry -IssueRecord $urgentIssue -Overrides @() -PreviousJudged $previousEntry
+Assert-True ($labelAdded.urgent -eq $true) 'resume: urgent label added since the previous entry sets urgency'
+Assert-Equal ($labelAdded.baseTotal + 100) $labelAdded.total 'resume: added urgent label adds 100 to the resumed total'
+$boardUrgent = ConvertTo-BoardEntry ([hashtable]$urgentEntry)
+Assert-True ($boardUrgent.urgent -eq $true -and $boardUrgent.baseTotal -eq $urgentEntry.baseTotal) 'urgent: the board entry keeps urgent and baseTotal'
+
 # --- Model-out cache, sample runs and backups (#2233) -------------------------------------------
 # Everything runs in a temp directory with a stubbed model call: no gh, no model, nothing under the
 # real artifacts/priority.
