@@ -39,7 +39,7 @@
 #
 # #2470 (decision register): the needs-decision label marks a Dilemma, a choice with two or more valid options
 # that only the maintainer can make. An issue created (`gh issue create`) or edited (`gh issue edit
-# --add-label`) with that label must contain the word "Dilemma" in its body (the Dilemma entries of the
+# --add-label`) with that label must contain a Dilemma entry marker in its body (a line starting with "Dilemma", or a "Class: Dilemma" field; negated text does not count; the Dilemma entries of the
 # decision register; the decision-extractor agent produces them). For an edit without --body/--body-file the
 # existing body is read with `gh api` (ENCINA_ISSUE_GH overrides gh in tests); when it cannot be read the call
 # is denied. A variable label, title or body cannot be read and is not judged. Headers inside
@@ -457,7 +457,13 @@ try {
         if ($bodyFile.Count -gt 0) {
             if ($bodyFile[0].Dynamic -or $bodyFile[0].Value -eq '-') { continue }
             $path = Resolve-CommandPath $bodyFile[0].Value $cwd
-            if (-not $path) { continue }
+            if (-not $path) {
+                if (Test-HasNeedsDecision (Get-OptionValues $options @('-l', '--label'))) {
+                    [Console]::Error.WriteLine("Blocked: the --body-file '$($bodyFile[0].Value)' cannot be read to check the needs-decision label (#2470: it needs a Dilemma entry in the body). Create the file in an earlier call.")
+                    exit 2
+                }
+                continue
+            }
             $body = [IO.File]::ReadAllText($path)
             if (-not (Test-LocalDraftCompliance $path $body $titleText $root)) {
                 [Console]::Error.WriteLine($LocalDraftMessage)
