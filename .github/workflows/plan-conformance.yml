@@ -2,8 +2,9 @@ name: Plan conformance
 
 # Structural gate for implementation plans (#1927): every plan changed in a pull request must follow
 # docs/engineering/prompts/implementation-plan-prompt.md, and the checker's self-test must pass.
-# CI always uses -Draft: plans merge with "(recommended, pending the maintainer)" and the maintainer's
-# decisions are recorded when the issue is picked up. The full check (without -Draft) is the pre-brief gate.
+# CI always uses -Draft, which skips the decision-register check: plans may merge before their Design
+# Choices are classified and verified (#2470). The full check (without -Draft) is the pre-brief gate:
+# Trivial/Settled choices need a citation and an adversarial Verified mark, Dilemmas a Maintainer Decision.
 on:
   pull_request:
     paths:
