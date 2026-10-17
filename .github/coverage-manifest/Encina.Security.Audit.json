@@ -445,7 +445,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 85,
+        "guard": 60
+      },
+      "justifications": {
+        "unit": "The purge loop, scope per run, error and exception branches are all unit tested with a fake clock; the remaining lines are the cancellation catch race.",
+        "guard": "Guard tests cover only the constructor null checks (about 60% of coverable lines); the purge loop is covered by the unit flag."
+      }
     },
     "RequestMetadataExtractor.cs": {
       "defaultTests": [
