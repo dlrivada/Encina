@@ -60,35 +60,26 @@ public sealed partial class MemoryDistributedLockProvider : IDistributedLockProv
         var deadline = _timeProvider.GetUtcNow().UtcDateTime.Add(wait);
         var lockId = Guid.NewGuid().ToString();
 
-        while (_timeProvider.GetUtcNow().UtcDateTime < deadline)
+        // Always attempt at least once, so a zero wait still takes a free lock. The retry delay
+        // runs on the injected TimeProvider (as the deadline does), so a test clock drives the
+        // whole wait (#531).
+        while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Try to acquire the lock
-            var now = _timeProvider.GetUtcNow().UtcDateTime;
-            var expiresAt = now.Add(expiry);
-
-            var newEntry = new LockEntry(lockId, expiresAt);
-
-            // Check if there's an existing lock
-            if (_locks.TryGetValue(resource, out var existingEntry))
+            var handle = TryTakeLock(resource, lockId, expiry);
+            if (handle is not null)
             {
-                // Try to replace the expired lock
-                if (existingEntry.ExpiresAt <= now && _locks.TryUpdate(resource, newEntry, existingEntry))
-                {
-                    LogLockAcquired(_logger, resource, lockId);
-                    return new LockHandle(this, resource, lockId);
-                }
-            }
-            else if (_locks.TryAdd(resource, newEntry))
-            {
-                // No existing lock, try to add
-                LogLockAcquired(_logger, resource, lockId);
-                return new LockHandle(this, resource, lockId);
+                return handle;
             }
 
-            // Wait before retrying
-            await Task.Delay(retry, cancellationToken).ConfigureAwait(false);
+            var remaining = deadline - _timeProvider.GetUtcNow().UtcDateTime;
+            if (remaining <= TimeSpan.Zero)
+            {
+                break;
+            }
+
+            await Task.Delay(NextDelay(retry, remaining), _timeProvider, cancellationToken).ConfigureAwait(false);
         }
 
         LogLockFailed(_logger, resource);
@@ -111,29 +102,41 @@ public sealed partial class MemoryDistributedLockProvider : IDistributedLockProv
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var now = _timeProvider.GetUtcNow().UtcDateTime;
-            var expiresAt = now.Add(expiry);
-            var newEntry = new LockEntry(lockId, expiresAt);
-
-            // Check if there's an existing lock
-            if (_locks.TryGetValue(resource, out var existingEntry))
+            var handle = TryTakeLock(resource, lockId, expiry);
+            if (handle is not null)
             {
-                // Try to replace the expired lock
-                if (existingEntry.ExpiresAt <= now && _locks.TryUpdate(resource, newEntry, existingEntry))
-                {
-                    LogLockAcquired(_logger, resource, lockId);
-                    return new LockHandle(this, resource, lockId);
-                }
-            }
-            else if (_locks.TryAdd(resource, newEntry))
-            {
-                // No existing lock, try to add
-                LogLockAcquired(_logger, resource, lockId);
-                return new LockHandle(this, resource, lockId);
+                return handle;
             }
 
-            await Task.Delay(retryInterval, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(retryInterval, _timeProvider, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// The wait before the next attempt: the retry interval, cut to the time left before the deadline,
+    /// and never under one millisecond, because a zero delay completes at once and would spin the loop
+    /// without ever letting a test clock advance.
+    /// </summary>
+    private static TimeSpan NextDelay(TimeSpan retry, TimeSpan remaining)
+        => TimeSpan.FromMilliseconds(Math.Max(1, Math.Min(retry.TotalMilliseconds, remaining.TotalMilliseconds)));
+
+    private LockHandle? TryTakeLock(string resource, string lockId, TimeSpan expiry)
+    {
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        var newEntry = new LockEntry(lockId, now.Add(expiry));
+
+        // Add when free, or replace an expired entry only if it is still the one that was read.
+        var taken = _locks.TryGetValue(resource, out var existingEntry)
+            ? existingEntry.ExpiresAt <= now && _locks.TryUpdate(resource, newEntry, existingEntry)
+            : _locks.TryAdd(resource, newEntry);
+
+        if (!taken)
+        {
+            return null;
+        }
+
+        LogLockAcquired(_logger, resource, lockId);
+        return new LockHandle(this, resource, lockId);
     }
 
     /// <inheritdoc/>
@@ -178,10 +181,15 @@ public sealed partial class MemoryDistributedLockProvider : IDistributedLockProv
 
     private void ReleaseLock(string resource, string lockId)
     {
-        if (_locks.TryGetValue(resource, out var entry) && entry.LockId == lockId)
+        // Compare-and-remove, so a release never deletes a newer owner's entry; it reads again when
+        // a concurrent extension replaced this owner's entry between the read and the remove.
+        while (_locks.TryGetValue(resource, out var entry) && entry.LockId == lockId)
         {
-            _locks.TryRemove(resource, out _);
-            LogLockReleased(_logger, resource, lockId);
+            if (_locks.TryRemove(new KeyValuePair<string, LockEntry>(resource, entry)))
+            {
+                LogLockReleased(_logger, resource, lockId);
+                return;
+            }
         }
     }
 

@@ -34,7 +34,15 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": {
+        "unit": 95,
+        "guard": 17
+      },
+      "justifications": {
+        "unit": "Measured 98.7%: the unit tests drive acquire, retry, deadline, zero wait, expiry, extend and release on a FakeTimeProvider; the one uncovered line is the retry of a compare-and-remove that lost to a concurrent extension, which a single-threaded test cannot reach.",
+        "guard": "Measured 17.1%: the guard tests assert the ArgumentNullException of both constructors and of each public method; every other line runs only past those guards and belongs to the unit flag."
+      }
     },
     "MemoryPubSubProvider.cs": {
       "defaultTests": [
