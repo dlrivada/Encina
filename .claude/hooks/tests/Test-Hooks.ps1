@@ -35,6 +35,21 @@ foreach ($pair in @(@('feature-ok.md', 'feature_request.md'), @('spike-ok.md', '
     Set-Content (Join-Path $work $pair[0]) ('<!-- local-draft: none, reason: hook test fixture, not a drafting task -->' + "`n" + (($tplHeaders | ForEach-Object { "$_`nx" }) -join "`n"))
 }
 $hm = " --milestone `"$hardening`" --label technical-debt --label p1-recommended"
+# #2470: the same bodies with a Dilemma entry, and a body without one, for the needs-decision checks.
+foreach ($name in 'feature-ok.md', 'spike-ok.md') {
+    $okBody = Get-Content -LiteralPath (Join-Path $work $name) -Raw
+    Set-Content (Join-Path $work ($name -replace '-ok\.md$', '-dilemma.md')) ($okBody + "`nDilemma D1: two valid options, each better in a named scenario.`n")
+}
+Set-Content (Join-Path $work 'edit-dilemma.md') "Dilemma D1: two valid options.`n"
+Set-Content (Join-Path $work 'edit-settled.md') "No open design choices. D1 is Settled by AGENTS.md section 3.`n"
+# Fake gh for `gh issue edit` without a body: 9001 has a Dilemma, 9002 has none, 9003 cannot be read.
+$fakeGh = Join-Path $work 'fake-gh.ps1'
+Set-Content $fakeGh @'
+if ("$args" -match 'issues/9001') { 'Dilemma D1: two valid options.'; exit 0 }
+if ("$args" -match 'issues/9002') { 'No open design choices.'; exit 0 }
+exit 1
+'@
+$env:ENCINA_ISSUE_GH = $fakeGh
 
 # #1410: two isolated fake repository roots for check-issue-template's local-draft evidence checks, so those
 # tests never read or write the real worktree's own artifacts/ folder. Both copy the real .github/ISSUE_TEMPLATE
@@ -223,11 +238,25 @@ $cases = @(
     @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body-file debt-ok.md --milestone `"v9.9.9 - Nope`" --milestone `"$hardening`" --label technical-debt --label p1-recommended", 0, 'hygiene: the last --milestone is the valid one'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-ok.md --milestone "v0.1.0 - Old" --label technical-debt --label p1-recommended', 2, 'hygiene: a closed milestone is denied'),
     @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body-file debt-ok.md -m `"$hardening`" -l technical-debt -l p1-recommended", 0, 'hygiene: short -m and -l forms'),
-    # Maintainer decision 2026-10-06: [FEATURE] and [SPIKE] are created with needs-decision.
-    @($issue, 'PowerShell', "gh issue create --title `"[FEATURE] x`" --body-file feature-ok.md --milestone `"$hardening`" --label enhancement --label p1-recommended", 2, 'hygiene: FEATURE without needs-decision'),
-    @($issue, 'PowerShell', "gh issue create --title `"[FEATURE] x`" --body-file feature-ok.md --milestone `"$hardening`" --label enhancement --label p1-recommended --label needs-decision", 0, 'hygiene: FEATURE with needs-decision'),
-    @($issue, 'PowerShell', "gh issue create --title `"[SPIKE] x`" --body-file spike-ok.md --milestone `"$hardening`" --label investigation --label p2-post-1.0", 2, 'hygiene: SPIKE without needs-decision'),
-    @($issue, 'PowerShell', "gh issue create --title `"[SPIKE] x`" --body-file spike-ok.md --milestone `"$hardening`" --label investigation --label p2-post-1.0 --label needs-decision", 0, 'hygiene: SPIKE with needs-decision'),
+    # #2470: needs-decision is no longer mandatory for [FEATURE] and [SPIKE]; it is allowed only with a Dilemma in the body.
+    @($issue, 'PowerShell', "gh issue create --title `"[FEATURE] x`" --body-file feature-ok.md --milestone `"$hardening`" --label enhancement --label p1-recommended", 0, 'decision register: FEATURE without needs-decision is allowed'),
+    @($issue, 'PowerShell', "gh issue create --title `"[FEATURE] x`" --body-file feature-ok.md --milestone `"$hardening`" --label enhancement --label p1-recommended --label needs-decision", 2, 'decision register: FEATURE with needs-decision and no Dilemma is denied'),
+    @($issue, 'PowerShell', "gh issue create --title `"[FEATURE] x`" --body-file feature-dilemma.md --milestone `"$hardening`" --label enhancement --label p1-recommended --label needs-decision", 0, 'decision register: FEATURE with needs-decision and a Dilemma'),
+    @($issue, 'PowerShell', "gh issue create --title `"[SPIKE] x`" --body-file spike-ok.md --milestone `"$hardening`" --label investigation --label p2-post-1.0", 0, 'decision register: SPIKE without needs-decision is allowed'),
+    @($issue, 'PowerShell', "gh issue create --title `"[SPIKE] x`" --body-file spike-ok.md --milestone `"$hardening`" --label investigation --label p2-post-1.0 --label Needs-Decision", 2, 'decision register: SPIKE with needs-decision and no Dilemma is denied (label case-insensitive)'),
+    @($issue, 'PowerShell', "gh issue create --title `"[SPIKE] x`" --body-file spike-dilemma.md --milestone `"$hardening`" --label investigation --label p2-post-1.0 --label needs-decision", 0, 'decision register: SPIKE with needs-decision and a Dilemma'),
+    @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body-file debt-ok.md --milestone `"$hardening`" --label technical-debt --label p1-recommended --label needs-decision", 2, 'decision register: DEBT with needs-decision and no Dilemma is denied'),
+    @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body-file debt-ok.md --milestone `"$hardening`" --label technical-debt,p1-recommended,needs-decision", 2, 'decision register: comma-separated needs-decision is judged too'),
+    @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body-file debt-ok.md --milestone `"$hardening`" --label technical-debt --label p1-recommended --label `$l", 0, 'decision register: a variable label is not judged'),
+    # #2470: gh issue edit --add-label needs-decision.
+    @($issue, 'PowerShell', 'gh issue edit 5 --add-label needs-decision --body-file edit-settled.md', 2, 'decision register: edit adds needs-decision with a body without Dilemma'),
+    @($issue, 'PowerShell', 'gh issue edit 5 --add-label needs-decision --body-file edit-dilemma.md', 0, 'decision register: edit adds needs-decision with a Dilemma body'),
+    @($issue, 'PowerShell', 'gh issue edit 9001 --add-label needs-decision', 0, 'decision register: edit reads the existing body (Dilemma)'),
+    @($issue, 'PowerShell', 'gh issue edit 9002 --add-label needs-decision', 2, 'decision register: edit reads the existing body (no Dilemma)'),
+    @($issue, 'PowerShell', 'gh issue edit 9003 --add-label needs-decision', 2, 'decision register: edit denies when the body cannot be read'),
+    @($issue, 'PowerShell', 'gh issue edit 9002 --add-label p1-recommended', 0, 'decision register: edit with another label is not judged'),
+    @($issue, 'PowerShell', 'gh issue edit 9002 --remove-label needs-decision', 0, 'decision register: removing needs-decision is always allowed'),
+    @($issue, 'PowerShell', 'gh issue edit 9002 --repo other/repo --add-label needs-decision', 0, 'decision register: edit on another repository is not judged'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-ok.md --milestone $ms --label $l', 0, 'hygiene: dynamic milestone and labels are not judged'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-missing.md', 2, 'DEBT missing Root Cause'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-order.md', 2, 'DEBT out of order'),
@@ -358,6 +387,10 @@ $spawnCases = @(
     @('docs-writer', $null, 'local-ai-standin', 0, 'docs-writer: local-ai-standin is allowed (#1593)'),
     @('mechanical-fixer', $null, 'local-ai-standin', 2, 'mechanical-fixer: local-ai-standin is blocked (#1593)'),
     @('local-ai-standin', $null, 'Explore', 2, 'local-ai-standin: the stand-in never delegates (#1593)'),
+    # #2470: the decision extractor is spawned by the orchestrator only and never delegates.
+    @('orchestrator', $null, 'decision-extractor', 0, 'orchestrator: decision-extractor is allowed (#2470)'),
+    @('issue-worker', $null, 'decision-extractor', 2, 'issue-worker: decision-extractor is blocked (#2470)'),
+    @('decision-extractor', $null, 'Explore', 2, 'decision-extractor: the extractor never delegates (#2470)'),
     @('orchestrator', $null, 'general-purpose', 0, 'orchestrator: general-purpose is allowed (covered by guard-orchestrator-writes)'),
     @('orchestrator', $null, $null, 0, 'orchestrator: missing subagent_type is general-purpose, allowed'),
     @('orchestrator', $null, 'claude', 2, 'orchestrator: claude is blocked'),
@@ -768,7 +801,11 @@ $ownershipCases = @(
     # #1593: local-ai-standin writes only under artifacts/local-ai/out/**.
     @('local-ai-standin', 'Write', "$wt\artifacts\local-ai\out\x.md", $wt, 0, 'local-ai-standin: its output file under artifacts/local-ai/out'),
     @('local-ai-standin', 'Write', "$wt\src\Encina\x.cs", $wt, 2, 'local-ai-standin: a repo source file is denied'),
-    @('local-ai-standin', 'Write', "$wt\artifacts\local-ai\standin-ledger.csv", $wt, 2, 'local-ai-standin: the ledger is the caller''s, denied')
+    @('local-ai-standin', 'Write', "$wt\artifacts\local-ai\standin-ledger.csv", $wt, 2, 'local-ai-standin: the ledger is the caller''s, denied'),
+    # #2470: decision-extractor writes only artifacts/decisions/<issue>.md.
+    @('decision-extractor', 'Write', "$wt\artifacts\decisions\2470.md", $wt, 0, 'decision-extractor: its register under artifacts/decisions'),
+    @('decision-extractor', 'Write', "$wt\src\Encina\x.cs", $wt, 2, 'decision-extractor: a repo source file is denied'),
+    @('decision-extractor', 'Write', "$wt\artifacts\pr-review\1.md", $wt, 2, 'decision-extractor: another artifacts/ subfolder is denied')
 )
 
 # agent_type (payload), agent_id, subagent_type, run_in_background, expected, label[, -Agent (hook CLI arg)]
@@ -1002,6 +1039,8 @@ try {
         $json = if ($command -eq 'not json') { 'not json' } else { @{ tool_name = $tool; cwd = $work; tool_input = @{ command = $command } } | ConvertTo-Json -Compress }
         Invoke-HookCase $hook $json $expected $label
     }
+    # #2470: the fake gh served only the table's gh issue edit cases.
+    Remove-Item Env:ENCINA_ISSUE_GH -ErrorAction SilentlyContinue
 
     # #1410: check-issue-template's local-draft evidence check, run against $issueRoot (see the fixtures above)
     # so Get-RepoRoot's $env:CLAUDE_PROJECT_DIR fallback resolves there instead of the real worktree.

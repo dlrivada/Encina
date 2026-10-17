@@ -20,9 +20,12 @@
       combined        one <details> with PROJECT CONTEXT, IMPLEMENTATION OVERVIEW, KEY PATTERNS,
                       REFERENCE FILES
       matrix          exactly the 12 functions of AGENTS.md section 6, each with status and note
-      decisions       ## Maintainer Decisions is mandatory and last: one dated entry per Design Choice,
-                      numbered like the choices; no choice may still be 'pending the maintainer'
-                      (skipped by -Draft)
+      decisions       decision register (#2470): each Design Choice has a class. Settled or Trivial: a
+                      'Settled by:' citation and 'Verified: adversarial-reviewer <yyyy-MM-dd>'. Dilemma
+                      (or no class): a dated entry in ## Maintainer Decisions (last section), numbered like
+                      the choices. The section is needed only when a Dilemma exists. 'No open design
+                      choices' with a register table (Id | Choice | Class | Settled by | Verified) is valid. No
+                      choice may still be 'pending the maintainer' (skipped by -Draft)
       filename        {feature}-implementation-plan-{issue}.md
       issue           the issue exists and its title starts with [FEATURE]; runs only when gh is
                       installed and authenticated, otherwise it is skipped with a notice
@@ -301,8 +304,17 @@ function Find-Section($Sections, [string]$Name) {
 function Test-DesignChoices($L, $Section) {
     $gaps = [System.Collections.Generic.List[object]]::new()
     $blocks = Get-DetailsBlocks $L ($Section.Index + 1) $Section.End
-    if ($blocks.Count -lt 4) {
-        $gaps.Add((New-Gap 'design-choices' $Section.Line "'Design Choices' has $($blocks.Count) decision(s) inside <details>; the prompt requires at least 4"))
+    # #2470: "No open design choices" with a register table (Id, Choice, Class, Settled by, Verified; the checker reads Id, Class, Settled by, Verified) replaces the
+    # minimum of 4 <details> decisions: zero open choices is valid, every settled one is still listed.
+    $sectionText = (($L | Where-Object { $_.Kind -eq 'text' -and $_.N -gt $Section.Line -and $_.N -le ($Section.End + 1) } | ForEach-Object { $_.Text }) -join "`n")
+    $noOpen = $sectionText -match '(?i)no open design choices'
+    if ($noOpen) {
+        if ((Get-ChoiceRegister $L $Section).Count -eq 0) {
+            $gaps.Add((New-Gap 'design-choices' $Section.Line "'Design Choices' says 'No open design choices' but lists no register table with the columns Id | Class | Settled by | Verified (or any decision in <details>)"))
+        }
+    }
+    elseif ($blocks.Count -lt 4) {
+        $gaps.Add((New-Gap 'design-choices' $Section.Line "'Design Choices' has $($blocks.Count) decision(s) inside <details>; the prompt requires at least 4, or the statement 'No open design choices' with the register table of settled choices"))
     }
     $k = 0
     foreach ($b in $blocks) {
@@ -402,13 +414,90 @@ function Test-Phases($L, $Section) {
     return $gaps
 }
 
-# Only the maintainer answers Design Choices. The section is mandatory for a non-draft plan, needs one
-# dated entry per Design Choice (numbered like the choices), and no choice may still await the maintainer.
-function Test-Decisions($L, $Section, [int]$ChoiceCount) {
-    if ($null -eq $Section) {
-        return @(New-Gap 'decisions' 0 "Design Choices await the maintainer: present them and record the answers in ## Maintainer Decisions (last section, one dated entry per Design Choice, numbered like the choices)")
+# The decision register (#2470). Every Design Choice carries a class: Trivial (follows a cited convention),
+# Settled (the only option that complies, with a verifiable citation) or Dilemma (two or more valid options,
+# each better in a named scenario). Only a Dilemma goes to the maintainer. A choice is either a <details>
+# block with 'Class:', 'Settled by:' and 'Verified:' lines, or a row of a register table (columns Id, Class,
+# Settled by, Verified) when the section says 'No open design choices'. A choice with no class counts as a
+# Dilemma, so plans written before the register keep their rule.
+$PlaceholderCitation = '^(-+|none|n/?a|tbd|pending|todo|\?+)\.?$'
+
+function Get-LabelValue([string]$Text, [string]$Label) {
+    $m = [regex]::Match($Text, "^\s*(?:[-*+]\s+)?\**\s*$Label\s*:\s*\**\s*(.*?)\s*\**\s*$", 'IgnoreCase')
+    if ($m.Success) { return $m.Groups[1].Value.Trim() }
+    return $null
+}
+
+function Get-ChoiceRegister($L, $Section) {
+    $choices = [System.Collections.Generic.List[object]]::new()
+    if ($null -eq $Section) { return , $choices }
+    $k = 0
+    foreach ($b in (Get-DetailsBlocks $L ($Section.Index + 1) $Section.End)) {
+        $k++
+        $c = @{ Number = $k; Line = $L[$b.Start].N; Where = "decision $k '$($b.Summary)'"; Class = $null; SettledBy = $null; Verified = $null }
+        for ($i = $b.Start; $i -le $b.End; $i++) {
+            if ($L[$i].Kind -ne 'text') { continue }
+            $t = $L[$i].Text
+            if ($null -eq $c.Class) { $c.Class = Get-LabelValue $t 'Class' }
+            if ($null -eq $c.SettledBy) { $c.SettledBy = Get-LabelValue $t 'Settled by' }
+            if ($null -eq $c.Verified) { $c.Verified = Get-LabelValue $t 'Verified' }
+        }
+        $choices.Add([pscustomobject]$c)
     }
+    $text = (($L | Where-Object { $_.Kind -eq 'text' -and $_.N -gt $Section.Line -and $_.N -le ($Section.End + 1) } | ForEach-Object { $_.Text }) -join "`n")
+    if ($text -match '(?i)no open design choices') {
+        foreach ($t in (Get-Tables $L ($Section.Index + 1) $Section.End)) {
+            $h = @($t.Header | ForEach-Object { Format-Key $_ })
+            if (-not (($h -contains 'class') -and ($h -contains 'settledby') -and ($h -contains 'verified'))) { continue }
+            $ic = [Math]::Max(0, $h.IndexOf('id'))
+            foreach ($r in $t.Rows) {
+                $cells = $r.Cells
+                if ($cells.Count -lt $h.Count) { continue }
+                $n = if ($cells[$ic] -match '(\d{1,3})') { [int]$Matches[1] } else { $choices.Count + 1 }
+                $clean = { param($s) ([regex]::Replace($s, '[\*`]', '')).Trim() }
+                $choices.Add([pscustomobject]@{
+                        Number = $n; Line = $r.Line; Where = "register row '$($cells[$ic])'"
+                        Class = (& $clean $cells[$h.IndexOf('class')]); SettledBy = (& $clean $cells[$h.IndexOf('settledby')]); Verified = (& $clean $cells[$h.IndexOf('verified')])
+                    })
+            }
+        }
+    }
+    return , $choices
+}
+
+# A Dilemma (or an unclassified choice) is answered only by the maintainer: it needs a dated entry in
+# ## Maintainer Decisions, numbered like the choices. A Settled or Trivial choice needs a citation ('Settled by')
+# and the adversarial mark ('Verified: adversarial-reviewer <yyyy-MM-dd>'). No choice may still be 'pending the
+# maintainer'.
+function Test-Decisions($L, $Section, $DesignSection) {
     $gaps = [System.Collections.Generic.List[object]]::new()
+    $needEntry = [System.Collections.Generic.List[int]]::new()
+    foreach ($c in (Get-ChoiceRegister $L $DesignSection)) {
+        $cls = if ([string]::IsNullOrWhiteSpace($c.Class)) { '' } else { ($c.Class -split '[\s:(\-]')[0].ToLowerInvariant() }
+        if ($cls -in '', 'dilemma') { $needEntry.Add($c.Number); continue }
+        if ($cls -notin 'settled', 'trivial') {
+            $gaps.Add((New-Gap 'decisions' $c.Line "$($c.Where) has class '$($c.Class)'; the class is Trivial, Settled or Dilemma"))
+            continue
+        }
+        if ([string]::IsNullOrWhiteSpace($c.SettledBy) -or $c.SettledBy -match $PlaceholderCitation) {
+            $gaps.Add((New-Gap 'decisions' $c.Line "$($c.Where) is $($c.Class) but has no 'Settled by:' citation (an AGENTS.md section or rule, a SPEC id, an ADR number, a law article, a link to an earlier maintainer decision or named comparable products); without a citation it is a Dilemma"))
+        }
+        if ($null -eq $c.Verified -or $c.Verified -notmatch '(?i)adversarial-reviewer\s+\d{4}-\d{2}-\d{2}') {
+            $gaps.Add((New-Gap 'decisions' $c.Line "$($c.Where) is $($c.Class) but is not verified: add 'Verified: adversarial-reviewer <yyyy-MM-dd>' after the adversarial-reviewer tried to break it"))
+        }
+    }
+    if ($needEntry.Count -gt 0 -and $null -eq $Section) {
+        $gaps.Add((New-Gap 'decisions' 0 "Dilemma(s) $($needEntry -join ', ') await the maintainer: present them and record the answers in ## Maintainer Decisions (last section, one dated entry per Dilemma, numbered like the choices); a Settled or Trivial choice needs 'Class:', 'Settled by:' and 'Verified:' instead"))
+    }
+    if ($null -eq $Section) {
+        # With a Dilemma waiting, the gap above is the whole story; without one, a leftover marker still fails.
+        for ($i = 0; $needEntry.Count -eq 0 -and $i -lt $L.Count; $i++) {
+            if ($L[$i].Kind -eq 'text' -and $L[$i].Text -match 'pending the maintainer') {
+                $gaps.Add((New-Gap 'decisions' $L[$i].N "choice still marked 'pending the maintainer'; classify it (Settled with a citation, or Dilemma with a Maintainer Decisions entry)"))
+            }
+        }
+        return $gaps
+    }
     # Entries: a line starting with a number (1., D1, **D1**, Design Choice 1, | 1 |) plus its continuation lines.
     $entries = @{}
     $current = $null
@@ -422,9 +511,9 @@ function Test-Decisions($L, $Section, [int]$ChoiceCount) {
         }
         if ($null -ne $current) { $entries[$current] += ' ' + $t }
     }
-    $missing = @(1..$ChoiceCount | Where-Object { -not ($entries.ContainsKey($_) -and $entries[$_] -match '\b\d{4}-\d{2}-\d{2}\b') })
-    if ($ChoiceCount -gt 0 -and $missing.Count -gt 0) {
-        $gaps.Add((New-Gap 'decisions' $Section.Line "'$($Section.Name)' has no dated (yyyy-MM-dd) entry for Design Choice(s) $($missing -join ', ') of $ChoiceCount; the maintainer answers every choice, numbered like the choices. Accepted entry starts (1-3 digit number, date anywhere in the entry): '1. (date) ...', '- 1 ...', '**D1** (date): ...', 'D1 ...', 'Design Choice 1 ...', '### 1.', '### D1', '| 1 | ... |'"))
+    $missing = @($needEntry | Where-Object { -not ($entries.ContainsKey($_) -and $entries[$_] -match '\b\d{4}-\d{2}-\d{2}\b') })
+    if ($missing.Count -gt 0) {
+        $gaps.Add((New-Gap 'decisions' $Section.Line "'$($Section.Name)' has no dated (yyyy-MM-dd) entry for Dilemma / unclassified Design Choice(s) $($missing -join ', '); the maintainer answers every Dilemma, numbered like the choices (a Settled or Trivial choice needs 'Class:', 'Settled by:' and 'Verified:' instead). Accepted entry starts (1-3 digit number, date anywhere in the entry): '1. (date) ...', '- 1 ...', '**D1** (date): ...', 'D1 ...', 'Design Choice 1 ...', '### 1.', '### D1', '| 1 | ... |'"))
     }
     for ($i = 0; $i -lt $L.Count; $i++) {
         if ($L[$i].N -ge $Section.Line -and $i -le $Section.End) { continue }
@@ -594,8 +683,7 @@ function Test-Plan([string]$File, [switch]$SkipIssue, [switch]$Draft) {
     }
     if (-not $Draft) {
         $dsec = Find-Section $sections 'Design Choices'
-        $count = if ($null -ne $dsec) { (Get-DetailsBlocks $L ($dsec.Index + 1) $dsec.End).Count } else { 0 }
-        foreach ($g in (Test-Decisions $L (Find-Section $sections 'Maintainer Decisions') $count)) { $gaps.Add($g) }
+        foreach ($g in (Test-Decisions $L (Find-Section $sections 'Maintainer Decisions') $dsec)) { $gaps.Add($g) }
     }
     return $gaps
 }
@@ -636,6 +724,15 @@ function Invoke-SelfTest {
         @{ File = 'draft-pending-implementation-plan-1.md'; Fails = @('decisions') }
         @{ File = 'fail-decisions-unanswered-implementation-plan-1.md'; Fails = @('decisions') }
         @{ File = 'fail-decisions-pending-implementation-plan-1.md'; Fails = @('decisions') }
+        # Decision register (#2470).
+        @{ File = 'pass-settled-implementation-plan-1.md'; Fails = @() }
+        @{ File = 'pass-mixed-implementation-plan-1.md'; Fails = @() }
+        @{ File = 'pass-register-table-implementation-plan-1.md'; Fails = @() }
+        @{ File = 'fail-settled-no-citation-implementation-plan-1.md'; Fails = @('decisions') }
+        @{ File = 'fail-settled-no-citation-implementation-plan-1.md'; Fails = @(); Draft = $true }
+        @{ File = 'fail-settled-unverified-implementation-plan-1.md'; Fails = @('decisions') }
+        @{ File = 'fail-dilemma-no-entry-implementation-plan-1.md'; Fails = @('decisions') }
+        @{ File = 'fail-register-table-unverified-implementation-plan-1.md'; Fails = @('decisions') }
         @{ File = 'fail-decisions-order-implementation-plan-1.md'; Fails = @('sections'); Draft = $true }
         @{ File = 'fail-sections-implementation-plan-1.md'; Fails = @('sections'); Draft = $true }
         @{ File = 'fail-design-choices-implementation-plan-1.md'; Fails = @('design-choices'); Draft = $true }

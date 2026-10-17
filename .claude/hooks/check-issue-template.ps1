@@ -33,9 +33,16 @@
 #
 # #1926: before any of those body skips, every `gh issue create` on this repository (except --web/--template)
 # must also carry an existing, open --milestone (the last one counts; list cached 12 hours, a failed lookup
-# denies), the template's default label, one priority label (an [EPIC] needs none) and, for [FEATURE] and
-# [SPIKE], needs-decision; labels compare case-insensitively. A variable title is judged on the milestone only
-# (its prefix is unknown, so the label checks are skipped and the message says so). Headers inside
+# denies), the template's default label and one priority label (an [EPIC] needs none); labels compare
+# case-insensitively. A variable title is judged on the milestone only
+# (its prefix is unknown, so the label checks are skipped and the message says so).
+#
+# #2470 (decision register): the needs-decision label marks a Dilemma, a choice with two or more valid options
+# that only the maintainer can make. An issue created (`gh issue create`) or edited (`gh issue edit
+# --add-label`) with that label must contain the word "Dilemma" in its body (the Dilemma entries of the
+# decision register; the decision-extractor agent produces them). For an edit without --body/--body-file the
+# existing body is read with `gh api` (ENCINA_ISSUE_GH overrides gh in tests); when it cannot be read the call
+# is denied. A variable label, title or body cannot be read and is not judged. Headers inside
 # fenced code blocks do not count. Exit code 2 blocks the call and shows stderr to Claude; any failure of the
 # hook itself allows the call.
 
@@ -290,8 +297,9 @@ try {
         if ($TitleKnown -and -not ($labelValues | Where-Object { $_.Dynamic })) {
             $labels = @($labelValues | ForEach-Object { $_.Value -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
             if ($DefaultLabel -and $labels -inotcontains $DefaultLabel) { $missing.Add("--label $DefaultLabel (the default label of the $Prefix template)") }
-            # Maintainer decision 2026-10-06: a feature or spike has open options, so it is created undecided.
-            if (($Prefix -eq '[FEATURE]' -or $Prefix -eq '[SPIKE]') -and $labels -inotcontains 'needs-decision') { $missing.Add("--label needs-decision (a $Prefix issue is created with its options open until the maintainer decides)") }
+            # #2470: needs-decision is no longer mandatory for a [FEATURE] or [SPIKE] (the 2026-10-06 rule produced
+            # 105 labels with 0 real dilemmas). It is allowed only when the body names a Dilemma (see
+            # Test-DilemmaLabel), so it marks only choices the maintainer must make.
             if ($Prefix -ne '[EPIC]' -and -not ($labels | Where-Object { $PriorityLabels -icontains $_ })) { $missing.Add("one priority label: --label $($PriorityLabels -join ' | ')") }
         }
         return , $missing
@@ -302,8 +310,77 @@ try {
     # Options of `gh issue create` that take a value, so their values are never parsed as options.
     $issueValueOptions = @('-t', '--title', '-b', '--body', '-F', '--body-file', '-R', '--repo', '-l', '--label', '-m', '--milestone', '-a', '--assignee', '-p', '--project', '-T', '--template', '--recover')
 
+    # #2470: needs-decision marks a Dilemma. $LabelOptions are the option values that carry labels; true when
+    # one of the static values names needs-decision (a variable value cannot be read, so it is not judged).
+    function Test-HasNeedsDecision($LabelOptions) {
+        if ($LabelOptions | Where-Object { $_.Dynamic }) { return $false }
+        $labels = @($LabelOptions | ForEach-Object { $_.Value -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        return ($labels -icontains 'needs-decision')
+    }
+
+    function Test-HasDilemma([string]$Body) {
+        return ($Body -match '(?i)\bdilemma\b')
+    }
+
+    $DilemmaMessage = "Blocked: an issue labelled needs-decision must contain the word 'Dilemma' in its body (#2470). The label marks a choice with two or more valid options, each better in a concrete named scenario, that only the maintainer can make; a settled or trivial choice carries its citation instead and no label. Run the decision-extractor agent on the issue (.claude/agents/decision-extractor.md), keep only the Dilemma entries in the body (a 'Dilemma D<n>' entry with the options and the scenario in which each wins) and retry; when no Dilemma exists, drop the needs-decision label."
+
+    # Options of `gh issue edit` that take a value.
+    $editValueOptions = @('-t', '--title', '-b', '--body', '-F', '--body-file', '-R', '--repo', '--add-label', '--remove-label', '-m', '--milestone', '--add-assignee', '--remove-assignee', '--add-project', '--remove-project')
+
     foreach ($tokens in $statements) {
         $cwd = Update-WorkingDirectory $tokens $cwd
+
+        # #2470: `gh issue edit <n> --add-label needs-decision` is judged on the body the issue will have: the
+        # --body/--body-file of this call, otherwise the existing body read from GitHub.
+        $editAt = Find-Invocation $tokens 'gh' @('issue', 'edit')
+        if ($editAt -ge 0) {
+            $eOptions = Get-CommandOptions $tokens $editAt $editValueOptions
+            $eRepo = Get-OptionValues $eOptions @('-R', '--repo')
+            if ($eRepo.Count -gt 0 -and ($eRepo[0].Dynamic -or $eRepo[0].Value -ne 'dlrivada/Encina')) { continue }
+            if (-not (Test-HasNeedsDecision (Get-OptionValues $eOptions @('--add-label')))) { continue }
+
+            $eBody = $null
+            $eBodyFile = Get-OptionValues $eOptions @('-F', '--body-file')
+            $eBodyInline = Get-OptionValues $eOptions @('-b', '--body')
+            if ($eBodyFile.Count -gt 0) {
+                if ($eBodyFile[0].Dynamic -or $eBodyFile[0].Value -eq '-') { continue }
+                $ePath = Resolve-CommandPath $eBodyFile[0].Value $cwd
+                if (-not $ePath) { continue }
+                $eBody = [IO.File]::ReadAllText($ePath)
+            }
+            elseif ($eBodyInline.Count -gt 0) {
+                if ($eBodyInline[0].Dynamic) { continue }
+                $eBody = $eBodyInline[0].Value
+            }
+            else {
+                $number = $null
+                for ($k = $editAt; $k -lt $tokens.Count; $k++) {
+                    if (-not $tokens[$k].Dynamic -and $tokens[$k].Value -match '^(?:.*/issues/)?(\d+)$') { $number = $Matches[1]; break }
+                    if ($tokens[$k].Value.StartsWith('-') -and $editValueOptions -ccontains $tokens[$k].Value) { $k++ }
+                }
+                if (-not $number) { continue }
+                $gh = if ($env:ENCINA_ISSUE_GH) { $env:ENCINA_ISSUE_GH } else { 'gh' }
+                $saved = [Console]::OutputEncoding
+                try {
+                    [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+                    $existing = @(& $gh api "repos/dlrivada/Encina/issues/$number" --jq .body 2>$null)
+                    if ($LASTEXITCODE -ne 0) { $existing = $null }
+                }
+                catch { $existing = $null }
+                finally { [Console]::OutputEncoding = $saved }
+                if ($null -eq $existing) {
+                    [Console]::Error.WriteLine("Blocked: the body of issue #$number could not be read to check the needs-decision label (#2470: it needs a 'Dilemma' in the body). Retry, or pass the body in the same call with --body-file.")
+                    exit 2
+                }
+                $eBody = $existing -join "`n"
+            }
+            if (-not (Test-HasDilemma $eBody)) {
+                [Console]::Error.WriteLine($DilemmaMessage)
+                exit 2
+            }
+            continue
+        }
+
         $at = Find-Invocation $tokens 'gh' @('issue', 'create')
         if ($at -lt 0) { continue }
 
@@ -353,6 +430,12 @@ try {
             if ($bodyInline[0].Dynamic -and (Get-Headers $body).Count -eq 0) { continue }
         }
         else { continue }
+
+        # #2470: needs-decision only with a Dilemma in the body.
+        if ((Test-HasNeedsDecision (Get-OptionValues $options @('-l', '--label'))) -and -not (Test-HasDilemma $body)) {
+            [Console]::Error.WriteLine($DilemmaMessage)
+            exit 2
+        }
 
         $templates = Get-Templates $root
         if ($templates.Count -eq 0) { continue }

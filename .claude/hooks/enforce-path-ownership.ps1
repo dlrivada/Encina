@@ -62,6 +62,8 @@
 #                 drafts the site-health skill prepares); everything else in the repository is denied, because
 #                 the agent is read-only on the repository (it never fixes a broken workflow itself: a failing
 #                 publisher goes to ci-diagnoser).
+#   decision-extractor (#2470) writes ONLY artifacts/decisions/<issue>.md (its decision register);
+#                 everything else in the repository is denied, the agent is read-only.
 #   pr-reviewer   (#1447) writes ONLY under artifacts/pr-review/** (its own review of one published PR);
 #                 everything else in the repository is denied, because the agent is read-only on the
 #                 repository (it never posts to GitHub itself: the orchestrator posts its report as a PR
@@ -495,6 +497,12 @@ try {
         elseif ($Agent -eq 'local-ai-standin') {
             if ($relative -notmatch '^artifacts/local-ai/out/') {
                 [Console]::Error.WriteLine("Blocked: local-ai-standin writes only the output file under artifacts/local-ai/out/** that its brief names (#1593); '$relative' is not under it. It is a drafting stand-in for the local model: report anything else to the caller instead of editing it.")
+                return $false
+            }
+        }
+        elseif ($Agent -eq 'decision-extractor') {
+            if ($relative -notmatch '^artifacts/decisions/[^/]+\.md$') {
+                [Console]::Error.WriteLine("Blocked: decision-extractor writes only its register file artifacts/decisions/<issue>.md (#2470); '$relative' is not one. It is read-only on the rest of the repository: report anything else to the orchestrator instead of editing it.")
                 return $false
             }
         }
