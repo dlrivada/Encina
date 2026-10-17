@@ -76,8 +76,9 @@ decision, never bypassed (#1345; the #1346 worker bypassed `block-main-checkout-
    evidence), `not met`, or `not verifiable` (state what evidence is missing).
    **Decision register (#2470).** Find the register of the linked issue: the Design Choices of its plan
    (`docs/plans/*-implementation-plan-<issue>.md`: each choice with `Class:`, `Settled by:`, `Verified:`), or the issue
-   comment headed "Decision register" (`gh issue view <N> --repo dlrivada/Encina --comments`), or the knowledge record
-   the PR adds (`docs/knowledge/issues/<N>.md`). Compare the diff with it: a decision the code takes (a default value,
+   comment headed "Decision register" (`gh issue view <N> --repo dlrivada/Encina --comments`). One of these two is the
+   mandatory source; the knowledge record the PR adds (`docs/knowledge/issues/<N>.md`) is only a copy of it and never
+   replaces it (it carries no `Class` or `Verified` fields). Compare the diff with it: a decision the code takes (a default value,
    error semantics, a storage or retention choice, a public name, behaviour on missing context, a new dependency, an
    ordering guarantee) that is not in the register is a finding "unregistered decision" (severity `major` when the
    choice has a consequence for users or for another provider, otherwise `minor`). The fix is to add the entry to the

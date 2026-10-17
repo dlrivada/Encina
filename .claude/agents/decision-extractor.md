@@ -34,7 +34,7 @@ Model: you run on Sonnet. The orchestrator spawns you in the foreground and name
 
 ## Method
 
-- Read the issue with `gh issue view <n> --repo dlrivada/Encina --comments`. If GraphQL is rate limited, use `gh api repos/dlrivada/Encina/issues/<n>` with GITHUB_TOKEN and GH_TOKEN cleared in the same command.
+- Read the issue with `gh issue view <n> --repo dlrivada/Encina --comments`. If GraphQL is rate limited, use `gh api repos/dlrivada/Encina/issues/<n>` with GITHUB_TOKEN and GH_TOKEN cleared in the same command, and also read every comment with `gh api --paginate repos/dlrivada/Encina/issues/<n>/comments` (same cleared tokens): a maintainer decision may exist only in a comment, and omitting it would present a settled choice as a Dilemma again.
 - Read the plan if given, AGENTS.md, and the specs/ADRs the text names.
 - List EVERY implicit choice in the text, one or a hundred: defaults, error semantics, storage, public names, behaviour on missing context, dependencies, ordering, retention, concurrency, naming, scope boundaries. Read the whole text sentence by sentence, including acceptance criteria, option lists and "out of scope" lines.
 - For each choice list the options you can see (including the ones the text does not mention but a reasonable engineer would consider).

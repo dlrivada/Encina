@@ -318,11 +318,15 @@ try {
         return ($labels -icontains 'needs-decision')
     }
 
+    # A Dilemma entry marker: a line that starts with "Dilemma" (optionally after a list bullet, heading or bold,
+    # e.g. "Dilemma D1: ...", "### Dilemma 1") or a "Class: Dilemma" field. Negated text ("No Dilemma", "no
+    # Dilemma here") and "Dilemma: none" do not match.
     function Test-HasDilemma([string]$Body) {
-        return ($Body -match '(?i)\bdilemma\b')
+        if ($Body -match '(?im)^\s*(?:[-*+>]\s+|#{1,6}\s+)*\**\s*class\s*\**\s*:\s*\**\s*dilemma\b') { return $true }
+        return ($Body -match '(?im)^\s*(?:[-*+>]\s+|#{1,6}\s+)*\**\s*dilemma\b(?!\s*:?\s*(?:none|n/?a|no)\b)')
     }
 
-    $DilemmaMessage = "Blocked: an issue labelled needs-decision must contain the word 'Dilemma' in its body (#2470). The label marks a choice with two or more valid options, each better in a concrete named scenario, that only the maintainer can make; a settled or trivial choice carries its citation instead and no label. Run the decision-extractor agent on the issue (.claude/agents/decision-extractor.md), keep only the Dilemma entries in the body (a 'Dilemma D<n>' entry with the options and the scenario in which each wins) and retry; when no Dilemma exists, drop the needs-decision label."
+    $DilemmaMessage = "Blocked: an issue labelled needs-decision must contain a Dilemma entry marker in its body: a line starting with 'Dilemma' (for example 'Dilemma D1: ...') or a 'Class: Dilemma' field; the word inside a sentence, 'No Dilemma' or 'Dilemma: none' do not count (#2470). The label marks a choice with two or more valid options, each better in a concrete named scenario, that only the maintainer can make; a settled or trivial choice carries its citation instead and no label. Run the decision-extractor agent on the issue (.claude/agents/decision-extractor.md), keep only the Dilemma entries in the body (a 'Dilemma D<n>' entry with the options and the scenario in which each wins) and retry; when no Dilemma exists, drop the needs-decision label."
 
     # Options of `gh issue edit` that take a value.
     $editValueOptions = @('-t', '--title', '-b', '--body', '-F', '--body-file', '-R', '--repo', '--add-label', '--remove-label', '-m', '--milestone', '--add-assignee', '--remove-assignee', '--add-project', '--remove-project')
@@ -345,8 +349,14 @@ try {
             if ($eBodyFile.Count -gt 0) {
                 if ($eBodyFile[0].Dynamic -or $eBodyFile[0].Value -eq '-') { continue }
                 $ePath = Resolve-CommandPath $eBodyFile[0].Value $cwd
-                if (-not $ePath) { continue }
-                $eBody = [IO.File]::ReadAllText($ePath)
+                try {
+                    if (-not $ePath) { throw [IO.FileNotFoundException]::new('body file') }
+                    $eBody = [IO.File]::ReadAllText($ePath)
+                }
+                catch {
+                    [Console]::Error.WriteLine("Blocked: the --body-file '$($eBodyFile[0].Value)' cannot be read to check the needs-decision label (#2470: it needs a Dilemma entry in the body). Create the file in an earlier call, or pass the body inline.")
+                    exit 2
+                }
             }
             elseif ($eBodyInline.Count -gt 0) {
                 if ($eBodyInline[0].Dynamic) { continue }
@@ -358,8 +368,11 @@ try {
                     if (-not $tokens[$k].Dynamic -and $tokens[$k].Value -match '^(?:.*/issues/)?(\d+)$') { $number = $Matches[1]; break }
                     if ($tokens[$k].Value.StartsWith('-') -and $editValueOptions -ccontains $tokens[$k].Value) { $k++ }
                 }
-                if (-not $number) { continue }
-                $gh = if ($env:ENCINA_ISSUE_GH) { $env:ENCINA_ISSUE_GH } else { 'gh' }
+                if (-not $number) {
+                    [Console]::Error.WriteLine("Blocked: the issue number of this gh issue edit is a variable, so the body cannot be read to check the needs-decision label (#2470: it needs a Dilemma entry in the body). Type the issue number literally, or pass the body in the same call with --body or --body-file.")
+                    exit 2
+                }
+                $gh =if ($env:ENCINA_ISSUE_GH) { $env:ENCINA_ISSUE_GH } else { 'gh' }
                 $saved = [Console]::OutputEncoding
                 try {
                     [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
@@ -409,7 +422,33 @@ try {
             exit 2
         }
 
-        if ($title[0].Dynamic) { continue }
+        if ($title[0].Dynamic) {
+            # #2470: a variable title does not hide the needs-decision check when the body is readable.
+            if (Test-HasNeedsDecision (Get-OptionValues $options @('-l', '--label'))) {
+                $dBody = $null
+                $dFile = Get-OptionValues $options @('-F', '--body-file')
+                $dInline = Get-OptionValues $options @('-b', '--body')
+                if ($dFile.Count -gt 0) {
+                    if (-not $dFile[0].Dynamic -and $dFile[0].Value -ne '-') {
+                        $dPath = Resolve-CommandPath $dFile[0].Value $cwd
+                        try {
+                            if (-not $dPath) { throw [IO.FileNotFoundException]::new('body file') }
+                            $dBody = [IO.File]::ReadAllText($dPath)
+                        }
+                        catch {
+                            [Console]::Error.WriteLine("Blocked: the --body-file '$($dFile[0].Value)' cannot be read to check the needs-decision label (#2470: it needs a Dilemma entry in the body).")
+                            exit 2
+                        }
+                    }
+                }
+                elseif ($dInline.Count -gt 0 -and -not $dInline[0].Dynamic) { $dBody = $dInline[0].Value }
+                if ($null -ne $dBody -and -not (Test-HasDilemma $dBody)) {
+                    [Console]::Error.WriteLine($DilemmaMessage)
+                    exit 2
+                }
+            }
+            continue
+        }
         $titleText = $title[0].Value
 
         $body = $null

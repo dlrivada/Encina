@@ -41,7 +41,9 @@ foreach ($name in 'feature-ok.md', 'spike-ok.md') {
     Set-Content (Join-Path $work ($name -replace '-ok\.md$', '-dilemma.md')) ($okBody + "`nDilemma D1: two valid options, each better in a named scenario.`n")
 }
 Set-Content (Join-Path $work 'edit-dilemma.md') "Dilemma D1: two valid options.`n"
-Set-Content (Join-Path $work 'edit-settled.md') "No open design choices. D1 is Settled by AGENTS.md section 3.`n"
+Set-Content (Join-Path $work 'edit-negated.md') "There is No Dilemma here, and no Dilemma was found.`n"
+Set-Content (Join-Path $work 'edit-classfield.md') "Id: D1`nClass: Dilemma`n"
+Set-Content (Join-Path $work 'edit-settled.md')"No open design choices. D1 is Settled by AGENTS.md section 3.`n"
 # Fake gh for `gh issue edit` without a body: 9001 has a Dilemma, 9002 has none, 9003 cannot be read.
 $fakeGh = Join-Path $work 'fake-gh.ps1'
 Set-Content $fakeGh @'
@@ -256,7 +258,14 @@ $cases = @(
     @($issue, 'PowerShell', 'gh issue edit 9002 --add-label needs-decision', 2, 'decision register: edit reads the existing body (no Dilemma)'),
     @($issue, 'PowerShell', 'gh issue edit 9003 --add-label needs-decision', 2, 'decision register: edit denies when the body cannot be read'),
     @($issue, 'PowerShell', 'gh issue edit 9002 --add-label p1-recommended', 0, 'decision register: edit with another label is not judged'),
-    @($issue, 'PowerShell', 'gh issue edit 9002 --remove-label needs-decision', 0, 'decision register: removing needs-decision is always allowed'),
+    @($issue, 'PowerShell', 'gh issue edit 5 --add-label needs-decision --body-file edit-negated.md', 2, 'decision register: a negated "No Dilemma" sentence is not a Dilemma entry'),
+@($issue, 'PowerShell', 'gh issue edit 5 --add-label needs-decision --body-file edit-classfield.md', 0, 'decision register: a "Class: Dilemma" field is a Dilemma entry'),
+@($issue, 'PowerShell', 'gh issue edit 5 --add-label needs-decision --body-file no-such-file.md', 2, 'decision register: edit denies when --body-file cannot be read'),
+@($issue, 'PowerShell', 'gh issue edit $n --add-label needs-decision', 2, 'decision register: edit denies a variable issue number (body cannot be read)'),
+@($issue, 'PowerShell', 'gh issue edit $n --add-label needs-decision --body-file edit-dilemma.md', 0, 'decision register: a variable issue number is fine when the body is passed'),
+@($issue, 'PowerShell', "gh issue create --title `$t --body-file feature-ok.md --milestone `"$hardening`" --label enhancement --label p1-recommended --label needs-decision", 2, 'decision register: dynamic title still judged for needs-decision without Dilemma'),
+@($issue, 'PowerShell', "gh issue create --title `$t --body-file feature-dilemma.md --milestone `"$hardening`" --label enhancement --label p1-recommended --label needs-decision", 0, 'decision register: dynamic title with needs-decision and a Dilemma'),
+@($issue, 'PowerShell', 'gh issue edit 9002 --remove-label needs-decision', 0, 'decision register: removing needs-decision is always allowed'),
     @($issue, 'PowerShell', 'gh issue edit 9002 --repo other/repo --add-label needs-decision', 0, 'decision register: edit on another repository is not judged'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-ok.md --milestone $ms --label $l', 0, 'hygiene: dynamic milestone and labels are not judged'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-missing.md', 2, 'DEBT missing Root Cause'),

@@ -304,13 +304,21 @@ function Find-Section($Sections, [string]$Name) {
 function Test-DesignChoices($L, $Section) {
     $gaps = [System.Collections.Generic.List[object]]::new()
     $blocks = Get-DetailsBlocks $L ($Section.Index + 1) $Section.End
-    # #2470: "No open design choices" with a register table (Id, Choice, Class, Settled by, Verified; the checker reads Id, Class, Settled by, Verified) replaces the
-    # minimum of 4 <details> decisions: zero open choices is valid, every settled one is still listed.
+    # #2470: "No open design choices" with a register table (Id, Choice, Class, Settled by, Verified) replaces the
+    # minimum of 4 <details> decisions: zero open choices is valid, every settled one is still listed in the table.
+    # A <details> block or a Dilemma row is not a substitute for the table.
     $sectionText = (($L | Where-Object { $_.Kind -eq 'text' -and $_.N -gt $Section.Line -and $_.N -le ($Section.End + 1) } | ForEach-Object { $_.Text }) -join "`n")
     $noOpen = $sectionText -match '(?i)no open design choices'
     if ($noOpen) {
-        if ((Get-ChoiceRegister $L $Section).Count -eq 0) {
-            $gaps.Add((New-Gap 'design-choices' $Section.Line "'Design Choices' says 'No open design choices' but lists no register table with the columns Id | Class | Settled by | Verified (or any decision in <details>)"))
+        $rows = @(Get-ChoiceRegister $L $Section | Where-Object { $_.Source -eq 'table' })
+        if ($rows.Count -eq 0) {
+            $gaps.Add((New-Gap 'design-choices' $Section.Line "'Design Choices' says 'No open design choices' but has no register table with the columns Id | Choice | Class | Settled by | Verified (a <details> block is not a substitute)"))
+        }
+        foreach ($r in $rows) {
+            $rc = if ([string]::IsNullOrWhiteSpace($r.Class)) { '' } else { ($r.Class -split '[\s:(\-]')[0].ToLowerInvariant() }
+            if ($rc -in '', 'dilemma') {
+                $gaps.Add((New-Gap 'design-choices' $r.Line "$($r.Where) is a Dilemma or unclassified, which contradicts 'No open design choices'; present it as a <details> decision and drop the statement"))
+            }
         }
     }
     elseif ($blocks.Count -lt 4) {
@@ -420,7 +428,18 @@ function Test-Phases($L, $Section) {
 # block with 'Class:', 'Settled by:' and 'Verified:' lines, or a row of a register table (columns Id, Class,
 # Settled by, Verified) when the section says 'No open design choices'. A choice with no class counts as a
 # Dilemma, so plans written before the register keep their rule.
-$PlaceholderCitation = '^(-+|none|n/?a|tbd|pending|todo|\?+)\.?$'
+$PlaceholderCitation = '^(-+|none|n/?a|tbd|pending|todo|obvious|\?+)\.?$'
+# A citation must name a recognisable source: an AGENTS.md section, a SPEC, ADR, DEC or REQ id, an issue
+# (#n), a law article or regulation, a link, or named comparable products. "obvious" or "see above" fails.
+$CitationAnchor = '(?i)AGENTS\.md|CLAUDE\.md|\bSPEC-\d+|\bADR-?\d+|\bDEC-\d+|\bREQ-\d+|#\d+|\bArt(?:icle|iculo|\.)?\s*\d+|\b(?:GDPR|RGPD|LOPDGDD|HIPAA|NIS2|DORA)\b|https?://|\bcompar\w+\s+products?\b|\bproducts?:'
+
+function Test-VerifiedMark([string]$Value) {
+    $m = [regex]::Match([string]$Value, '^(?i)adversarial-reviewer\s+(\d{4}-\d{2}-\d{2})\s*$')
+    if (-not $m.Success) { return $false }
+    $d = [datetime]::MinValue
+    if (-not [datetime]::TryParseExact($m.Groups[1].Value, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$d)) { return $false }
+    return ($d.Date -le [datetime]::UtcNow.Date)
+}
 
 function Get-LabelValue([string]$Text, [string]$Label) {
     $m = [regex]::Match($Text, "^\s*(?:[-*+]\s+)?\**\s*$Label\s*\**\s*:\s*\**\s*(.*?)\s*\**\s*$", 'IgnoreCase')
@@ -434,7 +453,7 @@ function Get-ChoiceRegister($L, $Section) {
     $k = 0
     foreach ($b in (Get-DetailsBlocks $L ($Section.Index + 1) $Section.End)) {
         $k++
-        $c = @{ Number = $k; Line = $L[$b.Start].N; Where = "decision $k '$($b.Summary)'"; Class = $null; SettledBy = $null; Verified = $null }
+        $c = @{ Number = $k; Line = $L[$b.Start].N; Where = "decision $k '$($b.Summary)'"; Class = $null; SettledBy = $null; Verified = $null; Source = 'details' }
         for ($i = $b.Start; $i -le $b.End; $i++) {
             if ($L[$i].Kind -ne 'text') { continue }
             $t = $L[$i].Text
@@ -448,7 +467,7 @@ function Get-ChoiceRegister($L, $Section) {
     if ($text -match '(?i)no open design choices') {
         foreach ($t in (Get-Tables $L ($Section.Index + 1) $Section.End)) {
             $h = @($t.Header | ForEach-Object { Format-Key $_ })
-            if (-not (($h -contains 'class') -and ($h -contains 'settledby') -and ($h -contains 'verified'))) { continue }
+            if (-not (($h -contains 'id') -and ($h -contains 'choice') -and ($h -contains 'class') -and ($h -contains 'settledby') -and ($h -contains 'verified'))) { continue }
             $ic = [Math]::Max(0, $h.IndexOf('id'))
             foreach ($r in $t.Rows) {
                 # A row shorter than the header is judged with empty cells, so a missing citation or mark fails.
@@ -456,7 +475,7 @@ function Get-ChoiceRegister($L, $Section) {
                 $n = if ($cells[$ic] -match '(\d{1,3})') { [int]$Matches[1] } else { $choices.Count + 1 }
                 $clean = { param($s) ([regex]::Replace($s, '[\*`]', '')).Trim() }
                 $choices.Add([pscustomobject]@{
-                        Number = $n; Line = $r.Line; Where = "register row '$($cells[$ic])'"
+                        Number = $n; Source = 'table'; Line = $r.Line; Where = "register row '$($cells[$ic])'"
                         Class = (& $clean $cells[$h.IndexOf('class')]); SettledBy = (& $clean $cells[$h.IndexOf('settledby')]); Verified = (& $clean $cells[$h.IndexOf('verified')])
                     })
             }
@@ -482,8 +501,11 @@ function Test-Decisions($L, $Section, $DesignSection) {
         if ([string]::IsNullOrWhiteSpace($c.SettledBy) -or $c.SettledBy -match $PlaceholderCitation) {
             $gaps.Add((New-Gap 'decisions' $c.Line "$($c.Where) is $($c.Class) but has no 'Settled by:' citation (an AGENTS.md section or rule, a SPEC id, an ADR number, a law article, a link to an earlier maintainer decision or named comparable products); without a citation it is a Dilemma"))
         }
-        if ($null -eq $c.Verified -or $c.Verified -notmatch '^(?i)adversarial-reviewer\s+\d{4}-\d{2}-\d{2}\b') {
-            $gaps.Add((New-Gap 'decisions' $c.Line "$($c.Where) is $($c.Class) but is not verified: add 'Verified: adversarial-reviewer <yyyy-MM-dd>' after the adversarial-reviewer tried to break it"))
+        elseif ($c.SettledBy -notmatch $CitationAnchor) {
+            $gaps.Add((New-Gap 'decisions' $c.Line "$($c.Where) is $($c.Class) but 'Settled by:' names no recognisable source (AGENTS.md section, SPEC-/ADR-/DEC- id, #issue, law article, link or named comparable products): '$($c.SettledBy)'"))
+        }
+        if (-not (Test-VerifiedMark $c.Verified)) {
+            $gaps.Add((New-Gap 'decisions' $c.Line "$($c.Where) is $($c.Class) but is not verified: add 'Verified: adversarial-reviewer <yyyy-MM-dd>' (a real date, not in the future) after the adversarial-reviewer tried to break it"))
         }
     }
     if ($needEntry.Count -gt 0 -and $null -eq $Section) {
@@ -733,6 +755,11 @@ function Invoke-SelfTest {
         @{ File = 'fail-settled-unverified-implementation-plan-1.md'; Fails = @('decisions') }
         @{ File = 'fail-dilemma-no-entry-implementation-plan-1.md'; Fails = @('decisions') }
         @{ File = 'fail-register-table-unverified-implementation-plan-1.md'; Fails = @('decisions') }
+        @{ File = 'fail-placeholder-citation-implementation-plan-1.md'; Fails = @('decisions') }
+        @{ File = 'fail-invalid-class-implementation-plan-1.md'; Fails = @('decisions') }
+        @{ File = 'fail-trivial-no-citation-implementation-plan-1.md'; Fails = @('decisions') }
+        @{ File = 'fail-future-date-implementation-plan-1.md'; Fails = @('decisions') }
+        @{ File = 'fail-no-open-no-table-implementation-plan-1.md'; Fails = @('design-choices') }
         @{ File = 'fail-decisions-order-implementation-plan-1.md'; Fails = @('sections'); Draft = $true }
         @{ File = 'fail-sections-implementation-plan-1.md'; Fails = @('sections'); Draft = $true }
         @{ File = 'fail-design-choices-implementation-plan-1.md'; Fails = @('design-choices'); Draft = $true }

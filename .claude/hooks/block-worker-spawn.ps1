@@ -52,7 +52,7 @@ try {
 
     $allowlists = @{
         'orchestrator'          = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'site-steward', 'pr-reviewer', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'remediation-drafter', 'audit-verifier', 'local-ai-standin', 'decision-extractor')
-        'issue-worker'        = @('ci-diagnoser', 'mechanical-fixer', 'Explore', 'adversarial-reviewer', 'docs-writer', 'docs-reviewer', 'local-ai-standin')
+        'issue-worker'          = @('ci-diagnoser', 'mechanical-fixer', 'Explore', 'adversarial-reviewer', 'docs-writer', 'docs-reviewer', 'local-ai-standin')
         'docs-writer'           = @('mechanical-fixer', 'docs-reviewer', 'Explore', 'local-ai-standin')
         'mechanical-fixer'      = @('ci-diagnoser', 'Explore')
         'site-steward'          = @('ci-diagnoser')
