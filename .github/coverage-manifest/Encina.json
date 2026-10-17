@@ -821,10 +821,10 @@
       "defaultRule": "*ActivitySource.cs",
       "reason": "Activity/span wrapper — verify creation and tags",
       "targets": {
-        "unit": 0
+        "unit": 80
       },
       "justifications": {
-        "unit": "No unit test drives these span start/complete methods yet; a follow-up issue opened from #2134 adds them."
+        "unit": "Span start and complete methods are driven by the unit tests (measured 85.71%)."
       }
     },
     "Modules/Diagnostics/ModuleLog.cs": {
@@ -1051,7 +1051,13 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 85, "guard": 60, "contract": 65 },
+      "justifications": {
+        "unit": "Activity start, tagging and completion of the command pipeline are driven by the unit tests (measured 90.32%).",
+        "guard": "Guard tests reach the argument checks of the behavior (measured 67.74%).",
+        "contract": "The contract tests dispatch commands through the behavior (measured 72.04%)."
+      }
     },
     "Pipeline/Behaviors/CommandMetricsPipelineBehavior.cs": {
       "defaultTests": [
@@ -1069,7 +1075,13 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 85, "guard": 60, "contract": 65 },
+      "justifications": {
+        "unit": "Activity start, tagging and completion of the query pipeline are driven by the unit tests (measured 90.32%).",
+        "guard": "Guard tests reach the argument checks of the behavior (measured 67.74%).",
+        "contract": "The contract tests dispatch queries through the behavior (measured 72.04%)."
+      }
     },
     "Pipeline/Behaviors/QueryMetricsPipelineBehavior.cs": {
       "defaultTests": [
@@ -1541,7 +1553,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 70, "guard": 0 },
+      "justifications": {
+        "unit": "Routing and the instrumentation of each shard lookup are driven by the unit tests (measured 75.58%).",
+        "guard": "Guard tests do not reach the internal decorator; its constructor guards are unit tested."
+      }
     },
     "Sharding/Diagnostics/ShardedDatabasePoolMetrics.cs": {
       "defaultTests": [

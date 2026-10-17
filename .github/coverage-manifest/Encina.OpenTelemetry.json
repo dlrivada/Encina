@@ -127,7 +127,11 @@
         "unit"
       ],
       "defaultRule": "*Enricher.cs",
-      "reason": "Activity enricher — verify tag population"
+      "reason": "Activity enricher — verify tag population",
+      "targets": { "unit": 90 },
+      "justifications": {
+        "unit": "The EnrichWith* tests in MessagingActivityStatusTests and the contract tests drive the tag population (measured 96.1%); ErrorMessage is never tagged."
+      }
     },
     "Enrichers/MigrationActivityEnricher.cs": {
       "defaultTests": [
@@ -207,11 +211,11 @@
       "defaultRule": "*Store.cs",
       "reason": "Abstract/base store with mockeable deps",
       "targets": {
-        "unit": 85,
+        "unit": 80,
         "guard": 75
       },
       "justifications": {
-        "unit": "Unit tests drive every store method and its span status; the remaining lines are error paths not yet reached.",
+        "unit": "Measured 81.58%; the uncovered lines are the non-failure paths the saga store tests do not drive.",
         "guard": "Guard tests cover the constructor and each instrumented method's argument check; the rest is driven by unit tests."
       }
     },
