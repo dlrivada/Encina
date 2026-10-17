@@ -36,7 +36,7 @@ has_children: true
 | [024](024-remove-sqlite-provider-pre-1.0.md) | Remove SQLite Provider Pre-1.0 |
 | [025](025-performance-measurement-infrastructure.md) | Performance Measurement Infrastructure |
 | [027](027-marten-as-the-event-sourcing-provider.md) | Marten Is the Event-Sourcing Provider; EventStoreDB Deprecated |
-| [028](028-domain-events-versus-integration-events.md) | Domain Events vs Integration Events (Outbox only) |
+| [028](028-domain-events-versus-integration-events.md) | Domain Events vs Integration Events |
 | [029](029-recoverability-error-classification.md) | Recoverability Error Classification |
 | [030](030-encryption-at-the-serializer-level.md) | Encryption at the Serializer Level (AES-256-GCM) |
 | [031](031-retention-erasure-port.md) | Retention Enforcement Erases Through Its Own Category-Scoped Port |

@@ -37,9 +37,7 @@ Rules:
 | Operation audit | An `IPiiMasker` | | Unless the explicit, logged opt-out is set | [#1835](https://github.com/dlrivada/Encina/issues/1835) |
 | Delayed retries (Recoverability) | An `IDelayedRetryStore` | | Always, because delayed retries are on by default | [#2248](https://github.com/dlrivada/Encina/issues/2248) |
 | Crypto-shredding locators | Every registered locator is reachable through the resolved one | | Always | [#1773](https://github.com/dlrivada/Encina/issues/1773) |
-| All other module families | Pending | Pending | Pending | The module dependency matrix study and its issues [#2382](https://github.com/dlrivada/Encina/issues/2382) to [#2413](https://github.com/dlrivada/Encina/issues/2413) |
-
-Entries for the remaining module families are not invented here. Each issue of the range above that settles a family adds its row by amendment, with its source issue.
+Module families not listed have no recorded requirement yet. Each issue of the range [#2382](https://github.com/dlrivada/Encina/issues/2382) to [#2413](https://github.com/dlrivada/Encina/issues/2413) that settles a family adds its row by amendment, with its source issue; the list is closed in the sense that a row exists only through such an amendment.
 
 ### Enforcement mechanism per row (sub-decision 1, Option A)
 
@@ -75,7 +73,7 @@ Sub-decision 1 is the table above. Sub-decisions 2 to 8 were settled by eliminat
 
 ## Consequences
 
-- `AGENTS.md` section 3 must be amended to state the rule and link this ADR (the edit is made by the orchestrator in the same PR; the text reads "(why: #2239, #2381; ADR-050)").
+- `AGENTS.md` section 3 was amended in the same change to state the rule and cite this ADR ("(why: #2239, #2381; ADR-050)").
 - [ADR-019](019-compliance-event-sourcing-marten.md) and [ADR-028](028-domain-events-versus-integration-events.md) carry dated amendment notes for the event-sourcing route (publication by the behavior is superseded; domain events of event-sourced modules are also delivered with guarantees, [#2383](https://github.com/dlrivada/Encina/issues/2383)).
 - Each module's requirement list is checkable by a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes`.
 - An application that enabled a module without its requirements now fails at startup. Pre-1.0 policy accepts this.
@@ -91,4 +89,4 @@ Sub-decision 1 is the table above. Sub-decisions 2 to 8 were settled by eliminat
 
 ## Date
 
-2026-10-16
+2026-10-17
