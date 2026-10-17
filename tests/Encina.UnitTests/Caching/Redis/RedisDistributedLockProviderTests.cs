@@ -198,6 +198,7 @@ public sealed class RedisDistributedLockProviderTests
         // Assert - the failure is logged by exception type only, never by its message
         var entry = logger.Collector.GetSnapshot().Single(r => r.Level == LogLevel.Warning);
         entry.Id.Id.ShouldBe(3615);
+        entry.Message.ShouldContain("resource: resource ");
         entry.Message.ShouldContain(nameof(RedisConnectionException));
         entry.Message.ShouldNotContain("connection lost");
         (entry.Exception?.Message ?? string.Empty).ShouldNotContain("connection lost");
@@ -295,6 +296,45 @@ public sealed class RedisDistributedLockProviderTests
 
         await Should.ThrowAsync<OperationCanceledException>(() =>
             provider.ExtendAsync("resource", TimeSpan.FromSeconds(30), cts.Token));
+    }
+
+    [Fact]
+    public async Task ExtendAsync_WhenKeyExists_ExtendsPrefixedKeyAndReturnsTrue()
+    {
+        var provider = CreateProvider();
+        _database.KeyExpireAsync(Arg.Any<RedisKey>(), Arg.Any<TimeSpan?>(), Arg.Any<ExpireWhen>(), Arg.Any<CommandFlags>())
+            .Returns(true);
+
+        var result = await provider.ExtendAsync("resource", TimeSpan.FromSeconds(30), CancellationToken.None);
+
+        result.ShouldBeTrue();
+        await _database.Received(1).KeyExpireAsync((RedisKey)"test:lock:resource", TimeSpan.FromSeconds(30), Arg.Any<ExpireWhen>(), Arg.Any<CommandFlags>());
+    }
+
+    [Fact]
+    public async Task ExtendAsync_WhenKeyDoesNotExist_ReturnsFalse()
+    {
+        var provider = CreateProvider();
+        _database.KeyExpireAsync(Arg.Any<RedisKey>(), Arg.Any<TimeSpan?>(), Arg.Any<ExpireWhen>(), Arg.Any<CommandFlags>())
+            .Returns(false);
+
+        var result = await provider.ExtendAsync("resource", TimeSpan.FromSeconds(30), CancellationToken.None);
+
+        result.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task LockHandle_DisposeAsync_CalledTwice_ReleasesOnce()
+    {
+        var provider = CreateProvider(new FakeTimeProvider(StartTime));
+        SetupStringSet(true);
+        var handle = await provider.TryAcquireAsync("resource", TimeSpan.FromSeconds(30), TimeSpan.Zero, TimeSpan.FromMilliseconds(100), CancellationToken.None);
+        handle.ShouldNotBeNull();
+
+        await handle.DisposeAsync();
+        await handle.DisposeAsync();
+
+        await _database.Received(1).ScriptEvaluateAsync(Arg.Any<string>(), Arg.Any<RedisKey[]>(), Arg.Any<RedisValue[]>(), Arg.Any<CommandFlags>());
     }
 
     #endregion

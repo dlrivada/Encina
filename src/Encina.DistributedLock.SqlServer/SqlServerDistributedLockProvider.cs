@@ -1,4 +1,5 @@
 using System.Data;
+using Encina.Diagnostics;
 
 namespace Encina.DistributedLock.SqlServer;
 
@@ -232,6 +233,12 @@ public sealed partial class SqlServerDistributedLockProvider : IDistributedLockP
         Message = "Failed to acquire lock on resource: {Resource}")]
     private static partial void LogLockFailed(ILogger logger, string resource);
 
+    [LoggerMessage(
+        EventId = 3804,
+        Level = LogLevel.Warning,
+        Message = "Failed to release lock on resource: {Resource} ({ExceptionType}); closing the connection releases it")]
+    private static partial void LogLockReleaseFailed(ILogger logger, string resource, string exceptionType, Exception exception);
+
     private sealed class LockHandle : ILockHandle
     {
         private readonly SqlConnection _connection;
@@ -289,22 +296,21 @@ public sealed partial class SqlServerDistributedLockProvider : IDistributedLockP
 
             try
             {
-                if (_connection.State == ConnectionState.Open)
-                {
-                    await using var command = _connection.CreateCommand();
-                    command.CommandText = "sp_releaseapplock";
-                    command.CommandType = CommandType.StoredProcedure;
-                    command.Parameters.AddWithValue("@Resource", _lockKey);
-                    command.Parameters.AddWithValue("@LockOwner", "Session");
+                await using var command = _connection.CreateCommand();
+                command.CommandText = "sp_releaseapplock";
+                command.CommandType = CommandType.StoredProcedure;
+                command.Parameters.AddWithValue("@Resource", _lockKey);
+                command.Parameters.AddWithValue("@LockOwner", "Session");
 
-                    await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-                }
+                await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 
                 LogLockReleased(_logger, Resource, LockId);
             }
-            catch
+            catch (Exception ex)
             {
-                // Log but don't throw - closing connection will release the lock anyway
+                // Do not throw from DisposeAsync: closing the connection releases the session lock
+                // anyway. Log only the exception type and stack trace (ForLogging), never its message.
+                LogLockReleaseFailed(_logger, Resource, ex.GetType().Name, ex.ForLogging());
             }
             finally
             {

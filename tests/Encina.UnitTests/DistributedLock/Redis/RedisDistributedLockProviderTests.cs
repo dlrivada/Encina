@@ -475,7 +475,8 @@ public class RedisDistributedLockProviderTests
                 Arg.Any<When>())
             .Returns(true);
 
-        var provider = new RedisDistributedLockProvider(connection, _options, _logger);
+        var time = new FakeTimeProvider(StartTime);
+        var provider = new RedisDistributedLockProvider(connection, _options, _logger, time);
 
         // Act
         var handle = await provider.TryAcquireAsync("my-res", TimeSpan.FromSeconds(60),
@@ -488,8 +489,8 @@ public class RedisDistributedLockProviderTests
         lockHandle!.Resource.ShouldBe("my-res");
         lockHandle.LockId.ShouldNotBeNullOrWhiteSpace();
         lockHandle.IsReleased.ShouldBeFalse();
-        lockHandle.AcquiredAtUtc.ShouldBeLessThanOrEqualTo(DateTime.UtcNow);
-        lockHandle.ExpiresAtUtc.ShouldBeGreaterThan(DateTime.UtcNow);
+        lockHandle.AcquiredAtUtc.ShouldBe(StartTime.UtcDateTime);
+        lockHandle.ExpiresAtUtc.ShouldBe(StartTime.UtcDateTime.AddSeconds(60));
 
         await handle!.DisposeAsync();
         lockHandle.IsReleased.ShouldBeTrue();

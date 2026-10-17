@@ -16,7 +16,7 @@ public sealed class MemoryDistributedLockProviderTests
 
     public MemoryDistributedLockProviderTests()
     {
-        _timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        _timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero));
         _sut = new MemoryDistributedLockProvider(NullLogger<MemoryDistributedLockProvider>.Instance, _timeProvider);
         _faker = new Faker();
     }

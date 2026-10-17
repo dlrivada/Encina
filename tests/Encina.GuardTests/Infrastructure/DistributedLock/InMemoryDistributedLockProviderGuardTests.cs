@@ -106,6 +106,49 @@ public class InMemoryDistributedLockProviderGuardTests
         ex.ParamName.ShouldBe("resource");
     }
 
+    [Fact]
+    public async Task TryAcquireAsync_WithCancelledToken_ShouldThrowOperationCanceledException()
+    {
+        var provider = CreateProvider();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(() => provider.TryAcquireAsync(
+            "resource", TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(100), cts.Token));
+    }
+
+    [Fact]
+    public async Task AcquireAsync_WithCancelledToken_ShouldThrowOperationCanceledException()
+    {
+        var provider = CreateProvider();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(() =>
+            provider.AcquireAsync("resource", TimeSpan.FromMinutes(1), cts.Token));
+    }
+
+    [Fact]
+    public async Task IsLockedAsync_WithCancelledToken_ShouldThrowOperationCanceledException()
+    {
+        var provider = CreateProvider();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(() => provider.IsLockedAsync("resource", cts.Token));
+    }
+
+    [Fact]
+    public async Task ExtendAsync_WithCancelledToken_ShouldThrowOperationCanceledException()
+    {
+        var provider = CreateProvider();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(() =>
+            provider.ExtendAsync("resource", TimeSpan.FromMinutes(5), cts.Token));
+    }
+
     private static InMemoryDistributedLockProvider CreateProvider()
     {
         return new InMemoryDistributedLockProvider(

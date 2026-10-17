@@ -32,12 +32,12 @@
       "defaultTests": ["unit", "guard"],
       "reason": "Lock provider with 7 ThrowIfNull guards",
       "targets": {
-        "unit": 90,
+        "unit": 100,
         "guard": 16
       },
       "justifications": {
-        "unit": "Measured 92.2%: the unit tests mock IDatabase and drive acquire, retry on a FakeTimeProvider, zero wait and the logged release failure; the uncovered lines are the provider-level ExtendAsync and the double-dispose guard of the lock handle; ExtendAsync needs the Redis integration tests.",
-        "guard": "Measured 16.7%: the guard tests assert the ArgumentNullException of the constructor and of each public method; every other line runs only past those guards and belongs to the unit flag."
+        "unit": "Measured 100%: the unit tests mock IDatabase and drive acquire, retry on a FakeTimeProvider, zero wait, the logged release failure, the double dispose of the lock handle, and ExtendAsync (key found and key missing); no path is left to integration tests.",
+        "guard": "Measured 24.3%: the guard tests assert the ArgumentNullException of the constructor and of each public method and the cancelled-token guard of each; every other line runs only past those guards and belongs to the unit flag."
       }
     },
     "RedisPubSubProvider.cs": {

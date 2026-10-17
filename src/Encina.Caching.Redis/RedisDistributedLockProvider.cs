@@ -136,7 +136,7 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
         }
 
         LogLockAcquired(_logger, resource, lockValue);
-        return new LockHandle(Database, lockKey, lockValue, _logger);
+        return new LockHandle(Database, lockKey, lockValue, resource, _logger);
     }
 
     /// <inheritdoc/>
@@ -210,6 +210,7 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
         private readonly IDatabase _database;
         private readonly string _lockKey;
         private readonly string _lockValue;
+        private readonly string _resource;
         private readonly ILogger _logger;
         private bool _disposed;
 
@@ -222,11 +223,12 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
             end
             """;
 
-        public LockHandle(IDatabase database, string lockKey, string lockValue, ILogger logger)
+        public LockHandle(IDatabase database, string lockKey, string lockValue, string resource, ILogger logger)
         {
             _database = database;
             _lockKey = lockKey;
             _lockValue = lockValue;
+            _resource = resource;
             _logger = logger;
         }
 
@@ -246,13 +248,13 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
                     [_lockKey],
                     [_lockValue]).ConfigureAwait(false);
 
-                LogLockReleased(_logger, _lockKey, _lockValue);
+                LogLockReleased(_logger, _resource, _lockValue);
             }
             catch (Exception ex)
             {
                 // Do not throw from DisposeAsync: the key expires with its TTL anyway. Log only the
                 // exception type and stack trace (ForLogging), never its message.
-                LogLockReleaseFailed(_logger, _lockKey, ex.GetType().Name, ex.ForLogging());
+                LogLockReleaseFailed(_logger, _resource, ex.GetType().Name, ex.ForLogging());
             }
         }
     }
