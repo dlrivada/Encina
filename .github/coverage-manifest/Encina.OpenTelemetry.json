@@ -32,11 +32,11 @@
       "defaultRule": "*Store.cs",
       "reason": "Abstract/base store with mockeable deps",
       "targets": {
-        "unit": 60,
+        "unit": 70,
         "guard": 0
       },
       "justifications": {
-        "unit": "Unit tests drive the delegating methods and their activity spans (measured 63%).",
+        "unit": "Unit tests drive the delegating methods and their activity spans (measured 70.27%); the remaining span error branches are the uncovered lines.",
         "guard": "Guard tests only assert the constructor null check; the delegating methods are covered by unit tests."
       }
     },
@@ -61,7 +61,15 @@
         "integration"
       ],
       "defaultRule": "*BulkOperations*.cs",
-      "reason": "Bulk operations need real DB"
+      "reason": "Bulk operations need real DB",
+      "targets": {
+        "unit": 100,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "Unit tests with a stub cover every delegating line of the decorator.",
+        "integration": "The decorator only delegates to the inner abstraction; unit tests with a stub cover every line."
+      }
     },
     "Cdc/ShardedCdcMetrics.cs": {
       "defaultTests": [
@@ -119,7 +127,11 @@
         "unit"
       ],
       "defaultRule": "*Enricher.cs",
-      "reason": "Activity enricher — verify tag population"
+      "reason": "Activity enricher — verify tag population",
+      "targets": { "unit": 90 },
+      "justifications": {
+        "unit": "The EnrichWith* tests in MessagingActivityStatusTests and the contract tests drive the tag population (measured 98.21%); ErrorMessage is never tagged."
+      }
     },
     "Enrichers/MigrationActivityEnricher.cs": {
       "defaultTests": [
@@ -181,7 +193,15 @@
         "guard"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": {
+        "unit": 61,
+        "guard": 58
+      },
+      "justifications": {
+        "unit": "Unit tests drive the store call paths and their error results (measured 61.63%); the remaining lines are the no-listener fast path.",
+        "guard": "Guard tests cover the constructor and each instrumented method's argument check (measured 58.14%); the rest is driven by unit tests."
+      }
     },
     "MessagingStores/InstrumentedSagaStore.cs": {
       "defaultTests": [
@@ -189,7 +209,15 @@
         "guard"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": {
+        "unit": 76,
+        "guard": 73
+      },
+      "justifications": {
+        "unit": "Measured 76.40%; the uncovered lines are the non-failure paths the saga store tests do not drive.",
+        "guard": "Guard tests cover the constructor and each instrumented method's argument check (measured 73.03%); the rest is driven by unit tests."
+      }
     },
     "MessagingStores/InstrumentedDeadLetterStore.cs": {
       "defaultTests": [
@@ -213,7 +241,15 @@
         "guard"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": {
+        "unit": 76,
+        "guard": 71
+      },
+      "justifications": {
+        "unit": "Unit tests drive the store call paths and their span status (measured 76.92%); the remaining lines are error paths not yet reached.",
+        "guard": "Guard tests cover the constructor and each instrumented method's argument check (measured 71.43%); the rest is driven by unit tests."
+      }
     },
     "MessagingStores/MessagingStoreMetricsInitializer.cs": {
       "defaultTests": [
@@ -228,7 +264,13 @@
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 80
+      },
+      "justifications": {
+        "unit": "Target 80% set for #2134; unit tests drive span creation and tags, and the rest is the no-listener fast path."
+      }
     },
     "Migrations/MigrationMetrics.cs": {
       "defaultTests": [
@@ -281,7 +323,15 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": {
+        "unit": 65,
+        "guard": 77
+      },
+      "justifications": {
+        "unit": "Unit tests drive the delegating cache methods and their span tagging (measured 65.57%); the cache-miss and error paths are the remainder.",
+        "guard": "Guard tests cover the constructor and each instrumented method's argument check (measured 77.87%); the rest is driven by unit tests."
+      }
     },
     "QueryCache/QueryCacheMetricsInitializer.cs": {
       "defaultTests": [
@@ -320,7 +370,17 @@
         "contract"
       ],
       "defaultRule": "*Repository.cs",
-      "reason": "Abstract/base repository"
+      "reason": "Abstract/base repository",
+      "targets": {
+        "unit": 35,
+        "guard": 0,
+        "contract": 15
+      },
+      "justifications": {
+        "unit": "Unit tests drive only the span start paths; the rest of the decorator delegates to the inner repository and is covered by integration tests.",
+        "guard": "Guard tests only assert argument checks; this decorator has no guarded public surface beyond its constructor, so the lines are driven by unit tests.",
+        "contract": "Contract tests pin the public repository interface that this decorator implements; the span bodies are driven by unit tests."
+      }
     },
     "Repository/RepositoryMetricsInitializer.cs": {
       "defaultTests": [
@@ -342,7 +402,13 @@
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "Every span helper of this activity source is called from unit tests that check creation and tags."
+      }
     },
     "Resharding/ReshardingHealthCheck.cs": {
       "defaultTests": [
@@ -474,7 +540,15 @@
         "integration"
       ],
       "defaultRule": "*UnitOfWork.cs",
-      "reason": "Transaction management needs real DB"
+      "reason": "Transaction management needs real DB",
+      "targets": {
+        "unit": 90,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "Unit tests with a stub cover the span and status paths; the remaining lines are the real transaction commit path.",
+        "integration": "The decorator only delegates to the inner abstraction; unit tests with a stub cover every line."
+      }
     },
     "UnitOfWork/UnitOfWorkMetricsInitializer.cs": {
       "defaultTests": [

@@ -368,29 +368,6 @@ internal static class ShardingActivitySource
     }
 
     /// <summary>
-    /// Marks a read/write connection acquisition activity as failed.
-    /// </summary>
-    /// <param name="activity">The connection activity to mark as failed.</param>
-    /// <param name="errorCode">The error code.</param>
-    /// <param name="errorMessage">The error message.</param>
-    internal static void ReadWriteConnectFailed(
-        Activity? activity, string? errorCode, string? errorMessage)
-    {
-        if (activity is null)
-        {
-            return;
-        }
-
-        if (!string.IsNullOrWhiteSpace(errorCode))
-        {
-            activity.SetTag(ActivityTagNames.FailureCode, errorCode);
-        }
-
-        activity.SetStatus(ActivityStatusCode.Error, errorMessage);
-        activity.Dispose();
-    }
-
-    /// <summary>
     /// Starts a time-based routing activity for resolving a timestamp to a shard.
     /// </summary>
     /// <param name="shardKey">The shard key (timestamp) being routed.</param>

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Encina.Diagnostics;
 using Encina.Messaging.Sagas;
 using LanguageExt;
 
@@ -46,7 +47,7 @@ internal sealed class InstrumentedSagaStore : ISagaStore
             activity?.SetTag("saga.status", saga.Status);
         }));
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -56,7 +57,7 @@ internal sealed class InstrumentedSagaStore : ISagaStore
         using var activity = StartSagaCreate(sagaState.SagaType, sagaState.SagaId);
         var result = await _inner.AddAsync(sagaState, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -66,7 +67,7 @@ internal sealed class InstrumentedSagaStore : ISagaStore
         using var activity = StartSagaUpdate(sagaState.SagaType, sagaState.SagaId, sagaState.Status);
         var result = await _inner.UpdateAsync(sagaState, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -84,7 +85,7 @@ internal sealed class InstrumentedSagaStore : ISagaStore
             var count = sagas is ICollection<ISagaState> col ? col.Count : sagas.Count();
             CompleteBatch(activity, count);
         });
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -101,7 +102,7 @@ internal sealed class InstrumentedSagaStore : ISagaStore
             var count = sagas is ICollection<ISagaState> col ? col.Count : sagas.Count();
             CompleteBatch(activity, count);
         });
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -189,8 +190,8 @@ internal sealed class InstrumentedSagaStore : ISagaStore
         activity.SetStatus(ActivityStatusCode.Ok);
     }
 
-    private static void Failed(Activity? activity, string? errorMessage)
+    private static void Failed(Activity? activity, string errorCode)
     {
-        activity?.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity?.SetStatus(ActivityStatusCode.Error, errorCode);
     }
 }

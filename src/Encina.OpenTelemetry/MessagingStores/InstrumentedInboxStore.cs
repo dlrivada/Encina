@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Encina.Diagnostics;
 using Encina.Messaging.Inbox;
 using LanguageExt;
 
@@ -245,6 +246,6 @@ internal sealed class InstrumentedInboxStore : IInboxStore
     // Only the error code reaches the activity: EncinaError.Message can carry personal data (AGENTS.md section 3).
     private static void Failed(Activity? activity, EncinaError error)
     {
-        activity?.SetStatus(ActivityStatusCode.Error, error.GetCode().IfNone("encina.unknown"));
+        activity?.SetStatus(ActivityStatusCode.Error, ActivityStatusDescriptions.ForError(error));
     }
 }

@@ -649,7 +649,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
             // MatchUnsafe: a written record is represented by null.
             return result.MatchUnsafe<string?>(
-                Left: error => error.GetCode().IfNone("encina.unknown"),
+                Left: error => ActivityStatusDescriptions.ForError(error),
                 Right: _ => null);
         }
         catch (Exception ex)

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Encina.Diagnostics;
 using Encina.Messaging.Outbox;
 using LanguageExt;
 
@@ -41,7 +42,7 @@ internal sealed class InstrumentedOutboxStore : IOutboxStore
         using var activity = StartAdd(message.NotificationType, message.Id.ToString());
         var result = await _inner.AddAsync(message, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -59,7 +60,7 @@ internal sealed class InstrumentedOutboxStore : IOutboxStore
             var count = messages is ICollection<IOutboxMessage> col ? col.Count : messages.Count();
             CompleteBatch(activity, count);
         });
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -69,7 +70,7 @@ internal sealed class InstrumentedOutboxStore : IOutboxStore
         using var activity = StartMarkProcessed(messageId.ToString());
         var result = await _inner.MarkAsProcessedAsync(messageId, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -84,7 +85,7 @@ internal sealed class InstrumentedOutboxStore : IOutboxStore
         var result = await _inner.MarkAsFailedAsync(messageId, errorMessage, nextRetryAtUtc, cancellationToken)
             .ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -105,7 +106,7 @@ internal sealed class InstrumentedOutboxStore : IOutboxStore
         using var activity = StartRequeueExhausted(messageIds?.Count);
         var result = await _inner.RequeueExhaustedAsync(maxRetries, messageIds, cancellationToken).ConfigureAwait(false);
         result.IfRight(count => CompleteRequeue(activity, count));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -208,9 +209,9 @@ internal sealed class InstrumentedOutboxStore : IOutboxStore
         activity.SetStatus(ActivityStatusCode.Ok);
     }
 
-    private static void Failed(Activity? activity, string? errorMessage)
+    private static void Failed(Activity? activity, string errorCode)
     {
-        activity?.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity?.SetStatus(ActivityStatusCode.Error, errorCode);
     }
 
     #endregion

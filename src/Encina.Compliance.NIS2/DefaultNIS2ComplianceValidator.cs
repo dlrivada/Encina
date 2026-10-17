@@ -196,7 +196,7 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
             var result = await evaluator.EvaluateAsync(context, cancellationToken);
             var measureResult = result.Match(
                 Right: r => r,
-                Left: error => EvaluationFailed(evaluator.Measure, error.GetCode().IfNone("encina.unknown")));
+                Left: error => EvaluationFailed(evaluator.Measure, ActivityStatusDescriptions.ForError(error)));
 
             results.Add(measureResult);
 

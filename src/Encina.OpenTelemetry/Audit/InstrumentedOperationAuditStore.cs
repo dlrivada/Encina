@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Encina.Diagnostics;
 using Encina.Security.Audit;
 using LanguageExt;
 
@@ -48,13 +49,13 @@ internal sealed class InstrumentedOperationAuditStore : IOperationAuditStore
 
             result.Match(
                 Right: _ => Complete(activity),
-                Left: e => Failed(activity, e.Message));
+                Left: e => Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
             return result;
         }
         catch (Exception ex)
         {
-            Failed(activity, ex.Message);
+            Failed(activity, ActivityStatusDescriptions.ForException(ex));
             throw;
         }
     }
@@ -74,13 +75,13 @@ internal sealed class InstrumentedOperationAuditStore : IOperationAuditStore
 
             result.Match(
                 Right: entries => CompleteWithCount(activity, entries.Count),
-                Left: e => Failed(activity, e.Message));
+                Left: e => Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
             return result;
         }
         catch (Exception ex)
         {
-            Failed(activity, ex.Message);
+            Failed(activity, ActivityStatusDescriptions.ForException(ex));
             throw;
         }
     }
@@ -101,13 +102,13 @@ internal sealed class InstrumentedOperationAuditStore : IOperationAuditStore
 
             result.Match(
                 Right: entries => CompleteWithCount(activity, entries.Count),
-                Left: e => Failed(activity, e.Message));
+                Left: e => Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
             return result;
         }
         catch (Exception ex)
         {
-            Failed(activity, ex.Message);
+            Failed(activity, ActivityStatusDescriptions.ForException(ex));
             throw;
         }
     }
@@ -126,13 +127,13 @@ internal sealed class InstrumentedOperationAuditStore : IOperationAuditStore
 
             result.Match(
                 Right: entries => CompleteWithCount(activity, entries.Count),
-                Left: e => Failed(activity, e.Message));
+                Left: e => Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
             return result;
         }
         catch (Exception ex)
         {
-            Failed(activity, ex.Message);
+            Failed(activity, ActivityStatusDescriptions.ForException(ex));
             throw;
         }
     }
@@ -150,13 +151,13 @@ internal sealed class InstrumentedOperationAuditStore : IOperationAuditStore
 
             result.Match(
                 Right: paged => CompleteWithCount(activity, paged.Items.Count),
-                Left: e => Failed(activity, e.Message));
+                Left: e => Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
             return result;
         }
         catch (Exception ex)
         {
-            Failed(activity, ex.Message);
+            Failed(activity, ActivityStatusDescriptions.ForException(ex));
             throw;
         }
     }
@@ -175,13 +176,13 @@ internal sealed class InstrumentedOperationAuditStore : IOperationAuditStore
 
             result.Match(
                 Right: count => CompletePurge(activity, count),
-                Left: e => Failed(activity, e.Message));
+                Left: e => Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
             return result;
         }
         catch (Exception ex)
         {
-            Failed(activity, ex.Message);
+            Failed(activity, ActivityStatusDescriptions.ForException(ex));
             throw;
         }
     }
@@ -285,9 +286,9 @@ internal sealed class InstrumentedOperationAuditStore : IOperationAuditStore
         activity.SetStatus(ActivityStatusCode.Ok);
     }
 
-    private static void Failed(Activity? activity, string? errorMessage)
+    private static void Failed(Activity? activity, string errorCode)
     {
-        activity?.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity?.SetStatus(ActivityStatusCode.Error, errorCode);
     }
 
     #endregion

@@ -258,13 +258,13 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         using var activity = SecretsActivitySource.StartGetSecretActivity("failure-secret");
 
-        SecretsActivitySource.RecordFailure(activity, "not_found", "Secret not found");
+        SecretsActivitySource.RecordFailure(activity, "not_found");
 
         activity.ShouldNotBeNull();
         activity!.GetTagItem("secrets.outcome").ShouldBe("failure");
         activity.GetTagItem("secrets.error_code").ShouldBe("not_found");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.StatusDescription.ShouldBe("Secret not found");
+        activity.StatusDescription.ShouldBe("not_found");
     }
 
     [Fact]

@@ -304,7 +304,7 @@ public sealed class AuditedRepository<TEntity, TId> : IRepository<TEntity, TId>
             ReadAuditLog.ReadAccessFailed(_logger, entityTypeName, methodName, ex.ForLogging());
             ReadAuditMeter.LogFailuresTotal.Add(1,
                 new KeyValuePair<string, object?>(ReadAuditMeter.TagEntityType, entityTypeName));
-            ReadAuditActivitySource.Failed(activity, ex.Message);
+            ReadAuditActivitySource.Failed(activity, ActivityStatusDescriptions.ForException(ex));
         }
     }
 }

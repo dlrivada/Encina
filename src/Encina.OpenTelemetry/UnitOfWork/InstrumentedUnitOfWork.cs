@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Diagnostics;
 using LanguageExt;
@@ -41,7 +42,7 @@ internal sealed class InstrumentedUnitOfWork : IUnitOfWork
 
         result.Match(
             Right: rows => UnitOfWorkActivitySource.CompleteSaveChanges(activity, rows),
-            Left: e => UnitOfWorkActivitySource.Failed(activity, null, e.Message));
+            Left: e => UnitOfWorkActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -55,7 +56,7 @@ internal sealed class InstrumentedUnitOfWork : IUnitOfWork
 
         result.Match(
             Right: _ => UnitOfWorkActivitySource.CompleteTransaction(activity, "started"),
-            Left: e => UnitOfWorkActivitySource.Failed(activity, null, e.Message));
+            Left: e => UnitOfWorkActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -69,7 +70,7 @@ internal sealed class InstrumentedUnitOfWork : IUnitOfWork
 
         result.Match(
             Right: _ => UnitOfWorkActivitySource.CompleteTransaction(activity, "committed"),
-            Left: e => UnitOfWorkActivitySource.Failed(activity, null, e.Message));
+            Left: e => UnitOfWorkActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }

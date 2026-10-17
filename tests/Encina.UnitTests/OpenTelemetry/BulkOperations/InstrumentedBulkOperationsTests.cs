@@ -9,6 +9,7 @@ namespace Encina.UnitTests.OpenTelemetry.BulkOperations;
 /// <summary>
 /// Unit tests for <see cref="InstrumentedBulkOperations{TEntity}"/>.
 /// </summary>
+[Collection("ActivityListenerIsolation")]
 public sealed class InstrumentedBulkOperationsTests
 {
     private sealed class TestEntity
@@ -95,5 +96,19 @@ public sealed class InstrumentedBulkOperationsTests
         var result = await sut.BulkInsertAsync(new[] { new TestEntity() });
 
         result.ShouldBeError();
+    }
+
+    [Fact]
+    public async Task BulkInsertAsync_WhenInnerFails_StatusIsErrorCodeNeverMessage()
+    {
+        using var capture = new ActivityStatusCapture();
+        var secret = "SECRET-" + Guid.NewGuid().ToString("N");
+        var error = EncinaErrors.Create("test.bulk_failure", "row " + secret);
+        var inner = new StubBulkOperations { IntResult = Either<EncinaError, int>.Left(error) };
+        var sut = new InstrumentedBulkOperations<TestEntity>(inner, "TestProvider");
+
+        await sut.BulkInsertAsync(new[] { new TestEntity() });
+
+        capture.ShouldHaveErrorStatus("test.bulk_failure", secret);
     }
 }

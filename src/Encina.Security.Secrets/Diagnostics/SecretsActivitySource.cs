@@ -191,11 +191,11 @@ internal static class SecretsActivitySource
     /// <summary>
     /// Records that an operation failed.
     /// </summary>
-    internal static void RecordFailure(Activity? activity, string errorCode, string? errorMessage = null)
+    internal static void RecordFailure(Activity? activity, string errorCode)
     {
         activity?.SetTag(TagOutcome, "failure");
         activity?.SetTag(TagErrorCode, errorCode);
-        activity?.SetStatus(ActivityStatusCode.Error, errorMessage ?? errorCode);
+        activity?.SetStatus(ActivityStatusCode.Error, errorCode);
     }
 
     /// <summary>
