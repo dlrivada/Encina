@@ -141,7 +141,7 @@ public sealed class ActivityStatusNeverCarriesMessagesTests
     {
         var error = EncinaError.New("raw message with secret");
 
-        ActivityStatusDescriptions.ForError(error).ShouldNotContain("secret");
+        ActivityStatusDescriptions.ForError(error).ShouldBe("Encina.unknown");
     }
 
     [Fact]

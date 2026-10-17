@@ -4,6 +4,7 @@ using Encina.Caching;
 using Encina.Cdc;
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.Caching;
+using Encina.UnitTests.OpenTelemetry;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -342,6 +343,46 @@ public sealed class QueryCacheInvalidationCdcHandlerTests
         // Assert — if cache fails, do not attempt broadcast
         await pubSubProvider!.DidNotReceive().PublishAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    #endregion
+
+    #region Activity Status
+
+    [Fact]
+    public async Task HandleInsertAsync_WhenCacheThrows_ActivityStatusCarriesOnlyTheExceptionType()
+    {
+        // Arrange
+        using var capture = new ActivityStatusCapture();
+        var secret = "SECRET-" + Guid.NewGuid().ToString("N");
+        var (handler, cacheProvider, _) = CreateHandler();
+        cacheProvider.RemoveByPatternAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Throws(new InvalidOperationException(secret));
+
+        // Act
+        var result = await handler.HandleInsertAsync(JsonElement.Parse("{}"), CreateContext("Orders"));
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        capture.ShouldHaveErrorStatus(nameof(InvalidOperationException), secret);
+    }
+
+    [Fact]
+    public async Task HandleInsertAsync_WhenBroadcastThrows_ActivityStatusCarriesOnlyTheExceptionType()
+    {
+        // Arrange
+        using var capture = new ActivityStatusCapture();
+        var secret = "SECRET-" + Guid.NewGuid().ToString("N");
+        var (handler, _, pubSubProvider) = CreateHandler(new QueryCacheInvalidationOptions { UsePubSubBroadcast = true });
+        pubSubProvider!.PublishAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Throws(new TimeoutException(secret));
+
+        // Act
+        var result = await handler.HandleInsertAsync(JsonElement.Parse("{}"), CreateContext("Orders"));
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        capture.ShouldHaveErrorStatus(nameof(TimeoutException), secret);
     }
 
     #endregion

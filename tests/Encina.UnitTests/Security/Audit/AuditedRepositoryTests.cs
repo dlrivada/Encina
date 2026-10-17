@@ -4,6 +4,7 @@ using System.Linq.Expressions;
 using Encina.DomainModeling;
 using Encina.Security.Audit;
 using Encina.Testing.Identity;
+using Encina.UnitTests.OpenTelemetry;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -638,6 +639,23 @@ public sealed class AuditedRepositoryTests
 
         var items = await sut.GetAllAsync();
         items.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task AuditStoreThrows_ActivityStatusCarriesOnlyTheExceptionType()
+    {
+        using var capture = new ActivityStatusCapture();
+        var secret = "SECRET-" + Guid.NewGuid().ToString("N");
+        var harness = new Harness(samplingRate: 1.0);
+        harness.Store
+            .LogReadAsync(Arg.Any<ReadAuditEntry>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, Unit>>>(_ => throw new InvalidOperationException(secret));
+        harness.Inner.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<AuditedTestEntity> { new() { Id = Guid.NewGuid() } }.AsReadOnly());
+
+        await harness.CreateRepository().GetAllAsync();
+
+        capture.ShouldHaveErrorStatus(nameof(InvalidOperationException), secret);
     }
 
     // ── RequirePurpose branch ───────────────────────────────────────────

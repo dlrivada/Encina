@@ -1,9 +1,11 @@
 #pragma warning disable CA2012 // ValueTask instances used in NSubstitute mock setup
 
+using Encina.Diagnostics;
 using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Attributes;
 using Encina.Testing.Identity;
+using Encina.UnitTests.OpenTelemetry;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -248,6 +250,25 @@ public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
             CancellationToken.None);
 
         result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_SanitizerThrowsException_ActivityStatusIsTheErrorCodeNotTheMessage()
+    {
+        using var capture = new ActivityStatusCapture();
+        var secret = "SECRET-" + Guid.NewGuid().ToString("N");
+        _options.EnableTracing = true;
+        var behavior = CreateBehavior<HtmlSanitizeCommand, Unit>();
+        _sanitizer.SanitizeHtml(Arg.Any<string>()).Throws(new InvalidOperationException(secret));
+
+        var result = await behavior.Handle(
+            new HtmlSanitizeCommand { Title = "test" },
+            _context,
+            () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)),
+            CancellationToken.None);
+
+        var error = result.LeftAsEnumerable().Single();
+        capture.ShouldHaveErrorStatus(ActivityStatusDescriptions.ForError(error), secret);
     }
 
     [Fact]

@@ -2,6 +2,7 @@
 
 using Encina.Security.Audit;
 using Encina.Testing.Time;
+using Encina.UnitTests.OpenTelemetry;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -203,9 +204,65 @@ public class ReadAuditRetentionServiceTests
             Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task ExecuteAsync_WhenStoreReturnsError_ActivityStatusCarriesOnlyTheErrorCode()
+    {
+        // Arrange
+        using var capture = new ActivityStatusCapture();
+        var secret = "SECRET-" + Guid.NewGuid().ToString("N");
+        _mockStore.PurgeEntriesAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, int>>(
+                Left(EncinaErrors.Create("test.purge_failed", "purge failed for " + secret))));
+
+        // Act
+        await RunOnePurgeCycleAsync(capture);
+
+        // Assert
+        capture.ShouldHaveErrorStatus("test.purge_failed", secret);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenStoreThrows_ActivityStatusCarriesOnlyTheExceptionType()
+    {
+        // Arrange
+        using var capture = new ActivityStatusCapture();
+        var secret = "SECRET-" + Guid.NewGuid().ToString("N");
+        _mockStore.PurgeEntriesAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Throws(new InvalidOperationException(secret));
+
+        // Act
+        await RunOnePurgeCycleAsync(capture);
+
+        // Assert
+        capture.ShouldHaveErrorStatus(nameof(InvalidOperationException), secret);
+    }
+
     #endregion
 
     #region Helpers
+
+    private async Task RunOnePurgeCycleAsync(ActivityStatusCapture capture)
+    {
+        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
+        var service = new ReadAuditRetentionService(_mockStore, options, _logger, fakeTime);
+        using var cts = new CancellationTokenSource();
+
+        await service.StartAsync(cts.Token);
+        await WaitForTimerRegistrationAsync(fakeTime);
+        fakeTime.Advance(TimeSpan.FromHours(1.1));
+        await capture.WaitForErrorActivityAsync();
+        await cts.CancelAsync();
+
+        try
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when cancelling the background service
+        }
+    }
 
     /// <summary>
     /// Waits until the background service registers its timer with the FakeTimeProvider.
