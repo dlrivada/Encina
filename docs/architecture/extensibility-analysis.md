@@ -253,7 +253,6 @@ public interface IFunctionalFailureDetector
 {
     bool TryExtractFailure(object? response, out string reason, out object? capturedFailure);
     string TryGetErrorCode(object? failure);
-    string TryGetErrorMessage(object? failure);
 }
 ```
 
