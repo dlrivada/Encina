@@ -10,8 +10,8 @@ namespace Encina.UnitTests.Caching;
 
 /// <summary>
 /// With multi-tenancy enabled (the <see cref="MultiTenancyMarker"/> registered) and no resolved tenant,
-/// query caching and cache invalidation fail closed for the cache (#1913): no read, no write, no removal,
-/// a log with an EventId and no ids. Without multi-tenancy the behavior is unchanged.
+/// query caching fails closed for the cache (#1913): no read, no write, a log with an EventId and no ids.
+/// Without multi-tenancy the behavior is unchanged. Cache invalidation is deliberately unchanged and still runs.
 /// </summary>
 public sealed class CacheTenantFailClosedTests : IDisposable
 {
@@ -181,8 +181,8 @@ public sealed class CacheTenantFailClosedTests : IDisposable
         }
     }
 
-    private CacheInvalidationPipelineBehavior<InvalidatingCommand, string> InvalidationBehavior(bool multiTenant) =>
-        new(_cache, new DefaultCacheKeyGenerator(_options), _options, _invalidationLogger, _pubSub, multiTenant ? new MultiTenancyMarker() : null);
+    private CacheInvalidationPipelineBehavior<InvalidatingCommand, string> InvalidationBehavior() =>
+        new(_cache, new DefaultCacheKeyGenerator(_options), _options, _invalidationLogger, _pubSub);
 
     private static RequestHandlerCallback<string> Ok() => () => ValueTask.FromResult(Right<EncinaError, string>("done"));
 
@@ -208,47 +208,29 @@ public sealed class CacheTenantFailClosedTests : IDisposable
     }
 
     [Fact]
-    public async Task AnInvalidationWithoutATenant_UnderTenancyOn_RemovesNothing_AndIsLogged()
+    public async Task AnInvalidationWithoutATenant_StillRuns_WithTheTenantLessPattern()
     {
         await SeedTenantEntriesAsync();
-        var sut = InvalidationBehavior(multiTenant: true);
+        var sut = InvalidationBehavior();
+        var prefix = _options.Value.KeyPrefix;
 
         var result = await sut.Handle(new InvalidatingCommand(), RequestContext.CreateForTest(), Ok(), CancellationToken.None);
 
         result.ShouldBeSuccess().ShouldBe("done");
-        _cache.RemovedKeys.ShouldBeEmpty();
-        _cache.Count.ShouldBe(3);
-        _pubSub.TotalPublishedCount.ShouldBe(0);
-        var record = _invalidationLogger.Collector.GetSnapshot().Single(r => r.Id.Id == 3514);
-        record.Level.ShouldBe(LogLevel.Warning);
-        record.Message.ShouldContain(nameof(InvalidatingCommand));
-        record.StructuredState!.Select(p => p.Key).ShouldBe(["RequestType", "{OriginalFormat}"], ignoreOrder: true);
+        _cache.RemovedKeys.ShouldBe([$"{prefix}:orders:1"]);
+        _cache.Count.ShouldBe(2);
     }
 
     [Fact]
-    public async Task AnInvalidationWithATenant_UnderTenancyOn_RemovesOnlyThatTenantsEntries()
+    public async Task AnInvalidationWithATenant_RemovesOnlyThatTenantsEntries()
     {
         await SeedTenantEntriesAsync();
-        var sut = InvalidationBehavior(multiTenant: true);
+        var sut = InvalidationBehavior();
         var prefix = _options.Value.KeyPrefix;
 
         await sut.Handle(new InvalidatingCommand(), RequestContext.CreateForTest(tenantId: "a"), Ok(), CancellationToken.None);
 
         _cache.RemovedKeys.ShouldBe([$"{prefix}:t:a:orders:1"]);
         _cache.Count.ShouldBe(2);
-        _invalidationLogger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 3514);
-    }
-
-    [Fact]
-    public async Task WithTenancyOff_AnInvalidationWithoutATenant_RunsAsBefore()
-    {
-        await SeedTenantEntriesAsync();
-        var sut = InvalidationBehavior(multiTenant: false);
-        var prefix = _options.Value.KeyPrefix;
-
-        await sut.Handle(new InvalidatingCommand(), RequestContext.CreateForTest(), Ok(), CancellationToken.None);
-
-        _cache.RemovedKeys.ShouldBe([$"{prefix}:orders:1"]);
-        _invalidationLogger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 3514);
     }
 }

@@ -24,11 +24,6 @@ namespace Encina.Caching;
 /// Invalidation only occurs for successful responses (Right side of Either).
 /// Failed commands do not trigger cache invalidation.
 /// </para>
-/// <para>
-/// When multi-tenancy is enabled (the <see cref="MultiTenancyMarker"/> is registered) and the request
-/// context carries no tenant, the invalidation is skipped and logged (EventId 3514, request type only),
-/// so it never removes the entries of every tenant. Without multi-tenancy the behavior is unchanged.
-/// </para>
 /// </remarks>
 public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
@@ -37,7 +32,6 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
     private readonly IPubSubProvider? _pubSubProvider;
     private readonly ICacheKeyGenerator _keyGenerator;
     private readonly CachingOptions _options;
-    private readonly bool _multiTenant;
     private readonly ILogger<CacheInvalidationPipelineBehavior<TRequest, TResponse>> _logger;
     private static readonly InvalidatesCacheAttribute[] InvalidationAttributes =
         typeof(TRequest).GetCustomAttributes<InvalidatesCacheAttribute>(true).ToArray();
@@ -50,17 +44,12 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
     /// <param name="options">The caching options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="pubSubProvider">The optional pub/sub provider for cross-instance invalidation.</param>
-    /// <param name="multiTenancy">
-    /// The multi-tenancy marker (registered by <c>AddEncinaTenancy</c>); when present, an invalidation
-    /// whose request context carries no tenant is skipped.
-    /// </param>
     public CacheInvalidationPipelineBehavior(
         ICacheProvider cacheProvider,
         ICacheKeyGenerator keyGenerator,
         IOptions<CachingOptions> options,
         ILogger<CacheInvalidationPipelineBehavior<TRequest, TResponse>> logger,
-        IPubSubProvider? pubSubProvider = null,
-        MultiTenancyMarker? multiTenancy = null)
+        IPubSubProvider? pubSubProvider = null)
     {
         ArgumentNullException.ThrowIfNull(cacheProvider);
         ArgumentNullException.ThrowIfNull(keyGenerator);
@@ -72,7 +61,6 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
         _options = options.Value;
         _logger = logger;
         _pubSubProvider = pubSubProvider;
-        _multiTenant = multiTenancy is not null;
     }
 
     /// <inheritdoc/>
@@ -128,14 +116,6 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
         InvalidatesCacheAttribute attr,
         CancellationToken cancellationToken)
     {
-        // Fail closed for the cache: with multi-tenancy on, a pattern built without a tenant is not
-        // scoped to the caller's tenant and would remove entries of every tenant, so nothing is removed.
-        if (_multiTenant && string.IsNullOrWhiteSpace(context.TenantId))
-        {
-            LogTenantMissingSkipped(_logger, typeof(TRequest).Name);
-            return;
-        }
-
         // Generate the actual pattern with substituted values
         var pattern = _keyGenerator.GeneratePatternFromTemplate(attr.KeyPattern, request, context);
 
@@ -246,12 +226,4 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
         string pattern,
         string channel,
         Exception exception);
-
-    [LoggerMessage(
-        EventId = 3514,
-        Level = LogLevel.Warning,
-        Message = "Cache invalidation skipped for {RequestType}: multi-tenancy is enabled and the request context has no tenant, so no tenant-scoped pattern exists")]
-    private static partial void LogTenantMissingSkipped(
-        ILogger logger,
-        string requestType);
 }
