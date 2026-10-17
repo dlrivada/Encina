@@ -179,6 +179,22 @@ function Get-PriorityTotal {
     return [Math]::Round($sum / 100.0, 1)
 }
 
+$script:PriorityUrgentBonus = 100
+
+function Get-PriorityUrgentBonus {
+    <#
+        .SYNOPSIS
+        Returns the urgent bonus (100) when the GitHub label 'urgent' is among $Labels
+        (case-insensitive), else 0 (#2483). Pure; null or empty labels give 0. The label
+        'priority-critical' is a product star rating, not urgency, and gives no bonus.
+    #>
+    param($Labels)
+    foreach ($l in @($Labels)) {
+        if ($null -ne $l -and ([string]$l).Trim() -ieq 'urgent') { return $script:PriorityUrgentBonus }
+    }
+    return 0
+}
+
 function Get-PriorityRankedList {
     <#
         .SYNOPSIS

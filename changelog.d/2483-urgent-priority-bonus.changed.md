@@ -1,0 +1,1 @@
+- The Priority ranking adds 100 to the total of an issue labelled `urgent` (SPEC-004 REQ-010), so urgent issues rank above every non-urgent issue; entries gain `baseTotal`, `urgent` and an `urgent` flag, and the ranking must be less than 24 h old when a front is picked (#2483).

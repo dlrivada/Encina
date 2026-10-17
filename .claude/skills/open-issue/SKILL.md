@@ -63,7 +63,7 @@ The `check-issue-template` hook enforces steps 2 and 3 (a missing item blocks th
 
 - Link the issue from the PR or document that produced it.
 - Mention every issue opened in the final summary to the maintainer.
-- Score the new issue against the #1552 priority list: `pwsh -NoProfile -File tools/ai/priority/score-issues.ps1 -Issue <n>` (needs a prior `-All` run's `artifacts/priority/scores.json` to rank against; an `[EPIC]` title or a `Post-1.0:` milestone reports its class instead of a rank). Report "rank R of N, total T" with its top two weighted criteria in the summary to the maintainer. Re-run `score-issues.ps1 -All` weekly (or after a milestone/SPEC change) so age and unblocking stay current across the whole list, not just newly opened issues.
+- Score the new issue against the #1552 priority list: `pwsh -NoProfile -File tools/ai/priority/score-issues.ps1 -Issue <n>` (needs a prior `-All` run's `artifacts/priority/scores.json` to rank against; an `[EPIC]` title or a `Post-1.0:` milestone reports its class instead of a rank). Report "rank R of N, total T" with its top two weighted criteria in the summary to the maintainer. The ranking (`scores.json` `generatedAtUtc`) must be less than 24 h old when a front is picked; if it is older, run `score-issues.ps1 -All -Resume` first (only new or changed issues reach the model), so age and unblocking stay current across the whole list. Label an issue `urgent` when it meets SPEC-004 REQ-010 (broken CI on `main`, audit blocker, defect blocking other fronts): its total gets +100 and it ranks above every non-urgent issue. `priority-critical` is a product star rating, not urgency.
 
 ## 5. From a worker's issue file
 
