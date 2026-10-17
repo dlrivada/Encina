@@ -32,7 +32,7 @@
 # audit blocker, defect blocking other fronts) gets total = computed total + 100, so it ranks above
 # every non-urgent issue in the single Priority list. The entry keeps 'baseTotal' (the computed
 # value), 'urgent' (bool) and the flag 'urgent'. Urgency is recomputed from the issue's labels on
-# every run, -Resume included. The label 'priority-critical' is a star rating, not urgency.
+# every run of the issue being scored, -Resume included (-Issue refreshes only that issue; -All the rest). The label 'priority-critical' is a star rating, not urgency.
 # Freshness: the ranking (scores.json generatedAtUtc) must be less than 24 h old when a front is
 # picked; if older, run -All -Resume first (only new or changed issues reach the model).
 #
