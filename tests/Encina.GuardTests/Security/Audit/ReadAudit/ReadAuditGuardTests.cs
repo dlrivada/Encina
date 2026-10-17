@@ -1,5 +1,6 @@
 using Encina.DomainModeling;
 using Encina.Security.Audit;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -202,18 +203,18 @@ public class ReadAuditGuardTests
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-            .ParamName.ShouldBe("readAuditStore");
+            .ParamName.ShouldBe("scopeFactory");
     }
 
     [Fact]
     public void ReadAuditRetentionService_Constructor_NullOptions_ThrowsArgumentNullException()
     {
         // Arrange
-        var store = Substitute.For<IReadAuditStore>();
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
         var logger = NullLogger<ReadAuditRetentionService>.Instance;
 
         // Act
-        var act = () => new ReadAuditRetentionService(store, null!, logger);
+        var act = () => new ReadAuditRetentionService(scopeFactory, null!, logger);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -224,11 +225,11 @@ public class ReadAuditGuardTests
     public void ReadAuditRetentionService_Constructor_NullLogger_ThrowsArgumentNullException()
     {
         // Arrange
-        var store = Substitute.For<IReadAuditStore>();
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
         var options = Options.Create(new ReadAuditOptions());
 
         // Act
-        var act = () => new ReadAuditRetentionService(store, options, null!);
+        var act = () => new ReadAuditRetentionService(scopeFactory, options, null!);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
