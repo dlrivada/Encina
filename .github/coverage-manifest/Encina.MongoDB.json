@@ -379,7 +379,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 5
+      },
+      "justifications": {
+        "unit": "No unit test drives these methods yet; a follow-up issue opened from #2134 adds them. The methods need a real MongoDB and are covered by integration tests.",
+        "guard": "Guard tests only assert argument checks; the remaining lines are driven by unit and integration tests."
+      }
     },
     "ReadWriteSeparation/IReadWriteMongoCollectionFactory.cs": {
       "defaultTests": [

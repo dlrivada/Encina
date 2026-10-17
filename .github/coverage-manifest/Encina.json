@@ -361,6 +361,22 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "Diagnostics/ActivityStatusDescriptions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Public static helper; tested directly",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "Unit tests call every public status description directly and check each returned text.",
+        "guard": "Guard tests cover the argument checks of the helper; the remaining lines are driven by unit tests."
+      }
+    },
     "Diagnostics/ActivityTagNames.cs": {
       "defaultTests": [
         "unit",
@@ -803,7 +819,13 @@
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "No unit test drives these span start/complete methods yet; a follow-up issue opened from #2134 adds them."
+      }
     },
     "Modules/Diagnostics/ModuleLog.cs": {
       "defaultTests": [
@@ -1540,7 +1562,13 @@
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 50
+      },
+      "justifications": {
+        "unit": "Target 50% set for #2134; unit tests cover span creation and tags, and the rest is the no-listener fast path."
+      }
     },
     "Sharding/Diagnostics/ShardingDiagnosticsServiceCollectionExtensions.cs": {
       "defaultTests": [
