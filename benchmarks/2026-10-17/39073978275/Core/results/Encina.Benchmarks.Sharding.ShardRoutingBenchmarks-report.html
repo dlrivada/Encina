@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Sharding.ShardRoutingBenchmarks-20261017-223120</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+INTEL XEON PLATINUM 8573C 3.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  InvocationCount=1  IterationCount=3  
+LaunchCount=1  UnrollFactor=1  WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                    </th><th>ShardCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Hash routing&#39;</td><td>3</td><td>3.410 &mu;s</td><td>22.779 &mu;s</td><td>1.2486 &mu;s</td><td>3.083 &mu;s</td><td>1.09</td><td>0.48</td><td>2</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>&#39;Range routing&#39;</td><td>3</td><td>3.433 &mu;s</td><td>16.695 &mu;s</td><td>0.9151 &mu;s</td><td>3.139 &mu;s</td><td>1.10</td><td>0.41</td><td>2</td><td>48 B</td><td>0.86</td>
+</tr><tr><td>&#39;Directory routing&#39;</td><td>3</td><td>2.272 &mu;s</td><td>19.435 &mu;s</td><td>1.0653 &mu;s</td><td>1.872 &mu;s</td><td>0.72</td><td>0.37</td><td>1</td><td>24 B</td><td>0.43</td>
+</tr><tr><td>&#39;Geo routing&#39;</td><td>3</td><td>5.351 &mu;s</td><td>32.605 &mu;s</td><td>1.7872 &mu;s</td><td>4.405 &mu;s</td><td>1.71</td><td>0.72</td><td>3</td><td>96 B</td><td>1.71</td>
+</tr><tr><td>&#39;Hash routing (miss → re-route)&#39;</td><td>3</td><td>6.798 &mu;s</td><td>33.251 &mu;s</td><td>1.8226 &mu;s</td><td>5.925 &mu;s</td><td>2.17</td><td>0.82</td><td>4</td><td>416 B</td><td>7.43</td>
+</tr><tr><td>GetAllShardIds</td><td>3</td><td>3.081 &mu;s</td><td>26.944 &mu;s</td><td>1.4769 &mu;s</td><td>2.487 &mu;s</td><td>0.98</td><td>0.51</td><td>2</td><td>104 B</td><td>1.86</td>
+</tr><tr><td>GetShardConnectionString</td><td>3</td><td>3.075 &mu;s</td><td>27.756 &mu;s</td><td>1.5214 &mu;s</td><td>2.389 &mu;s</td><td>0.98</td><td>0.52</td><td>2</td><td>64 B</td><td>1.14</td>
+</tr><tr><td>&#39;Directory add + lookup&#39;</td><td>3</td><td>5.498 &mu;s</td><td>47.359 &mu;s</td><td>2.5959 &mu;s</td><td>4.529 &mu;s</td><td>1.75</td><td>0.90</td><td>3</td><td>152 B</td><td>2.71</td>
+</tr><tr><td>&#39;Hash routing&#39;</td><td>50</td><td>3.888 &mu;s</td><td>12.447 &mu;s</td><td>0.6822 &mu;s</td><td>3.666 &mu;s</td><td>1.02</td><td>0.21</td><td>2</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>&#39;Range routing&#39;</td><td>50</td><td>4.279 &mu;s</td><td>9.602 &mu;s</td><td>0.5263 &mu;s</td><td>4.556 &mu;s</td><td>1.12</td><td>0.20</td><td>2</td><td>48 B</td><td>0.86</td>
+</tr><tr><td>&#39;Directory routing&#39;</td><td>50</td><td>3.234 &mu;s</td><td>9.813 &mu;s</td><td>0.5379 &mu;s</td><td>2.975 &mu;s</td><td>0.85</td><td>0.17</td><td>1</td><td>24 B</td><td>0.43</td>
+</tr><tr><td>&#39;Geo routing&#39;</td><td>50</td><td>6.402 &mu;s</td><td>15.557 &mu;s</td><td>0.8527 &mu;s</td><td>6.169 &mu;s</td><td>1.68</td><td>0.31</td><td>3</td><td>96 B</td><td>1.71</td>
+</tr><tr><td>&#39;Hash routing (miss → re-route)&#39;</td><td>50</td><td>8.220 &mu;s</td><td>22.415 &mu;s</td><td>1.2287 &mu;s</td><td>7.883 &mu;s</td><td>2.16</td><td>0.42</td><td>4</td><td>416 B</td><td>7.43</td>
+</tr><tr><td>GetAllShardIds</td><td>50</td><td>3.993 &mu;s</td><td>12.771 &mu;s</td><td>0.7000 &mu;s</td><td>3.906 &mu;s</td><td>1.05</td><td>0.22</td><td>2</td><td>480 B</td><td>8.57</td>
+</tr><tr><td>GetShardConnectionString</td><td>50</td><td>5.383 &mu;s</td><td>40.917 &mu;s</td><td>2.2428 &mu;s</td><td>4.654 &mu;s</td><td>1.41</td><td>0.55</td><td>2</td><td>64 B</td><td>1.14</td>
+</tr><tr><td>&#39;Directory add + lookup&#39;</td><td>50</td><td>6.508 &mu;s</td><td>19.387 &mu;s</td><td>1.0626 &mu;s</td><td>6.128 &mu;s</td><td>1.71</td><td>0.34</td><td>3</td><td>152 B</td><td>2.71</td>
+</tr></tbody></table>
+</body>
+</html>
