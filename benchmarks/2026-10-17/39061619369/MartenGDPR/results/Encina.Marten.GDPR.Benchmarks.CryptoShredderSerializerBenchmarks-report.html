@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Marten.GDPR.Benchmarks.CryptoShredderSerializerBenchmarks-20261017-200436</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                     </th><th>Mean </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>InnerSerializer_NonPii</td><td>620.5 ns</td><td>56.61 ns</td><td>3.10 ns</td><td>1.00</td><td>0.01</td><td>1</td><td>0.0153</td><td>256 B</td><td>1.00</td>
+</tr><tr><td>CryptoSerializer_NonPii</td><td>994.2 ns</td><td>14.42 ns</td><td>0.79 ns</td><td>1.60</td><td>0.01</td><td>2</td><td>0.0553</td><td>944 B</td><td>3.69</td>
+</tr><tr><td>CryptoDeserializer_NestedPiiEvent</td><td>34,624.7 ns</td><td>7,417.26 ns</td><td>406.57 ns</td><td>55.80</td><td>0.62</td><td>5</td><td>0.6104</td><td>10304 B</td><td>40.25</td>
+</tr><tr><td>CryptoSerializer_NestedPiiEvent</td><td>45,059.8 ns</td><td>2,501.42 ns</td><td>137.11 ns</td><td>72.61</td><td>0.37</td><td>6</td><td>0.6714</td><td>11304 B</td><td>44.16</td>
+</tr><tr><td>CryptoSerializer_NonPiiNested</td><td>5,650.9 ns</td><td>410.36 ns</td><td>22.49 ns</td><td>9.11</td><td>0.05</td><td>3</td><td>0.2136</td><td>3656 B</td><td>14.28</td>
+</tr><tr><td>CryptoSerializer_PiiEvent</td><td>7,398.8 ns</td><td>164.85 ns</td><td>9.04 ns</td><td>11.92</td><td>0.05</td><td>4</td><td>0.1297</td><td>2288 B</td><td>8.94</td>
+</tr></tbody></table>
+</body>
+</html>
