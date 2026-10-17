@@ -224,9 +224,8 @@ public sealed class PipelineStageConfigurationTests
             .AddRequestPreProcessor<PreProcessor>()
             .AddRequestPostCommitProcessor<PostCommitProcessor>());
         using var provider = services.BuildServiceProvider(StrictOptions);
-        using var scope = provider.CreateScope();
 
-        var steps = await scope.ServiceProvider.GetRequiredService<IEncinaPipelineInspector>().DescribeAsync<Req, string>();
+        var steps = await provider.GetRequiredService<IEncinaPipelineInspector>().DescribeAsync<Req, string>();
 
         var mine = steps.Where(step => step.StepType.DeclaringType == typeof(PipelineStageConfigurationTests)).ToArray();
         mine.ShouldBe(
@@ -281,10 +280,9 @@ public sealed class PipelineStageConfigurationTests
             .AddRequestPostCommitProcessor<PostCommitProcessor>(PipelineStage.Transaction)
             .AddPipelineBehavior<AuthBehavior>(PipelineStage.Transaction));
         using var provider = services.BuildServiceProvider(StrictOptions);
-        using var scope = provider.CreateScope();
 
         // R7: the post-commit processor sits below (outside) every transaction behavior, so the pipeline is valid
-        var described = await scope.ServiceProvider.GetRequiredService<IEncinaPipelineInspector>().DescribeAsync<Req, string>();
+        var described = await provider.GetRequiredService<IEncinaPipelineInspector>().DescribeAsync<Req, string>();
         var steps = described.Where(step => step.StepType.DeclaringType == typeof(PipelineStageConfigurationTests)).ToArray();
         steps.Select(step => step.StepType).ShouldBe([typeof(PostCommitProcessor), typeof(AuthBehavior)]);
     }
