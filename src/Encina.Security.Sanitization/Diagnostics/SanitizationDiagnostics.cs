@@ -126,10 +126,10 @@ internal static class SanitizationDiagnostics
     /// <summary>
     /// Records that the pipeline completed with an error.
     /// </summary>
-    internal static void RecordFailure(Activity? activity, string operation, string errorMessage)
+    internal static void RecordFailure(Activity? activity, string operation, string errorCode)
     {
         activity?.SetTag(TagOutcome, "failure");
         activity?.SetTag(TagOperation, operation);
-        activity?.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity?.SetStatus(ActivityStatusCode.Error, errorCode);
     }
 }

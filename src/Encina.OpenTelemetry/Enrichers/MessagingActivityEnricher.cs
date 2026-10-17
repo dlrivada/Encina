@@ -9,6 +9,11 @@ namespace Encina.OpenTelemetry.Enrichers;
 /// <summary>
 /// Enriches OpenTelemetry activities with messaging pattern information (Outbox, Inbox, Sagas, Scheduling).
 /// </summary>
+/// <remarks>
+/// The stored <c>ErrorMessage</c> of a message or saga is never copied to a tag: it can carry
+/// personal data or SQL fragments. The error tags record only that the entity is in a failed
+/// state (<c>true</c>).
+/// </remarks>
 public static class MessagingActivityEnricher
 {
     /// <summary>
@@ -29,20 +34,9 @@ public static class MessagingActivityEnricher
         activity.SetTag(ActivityTagNames.Messaging.MessageType, message.NotificationType);
         activity.SetTag(ActivityTagNames.Messaging.Processed, message.IsProcessed);
 
-        if (message.ProcessedAtUtc.HasValue)
-        {
-            activity.SetTag(ActivityTagNames.Messaging.ProcessedAt, message.ProcessedAtUtc.Value.ToString("O"));
-        }
-
-        if (message.RetryCount > 0)
-        {
-            activity.SetTag(ActivityTagNames.Messaging.RetryCount, message.RetryCount);
-        }
-
-        if (!string.IsNullOrWhiteSpace(message.ErrorMessage))
-        {
-            activity.SetTag(ActivityTagNames.Messaging.Error, message.ErrorMessage);
-        }
+        TagProcessedAt(activity, message.ProcessedAtUtc);
+        TagRetryCount(activity, message.RetryCount);
+        TagFailed(activity, ActivityTagNames.Messaging.Error, message.ErrorMessage);
     }
 
     /// <summary>
@@ -63,20 +57,9 @@ public static class MessagingActivityEnricher
         activity.SetTag(ActivityTagNames.Messaging.MessageType, message.RequestType);
         activity.SetTag(ActivityTagNames.Messaging.Processed, message.IsProcessed);
 
-        if (message.ProcessedAtUtc.HasValue)
-        {
-            activity.SetTag(ActivityTagNames.Messaging.ProcessedAt, message.ProcessedAtUtc.Value.ToString("O"));
-        }
-
-        if (message.RetryCount > 0)
-        {
-            activity.SetTag(ActivityTagNames.Messaging.RetryCount, message.RetryCount);
-        }
-
-        if (!string.IsNullOrWhiteSpace(message.ErrorMessage))
-        {
-            activity.SetTag(ActivityTagNames.Messaging.Error, message.ErrorMessage);
-        }
+        TagProcessedAt(activity, message.ProcessedAtUtc);
+        TagRetryCount(activity, message.RetryCount);
+        TagFailed(activity, ActivityTagNames.Messaging.Error, message.ErrorMessage);
     }
 
     /// <summary>
@@ -101,10 +84,7 @@ public static class MessagingActivityEnricher
             activity.SetTag(ActivityTagNames.Saga.CompletedAt, sagaState.CompletedAtUtc.Value.ToString("O"));
         }
 
-        if (!string.IsNullOrWhiteSpace(sagaState.ErrorMessage))
-        {
-            activity.SetTag(ActivityTagNames.Saga.Error, sagaState.ErrorMessage);
-        }
+        TagFailed(activity, ActivityTagNames.Saga.Error, sagaState.ErrorMessage);
     }
 
     /// <summary>
@@ -127,24 +107,38 @@ public static class MessagingActivityEnricher
         activity.SetTag(ActivityTagNames.Messaging.Processed, message.IsProcessed);
         activity.SetTag(ActivityTagNames.Messaging.IsRecurring, message.IsRecurring);
 
-        if (message.ProcessedAtUtc.HasValue)
-        {
-            activity.SetTag(ActivityTagNames.Messaging.ProcessedAt, message.ProcessedAtUtc.Value.ToString("O"));
-        }
-
         if (message.IsRecurring && !string.IsNullOrWhiteSpace(message.CronExpression))
         {
             activity.SetTag(ActivityTagNames.Messaging.CronExpression, message.CronExpression);
         }
 
-        if (message.RetryCount > 0)
-        {
-            activity.SetTag(ActivityTagNames.Messaging.RetryCount, message.RetryCount);
-        }
+        TagProcessedAt(activity, message.ProcessedAtUtc);
+        TagRetryCount(activity, message.RetryCount);
+        TagFailed(activity, ActivityTagNames.Messaging.Error, message.ErrorMessage);
+    }
 
-        if (!string.IsNullOrWhiteSpace(message.ErrorMessage))
+    private static void TagProcessedAt(Activity activity, DateTime? processedAtUtc)
+    {
+        if (processedAtUtc.HasValue)
         {
-            activity.SetTag(ActivityTagNames.Messaging.Error, message.ErrorMessage);
+            activity.SetTag(ActivityTagNames.Messaging.ProcessedAt, processedAtUtc.Value.ToString("O"));
+        }
+    }
+
+    private static void TagRetryCount(Activity activity, int retryCount)
+    {
+        if (retryCount > 0)
+        {
+            activity.SetTag(ActivityTagNames.Messaging.RetryCount, retryCount);
+        }
+    }
+
+    // Only the fact that the entity failed reaches the span, never its stored message (AGENTS.md section 3, #2134).
+    private static void TagFailed(Activity activity, string tagName, string? storedErrorMessage)
+    {
+        if (!string.IsNullOrWhiteSpace(storedErrorMessage))
+        {
+            activity.SetTag(tagName, true);
         }
     }
 }

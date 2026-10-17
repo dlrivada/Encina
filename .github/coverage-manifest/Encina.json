@@ -367,6 +367,22 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "Diagnostics/ActivityStatusDescriptions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Public static helper; tested directly",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "Unit tests call every public status description directly and check each returned text.",
+        "guard": "Guard tests cover the argument checks of the helper; the remaining lines are driven by unit tests."
+      }
+    },
     "Diagnostics/ActivityTagNames.cs": {
       "defaultTests": [
         "unit",
@@ -809,7 +825,13 @@
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 80
+      },
+      "justifications": {
+        "unit": "Span start and complete methods are driven by the unit tests (measured 85.71%)."
+      }
     },
     "Modules/Diagnostics/ModuleLog.cs": {
       "defaultTests": [
@@ -1035,7 +1057,13 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 85, "guard": 60, "contract": 65 },
+      "justifications": {
+        "unit": "Activity start, tagging and completion of the command pipeline are driven by the unit tests (measured 90.62%).",
+        "guard": "Guard tests reach the argument checks of the behavior (measured 67.19%).",
+        "contract": "The contract tests dispatch commands through the behavior (measured 68.75%)."
+      }
     },
     "Pipeline/Behaviors/CommandMetricsPipelineBehavior.cs": {
       "defaultTests": [
@@ -1053,7 +1081,13 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 85, "guard": 60, "contract": 65 },
+      "justifications": {
+        "unit": "Activity start, tagging and completion of the query pipeline are driven by the unit tests (measured 90.62%).",
+        "guard": "Guard tests reach the argument checks of the behavior (measured 67.19%).",
+        "contract": "The contract tests dispatch queries through the behavior (measured 68.75%)."
+      }
     },
     "Pipeline/Behaviors/QueryMetricsPipelineBehavior.cs": {
       "defaultTests": [
@@ -1382,7 +1416,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 85,
+        "guard": 42,
+        "contract": 42
+      },
+      "justifications": {
+        "unit": "Constants-only null object exercised by the pipeline behavior tests (measured 85.71%).",
+        "guard": "Constants-only null object exercised by the pipeline behavior tests (measured 42.86%).",
+        "contract": "Constants-only null object exercised by the pipeline behavior tests (measured 42.86%)."
+      }
     },
     "Sharding/Aggregation/AggregationCombiner.cs": {
       "defaultTests": [
@@ -1538,7 +1582,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 70, "guard": 0 },
+      "justifications": {
+        "unit": "Routing and the instrumentation of each shard lookup are driven by the unit tests (measured 81.08%).",
+        "guard": "Guard tests do not reach the internal decorator; its constructor guards are unit tested."
+      }
     },
     "Sharding/Diagnostics/ShardedDatabasePoolMetrics.cs": {
       "defaultTests": [
@@ -1559,7 +1608,13 @@
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 50
+      },
+      "justifications": {
+        "unit": "Target 50% set for #2134; unit tests cover span creation and tags, and the rest is the no-listener fast path."
+      }
     },
     "Sharding/Diagnostics/ShardingDiagnosticsServiceCollectionExtensions.cs": {
       "defaultTests": [

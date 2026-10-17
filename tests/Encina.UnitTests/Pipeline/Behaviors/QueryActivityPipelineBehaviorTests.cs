@@ -151,7 +151,7 @@ public sealed class QueryActivityPipelineBehaviorTests : IDisposable
     [Fact]
     public async Task Handle_WithFunctionalFailure_RecordsFailureInActivity()
     {
-        var detector = new TestFailureDetector(detectsFailure: true, failureReason: "not.found", errorCode: "NF001", errorMessage: "Entity not found");
+        var detector = new TestFailureDetector(detectsFailure: true, failureReason: "not.found", errorCode: "NF001");
         var behavior = new QueryActivityPipelineBehavior<TestQuery, string>(detector);
 
         await behavior.Handle(
@@ -166,7 +166,11 @@ public sealed class QueryActivityPipelineBehaviorTests : IDisposable
         activity.GetTagItem("Encina.functional_failure").ShouldBe(true);
         activity.GetTagItem("Encina.failure_reason").ShouldBe("not.found");
         activity.GetTagItem("Encina.failure_code").ShouldBe("NF001");
-        activity.GetTagItem("Encina.failure_message").ShouldBe("Entity not found");
+        activity.GetTagItem("Encina.failure_message").ShouldBeNull();
+        foreach (var tag in activity.Tags)
+        {
+            tag.Value.ShouldNotBe("Entity not found");
+        }
     }
 
     [Fact]
@@ -306,7 +310,7 @@ public sealed class QueryActivityPipelineBehaviorTests : IDisposable
     [Fact]
     public async Task Handle_WithFunctionalFailureNoCode_DoesNotSetCodeTag()
     {
-        var detector = new TestFailureDetector(detectsFailure: true, failureReason: "failed", errorCode: null, errorMessage: null);
+        var detector = new TestFailureDetector(detectsFailure: true, failureReason: "failed", errorCode: null);
         var behavior = new QueryActivityPipelineBehavior<TestQuery, string>(detector);
 
         await behavior.Handle(
@@ -337,7 +341,7 @@ public sealed class QueryActivityPipelineBehaviorTests : IDisposable
         activity.DisplayName.ShouldStartWith("Encina.Query.");
     }
 
-    private sealed class TestFailureDetector(bool detectsFailure, string? failureReason, string? errorCode, string? errorMessage) : IFunctionalFailureDetector
+    private sealed class TestFailureDetector(bool detectsFailure, string? failureReason, string? errorCode) : IFunctionalFailureDetector
     {
         public bool TryExtractFailure(object? response, out string reason, out object? capturedFailure)
         {
@@ -347,7 +351,5 @@ public sealed class QueryActivityPipelineBehaviorTests : IDisposable
         }
 
         public string? TryGetErrorCode(object? capturedFailure) => errorCode;
-
-        public string? TryGetErrorMessage(object? capturedFailure) => errorMessage;
     }
 }

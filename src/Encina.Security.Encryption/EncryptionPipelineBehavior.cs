@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using Encina.Diagnostics;
 using Encina.Security.Encryption.Abstractions;
 using Encina.Security.Encryption.Diagnostics;
 using LanguageExt;
@@ -260,13 +261,13 @@ public sealed class EncryptionPipelineBehavior<TRequest, TResponse> : IPipelineB
     /// </summary>
     private void RecordFailure<T>(Activity? activity, long startedAt, string operation, string requestTypeName, Either<EncinaError, T> failed)
     {
-        var (errorMessage, errorCode) = failed.Match(
-            Right: _ => (string.Empty, string.Empty),
-            Left: e => (e.Message, e.GetCode().IfNone("encina.unknown")));
+        var errorCode = failed.Match(
+            Right: _ => string.Empty,
+            Left: ActivityStatusDescriptions.ForError);
 
         if (_options.EnableTracing)
         {
-            EncryptionDiagnostics.RecordFailure(activity, operation, errorMessage);
+            EncryptionDiagnostics.RecordFailure(activity, operation, errorCode);
         }
 
         RecordFailureMetrics(startedAt, operation, requestTypeName);

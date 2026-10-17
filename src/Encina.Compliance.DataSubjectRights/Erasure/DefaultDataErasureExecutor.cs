@@ -1,6 +1,7 @@
 using System.Diagnostics;
 
 using Encina.Compliance.DataSubjectRights.Diagnostics;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -129,7 +130,7 @@ public sealed class DefaultDataErasureExecutor : IDataErasureExecutor
                 _logger.ErasureFailed(error.GetCode().IfNone("encina.unknown"));
 
                 stopwatch.Stop();
-                DataSubjectRightsDiagnostics.RecordFailed(activity, error.GetCode().IfNone("encina.unknown"));
+                DataSubjectRightsDiagnostics.RecordFailed(activity, ActivityStatusDescriptions.ForError(error));
                 DataSubjectRightsDiagnostics.ErasureDuration.Record(stopwatch.Elapsed.TotalMilliseconds);
 
                 return error;

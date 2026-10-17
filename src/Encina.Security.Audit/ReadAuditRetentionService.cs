@@ -146,7 +146,7 @@ public sealed class ReadAuditRetentionService : BackgroundService
                 },
                 Left: error =>
                 {
-                    var errorCode = error.GetCode().IfNone("encina.unknown");
+                    var errorCode = ActivityStatusDescriptions.ForError(error);
                     ReadAuditLog.PurgeFailed(_logger, errorCode);
                     ReadAuditActivitySource.Failed(activity, errorCode);
                 });
@@ -159,7 +159,7 @@ public sealed class ReadAuditRetentionService : BackgroundService
         catch (Exception ex)
         {
             ReadAuditLog.PurgeError(_logger, ex.ForLogging());
-            ReadAuditActivitySource.Failed(activity, ex.GetType().Name);
+            ReadAuditActivitySource.Failed(activity, ActivityStatusDescriptions.ForException(ex));
         }
     }
 }

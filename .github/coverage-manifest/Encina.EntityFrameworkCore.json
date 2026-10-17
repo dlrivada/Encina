@@ -302,7 +302,13 @@
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 85
+      },
+      "justifications": {
+        "unit": "Span start and complete methods are driven by the unit tests (measured 88.89%)."
+      }
     },
     "Diagnostics/QueryCacheLog.cs": {
       "defaultTests": [
@@ -324,7 +330,13 @@
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 80
+      },
+      "justifications": {
+        "unit": "Span start and complete methods are driven by the unit tests (measured 82.86%)."
+      }
     },
     "Diagnostics/SoftDeleteLog.cs": {
       "defaultTests": [
@@ -553,7 +565,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 90,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Target 90% set for #2134; unit tests drive the registry mapping and the rest is the database-backed query path, which EF Core integration tests cover.",
+        "guard": "Guard tests only assert argument checks; this class has no guarded public surface, so the lines are driven by unit tests."
+      }
     },
     "ReadWriteSeparation/IReadWriteDbContextFactory.cs": {
       "defaultTests": [

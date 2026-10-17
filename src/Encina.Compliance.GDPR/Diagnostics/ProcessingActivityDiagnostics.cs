@@ -167,7 +167,7 @@ internal static class ProcessingActivityDiagnostics
     /// </summary>
     /// <param name="activity">The activity to complete (may be <c>null</c>).</param>
     /// <param name="operation">The operation name for counter tagging.</param>
-    /// <param name="reason">The failure reason.</param>
+    /// <param name="reason">A fixed reason code or an exception type name, never an error or exception message (#2134).</param>
     internal static void RecordFailure(Activity? activity, string operation = "unknown", string? reason = null)
     {
         activity?.SetTag(TagOutcome, "failed");

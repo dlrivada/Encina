@@ -592,7 +592,7 @@ public sealed class ErrorMessageLeakTests
 
         using var activity = new Activity("saga");
         MessagingActivityEnricher.EnrichWithSagaState(activity, harness.MockState);
-        activity.GetTagItem(OtelTagNames.Saga.Error).ShouldBe(SagaErrorCodes.HandlerFailed);
+        activity.GetTagItem(OtelTagNames.Saga.Error).ShouldBe(true);
     }
 
     [Fact]

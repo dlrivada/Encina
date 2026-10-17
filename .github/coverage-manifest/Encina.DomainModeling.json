@@ -158,10 +158,19 @@
     },
     "Diagnostics/AuditActivitySource.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "contract"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 0,
+        "contract": 80
+      },
+      "justifications": {
+        "unit": "The coverage collector does not instrument Encina.DomainModeling in the UnitTests run (only in ContractTests), so unit reports no data although ActivitySourceLifecycleTests and FailedActivityStatusTests run these methods; see #898.",
+        "contract": "ActivitySourceFailureContractTests drives every Start, Complete and Failed method of the source; the ContractTests run is the one that instruments this assembly."
+      }
     },
     "Diagnostics/AuditLog.cs": {
       "defaultTests": [
@@ -180,10 +189,19 @@
     },
     "Diagnostics/BulkOperationsActivitySource.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "contract"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 0,
+        "contract": 80
+      },
+      "justifications": {
+        "unit": "Encina.DomainModeling is not instrumented by coverlet in the unit run (report shows no data, #898); the spans are asserted by the unit tests in Encina.UnitTests/OpenTelemetry.",
+        "contract": "ActivitySourceFailureContractTests drives every Start, Complete and Failed method of the source; the ContractTests run is the one that instruments this assembly."
+      }
     },
     "Diagnostics/BulkOperationsLog.cs": {
       "defaultTests": [
@@ -209,10 +227,19 @@
     },
     "Diagnostics/RepositoryActivitySource.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "contract"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 0,
+        "contract": 80
+      },
+      "justifications": {
+        "unit": "Encina.DomainModeling is not instrumented by coverlet in the unit run (report shows no data, #898); the spans are asserted by the unit tests in Encina.UnitTests/OpenTelemetry.",
+        "contract": "ActivitySourceFailureContractTests drives every Start, Complete and Failed method of the source; the ContractTests run is the one that instruments this assembly."
+      }
     },
     "Diagnostics/RepositoryLog.cs": {
       "defaultTests": [
@@ -246,10 +273,19 @@
     },
     "Diagnostics/UnitOfWorkActivitySource.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "contract"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 0,
+        "contract": 80
+      },
+      "justifications": {
+        "unit": "Encina.DomainModeling is not instrumented by coverlet in the unit run (report shows no data, #898); the spans are asserted by the unit tests in Encina.UnitTests/OpenTelemetry.",
+        "contract": "ActivitySourceFailureContractTests drives every Start, Complete and Failed method of the source; the ContractTests run is the one that instruments this assembly."
+      }
     },
     "Diagnostics/UnitOfWorkLog.cs": {
       "defaultTests": [

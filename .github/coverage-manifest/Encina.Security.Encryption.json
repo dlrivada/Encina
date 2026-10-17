@@ -69,7 +69,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 75,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Target 75% set for #2134; unit tests drive the activity and meter helpers, and the rest is the no-listener fast path.",
+        "guard": "Guard tests only assert argument checks; this class has no guarded public surface, so the lines are driven by unit tests."
+      }
     },
     "EncryptedPropertyCache.cs": {
       "defaultTests": [
@@ -140,7 +148,17 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 95,
+        "guard": 5,
+        "contract": 0
+      },
+      "justifications": {
+        "unit": "Unit tests drive the encrypt and decrypt paths and their error results with a mocked next delegate.",
+        "guard": "Guard tests only assert argument checks; the remaining lines are driven by unit and integration tests.",
+        "contract": "Contract tests pin public interfaces; this internal pipeline behavior has no public interface of its own."
+      }
     },
     "Health/EncryptionHealthCheck.cs": {
       "defaultTests": [
