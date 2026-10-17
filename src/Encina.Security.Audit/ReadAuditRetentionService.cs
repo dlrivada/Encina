@@ -159,7 +159,7 @@ public sealed class ReadAuditRetentionService : BackgroundService
         catch (Exception ex)
         {
             ReadAuditLog.PurgeError(_logger, ex.ForLogging());
-            ReadAuditActivitySource.Failed(activity, ex.Message);
+            ReadAuditActivitySource.Failed(activity, ex.GetType().Name);
         }
     }
 }
