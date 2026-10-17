@@ -21,6 +21,7 @@ namespace Encina.UnitTests.Security.Audit;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Feature", "Audit")]
+[Collection("ActivityListenerIsolation")]
 public sealed class AuditedRepositoryTests
 {
     // ── Constructor guards ──────────────────────────────────────────────

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 
 using Encina.Compliance.DataSubjectRights.Diagnostics;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -127,7 +128,7 @@ public sealed class DefaultDataPortabilityExporter : IDataPortabilityExporter
                 _logger.PortabilityExportFailed(format.ToString(), error.GetCode().IfNone("encina.unknown"));
 
                 stopwatch.Stop();
-                DataSubjectRightsDiagnostics.RecordFailed(activity, error.GetCode().IfNone("encina.unknown"));
+                DataSubjectRightsDiagnostics.RecordFailed(activity, ActivityStatusDescriptions.ForError(error));
                 DataSubjectRightsDiagnostics.PortabilityExportsTotal.Add(1,
                     new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagFormat, format.ToString()),
                     new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "failed"));

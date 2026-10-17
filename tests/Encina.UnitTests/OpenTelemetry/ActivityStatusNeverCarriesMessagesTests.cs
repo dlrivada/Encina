@@ -20,6 +20,7 @@ namespace Encina.UnitTests.OpenTelemetry;
 /// Proves, per decorator family, that a failure writes only the error code or the exception type to
 /// the activity status description and tags, never the message (AGENTS.md section 3, #2134).
 /// </summary>
+[Collection("ActivityListenerIsolation")]
 public sealed class ActivityStatusNeverCarriesMessagesTests
 {
     private const string Code = "test.sensitive_failure";

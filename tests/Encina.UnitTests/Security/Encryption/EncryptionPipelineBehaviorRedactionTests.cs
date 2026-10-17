@@ -16,6 +16,7 @@ namespace Encina.UnitTests.Security.Encryption;
 /// <summary>
 /// The pipeline failure log carries the error code, never the error message (#1557).
 /// </summary>
+[Collection("ActivityListenerIsolation")]
 public sealed class EncryptionPipelineBehaviorRedactionTests : IDisposable
 {
     private const string Sentinel = "SENTINEL-encryption-error-message";

@@ -22,6 +22,7 @@ namespace Encina.UnitTests.Cdc.Caching;
 /// </summary>
 [SuppressMessage("Reliability", "CA2012:Use ValueTasks correctly",
     Justification = "NSubstitute mock setup pattern")]
+[Collection("ActivityListenerIsolation")]
 public sealed class QueryCacheInvalidationCdcHandlerTests
 {
     #region Entity Type Resolution

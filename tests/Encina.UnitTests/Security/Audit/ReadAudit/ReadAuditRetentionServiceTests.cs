@@ -17,6 +17,7 @@ namespace Encina.UnitTests.Security.Audit.ReadAudit;
 /// <summary>
 /// Unit tests for <see cref="ReadAuditRetentionService"/>.
 /// </summary>
+[Collection("ActivityListenerIsolation")]
 public class ReadAuditRetentionServiceTests
 {
     private readonly IReadAuditStore _mockStore;
@@ -208,14 +209,14 @@ public class ReadAuditRetentionServiceTests
     public async Task ExecuteAsync_WhenStoreReturnsError_ActivityStatusCarriesOnlyTheErrorCode()
     {
         // Arrange
-        using var capture = new ActivityStatusCapture();
+        using var capture = new ActivityStatusCapture(ReadAuditSourceName);
         var secret = "SECRET-" + Guid.NewGuid().ToString("N");
         _mockStore.PurgeEntriesAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, int>>(
                 Left(EncinaErrors.Create("test.purge_failed", "purge failed for " + secret))));
 
         // Act
-        await RunOnePurgeCycleAsync(capture);
+        await RunOnePurgeCycleAsync(capture, "test.purge_failed");
 
         // Assert
         capture.ShouldHaveErrorStatus("test.purge_failed", secret);
@@ -225,13 +226,13 @@ public class ReadAuditRetentionServiceTests
     public async Task ExecuteAsync_WhenStoreThrows_ActivityStatusCarriesOnlyTheExceptionType()
     {
         // Arrange
-        using var capture = new ActivityStatusCapture();
+        using var capture = new ActivityStatusCapture(ReadAuditSourceName);
         var secret = "SECRET-" + Guid.NewGuid().ToString("N");
         _mockStore.PurgeEntriesAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Throws(new InvalidOperationException(secret));
 
         // Act
-        await RunOnePurgeCycleAsync(capture);
+        await RunOnePurgeCycleAsync(capture, nameof(InvalidOperationException));
 
         // Assert
         capture.ShouldHaveErrorStatus(nameof(InvalidOperationException), secret);
@@ -241,7 +242,9 @@ public class ReadAuditRetentionServiceTests
 
     #region Helpers
 
-    private async Task RunOnePurgeCycleAsync(ActivityStatusCapture capture)
+    private const string ReadAuditSourceName = "Encina.ReadAudit";
+
+    private async Task RunOnePurgeCycleAsync(ActivityStatusCapture capture, string expectedStatusDescription)
     {
         var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
@@ -251,7 +254,7 @@ public class ReadAuditRetentionServiceTests
         await service.StartAsync(cts.Token);
         await WaitForTimerRegistrationAsync(fakeTime);
         fakeTime.Advance(TimeSpan.FromHours(1.1));
-        await capture.WaitForErrorActivityAsync();
+        await capture.WaitForErrorActivityAsync(expectedStatusDescription);
         await cts.CancelAsync();
 
         try

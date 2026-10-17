@@ -64,6 +64,25 @@ public sealed class DataSubjectRightsDiagnosticsErrorMessageLeakTests
 
         result.IsLeft.ShouldBeTrue();
         capture.AssertNoSentinel();
+        capture.AssertErrorStatus("dsr.locate.failed");
+    }
+
+    [Fact]
+    public async Task HandleErasureAsync_ErrorWithoutCode_StatusIsTheFixedFallbackNotTheMessage()
+    {
+        var erasureExecutor = Substitute.For<IDataErasureExecutor>();
+        erasureExecutor.EraseAsync(SubjectId, Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, ErasureResult>(EncinaError.New(SentinelMessage)));
+
+        var (service, _) = CreateService(erasureExecutor: erasureExecutor);
+        using var capture = CreateCapture();
+
+        var request = new ErasureRequest(SubjectId, ErasureReason.NoLongerNecessary, Scope: null);
+        var result = await DiagnosticsCapture.CaptureAsync(() => service.HandleErasureAsync(request).AsTask());
+
+        result.IsLeft.ShouldBeTrue();
+        capture.AssertNoSentinel();
+        capture.AssertErrorStatus("Encina.unknown");
     }
 
     [Fact]
@@ -347,6 +366,18 @@ public sealed class DataSubjectRightsDiagnosticsErrorMessageLeakTests
                     tagString.ShouldNotContain(SentinelMessage);
                 }
             }
+        }
+
+        public void AssertErrorStatus(string expectedDescription)
+        {
+            Activity[] snapshot;
+            lock (_sync)
+            {
+                snapshot = [.. _activities];
+            }
+
+            snapshot.Any(a => a.Status == ActivityStatusCode.Error && a.StatusDescription == expectedDescription)
+                .ShouldBeTrue($"no error activity with status description '{expectedDescription}'");
         }
 
         public void Dispose()

@@ -4,6 +4,7 @@ using System.Reflection;
 using Encina.Compliance.DataSubjectRights.Abstractions;
 using Encina.Compliance.DataSubjectRights.Diagnostics;
 using Encina.Compliance.GDPR;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -197,7 +198,7 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
                 // Store error — log and proceed (fail-open to avoid blocking all requests). The
                 // data subject's own identifier is never logged (#1429, following #1314).
                 _logger.RestrictionCheckStoreError(requestTypeName, error.GetCode().IfNone("encina.unknown"));
-                DataSubjectRightsDiagnostics.RecordFailed(activity, error.GetCode().IfNone("encina.unknown"));
+                DataSubjectRightsDiagnostics.RecordFailed(activity, ActivityStatusDescriptions.ForError(error));
                 DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
                     new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "error"));
                 return await nextStep().ConfigureAwait(false);

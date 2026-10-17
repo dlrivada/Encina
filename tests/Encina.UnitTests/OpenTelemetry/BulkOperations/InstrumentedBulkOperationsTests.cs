@@ -9,6 +9,7 @@ namespace Encina.UnitTests.OpenTelemetry.BulkOperations;
 /// <summary>
 /// Unit tests for <see cref="InstrumentedBulkOperations{TEntity}"/>.
 /// </summary>
+[Collection("ActivityListenerIsolation")]
 public sealed class InstrumentedBulkOperationsTests
 {
     private sealed class TestEntity

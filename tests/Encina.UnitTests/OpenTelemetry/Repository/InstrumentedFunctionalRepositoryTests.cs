@@ -9,6 +9,7 @@ namespace Encina.UnitTests.OpenTelemetry.Repository;
 /// <summary>
 /// Unit tests for <see cref="InstrumentedFunctionalRepository{TEntity, TId}"/>.
 /// </summary>
+[Collection("ActivityListenerIsolation")]
 public sealed class InstrumentedFunctionalRepositoryTests
 {
     private sealed class TestEntity

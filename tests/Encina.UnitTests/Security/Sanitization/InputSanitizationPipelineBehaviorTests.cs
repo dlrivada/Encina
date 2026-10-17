@@ -20,6 +20,7 @@ namespace Encina.UnitTests.Security.Sanitization;
 /// <summary>
 /// Unit tests for <see cref="InputSanitizationPipelineBehavior{TRequest, TResponse}"/>.
 /// </summary>
+[Collection("ActivityListenerIsolation")]
 public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
 {
     private readonly SanitizationOrchestrator _orchestrator;

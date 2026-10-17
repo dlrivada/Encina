@@ -19,6 +19,7 @@ namespace Encina.UnitTests.OpenTelemetry;
 /// Proves that the messaging decorators, the messaging enricher and the shard router never write an
 /// error message to an activity status description or tag (AGENTS.md section 3, #2134).
 /// </summary>
+[Collection("ActivityListenerIsolation")]
 public sealed class MessagingActivityStatusTests
 {
     private const string Code = "test.sensitive_failure";

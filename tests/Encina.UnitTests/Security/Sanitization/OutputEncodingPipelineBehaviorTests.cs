@@ -20,6 +20,7 @@ namespace Encina.UnitTests.Security.Sanitization;
 /// <summary>
 /// Unit tests for <see cref="OutputEncodingPipelineBehavior{TRequest, TResponse}"/>.
 /// </summary>
+[Collection("ActivityListenerIsolation")]
 public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
 {
     private readonly IOutputEncoder _encoder;

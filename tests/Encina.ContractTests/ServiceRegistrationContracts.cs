@@ -224,7 +224,5 @@ public sealed class ServiceRegistrationContracts
         }
 
         public string? TryGetErrorCode(object? capturedFailure) => null;
-
-        public string? TryGetErrorMessage(object? capturedFailure) => null;
     }
 }

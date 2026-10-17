@@ -6,7 +6,7 @@ namespace Encina;
 /// <remarks>
 /// Encina relies on this abstraction to avoid binding to specific domain types.
 /// Implementations can inspect <c>Either</c>, discriminated unions, or custom objects to extract
-/// codes and messages.
+/// error codes.
 /// </remarks>
 /// <example>
 /// <code>
@@ -28,9 +28,6 @@ namespace Encina;
 ///
 ///     public string? TryGetErrorCode(object? capturedFailure)
 ///         => (capturedFailure as PaymentError)?.Code;
-///
-///     public string? TryGetErrorMessage(object? capturedFailure)
-///         => (capturedFailure as PaymentError)?.Message;
 /// }
 /// </code>
 /// </example>
@@ -55,15 +52,4 @@ public interface IFunctionalFailureDetector
     /// <param name="capturedFailure">Instance previously returned by <see cref="TryExtractFailure"/>.</param>
     /// <returns>The interpreted code or <c>null</c> when not applicable.</returns>
     string? TryGetErrorCode(object? capturedFailure);
-
-    /// <summary>
-    /// Gets a human-friendly message or detail from the captured error.
-    /// </summary>
-    /// <remarks>
-    /// The activity pipeline behaviors never read this value: messages can carry personal data
-    /// and must not reach spans. It is available to consumers that display the failure.
-    /// </remarks>
-    /// <param name="capturedFailure">Instance returned by <see cref="TryExtractFailure"/>.</param>
-    /// <returns>Message to display or <c>null</c> when unavailable.</returns>
-    string? TryGetErrorMessage(object? capturedFailure);
 }

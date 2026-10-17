@@ -13,6 +13,7 @@ namespace Encina.UnitTests.OpenTelemetry;
 /// success path (their <c>Failed</c> overloads had no caller), so each remaining method runs and sets
 /// the status a trace backend reads.
 /// </summary>
+[Collection("ActivityListenerIsolation")]
 public sealed class ActivitySourceLifecycleTests
 {
     private static Activity Started(Activity? activity)

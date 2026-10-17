@@ -24,6 +24,7 @@ namespace Encina.UnitTests.OpenTelemetry;
 /// (here the secret) in the exception message. The MongoDB registry builds its client and index in the
 /// constructor, so its failure branch needs a live server and is covered by its integration test.
 /// </remarks>
+[Collection("ActivityListenerIsolation")]
 public sealed partial class ProcessingActivityRegistryActivityStatusTests
 {
     [GeneratedRegex("^[A-Za-z]+Exception$")]

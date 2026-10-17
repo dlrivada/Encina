@@ -13,11 +13,17 @@ internal sealed class ActivityStatusCapture : IDisposable
     private readonly List<Activity> _stopped = [];
     private readonly Lock _gate = new();
 
-    public ActivityStatusCapture()
+    /// <summary>
+    /// Creates a capture for every Encina source, or only for <paramref name="sourceName"/> when given
+    /// so that tests running in parallel cannot leak activities into this one.
+    /// </summary>
+    public ActivityStatusCapture(string? sourceName = null)
     {
         _listener = new ActivityListener
         {
-            ShouldListenTo = source => source.Name.StartsWith("Encina", StringComparison.Ordinal),
+            ShouldListenTo = source => sourceName is null
+                ? source.Name.StartsWith("Encina", StringComparison.Ordinal)
+                : string.Equals(source.Name, sourceName, StringComparison.Ordinal),
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = activity =>
             {
@@ -82,12 +88,15 @@ internal sealed class ActivityStatusCapture : IDisposable
         [.. Snapshot().Where(a => a.Status == ActivityStatusCode.Error).Select(a => a.StatusDescription)];
 
     /// <summary>
-    /// Waits until an error activity has stopped, for background services that report asynchronously.
+    /// Waits until an error activity with exactly <paramref name="expectedDescription"/> has stopped,
+    /// for background services that report asynchronously. An error activity with another description
+    /// never ends the wait.
     /// </summary>
-    public async Task WaitForErrorActivityAsync(int timeoutMs = 5000)
+    public async Task WaitForErrorActivityAsync(string expectedDescription, int timeoutMs = 5000)
     {
         var sw = Stopwatch.StartNew();
-        while (sw.ElapsedMilliseconds < timeoutMs && !Snapshot().Any(a => a.Status == ActivityStatusCode.Error))
+        while (sw.ElapsedMilliseconds < timeoutMs
+            && !Snapshot().Any(a => a.Status == ActivityStatusCode.Error && a.StatusDescription == expectedDescription))
         {
             await Task.Delay(10);
         }
