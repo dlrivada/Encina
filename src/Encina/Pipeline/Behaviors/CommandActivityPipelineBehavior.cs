@@ -138,18 +138,23 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse>(IFuncti
 
     private void RecordFunctionalFailure(Activity? activity, string? failureReason, object? capturedFailure)
     {
-        activity?.SetStatus(ActivityStatusCode.Error, failureReason);
-        activity?.SetTag(ActivityTagNames.FunctionalFailure, true);
+        if (activity is null)
+        {
+            return;
+        }
+
+        activity.SetStatus(ActivityStatusCode.Error, failureReason);
+        activity.SetTag(ActivityTagNames.FunctionalFailure, true);
 
         if (!string.IsNullOrWhiteSpace(failureReason))
         {
-            activity?.SetTag(ActivityTagNames.FailureReason, failureReason);
+            activity.SetTag(ActivityTagNames.FailureReason, failureReason);
         }
 
         var errorCode = _failureDetector.TryGetErrorCode(capturedFailure);
         if (!string.IsNullOrWhiteSpace(errorCode))
         {
-            activity?.SetTag(ActivityTagNames.FailureCode, errorCode);
+            activity.SetTag(ActivityTagNames.FailureCode, errorCode);
         }
     }
 

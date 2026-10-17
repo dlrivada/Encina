@@ -129,8 +129,8 @@ public sealed class ActivityPipelineBehaviorContractTests
         // Assert: the response is still Right (functional failure is recorded, not converted to Left)
         result.IsRight.ShouldBeTrue();
         detector.Received(1).TryExtractFailure(Arg.Any<object?>(), out Arg.Any<string>()!, out Arg.Any<object?>()!);
-        detector.Received(1).TryGetErrorCode(Arg.Any<object?>());
-        detector.Received(1).TryGetErrorMessage(Arg.Any<object?>());
+        // The message can carry personal data: the behavior must never read it for the span (#2134).
+        detector.DidNotReceive().TryGetErrorMessage(Arg.Any<object?>());
     }
 
     [Fact]
@@ -229,8 +229,8 @@ public sealed class ActivityPipelineBehaviorContractTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        detector.Received(1).TryGetErrorCode(Arg.Any<object?>());
-        detector.Received(1).TryGetErrorMessage(Arg.Any<object?>());
+        // The message can carry personal data: the behavior must never read it for the span (#2134).
+        detector.DidNotReceive().TryGetErrorMessage(Arg.Any<object?>());
     }
 
     [Fact]

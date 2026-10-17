@@ -113,6 +113,53 @@ public sealed class MessagingActivityStatusTests
     }
 
     [Fact]
+    public void ShardRouter_CompoundKeyFailure_StatusIsErrorCode()
+    {
+        using var capture = new ActivityStatusCapture();
+        var (error, secret) = NewError();
+        var key = new CompoundShardKey("a", "b");
+        var router = new InstrumentedShardRouter(
+            new FakeRouter { CompoundResult = Either<EncinaError, string>.Left(error) },
+            new ShardRoutingMetrics(Topology()),
+            "hash");
+
+        router.GetShardId(key);
+
+        capture.ShouldHaveErrorStatus(Code, secret);
+    }
+
+    [Fact]
+    public void ShardRouter_PartialKeyFailure_StatusIsErrorCode()
+    {
+        using var capture = new ActivityStatusCapture();
+        var (error, secret) = NewError();
+        var key = new CompoundShardKey("a");
+        var router = new InstrumentedShardRouter(
+            new FakeRouter { PartialResult = Either<EncinaError, IReadOnlyList<string>>.Left(error) },
+            new ShardRoutingMetrics(Topology()),
+            "hash");
+
+        router.GetShardIds(key);
+
+        capture.ShouldHaveErrorStatus(Code, secret);
+    }
+
+    [Fact]
+    public void ShardRouter_PartialKeySuccess_CompletesOkWithShardCount()
+    {
+        using var capture = new ActivityStatusCapture();
+        var key = new CompoundShardKey("a");
+        var router = new InstrumentedShardRouter(
+            new FakeRouter { PartialResult = Either<EncinaError, IReadOnlyList<string>>.Right(["shard-1"]) },
+            new ShardRoutingMetrics(Topology()),
+            "hash");
+
+        var result = router.GetShardIds(key);
+
+        result.IsRight.ShouldBeTrue();
+    }
+
+    [Fact]
     public void Enricher_OutboxMessageWithStoredError_TagsOnlyTheFailedMarker()
     {
         var secret = "SECRET-" + Guid.NewGuid().ToString("N");
@@ -183,6 +230,26 @@ public sealed class MessagingActivityStatusTests
         MessagingActivityEnricher.EnrichWithOutboxMessage(activity, message);
 
         activity.GetTagItem(OtelTagNames.Messaging.Error).ShouldBeNull();
+    }
+
+    // NSubstitute cannot stub the default interface members of IShardRouter, so the compound-key paths use a fake.
+    private sealed class FakeRouter : IShardRouter
+    {
+        public Either<EncinaError, string> CompoundResult { get; init; } = Either<EncinaError, string>.Right("shard-1");
+
+        public Either<EncinaError, IReadOnlyList<string>> PartialResult { get; init; } =
+            Either<EncinaError, IReadOnlyList<string>>.Right(["shard-1"]);
+
+        public Either<EncinaError, string> GetShardId(string shardKey) => Either<EncinaError, string>.Right("shard-1");
+
+        public Either<EncinaError, string> GetShardId(CompoundShardKey key) => CompoundResult;
+
+        public Either<EncinaError, IReadOnlyList<string>> GetShardIds(CompoundShardKey partialKey) => PartialResult;
+
+        public IReadOnlyList<string> GetAllShardIds() => ["shard-1"];
+
+        public Either<EncinaError, string> GetShardConnectionString(string shardId) =>
+            Either<EncinaError, string>.Right("conn-shard-1");
     }
 
     private static ShardTopology Topology() => new([new ShardInfo("shard-1", "conn-shard-1")]);
