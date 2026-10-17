@@ -1,0 +1,1 @@
+- `EncinaConfiguration` no longer registers the never-resolved `ICommandPipelineBehavior<,>` and `IQueryPipelineBehavior<,>` service descriptors for a configured behavior; the pipeline builder resolves only `IPipelineBehavior<,>` (#2184).

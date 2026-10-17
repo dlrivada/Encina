@@ -141,6 +141,24 @@ Encina.EncinaConfiguration.RegisterServicesFromAssembly(System.Reflection.Assemb
 Encina.EncinaConfiguration.RegisterServicesFromAssemblyContaining<T>() -> Encina.EncinaConfiguration!
 Encina.EncinaConfiguration.EncinaConfiguration() -> void
 Encina.EncinaConfiguration.WithHandlerLifetime(Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddPipelineBehavior(System.Type! pipelineBehaviorType, Encina.PipelineStage stage, int order = 0) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddPipelineBehavior<TBehavior>(Encina.PipelineStage stage, int order = 0) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPreProcessor(System.Type! processorType, Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPreProcessor<TProcessor>(Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPostProcessor(System.Type! processorType, Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPostProcessor<TProcessor>(Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestErrorProcessor(System.Type! processorType) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestErrorProcessor(System.Type! processorType, Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestErrorProcessor<TProcessor>() -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestErrorProcessor<TProcessor>(Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPostCommitProcessor(System.Type! processorType) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPostCommitProcessor(System.Type! processorType, Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPostCommitProcessor<TProcessor>() -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPostCommitProcessor<TProcessor>(Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddStreamPipelineBehavior(System.Type! streamBehaviorType) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddStreamPipelineBehavior(System.Type! streamBehaviorType, Encina.PipelineStage stage, int order = 0) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddStreamPipelineBehavior<TBehavior>() -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddStreamPipelineBehavior<TBehavior>(Encina.PipelineStage stage, int order = 0) -> Encina.EncinaConfiguration!
 static Encina.EncinaError.implicit operator Encina.EncinaError(string! message) -> Encina.EncinaError
 static Encina.EncinaError.implicit operator Encina.EncinaError(System.Exception! exception) -> Encina.EncinaError
 static Encina.EncinaError.New(string! message) -> Encina.EncinaError
@@ -425,8 +443,8 @@ Encina.PipelineStepDescription.Stage.init -> void
 Encina.PipelineStepDescription.StepType.get -> System.Type!
 Encina.PipelineStepDescription.StepType.init -> void
 Encina.IEncinaPipelineInspector
-Encina.IEncinaPipelineInspector.Describe<TRequest, TResponse>() -> System.Collections.Generic.IReadOnlyList<Encina.PipelineStepDescription!>!
-Encina.IEncinaPipelineInspector.DescribeStream<TRequest, TItem>() -> System.Collections.Generic.IReadOnlyList<Encina.PipelineStepDescription!>!
+Encina.IEncinaPipelineInspector.DescribeAsync<TRequest, TResponse>(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Encina.PipelineStepDescription!>!>
+Encina.IEncinaPipelineInspector.DescribeStreamAsync<TRequest, TItem>(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Encina.PipelineStepDescription!>!>
 Encina.IRequestErrorProcessor<TRequest, TResponse>
 Encina.IRequestErrorProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, Encina.EncinaError failure, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Encina.IRequestPostCommitProcessor<TRequest, TResponse>
