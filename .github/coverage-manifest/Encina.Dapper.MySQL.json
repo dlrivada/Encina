@@ -33,7 +33,7 @@
         "integration": 0
       },
       "justifications": {
-        "integration": "No integration test exists yet for the entity-change audit store (measured 0%); this change only extends its ORDER BY with the id tiebreaker and its unit tests mock the connection. Integration tests are tracked by the follow-up issue opened with this change."
+        "integration": "No integration test exists yet for the entity-change audit store (measured 0%); this change only extends its ORDER BY with the id tiebreaker and its unit tests mock the connection. Integration tests are tracked by issue #2450."
       }
     },
     "Auditing/OperationAuditStoreDapper.cs": {
@@ -46,7 +46,7 @@
         "integration": 85
       },
       "justifications": {
-        "integration": "The shipped-script integration tests on a real MySQL database run every query path (measured 91%); only the driver-failure branches stay uncovered."
+        "integration": "The shipped-script integration tests on a real MySQL database run every query path (measured 91.95%); the uncovered lines are the catch blocks that turn a database failure into a store error for each method."
       }
     },
     "Auditing/ReadAuditStoreDapper.cs": {
@@ -56,10 +56,10 @@
       "defaultRule": "*StoreDapper.cs",
       "reason": "Dapper store with raw SQL — needs real database",
       "targets": {
-        "integration": 87
+        "integration": 88
       },
       "justifications": {
-        "integration": "The integration tests on a real MySQL database run every read audit query path, every filter and the stable-order paging (measured 89%); only the driver-failure branches stay uncovered."
+        "integration": "The integration tests on a real MySQL database run every read audit query path, every filter and the stable-order paging (measured 89.63%); the uncovered lines are the catch blocks that turn a database failure into a store error for each method."
       }
     },
     "BulkOperations/BulkOperationsDapper.cs": {
