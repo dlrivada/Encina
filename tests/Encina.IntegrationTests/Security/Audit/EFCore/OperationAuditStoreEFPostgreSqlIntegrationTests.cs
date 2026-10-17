@@ -28,7 +28,7 @@ public class OperationAuditStoreEFPostgreSqlIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
     {
-        await OperationAuditStableOrderCheck.AssertPagedReadsAreStableAsync(CreateStore());
+        await OperationAuditStableOrderCheck.AssertPagedReadsAreStableAsync(CreateStore(), ReadAuditStableOrderCheck.HexIdOrder);
     }
 
     public async ValueTask DisposeAsync()

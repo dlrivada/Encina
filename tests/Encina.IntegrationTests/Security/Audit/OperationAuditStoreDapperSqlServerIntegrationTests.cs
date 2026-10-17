@@ -38,7 +38,7 @@ public class OperationAuditStoreDapperSqlServerIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
     {
-        await OperationAuditStableOrderCheck.AssertPagedReadsAreStableAsync(_store);
+        await OperationAuditStableOrderCheck.AssertPagedReadsAreStableAsync(_store, ReadAuditStableOrderCheck.SqlServerIdOrder);
     }
 
     public async ValueTask DisposeAsync()

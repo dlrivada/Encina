@@ -50,6 +50,15 @@ public class InMemoryAuditStoresStableOrderTests
         walk.Distinct().Count().ShouldBe(EntryCount);
         walk.ToHashSet().SetEquals(recorded).ShouldBeTrue();
         walk.ShouldBe(unpaged);
+        unpaged.ShouldBe(recorded.OrderByDescending(id => id).ToList(), "descending id order");
+
+        var byEntity = (await store.GetByEntityAsync("Order", null))
+            .Match(Right: e => e.Select(x => x.Id).ToList(), Left: _ => throw new ShouldAssertException("query failed"));
+        byEntity.ShouldBe(unpaged);
+
+        var byUser = (await store.GetByUserAsync("user", null, null))
+            .Match(Right: e => e.Select(x => x.Id).ToList(), Left: _ => throw new ShouldAssertException("query failed"));
+        byUser.ShouldBe(unpaged);
 
         var ascending = (await store.GetByCorrelationIdAsync(correlationId))
             .Match(Right: e => e.Select(x => x.Id).ToList(), Left: _ => throw new ShouldAssertException("query failed"));
@@ -92,6 +101,13 @@ public class InMemoryAuditStoresStableOrderTests
         var history = (await store.GetAccessHistoryAsync("Patient", "PAT-1"))
             .Match(Right: e => e.Select(x => x.Id).ToList(), Left: _ => throw new ShouldAssertException("query failed"));
         history.ShouldBe(unpaged);
+
+        var userHistory = (await store.GetUserAccessHistoryAsync(
+                "user",
+                new DateTimeOffset(SharedTimestamp, TimeSpan.Zero).AddHours(-1),
+                new DateTimeOffset(SharedTimestamp, TimeSpan.Zero).AddHours(1)))
+            .Match(Right: e => e.Select(x => x.Id).ToList(), Left: _ => throw new ShouldAssertException("query failed"));
+        userHistory.ShouldBe(unpaged);
         unpaged.ShouldBe(recorded.OrderByDescending(id => id).ToList());
     }
 

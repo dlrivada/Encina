@@ -158,7 +158,20 @@ public sealed class MartenOperationAuditStoreUtcFilterIntegrationTests(MartenFix
 
         await OperationAuditStableOrderCheck.AssertPagedReadsAreStableAsync(
             CreateStore(),
+            ReadAuditStableOrderCheck.HexIdOrder,
             () => _daemon!.WaitForNonStaleData(TimeSpan.FromSeconds(60)));
+    }
+
+    [Fact]
+    public async Task QueryAsync_DurationFilter_AppliesTheTotalOrderBeforePaging()
+    {
+        SkipWhenUnavailable();
+
+        // Entries recorded in SetUp last 5 ms each (see Entry); a 1 ms floor keeps them all and takes the in-memory duration path.
+        var page = await Query(new OperationAuditQuery { UserId = _user, MinDuration = TimeSpan.FromMilliseconds(1), PageSize = 2 });
+
+        page.TotalCount.ShouldBe(3);
+        Hours(page).ShouldBe([2, 1]);
     }
 
     [Fact]

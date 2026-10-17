@@ -42,7 +42,7 @@ public sealed class OperationAuditStoreMongoDBIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
     {
-        await OperationAuditStableOrderCheck.AssertPagedReadsAreStableAsync(CreateStore());
+        await OperationAuditStableOrderCheck.AssertPagedReadsAreStableAsync(CreateStore(), ReadAuditStableOrderCheck.HexIdOrder);
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;

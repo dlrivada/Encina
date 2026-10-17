@@ -36,7 +36,7 @@ public class OperationAuditStoreDapperPostgreSqlIntegrationTests : IAsyncLifetim
     [Fact]
     public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
     {
-        await OperationAuditStableOrderCheck.AssertPagedReadsAreStableAsync(_store);
+        await OperationAuditStableOrderCheck.AssertPagedReadsAreStableAsync(_store, ReadAuditStableOrderCheck.HexIdOrder);
     }
 
     public async ValueTask DisposeAsync()

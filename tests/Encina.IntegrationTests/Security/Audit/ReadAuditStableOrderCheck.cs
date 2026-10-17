@@ -9,7 +9,7 @@ namespace Encina.IntegrationTests.Security.Audit;
 /// </summary>
 internal static class ReadAuditStableOrderCheck
 {
-    /// <summary>PostgreSQL uuid, MySQL CHAR(36), MongoDB (standard Guid representation) and Marten: ids compare as their lowercase hexadecimal text.</summary>
+    /// <summary>PostgreSQL uuid, MySQL CHAR(36), MongoDB (ids stored as lowercase "D" strings, compared bytewise) and Marten: ids compare as their lowercase hexadecimal text.</summary>
     public static IComparer<Guid> HexIdOrder { get; } = Comparer<Guid>.Create((a, b) => string.CompareOrdinal(a.ToString("D"), b.ToString("D")));
 
     /// <summary>SQL Server uniqueidentifier ordering.</summary>
@@ -32,6 +32,7 @@ internal static class ReadAuditStableOrderCheck
 
         var entityType = $"StableOrder{Guid.NewGuid():N}";
         const string entityId = "stable-order-entity";
+        var userId = $"stable-order-user-{Guid.NewGuid():N}";
         var sharedInstant = new DateTimeOffset(2026, 10, 16, 9, 30, 0, TimeSpan.Zero);
         var recordedIds = new System.Collections.Generic.HashSet<Guid>();
 
@@ -42,7 +43,7 @@ internal static class ReadAuditStableOrderCheck
                 Id = Guid.NewGuid(),
                 EntityType = entityType,
                 EntityId = entityId,
-                UserId = "stable-order-user",
+                UserId = userId,
                 AccessedAtUtc = sharedInstant,
                 AccessMethod = ReadAccessMethod.Repository,
                 EntityCount = 1
@@ -73,6 +74,10 @@ internal static class ReadAuditStableOrderCheck
         var history = (await store.GetAccessHistoryAsync(entityType, entityId))
             .Match(Right: entries => entries.Select(e => e.Id).ToList(), Left: error => throw new ShouldAssertException($"Query failed: {error.GetCode().IfNone("none")}"));
         history.ShouldBe(unpaged, "the entity access history must use the same total order");
+
+        var userHistory = (await store.GetUserAccessHistoryAsync(userId, sharedInstant.AddHours(-1), sharedInstant.AddHours(1)))
+            .Match(Right: entries => entries.Select(e => e.Id).ToList(), Left: error => throw new ShouldAssertException($"Query failed: {error.GetCode().IfNone("none")}"));
+        userHistory.ShouldBe(unpaged, "the user access history must use the same total order");
     }
 
     private static async Task<List<Guid>> WalkPagesAsync(IReadAuditStore store, string entityType)

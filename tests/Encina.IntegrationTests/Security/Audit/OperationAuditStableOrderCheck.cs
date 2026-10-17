@@ -18,12 +18,15 @@ internal static class OperationAuditStableOrderCheck
     /// drop nothing, equal the unpaged read, are repeatable, and that the ascending read is the exact reverse of the descending one.
     /// </summary>
     /// <param name="store">The store under test, backed by a real database.</param>
+    /// <param name="idOrder">How the database under test orders ids (see <see cref="ReadAuditStableOrderCheck.HexIdOrder"/>, <see cref="ReadAuditStableOrderCheck.SqlServerIdOrder"/>); the shared-timestamp entries must come back in descending id order.</param>
     /// <param name="afterRecord">Optional step that waits until the recorded entries are queryable (async projections).</param>
-    public static async Task AssertPagedReadsAreStableAsync(IOperationAuditStore store, Func<Task>? afterRecord = null)
+    public static async Task AssertPagedReadsAreStableAsync(IOperationAuditStore store, IComparer<Guid> idOrder, Func<Task>? afterRecord = null)
     {
         ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(idOrder);
 
         var entityType = $"StableOrder-{Guid.NewGuid():N}";
+        var userId = $"stable-order-user-{Guid.NewGuid():N}";
         var correlationId = Guid.NewGuid().ToString();
         var sharedTimestamp = new DateTime(2026, 10, 16, 9, 30, 0, DateTimeKind.Utc);
         var recordedIds = new System.Collections.Generic.HashSet<Guid>();
@@ -34,7 +37,7 @@ internal static class OperationAuditStableOrderCheck
             {
                 Id = Guid.NewGuid(),
                 CorrelationId = correlationId,
-                UserId = "stable-order-user",
+                UserId = userId,
                 Action = "Create",
                 EntityType = entityType,
                 EntityId = $"order-{i}",
@@ -63,12 +66,21 @@ internal static class OperationAuditStableOrderCheck
         firstWalk.Distinct().Count().ShouldBe(EntryCount, "no entry may be repeated across pages");
         firstWalk.ToHashSet().SetEquals(recordedIds).ShouldBeTrue();
         firstWalk.ShouldBe(unpaged, "the paged walk must equal the unpaged read");
+        firstWalk.ShouldBe(recordedIds.OrderByDescending(id => id, idOrder).ToList(), "entries sharing a timestamp must be ordered by id descending");
         secondWalk.ShouldBe(firstWalk, "the order must be repeatable");
 
-        var byCorrelation = (await store.GetByCorrelationIdAsync(correlationId))
-            .Match(Right: entries => entries.Select(e => e.Id).ToList(), Left: error => throw new ShouldAssertException($"Query failed: {error.GetCode().IfNone("none")}"));
+        var byEntity = Unwrap(await store.GetByEntityAsync(entityType, null));
+        byEntity.ShouldBe(unpaged, "GetByEntityAsync must use the same total order");
+
+        var byUser = Unwrap(await store.GetByUserAsync(userId, null, null));
+        byUser.ShouldBe(unpaged, "GetByUserAsync must use the same total order");
+
+        var byCorrelation = Unwrap(await store.GetByCorrelationIdAsync(correlationId));
         byCorrelation.ShouldBe(unpaged.AsEnumerable().Reverse().ToList(), "ascending must be the exact reverse of descending");
     }
+
+    private static List<Guid> Unwrap(LanguageExt.Either<EncinaError, IReadOnlyList<OperationAuditEntry>> result) =>
+        result.Match(Right: entries => entries.Select(e => e.Id).ToList(), Left: error => throw new ShouldAssertException($"Query failed: {error.GetCode().IfNone("none")}"));
 
     private static async Task<List<Guid>> WalkPagesAsync(IOperationAuditStore store, string entityType)
     {
