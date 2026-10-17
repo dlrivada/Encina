@@ -1,9 +1,9 @@
 using Encina.Caching;
 using Encina.Diagnostics;
+using Encina.DomainModeling;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
-using Encina.DomainModeling;
 using Encina.OpenTelemetry.Audit;
 using Encina.OpenTelemetry.MessagingStores;
 using Encina.OpenTelemetry.QueryCache;
