@@ -32,6 +32,18 @@ public class ReadAuditStoreDapperMySqlIntegrationTests : IAsyncLifetime
         _store = new ReadAuditStoreDapper(_connection);
     }
 
+    [Fact]
+    public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
+    {
+        await ReadAuditStableOrderCheck.AssertPagedReadsAreStableAsync(_store, ReadAuditStableOrderCheck.HexIdOrder);
+    }
+
+    [Fact]
+    public async Task QueryAsync_EveryFilter_SelectsTheMatchingEntry()
+    {
+        await ReadAuditFilterCheck.AssertEveryFilterSelectsTheRightEntryAsync(_store);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await ClearDataAsync();

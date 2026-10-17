@@ -94,6 +94,7 @@ public sealed class DSRRejectionReasonPropertyTests
             Substitute.For<ICacheProvider>(),
             Options.Create(options),
             TimeProvider.System,
+            new RequestContextAccessor(),
             NullLogger<DefaultDSRService>.Instance);
 
         return await service.DenyRequestAsync(id, reason, explanation);

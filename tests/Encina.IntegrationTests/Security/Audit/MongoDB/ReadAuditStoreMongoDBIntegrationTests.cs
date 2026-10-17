@@ -39,6 +39,18 @@ public sealed class ReadAuditStoreMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
+    {
+        await ReadAuditStableOrderCheck.AssertPagedReadsAreStableAsync(CreateStore(), ReadAuditStableOrderCheck.HexIdOrder);
+    }
+
+    [Fact]
+    public async Task QueryAsync_EveryFilter_SelectsTheMatchingEntry()
+    {
+        await ReadAuditFilterCheck.AssertEveryFilterSelectsTheRightEntryAsync(CreateStore());
+    }
+
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     private ReadAuditStoreMongoDB CreateStore()

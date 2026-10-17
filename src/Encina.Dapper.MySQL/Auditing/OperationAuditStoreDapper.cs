@@ -72,7 +72,7 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
                    `IpAddress`, `UserAgent`, `RequestPayloadHash`, `RequestPayload`, `ResponsePayload`, `Metadata`
             FROM `{_tableName}`
             WHERE `EntityType` = @EntityType AND (@EntityId IS NULL OR `EntityId` = @EntityId)
-            ORDER BY `TimestampUtc` DESC";
+            ORDER BY `TimestampUtc` DESC, `Id` DESC";
 
         _selectByUserSql = $@"
             SELECT `Id`, `CorrelationId`, `UserId`, `TenantId`, `Action`, `EntityType`, `EntityId`,
@@ -82,7 +82,7 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
             WHERE `UserId` = @UserId
               AND (@FromUtc IS NULL OR `TimestampUtc` >= @FromUtc)
               AND (@ToUtc IS NULL OR `TimestampUtc` <= @ToUtc)
-            ORDER BY `TimestampUtc` DESC";
+            ORDER BY `TimestampUtc` DESC, `Id` DESC";
 
         _selectByCorrelationIdSql = $@"
             SELECT `Id`, `CorrelationId`, `UserId`, `TenantId`, `Action`, `EntityType`, `EntityId`,
@@ -90,7 +90,7 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
                    `IpAddress`, `UserAgent`, `RequestPayloadHash`, `RequestPayload`, `ResponsePayload`, `Metadata`
             FROM `{_tableName}`
             WHERE `CorrelationId` = @CorrelationId
-            ORDER BY `TimestampUtc` ASC";
+            ORDER BY `TimestampUtc` ASC, `Id` ASC";
 
         _purgeSql = $@"
             DELETE FROM `{_tableName}`
@@ -289,7 +289,7 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
                        `IpAddress`, `UserAgent`, `RequestPayloadHash`, `RequestPayload`, `ResponsePayload`, `Metadata`
                 FROM `{_tableName}`
                 {whereClause}
-                ORDER BY `TimestampUtc` DESC{pagingClause}";
+                ORDER BY `TimestampUtc` DESC, `Id` DESC{pagingClause}";
 
         var rows = await _connection.QueryAsync<OperationAuditEntryRow>(
             new CommandDefinition(selectSql, parameters, cancellationToken: cancellationToken));

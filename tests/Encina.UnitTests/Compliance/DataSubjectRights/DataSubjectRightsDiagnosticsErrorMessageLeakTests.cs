@@ -154,6 +154,7 @@ public sealed class DataSubjectRightsDiagnosticsErrorMessageLeakTests
             Substitute.For<ICacheProvider>(),
             Microsoft.Extensions.Options.Options.Create(new DataSubjectRightsOptions()),
             new FakeTimeProvider(),
+            new RequestContextAccessor(),
             NullLogger<DefaultDSRService>.Instance);
         return (service, NullLogger<DefaultDSRService>.Instance);
     }

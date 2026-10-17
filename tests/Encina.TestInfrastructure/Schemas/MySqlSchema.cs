@@ -381,7 +381,7 @@ public static class MySqlSchema
         const string sql = """
             CREATE TABLE IF NOT EXISTS `ProcessingActivities` (
                 `Id`                             VARCHAR(36)   NOT NULL PRIMARY KEY,
-                `RequestTypeName`                VARCHAR(768)  NOT NULL,
+                `RequestTypeName`                VARCHAR(512)  NOT NULL,
                 `Name`                           VARCHAR(500)  NOT NULL,
                 `Purpose`                        TEXT          NOT NULL,
                 `LawfulBasisValue`               INT           NOT NULL,

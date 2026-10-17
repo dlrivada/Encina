@@ -51,6 +51,7 @@ public sealed class DefaultDSRServiceLifecycleTests
             _cache,
             Options.Create(new DataSubjectRightsOptions()),
             _time,
+            new RequestContextAccessor(),
             NullLogger<DefaultDSRService>.Instance);
     }
 

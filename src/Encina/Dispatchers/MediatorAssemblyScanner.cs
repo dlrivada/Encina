@@ -37,47 +37,37 @@ internal static class EncinaAssemblyScanner
         }
     }
 
+    // Handlers register under the exact interface they implement
+    private static readonly Dictionary<Type, Func<ScanResultBuilder, List<TypeRegistration>>> ExactTargets = new()
+    {
+        [typeof(IRequestHandler<,>)] = static result => result.Handlers,
+        [typeof(INotificationHandler<>)] = static result => result.Notifications,
+        [typeof(IStreamRequestHandler<,>)] = static result => result.StreamHandlers
+    };
+
+    // Behaviors and processors register under their open generic interface when the implementation is open
+    private static readonly Dictionary<Type, Func<ScanResultBuilder, List<TypeRegistration>>> OpenGenericTargets = new()
+    {
+        [typeof(IRequestPreProcessor<>)] = static result => result.PreProcessors,
+        [typeof(IRequestPostProcessor<,>)] = static result => result.PostProcessors,
+        [typeof(IRequestErrorProcessor<,>)] = static result => result.ErrorProcessors,
+        [typeof(IRequestPostCommitProcessor<,>)] = static result => result.PostCommitProcessors,
+        [typeof(IStreamPipelineBehavior<,>)] = static result => result.StreamPipelines
+    };
+
     private static void ProcessInterface(Type type, Type implementedInterface, Type genericDefinition, ScanResultBuilder result)
     {
-        if (genericDefinition == typeof(IRequestHandler<,>))
+        if (ExactTargets.TryGetValue(genericDefinition, out var exactTarget))
         {
-            result.Handlers.Add(new TypeRegistration(implementedInterface, type));
-            return;
+            exactTarget(result).Add(new TypeRegistration(implementedInterface, type));
         }
-
-        if (genericDefinition == typeof(INotificationHandler<>))
+        else if (OpenGenericTargets.TryGetValue(genericDefinition, out var openTarget))
         {
-            result.Notifications.Add(new TypeRegistration(implementedInterface, type));
-            return;
+            AddWithOpenGenericFallback(openTarget(result), implementedInterface, type, genericDefinition);
         }
-
-        if (genericDefinition == typeof(IPipelineBehavior<,>))
+        else if (genericDefinition == typeof(IPipelineBehavior<,>))
         {
             TryAddPipelineBehavior(type, implementedInterface, result);
-            return;
-        }
-
-        if (genericDefinition == typeof(IRequestPreProcessor<>))
-        {
-            AddWithOpenGenericFallback(result.PreProcessors, implementedInterface, type, typeof(IRequestPreProcessor<>));
-            return;
-        }
-
-        if (genericDefinition == typeof(IRequestPostProcessor<,>))
-        {
-            AddWithOpenGenericFallback(result.PostProcessors, implementedInterface, type, typeof(IRequestPostProcessor<,>));
-            return;
-        }
-
-        if (genericDefinition == typeof(IStreamRequestHandler<,>))
-        {
-            result.StreamHandlers.Add(new TypeRegistration(implementedInterface, type));
-            return;
-        }
-
-        if (genericDefinition == typeof(IStreamPipelineBehavior<,>))
-        {
-            AddWithOpenGenericFallback(result.StreamPipelines, implementedInterface, type, typeof(IStreamPipelineBehavior<,>));
         }
     }
 
@@ -130,6 +120,8 @@ internal static class EncinaAssemblyScanner
         public List<TypeRegistration> Pipelines { get; } = [];
         public List<TypeRegistration> PreProcessors { get; } = [];
         public List<TypeRegistration> PostProcessors { get; } = [];
+        public List<TypeRegistration> ErrorProcessors { get; } = [];
+        public List<TypeRegistration> PostCommitProcessors { get; } = [];
         public List<TypeRegistration> StreamHandlers { get; } = [];
         public List<TypeRegistration> StreamPipelines { get; } = [];
 
@@ -139,6 +131,8 @@ internal static class EncinaAssemblyScanner
             Pipelines,
             PreProcessors,
             PostProcessors,
+            ErrorProcessors,
+            PostCommitProcessors,
             StreamHandlers,
             StreamPipelines);
     }
@@ -170,5 +164,7 @@ internal sealed record AssemblyScanResult(
     IReadOnlyCollection<TypeRegistration> PipelineRegistrations,
     IReadOnlyCollection<TypeRegistration> RequestPreProcessorRegistrations,
     IReadOnlyCollection<TypeRegistration> RequestPostProcessorRegistrations,
+    IReadOnlyCollection<TypeRegistration> RequestErrorProcessorRegistrations,
+    IReadOnlyCollection<TypeRegistration> RequestPostCommitProcessorRegistrations,
     IReadOnlyCollection<TypeRegistration> StreamHandlerRegistrations,
     IReadOnlyCollection<TypeRegistration> StreamPipelineRegistrations);

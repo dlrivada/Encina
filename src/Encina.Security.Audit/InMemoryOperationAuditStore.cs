@@ -80,7 +80,7 @@ public sealed class InMemoryOperationAuditStore : IOperationAuditStore
         var entries = _entries.Values
             .Where(e => e.EntityType.Equals(entityType, StringComparison.OrdinalIgnoreCase))
             .Where(e => entityId is null || e.EntityId == entityId)
-            .OrderByDescending(e => e.TimestampUtc)
+            .OrderByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id)
             .ToList();
 
         return ValueTask.FromResult<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>>(Right<EncinaError, IReadOnlyList<OperationAuditEntry>>(entries));
@@ -105,7 +105,7 @@ public sealed class InMemoryOperationAuditStore : IOperationAuditStore
             .Where(e => e.UserId == userId)
             .Where(e => fromUtc is null || e.TimestampUtc >= fromUtc.Value)
             .Where(e => toUtc is null || e.TimestampUtc <= toUtc.Value)
-            .OrderByDescending(e => e.TimestampUtc)
+            .OrderByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id)
             .ToList();
 
         return ValueTask.FromResult<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>>(Right<EncinaError, IReadOnlyList<OperationAuditEntry>>(entries));
@@ -126,7 +126,7 @@ public sealed class InMemoryOperationAuditStore : IOperationAuditStore
 
         var entries = _entries.Values
             .Where(e => e.CorrelationId == correlationId)
-            .OrderBy(e => e.TimestampUtc)
+            .OrderBy(e => e.TimestampUtc).ThenBy(e => e.Id)
             .ToList();
 
         return ValueTask.FromResult<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>>(Right<EncinaError, IReadOnlyList<OperationAuditEntry>>(entries));
@@ -158,7 +158,7 @@ public sealed class InMemoryOperationAuditStore : IOperationAuditStore
 
         // Apply ordering and pagination
         var items = allResults
-            .OrderByDescending(e => e.TimestampUtc)
+            .OrderByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToList();

@@ -3,7 +3,7 @@
 
 CREATE TABLE `ProcessingActivities` (
     `Id`                             VARCHAR(36)   NOT NULL PRIMARY KEY,
-    `RequestTypeName`                VARCHAR(1000) NOT NULL,
+    `RequestTypeName`                VARCHAR(512)  NOT NULL,
     `Name`                           VARCHAR(500)  NOT NULL,
     `Purpose`                        TEXT          NOT NULL,
     `LawfulBasisValue`               INT           NOT NULL,

@@ -25,6 +25,12 @@ public class OperationAuditStoreEFSqlServerIntegrationTests : IAsyncLifetime
         await _fixture.EnsureSchemaCreatedAsync<AuditTestDbContext>();
     }
 
+    [Fact]
+    public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
+    {
+        await OperationAuditStableOrderCheck.AssertPagedReadsAreStableAsync(CreateStore(), ReadAuditStableOrderCheck.SqlServerIdOrder);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _fixture.ClearAllDataAsync();

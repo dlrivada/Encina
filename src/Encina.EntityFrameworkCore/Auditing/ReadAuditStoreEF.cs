@@ -80,7 +80,7 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
         {
             var entities = await _dbContext.Set<ReadAuditEntryEntity>()
                 .Where(e => e.EntityType == entityType && e.EntityId == entityId)
-                .OrderByDescending(e => e.AccessedAtUtc)
+                .OrderByDescending(e => e.AccessedAtUtc).ThenByDescending(e => e.Id)
                 .ToListAsync(cancellationToken);
 
             var entries = entities.Select(ReadAuditEntryMapper.MapToRecord).ToList();
@@ -108,7 +108,7 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
                 .Where(e => e.UserId == userId)
                 .Where(e => e.AccessedAtUtc >= fromUtc)
                 .Where(e => e.AccessedAtUtc <= toUtc)
-                .OrderByDescending(e => e.AccessedAtUtc)
+                .OrderByDescending(e => e.AccessedAtUtc).ThenByDescending(e => e.Id)
                 .ToListAsync(cancellationToken);
 
             var entries = entities.Select(ReadAuditEntryMapper.MapToRecord).ToList();
@@ -134,60 +134,16 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
             var pageSize = Math.Clamp(query.PageSize, 1, ReadAuditQuery.MaxPageSize);
 
             // Build query with filters
-            var dbQuery = _dbContext.Set<ReadAuditEntryEntity>().AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(query.UserId))
-            {
-                dbQuery = dbQuery.Where(e => e.UserId == query.UserId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.TenantId))
-            {
-                dbQuery = dbQuery.Where(e => e.TenantId == query.TenantId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.EntityType))
-            {
-                dbQuery = dbQuery.Where(e => e.EntityType == query.EntityType);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.EntityId))
-            {
-                dbQuery = dbQuery.Where(e => e.EntityId == query.EntityId);
-            }
-
-            if (query.AccessMethod.HasValue)
-            {
-                var accessMethodInt = (int)query.AccessMethod.Value;
-                dbQuery = dbQuery.Where(e => e.AccessMethod == accessMethodInt);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.Purpose))
-            {
-                dbQuery = dbQuery.Where(e => e.Purpose != null && e.Purpose.Contains(query.Purpose));
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.CorrelationId))
-            {
-                dbQuery = dbQuery.Where(e => e.CorrelationId == query.CorrelationId);
-            }
-
-            if (query.FromUtc.HasValue)
-            {
-                dbQuery = dbQuery.Where(e => e.AccessedAtUtc >= query.FromUtc.Value);
-            }
-
-            if (query.ToUtc.HasValue)
-            {
-                dbQuery = dbQuery.Where(e => e.AccessedAtUtc <= query.ToUtc.Value);
-            }
+            var dbQuery = ApplyAccessFilters(
+                ApplyIdentityFilters(_dbContext.Set<ReadAuditEntryEntity>().AsQueryable(), query),
+                query);
 
             // Get total count
             var totalCount = await dbQuery.CountAsync(cancellationToken);
 
             // Apply pagination
             var entities = await dbQuery
-                .OrderByDescending(e => e.AccessedAtUtc)
+                .OrderByDescending(e => e.AccessedAtUtc).ThenByDescending(e => e.Id)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync(cancellationToken);
@@ -200,6 +156,66 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
             return Left<EncinaError, PagedResult<ReadAuditEntry>>(
                 ReadAuditErrors.StoreError("Query", "Operation was cancelled"));
         }
+    }
+
+    private static IQueryable<ReadAuditEntryEntity> ApplyIdentityFilters(
+        IQueryable<ReadAuditEntryEntity> dbQuery,
+        ReadAuditQuery query)
+    {
+        if (!string.IsNullOrWhiteSpace(query.UserId))
+        {
+            dbQuery = dbQuery.Where(e => e.UserId == query.UserId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.TenantId))
+        {
+            dbQuery = dbQuery.Where(e => e.TenantId == query.TenantId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.EntityType))
+        {
+            dbQuery = dbQuery.Where(e => e.EntityType == query.EntityType);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.EntityId))
+        {
+            dbQuery = dbQuery.Where(e => e.EntityId == query.EntityId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.CorrelationId))
+        {
+            dbQuery = dbQuery.Where(e => e.CorrelationId == query.CorrelationId);
+        }
+
+        return dbQuery;
+    }
+
+    private static IQueryable<ReadAuditEntryEntity> ApplyAccessFilters(
+        IQueryable<ReadAuditEntryEntity> dbQuery,
+        ReadAuditQuery query)
+    {
+        if (query.AccessMethod.HasValue)
+        {
+            var accessMethodInt = (int)query.AccessMethod.Value;
+            dbQuery = dbQuery.Where(e => e.AccessMethod == accessMethodInt);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Purpose))
+        {
+            dbQuery = dbQuery.Where(e => e.Purpose != null && e.Purpose.Contains(query.Purpose));
+        }
+
+        if (query.FromUtc.HasValue)
+        {
+            dbQuery = dbQuery.Where(e => e.AccessedAtUtc >= query.FromUtc.Value);
+        }
+
+        if (query.ToUtc.HasValue)
+        {
+            dbQuery = dbQuery.Where(e => e.AccessedAtUtc <= query.ToUtc.Value);
+        }
+
+        return dbQuery;
     }
 
     /// <inheritdoc/>

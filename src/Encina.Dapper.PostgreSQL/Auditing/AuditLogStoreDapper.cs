@@ -51,7 +51,7 @@ public sealed class AuditLogStoreDapper : IAuditLogStore
             SELECT ""Id"", ""EntityType"", ""EntityId"", ""Action"", ""UserId"", ""TimestampUtc"", ""OldValues"", ""NewValues"", ""CorrelationId""
             FROM ""{validatedTableName}""
             WHERE ""EntityType"" = @EntityType AND ""EntityId"" = @EntityId
-            ORDER BY ""TimestampUtc"" DESC";
+            ORDER BY ""TimestampUtc"" DESC, ""Id"" DESC";
     }
 
     /// <inheritdoc/>

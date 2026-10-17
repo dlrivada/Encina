@@ -35,6 +35,12 @@ public class OperationAuditStoreADOSqlServerIntegrationTests : IAsyncLifetime
         _store = new OperationAuditStoreADO(_connection);
     }
 
+    [Fact]
+    public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
+    {
+        await OperationAuditStableOrderCheck.AssertPagedReadsAreStableAsync(_store, ReadAuditStableOrderCheck.SqlServerIdOrder);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await ClearDataAsync();

@@ -216,6 +216,52 @@ public sealed class MySqlSchemaScriptsIntegrationTests : IAsyncLifetime
         Assert.Equal(1, (await store.GetCountAsync()).ShouldBeRight());
     }
 
+    /// <summary>
+    /// <c>011_CreateProcessingActivitiesTable.sql</c> installs under utf8mb4 (#1302) and both MySQL
+    /// registries (ADO.NET and Dapper share the table) round-trip an activity through it, including
+    /// a request type whose assembly-qualified name is long and the unique key on it.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProcessingActivityRegistry_RoundTripsActivity_OnScriptCreatedTable(bool dapper)
+    {
+        await RunScriptsAsync("Encina.ADO.MySQL");
+
+        var builder = new MySqlConnectionStringBuilder(_fixture.ConnectionString) { Database = DatabaseName };
+        var connectionString = builder.ConnectionString;
+        global::Encina.Compliance.GDPR.IProcessingActivityRegistry registry = dapper
+            ? new global::Encina.Dapper.MySQL.ProcessingActivity.ProcessingActivityRegistryDapper(connectionString)
+            : new global::Encina.ADO.MySQL.ProcessingActivity.ProcessingActivityRegistryADO(connectionString);
+
+        var requestType = typeof(Dictionary<string, int>);
+        Assert.InRange(requestType.AssemblyQualifiedName!.Length, 150, 512);
+        var now = DateTimeOffset.UtcNow;
+        var activity = new global::Encina.Compliance.GDPR.ProcessingActivity
+        {
+            Id = Guid.NewGuid(),
+            Name = "Issue 1302 activity",
+            Purpose = "Round trip on the script-created table",
+            LawfulBasis = global::Encina.Compliance.GDPR.LawfulBasis.Contract,
+            CategoriesOfDataSubjects = ["Customers"],
+            CategoriesOfPersonalData = ["Name"],
+            Recipients = ["Processor"],
+            RetentionPeriod = TimeSpan.FromDays(30),
+            SecurityMeasures = "Encryption at rest",
+            RequestType = requestType,
+            CreatedAtUtc = now,
+            LastUpdatedAtUtc = now
+        };
+
+        (await registry.RegisterActivityAsync(activity)).ShouldBeRight();
+        var found = (await registry.GetActivityByRequestTypeAsync(requestType)).ShouldBeRight();
+        Assert.True(found.IsSome);
+        found.IfSome(a => Assert.Equal(activity.Name, a.Name));
+        var duplicate = await registry.RegisterActivityAsync(activity with { Id = Guid.NewGuid() });
+        var duplicateError = duplicate.LeftToSeq().Single();
+        Assert.Equal(global::Encina.Compliance.GDPR.GDPRErrors.ProcessingActivityDuplicateCode, duplicateError.GetCode().IfNone(string.Empty));
+    }
+
     private async Task RunScriptsAsync(string packageName)
     {
         var scriptsFolder = FindScriptsFolder(packageName);
@@ -233,15 +279,11 @@ public sealed class MySqlSchemaScriptsIntegrationTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Scripts 000-005 are the ones issue #1261 rewrote to use the package's own SQL dialect.
-    /// Scripts 009 and above belong to unrelated compliance modules; one of them
-    /// (ProcessingActivities, #1011_CreateProcessingActivitiesTable.sql on MySQL) has a
-    /// pre-existing "key too long" defect unrelated to this issue's dialect fix, tracked
-    /// separately, so this test does not execute it.
+    /// Every script of the package, in file-name order. Includes the compliance scripts
+    /// (009 and above), which once held a "key too long" defect under utf8mb4 (#1302).
     /// </summary>
     private static IEnumerable<string> GetInScopeScriptFiles(string scriptsFolder) =>
         Directory.GetFiles(scriptsFolder, "*.sql")
-            .Where(f => int.TryParse(Path.GetFileName(f).AsSpan(0, 3), out var prefix) && prefix <= 5)
             .OrderBy(f => f, StringComparer.Ordinal);
 
     private static async Task UseDatabaseAsync(MySqlConnection connection)

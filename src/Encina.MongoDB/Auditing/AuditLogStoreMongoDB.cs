@@ -73,7 +73,7 @@ public sealed class AuditLogStoreMongoDB : IAuditLogStore
 
         var documents = await _collection
             .Find(filter)
-            .SortByDescending(d => d.TimestampUtc)
+            .SortByDescending(d => d.TimestampUtc).ThenByDescending(d => d.Id)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 

@@ -1,0 +1,1 @@
+- Query caching fails closed when multi-tenancy is enabled and the request carries no tenant: a tenant-scoped query is neither read from nor written to the cache (EventId 3513) and runs uncached, so a tenant-less caller never shares a cached response with another tenant. Cache invalidation is unchanged. (#1913)

@@ -195,9 +195,24 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
             },
             LeftAsync: async error =>
             {
+                var errorCode = error.GetCode().IfNone("encina.unknown");
+
+                // A missing tenant means the restriction status of this tenant's subject is
+                // unknown: the gate fails closed in Block mode instead of reading it as "no
+                // restriction" (AGENTS.md compliance gates; #1963).
+                var tenantMissing = errorCode == DSRErrors.TenantRequiredCode;
+                if (tenantMissing && _options.RestrictionEnforcementMode == DSREnforcementMode.Block)
+                {
+                    _logger.RestrictionBlocked(requestTypeName);
+                    DataSubjectRightsDiagnostics.RecordBlocked(activity);
+                    DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
+                        new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "blocked_missing_tenant"));
+                    return Left<EncinaError, TResponse>(error);
+                }
+
                 // Store error — log and proceed (fail-open to avoid blocking all requests). The
                 // data subject's own identifier is never logged (#1429, following #1314).
-                _logger.RestrictionCheckStoreError(requestTypeName, error.GetCode().IfNone("encina.unknown"));
+                _logger.RestrictionCheckStoreError(requestTypeName, errorCode);
                 DataSubjectRightsDiagnostics.RecordFailed(activity, ActivityStatusDescriptions.ForError(error));
                 DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
                     new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "error"));

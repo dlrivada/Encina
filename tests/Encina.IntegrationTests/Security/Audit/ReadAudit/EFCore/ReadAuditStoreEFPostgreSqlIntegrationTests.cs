@@ -21,6 +21,18 @@ public class ReadAuditStoreEFPostgreSqlIntegrationTests : IAsyncLifetime
     public async ValueTask InitializeAsync() => await _fixture.EnsureSchemaCreatedAsync<AuditTestDbContext>();
     public async ValueTask DisposeAsync() => await _fixture.ClearAllDataAsync();
 
+    [Fact]
+    public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
+    {
+        await ReadAuditStableOrderCheck.AssertPagedReadsAreStableAsync(CreateStore(), ReadAuditStableOrderCheck.HexIdOrder);
+    }
+
+    [Fact]
+    public async Task QueryAsync_EveryFilter_SelectsTheMatchingEntry()
+    {
+        await ReadAuditFilterCheck.AssertEveryFilterSelectsTheRightEntryAsync(CreateStore());
+    }
+
     private ReadAuditStoreEF CreateStore() => new(_fixture.CreateDbContext<AuditTestDbContext>());
 
     private static ReadAuditEntry CreateTestEntry(

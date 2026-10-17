@@ -172,6 +172,23 @@ public class DataSubjectRightsHealthCheckTests
     }
 
     [Fact]
+    public async Task CheckHealthAsync_OverdueCheckRefusedForMissingTenant_ReportsDegradedWithSkippedReason()
+    {
+        SetupOptions(new DataSubjectRightsOptions());
+        SetupDsrService();
+        SetupOptionalServices();
+        _dsrService.GetOverdueRequestsAsync(Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IReadOnlyList<DSRRequestReadModel>>(
+                DSRErrors.TenantRequired("GetOverdueRequests")));
+
+        var result = await _sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description!.ShouldContain("not checked");
+        result.Data["overdueRequestCheck"].ShouldBe("skipped: no tenant context");
+    }
+
+    [Fact]
     public async Task CheckHealthAsync_OverdueCheckError_DoesNotLeakErrorMessage()
     {
         SetupOptions(new DataSubjectRightsOptions());

@@ -77,6 +77,34 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public async Task AddEncinaDataSubjectRights_WithTenancyRegistered_ServiceFailsClosedWithoutAmbientTenant()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(Substitute.For<IAggregateRepository<DSRRequestAggregate>>());
+        services.AddSingleton(Substitute.For<IReadModelRepository<DSRRequestReadModel>>());
+        services.AddSingleton(Substitute.For<IPersonalDataLocator>());
+        services.AddSingleton(Substitute.For<IProcessingActivityRegistry>());
+        services.AddSingleton(Substitute.For<ICacheProvider>());
+        services.AddSingleton(Substitute.For<global::Encina.Tenancy.ITenantProvider>());
+
+        services.AddEncinaDataSubjectRights();
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+        using var scope = provider.CreateScope();
+
+        scope.ServiceProvider.GetService<IRequestContextAccessor>().ShouldNotBeNull();
+        var result = await scope.ServiceProvider.GetRequiredService<IDSRService>().GetPendingRequestsAsync();
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.TenantRequiredCode));
+    }
+
+    [Fact]
     public void AddEncinaDataSubjectRights_RegistersExportWriters()
     {
         var services = new ServiceCollection();
