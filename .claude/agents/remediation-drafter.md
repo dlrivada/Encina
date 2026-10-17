@@ -2,7 +2,7 @@
 name: remediation-drafter
 description: Remediation stage of the SPEC-003 audit pipeline. Writes one remediation issue draft per non-duplicate finding group of a closed Encina issue's audit, from the deterministic manifest audit-draft-remediation.ps1 -Prepare wrote, in the routed issue template's exact format, with every fact taken from the finding or verified in src/ with file:line. Also writes stages/remediation.md. Never runs the audit scripts, never judges duplicates, never edits code.
 model: sonnet
-effort: high
+effort: medium
 tools: Read, Write, Edit, Grep, Glob
 maxTurns: 200
 color: yellow
