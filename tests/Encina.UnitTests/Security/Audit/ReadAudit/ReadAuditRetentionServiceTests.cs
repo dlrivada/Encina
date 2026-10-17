@@ -21,11 +21,16 @@ namespace Encina.UnitTests.Security.Audit.ReadAudit;
 public class ReadAuditRetentionServiceTests
 {
     private readonly IReadAuditStore _mockStore;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ReadAuditRetentionService> _logger;
 
     public ReadAuditRetentionServiceTests()
     {
         _mockStore = Substitute.For<IReadAuditStore>();
+        _scopeFactory = new ServiceCollection()
+            .AddSingleton(_mockStore)
+            .BuildServiceProvider()
+            .GetRequiredService<IServiceScopeFactory>();
         _logger = NullLogger<ReadAuditRetentionService>.Instance;
     }
 
@@ -38,14 +43,14 @@ public class ReadAuditRetentionServiceTests
         var options = CreateOptions();
 
         // Act
-        var act = () => new ReadAuditRetentionService(_mockStore, options, _logger);
+        var act = () => new ReadAuditRetentionService(_scopeFactory, options, _logger);
 
         // Assert
         Should.NotThrow(act);
     }
 
     [Fact]
-    public void Constructor_NullStore_ShouldThrowArgumentNullException()
+    public void Constructor_NullScopeFactory_ShouldThrowArgumentNullException()
     {
         // Arrange
         var options = CreateOptions();
@@ -55,14 +60,14 @@ public class ReadAuditRetentionServiceTests
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-                .ParamName.ShouldBe("readAuditStore");
+                .ParamName.ShouldBe("scopeFactory");
     }
 
     [Fact]
     public void Constructor_NullOptions_ShouldThrowArgumentNullException()
     {
         // Act
-        var act = () => new ReadAuditRetentionService(_mockStore, null!, _logger);
+        var act = () => new ReadAuditRetentionService(_scopeFactory, null!, _logger);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -76,7 +81,7 @@ public class ReadAuditRetentionServiceTests
         var options = CreateOptions();
 
         // Act
-        var act = () => new ReadAuditRetentionService(_mockStore, options, null!);
+        var act = () => new ReadAuditRetentionService(_scopeFactory, options, null!);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -92,7 +97,7 @@ public class ReadAuditRetentionServiceTests
     {
         // Arrange
         var options = CreateOptions(enableAutoPurge: false);
-        var service = new ReadAuditRetentionService(_mockStore, options, _logger);
+        var service = new ReadAuditRetentionService(_scopeFactory, options, _logger);
         using var cts = new CancellationTokenSource();
 
         // Act
@@ -114,7 +119,7 @@ public class ReadAuditRetentionServiceTests
 
         var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
-        var service = new ReadAuditRetentionService(_mockStore, options, _logger, fakeTime);
+        var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
         // Act
@@ -148,7 +153,7 @@ public class ReadAuditRetentionServiceTests
 
         var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
-        var service = new ReadAuditRetentionService(_mockStore, options, _logger, fakeTime);
+        var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
         // Act - should not throw despite error
@@ -181,7 +186,7 @@ public class ReadAuditRetentionServiceTests
 
         var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
-        var service = new ReadAuditRetentionService(_mockStore, options, _logger, fakeTime);
+        var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
         // Act - should not throw
@@ -203,6 +208,93 @@ public class ReadAuditRetentionServiceTests
         // Assert - called despite exception
         await _mockStore.Received(1).PurgeEntriesAsync(
             Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_EveryPurgeRun_UsesItsOwnScopeAndDisposesTheStoreWithIt()
+    {
+        // Arrange: a scoped, disposable store (as every database provider registers it)
+        var created = new List<ScopedStore>();
+        var purgeCompleted = new[]
+        {
+            new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously),
+            new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var storeIndex = 0;
+        var services = new ServiceCollection();
+        services.AddScoped<IReadAuditStore>(_ =>
+        {
+            var store = new ScopedStore(purgeCompleted[Interlocked.Increment(ref storeIndex) - 1]);
+            lock (created)
+            {
+                created.Add(store);
+            }
+
+            return store;
+        });
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+
+        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        using var service = new ReadAuditRetentionService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1),
+            _logger,
+            fakeTime);
+
+        // Act: two purge runs
+        await service.StartAsync(CancellationToken.None);
+        for (var run = 1; run <= 2; run++)
+        {
+            await WaitForTimerRegistrationAsync(fakeTime);
+            fakeTime.Advance(TimeSpan.FromHours(1.1));
+            await purgeCompleted[run - 1].Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+
+        await service.StopAsync(CancellationToken.None);
+
+        // Assert: one store per run, each disposed when its scope ended
+        created.Count.ShouldBe(2);
+        created[0].ShouldNotBeSameAs(created[1]);
+        created.ShouldAllBe(s => s.PurgeCalls == 1 && s.Disposed);
+    }
+
+    private sealed class ScopedStore : IReadAuditStore, IDisposable
+    {
+        private readonly TaskCompletionSource<bool> _purgeCompleted;
+        private int _purgeCalls;
+        private int _disposed;
+
+        public ScopedStore(TaskCompletionSource<bool> purgeCompleted) =>
+            _purgeCompleted = purgeCompleted;
+
+        public int PurgeCalls => Volatile.Read(ref _purgeCalls);
+
+        public bool Disposed => Volatile.Read(ref _disposed) == 1;
+
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref _disposed, 1);
+            _purgeCompleted.TrySetResult(true);
+        }
+
+        public ValueTask<Either<EncinaError, int>> PurgeEntriesAsync(
+            DateTimeOffset olderThanUtc, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref _purgeCalls);
+            return ValueTask.FromResult<Either<EncinaError, int>>(Right(0));
+        }
+
+        public ValueTask<Either<EncinaError, Unit>> LogReadAsync(
+            ReadAuditEntry entry, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public ValueTask<Either<EncinaError, IReadOnlyList<ReadAuditEntry>>> GetAccessHistoryAsync(
+            string entityType, string entityId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public ValueTask<Either<EncinaError, PagedResult<ReadAuditEntry>>> QueryAsync(
+            ReadAuditQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public ValueTask<Either<EncinaError, IReadOnlyList<ReadAuditEntry>>> GetUserAccessHistoryAsync(
+            string userId, DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     [Fact]
@@ -248,7 +340,7 @@ public class ReadAuditRetentionServiceTests
     {
         var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
-        var service = new ReadAuditRetentionService(_mockStore, options, _logger, fakeTime);
+        var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
         await service.StartAsync(cts.Token);
