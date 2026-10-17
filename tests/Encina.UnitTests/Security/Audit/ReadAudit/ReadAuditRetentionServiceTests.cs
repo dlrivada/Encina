@@ -41,7 +41,7 @@ public class ReadAuditRetentionServiceTests
         var options = CreateOptions();
 
         // Act
-        var act = () => new ReadAuditRetentionService(_scopeFactory,options, _logger);
+        var act = () => new ReadAuditRetentionService(_scopeFactory, options, _logger);
 
         // Assert
         Should.NotThrow(act);
@@ -65,7 +65,7 @@ public class ReadAuditRetentionServiceTests
     public void Constructor_NullOptions_ShouldThrowArgumentNullException()
     {
         // Act
-        var act = () => new ReadAuditRetentionService(_scopeFactory,null!, _logger);
+        var act = () => new ReadAuditRetentionService(_scopeFactory, null!, _logger);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -79,7 +79,7 @@ public class ReadAuditRetentionServiceTests
         var options = CreateOptions();
 
         // Act
-        var act = () => new ReadAuditRetentionService(_scopeFactory,options, null!);
+        var act = () => new ReadAuditRetentionService(_scopeFactory, options, null!);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -95,7 +95,7 @@ public class ReadAuditRetentionServiceTests
     {
         // Arrange
         var options = CreateOptions(enableAutoPurge: false);
-        var service = new ReadAuditRetentionService(_scopeFactory,options, _logger);
+        var service = new ReadAuditRetentionService(_scopeFactory, options, _logger);
         using var cts = new CancellationTokenSource();
 
         // Act
@@ -117,7 +117,7 @@ public class ReadAuditRetentionServiceTests
 
         var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
-        var service = new ReadAuditRetentionService(_scopeFactory,options, _logger, fakeTime);
+        var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
         // Act
@@ -151,7 +151,7 @@ public class ReadAuditRetentionServiceTests
 
         var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
-        var service = new ReadAuditRetentionService(_scopeFactory,options, _logger, fakeTime);
+        var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
         // Act - should not throw despite error
@@ -184,7 +184,7 @@ public class ReadAuditRetentionServiceTests
 
         var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
-        var service = new ReadAuditRetentionService(_scopeFactory,options, _logger, fakeTime);
+        var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
         // Act - should not throw
