@@ -44,4 +44,6 @@ Known failure patterns to check (project history — check every diff against th
 - Compliance/security gates failing open: missing context (no `HttpContext`, no tenant, no principal) or a failed lookup must deny, not allow, with a logged, explicit opt-out only (#1143, #1145, #1148, #1155, #1161).
 - `EncinaError.Message` leaking into logs, activity tags, health-check results or plaintext storage instead of only the error code or exception type (#1168, #1173, #1259, #1274).
 
+Decision register pass (#2470). When the prompt hands you a decision register (`artifacts/decisions/<issue>.md`, a plan's Design Choices or an issue comment "Decision register"), try to break every Settled and Trivial entry: open its citation and check it exists and says what the entry claims, then look for a credible concrete scenario where another option wins. Report per entry `holds` or `Dilemma` (with the scenario and the citation you opened); an entry without a verifiable citation is a Dilemma. You are read-only: the orchestrator writes "Verified: adversarial-reviewer <yyyy-MM-dd>" for the entries you confirm.
+
 Output (English): a ranked findings list; a short "what I could not verify and why" section; a verdict: merge / merge after fixes / do not merge.

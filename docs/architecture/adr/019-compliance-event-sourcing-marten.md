@@ -12,6 +12,8 @@ grand_parent: Architecture
 **Deciders:** David Lozano Rivada
 **Technical Story:** [#776 - SPIKE: ADR-019 Compliance Modules Event Sourcing Strategy with Marten](https://github.com/dlrivada/Encina/issues/776)
 
+> **Amendment 2026-10-16 ([#2381](https://github.com/dlrivada/Encina/issues/2381)):** publication of domain events by `EventPublishingPipelineBehavior` (decision point 3 of "Aggregate Design Principles" below) is superseded. Domain events of event-sourced modules are delivered reliably through the Outbox written in the Marten session ([#2383](https://github.com/dlrivada/Encina/issues/2383), bug [#2239](https://github.com/dlrivada/Encina/issues/2239)). The modules an event-sourced module requires are recorded in [ADR-050](050-modules-may-require-modules.md).
+
 ## Context
 
 All Encina compliance modules (Consent, DataSubjectRights, LawfulBasis, BreachNotification, DPIA, ProcessorAgreements, Retention, DataResidency, CrossBorderTransfer) currently use **entity-based persistence** with store interfaces designed for the 13 database providers (ADO.NET x4, Dapper x4, EF Core x4, MongoDB).

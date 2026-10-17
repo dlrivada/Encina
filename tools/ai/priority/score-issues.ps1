@@ -28,6 +28,14 @@
 #   -NoCollect            Skip the collect-issues.ps1 refresh in -All mode; reuse the cached
 #                         issues.json (for tests and repeated sample runs against the same data).
 #
+# Urgent (#2483): an issue carrying the GitHub label 'urgent' (SPEC-004 REQ-010: broken CI on main,
+# audit blocker, defect blocking other fronts) gets total = computed total + 100, so it ranks above
+# every non-urgent issue in the single Priority list. The entry keeps 'baseTotal' (the computed
+# value), 'urgent' (bool) and the flag 'urgent'. Urgency is recomputed from the issue's labels on
+# every run of the issue being scored, -Resume included (-Issue refreshes only that issue; -All the rest). The label 'priority-critical' is a star rating, not urgency.
+# Freshness: the ranking (scores.json generatedAtUtc) must be less than 24 h old when a front is
+# picked; if older, run -All -Resume first (only new or changed issues reach the model).
+#
 # Usage:
 #   pwsh -NoProfile -File tools/ai/priority/score-issues.ps1 -All [-Limit 15] [-Resume] [-NoCollect] [-DryRun]
 #   pwsh -NoProfile -File tools/ai/priority/score-issues.ps1 -Issue 1552
@@ -246,6 +254,10 @@ function New-ScoredEntry {
     )
     $flags = @()
     if (-not $IssueRecord.milestone) { $flags += 'needs-milestone' }
+    # Urgency is recomputed from the fresh labels on every run, -Resume included (#2483).
+    $urgentBonus = Get-PriorityUrgentBonus -Labels $IssueRecord.labels
+    $isUrgent = $urgentBonus -gt 0
+    if ($isUrgent) { $flags += 'urgent' }
 
     $effortCk = Get-PriorityEffortCheckboxScore -Body $IssueRecord.body
 
@@ -370,13 +382,16 @@ function New-ScoredEntry {
         $source[[string]$o.criterion] = 'override'
     }
 
+    $baseTotal = Get-PriorityTotal -Scores $scores
     return [ordered]@{
         number       = $IssueRecord.number
         title        = $IssueRecord.title
         milestone    = $IssueRecord.milestone
         createdAtUtc = $IssueRecord.createdAt
         flags        = $flags
-        total        = Get-PriorityTotal -Scores $scores
+        urgent       = $isUrgent
+        baseTotal    = $baseTotal
+        total        = [Math]::Round($baseTotal + $urgentBonus, 1)
         scores       = $scores
         why          = $why
         source       = $source
