@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.EntityFrameworkCore.QueryCacheInterceptorBenchmarks-20261017-115247</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+INTEL XEON PLATINUM 8573C 2.30GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                         </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>Mean </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Key generation (simple query)&#39;</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>14,390.2 ns</td><td>576.55 ns</td><td>381.35 ns</td><td>1.00</td><td>0.04</td><td>0.0763</td><td>0.0610</td><td>8600 B</td><td>1.00</td>
+</tr><tr><td>&#39;Key generation (complex JOIN query)&#39;</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>24,185.6 ns</td><td>731.05 ns</td><td>435.04 ns</td><td>1.68</td><td>0.05</td><td>0.1526</td><td>0.1221</td><td>16360 B</td><td>1.90</td>
+</tr><tr><td>&#39;Key generation with tenant&#39;</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>22,752.6 ns</td><td>312.34 ns</td><td>185.87 ns</td><td>1.58</td><td>0.04</td><td>0.1831</td><td>0.1526</td><td>16496 B</td><td>1.92</td>
+</tr><tr><td>&#39;Cache hit (memory)&#39;</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>15,259.2 ns</td><td>162.49 ns</td><td>107.47 ns</td><td>1.06</td><td>0.03</td><td>0.0916</td><td>0.0763</td><td>8744 B</td><td>1.02</td>
+</tr><tr><td>&#39;Cache miss (memory)&#39;</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>682.7 ns</td><td>1.04 ns</td><td>0.62 ns</td><td>0.05</td><td>0.00</td><td>0.0010</td><td>-</td><td>120 B</td><td>0.01</td>
+</tr><tr><td>&#39;CachedDataReader read (5 rows)&#39;</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>6,478.7 ns</td><td>18.27 ns</td><td>10.87 ns</td><td>0.45</td><td>0.01</td><td>0.0305</td><td>-</td><td>2712 B</td><td>0.32</td>
+</tr><tr><td>&#39;CachedDataReader read (1000 rows)&#39;</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>27,716.1 ns</td><td>41.52 ns</td><td>21.72 ns</td><td>1.93</td><td>0.05</td><td>0.0916</td><td>-</td><td>8592 B</td><td>1.00</td>
+</tr><tr><td>&#39;Key generation (simple query)&#39;</td><td>ShortRun</td><td>3</td><td>1</td><td>13,449.7 ns</td><td>9,282.20 ns</td><td>508.79 ns</td><td>1.00</td><td>0.05</td><td>0.0763</td><td>0.0610</td><td>7576 B</td><td>1.00</td>
+</tr><tr><td>&#39;Key generation (complex JOIN query)&#39;</td><td>ShortRun</td><td>3</td><td>1</td><td>23,408.5 ns</td><td>525.46 ns</td><td>28.80 ns</td><td>1.74</td><td>0.06</td><td>0.1526</td><td>0.1221</td><td>14568 B</td><td>1.92</td>
+</tr><tr><td>&#39;Key generation with tenant&#39;</td><td>ShortRun</td><td>3</td><td>1</td><td>22,462.4 ns</td><td>3,565.19 ns</td><td>195.42 ns</td><td>1.67</td><td>0.06</td><td>0.1831</td><td>0.1526</td><td>15472 B</td><td>2.04</td>
+</tr><tr><td>&#39;Cache hit (memory)&#39;</td><td>ShortRun</td><td>3</td><td>1</td><td>15,308.9 ns</td><td>6,166.45 ns</td><td>338.00 ns</td><td>1.14</td><td>0.04</td><td>0.0916</td><td>0.0763</td><td>7720 B</td><td>1.02</td>
+</tr><tr><td>&#39;Cache miss (memory)&#39;</td><td>ShortRun</td><td>3</td><td>1</td><td>694.6 ns</td><td>43.96 ns</td><td>2.41 ns</td><td>0.05</td><td>0.00</td><td>0.0010</td><td>-</td><td>120 B</td><td>0.02</td>
+</tr><tr><td>&#39;CachedDataReader read (5 rows)&#39;</td><td>ShortRun</td><td>3</td><td>1</td><td>6,496.6 ns</td><td>276.60 ns</td><td>15.16 ns</td><td>0.48</td><td>0.02</td><td>0.0305</td><td>-</td><td>2712 B</td><td>0.36</td>
+</tr><tr><td>&#39;CachedDataReader read (1000 rows)&#39;</td><td>ShortRun</td><td>3</td><td>1</td><td>27,741.8 ns</td><td>5,335.08 ns</td><td>292.43 ns</td><td>2.06</td><td>0.07</td><td>0.0916</td><td>-</td><td>8592 B</td><td>1.13</td>
+</tr></tbody></table>
+</body>
+</html>
