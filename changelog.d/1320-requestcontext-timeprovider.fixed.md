@@ -1,0 +1,1 @@
+- `RequestContext.Create` and `RequestContext.CreateForTest` take an optional `TimeProvider` and stamp the context from it instead of always reading the system clock (#1320).
