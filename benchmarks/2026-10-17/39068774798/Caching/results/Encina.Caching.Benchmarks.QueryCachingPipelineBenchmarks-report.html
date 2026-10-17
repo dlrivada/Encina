@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Caching.Benchmarks.QueryCachingPipelineBenchmarks-20261017-220853</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+INTEL XEON PLATINUM 8573C 2.30GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                       </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>concurrencyLevel</th><th>Mean</th><th>Error </th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Pipeline_CacheMiss</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>10.22 &mu;s</td><td>0.278 &mu;s</td><td>0.165 &mu;s</td><td>1.00</td><td>0.02</td><td>0.0305</td><td>0.0153</td><td>2.51 KB</td><td>1.00</td>
+</tr><tr><td>Pipeline_CacheHit</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>10.34 &mu;s</td><td>0.240 &mu;s</td><td>0.143 &mu;s</td><td>1.01</td><td>0.02</td><td>0.0305</td><td>-</td><td>3.4 KB</td><td>1.36</td>
+</tr><tr><td>Pipeline_SequentialDifferentQueries</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>105.33 &mu;s</td><td>6.117 &mu;s</td><td>3.640 &mu;s</td><td>10.30</td><td>0.37</td><td>0.3662</td><td>0.2441</td><td>43.22 KB</td><td>17.23</td>
+</tr><tr><td>Pipeline_SequentialSameQuery</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>49.90 &mu;s</td><td>0.293 &mu;s</td><td>0.153 &mu;s</td><td>4.88</td><td>0.08</td><td>0.1831</td><td>-</td><td>16.41 KB</td><td>6.54</td>
+</tr><tr><td>Pipeline_CacheMiss</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>10.30 &mu;s</td><td>2.473 &mu;s</td><td>0.136 &mu;s</td><td>1.00</td><td>0.02</td><td>0.0305</td><td>0.0153</td><td>2.51 KB</td><td>1.00</td>
+</tr><tr><td>Pipeline_CacheHit</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>10.12 &mu;s</td><td>0.904 &mu;s</td><td>0.050 &mu;s</td><td>0.98</td><td>0.01</td><td>0.0305</td><td>-</td><td>3.4 KB</td><td>1.36</td>
+</tr><tr><td>Pipeline_SequentialDifferentQueries</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>121.91 &mu;s</td><td>606.756 &mu;s</td><td>33.258 &mu;s</td><td>11.84</td><td>2.80</td><td>0.2441</td><td>0.1221</td><td>24.3 KB</td><td>9.69</td>
+</tr><tr><td>Pipeline_SequentialSameQuery</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>49.85 &mu;s</td><td>8.673 &mu;s</td><td>0.475 &mu;s</td><td>4.84</td><td>0.07</td><td>0.1831</td><td>-</td><td>16.41 KB</td><td>6.54</td>
+</tr><tr><td>Pipeline_ConcurrentAccess</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>10</td><td>78.13 &mu;s</td><td>2.554 &mu;s</td><td>1.336 &mu;s</td><td>?</td><td>?</td><td>0.2441</td><td>0.1221</td><td>22.38 KB</td><td>?</td>
+</tr><tr><td>Pipeline_ConcurrentAccess</td><td>ShortRun</td><td>3</td><td>1</td><td>10</td><td>82.30 &mu;s</td><td>169.050 &mu;s</td><td>9.266 &mu;s</td><td>?</td><td>?</td><td>0.2441</td><td>0.1221</td><td>22.38 KB</td><td>?</td>
+</tr><tr><td>Pipeline_ConcurrentAccess</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>50</td><td>385.93 &mu;s</td><td>16.840 &mu;s</td><td>8.808 &mu;s</td><td>?</td><td>?</td><td>0.9766</td><td>0.4883</td><td>111.29 KB</td><td>?</td>
+</tr><tr><td>Pipeline_ConcurrentAccess</td><td>ShortRun</td><td>3</td><td>1</td><td>50</td><td>430.17 &mu;s</td><td>1,490.084 &mu;s</td><td>81.677 &mu;s</td><td>?</td><td>?</td><td>0.9766</td><td>0.4883</td><td>111.29 KB</td><td>?</td>
+</tr><tr><td>Pipeline_ConcurrentAccess</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>100</td><td>769.49 &mu;s</td><td>23.450 &mu;s</td><td>12.265 &mu;s</td><td>?</td><td>?</td><td>1.9531</td><td>0.9766</td><td>222.43 KB</td><td>?</td>
+</tr><tr><td>Pipeline_ConcurrentAccess</td><td>ShortRun</td><td>3</td><td>1</td><td>100</td><td>811.51 &mu;s</td><td>2,210.972 &mu;s</td><td>121.191 &mu;s</td><td>?</td><td>?</td><td>1.9531</td><td>0.9766</td><td>222.43 KB</td><td>?</td>
+</tr></tbody></table>
+</body>
+</html>

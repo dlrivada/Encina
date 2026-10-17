@@ -1,0 +1,25 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  Job-IAMMPO : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+
+InvocationCount=1  UnrollFactor=1  
+
+```
+| Method                         | Job        | IterationCount | LaunchCount | WarmupCount | Mean        | Error         | StdDev      | Median      | Ratio | RatioSD | Allocated | Alloc Ratio |
+|------------------------------- |----------- |--------------- |------------ |------------ |------------:|--------------:|------------:|------------:|------:|--------:|----------:|------------:|
+| TryAcquireAsync_HighLimit      | Job-IAMMPO | 15             | Default     | 5           |  7,211.0 ns |     448.19 ns |   374.26 ns |  7,154.0 ns |  1.00 |    0.07 |     784 B |        1.00 |
+| TryAcquireAsync_SmallLimit     | Job-IAMMPO | 15             | Default     | 5           |  7,293.3 ns |     323.33 ns |   269.99 ns |  7,268.0 ns |  1.01 |    0.06 |     784 B |        1.00 |
+| GetMetrics                     | Job-IAMMPO | 15             | Default     | 5           |    561.7 ns |      46.45 ns |    36.27 ns |    555.5 ns |  0.08 |    0.01 |         - |        0.00 |
+| AcquireAndRelease_Cycle        | Job-IAMMPO | 15             | Default     | 5           |  7,553.2 ns |     710.35 ns |   664.46 ns |  7,303.5 ns |  1.05 |    0.10 |     672 B |        0.86 |
+| AcquireMultiple_ThenReleaseAll | Job-IAMMPO | 15             | Default     | 5           | 11,104.4 ns |     404.60 ns |   358.67 ns | 11,025.5 ns |  1.54 |    0.09 |    5528 B |        7.05 |
+|                                |            |                |             |             |             |               |             |             |       |         |           |             |
+| TryAcquireAsync_HighLimit      | ShortRun   | 3              | 1           | 3           |  8,222.2 ns |  22,413.94 ns | 1,228.58 ns |  8,075.5 ns |  1.01 |    0.18 |     784 B |        1.00 |
+| TryAcquireAsync_SmallLimit     | ShortRun   | 3              | 1           | 3           |  7,562.5 ns |   6,120.95 ns |   335.51 ns |  7,559.5 ns |  0.93 |    0.12 |     784 B |        1.00 |
+| GetMetrics                     | ShortRun   | 3              | 1           | 3           |    537.7 ns |   1,695.13 ns |    92.92 ns |    511.0 ns |  0.07 |    0.01 |         - |        0.00 |
+| AcquireAndRelease_Cycle        | ShortRun   | 3              | 1           | 3           | 12,690.0 ns | 147,801.21 ns | 8,101.48 ns |  8,245.0 ns |  1.57 |    0.89 |     672 B |        0.86 |
+| AcquireMultiple_ThenReleaseAll | ShortRun   | 3              | 1           | 3           | 15,965.3 ns |  12,171.89 ns |   667.18 ns | 15,865.0 ns |  1.97 |    0.26 |    5528 B |        7.05 |
