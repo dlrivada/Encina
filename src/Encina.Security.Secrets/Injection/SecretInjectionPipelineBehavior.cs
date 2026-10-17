@@ -88,12 +88,22 @@ internal sealed class SecretInjectionPipelineBehavior<TRequest, TResponse> : IPi
             return await nextStep().ConfigureAwait(false);
         }
 
+        return await HandleInjectionAsync(request, nextStep, requestTypeName, properties.Length, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> HandleInjectionAsync(
+        TRequest request,
+        RequestHandlerCallback<TResponse> nextStep,
+        string requestTypeName,
+        int propertyCount,
+        CancellationToken cancellationToken)
+    {
         var startedAt = Stopwatch.GetTimestamp();
 
         // Start tracing if enabled
         using var activity = StartActivity(requestTypeName);
 
-        Log.SecretInjectionStarted(_logger, requestTypeName, properties.Length);
+        Log.SecretInjectionStarted(_logger, requestTypeName, propertyCount);
 
         var failure = await InjectAsync(request, activity, startedAt, requestTypeName, cancellationToken).ConfigureAwait(false);
 
