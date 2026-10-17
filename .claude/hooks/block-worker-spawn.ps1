@@ -17,7 +17,7 @@
 #   pr-reviewer       Explore only (#1447): read-only cross-file research while reviewing a published PR; it
 #                     never diagnoses CI, it reviews, so ci-diagnoser is not in its allowlist.
 #   issue-archivist, issue-auditor, test-auditor, remediation-drafter, audit-verifier, docs-reviewer,
-#   adversarial-reviewer, ci-diagnoser, pr-watcher, local-ai-standin   empty (#1345, #1572, #1593). Each is either a SPEC-003 audit stage agent (single-owner,
+#   adversarial-reviewer, ci-diagnoser, pr-watcher, local-ai-standin, decision-extractor   empty (#1345, #1572, #1593, #2470). Each is either a SPEC-003 audit stage agent (single-owner,
 #                     no delegation) or a read-only specialist whose own definition lists no Agent tool; any
 #                     spawn they attempt is denied.
 #
@@ -51,7 +51,7 @@ try {
     $payload = Read-HookStdin | ConvertFrom-Json
 
     $allowlists = @{
-        'orchestrator'          = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'site-steward', 'pr-reviewer', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'remediation-drafter', 'audit-verifier', 'local-ai-standin')
+        'orchestrator'          = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'site-steward', 'pr-reviewer', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'remediation-drafter', 'audit-verifier', 'local-ai-standin', 'decision-extractor')
         'issue-worker'          = @('ci-diagnoser', 'mechanical-fixer', 'Explore', 'adversarial-reviewer', 'docs-writer', 'docs-reviewer', 'local-ai-standin')
         'docs-writer'           = @('mechanical-fixer', 'docs-reviewer', 'Explore', 'local-ai-standin')
         'mechanical-fixer'      = @('ci-diagnoser', 'Explore')
@@ -67,6 +67,7 @@ try {
         'ci-diagnoser'          = @()
         'pr-watcher'            = @()
         'local-ai-standin'      = @()
+        'decision-extractor'    = @()
     }
 
     $caller = [string]$payload.agent_type

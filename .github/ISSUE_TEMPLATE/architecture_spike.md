@@ -12,6 +12,8 @@ What is the problem or question that needs investigation? Why is this decision n
 
 ## Options to Evaluate
 
+Evaluate only real options. A choice with a single option that complies is Settled: write it with its verifiable citation (an `AGENTS.md` section or rule, a SPEC id, an ADR number, a law article, a link to an earlier maintainer decision, or named comparable products) instead of inventing alternatives. A Dilemma has two or more valid options, each better in a concrete named scenario; name that scenario for each option. Only an issue with a Dilemma carries the `needs-decision` label. Zero Dilemmas is valid: write "No open design choices" and the settled table.
+
 ### Option A: [Name]
 
 - **Description**: How this option works
