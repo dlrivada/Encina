@@ -36,7 +36,7 @@ has_children: true
 | [024](024-remove-sqlite-provider-pre-1.0.md) | Remove SQLite Provider Pre-1.0 |
 | [025](025-performance-measurement-infrastructure.md) | Performance Measurement Infrastructure |
 | [027](027-marten-as-the-event-sourcing-provider.md) | Marten Is the Event-Sourcing Provider; EventStoreDB Deprecated |
-| [028](028-domain-events-versus-integration-events.md) | Domain Events vs Integration Events (Outbox only) |
+| [028](028-domain-events-versus-integration-events.md) | Domain Events vs Integration Events |
 | [029](029-recoverability-error-classification.md) | Recoverability Error Classification |
 | [030](030-encryption-at-the-serializer-level.md) | Encryption at the Serializer Level (AES-256-GCM) |
 | [031](031-retention-erasure-port.md) | Retention Enforcement Erases Through Its Own Category-Scoped Port |
@@ -45,6 +45,7 @@ has_children: true
 | [046](046-persistent-dead-letter-queue.md) | Persistent Dead Letter Queue: Oldest-First Contract, Idempotent Capture, Tenant Column |
 | [047](047-abac-decision-audit.md) | ABAC Decisions Are Audited Write-Ahead at the Enforcement Point, Fail-Closed |
 | [048](048-inbox-record-vs-business-transaction.md) | The Inbox Record and the Business Transaction: Enlisted and Independent Writes |
+| [050](050-modules-may-require-modules.md) | A Module May Require Other Modules When It Needs Them for Its Guarantees |
 
 ## Reserved numbers
 
