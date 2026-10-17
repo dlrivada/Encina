@@ -54,8 +54,8 @@ internal static class ReadAuditActivitySource
     /// <summary>The number of entities affected by the operation.</summary>
     internal const string TagEntityCount = "read_audit.entity_count";
 
-    /// <summary>The error message when an operation fails.</summary>
-    internal const string TagErrorMessage = "read_audit.error_message";
+    /// <summary>The error code when an operation fails. Only the code is recorded: the error message can carry personal data (#2134).</summary>
+    internal const string TagErrorCode = "read_audit.error_code";
 
     // ---- Activity starters ----
 
@@ -130,20 +130,20 @@ internal static class ReadAuditActivitySource
     /// Marks an activity as failed.
     /// </summary>
     /// <param name="activity">The activity to mark as failed (may be <c>null</c>).</param>
-    /// <param name="errorMessage">The error message.</param>
-    internal static void Failed(Activity? activity, string? errorMessage)
+    /// <param name="errorCode">The error code. Only the code is recorded: the error message can carry personal data (#2134).</param>
+    internal static void Failed(Activity? activity, string errorCode)
     {
         if (activity is null)
         {
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(errorMessage))
+        if (!string.IsNullOrWhiteSpace(errorCode))
         {
-            activity.SetTag(TagErrorMessage, errorMessage);
+            activity.SetTag(TagErrorCode, errorCode);
         }
 
-        activity.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity.SetStatus(ActivityStatusCode.Error, errorCode);
         activity.Dispose();
     }
 }

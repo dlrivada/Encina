@@ -81,7 +81,13 @@
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 60
+      },
+      "justifications": {
+        "unit": "Target 60% set for #2134; unit tests drive the span start and completion paths, and the rest is the no-listener fast path and error tags."
+      }
     },
     "Caching/Diagnostics/CacheInvalidationMetrics.cs": {
       "defaultTests": [
@@ -96,7 +102,15 @@
         "guard"
       ],
       "defaultRule": "*Handler.cs",
-      "reason": "Handler with constructor null guards and mockeable dependencies"
+      "reason": "Handler with constructor null guards and mockeable dependencies",
+      "targets": {
+        "unit": 100,
+        "guard": 15
+      },
+      "justifications": {
+        "unit": "Unit tests with a fake cache provider reach every handler branch, from change events to invalidation calls.",
+        "guard": "Guard tests only assert argument checks; the remaining lines are driven by unit and integration tests."
+      }
     },
     "Caching/QueryCacheInvalidationOptions.cs": {
       "defaultTests": [

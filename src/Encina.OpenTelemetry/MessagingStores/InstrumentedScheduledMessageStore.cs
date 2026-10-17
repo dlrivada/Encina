@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Encina.Diagnostics;
 using Encina.Messaging.Scheduling;
 using LanguageExt;
 
@@ -42,7 +43,7 @@ internal sealed class InstrumentedScheduledMessageStore : IScheduledMessageStore
         using var activity = StartSchedule(message.RequestType, message.Id, message.ScheduledAtUtc);
         var result = await _inner.AddAsync(message, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -60,7 +61,7 @@ internal sealed class InstrumentedScheduledMessageStore : IScheduledMessageStore
             var count = messages is ICollection<IScheduledMessage> col ? col.Count : messages.Count();
             CompleteBatch(activity, count);
         });
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -70,7 +71,7 @@ internal sealed class InstrumentedScheduledMessageStore : IScheduledMessageStore
         using var activity = StartExecute(messageId);
         var result = await _inner.MarkAsProcessedAsync(messageId, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -85,7 +86,7 @@ internal sealed class InstrumentedScheduledMessageStore : IScheduledMessageStore
         var result = await _inner.MarkAsFailedAsync(messageId, errorMessage, nextRetryAtUtc, cancellationToken)
             .ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -99,7 +100,7 @@ internal sealed class InstrumentedScheduledMessageStore : IScheduledMessageStore
         var result = await _inner.RescheduleRecurringMessageAsync(messageId, nextScheduledAtUtc, cancellationToken)
             .ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -109,7 +110,7 @@ internal sealed class InstrumentedScheduledMessageStore : IScheduledMessageStore
         using var activity = StartCancel(messageId);
         var result = await _inner.CancelAsync(messageId, cancellationToken).ConfigureAwait(false);
         result.IfRight(_ => Complete(activity));
-        result.IfLeft(err => Failed(activity, err.Message));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
         return result;
     }
 
@@ -208,8 +209,8 @@ internal sealed class InstrumentedScheduledMessageStore : IScheduledMessageStore
         activity.SetStatus(ActivityStatusCode.Ok);
     }
 
-    private static void Failed(Activity? activity, string? errorMessage)
+    private static void Failed(Activity? activity, string errorCode)
     {
-        activity?.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity?.SetStatus(ActivityStatusCode.Error, errorCode);
     }
 }

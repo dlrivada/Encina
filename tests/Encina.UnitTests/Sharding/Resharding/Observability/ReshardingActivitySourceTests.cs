@@ -157,13 +157,13 @@ public sealed class ReshardingActivitySourceTests : IDisposable
 
         // Act
         ReshardingActivitySource.Complete(
-            activity, succeeded: false, errorMessage: "Verification failed");
+            activity, succeeded: false, errorCode: "resharding.verification_failed");
 
         // Assert
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.StatusDescription.ShouldBe("Verification failed");
+        activity.StatusDescription.ShouldBe("resharding.verification_failed");
         var tags = activity.TagObjects.ToDictionary(t => t.Key, t => t.Value);
-        tags["resharding.error"].ShouldBe("Verification failed");
+        tags["resharding.error"].ShouldBe("resharding.verification_failed");
     }
 
     #endregion

@@ -204,7 +204,15 @@
       "reason": "Store that creates DB connections internally — needs real database",
       "override": [
         "integration"
-      ]
+      ],
+      "targets": {
+        "guard": 9,
+        "integration": 70
+      },
+      "justifications": {
+        "guard": "Guard tests only assert argument checks; the remaining lines are driven by unit and integration tests.",
+        "integration": "The registry integration tests exercise every method against a real database (measured 78-85%)."
+      }
     },
     "ReadWriteSeparation/IReadWriteConnectionFactory.cs": {
       "defaultTests": [

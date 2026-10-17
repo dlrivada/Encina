@@ -116,7 +116,6 @@ public sealed class ActivityPipelineBehaviorContractTests
                 return true;
             });
         detector.TryGetErrorCode(Arg.Any<object?>()).Returns("PAY_001");
-        detector.TryGetErrorMessage(Arg.Any<object?>()).Returns("Card declined");
 
         var behavior = new CommandActivityPipelineBehavior<TestCommand, string>(detector);
         var command = new TestCommand("payment");
@@ -129,8 +128,6 @@ public sealed class ActivityPipelineBehaviorContractTests
         // Assert: the response is still Right (functional failure is recorded, not converted to Left)
         result.IsRight.ShouldBeTrue();
         detector.Received(1).TryExtractFailure(Arg.Any<object?>(), out Arg.Any<string>()!, out Arg.Any<object?>()!);
-        detector.Received(1).TryGetErrorCode(Arg.Any<object?>());
-        detector.Received(1).TryGetErrorMessage(Arg.Any<object?>());
     }
 
     [Fact]
@@ -217,7 +214,6 @@ public sealed class ActivityPipelineBehaviorContractTests
                 return true;
             });
         detector.TryGetErrorCode(Arg.Any<object?>()).Returns("NOT_FOUND");
-        detector.TryGetErrorMessage(Arg.Any<object?>()).Returns("Resource not found");
 
         var behavior = new QueryActivityPipelineBehavior<TestQuery, string>(detector);
         var query = new TestQuery("missing");
@@ -229,8 +225,6 @@ public sealed class ActivityPipelineBehaviorContractTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        detector.Received(1).TryGetErrorCode(Arg.Any<object?>());
-        detector.Received(1).TryGetErrorMessage(Arg.Any<object?>());
     }
 
     [Fact]

@@ -119,7 +119,7 @@ internal sealed class QueryCacheInvalidationCdcHandler : IChangeEventHandler<Jso
         {
             CdcCacheInvalidationLog.CacheInvalidationFailed(_logger, ex.ForLogging(), tableName);
             CacheInvalidationMetrics.RecordError(tableName, operation, "cache_failure");
-            CacheInvalidationActivitySource.InvalidationFailed(activity, ex.Message);
+            CacheInvalidationActivitySource.InvalidationFailed(activity, ActivityStatusDescriptions.ForException(ex));
             // Do not block CDC pipeline - log and continue
             return Right(unit);
         }
@@ -149,7 +149,7 @@ internal sealed class QueryCacheInvalidationCdcHandler : IChangeEventHandler<Jso
                 CdcCacheInvalidationLog.PubSubBroadcastFailed(_logger, ex.ForLogging(), pattern);
                 CacheInvalidationMetrics.RecordError(tableName, operation, "broadcast_failure");
                 CacheInvalidationActivitySource.CompleteBroadcast(
-                    broadcastActivity, isSuccess: false, ex.Message);
+                    broadcastActivity, isSuccess: false, ActivityStatusDescriptions.ForException(ex));
                 // Do not block CDC pipeline - log and continue
             }
         }

@@ -46,14 +46,14 @@ public sealed class TenancyActivitySourceTests
     public void Failed_WithNullActivity_DoesNotThrow()
     {
         // Act & Assert
-        TenancyActivitySource.Failed(null, "ERR_001", "Something failed");
+        TenancyActivitySource.Failed(null, "ERR_001");
     }
 
     [Fact]
     public void Failed_WithNullErrorCode_DoesNotThrow()
     {
         // Act & Assert
-        TenancyActivitySource.Failed(null, null, "Something failed");
+        TenancyActivitySource.Failed(null, string.Empty);
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public sealed class TenancyActivitySourceTests
         var activity = TenancyActivitySource.StartResolution("header");
 
         // Act
-        TenancyActivitySource.Failed(activity, "TENANT_NOT_FOUND", "Tenant not found");
+        TenancyActivitySource.Failed(activity, "TENANT_NOT_FOUND");
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public sealed class TenancyActivitySourceTests
         var activity = TenancyActivitySource.StartResolution("header");
 
         // Act - null error code should be handled
-        TenancyActivitySource.Failed(activity, null, "Unknown error");
+        TenancyActivitySource.Failed(activity, string.Empty);
     }
 
     [Fact]
@@ -148,6 +148,6 @@ public sealed class TenancyActivitySourceTests
         var activity = TenancyActivitySource.StartResolution("header");
 
         // Act - whitespace error code should be handled
-        TenancyActivitySource.Failed(activity, "   ", "Unknown error");
+        TenancyActivitySource.Failed(activity, "   ");
     }
 }
