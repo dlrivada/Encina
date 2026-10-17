@@ -99,7 +99,7 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
             }
 
             var entities = await query
-                .OrderByDescending(e => e.TimestampUtc)
+                .OrderByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id)
                 .ToListAsync(cancellationToken);
 
             var entries = entities.Select(MapToRecord).ToList();
@@ -139,7 +139,7 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
             }
 
             var entities = await query
-                .OrderByDescending(e => e.TimestampUtc)
+                .OrderByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id)
                 .ToListAsync(cancellationToken);
 
             var entries = entities.Select(MapToRecord).ToList();
@@ -162,7 +162,7 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
         {
             var entities = await _dbContext.Set<OperationAuditEntryEntity>()
                 .Where(e => e.CorrelationId == correlationId)
-                .OrderBy(e => e.TimestampUtc)
+                .OrderBy(e => e.TimestampUtc).ThenBy(e => e.Id)
                 .ToListAsync(cancellationToken);
 
             var entries = entities.Select(MapToRecord).ToList();
@@ -237,7 +237,7 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
     {
         // Fetch all matching entities and filter by duration in memory
         var allEntities = await dbQuery
-            .OrderByDescending(e => e.TimestampUtc)
+            .OrderByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id)
             .ToListAsync(cancellationToken);
 
         var filteredList = allEntities
@@ -263,7 +263,7 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
         var totalCount = await dbQuery.CountAsync(cancellationToken);
 
         var entities = await dbQuery
-            .OrderByDescending(e => e.TimestampUtc)
+            .OrderByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);

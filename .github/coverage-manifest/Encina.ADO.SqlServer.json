@@ -28,7 +28,13 @@
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL — needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database",
+      "targets": {
+        "integration": 0
+      },
+      "justifications": {
+        "integration": "No integration test exists yet for the entity-change audit store (measured 0%); this change only extends its ORDER BY with the id tiebreaker and its unit tests mock the connection. Integration tests are tracked by issue #2450."
+      }
     },
     "Auditing/OperationAuditStoreADO.cs": {
       "defaultTests": [
@@ -40,7 +46,7 @@
         "integration": 80
       },
       "justifications": {
-        "integration": "The shipped-script integration tests on a real SQL Server database run every query path (measured 86-88%); only the driver-failure branches stay uncovered."
+        "integration": "The shipped-script integration tests on a real SQL Server database run every query path (measured 87.32%); the uncovered lines are the catch blocks that turn a database failure into an error for each method and the Task.Run fallbacks of the ExecuteReader/ExecuteNonQuery/ExecuteScalar/ReadAsync helpers, which run only for non-native command types."
       }
     },
     "Auditing/ReadAuditStoreADO.cs": {
@@ -48,7 +54,13 @@
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL — needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database",
+      "targets": {
+        "integration": 87
+      },
+      "justifications": {
+        "integration": "The integration tests on a real SQL Server database run every read audit query path, every filter and the stable-order paging (measured 88.13%); the uncovered lines are the catch blocks that turn a database failure into an error for each method and the Task.Run fallbacks of the ExecuteReader/ExecuteNonQuery/ExecuteScalar/ReadAsync helpers, which run only for non-native command types."
+      }
     },
     "BulkOperations/BulkOperationsADO.cs": {
       "defaultTests": [

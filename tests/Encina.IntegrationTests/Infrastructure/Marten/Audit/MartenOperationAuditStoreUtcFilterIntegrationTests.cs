@@ -2,6 +2,7 @@ using Encina.Audit.Marten;
 using Encina.Audit.Marten.Crypto;
 using Encina.Audit.Marten.Projections;
 using Encina.IntegrationTests.Infrastructure.Marten.Fixtures;
+using Encina.IntegrationTests.Security.Audit;
 using Encina.Security.Audit;
 
 using JasperFx.Events.Daemon;
@@ -148,6 +149,49 @@ public sealed class MartenOperationAuditStoreUtcFilterIntegrationTests(MartenFix
         var entry = page.Items.ShouldHaveSingleItem();
         entry.TimestampUtc.Kind.ShouldBe(DateTimeKind.Utc);
         entry.TimestampUtc.ShouldBe(Base);
+    }
+
+    [Fact]
+    public async Task QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
+    {
+        SkipWhenUnavailable();
+
+        await OperationAuditStableOrderCheck.AssertPagedReadsAreStableAsync(
+            CreateStore(),
+            ReadAuditStableOrderCheck.HexIdOrder,
+            () => _daemon!.WaitForNonStaleData(TimeSpan.FromSeconds(60)));
+    }
+
+    [Fact]
+    public async Task QueryAsync_DurationFilter_AppliesTheTotalOrderBeforePaging()
+    {
+        SkipWhenUnavailable();
+
+        // Entries recorded in SetUp last 5 ms each (see Entry); a 1 ms floor keeps them all and takes the in-memory duration path.
+        var page = await Query(new OperationAuditQuery { UserId = _user, MinDuration = TimeSpan.FromMilliseconds(1), PageSize = 2 });
+
+        page.TotalCount.ShouldBe(3);
+        Hours(page).ShouldBe([2, 1]);
+    }
+
+    [Fact]
+    public async Task ReadStore_QueryAsync_EntriesSharingATimestamp_PagesRepeatAndDropNothing()
+    {
+        SkipWhenUnavailable();
+
+        var session = _store!.LightweightSession();
+        var keys = new MartenTemporalKeyProvider(session, TimeProvider.System, NullLogger<MartenTemporalKeyProvider>.Instance);
+        var readStore = new MartenReadAuditStore(
+            session,
+            new AuditEventEncryptor(keys, _options, NullLogger<AuditEventEncryptor>.Instance),
+            keys,
+            _options,
+            NullLogger<MartenReadAuditStore>.Instance);
+
+        await ReadAuditStableOrderCheck.AssertPagedReadsAreStableAsync(
+            readStore,
+            ReadAuditStableOrderCheck.HexIdOrder,
+            () => _daemon!.WaitForNonStaleData(TimeSpan.FromSeconds(60)));
     }
 
     private void SkipWhenUnavailable()

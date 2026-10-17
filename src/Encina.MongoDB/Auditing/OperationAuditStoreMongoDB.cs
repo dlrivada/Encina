@@ -94,7 +94,7 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
 
             var documents = await _collection
                 .Find(filter)
-                .SortByDescending(d => d.TimestampUtc)
+                .SortByDescending(d => d.TimestampUtc).ThenByDescending(d => d.Id)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -135,7 +135,7 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
 
             var documents = await _collection
                 .Find(filter)
-                .SortByDescending(d => d.TimestampUtc)
+                .SortByDescending(d => d.TimestampUtc).ThenByDescending(d => d.Id)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -163,7 +163,7 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
 
             var documents = await _collection
                 .Find(filter)
-                .SortBy(d => d.TimestampUtc) // Ascending for correlation ID to show chronological order
+                .SortBy(d => d.TimestampUtc).ThenBy(d => d.Id) // Ascending for correlation ID to show chronological order
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -219,7 +219,7 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
 
         var documents = await _collection
             .Find(filter)
-            .SortByDescending(d => d.TimestampUtc)
+            .SortByDescending(d => d.TimestampUtc).ThenByDescending(d => d.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Limit(pageSize)
             .ToListAsync(cancellationToken)
@@ -240,7 +240,7 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
     {
         var documents = await _collection
             .Find(filter)
-            .SortByDescending(d => d.TimestampUtc)
+            .SortByDescending(d => d.TimestampUtc).ThenByDescending(d => d.Id)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 

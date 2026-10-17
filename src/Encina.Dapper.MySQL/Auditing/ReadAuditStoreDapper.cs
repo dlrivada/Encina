@@ -61,7 +61,7 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
                    `CorrelationId`, `Purpose`, `AccessMethod`, `EntityCount`, `Metadata`
             FROM `{_tableName}`
             WHERE `EntityType` = @EntityType AND `EntityId` = @EntityId
-            ORDER BY `AccessedAtUtc` DESC";
+            ORDER BY `AccessedAtUtc` DESC, `Id` DESC";
 
         _selectByUserSql = $@"
             SELECT `Id`, `EntityType`, `EntityId`, `UserId`, `TenantId`, `AccessedAtUtc`,
@@ -70,7 +70,7 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
             WHERE `UserId` = @UserId
               AND `AccessedAtUtc` >= @FromUtc
               AND `AccessedAtUtc` <= @ToUtc
-            ORDER BY `AccessedAtUtc` DESC";
+            ORDER BY `AccessedAtUtc` DESC, `Id` DESC";
 
         // MySQL returns affected row count from ExecuteAsync
         _purgeSql = $@"
@@ -179,60 +179,8 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
             // Build dynamic WHERE clause
             var whereClause = new StringBuilder("WHERE 1=1");
             var parameters = new DynamicParameters();
-
-            if (!string.IsNullOrWhiteSpace(query.UserId))
-            {
-                whereClause.Append(" AND `UserId` = @UserId");
-                parameters.Add("UserId", query.UserId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.TenantId))
-            {
-                whereClause.Append(" AND `TenantId` = @TenantId");
-                parameters.Add("TenantId", query.TenantId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.EntityType))
-            {
-                whereClause.Append(" AND `EntityType` = @EntityType");
-                parameters.Add("EntityType", query.EntityType);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.EntityId))
-            {
-                whereClause.Append(" AND `EntityId` = @EntityId");
-                parameters.Add("EntityId", query.EntityId);
-            }
-
-            if (query.AccessMethod.HasValue)
-            {
-                whereClause.Append(" AND `AccessMethod` = @AccessMethod");
-                parameters.Add("AccessMethod", (int)query.AccessMethod.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.Purpose))
-            {
-                whereClause.Append(" AND `Purpose` LIKE CONCAT('%', @Purpose, '%')");
-                parameters.Add("Purpose", query.Purpose);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.CorrelationId))
-            {
-                whereClause.Append(" AND `CorrelationId` = @CorrelationId");
-                parameters.Add("CorrelationId", query.CorrelationId);
-            }
-
-            if (query.FromUtc.HasValue)
-            {
-                whereClause.Append(" AND `AccessedAtUtc` >= @FromUtc");
-                parameters.Add("FromUtc", query.FromUtc.Value);
-            }
-
-            if (query.ToUtc.HasValue)
-            {
-                whereClause.Append(" AND `AccessedAtUtc` <= @ToUtc");
-                parameters.Add("ToUtc", query.ToUtc.Value);
-            }
+            AppendIdentityFilters(whereClause, parameters, query);
+            AppendAccessFilters(whereClause, parameters, query);
 
             var whereClauseStr = whereClause.ToString();
 
@@ -246,7 +194,7 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
                        `CorrelationId`, `Purpose`, `AccessMethod`, `EntityCount`, `Metadata`
                 FROM `{_tableName}`
                 {whereClauseStr}
-                ORDER BY `AccessedAtUtc` DESC
+                ORDER BY `AccessedAtUtc` DESC, `Id` DESC
                 LIMIT @PageSize OFFSET @Offset";
 
             parameters.Add("Offset", offset);
@@ -261,6 +209,66 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
         {
             return Left<EncinaError, PagedResult<ReadAuditEntry>>(
                 ReadAuditErrors.StoreError("Query", ex.Message, ex));
+        }
+    }
+
+    private static void AppendIdentityFilters(StringBuilder whereClause, DynamicParameters parameters, ReadAuditQuery query)
+    {
+        if (!string.IsNullOrWhiteSpace(query.UserId))
+        {
+            whereClause.Append(" AND `UserId` = @UserId");
+            parameters.Add("UserId", query.UserId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.TenantId))
+        {
+            whereClause.Append(" AND `TenantId` = @TenantId");
+            parameters.Add("TenantId", query.TenantId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.EntityType))
+        {
+            whereClause.Append(" AND `EntityType` = @EntityType");
+            parameters.Add("EntityType", query.EntityType);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.EntityId))
+        {
+            whereClause.Append(" AND `EntityId` = @EntityId");
+            parameters.Add("EntityId", query.EntityId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.CorrelationId))
+        {
+            whereClause.Append(" AND `CorrelationId` = @CorrelationId");
+            parameters.Add("CorrelationId", query.CorrelationId);
+        }
+    }
+
+    private static void AppendAccessFilters(StringBuilder whereClause, DynamicParameters parameters, ReadAuditQuery query)
+    {
+        if (query.AccessMethod.HasValue)
+        {
+            whereClause.Append(" AND `AccessMethod` = @AccessMethod");
+            parameters.Add("AccessMethod", (int)query.AccessMethod.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Purpose))
+        {
+            whereClause.Append(" AND `Purpose` LIKE CONCAT('%', @Purpose, '%')");
+            parameters.Add("Purpose", query.Purpose);
+        }
+
+        if (query.FromUtc.HasValue)
+        {
+            whereClause.Append(" AND `AccessedAtUtc` >= @FromUtc");
+            parameters.Add("FromUtc", query.FromUtc.Value);
+        }
+
+        if (query.ToUtc.HasValue)
+        {
+            whereClause.Append(" AND `AccessedAtUtc` <= @ToUtc");
+            parameters.Add("ToUtc", query.ToUtc.Value);
         }
     }
 

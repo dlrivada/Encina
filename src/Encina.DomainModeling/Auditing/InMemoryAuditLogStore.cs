@@ -79,7 +79,7 @@ public sealed class InMemoryAuditLogStore : IAuditLogStore
             {
                 // Return a copy ordered by timestamp descending (most recent first)
                 var result = list
-                    .OrderByDescending(e => e.TimestampUtc)
+                    .OrderByDescending(e => e.TimestampUtc).ThenByDescending(e => e.Id, StringComparer.Ordinal)
                     .ToList();
                 return Task.FromResult<IEnumerable<AuditLogEntry>>(result);
             }

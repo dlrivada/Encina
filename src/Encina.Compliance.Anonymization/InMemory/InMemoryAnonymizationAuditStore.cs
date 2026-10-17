@@ -48,7 +48,7 @@ public sealed class InMemoryAnonymizationAuditStore : IAnonymizationAuditStore
 
         var entries = _entries.Values
             .Where(e => e.SubjectId == subjectId)
-            .OrderByDescending(e => e.PerformedAtUtc)
+            .OrderByDescending(e => e.PerformedAtUtc).ThenByDescending(e => e.Id, StringComparer.Ordinal)
             .ToList()
             .AsReadOnly();
 
@@ -61,7 +61,7 @@ public sealed class InMemoryAnonymizationAuditStore : IAnonymizationAuditStore
         CancellationToken cancellationToken = default)
     {
         var entries = _entries.Values
-            .OrderByDescending(e => e.PerformedAtUtc)
+            .OrderByDescending(e => e.PerformedAtUtc).ThenByDescending(e => e.Id, StringComparer.Ordinal)
             .ToList()
             .AsReadOnly();
 
@@ -79,7 +79,7 @@ public sealed class InMemoryAnonymizationAuditStore : IAnonymizationAuditStore
     /// </summary>
     public IReadOnlyList<AnonymizationAuditEntry> GetAllEntries() =>
         _entries.Values
-            .OrderByDescending(e => e.PerformedAtUtc)
+            .OrderByDescending(e => e.PerformedAtUtc).ThenByDescending(e => e.Id, StringComparer.Ordinal)
             .ToList()
             .AsReadOnly();
 

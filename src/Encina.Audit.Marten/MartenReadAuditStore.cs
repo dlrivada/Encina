@@ -141,7 +141,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
         {
             var readModels = await _session.Query<ReadAuditEntryReadModel>()
                 .Where(m => m.EntityType == entityType && m.EntityId == entityId)
-                .OrderByDescending(m => m.AccessedAtUtc)
+                .OrderByDescending(m => m.AccessedAtUtc).ThenByDescending(m => m.Id)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -176,7 +176,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
                 .Where(m => m.UserId == userId)
                 .Where(m => m.AccessedAtUtc >= fromUtc)
                 .Where(m => m.AccessedAtUtc <= toUtc)
-                .OrderByDescending(m => m.AccessedAtUtc)
+                .OrderByDescending(m => m.AccessedAtUtc).ThenByDescending(m => m.Id)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -213,7 +213,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
             var totalCount = await q.CountAsync(cancellationToken).ConfigureAwait(false);
 
             var readModels = await q
-                .OrderByDescending(m => m.AccessedAtUtc)
+                .OrderByDescending(m => m.AccessedAtUtc).ThenByDescending(m => m.Id)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync(cancellationToken)
