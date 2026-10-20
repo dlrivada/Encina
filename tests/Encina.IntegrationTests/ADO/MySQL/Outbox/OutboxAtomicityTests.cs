@@ -1,13 +1,13 @@
 using System.Data;
 using System.Data.Common;
 using Encina.ADO.MySQL;
-using Encina.Modules.Isolation;
 using Encina.ADO.MySQL.Outbox;
 using Encina.IntegrationTests.Messaging;
 using Encina.IntegrationTests.Messaging.Outbox;
+using Encina.Modules.Isolation;
+using Encina.Tenancy;
 using Encina.TestInfrastructure.Fixtures;
 using Encina.TestInfrastructure.Schemas;
-using Encina.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MySqlConnector;
