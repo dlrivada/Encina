@@ -1691,7 +1691,7 @@ static class Collectors
     static string Rel(string root, string full) => Path.GetRelativePath(root, full).Replace('\\', '/');
 
     // AC-006: every Skip= references an issue (#nnn) on the same line or the line above.
-    static JsonNode SkipScan(string root)
+    public static JsonNode SkipScan(string root)
     {
         var unreferenced = new JsonArray();
         var total = 0;
@@ -1703,25 +1703,25 @@ static class Collectors
                 if (!Regex.IsMatch(lines[n], @"\bSkip\s*=") || lines[n].TrimStart().StartsWith("//", StringComparison.Ordinal)) continue;
                 total++;
                 var ok = Regex.IsMatch(lines[n], @"#\d+") || (n > 0 && Regex.IsMatch(lines[n - 1], @"#\d+"));
-                if (!ok) unreferenced.Add($"{Rel(root, file)}:{n + 1}");
+                if (!ok) unreferenced.Add(JsonValue.Create($"{Rel(root, file)}:{n + 1}"));
             }
         }
         return new JsonObject { ["total"] = total, ["unreferenced"] = unreferenced };
     }
 
-    static JsonNode Unshipped(string root)
+    public static JsonNode Unshipped(string root)
     {
         var bad = new JsonArray();
         var total = 0;
         foreach (var file in SourceFiles(Path.Combine(root, "src"), "PublicAPI.Unshipped.txt"))
         {
             total++;
-            if (File.ReadLines(file).Any(l => l.Trim().Length > 0 && !l.TrimStart().StartsWith("#nullable", StringComparison.Ordinal))) bad.Add(Rel(root, file));
+            if (File.ReadLines(file).Any(l => l.Trim().Length > 0 && !l.TrimStart().StartsWith("#nullable", StringComparison.Ordinal))) bad.Add(JsonValue.Create(Rel(root, file)));
         }
         return new JsonObject { ["total"] = total, ["nonEmpty"] = bad };
     }
 
-    static JsonNode CiResultNeeds(string ciYml)
+    public static JsonNode CiResultNeeds(string ciYml)
     {
         var lines = File.ReadAllLines(ciYml);
         var jobStart = new Regex(@"^  ([A-Za-z0-9_-]+):\s*$");
@@ -1738,12 +1738,12 @@ static class Collectors
             if (m.Success)
             {
                 inResult = m.Groups[1].Value == "ci-result";
-                if (m.Groups[1].Value.StartsWith("test-", StringComparison.Ordinal)) testJobs.Add(m.Groups[1].Value);
+                if (m.Groups[1].Value.StartsWith("test-", StringComparison.Ordinal)) testJobs.Add(JsonValue.Create(m.Groups[1].Value));
                 continue;
             }
             if (!inResult) continue;
             var nm = Regex.Match(line, @"^    needs:\s*\[(.*)\]\s*$");
-            if (nm.Success) foreach (var n in nm.Groups[1].Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) needs.Add(n);
+            if (nm.Success) foreach (var n in nm.Groups[1].Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) needs.Add(JsonValue.Create(n));
             if (Regex.IsMatch(line, @"^    if:\s*always\(\)\s*$")) ifAlways = true;
         }
         return new JsonObject { ["needs"] = needs, ["testJobs"] = testJobs, ["ifAlways"] = ifAlways };
@@ -1759,7 +1759,9 @@ static class Report
 {
     static string Sources(Item i) => string.Join(", ", i.Sources);
 
-    static string Line(ItemResult r) => $"{r.Status} {r.Item.Id} {r.Item.Title} ({Sources(r.Item)}) — {r.Reason}";
+    static string Line(ItemResult r) => r.Status == "SKIP"
+        ? $"SKIP {r.Item.Id} — {r.Reason}"
+        : $"{r.Status} {r.Item.Id} {r.Item.Title} ({Sources(r.Item)}) — {r.Reason}";
 
     public static string EvaluationText(EvalRun run, FactsFile facts)
     {
@@ -1955,6 +1957,7 @@ static class SelfTest
         PipelineCases(env, root, fx);
         BranchCases(env, root);
         await CollectorCases(env, fx);
+        LocalCollectorCases(env, fx);
         AttestationCases(fx);
 
         outw.WriteLine($"SELFTEST summary: {passed} ok, {failed} failed");
@@ -2220,6 +2223,69 @@ static class SelfTest
             return Expect(f.Error is not null && f.Attempts == 1 && f.Error.Contains("HTTP 404"), $"error {f.Error}, attempts {f.Attempts}");
         });
         await Task.CompletedTask;
+    }
+
+    // ---- Local collectors against the fixture checkout ----
+
+    static void LocalCollectorCases(Env env, string fx)
+    {
+        var co = Path.Combine(fx, "checkout");
+        var ctx = new CollectCtx(TestEnv(env, new StringWriter(), new StringWriter(), fx), "dlrivada/Encina", co, "0.14.0", "rc", Sha, null);
+        Fact Get(string collector, params (string, string)[] args)
+        {
+            var o = new JsonObject();
+            foreach (var (k, v) in args) o[k] = v;
+            return OneSync(new FactRequest("k", collector, o), ctx);
+        }
+        Case("local collector skip-scan finds the Skip= without an issue", () =>
+        {
+            var v = Collectors.SkipScan(co);
+            var bad = J.Strs(v["unreferenced"]).ToList();
+            return Expect(J.Int(v["total"]) == 3 && bad.Count == 1 && bad[0].EndsWith("SkipSample.cs:12", StringComparison.Ordinal), $"total {J.Int(v["total"])}, unreferenced {string.Join(",", bad)}");
+        });
+        Case("local collector unshipped lists only the non-empty file", () =>
+        {
+            var v = Collectors.Unshipped(co);
+            return Expect(J.Int(v["total"]) == 2 && J.Strs(v["nonEmpty"]).SequenceEqual(["src/B/PublicAPI.Unshipped.txt"]), v.ToJsonString());
+        });
+        Case("local collector ci-result-needs parses the needs list and the test jobs", () =>
+        {
+            var v = Collectors.CiResultNeeds(Path.Combine(fx, "ci-needs-sample.yml"));
+            return Expect(J.Strs(v["needs"]).Contains("test-guard") && J.Strs(v["testJobs"]).Count() == 2 && J.Bool(v["ifAlways"]) == true, v.ToJsonString());
+        });
+        Case("local collector version-props reads prefix and suffix", () =>
+        {
+            var f = Get("version-props");
+            return Expect(f.Error is null && J.Str(f.Value?["prefix"]) == "0.14.0" && J.Str(f.Value?["suffix"]) == "dev", f.Error ?? f.Value?.ToJsonString() ?? "");
+        });
+        Case("local collector changelog reads dated and undated sections", () =>
+        {
+            var f = Get("changelog");
+            var s = J.Objs(f.Value?["sections"]).ToList();
+            return Expect(f.Error is null && s.Count == 3 && J.Str(s[0]["date"]) is null && J.Str(s[1]["date"]) == "2026-10-20", f.Error ?? f.Value?.ToJsonString() ?? "");
+        });
+        Case("local collector spec-verified reads the verification date", () =>
+        {
+            var f = Get("spec-verified", ("path", "docs/spec.md"));
+            return Expect(J.Str(f.Value?["date"]) == "2026-09-23", f.Error ?? "wrong date");
+        });
+        Case("local collector file and file-regex answer exists and matched", () =>
+        {
+            var e = Get("file", ("path", "LICENSE"));
+            var m = Get("file-regex", ("path", "LICENSE"), ("pattern", "^MIT License"));
+            var n = Get("file", ("path", "global.json"));
+            return Expect(J.Bool(e.Value?["exists"]) == true && J.Bool(m.Value?["matched"]) == true && J.Bool(n.Value?["exists"]) == false, "file facts wrong");
+        });
+        Case("local collector dirs counts matching directories", () =>
+        {
+            var f = Get("dirs", ("globs", "src/Encina.Secrets.*|src/Encina.Security.Secrets.*"));
+            return Expect(J.Int(f.Value?["counts"]?["src/Encina.Security.Secrets.*"]) == 1 && J.Int(f.Value?["counts"]?["src/Encina.Secrets.*"]) == 0, f.Error ?? f.Value?.ToJsonString() ?? "");
+        });
+        Case("a local collector that cannot read its file records an error", () =>
+        {
+            var f = Get("spec-verified", ("path", "docs/missing.md"));
+            return Expect(f.Error is not null && f.Value is null, "expected an error fact");
+        });
     }
 
     static Fact OneSync(FactRequest req, CollectCtx c) => Collectors.OneAsync(req, c).GetAwaiter().GetResult();
