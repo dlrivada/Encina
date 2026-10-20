@@ -1,0 +1,1 @@
+- `CircuitBreakerPipelineBehavior` accepts an optional `TimeProvider` (defaults to `TimeProvider.System`) that drives the circuit breaker's sampling window and break duration, so tests can use a fake clock (#2549).

@@ -29,7 +29,12 @@
     },
     "Behaviors/CircuitBreakerPipelineBehavior.cs": {
       "defaultTests": ["unit"],
-      "reason": "Pipeline behavior — no constructor null guards"
+      "reason": "Pipeline behavior — no constructor null guards",
+      "targets": { "unit": 90, "guard": 50 },
+      "justifications": {
+        "unit": "All branches, including the new TimeProvider default and the open-circuit path, run in CircuitBreakerPipelineBehaviorTests.",
+        "guard": "Only the logger null check is guardable; the rest of the constructor takes no null-checked parameters."
+      }
     },
     "Behaviors/DatabaseCircuitBreakerPipelineBehavior.cs": {
       "defaultTests": ["unit"],
