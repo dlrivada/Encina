@@ -235,6 +235,26 @@ public sealed class DbTransactionAccessorTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Accessor_DisposedSynchronously_DiscardsAnOpenTransaction()
+    {
+        var owner = Lease(await _accessor.BeginOrJoinAsync(null));
+
+        _accessor.Dispose();
+        _accessor.Dispose();
+
+        // Disposing the database transaction discards it (a rollback); nothing was committed.
+        _connection.Transaction.CommitAsyncCalls.ShouldBe(0);
+        _accessor.HasActiveTransaction.ShouldBeFalse();
+        await owner.DisposeAsync();
+    }
+
+    [Fact]
+    public void Accessor_DisposedSynchronouslyWithoutTransaction_DoesNothing()
+    {
+        Should.NotThrow(() => _accessor.Dispose());
+    }
+
+    [Fact]
     public async Task Accessor_DisposedWithoutTransaction_DoesNothing()
     {
         await _accessor.DisposeAsync();

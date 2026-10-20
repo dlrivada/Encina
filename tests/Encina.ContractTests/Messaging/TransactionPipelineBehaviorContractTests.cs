@@ -1,3 +1,5 @@
+#pragma warning disable CA2012 // NSubstitute configures a ValueTask-returning member by calling it inside Returns(...).
+
 using Encina.Messaging;
 using Encina.Messaging.Transactions;
 using LanguageExt;
