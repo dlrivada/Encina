@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Security.Encryption.Benchmarks.AesGcmFieldEncryptorBenchmarks-20261020-095027</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method           </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>EncryptString_Medium</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>5.325 &mu;s</td><td>0.0207 &mu;s</td><td>0.0123 &mu;s</td><td>1.13</td><td>0.0687</td><td>-</td><td>1168 B</td><td>2.61</td>
+</tr><tr><td>EncryptDecryptRoundtrip</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>7.778 &mu;s</td><td>0.0381 &mu;s</td><td>0.0252 &mu;s</td><td>1.65</td><td>0.0305</td><td>-</td><td>664 B</td><td>1.48</td>
+</tr><tr><td>EncryptBytes_Short</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>4.690 &mu;s</td><td>0.0660 &mu;s</td><td>0.0393 &mu;s</td><td>1.00</td><td>0.0229</td><td>-</td><td>448 B</td><td>1.00</td>
+</tr><tr><td>EncryptBytes_Medium</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>5.239 &mu;s</td><td>0.0144 &mu;s</td><td>0.0095 &mu;s</td><td>1.11</td><td>0.0687</td><td>-</td><td>1168 B</td><td>2.61</td>
+</tr><tr><td>DecryptString_Short</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3.092 &mu;s</td><td>0.0083 &mu;s</td><td>0.0049 &mu;s</td><td>0.66</td><td>0.0191</td><td>-</td><td>320 B</td><td>0.71</td>
+</tr><tr><td>EncryptString_Long</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>7.264 &mu;s</td><td>0.0607 &mu;s</td><td>0.0317 &mu;s</td><td>1.54</td><td>0.7553</td><td>0.0305</td><td>12688 B</td><td>28.32</td>
+</tr><tr><td>EncryptString_Short</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>4.707 &mu;s</td><td>0.0179 &mu;s</td><td>0.0118 &mu;s</td><td>1.00</td><td>0.0229</td><td>-</td><td>448 B</td><td>1.00</td>
+</tr><tr><td>EncryptString_Medium</td><td>ShortRun</td><td>3</td><td>1</td><td>5.001 &mu;s</td><td>0.0217 &mu;s</td><td>0.0012 &mu;s</td><td>1.07</td><td>0.0687</td><td>-</td><td>1168 B</td><td>2.61</td>
+</tr><tr><td>EncryptDecryptRoundtrip</td><td>ShortRun</td><td>3</td><td>1</td><td>7.712 &mu;s</td><td>0.7478 &mu;s</td><td>0.0410 &mu;s</td><td>1.64</td><td>0.0305</td><td>-</td><td>664 B</td><td>1.48</td>
+</tr><tr><td>EncryptBytes_Short</td><td>ShortRun</td><td>3</td><td>1</td><td>4.652 &mu;s</td><td>0.0759 &mu;s</td><td>0.0042 &mu;s</td><td>0.99</td><td>0.0229</td><td>-</td><td>448 B</td><td>1.00</td>
+</tr><tr><td>EncryptBytes_Medium</td><td>ShortRun</td><td>3</td><td>1</td><td>4.909 &mu;s</td><td>0.2607 &mu;s</td><td>0.0143 &mu;s</td><td>1.05</td><td>0.0687</td><td>-</td><td>1168 B</td><td>2.61</td>
+</tr><tr><td>DecryptString_Short</td><td>ShortRun</td><td>3</td><td>1</td><td>2.971 &mu;s</td><td>0.1467 &mu;s</td><td>0.0080 &mu;s</td><td>0.63</td><td>0.0191</td><td>-</td><td>320 B</td><td>0.71</td>
+</tr><tr><td>EncryptString_Long</td><td>ShortRun</td><td>3</td><td>1</td><td>7.243 &mu;s</td><td>0.3899 &mu;s</td><td>0.0214 &mu;s</td><td>1.54</td><td>0.7553</td><td>0.0305</td><td>12688 B</td><td>28.32</td>
+</tr><tr><td>EncryptString_Short</td><td>ShortRun</td><td>3</td><td>1</td><td>4.694 &mu;s</td><td>0.4688 &mu;s</td><td>0.0257 &mu;s</td><td>1.00</td><td>0.0229</td><td>-</td><td>448 B</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>
