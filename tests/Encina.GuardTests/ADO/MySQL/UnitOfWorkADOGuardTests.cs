@@ -29,7 +29,7 @@ public class UnitOfWorkADOGuardTests
         var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
 
         // Act & Assert
-        var act = () => new UnitOfWorkADO(transactionAccessor,null!);
+        var act = () => new UnitOfWorkADO(transactionAccessor, null!);
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("serviceProvider");
     }
@@ -42,7 +42,7 @@ public class UnitOfWorkADOGuardTests
         var serviceProvider = Substitute.For<IServiceProvider>();
 
         // Act & Assert
-        Should.NotThrow(() => new UnitOfWorkADO(transactionAccessor,serviceProvider));
+        Should.NotThrow(() => new UnitOfWorkADO(transactionAccessor, serviceProvider));
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public class UnitOfWorkADOGuardTests
         // Arrange
         var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(transactionAccessor,serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
 
         // Act & Assert
         uow.HasActiveTransaction.ShouldBeFalse();
@@ -63,7 +63,7 @@ public class UnitOfWorkADOGuardTests
         // Arrange
         var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(transactionAccessor,serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
         await uow.DisposeAsync();
 
         // Act & Assert
@@ -77,7 +77,7 @@ public class UnitOfWorkADOGuardTests
         // Arrange
         var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(transactionAccessor,serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
         await uow.DisposeAsync();
 
         // Act & Assert
@@ -91,7 +91,7 @@ public class UnitOfWorkADOGuardTests
         // Arrange
         var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(transactionAccessor,serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
         await uow.DisposeAsync();
 
         // Act & Assert
@@ -105,7 +105,7 @@ public class UnitOfWorkADOGuardTests
         // Arrange
         var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(transactionAccessor,serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
 
         // Act
         var result = await uow.CommitAsync();
@@ -120,7 +120,7 @@ public class UnitOfWorkADOGuardTests
         // Arrange
         var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(transactionAccessor,serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
         await uow.DisposeAsync();
 
         // Act & Assert
@@ -134,7 +134,7 @@ public class UnitOfWorkADOGuardTests
         // Arrange
         var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(transactionAccessor,serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
         uow.DisposeAsync().AsTask().GetAwaiter().GetResult();
 
         // Act & Assert
@@ -148,7 +148,7 @@ public class UnitOfWorkADOGuardTests
         // Arrange
         var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(transactionAccessor,serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() => { uow.UpdateImmutable<TestEntity>(null!); });
@@ -160,7 +160,7 @@ public class UnitOfWorkADOGuardTests
         // Arrange
         var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(transactionAccessor,serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
 
         // Act
         var result = uow.UpdateImmutable(new TestEntity());
@@ -175,7 +175,7 @@ public class UnitOfWorkADOGuardTests
         // Arrange
         var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(transactionAccessor,serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
 
         // Act & Assert
         var act = async () => await uow.UpdateImmutableAsync<TestEntity>(null!);
@@ -188,7 +188,7 @@ public class UnitOfWorkADOGuardTests
         // Arrange
         var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(transactionAccessor,serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
 
         // Act
         var result = await uow.UpdateImmutableAsync(new TestEntity());
@@ -203,7 +203,7 @@ public class UnitOfWorkADOGuardTests
         // Arrange
         var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(transactionAccessor,serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
 
         // Act & Assert - Double dispose should be safe
         await uow.DisposeAsync();
