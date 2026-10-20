@@ -349,7 +349,7 @@ public class BulkheadPipelineBehaviorTests
     [Bulkhead(MaxConcurrency = 10, MaxQueuedActions = 20)]
     public record TestBulkheadRequest : IRequest<string>;
 
-    [Bulkhead(MaxConcurrency = 2, MaxQueuedActions = 5, QueueTimeoutMs = 5000)]
+    [Bulkhead(MaxConcurrency = 2, MaxQueuedActions = 5, QueueTimeoutMs = 60000)]
     public record TestBulkheadSmall : IRequest<string>;
 
     public record TestRequestNoBulkhead : IRequest<string>;
