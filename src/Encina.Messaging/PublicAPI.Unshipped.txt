@@ -157,21 +157,6 @@ static Encina.Messaging.MessagingLog.TransactionStarted(Microsoft.Extensions.Log
 static Encina.Messaging.MessagingLog.TransactionCommitted(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
 static Encina.Messaging.MessagingLog.TransactionRolledBack(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
 Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>
-Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPipelineBehavior(System.Data.IDbConnection! connection, Encina.Messaging.IDbTransactionAccessor? transactionAccessor = null) -> void
-Encina.Messaging.DbLease
-Encina.Messaging.DbLease.Connection.get -> System.Data.IDbConnection!
-Encina.Messaging.DbLease.CreateCommand() -> System.Data.IDbCommand!
-Encina.Messaging.DbLease.Dispose() -> void
-Encina.Messaging.DbLease.Transaction.get -> System.Data.IDbTransaction?
-static Encina.Messaging.DbLease.Enlisted(System.Data.IDbConnection! connection, Encina.Messaging.IDbTransactionAccessor? accessor) -> Encina.Messaging.DbLease!
-static Encina.Messaging.DbLease.IndependentAsync(System.Data.IDbConnection! connection, Encina.Messaging.IDbTransactionAccessor? accessor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Encina.Messaging.DbLease!>!
-Encina.Messaging.DbTransactionAccessor
-Encina.Messaging.DbTransactionAccessor.Current.get -> System.Data.IDbTransaction?
-Encina.Messaging.DbTransactionAccessor.Current.set -> void
-Encina.Messaging.DbTransactionAccessor.DbTransactionAccessor() -> void
-Encina.Messaging.IDbTransactionAccessor
-Encina.Messaging.IDbTransactionAccessor.Current.get -> System.Data.IDbTransaction?
-Encina.Messaging.IDbTransactionAccessor.Current.set -> void
 Encina.Messaging.Inbox.IInboxStore.CacheHandlerErrorAsync(string! messageId, string! response, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
 Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 static Encina.Messaging.MessagingServiceCollectionExtensions.AddMessagingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Encina.Messaging.MessagingConfiguration! config) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -893,3 +878,57 @@ Encina.Messaging.Scheduling.SchedulerOrchestrator.SchedulerOrchestrator(Encina.M
 static Encina.Messaging.MessagingServiceCollectionExtensions.TryAddDefaultMessageSerializer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Encina.Messaging.IWrappedDbConnection
 Encina.Messaging.IWrappedDbConnection.InnerConnection.get -> System.Data.IDbConnection!
+Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPipelineBehavior(Encina.Messaging.Transactions.IDbTransactionAccessor! transactionAccessor, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Messaging.Transactions.DbLease
+Encina.Messaging.Transactions.DbLease.Connection.get -> System.Data.IDbConnection!
+Encina.Messaging.Transactions.DbLease.CreateCommand() -> System.Data.IDbCommand!
+Encina.Messaging.Transactions.DbLease.Dispose() -> void
+Encina.Messaging.Transactions.DbLease.EnsureOpenAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Messaging.Transactions.DbLease.Transaction.get -> System.Data.IDbTransaction?
+static Encina.Messaging.Transactions.DbLease.Enlisted(System.Data.IDbConnection! connection, Encina.Messaging.Transactions.IDbTransactionAccessor? accessor) -> Encina.Messaging.Transactions.DbLease!
+static Encina.Messaging.Transactions.DbLease.IndependentAsync(System.Data.IDbConnection! connection, Encina.Messaging.Transactions.IDbTransactionAccessor? accessor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Encina.Messaging.Transactions.DbLease!>!
+Encina.Messaging.Transactions.DbTransactionAccessor
+Encina.Messaging.Transactions.DbTransactionAccessor.BeginOrJoinAsync(System.Data.IsolationLevel? isolationLevel, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Transactions.IDbTransactionLease!>>
+Encina.Messaging.Transactions.DbTransactionAccessor.BeginOrJoinAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Transactions.ITransactionLease!>>
+Encina.Messaging.Transactions.DbTransactionAccessor.Connection.get -> System.Data.IDbConnection!
+Encina.Messaging.Transactions.DbTransactionAccessor.Current.get -> System.Data.IDbTransaction?
+Encina.Messaging.Transactions.DbTransactionAccessor.DbTransactionAccessor(System.Data.IDbConnection! connection, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Transactions.DbTransactionAccessor!>! logger) -> void
+Encina.Messaging.Transactions.DbTransactionAccessor.Dispose() -> void
+Encina.Messaging.Transactions.DbTransactionAccessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Encina.Messaging.Transactions.DbTransactionAccessor.HasActiveTransaction.get -> bool
+Encina.Messaging.Transactions.IDbTransactionAccessor
+Encina.Messaging.Transactions.IDbTransactionAccessor.BeginOrJoinAsync(System.Data.IsolationLevel? isolationLevel, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Transactions.IDbTransactionLease!>>
+Encina.Messaging.Transactions.IDbTransactionAccessor.Connection.get -> System.Data.IDbConnection!
+Encina.Messaging.Transactions.IDbTransactionAccessor.Current.get -> System.Data.IDbTransaction?
+Encina.Messaging.Transactions.IDbTransactionLease
+Encina.Messaging.Transactions.IDbTransactionLease.Transaction.get -> System.Data.IDbTransaction!
+Encina.Messaging.Transactions.ITransactionLease
+Encina.Messaging.Transactions.ITransactionLease.CommitAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Messaging.Transactions.ITransactionLease.IsOwner.get -> bool
+Encina.Messaging.Transactions.ITransactionLease.RollbackAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Encina.Messaging.Transactions.ITransactionLeaseSource
+Encina.Messaging.Transactions.ITransactionLeaseSource.BeginOrJoinAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Transactions.ITransactionLease!>>
+Encina.Messaging.Transactions.ITransactionLeaseSource.HasActiveTransaction.get -> bool
+Encina.Messaging.Transactions.TransactionErrors
+const Encina.Messaging.Transactions.TransactionErrors.BeginFailedCode = "transaction.begin_failed" -> string!
+const Encina.Messaging.Transactions.TransactionErrors.CommitFailedCode = "transaction.commit_failed" -> string!
+const Encina.Messaging.Transactions.TransactionErrors.IsolationLevelMismatchCode = "transaction.isolation_level_mismatch" -> string!
+const Encina.Messaging.Transactions.TransactionErrors.LeaseDisposedCode = "transaction.lease_disposed" -> string!
+const Encina.Messaging.Transactions.TransactionErrors.NotSupportedCode = "transaction.not_supported" -> string!
+const Encina.Messaging.Transactions.TransactionErrors.RollbackOnlyCode = "transaction.rollback_only" -> string!
+static Encina.Messaging.Transactions.TransactionErrors.BeginFailed(System.Exception! exception) -> Encina.EncinaError
+static Encina.Messaging.Transactions.TransactionErrors.CommitFailed(System.Exception! exception) -> Encina.EncinaError
+static Encina.Messaging.Transactions.TransactionErrors.IsolationLevelMismatch(System.Data.IsolationLevel requested, System.Data.IsolationLevel active) -> Encina.EncinaError
+static Encina.Messaging.Transactions.TransactionErrors.LeaseDisposed() -> Encina.EncinaError
+static Encina.Messaging.Transactions.TransactionErrors.NotSupported(System.Type! connectionType) -> Encina.EncinaError
+static Encina.Messaging.Transactions.TransactionErrors.RollbackOnly() -> Encina.EncinaError
+Encina.Messaging.Outbox.TransactionalOutboxPipelineBehavior<TRequest, TResponse>
+Encina.Messaging.Outbox.TransactionalOutboxPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Messaging.Outbox.TransactionalOutboxPipelineBehavior<TRequest, TResponse>.TransactionalOutboxPipelineBehavior(Encina.Messaging.Transactions.ITransactionLeaseSource! transactionSource, Encina.Messaging.Outbox.IOutboxStore! outboxStore, Encina.Messaging.Outbox.IOutboxMessageFactory! messageFactory, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Outbox.TransactionalOutboxPipelineBehavior<TRequest, TResponse>!>! logger, System.TimeProvider? timeProvider = null) -> void
+static Encina.Messaging.MessagingLog.TransactionJoined(Microsoft.Extensions.Logging.ILogger! logger, int joinDepth) -> void
+static Encina.Messaging.MessagingLog.TransactionMarkedRollbackOnly(Microsoft.Extensions.Logging.ILogger! logger) -> void
+static Encina.Messaging.MessagingLog.TransactionRollbackOnlyCommitRefused(Microsoft.Extensions.Logging.ILogger! logger, string! errorCode) -> void
+static Encina.Messaging.MessagingLog.TransactionCommitFailed(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception, string! errorCode) -> void
+static Encina.Messaging.MessagingLog.OutboxNotificationsWritten(Microsoft.Extensions.Logging.ILogger! logger, int notificationCount, string! requestType) -> void
+static Encina.Messaging.MessagingLog.OutboxWriteFailed(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string! errorCode) -> void
+static Encina.Messaging.MessagingLog.OutboxBehaviorSkipped(Microsoft.Extensions.Logging.ILogger! logger, string! requestType) -> void

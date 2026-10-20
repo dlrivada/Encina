@@ -1,0 +1,2 @@
+- ADO.NET outbox (SqlServer, PostgreSQL, MySQL): the outbox rows of a request's `IHasNotifications` notifications are now written inside the request's single database transaction, so a business change and its events commit or roll back together; a failed outbox write or commit fails the request instead of losing or phantom-publishing events (#718, Dapper, EF Core and MongoDB follow).
+- The interim `OutboxPostProcessor` used by Dapper, EF Core and MongoDB now returns the first store error instead of discarding it (#718).
