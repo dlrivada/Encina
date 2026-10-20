@@ -160,7 +160,7 @@ How to check it worked: every line starts with `SELFTEST ok` and the last line i
 
 | Item | Kind | What it checks |
 | --- | --- | --- |
-| `law-map-date` | auto | The `Verified on **yyyy-MM-dd**` line of SPEC-002 is at most 30 days old. For `rc.N` later than `rc.1` the date counts again. |
+| `law-map-date` | auto | The `Verified on **yyyy-MM-dd**` line of SPEC-002 is at most 30 days old. Every `rc.N` is checked against the same 30-day limit. |
 | `law-map-reverified-through-pr` | manual | You re-verified section 3 and updated the date through a pull request. The evidence is that pull request. |
 
 To satisfy them:
