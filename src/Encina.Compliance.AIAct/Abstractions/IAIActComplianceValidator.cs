@@ -65,6 +65,12 @@ public interface IAIActComplianceValidator
     /// The result's <see cref="AIActComplianceResult.Violations"/> list is empty when the request
     /// is fully compliant. The pipeline behavior uses the enforcement mode
     /// (<see cref="AIActEnforcementMode"/>) to determine the action: block, warn, or skip.
+    /// <para>
+    /// A resolved system that is not registered in <see cref="IAISystemRegistry"/> is unclassified and
+    /// treated as high risk: the result has <see cref="AIRiskLevel.HighRisk"/> and a violation naming it.
+    /// Direct callers receive that <c>Right</c> result and must act on it themselves; only the pipeline
+    /// behavior enforces it (deny in Block, logged warning in Warn, which is the explicit staged path).
+    /// </para>
     /// </remarks>
     ValueTask<Either<EncinaError, AIActComplianceResult>> ValidateAsync<TRequest>(
         TRequest request,
