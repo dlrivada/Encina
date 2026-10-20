@@ -34,15 +34,16 @@ Each item of the registry has a severity per profile: `block` fails the gate, `w
 
 ### Set up the GitHub App for alert facts
 
-The `GITHUB_TOKEN` of a workflow cannot read open secret-scanning alerts or open Dependabot alerts. The gate reads them with a GitHub App token. You create the App once; the gate never assumes it exists.
+The `GITHUB_TOKEN` of a workflow cannot read open secret-scanning alerts, open Dependabot alerts or the branch protection of `main`. The gate reads them with a GitHub App token. You create the App once; the gate never assumes it exists.
 
-1. Create a GitHub App owned by the repository owner. Give it only two repository permissions, both read-only: "Secret scanning alerts" and "Dependabot alerts".
+1. Create a GitHub App owned by the repository owner. Give it three repository permissions, all read-only: "Secret scanning alerts", "Dependabot alerts" and "Administration" (`Administration: Read-only`, which the branch protection fact needs).
 2. Install it on `dlrivada/Encina` only, not on all repositories.
 3. Add the repository variable `RELEASE_GATE_APP_ID` (the App ID) and the repository secret `RELEASE_GATE_APP_PRIVATE_KEY` (the App's private key). The workflow mints a short-lived token from them with `actions/create-github-app-token` and passes it to the tool as the environment variable `RELEASE_GATE_APP_TOKEN`.
+4. If the App already exists with only the two alert permissions, grant the new one. The maintainer adds "Administration" as Read-only to the `encina-release-gate` App under Settings > Developer settings > GitHub Apps > the App > Permissions, then accepts the updated permission on the installation through its "Review request". Until the permission is accepted, `branch-protection-exact` fails closed with a message that names this step.
 
-The tool uses the token only for the two alert collectors. When the token is missing, or the API call fails, the fact is recorded with an error and the items `secret-scanning-no-alerts` and `dependabot-no-alerts` fail: the gate fails closed.
+The tool uses the token only for three collectors: the two alert facts and the branch protection of `main`. When the token is missing, or the API call fails (for branch protection, with 403 or 404), the fact is recorded with an error and the items `secret-scanning-no-alerts`, `dependabot-no-alerts` and `branch-protection-exact` fail: the gate fails closed.
 
-The only fallback is manual and visible. The items `attest-secret-scanning` and `attest-dependabot` are accepted only when the matching automatic fact has an error, and only when their line in `docs/releases/v<version>/checklist.md` is ticked with an evidence link. The evaluation output then says that the attestation replaced the fact. When the fact was collected normally, the attestation is not needed and is ignored. Alert data is never typed into `facts.json` by hand.
+The only fallback is manual and visible. The items `attest-secret-scanning` and `attest-dependabot` are accepted only when the matching automatic fact has an error, and only when their line in `docs/releases/v<version>/checklist.md` is ticked with an evidence link. The evaluation output then says that the attestation replaced the fact. When the fact was collected normally, the attestation is not needed and is ignored. Alert data is never typed into `facts.json` by hand. Branch protection has no attestation: a `branch-protection-exact` error is fixed by granting the permission in step 4, never by ticking a line.
 
 To run the gate locally with the alert facts, set the variable in your shell for the session (the value comes from a token you mint for the App; do not write it into a file in the repository):
 

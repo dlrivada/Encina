@@ -122,7 +122,7 @@ dotnet run --file .github/scripts/release-readiness.cs -- --evaluate --facts doc
 dotnet run --file .github/scripts/release-readiness.cs -- --evidence --facts docs/releases/v0.14.0/facts.json --signoff docs/releases/v0.14.0/checklist.md --out docs/releases/v0.14.0/evidence.md
 ```
 
-`--collect` needs `gh` on the path, logged in to the repository. The alert facts need `RELEASE_GATE_APP_TOKEN` in the environment ([the setup](RELEASE-PROCESS.md#set-up-the-github-app-for-alert-facts)); without it those two items fail closed. Use `--version <v> --profile <p>` instead of `--from-branch` when no branch exists yet; give one or the other, not both, and a `--profile` that contradicts the branch is an error. `--collect` reads the commit from `git rev-parse HEAD` unless you pass `--sha <40 hex>`.
+`--collect` needs `gh` on the path, logged in to the repository. The alert facts and the branch protection of `main` need `RELEASE_GATE_APP_TOKEN` in the environment ([the setup](RELEASE-PROCESS.md#set-up-the-github-app-for-alert-facts)); without it those three items fail closed, and `branch-protection-exact` also needs the App's `Administration: Read-only` permission to be granted. Use `--version <v> --profile <p>` instead of `--from-branch` when no branch exists yet; give one or the other, not both, and a `--profile` that contradicts the branch is an error. `--collect` reads the commit from `git rev-parse HEAD` unless you pass `--sha <40 hex>`.
 
 The evaluation prints one line per item and a `SUMMARY` line:
 
