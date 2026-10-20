@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Refit.Benchmarks.RestApiRequestHandlerBenchmarks-20261020-134332</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method               </th><th>Mean  </th><th>Error   </th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>EncinaRefitCall</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>?</td>
+</tr><tr><td>EncinaRefitCall_Sequential5</td><td>10.26 &mu;s</td><td>0.310 &mu;s</td><td>0.017 &mu;s</td><td>0.001</td><td>0.00</td><td>1</td><td>0.5341</td><td>8.79 KB</td><td>0.93</td>
+</tr><tr><td>EncinaRefitCall_Batch10</td><td>23.14 &mu;s</td><td>12.372 &mu;s</td><td>0.678 &mu;s</td><td>0.001</td><td>0.00</td><td>2</td><td>1.0986</td><td>18.34 KB</td><td>1.94</td>
+</tr><tr><td>DirectRefitCall_Baseline</td><td>18,138.78 &mu;s</td><td>23,082.430 &mu;s</td><td>1,265.226 &mu;s</td><td>1.003</td><td>0.08</td><td>3</td><td>-</td><td>9.47 KB</td><td>1.00</td>
+</tr><tr><td>DirectRefitCall_Batch10</td><td>29,486.26 &mu;s</td><td>156,142.104 &mu;s</td><td>8,558.676 &mu;s</td><td>1.631</td><td>0.42</td><td>4</td><td>-</td><td>93.33 KB</td><td>9.86</td>
+</tr><tr><td>DirectRefitCall_Sequential5</td><td>95,232.19 &mu;s</td><td>80,302.093 &mu;s</td><td>4,401.629 &mu;s</td><td>5.267</td><td>0.37</td><td>5</td><td>-</td><td>45.88 KB</td><td>4.85</td>
+</tr></tbody></table>
+</body>
+</html>
