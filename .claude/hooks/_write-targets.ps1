@@ -237,10 +237,69 @@ function ConvertTo-ArgumentToken([string]$Argument) {
     return New-CommandToken $Argument $false $true ($Argument -match '[(\[]')
 }
 
+# Whether a redirection operand is a stream merge (`2>&1`, `>&2`, `*>&1`, `>&-`): it writes nothing. Only
+# `&<digits>` and `&-` merge; any other target after `&` (`>&file`, `&>file` in Bash) is a file (#2009).
+function Test-StreamMerge([string]$Target) {
+    return $Target -match '^&(\d+|-)$'
+}
+
+# The tokens of a git command without its shell redirections (#2009): `2>&1`, `2>$null`, `>&2` and the target
+# of a bare `>` / `2>` / `>>` are not pathspecs or patches. Quoted tokens are arguments and stay. The write a
+# redirection itself makes is judged by the redirection branch of Get-ShellWrites.
+function Remove-RedirectionTokens($Tokens) {
+    $kept = [System.Collections.Generic.List[object]]::new()
+    for ($i = 0; $i -lt @($Tokens).Count; $i++) {
+        $t = @($Tokens)[$i]
+        if (-not $t.Quoted) {
+            $m = [regex]::Match($t.Value, '^(\d|\*|&)?>>?(?<t>.*)$')
+            if ($m.Success) {
+                # A bare operator takes the next token as its target, unless it already carries a stream merge.
+                if ($m.Groups['t'].Value -in '', '&' -and $i + 1 -lt @($Tokens).Count) { $i++ }
+                continue
+            }
+        }
+        $kept.Add($t)
+    }
+    return $kept.ToArray()
+}
+
+# The output file tokens of `git archive` (tokens after the verb at $From): `-o <file>`, `-o<file>`, `-vo <file>`,
+# `--output <file>`, `--output=<file>` and git's unambiguous abbreviations of --output (`--o`, `--out`, ...).
+# Scanning stops at `--` (the pathspecs). Each is a file git writes, so it is a write target (#2009).
+function Get-GitArchiveOutputs($Tokens, [int]$From) {
+    $outputs = [System.Collections.Generic.List[object]]::new()
+    $arguments = @($Tokens | Select-Object -Skip $From)
+    for ($i = 0; $i -lt $arguments.Count; $i++) {
+        $a = $arguments[$i]
+        if ($a.Value -eq '--') { break }
+        if (-not $a.Value.StartsWith('-') -or $a.Value.Length -lt 2) { continue }
+        if ($a.Value.StartsWith('--')) {
+            $name = $a.Value.Substring(2)
+            $inline = $null
+            $eq = $name.IndexOf('=')
+            if ($eq -ge 0) { $inline = $name.Substring($eq + 1); $name = $name.Substring(0, $eq) }
+            if ($name.Length -ge 1 -and 'output'.StartsWith($name, [StringComparison]::Ordinal)) {
+                if ($eq -ge 0) { if ($inline.Length -gt 0) { $outputs.Add((New-CommandToken $inline $a.Quoted $a.Dynamic $a.Subexpression $a.Bash)) } }
+                elseif ($i + 1 -lt $arguments.Count) { $outputs.Add($arguments[$i + 1]); $i++ }
+            }
+            continue
+        }
+        # Short options: `o` takes the rest of the cluster, or the next token when it is the last letter.
+        $cluster = $a.Value.Substring(1)
+        $o = $cluster.IndexOf('o')
+        if ($o -ge 0) {
+            $rest = $cluster.Substring($o + 1)
+            if ($rest.Length -gt 0) { $outputs.Add((New-CommandToken $rest $a.Quoted $a.Dynamic $a.Subexpression $a.Bash)) }
+            elseif ($i + 1 -lt $arguments.Count) { $outputs.Add($arguments[$i + 1]); $i++ }
+        }
+    }
+    return , @($outputs)
+}
+
 # The pathspecs of `git checkout` / `git restore` (tokens after the verb at $From) that write the working
 # tree, as tokens; empty when the command only switches branches or only touches the index.
 function Get-GitPathspecs($Tokens, [int]$From, [string]$Verb) {
-    $arguments = @($Tokens | Select-Object -Skip $From)
+    $arguments = @(Remove-RedirectionTokens @($Tokens | Select-Object -Skip $From))
     $dashDash = -1
     for ($i = 0; $i -lt $arguments.Count; $i++) { if (-not $arguments[$i].Quoted -and $arguments[$i].Value -eq '--') { $dashDash = $i; break } }
     $valueOptions = if ($Verb -eq 'restore') { @('-s', '--source', '--pathspec-from-file') } else { @('-b', '-B', '--orphan', '--conflict', '--pathspec-from-file') }
@@ -463,6 +522,10 @@ function Get-ShellWrites {
                 $j++
             }
             $verb = if ($j -lt $tokens.Count) { $tokens[$j].Value } else { $null }
+            # `git archive --output <file>` writes the file even though archive does not change the working tree.
+            if ($verb -ceq 'archive') {
+                foreach ($output in (Get-GitArchiveOutputs $tokens ($j + 1))) { Add-Write $true $output $dir 'git archive --output' $Bash }
+            }
             $readOnlyStash = $verb -eq 'stash' -and $j + 1 -lt $tokens.Count -and $tokens[$j + 1].Value -in 'list', 'show'
             if ($script:GitMutatingVerbs -ccontains $verb -and -not $readOnlyStash) {
                 $paths = [System.Collections.Generic.List[string]]::new()
@@ -477,7 +540,7 @@ function Get-ShellWrites {
                     }
                 }
                 elseif ($verb -in 'apply', 'am') {
-                    foreach ($a in @($tokens | Select-Object -Skip ($j + 1))) {
+                    foreach ($a in @(Remove-RedirectionTokens @($tokens | Select-Object -Skip ($j + 1)))) {
                         if (-not $a.Quoted -and $a.Value.StartsWith('-')) { continue }
                         $full = Resolve-TargetPath $a $dir $Bash
                         $isFile = $false
@@ -504,15 +567,19 @@ function Get-ShellWrites {
                 if ($index -ge 0 -and $index -lt $arguments.Count) { Add-Write ($method -notin 'Copy', 'Move', 'Replace') (ConvertTo-ArgumentToken $arguments[$index]) $Cwd "[IO.$($io.Groups['type'].Value)]::$method" $Bash }
                 continue
             }
-            # > file, >> file, 2> file, *> file (not 2>&1, > $null, > /dev/null, > nul).
-            $redirect = [regex]::Match($t.Value, '^(\d|\*)?>>?(?<t>.*)$')
+            # > file, >> file, 2> file, *> file, >&file and &>file (Bash); not 2>&1 / >&2 / >&- (stream merges),
+            # > $null, > /dev/null, > nul (#2009: only `&<digits>` and `&-` are merges, `>&file` writes `file`).
+            $redirect = [regex]::Match($t.Value, '^(\d|\*|&)?>>?(?<t>.*)$')
             if ($redirect.Success) {
                 $value = $redirect.Groups['t'].Value
-                $target = if ($value) { New-CommandToken $value $false $t.Dynamic $t.Subexpression } else {
+                # `>&file` attached, or `>& file` / `&> file` with the file in the next token.
+                if ($value.StartsWith('&') -and -not (Test-StreamMerge $value)) { $value = $value.Substring(1) }
+                $target = if ($value -and -not (Test-StreamMerge $value)) { New-CommandToken $value $false $t.Dynamic $t.Subexpression } elseif (Test-StreamMerge $redirect.Groups['t'].Value) { $null } else {
                     $index = $tokens.IndexOf($t)
-                    if ($index + 1 -lt $tokens.Count) { $tokens[$index + 1] } else { $null }
+                    # `2>& 1` (Bash, with a space): the next token is the descriptor, not a file.
+                    if ($index + 1 -lt $tokens.Count -and -not ($redirect.Groups['t'].Value -eq '&' -and (Test-StreamMerge ('&' + $tokens[$index + 1].Value)))) { $tokens[$index + 1] } else { $null }
                 }
-                if ($null -ne $target -and -not $target.Value.StartsWith('&') -and $target.Value -notin '$null', '/dev/null', 'nul') {
+                if ($null -ne $target -and $target.Value -notin '$null', '/dev/null', 'nul') {
                     # A literal only for `'literal' > file`: the lone quoted token starts the statement, the
                     # redirect is the success stream (no 2> or *>) and nothing else is on the statement.
                     $redirectIndex = $tokens.IndexOf($t)

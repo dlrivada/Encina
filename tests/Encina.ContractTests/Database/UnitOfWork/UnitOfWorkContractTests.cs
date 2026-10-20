@@ -132,9 +132,9 @@ public sealed class UnitOfWorkContractTests
             parameters.Length.ShouldBe(2,
                 $"{provider.FullName} constructor should have 2 parameters");
 
-            // First parameter should be IDbConnection
-            parameters[0].ParameterType.FullName.ShouldBe("System.Data.IDbConnection",
-                $"{provider.FullName} first parameter should be IDbConnection");
+            // First parameter should be the scope's shared transaction accessor (#718)
+            parameters[0].ParameterType.FullName.ShouldBe("Encina.Messaging.Transactions.IDbTransactionAccessor",
+                $"{provider.FullName} first parameter should be IDbTransactionAccessor");
 
             // Second parameter should be IServiceProvider
             parameters[1].ParameterType.ShouldBe(typeof(IServiceProvider),

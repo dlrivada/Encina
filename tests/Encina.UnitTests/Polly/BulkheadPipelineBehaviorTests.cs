@@ -290,6 +290,11 @@ public class BulkheadPipelineBehaviorTests
         var executingCount = 0;
         var maxConcurrent = 0;
 
+        // Handlers block on a gate (no wall-clock work simulation) until the test opens it.
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var limitReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = 0;
+
         RequestHandlerCallback<string> next = async () =>
         {
             var current = Interlocked.Increment(ref executingCount);
@@ -297,7 +302,11 @@ public class BulkheadPipelineBehaviorTests
             {
                 if (current > maxConcurrent) maxConcurrent = current;
             }
-            await Task.Delay(100); // Simulate work
+            if (Interlocked.Increment(ref started) == 2)
+            {
+                limitReached.TrySetResult();
+            }
+            await gate.Task;
             Interlocked.Decrement(ref executingCount);
             return Right<EncinaError, string>("success");
         };
@@ -307,10 +316,16 @@ public class BulkheadPipelineBehaviorTests
             .Select(_ => behavior.Handle(new TestBulkheadSmall(), context, next, CancellationToken.None).AsTask())
             .ToList();
 
-        await Task.WhenAll(tasks);
+        // Wait on the observable condition (two handlers running), bounded by a generous deadline.
+        await limitReached.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        started.ShouldBe(2, "only MaxConcurrency handlers may run while the others are queued");
+        gate.SetResult();
+
+        await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(30));
 
         // Assert - At most 2 should have been concurrent
         maxConcurrent.ShouldBeLessThanOrEqualTo(2);
+        started.ShouldBe(5);
     }
 
     #endregion
@@ -334,7 +349,7 @@ public class BulkheadPipelineBehaviorTests
     [Bulkhead(MaxConcurrency = 10, MaxQueuedActions = 20)]
     public record TestBulkheadRequest : IRequest<string>;
 
-    [Bulkhead(MaxConcurrency = 2, MaxQueuedActions = 5, QueueTimeoutMs = 5000)]
+    [Bulkhead(MaxConcurrency = 2, MaxQueuedActions = 5, QueueTimeoutMs = 60000)]
     public record TestBulkheadSmall : IRequest<string>;
 
     public record TestRequestNoBulkhead : IRequest<string>;

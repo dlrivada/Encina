@@ -1,10 +1,11 @@
-using System.Data;
-using System.Data.Common;
 using Encina;
 using Encina.ADO.PostgreSQL.Repository;
 using Encina.ADO.PostgreSQL.UnitOfWork;
 using Encina.DomainModeling;
+using Encina.Messaging.Transactions;
 using Encina.Testing.Shouldly;
+using Encina.UnitTests.Messaging.Transactions;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -12,21 +13,22 @@ using Xunit;
 namespace Encina.UnitTests.ADO.PostgreSQL.UnitOfWork;
 
 /// <summary>
-/// Unit tests for <see cref="UnitOfWorkADO"/>.
+/// Unit tests for <see cref="UnitOfWorkADO"/> on top of a real <see cref="DbTransactionAccessor"/>: the unit of
+/// work takes a lease on the scope's shared transaction, joins one another participant owns, and commits only
+/// when it owns it.
 /// </summary>
 [Trait("Category", "Unit")]
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable", Justification = "Disposal handled by IAsyncLifetime.DisposeAsync")]
-public class UnitOfWorkADOTests : IAsyncLifetime
+public sealed class UnitOfWorkADOTests : IAsyncLifetime
 {
-    private readonly IDbConnection _mockConnection;
-    private readonly IServiceProvider _mockServiceProvider;
+    private readonly RecordingTransactionalConnection _connection = new();
+    private readonly IServiceProvider _mockServiceProvider = Substitute.For<IServiceProvider>();
+    private readonly DbTransactionAccessor _accessor;
     private readonly UnitOfWorkADO _unitOfWork;
 
     public UnitOfWorkADOTests()
     {
-        _mockConnection = Substitute.For<IDbConnection>();
-        _mockServiceProvider = Substitute.For<IServiceProvider>();
-        _unitOfWork = new UnitOfWorkADO(_mockConnection, _mockServiceProvider);
+        _accessor = new DbTransactionAccessor(_connection, NullLogger<DbTransactionAccessor>.Instance);
+        _unitOfWork = new UnitOfWorkADO(_accessor, _mockServiceProvider);
     }
 
     public ValueTask InitializeAsync() => ValueTask.CompletedTask;
@@ -34,22 +36,53 @@ public class UnitOfWorkADOTests : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         await _unitOfWork.DisposeAsync();
+        await _accessor.DisposeAsync();
+        await _connection.DisposeAsync();
     }
+
+    private static string CodeOf<T>(LanguageExt.Either<EncinaError, T> result) =>
+        ((EncinaError)result).GetCode().IfNone(string.Empty);
 
     #region Constructor Tests
 
     [Fact]
-    public void Constructor_NullConnection_ThrowsArgumentNullException()
+    public void Constructor_NullTransactionAccessor_ThrowsArgumentNullException()
     {
-        Should.Throw<ArgumentNullException>(() =>
-            new UnitOfWorkADO(null!, _mockServiceProvider));
+        Should.Throw<ArgumentNullException>(() => new UnitOfWorkADO(null!, _mockServiceProvider));
     }
 
     [Fact]
     public void Constructor_NullServiceProvider_ThrowsArgumentNullException()
     {
-        Should.Throw<ArgumentNullException>(() =>
-            new UnitOfWorkADO(_mockConnection, null!));
+        Should.Throw<ArgumentNullException>(() => new UnitOfWorkADO(_accessor, null!));
+    }
+
+    #endregion
+
+    #region HasActiveTransaction Tests
+
+    [Fact]
+    public void HasActiveTransaction_NoTransaction_ReturnsFalse()
+    {
+        _unitOfWork.HasActiveTransaction.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task HasActiveTransaction_AfterSuccessfulBeginTransaction_ReturnsTrue()
+    {
+        var result = await _unitOfWork.BeginTransactionAsync();
+
+        result.IsRight.ShouldBeTrue();
+        _unitOfWork.HasActiveTransaction.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task HasActiveTransaction_ReflectsOnlyThisUnitOfWork_NotATransactionAnotherParticipantOwns()
+    {
+        await using var owner = (await _accessor.BeginOrJoinAsync(null)).IfLeft(static _ => throw new InvalidOperationException());
+
+        _unitOfWork.HasActiveTransaction.ShouldBeFalse();
+        _unitOfWork.CurrentTransaction.ShouldBeSameAs(_connection.Transaction);
     }
 
     #endregion
@@ -61,20 +94,37 @@ public class UnitOfWorkADOTests : IAsyncLifetime
     {
         _mockServiceProvider.GetService(typeof(IEntityMapping<TestADOEntity, Guid>)).Returns((object?)null);
 
-        Should.Throw<InvalidOperationException>(() =>
-            _unitOfWork.Repository<TestADOEntity, Guid>());
+        Should.Throw<InvalidOperationException>(() => _unitOfWork.Repository<TestADOEntity, Guid>());
     }
 
     [Fact]
     public void Repository_WithMapping_ReturnsRepositoryInstance()
     {
-        var mapping = CreateTestMapping();
-        _mockServiceProvider.GetService(typeof(IEntityMapping<TestADOEntity, Guid>)).Returns(mapping);
+        _mockServiceProvider.GetService(typeof(IEntityMapping<TestADOEntity, Guid>)).Returns(CreateTestMapping());
 
         var repository = _unitOfWork.Repository<TestADOEntity, Guid>();
 
         repository.ShouldNotBeNull();
         repository.ShouldBeAssignableTo<IFunctionalRepository<TestADOEntity, Guid>>();
+    }
+
+    [Fact]
+    public void Repository_SameEntityType_ReturnsSameInstance()
+    {
+        _mockServiceProvider.GetService(typeof(IEntityMapping<TestADOEntity, Guid>)).Returns(CreateTestMapping());
+
+        var repository1 = _unitOfWork.Repository<TestADOEntity, Guid>();
+        var repository2 = _unitOfWork.Repository<TestADOEntity, Guid>();
+
+        repository1.ShouldBeSameAs(repository2);
+    }
+
+    [Fact]
+    public async Task Repository_AfterDispose_ThrowsObjectDisposedException()
+    {
+        await _unitOfWork.DisposeAsync();
+
+        Should.Throw<ObjectDisposedException>(() => _unitOfWork.Repository<TestADOEntity, Guid>());
     }
 
     #endregion
@@ -90,227 +140,235 @@ public class UnitOfWorkADOTests : IAsyncLifetime
         result.IfRight(count => count.ShouldBe(0));
     }
 
-    #endregion
-
-    #region BeginTransactionAsync / CommitAsync / RollbackAsync - IDbConnection fallback path
-
     [Fact]
-    public async Task BeginTransactionAsync_NonDbConnection_UsesSynchronousFallback()
+    public async Task SaveChangesAsync_AfterDispose_ThrowsObjectDisposedException()
     {
-        _mockConnection.State.Returns(ConnectionState.Open);
-        var mockTransaction = Substitute.For<IDbTransaction>();
-        _mockConnection.BeginTransaction().Returns(mockTransaction);
+        await _unitOfWork.DisposeAsync();
 
-        var result = await _unitOfWork.BeginTransactionAsync();
-
-        result.IsRight.ShouldBeTrue();
-        _unitOfWork.HasActiveTransaction.ShouldBeTrue();
-        _mockConnection.Received(1).BeginTransaction();
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await _unitOfWork.SaveChangesAsync());
     }
 
-    [Fact]
-    public async Task BeginTransactionAsync_NonDbConnectionClosed_OpensConnectionSynchronouslyBeforeBeginningTransaction()
-    {
-        _mockConnection.State.Returns(ConnectionState.Closed);
-        var mockTransaction = Substitute.For<IDbTransaction>();
-        _mockConnection.BeginTransaction().Returns(mockTransaction);
+    #endregion
 
-        var result = await _unitOfWork.BeginTransactionAsync();
+    #region BeginTransactionAsync Tests
+
+    [Fact]
+    public async Task BeginTransactionAsync_ClosedConnection_OpensAndBeginsAsynchronouslyWithTheToken()
+    {
+        using var cts = new CancellationTokenSource();
+
+        var result = await _unitOfWork.BeginTransactionAsync(cts.Token);
 
         result.IsRight.ShouldBeTrue();
-        _mockConnection.Received(1).Open();
-        _mockConnection.Received(1).BeginTransaction();
+        _unitOfWork.CurrentTransaction.ShouldBeSameAs(_connection.Transaction);
+        _connection.OpenAsyncToken.ShouldBe(cts.Token);
+        _connection.BeginAsyncToken.ShouldBe(cts.Token);
     }
 
     [Fact]
     public async Task BeginTransactionAsync_TransactionAlreadyActive_ReturnsError()
     {
-        _mockConnection.State.Returns(ConnectionState.Open);
-        var mockTransaction = Substitute.For<IDbTransaction>();
-        _mockConnection.BeginTransaction().Returns(mockTransaction);
-
         await _unitOfWork.BeginTransactionAsync();
 
         var result = await _unitOfWork.BeginTransactionAsync();
 
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            var code = error.GetCode();
-            code.IsSome.ShouldBeTrue();
-            code.IfSome(c => c.ShouldBe(UnitOfWorkErrors.TransactionAlreadyActiveErrorCode));
-        });
+        CodeOf(result).ShouldBe(UnitOfWorkErrors.TransactionAlreadyActiveErrorCode);
     }
 
     [Fact]
-    public async Task BeginTransactionAsync_ConnectionThrows_ReturnsError()
+    public async Task BeginTransactionAsync_AnotherParticipantOwnsTheTransaction_JoinsIt()
     {
-        _mockConnection.State.Returns(ConnectionState.Open);
-        _mockConnection.BeginTransaction().Returns(x => throw new InvalidOperationException("Cannot start transaction"));
+        await using var owner = (await _accessor.BeginOrJoinAsync(null)).IfLeft(static _ => throw new InvalidOperationException());
 
         var result = await _unitOfWork.BeginTransactionAsync();
 
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            var code = error.GetCode();
-            code.IsSome.ShouldBeTrue();
-            code.IfSome(c => c.ShouldBe(UnitOfWorkErrors.TransactionStartFailedErrorCode));
-        });
+        result.IsRight.ShouldBeTrue();
+        _unitOfWork.HasActiveTransaction.ShouldBeTrue();
+        _connection.BeginAsyncCalls.ShouldBe(1);
     }
+
+    [Fact]
+    public async Task BeginTransactionAsync_BeginThrows_ReturnsTransactionStartFailed()
+    {
+        _connection.ThrowOnBegin = true;
+
+        var result = await _unitOfWork.BeginTransactionAsync();
+
+        CodeOf(result).ShouldBe(UnitOfWorkErrors.TransactionStartFailedErrorCode);
+        _unitOfWork.HasActiveTransaction.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task BeginTransactionAsync_Cancelled_ReturnsTransactionStartFailed()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var result = await _unitOfWork.BeginTransactionAsync(cts.Token);
+
+        CodeOf(result).ShouldBe(UnitOfWorkErrors.TransactionStartFailedErrorCode);
+    }
+
+    [Fact]
+    public async Task BeginTransactionAsync_AfterDispose_ThrowsObjectDisposedException()
+    {
+        await _unitOfWork.DisposeAsync();
+
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await _unitOfWork.BeginTransactionAsync());
+    }
+
+    #endregion
+
+    #region CommitAsync Tests
 
     [Fact]
     public async Task CommitAsync_NoActiveTransaction_ReturnsError()
     {
         var result = await _unitOfWork.CommitAsync();
 
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            var code = error.GetCode();
-            code.IsSome.ShouldBeTrue();
-            code.IfSome(c => c.ShouldBe(UnitOfWorkErrors.NoActiveTransactionErrorCode));
-        });
+        CodeOf(result).ShouldBe(UnitOfWorkErrors.NoActiveTransactionErrorCode);
     }
 
     [Fact]
-    public async Task CommitAsync_NonDbTransaction_CommitsAndClearsTransaction()
+    public async Task CommitAsync_OwnedTransaction_CommitsAndClearsIt()
     {
-        _mockConnection.State.Returns(ConnectionState.Open);
-        var mockTransaction = Substitute.For<IDbTransaction>();
-        _mockConnection.BeginTransaction().Returns(mockTransaction);
-
         await _unitOfWork.BeginTransactionAsync();
 
         var result = await _unitOfWork.CommitAsync();
 
         result.IsRight.ShouldBeTrue();
         _unitOfWork.HasActiveTransaction.ShouldBeFalse();
-        mockTransaction.Received(1).Commit();
+        _connection.Transaction.CommitAsyncCalls.ShouldBe(1);
+        _accessor.HasActiveTransaction.ShouldBeFalse();
     }
 
     [Fact]
-    public async Task CommitAsync_CommitThrows_RollsBackAndReturnsError()
+    public async Task CommitAsync_JoinedTransaction_DoesNotCommitAndLeavesItToTheOwner()
     {
-        _mockConnection.State.Returns(ConnectionState.Open);
-        var mockTransaction = Substitute.For<IDbTransaction>();
-        _mockConnection.BeginTransaction().Returns(mockTransaction);
-        mockTransaction.When(t => t.Commit()).Do(x => throw new InvalidOperationException("Commit failed"));
-
+        await using var owner = (await _accessor.BeginOrJoinAsync(null)).IfLeft(static _ => throw new InvalidOperationException());
         await _unitOfWork.BeginTransactionAsync();
 
         var result = await _unitOfWork.CommitAsync();
 
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            var code = error.GetCode();
-            code.IsSome.ShouldBeTrue();
-            code.IfSome(c => c.ShouldBe(UnitOfWorkErrors.CommitFailedErrorCode));
-        });
-        mockTransaction.Received(1).Rollback();
+        result.IsRight.ShouldBeTrue();
+        _unitOfWork.HasActiveTransaction.ShouldBeFalse();
+        _connection.Transaction.CommitAsyncCalls.ShouldBe(0);
+        _accessor.HasActiveTransaction.ShouldBeTrue();
     }
+
+    [Fact]
+    public async Task CommitAsync_CommitThrows_RollsBackAndReturnsCommitFailed()
+    {
+        await _unitOfWork.BeginTransactionAsync();
+        _connection.Transaction.ThrowOnCommit = true;
+
+        var result = await _unitOfWork.CommitAsync();
+
+        CodeOf(result).ShouldBe(UnitOfWorkErrors.CommitFailedErrorCode);
+        _connection.Transaction.RollbackAsyncCalls.ShouldBe(1);
+        _unitOfWork.HasActiveTransaction.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task CommitAsync_AfterAParticipantRolledBack_OwnerRefusesAndReturnsCommitFailed()
+    {
+        await _unitOfWork.BeginTransactionAsync();
+        var joiner = (await _accessor.BeginOrJoinAsync(null)).IfLeft(static _ => throw new InvalidOperationException());
+        await joiner.RollbackAsync();
+
+        var result = await _unitOfWork.CommitAsync();
+
+        CodeOf(result).ShouldBe(UnitOfWorkErrors.CommitFailedErrorCode);
+        _connection.Transaction.CommitAsyncCalls.ShouldBe(0);
+        _connection.Transaction.RollbackAsyncCalls.ShouldBe(1);
+        await joiner.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task CommitAsync_AfterDispose_ThrowsObjectDisposedException()
+    {
+        await _unitOfWork.DisposeAsync();
+
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await _unitOfWork.CommitAsync());
+    }
+
+    #endregion
+
+    #region RollbackAsync Tests
 
     [Fact]
     public async Task RollbackAsync_NoActiveTransaction_DoesNotThrow()
     {
         await _unitOfWork.RollbackAsync();
+
+        _connection.Transaction.RollbackAsyncCalls.ShouldBe(0);
     }
 
     [Fact]
-    public async Task RollbackAsync_NonDbTransaction_RollsBackAndClearsTransaction()
+    public async Task RollbackAsync_OwnedTransaction_RollsBackAndClearsIt()
     {
-        _mockConnection.State.Returns(ConnectionState.Open);
-        var mockTransaction = Substitute.For<IDbTransaction>();
-        _mockConnection.BeginTransaction().Returns(mockTransaction);
-
         await _unitOfWork.BeginTransactionAsync();
 
         await _unitOfWork.RollbackAsync();
 
         _unitOfWork.HasActiveTransaction.ShouldBeFalse();
-        mockTransaction.Received(1).Rollback();
+        _connection.Transaction.RollbackAsyncCalls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task RollbackAsync_JoinedTransaction_MarksTheOwnersTransactionRollbackOnly()
+    {
+        await using var owner = (await _accessor.BeginOrJoinAsync(null)).IfLeft(static _ => throw new InvalidOperationException());
+        await _unitOfWork.BeginTransactionAsync();
+
+        await _unitOfWork.RollbackAsync();
+        var committed = await owner.CommitAsync();
+
+        ((EncinaError)committed).GetCode().IfNone(string.Empty).ShouldBe(TransactionErrors.RollbackOnlyCode);
+        _connection.Transaction.RollbackAsyncCalls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task RollbackAsync_AfterDispose_ThrowsObjectDisposedException()
+    {
+        await _unitOfWork.DisposeAsync();
+
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await _unitOfWork.RollbackAsync());
+    }
+
+    #endregion
+
+    #region DisposeAsync Tests
+
+    [Fact]
+    public async Task DisposeAsync_CalledTwice_DoesNotThrow()
+    {
+        await _unitOfWork.DisposeAsync();
+        await _unitOfWork.DisposeAsync();
     }
 
     [Fact]
     public async Task DisposeAsync_WithActiveTransaction_RollsBack()
     {
-        _mockConnection.State.Returns(ConnectionState.Open);
-        var mockTransaction = Substitute.For<IDbTransaction>();
-        _mockConnection.BeginTransaction().Returns(mockTransaction);
-
         await _unitOfWork.BeginTransactionAsync();
 
         await _unitOfWork.DisposeAsync();
 
-        mockTransaction.Received(1).Rollback();
+        _connection.Transaction.RollbackAsyncCalls.ShouldBe(1);
+        _connection.Transaction.DisposeAsyncCalls.ShouldBe(1);
     }
 
     #endregion
 
-    #region BeginTransactionAsync / CommitAsync / RollbackAsync - DbConnection async path
+    #region UpdateImmutable Tests
 
     [Fact]
-    public async Task BeginTransactionAsync_DbConnection_UsesConnectionOpenAsyncAndBeginTransactionAsync()
+    public async Task UpdateImmutable_IsNotSupported()
     {
-        var fakeTransaction = new FakeDbTransaction();
-        using var fakeConnection = new FakeDbConnection { TransactionToReturn = fakeTransaction };
-        var unitOfWork = new UnitOfWorkADO(fakeConnection, _mockServiceProvider);
+        var entity = new TestADOEntity();
 
-        var result = await unitOfWork.BeginTransactionAsync();
-
-        result.IsRight.ShouldBeTrue();
-        fakeConnection.OpenAsyncCallCount.ShouldBe(1);
-        fakeConnection.BeginTransactionAsyncCallCount.ShouldBe(1);
-
-        await unitOfWork.DisposeAsync();
-    }
-
-    [Fact]
-    public async Task CommitAsync_DbTransaction_CallsCommitAsync()
-    {
-        var fakeTransaction = new FakeDbTransaction();
-        using var fakeConnection = new FakeDbConnection { TransactionToReturn = fakeTransaction };
-        var unitOfWork = new UnitOfWorkADO(fakeConnection, _mockServiceProvider);
-        await unitOfWork.BeginTransactionAsync();
-
-        var result = await unitOfWork.CommitAsync();
-
-        result.IsRight.ShouldBeTrue();
-        fakeTransaction.CommitAsyncCallCount.ShouldBe(1);
-
-        await unitOfWork.DisposeAsync();
-    }
-
-    [Fact]
-    public async Task CommitAsync_DbTransactionCommitAsyncThrows_RollsBackViaRollbackAsync()
-    {
-        var fakeTransaction = new FakeDbTransaction { ThrowOnCommit = true };
-        using var fakeConnection = new FakeDbConnection { TransactionToReturn = fakeTransaction };
-        var unitOfWork = new UnitOfWorkADO(fakeConnection, _mockServiceProvider);
-        await unitOfWork.BeginTransactionAsync();
-
-        var result = await unitOfWork.CommitAsync();
-
-        result.IsLeft.ShouldBeTrue();
-        fakeTransaction.RollbackAsyncCallCount.ShouldBe(1);
-
-        await unitOfWork.DisposeAsync();
-    }
-
-    [Fact]
-    public async Task RollbackAsync_DbTransaction_CallsRollbackAsync()
-    {
-        var fakeTransaction = new FakeDbTransaction();
-        using var fakeConnection = new FakeDbConnection { TransactionToReturn = fakeTransaction };
-        var unitOfWork = new UnitOfWorkADO(fakeConnection, _mockServiceProvider);
-        await unitOfWork.BeginTransactionAsync();
-
-        await unitOfWork.RollbackAsync();
-
-        fakeTransaction.RollbackAsyncCallCount.ShouldBe(1);
-
-        await unitOfWork.DisposeAsync();
+        _unitOfWork.UpdateImmutable(entity).IsLeft.ShouldBeTrue();
+        (await _unitOfWork.UpdateImmutableAsync(entity)).IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -338,96 +396,6 @@ public class TestADOEntity
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
-}
-
-#endregion
-
-#region Fake ADO.NET Types
-
-/// <summary>
-/// Minimal <see cref="DbConnection"/> test double that records async call counts.
-/// </summary>
-internal sealed class FakeDbConnection : DbConnection
-{
-    private ConnectionState _state = ConnectionState.Closed;
-
-    public int OpenAsyncCallCount { get; private set; }
-    public int BeginTransactionAsyncCallCount { get; private set; }
-    public FakeDbTransaction? TransactionToReturn { get; set; }
-
-    [System.Diagnostics.CodeAnalysis.AllowNull]
-    public override string ConnectionString { get; set; } = string.Empty;
-    public override string Database => "fake";
-    public override string DataSource => "fake";
-    public override string ServerVersion => "1.0";
-    public override ConnectionState State => _state;
-
-    public override void ChangeDatabase(string databaseName)
-    {
-    }
-
-    public override void Close() => _state = ConnectionState.Closed;
-
-    public override void Open() => _state = ConnectionState.Open;
-
-    public override Task OpenAsync(CancellationToken cancellationToken)
-    {
-        OpenAsyncCallCount++;
-        _state = ConnectionState.Open;
-        return Task.CompletedTask;
-    }
-
-    protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel) =>
-        TransactionToReturn ?? throw new InvalidOperationException("No transaction configured");
-
-    protected override ValueTask<DbTransaction> BeginDbTransactionAsync(
-        IsolationLevel isolationLevel,
-        CancellationToken cancellationToken)
-    {
-        BeginTransactionAsyncCallCount++;
-        return ValueTask.FromResult<DbTransaction>(
-            TransactionToReturn ?? throw new InvalidOperationException("No transaction configured"));
-    }
-
-    protected override DbCommand CreateDbCommand() => throw new NotSupportedException();
-}
-
-/// <summary>
-/// Minimal <see cref="DbTransaction"/> test double that records async call counts.
-/// </summary>
-internal sealed class FakeDbTransaction : DbTransaction
-{
-    public int CommitAsyncCallCount { get; private set; }
-    public int RollbackAsyncCallCount { get; private set; }
-    public bool ThrowOnCommit { get; set; }
-
-    protected override DbConnection? DbConnection => null;
-    public override IsolationLevel IsolationLevel => IsolationLevel.ReadCommitted;
-
-    public override void Commit()
-    {
-    }
-
-    public override void Rollback()
-    {
-    }
-
-    public override Task CommitAsync(CancellationToken cancellationToken = default)
-    {
-        CommitAsyncCallCount++;
-        if (ThrowOnCommit)
-        {
-            throw new InvalidOperationException("Commit failed");
-        }
-
-        return Task.CompletedTask;
-    }
-
-    public override Task RollbackAsync(CancellationToken cancellationToken = default)
-    {
-        RollbackAsyncCallCount++;
-        return Task.CompletedTask;
-    }
 }
 
 #endregion

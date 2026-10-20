@@ -2,6 +2,7 @@ using System.Data;
 using System.Globalization;
 using Encina.Messaging;
 using Encina.Messaging.Outbox;
+using Encina.Messaging.Transactions;
 using LanguageExt;
 using Npgsql;
 
@@ -11,11 +12,17 @@ namespace Encina.ADO.PostgreSQL.Outbox;
 /// ADO.NET implementation of <see cref="IOutboxStore"/> for reliable event publishing.
 /// Uses raw NpgsqlCommand and NpgsqlDataReader for maximum performance and zero overhead.
 /// </summary>
+/// <remarks>
+/// Every command enlists in the business transaction of the scope when one is active (see
+/// <see cref="DbLease.Enlisted"/>), so the rows the transactional outbox behavior adds commit or roll back with
+/// the request; without an accessor, or without an active transaction, commands run in autocommit.
+/// </remarks>
 public sealed class OutboxStoreADO : IOutboxStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
     private readonly TimeProvider _timeProvider;
+    private readonly IDbTransactionAccessor? _transactionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxStoreADO"/> class.
@@ -23,15 +30,21 @@ public sealed class OutboxStoreADO : IOutboxStore
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The outbox table name (default: outboxmessages).</param>
     /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
+    /// <param name="transactionAccessor">
+    /// Optional accessor of the scope's shared transaction; when a transaction is active the store's commands
+    /// join it, otherwise they run in autocommit.
+    /// </param>
     public OutboxStoreADO(
         IDbConnection connection,
         string tableName = "outboxmessages",
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IDbTransactionAccessor? transactionAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _transactionAccessor = transactionAccessor;
     }
 
     /// <inheritdoc />
@@ -59,7 +72,8 @@ public sealed class OutboxStoreADO : IOutboxStore
                 LIMIT @BatchSize";
 
             var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@BatchSize", batchSize);
             AddParameter(command, "@MaxRetries", maxRetries);
@@ -67,8 +81,7 @@ public sealed class OutboxStoreADO : IOutboxStore
 
             var messages = new List<OutboxMessage>();
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             using var reader = await ExecuteReaderAsync(command, cancellationToken);
             while (await ReadAsync(reader, cancellationToken))
@@ -109,7 +122,8 @@ public sealed class OutboxStoreADO : IOutboxStore
                 VALUES
                 (@Id, @NotificationType, @Content, @CreatedAtUtc, @ProcessedAtUtc, @ErrorMessage, @RetryCount, @NextRetryAtUtc)";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@Id", message.Id);
             AddParameter(command, "@NotificationType", message.NotificationType);
@@ -120,8 +134,7 @@ public sealed class OutboxStoreADO : IOutboxStore
             AddParameter(command, "@RetryCount", message.RetryCount);
             AddParameter(command, "@NextRetryAtUtc", message.NextRetryAtUtc);
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "outbox.add_failed").ConfigureAwait(false);
@@ -142,13 +155,13 @@ public sealed class OutboxStoreADO : IOutboxStore
                     errormessage = NULL
                 WHERE id = @Id";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@Id", messageId);
             AddParameter(command, "@NowUtc", nowUtc);
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "outbox.mark_processed_failed").ConfigureAwait(false);
@@ -174,14 +187,14 @@ public sealed class OutboxStoreADO : IOutboxStore
                     nextretryatutc = @NextRetryAtUtc
                 WHERE id = @Id";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@Id", messageId);
             AddParameter(command, "@ErrorMessage", errorMessage);
             AddParameter(command, "@NextRetryAtUtc", nextRetryAtUtc);
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "outbox.mark_failed_failed").ConfigureAwait(false);
@@ -202,12 +215,12 @@ public sealed class OutboxStoreADO : IOutboxStore
                 WHERE processedatutc IS NULL
                   AND retrycount < @MaxRetries";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@MaxRetries", maxRetries);
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             return Convert.ToInt32(await ExecuteScalarAsync(command, cancellationToken), CultureInfo.InvariantCulture);
         }, "outbox.get_pending_count_failed").ConfigureAwait(false);
@@ -228,12 +241,12 @@ public sealed class OutboxStoreADO : IOutboxStore
                 WHERE processedatutc IS NULL
                   AND retrycount >= @MaxRetries";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@MaxRetries", maxRetries);
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             return Convert.ToInt32(await ExecuteScalarAsync(command, cancellationToken), CultureInfo.InvariantCulture);
         }, "outbox.get_exhausted_count_failed").ConfigureAwait(false);
@@ -260,19 +273,19 @@ public sealed class OutboxStoreADO : IOutboxStore
                 WHERE processedatutc IS NULL
                   AND retrycount >= @MaxRetries";
 
-            using var command = _connection.CreateCommand();
-
             if (messageIds is not null)
                 sql += " AND id = ANY(@Ids)";
 
+            // A single statement is atomic on its own; it joins the scope's transaction when one is active.
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@MaxRetries", maxRetries);
 
             if (messageIds is not null)
                 AddParameter(command, "@Ids", messageIds.Distinct().ToArray());
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             return await ExecuteNonQueryAsync(command, cancellationToken);
         }, "outbox.requeue_exhausted_failed").ConfigureAwait(false);
@@ -291,13 +304,6 @@ public sealed class OutboxStoreADO : IOutboxStore
         parameter.ParameterName = name;
         parameter.Value = value ?? DBNull.Value;
         command.Parameters.Add(parameter);
-    }
-
-    private static Task OpenConnectionAsync(CancellationToken cancellationToken)
-    {
-        // For NpgsqlConnection, use OpenAsync
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.CompletedTask;
     }
 
     private static async Task<IDataReader> ExecuteReaderAsync(IDbCommand command, CancellationToken cancellationToken)
