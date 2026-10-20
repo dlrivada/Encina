@@ -402,8 +402,15 @@ flowchart TB
 **Outbox Pattern:**
 
 - `IOutboxMessage`, `IOutboxStore`, `IOutboxMessageFactory`
-- `OutboxOrchestrator`, `OutboxPostProcessor`
+- `OutboxOrchestrator`, `OutboxPostProcessor` (interim: still the write path of Dapper, EF Core and MongoDB; deleted when the last family moves)
 - Configuración: `OutboxOptions` (ProcessingInterval, BatchSize, MaxRetries, BaseRetryDelay)
+- Transactional outbox on the 3 ADO.NET providers (#718, first slice; ADR-037), enabled with `UseOutbox`:
+  - `Encina.Messaging/Outbox/`: `TransactionalOutboxPipelineBehavior`, `OutboxWriter` (internal), `OutboxWritePath` (internal interim switch), `IHasNotifications` (moved out of `OutboxPostProcessor.cs`)
+  - `Encina.Messaging/Transactions/`: `ITransactionLeaseSource`, `ITransactionLease`, `IDbTransactionAccessor`, `IDbTransactionLease`, `DbTransactionAccessor`, `TransactionLeaseState` (internal), `TransactionErrors`, `TransactionLeaseExtensions`, `DbSystemName`; `DbLease` moved here from `Encina.Messaging/`, and `IDbTransactionAccessor` moved here from `Encina.Messaging/` (it is now the scoped owner of the transaction)
+  - `Encina.Messaging/Diagnostics/TransactionActivitySource.cs` (activity source `Encina.Messaging.Transactions`), counters `encina.outbox.enqueued` and `encina.transaction.rollback_only` in `OutboxProcessorMetrics`, EventIds 2963-2969 in `MessagingLog`
+  - Changed: `Encina.Messaging/TransactionPipelineBehavior.cs` (takes a lease on `IDbTransactionAccessor`), `MessagingServiceCollectionExtensions.cs` (write-path switch, accessor registration), `UnitOfWorkADO`, `OutboxStoreADO`, `InboxStoreADO`, `SagaStoreADO`, `ScheduledMessageStoreADO`, `ServiceCollectionExtensions` and `TenancyServiceCollectionExtensions` in `Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL`; the three Dapper `InboxStoreDapper` read the accessor from its new namespace
+  - Deleted: none (the old `Encina.Messaging/IDbTransactionAccessor.cs` and `DbLease.cs` were moved)
+  - Documentation: `docs/features/transactional-outbox.md`, ADR-037 (ADR-048 amended)
 
 **Inbox Pattern:**
 
