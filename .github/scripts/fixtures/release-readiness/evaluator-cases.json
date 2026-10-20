@@ -326,6 +326,46 @@
     "contains": "enforce_admins"
   },
   {
+    "name": "branch-protection fails when only required_conversation_resolution is off",
+    "check": { "name": "branch-protection", "params": { "contexts": ["build", "ci-result", "Analyze"] } },
+    "facts": { "branch-protection": { "value": { "protection": { "enforce_admins": { "enabled": true }, "required_pull_request_reviews": { "required_approving_review_count": 0 }, "required_conversation_resolution": { "enabled": false }, "required_linear_history": { "enabled": true }, "required_status_checks": { "contexts": ["build", "ci-result", "Analyze"], "checks": [] } } } } },
+    "expect": "FAIL",
+    "contains": "required_conversation_resolution"
+  },
+  {
+    "name": "branch-protection fails when only required_linear_history is off",
+    "check": { "name": "branch-protection", "params": { "contexts": ["build", "ci-result", "Analyze"] } },
+    "facts": { "branch-protection": { "value": { "protection": { "enforce_admins": { "enabled": true }, "required_pull_request_reviews": { "required_approving_review_count": 0 }, "required_conversation_resolution": { "enabled": true }, "required_linear_history": { "enabled": false }, "required_status_checks": { "contexts": ["build", "ci-result", "Analyze"], "checks": [] } } } } },
+    "expect": "FAIL",
+    "contains": "required_linear_history"
+  },
+  {
+    "name": "code-scanning-alerts fails on an alert of unknown severity",
+    "check": { "name": "code-scanning-alerts", "params": { "minSeverity": "high" } },
+    "facts": { "code-scanning-alerts": { "value": { "alerts": [ { "number": 3, "severity": "unknown" } ] } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "code-scanning-alerts fails when the alerts list is absent",
+    "check": { "name": "code-scanning-alerts", "params": { "minSeverity": "high" } },
+    "facts": { "code-scanning-alerts": { "value": { } } },
+    "expect": "FAIL",
+    "contains": "no 'alerts' list"
+  },
+  {
+    "name": "fail closed: a fact with neither a value nor an error fails the item",
+    "check": { "name": "secret-scanning-alerts", "params": {} },
+    "facts": { "secret-scanning-alerts": { } },
+    "expect": "FAIL",
+    "contains": "neither a value nor an error"
+  },
+  {
+    "name": "public-api-unshipped-empty fails when the lists are absent",
+    "check": { "name": "public-api-unshipped-empty", "params": {} },
+    "facts": { "unshipped": { "value": { } } },
+    "expect": "FAIL"
+  },
+  {
     "name": "ci-result-needs passes when ci-result needs build and every test job with if: always()",
     "check": { "name": "ci-result-needs", "params": {} },
     "facts": { "ci-result-needs": { "value": { "needs": ["changes", "build", "test-unit", "test-guard"], "testJobs": ["test-unit", "test-guard"], "ifAlways": true } } },

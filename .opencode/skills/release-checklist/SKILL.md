@@ -29,5 +29,5 @@ dotnet run --file .github/scripts/release-readiness.cs -- --evidence --facts doc
 1. Merge feature branches to main.
 2. Fold the changelog fragments: `dotnet run .github/scripts/changelog-fragments.cs -- --release <version> <yyyy-MM-dd> [title]`.
 3. Run the gate (above) and commit `checklist.md`, `facts.json` and `evidence.md` in the release PR.
-4. Before tagging, re-check the merge commit: `--collect --sha <merge-sha>` into a scratch facts file, then `--evaluate --only ci-full-on-sha` on it.
+4. Before tagging, re-check the merge commit: `--collect --version <version> --profile <profile> --sha <merge-sha>` into a scratch facts file, then `--evaluate --only ci-full-on-sha` on it.
 5. Follow `docs/releases/RELEASE-PROCESS.md` for the tag, the GitHub Release and the version bump.

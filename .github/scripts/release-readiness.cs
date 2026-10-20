@@ -274,7 +274,8 @@ static class Cli
     static int Evaluate(Options o, Registry reg, Env env)
     {
         var (version, profileFromBranch) = ResolveVersion(o);
-        var expectedProfile = o.Get("--profile") ?? profileFromBranch;
+        // Without --profile or --from-branch the profile is derived from the version, never taken from the facts.
+        var expectedProfile = o.Get("--profile") ?? profileFromBranch ?? BranchMap.Map("release/v" + version).Profile;
         var now = ParseNow(o) ?? env.Clock.GetUtcNow();
         var maxHours = double.TryParse(o.Get("--max-facts-age-hours") ?? "24", NumberStyles.Float, CultureInfo.InvariantCulture, out var h) && h > 0 ? h : throw new UsageException("--max-facts-age-hours must be a number greater than 0");
         var facts = LoadFactsOrReject(o, env, version, expectedProfile, true, now, maxHours);
@@ -850,9 +851,11 @@ static class Evaluators
 
     static Outcome Alerts(EvalCtx c, string key, string min, string arrayName, string sevField)
     {
+        if (c.Value(key)?[arrayName] is not JsonArray) return Outcome.Fail($"fact '{key}' has no '{arrayName}' list");
         var alerts = J.Objs(c.Value(key)?[arrayName]).ToList();
         var floor = Rank(min);
-        var hit = alerts.Count(a => Rank(J.Str(a[sevField])) >= floor);
+        // An alert whose severity is unknown counts as at or above the floor (fail closed).
+        var hit = alerts.Count(a => Rank(J.Str(a[sevField])) is var r && (r >= floor || r == 0));
         var detail = string.Join(", ", new[] { "critical", "high", "medium", "low" }.Select(s => (s, n: alerts.Count(a => J.Str(a[sevField]) == s))).Where(x => x.n > 0).Select(x => $"{x.s} {x.n}"));
         return hit > 0 ? Outcome.Fail($"{hit} open alert(s) at {min} or higher ({detail})")
             : Outcome.Pass($"no open alerts at {min} or higher ({alerts.Count} open in total{(detail.Length > 0 ? ": " + detail : "")})");
@@ -860,6 +863,7 @@ static class Evaluators
 
     static Outcome SecretAlerts(Item i, EvalCtx c)
     {
+        if (c.Value("secret-scanning-alerts")?["alerts"] is not JsonArray) return Outcome.Fail("fact 'secret-scanning-alerts' has no 'alerts' list");
         var n = J.Objs(c.Value("secret-scanning-alerts")?["alerts"]).Count();
         return n > 0 ? Outcome.Fail($"{n} open secret-scanning alert(s)") : Outcome.Pass("no open secret-scanning alerts");
     }
@@ -902,6 +906,7 @@ static class Evaluators
     {
         var deferred = S(i, "deferredLabel");
         var security = S(i, "securityLabel");
+        if (c.Value("open-bugs")?["issues"] is not JsonArray) return Outcome.Fail("fact 'open-bugs' has no 'issues' list");
         var issues = J.Objs(c.Value("open-bugs")?["issues"]).ToList();
         var bad = new List<string>();
         foreach (var b in issues)
@@ -920,7 +925,8 @@ static class Evaluators
     static Outcome SkipScan(Item i, EvalCtx c)
     {
         var v = c.Value("skip-scan");
-        var bad = J.Strs(v?["unreferenced"]).ToList();
+        if (v?["unreferenced"] is not JsonArray || J.Int(v["total"]) is null) return Outcome.Fail("fact 'skip-scan' lacks 'total' or 'unreferenced'");
+        var bad = J.Strs(v["unreferenced"]).ToList();
         return bad.Count > 0 ? Outcome.Fail($"{bad.Count} Skip= without an issue reference: {string.Join(", ", bad.Take(6))}")
             : Outcome.Pass($"all {J.Int(v?["total"])} Skip= occurrence(s) reference an issue");
     }
@@ -976,6 +982,7 @@ static class Evaluators
 
     static Outcome Unshipped(Item i, EvalCtx c)
     {
+        if (c.Value("unshipped")?["nonEmpty"] is not JsonArray || J.Int(c.Value("unshipped")?["total"]) is null) return Outcome.Fail("fact 'unshipped' lacks 'total' or 'nonEmpty'");
         var bad = J.Strs(c.Value("unshipped")?["nonEmpty"]).ToList();
         return bad.Count > 0 ? Outcome.Fail($"{bad.Count} PublicAPI.Unshipped.txt file(s) not empty: {string.Join(", ", bad.Take(4))}")
             : Outcome.Pass($"all {J.Int(c.Value("unshipped")?["total"])} PublicAPI.Unshipped.txt files are empty");
@@ -1155,6 +1162,7 @@ static class Engine
         {
             if (!c.Facts.Facts.TryGetValue(k, out var f)) return ($"fact '{k}' is missing from facts.json", keys);
             if (f.Error is not null) return ($"fact '{k}' could not be collected: {f.Error}", keys);
+            if (f.Value is null) return ($"fact '{k}' has neither a value nor an error", keys);
         }
         return (null, keys);
     }
@@ -1468,7 +1476,8 @@ static class Collectors
         var endpoint = $"repos/{c.Repo}/secret-scanning/alerts?state=open";
         var alerts = new JsonArray();
         foreach (var a in J.Objs(await f.PagedAsync(endpoint, token)))
-            alerts.Add(new JsonObject { ["number"] = J.Int(a["number"]), ["secretType"] = J.Str(a["secret_type"]), ["url"] = J.Str(a["html_url"]) });
+            // Only the existence of an open alert is kept: facts.json is committed to a public repository.
+            alerts.Add(new JsonObject { ["state"] = "open" });
         return (new JsonObject { ["alerts"] = alerts }, Fetcher.GhUrl(endpoint));
     }
 
@@ -1478,11 +1487,8 @@ static class Collectors
         var endpoint = $"repos/{c.Repo}/dependabot/alerts?state=open";
         var alerts = new JsonArray();
         foreach (var a in J.Objs(await f.PagedAsync(endpoint, token)))
-            alerts.Add(new JsonObject
-            {
-                ["number"] = J.Int(a["number"]), ["severity"] = J.Str(a["security_advisory"]?["severity"]) ?? "unknown",
-                ["package"] = J.Str(a["dependency"]?["package"]?["name"]), ["url"] = J.Str(a["html_url"]),
-            });
+            // Severity only: Dependabot alert details are not public and facts.json is committed.
+            alerts.Add(new JsonObject { ["severity"] = J.Str(a["security_advisory"]?["severity"]) ?? "unknown" });
         return (new JsonObject { ["alerts"] = alerts }, Fetcher.GhUrl(endpoint));
     }
 
