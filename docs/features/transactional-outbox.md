@@ -107,7 +107,7 @@ All participants share one transaction per request scope. The first to ask owns 
 | --- | --- | --- |
 | `UseOutbox` only | the outbox behavior | begins around the handler, writes the outbox rows, commits |
 | `UseTransactions` and `UseOutbox` | `TransactionPipelineBehavior` | the outbox behavior joins; the transaction behavior commits once |
-| either of the above, and a handler that calls `IUnitOfWork.BeginTransactionAsync` | whoever began first | the unit of work joins; its `CommitAsync` is a no-op (see the `IUnitOfWork` limit below) |
+| either of the above, and a handler that calls `IUnitOfWork.BeginTransactionAsync` | whoever began first | the unit of work joins; its `CommitAsync` is a no-op (see the two consequences below the table) |
 | a joined unit of work calls `RollbackAsync` | the owner | the owner's commit rolls back and the request fails with `transaction.rollback_only` |
 | `UseTransactions` only | `TransactionPipelineBehavior` | no outbox rows; `IDbTransactionAccessor.Current` is available to the handler |
 
@@ -116,7 +116,7 @@ Two consequences follow from joining:
 - A joiner's `CommitAsync` returning success does not mean the data is durable. Only the owner's commit does.
 - A joiner that asks for an isolation level different from the active transaction's gets `transaction.isolation_level_mismatch`.
 
-The messaging stores of the scope (outbox, inbox, saga, scheduled message) enlist in the same transaction. Recoverability runs outside it, so a retry begins a new transaction.
+The messaging stores of the scope (outbox, inbox, saga, scheduled message) enlist in the same transaction. When `UseRecoverability` is on, Recoverability is registered before the transaction and runs outside it, so a retry begins a new transaction (a named-stage contract is planned in [#2184](https://github.com/dlrivada/Encina/issues/2184)).
 
 ## Errors you can get
 
@@ -133,8 +133,8 @@ The codes are the constants of `TransactionErrors`. A failed outbox write return
 
 ## Observe it
 
-- Log events 2963 to 2969 of `MessagingLog` (join, rollback-only, commit failed, notifications written, write failed, behavior skipped), and 2834 to 2836 for transaction started, committed and rolled back.
-- Activity source `Encina.Messaging.Transactions`: one activity per owned transaction, with the tags `encina.transaction.owner` and `encina.transaction.outcome`.
+- Log events 2963 to 2969 of `MessagingLog` (joined, marked rollback-only, commit refused because rollback-only, commit failed, notifications written, write failed, behavior skipped), and 2834 to 2836 for transaction started, committed and rolled back.
+- Activity source `Encina.Messaging.Transactions`: one activity per owned transaction, with the tags `encina.transaction.owner`, `encina.transaction.outcome` and `db.system`.
 - Counters `encina.outbox.enqueued` (by outcome, written or failed, and `db.system`) and `encina.transaction.rollback_only`.
 
 ## Limits
