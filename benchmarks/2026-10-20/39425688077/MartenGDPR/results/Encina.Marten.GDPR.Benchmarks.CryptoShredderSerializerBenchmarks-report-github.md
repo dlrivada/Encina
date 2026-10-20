@@ -1,0 +1,20 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 3.69GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+
+Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+
+```
+| Method                            | Mean        | Error       | StdDev    | Ratio | RatioSD | Rank | Gen0   | Allocated | Alloc Ratio |
+|---------------------------------- |------------:|------------:|----------:|------:|--------:|-----:|-------:|----------:|------------:|
+| InnerSerializer_NonPii            |    466.9 ns |    18.55 ns |   1.02 ns |  1.00 |    0.00 |    1 | 0.0153 |     256 B |        1.00 |
+| CryptoSerializer_NonPii           |    744.8 ns |   384.51 ns |  21.08 ns |  1.60 |    0.04 |    2 | 0.0563 |     944 B |        3.69 |
+| CryptoDeserializer_NestedPiiEvent | 23,639.8 ns |   822.09 ns |  45.06 ns | 50.63 |    0.13 |    5 | 0.6104 |   10304 B |       40.25 |
+| CryptoSerializer_NestedPiiEvent   | 37,771.2 ns | 3,270.58 ns | 179.27 ns | 80.90 |    0.37 |    6 | 0.6714 |   11304 B |       44.16 |
+| CryptoSerializer_NonPiiNested     |  3,826.5 ns |   156.50 ns |   8.58 ns |  8.20 |    0.02 |    3 | 0.2174 |    3656 B |       14.28 |
+| CryptoSerializer_PiiEvent         |  5,454.9 ns | 1,482.99 ns |  81.29 ns | 11.68 |    0.15 |    4 | 0.1297 |    2288 B |        8.94 |
