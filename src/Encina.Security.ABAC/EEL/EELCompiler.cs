@@ -165,7 +165,7 @@ public sealed class EELCompiler : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    return ABACErrors.InvalidCondition(expression, $"Evaluation failed: {ex.Message}");
+                    return ABACErrors.InvalidCondition(expression, $"Evaluation failed ({ex.GetType().Name}).");
                 }
             }).ConfigureAwait(false);
     }

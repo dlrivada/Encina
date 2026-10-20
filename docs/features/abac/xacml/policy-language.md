@@ -242,7 +242,7 @@ The `AttributeDesignator` identifies the attribute by:
 
 - **Category**: `Subject`, `Resource`, `Action`, or `Environment`
 - **AttributeId**: The attribute name (e.g., `"department"`, `"classification"`)
-- **DataType**: The expected XACML data type (e.g., `"string"`, `"integer"`)
+- **DataType**: The expected XACML data type as the full URI (e.g., `XACMLDataTypes.String`, `XACMLDataTypes.Integer`); a short name such as `"integer"` matches no values
 - **MustBePresent**: When `true`, a missing attribute produces `Indeterminate`
 
 ### Empty Targets
@@ -465,6 +465,12 @@ var financePolicy = new PolicySetBuilder("finance-department")
 
 ### Example: Time-Based Resource Restrictions
 
+`EnvironmentAttributes.CurrentTime` holds a date and time, so a designator for it needs
+`XACMLDataTypes.DateTime`. This example designates a separate `timeOfDay` attribute that the
+environment provider supplies as a `TimeSpan` (for example `now.TimeOfDay`), which the context
+builder infers as `XACMLDataTypes.Time`. The time literals are `TimeSpan` values because the
+time functions compare `TimeSpan` values.
+
 ```csharp
 var timeRestriction = new PolicyBuilder("business-hours-policy")
     .WithDescription("Restrict sensitive operations to business hours")
@@ -474,12 +480,12 @@ var timeRestriction = new PolicyBuilder("business-hours-policy")
         .WithCondition(ConditionBuilder.And(
             ConditionBuilder.GreaterThanOrEqual(
                 ConditionBuilder.Attribute(
-                    AttributeCategory.Environment, "currentTime", XACMLDataTypes.Time),
-                ConditionBuilder.TimeValue(new TimeOnly(9, 0))),
+                    AttributeCategory.Environment, "timeOfDay", XACMLDataTypes.Time),
+                new AttributeValue { DataType = XACMLDataTypes.Time, Value = new TimeSpan(9, 0, 0) }),
             ConditionBuilder.LessThan(
                 ConditionBuilder.Attribute(
-                    AttributeCategory.Environment, "currentTime", XACMLDataTypes.Time),
-                ConditionBuilder.TimeValue(new TimeOnly(18, 0))))))
+                    AttributeCategory.Environment, "timeOfDay", XACMLDataTypes.Time),
+                new AttributeValue { DataType = XACMLDataTypes.Time, Value = new TimeSpan(18, 0, 0) }))))
     .AddRule("allow-emergency-override", Effect.Permit, rule => rule
         .WithDescription("Emergency override for on-call staff outside business hours")
         .WithCondition(ConditionBuilder.Equal(

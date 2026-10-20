@@ -58,76 +58,76 @@ internal static class PIIPropertyScanner
                 continue;
             }
 
+            // A property without a usable setter (get-only) is still PII: it is kept and the masker
+            // fails closed when the masked value does not take effect on the copy.
             var setter = CompileSetter(type, property);
-            if (setter is null)
-            {
-                continue;
-            }
 
-            // Check property-level attributes (take priority over class-level)
-            var piiAttr = property.GetCustomAttribute<PIIAttribute>(inherit: true);
-            var sensitiveAttr = property.GetCustomAttribute<SensitiveDataAttribute>(inherit: true);
-            var logOnlyAttr = property.GetCustomAttribute<MaskInLogsAttribute>(inherit: true);
-
-            if (piiAttr is not null)
+            // Property-level attributes take priority over class-level ones
+            var metadata = FromPropertyAttributes(property, setter)
+                ?? FromClassAttributes(property, setter, classAttribute, classSensitiveAttribute);
+            if (metadata is not null)
             {
-                piiProperties.Add(new PropertyMaskingMetadata(
-                    property,
-                    piiAttr.Type,
-                    piiAttr.Mode,
-                    piiAttr.Pattern,
-                    piiAttr.Replacement,
-                    logOnly: false,
-                    setter));
-            }
-            else if (sensitiveAttr is not null)
-            {
-                piiProperties.Add(new PropertyMaskingMetadata(
-                    property,
-                    PIIType.Custom,
-                    sensitiveAttr.Mode,
-                    pattern: null,
-                    replacement: null,
-                    logOnly: false,
-                    setter));
-            }
-            else if (logOnlyAttr is not null)
-            {
-                piiProperties.Add(new PropertyMaskingMetadata(
-                    property,
-                    PIIType.Custom,
-                    logOnlyAttr.Mode,
-                    pattern: null,
-                    replacement: null,
-                    logOnly: true,
-                    setter));
-            }
-            else if (classAttribute is not null)
-            {
-                // Class-level PII attribute applies to all string properties
-                piiProperties.Add(new PropertyMaskingMetadata(
-                    property,
-                    classAttribute.Type,
-                    classAttribute.Mode,
-                    classAttribute.Pattern,
-                    classAttribute.Replacement,
-                    logOnly: false,
-                    setter));
-            }
-            else if (classSensitiveAttribute is not null)
-            {
-                piiProperties.Add(new PropertyMaskingMetadata(
-                    property,
-                    PIIType.Custom,
-                    classSensitiveAttribute.Mode,
-                    pattern: null,
-                    replacement: null,
-                    logOnly: false,
-                    setter));
+                piiProperties.Add(metadata.Value);
             }
         }
 
         return [.. piiProperties];
+    }
+
+    private static PropertyMaskingMetadata? FromPropertyAttributes(
+        PropertyInfo property,
+        Action<object, object?>? setter)
+    {
+        var piiAttr = property.GetCustomAttribute<PIIAttribute>(inherit: true);
+        if (piiAttr is not null)
+        {
+            return new PropertyMaskingMetadata(
+                property, piiAttr.Type, piiAttr.Mode, piiAttr.Pattern, piiAttr.Replacement, logOnly: false, setter);
+        }
+
+        var sensitiveAttr = property.GetCustomAttribute<SensitiveDataAttribute>(inherit: true);
+        if (sensitiveAttr is not null)
+        {
+            return new PropertyMaskingMetadata(
+                property, PIIType.Custom, sensitiveAttr.Mode, pattern: null, replacement: null, logOnly: false, setter);
+        }
+
+        var logOnlyAttr = property.GetCustomAttribute<MaskInLogsAttribute>(inherit: true);
+        return logOnlyAttr is null
+            ? null
+            : new PropertyMaskingMetadata(
+                property, PIIType.Custom, logOnlyAttr.Mode, pattern: null, replacement: null, logOnly: true, setter);
+    }
+
+    // A class-level attribute applies to every string property of the type.
+    private static PropertyMaskingMetadata? FromClassAttributes(
+        PropertyInfo property,
+        Action<object, object?>? setter,
+        PIIAttribute? classAttribute,
+        SensitiveDataAttribute? classSensitiveAttribute)
+    {
+        if (classAttribute is not null)
+        {
+            return new PropertyMaskingMetadata(
+                property,
+                classAttribute.Type,
+                classAttribute.Mode,
+                classAttribute.Pattern,
+                classAttribute.Replacement,
+                logOnly: false,
+                setter);
+        }
+
+        return classSensitiveAttribute is null
+            ? null
+            : new PropertyMaskingMetadata(
+                property,
+                PIIType.Custom,
+                classSensitiveAttribute.Mode,
+                pattern: null,
+                replacement: null,
+                logOnly: false,
+                setter);
     }
 
     /// <summary>

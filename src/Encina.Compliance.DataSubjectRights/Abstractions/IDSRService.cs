@@ -112,20 +112,30 @@ public interface IDSRService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Denies the DSR request with a stated reason.
+    /// Denies the DSR request with a standardised reason code and an explanation.
     /// </summary>
     /// <param name="requestId">The DSR request aggregate identifier.</param>
-    /// <param name="rejectionReason">Explanation of why the request is denied (required for Article 12(4)).</param>
+    /// <param name="rejectionReason">Standardised reason code of the refusal.</param>
+    /// <param name="rejectionExplanation">Explanation given to the data subject (required for Article 12(4) and 12(5)).</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
-    /// <returns>Either an error or Unit on success.</returns>
+    /// <returns>
+    /// Either an error or Unit on success. An undefined reason or a blank explanation returns
+    /// <c>dsr.invalid_request</c>; a draft-law reason while
+    /// <see cref="DataSubjectRightsOptions.EnableOmnibusArticle12RefusalGrounds"/> is off returns
+    /// <c>dsr.rejection_reason_not_enabled</c>.
+    /// </returns>
     /// <remarks>
     /// Per GDPR Article 12(4), the controller must inform the data subject of the reasons for
     /// not taking action, the possibility of lodging a complaint with a supervisory authority
-    /// (Article 77), and the right to seek a judicial remedy (Article 79).
+    /// (Article 77), and the right to seek a judicial remedy (Article 79). Under Article 12(5)
+    /// the controller bears the burden of demonstrating a manifestly unfounded or excessive request.
+    /// Encina records the code and the explanation; it never decides whether a ground applies.
+    /// The same codes are reused by the per-category erasure refusal (issue #1188).
     /// </remarks>
     ValueTask<Either<EncinaError, Unit>> DenyRequestAsync(
         Guid requestId,
-        string rejectionReason,
+        DSRRejectionReason rejectionReason,
+        string rejectionExplanation,
         CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -165,6 +165,20 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 }
 ```
 
+## Dead Letter Queue
+
+Enable the persistent dead letter queue with `UseDeadLetterQueue` (`AddEncinaADOPostgreSQLWithTenancy` honours it too) and run `Scripts/029_CreateDeadLetterMessagesTable.sql`:
+
+```csharp
+services.AddEncinaADO(connectionString, config =>
+{
+    config.UseDeadLetterQueue = true;
+    config.DeadLetterOptions.RetentionPeriod = TimeSpan.FromDays(14);
+});
+```
+
+`DeadLetterStoreADO` needs a connection that derives from `DbConnection` (`NpgsqlConnection` does). Identifiers are quoted PascalCase (`"DeadLetterMessages"`), timestamps are `TIMESTAMPTZ`, and PostgreSQL compares strings case-sensitively, so no collation is needed. Guide: [How to enable the persistent dead letter queue](../../docs/features/dead-letter-queue.md).
+
 ## Module Isolation
 
 Encina.ADO.PostgreSQL supports **Module Isolation by Database Permissions** for modular monolith architectures.

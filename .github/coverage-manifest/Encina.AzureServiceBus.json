@@ -13,7 +13,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 90,
+        "guard": 15
+      },
+      "justifications": {
+        "unit": "Unit tests drive the send, schedule and cancel paths with a substitute client and sender.",
+        "guard": "Guard tests cover the argument checks only, a small share of the lines."
+      }
     },
     "EncinaAzureServiceBusOptions.cs": {
       "defaultTests": [
@@ -51,7 +59,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 95,
+        "guard": 95
+      },
+      "justifications": {
+        "unit": "The whole registration is a short linear method fully exercised by the DI tests.",
+        "guard": "Guard tests call the registration with null arguments and with valid arguments, reaching every line."
+      }
     }
   }
 }

@@ -163,7 +163,8 @@ public string Password { get; set; }
 ### `[MaskInLogs]` — Log-Only Masking
 
 ```csharp
-// Masked only when using PIILoggerExtensions, not in responses
+// Intended for log-only masking, but NOT honoured by MaskObject yet, so it masks nothing today
+// (https://github.com/dlrivada/Encina/issues/1839)
 [MaskInLogs]
 public string InternalId { get; set; }
 
@@ -171,7 +172,7 @@ public string InternalId { get; set; }
 public string CorrelationToken { get; set; }
 ```
 
-A Hash attribute (`[MaskInLogs(MaskingMode.Hash)]` or `[PII(..., Mode = MaskingMode.Hash)]`) needs a usable `PIIOptions.HashKey`. Without one (missing or blank, and no `AllowUnkeyedHash`) the value becomes `[REDACTED]`; a key set must be at least 32 UTF-8 bytes to pass validation; a blank key still redacts when `AllowUnkeyedHash` is `true`. See [Hash mode and its key](#hash-mode-and-its-key).
+A Hash attribute (`[PII(..., Mode = MaskingMode.Hash)]`; `[MaskInLogs(MaskingMode.Hash)]` once [#1839](https://github.com/dlrivada/Encina/issues/1839) is fixed) needs a usable `PIIOptions.HashKey`. Without one (missing or blank, and no `AllowUnkeyedHash`) the value becomes `[REDACTED]`; a key set must be at least 32 UTF-8 bytes to pass validation; a blank key still redacts when `AllowUnkeyedHash` is `true`. See [Hash mode and its key](#hash-mode-and-its-key).
 
 ---
 
@@ -239,8 +240,9 @@ services.AddEncinaPII(options =>
 | `DefaultMode` | `MaskingMode` | `Partial` | Default masking mode for all strategies |
 | `HashKey` | `string?` | `null` | Secret key for `MaskingMode.Hash` (HMAC-SHA256); at least `MinimumHashKeyBytes` (32) UTF-8 bytes when set; required when `DefaultMode` is `Hash` unless `AllowUnkeyedHash` is set; never serialized or printed |
 | `AllowUnkeyedHash` | `bool` | `false` | Explicit opt-out that lets Hash run without a key using unkeyed SHA-256; logs one warning per service provider when the options are validated without a key |
+| `RegexTimeout` | `TimeSpan` | 100 ms | Match timeout for every custom regex (`Mask(value, pattern)` and `[PII(Pattern = ...)]`); must be greater than zero and shorter than about 24 days, checked by `PIIOptionsValidator`. An invalid pattern or a timeout masks the whole value (same length, mask characters), never returns it; a warning with only the pattern length is logged (EventId 8021) |
 | `MaskInResponses` | `bool` | `true` | Enable pipeline behavior for responses |
-| `MaskInLogs` | `bool` | `true` | Enable `PIILoggerExtensions` masking |
+| `MaskInLogs` | `bool` | `true` | Enable `PIILoggerExtensions` masking; the `[MaskInLogs]` attribute is not honoured by `MaskObject` yet ([#1839](https://github.com/dlrivada/Encina/issues/1839)) |
 | `MaskInAuditTrails` | `bool` | `true` | Enable `MaskForAudit` integration |
 | `AddHealthCheck` | `bool` | `false` | Register `PIIHealthCheck` |
 | `EnableTracing` | `bool` | `false` | Enable OpenTelemetry tracing |
@@ -283,7 +285,22 @@ flowchart LR
 
 - `PIIOptions.MaskInResponses = false`
 - Response is `Either.Left` (error path)
+- Response is a value type
 - Response type has no PII attributes and no sensitive field matches
+
+**Failure behavior (fail closed)**: when masking the response fails, the behavior returns an `EncinaError` with code `pii.masking_failed` (`PIIErrors.MaskingFailed`) instead of the unmasked response. Likewise `IPIIMasker.MaskObject<T>` throws on a serialization or masking failure rather than returning the unmasked object (the exception is redacted). A PII-marked get-only string property is no longer skipped silently; masking throws `InvalidOperationException` when a masked value cannot be applied to the copy.
+
+**Limit**: response masking does not cover streamed responses yet; tracked in [#1840](https://github.com/dlrivada/Encina/issues/1840).
+
+Which code path logs which EventId:
+
+| EventId | Logged by |
+|---------|-----------|
+| 8015 | Serialization or deserialization (`JsonException`) while masking a type that has PII-decorated properties, in `MaskObject<T>` and `MaskForAudit<T>`; the exception is rethrown |
+| 8012 | `MaskObject<T>` on any failure (including the `JsonException` already logged as 8015, and the `InvalidOperationException` for a value that could not be applied to the copy); the exception is rethrown |
+| 8021 | `Mask(value, pattern)` and `[PII(Pattern = ...)]`: invalid pattern, invalid timeout or match timeout; only the pattern length is logged, and the whole value is masked |
+| 8022 | `MaskForAudit<T>` and `MaskForAudit(object)` on any failure; the exception is rethrown. A failure inside the `MaskForAudit<T>` property path logs 8015 first |
+| 8018 | `PIIMaskingPipelineBehavior` when masking the response fails (see above) |
 
 ---
 
@@ -298,7 +315,13 @@ var auditMasker = provider.GetRequiredService<IPiiMasker>();
 // piiMasker == auditMasker (same instance)
 ```
 
-The audit pipeline uses `MaskForAudit<T>()` to redact PII before persisting audit records.
+`AddEncinaPII()` registers `PIIMasker` as `IPiiMasker` in either registration order relative to `AddEncinaAudit`. The audit module requires an `IPiiMasker` and stops the host at startup without one (see [Troubleshooting: the host stops at startup](audit-tracking.md#troubleshooting-the-host-stops-at-startup)), so this registration is what satisfies it.
+
+The audit entry factory masks the stored `RequestPayload` and `ResponsePayload` (when `IncludeRequestPayload` or `IncludeResponsePayload` is on) and the payload hash through the registered `IPiiMasker`, including `PIIMasker`.
+
+**Limitation with `PIIMasker`:** only `DefaultSensitiveDataRedactor` masks the payload at the JSON level and honors `[Auditable(SensitiveFields = ...)]` and `OperationAuditOptions.GlobalSensitiveFields`. Any other `IPiiMasker`, including `PIIMasker` from `AddEncinaPII()`, is called as `MaskForAudit(object)` and does not receive those field lists. With `PIIMasker`, a field that is named in `SensitiveFields` or `GlobalSensitiveFields` but is not marked `[PII]` is stored as is in `RequestPayload` and `ResponsePayload`. Mark every personal-data property with `[PII]`, or register `DefaultSensitiveDataRedactor` when you rely on the field lists.
+
+When masking or serialization fails, `MaskForAudit` throws instead of returning the unmasked object (the failure is logged with EventId 8022 and a redacted exception). The audit module fails closed: `DefaultOperationAuditEntryFactory` catches the exception and returns a Left `audit.masking_failed` (`OperationAuditErrors.MaskingFailedCode`; details `requestType` and `cause`, the exception type name only) from `IOperationAuditEntryFactory.Create`, which returns `Either<EncinaError, OperationAuditEntry>`. `AuditPipelineBehavior` propagates that Left as the request's result under the default `OperationAuditFailureMode.FailClosed`; under `BestEffort` it only logs it (EventId 5000), and nothing is stored.
 
 ---
 
@@ -316,7 +339,7 @@ logger.LogErrorMasked(masker, ex, "Error processing: {@Order}", order);
 logger.LogMasked(masker, LogLevel.Debug, "Debug data: {@Data}", data);
 ```
 
-**Safety**: If masking fails, the original message is logged with `[MASKING FAILED]` prefix — never silently drops logs.
+**Safety**: If masking fails, the log entry carries `[MASKING FAILED]` instead of the raw data — the unmasked values are never logged, and the log call is not dropped.
 
 ---
 
@@ -399,7 +422,7 @@ Returns `Healthy`, `Degraded` (some strategies missing), or `Unhealthy` (critica
 
 | Error Code | Description | Metadata |
 |------------|-------------|----------|
-| `pii.masking_failed` | Masking operation error | `piiType`, `propertyName` |
+| `pii.masking_failed` | Masking the response failed; `PIIMaskingPipelineBehavior` returns this error (`PIIErrors.MaskingFailed`) instead of the unmasked response | `typeName`, `stage` |
 | `pii.strategy_not_found` | No strategy for PIIType | `piiType` |
 | `pii.invalid_configuration` | Invalid options | `stage` |
 
@@ -438,8 +461,8 @@ Assert.Contains("@example.com", result);
 
 ### Properties Not Being Masked
 
-- Verify the property has `[PII]`, `[SensitiveData]`, or `[MaskInLogs]` attribute
-- Only `string` properties with public getters AND setters are supported
+- Verify the property has a `[PII]` or `[SensitiveData]` attribute (`[MaskInLogs]` is not honoured by `MaskObject` yet, see [#1839](https://github.com/dlrivada/Encina/issues/1839))
+- Only `string` properties that the JSON copy can write back (a public setter, `init` or a constructor parameter bound to the property) can be masked. A get-only property, a private-set property, or a computed string member under a class-level `[PII]` or `[SensitiveData]` makes masking fail with `InvalidOperationException` (the pipeline returns `pii.masking_failed`) instead of being ignored; tracked in [#1834](https://github.com/dlrivada/Encina/issues/1834)
 - `PIIOptions.MaskInResponses` must be `true` (default)
 - Check if the response is on the error path (`Either.Left` bypasses masking)
 
@@ -452,6 +475,7 @@ Assert.Contains("@example.com", result);
 ### Masking Not Applied in Logs
 
 - Ensure `PIIOptions.MaskInLogs = true`
+- Properties marked only with `[MaskInLogs]` are not masked yet, because `MaskObject` does not honour that attribute ([#1839](https://github.com/dlrivada/Encina/issues/1839)); use `[PII]` or `[SensitiveData]`
 - Use `PIILoggerExtensions` methods (`LogInformationMasked`, etc.) — standard `ILogger` methods don't mask
 - If the log level is disabled, masking is skipped for performance
 

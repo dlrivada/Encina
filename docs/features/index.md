@@ -53,6 +53,7 @@ has_children: true
 - [Temporal Tables](temporal-tables.md)
 - [Cursor Pagination](cursor-pagination.md)
 - [Reference Tables](reference-tables.md)
+- [Persistent Dead Letter Queue](dead-letter-queue.md)
 
 ## Change Data Capture
 

@@ -1,0 +1,1 @@
+- `Encina.Security.ABAC`: `XacmlXmlPolicySerializer` no longer puts XML parser exception messages into the activity status or into the `DeserializationFailed` errors it returns; only the exception type name is recorded (#1993).

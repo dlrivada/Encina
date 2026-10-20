@@ -6,36 +6,37 @@ namespace Encina.Messaging.DeadLetter;
 /// <param name="Id">The unique identifier.</param>
 /// <param name="RequestType">The request type name.</param>
 /// <param name="RequestContent">The request content, serialized through <c>IMessageSerializer</c> (encrypted when message encryption is enabled).</param>
-/// <param name="ErrorMessage">
+/// <param name="ErrorCode">
 /// The <see cref="EncinaError"/> code of the failure. Never <c>EncinaError.Message</c>, which can carry
 /// personal data (#1274).
 /// </param>
 /// <param name="SourcePattern">The source pattern that produced this dead letter.</param>
+/// <param name="SourceMessageId">
+/// The identifier of the source message; with <paramref name="SourcePattern"/> it is the idempotency key.
+/// </param>
 /// <param name="TotalRetryAttempts">The total number of retry attempts.</param>
 /// <param name="FirstFailedAtUtc">When the message first failed.</param>
 /// <param name="DeadLetteredAtUtc">When the message was moved to DLQ.</param>
 /// <param name="ExpiresAtUtc">When the message expires.</param>
 /// <param name="CorrelationId">The correlation ID.</param>
 /// <param name="ExceptionType">The exception type name.</param>
-/// <param name="ExceptionMessage">
-/// Not populated by <see cref="DeadLetterOrchestrator"/>: an exception message can carry personal data,
-/// so only <paramref name="ExceptionType"/> and <paramref name="ExceptionStackTrace"/> are kept.
-/// </param>
 /// <param name="ExceptionStackTrace">The exception stack trace.</param>
+/// <param name="TenantId">The tenant of the failed message, or null when it had none.</param>
 public sealed record DeadLetterData(
     Guid Id,
     string RequestType,
     string RequestContent,
-    string ErrorMessage,
+    string ErrorCode,
     string SourcePattern,
+    string SourceMessageId,
     int TotalRetryAttempts,
     DateTime FirstFailedAtUtc,
     DateTime DeadLetteredAtUtc,
     DateTime? ExpiresAtUtc,
     string? CorrelationId = null,
     string? ExceptionType = null,
-    string? ExceptionMessage = null,
-    string? ExceptionStackTrace = null);
+    string? ExceptionStackTrace = null,
+    string? TenantId = null);
 
 /// <summary>
 /// Factory for creating dead letter messages.

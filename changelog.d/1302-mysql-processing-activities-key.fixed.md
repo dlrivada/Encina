@@ -1,0 +1,1 @@
+- `Encina.ADO.MySQL`: the `ProcessingActivities` script (`011_CreateProcessingActivitiesTable.sql`) no longer fails with "Specified key was too long" on MySQL with `utf8mb4`; `RequestTypeName` is now `VARCHAR(512)`, matching the EF Core model (#1302).

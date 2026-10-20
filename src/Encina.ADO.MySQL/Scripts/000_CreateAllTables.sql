@@ -117,3 +117,73 @@ CREATE TABLE IF NOT EXISTS `AuditLogs`
     INDEX `IX_AuditLogs_UserId` (`UserId`),
     INDEX `IX_AuditLogs_CorrelationId` (`CorrelationId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- Create OperationAuditEntries table for MySQL/MariaDB
+-- For the operation audit trail (IOperationAuditStore)
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS `OperationAuditEntries` (
+    `Id`                 CHAR(36)      NOT NULL,
+    `CorrelationId`      VARCHAR(256)  NOT NULL,
+    `UserId`             VARCHAR(256)  NULL,
+    `TenantId`           VARCHAR(128)  NULL,
+    `Action`             VARCHAR(128)  NOT NULL,
+    `EntityType`         VARCHAR(256)  NOT NULL,
+    `EntityId`           VARCHAR(256)  NULL,
+    `Outcome`            INT           NOT NULL,
+    `ErrorMessage`       VARCHAR(2048) NULL,
+    `TimestampUtc`       DATETIME(6)   NOT NULL,
+    `StartedAtUtc`       DATETIME(6)   NOT NULL,
+    `CompletedAtUtc`     DATETIME(6)   NOT NULL,
+    `IpAddress`          VARCHAR(45)   NULL,
+    `UserAgent`          VARCHAR(512)  NULL,
+    `RequestPayloadHash` VARCHAR(64)   NULL,
+    `RequestPayload`     LONGTEXT      NULL,
+    `ResponsePayload`    LONGTEXT      NULL,
+    `Metadata`           LONGTEXT      NULL,
+
+    PRIMARY KEY (`Id`),
+    INDEX `IX_OperationAuditEntries_Entity` (`EntityType`, `EntityId`),
+    INDEX `IX_OperationAuditEntries_Timestamp` (`TimestampUtc`),
+    INDEX `IX_OperationAuditEntries_Outcome` (`Outcome`),
+    INDEX `IX_OperationAuditEntries_UserId` (`UserId`),
+    INDEX `IX_OperationAuditEntries_TenantId` (`TenantId`),
+    INDEX `IX_OperationAuditEntries_CorrelationId` (`CorrelationId`),
+    INDEX `IX_OperationAuditEntries_Action` (`Action`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- DeadLetterMessages - Dead Letter Queue
+-- Messages that failed for good, kept for inspection, replay and expiry.
+-- Lengths come from Encina.Messaging.DeadLetter.DeadLetterStoreLimits.
+-- =============================================
+
+-- String filter columns use a binary collation so that SourcePattern/SourceMessageId (the unique idempotency key) and the other filter columns compare case-sensitively, like PostgreSQL and MongoDB.
+CREATE TABLE IF NOT EXISTS `DeadLetterMessages` (
+    `Id`                  CHAR(36)       NOT NULL,
+    `RequestType`         VARCHAR(1000)  COLLATE utf8mb4_bin NOT NULL,
+    `RequestContent`      LONGTEXT       NOT NULL,
+    `ErrorCode`           VARCHAR(256)   COLLATE utf8mb4_bin NOT NULL,
+    `ExceptionType`       VARCHAR(512)   NULL,
+    `ExceptionStackTrace` LONGTEXT       NULL,
+    `CorrelationId`       VARCHAR(256)   COLLATE utf8mb4_bin NULL,
+    `SourcePattern`       VARCHAR(64)    COLLATE utf8mb4_bin NOT NULL,
+    `SourceMessageId`     VARCHAR(256)   COLLATE utf8mb4_bin NOT NULL,
+    `TenantId`            VARCHAR(128)   COLLATE utf8mb4_bin NULL,
+    `TotalRetryAttempts`  INT            NOT NULL,
+    `FirstFailedAtUtc`    DATETIME(6)    NOT NULL,
+    `DeadLetteredAtUtc`   DATETIME(6)    NOT NULL,
+    `ExpiresAtUtc`        DATETIME(6)    NULL,
+    `ReplayClaimedAtUtc`  DATETIME(6)    NULL,
+    `ReplayedAtUtc`       DATETIME(6)    NULL,
+    `ReplayResult`        VARCHAR(256)   NULL,
+
+    PRIMARY KEY (`Id`),
+    UNIQUE INDEX `UX_DeadLetterMessages_Source` (`SourcePattern`, `SourceMessageId`),
+    INDEX `IX_DeadLetterMessages_DeadLetteredAt` (`DeadLetteredAtUtc`, `Id`),
+    INDEX `IX_DeadLetterMessages_Pending` (`ReplayedAtUtc`, `SourcePattern`, `DeadLetteredAtUtc`),
+    INDEX `IX_DeadLetterMessages_ExpiresAt` (`ExpiresAtUtc`),
+    INDEX `IX_DeadLetterMessages_CorrelationId` (`CorrelationId`),
+    INDEX `IX_DeadLetterMessages_Tenant` (`TenantId`, `DeadLetteredAtUtc`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

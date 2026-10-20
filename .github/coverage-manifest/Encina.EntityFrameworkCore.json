@@ -45,20 +45,34 @@
       "defaultRule": "*StoreEF.cs",
       "reason": "EF Core store — needs real DbContext"
     },
-    "Auditing/AuditEntryEntity.cs": {
+    "Auditing/OperationAuditEntryEntity.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Entity.cs",
-      "reason": "Domain entity"
+      "reason": "Domain entity",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Plain entity, fully exercised by the mapping tests.",
+        "guard": "A plain entity has no parameters to guard."
+      }
     },
-    "Auditing/AuditEntryEntityConfiguration.cs": {
+    "Auditing/OperationAuditEntryEntityConfiguration.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
+      "reason": "EF entity type configuration",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "The model-building tests run every property and index configuration."
+      }
     },
     "Auditing/AuditInterceptor.cs": {
       "defaultTests": [
@@ -66,7 +80,12 @@
         "guard"
       ],
       "defaultRule": "*Interceptor.cs",
-      "reason": "EF interceptor with mockeable context"
+      "reason": "EF interceptor with mockeable context",
+      "targets": { "unit": 70, "guard": 80 },
+      "justifications": {
+        "unit": "Field population, audit log entries, the accessor-only source and the 3000 log sentinel are tested; error paths of persistence are not (measured 74%).",
+        "guard": "Guard tests drive the save paths with substitutes (measured 87%)."
+      }
     },
     "Auditing/AuditInterceptorOptions.cs": {
       "defaultTests": [
@@ -95,14 +114,26 @@
         "integration"
       ],
       "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
+      "reason": "EF Core store — needs real DbContext",
+      "targets": {
+        "integration": 0
+      },
+      "justifications": {
+        "integration": "No integration test exists yet for the entity-change audit store (measured 0%); this change only extends its ORDER BY with the id tiebreaker and its unit tests mock the connection. Integration tests are tracked by issue #2450."
+      }
     },
-    "Auditing/AuditStoreEF.cs": {
+    "Auditing/OperationAuditStoreEF.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
+      "reason": "EF Core store — needs real DbContext",
+      "targets": {
+        "integration": 80
+      },
+      "justifications": {
+        "integration": "The integration tests on real SQL Server and PostgreSQL databases run every query path (measured 86.34%); EF Core MySQL is skipped until Pomelo supports EF Core 10; the uncovered lines are the DbUpdateException, DbException and OperationCanceledException catch blocks of the purge and the write path."
+      }
     },
     "Auditing/IndexFilters.cs": {
       "defaultTests": [
@@ -123,7 +154,13 @@
         "integration"
       ],
       "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
+      "reason": "EF Core store — needs real DbContext",
+      "targets": {
+        "integration": 75
+      },
+      "justifications": {
+        "integration": "The integration tests on real SQL Server and PostgreSQL databases run every read audit query path, every filter and the stable-order paging (measured 76.09%); EF Core MySQL is skipped until Pomelo supports EF Core 10; the uncovered lines are the DbUpdateException, DbException and OperationCanceledException catch blocks of the purge and the write path."
+      }
     },
     "Auditing/StoreExceptionMessages.cs": {
       "defaultTests": [
@@ -190,7 +227,12 @@
         "guard"
       ],
       "defaultRule": "*Interceptor.cs",
-      "reason": "EF interceptor with mockeable context"
+      "reason": "EF interceptor with mockeable context",
+      "targets": { "unit": 25, "guard": 5 },
+      "justifications": {
+        "unit": "Only the request-context resolution and cache-miss key generation changed here; reader materialization is covered by integration tests (measured 28%).",
+        "guard": "Constructor guards only (measured 6%)."
+      }
     },
     "Caching/QueryCacheOptions.cs": {
       "defaultTests": [
@@ -260,7 +302,13 @@
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 85
+      },
+      "justifications": {
+        "unit": "Span start and complete methods are driven by the unit tests (measured 88.89%)."
+      }
     },
     "Diagnostics/QueryCacheLog.cs": {
       "defaultTests": [
@@ -282,7 +330,13 @@
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 80
+      },
+      "justifications": {
+        "unit": "Span start and complete methods are driven by the unit tests (measured 82.86%)."
+      }
     },
     "Diagnostics/SoftDeleteLog.cs": {
       "defaultTests": [
@@ -408,10 +462,20 @@
     },
     "Inbox/InboxStoreEF.cs": {
       "defaultTests": [
-        "integration"
+        "integration",
+        "unit",
+        "guard",
+        "contract"
       ],
       "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
+      "reason": "EF Core store — needs real DbContext",
+      "targets": { "unit": 92, "guard": 80, "contract": 75, "integration": 83 },
+      "justifications": {
+        "unit": "The in-memory provider covers the non-relational fallback, the isolation guards and the registration check; the relational UPDATE branch needs a real database.",
+        "guard": "Argument checks of every public method; the isolated-context paths are not guard-reachable.",
+        "contract": "The store contract tests drive add, mark processed, mark failed, expiry and removal.",
+        "integration": "Real SQL Server and PostgreSQL runs cover the relational UPDATE and the pipeline scenarios; the non-relational fallback and the skipped EF MySQL variant (#2086) are not reachable there."
+      }
     },
     "ITransactionalCommand.cs": {
       "defaultTests": [
@@ -501,7 +565,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 90,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Target 90% set for #2134; unit tests drive the registry mapping and the rest is the database-backed query path, which EF Core integration tests cover.",
+        "guard": "Guard tests only assert argument checks; this class has no guarded public surface, so the lines are driven by unit tests."
+      }
     },
     "ReadWriteSeparation/IReadWriteDbContextFactory.cs": {
       "defaultTests": [
@@ -635,13 +707,92 @@
       "defaultRule": "*StoreEF.cs",
       "reason": "EF Core store — needs real DbContext"
     },
+    "DeadLetter/DeadLetterMessage.cs": {
+      "defaultTests": [
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Dead letter message container with no logic of its own",
+      "targets": {
+        "unit": 0,
+        "guard": 75,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "The message is an auto-property container with no logic of its own, so a unit test would only restate its properties.",
+        "guard": "The guard suite covers the argument checks of the message, and the plain property accessors have no guard surface.",
+        "integration": "Every integration run persists and reads back messages on a real database, which exercises the full property mapping."
+      }
+    },
+    "DeadLetter/DeadLetterMessageConfiguration.cs": {
+      "defaultTests": [
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*Configuration.cs",
+      "reason": "EF Core entity configuration that needs a real provider to build",
+      "targets": {
+        "unit": 0,
+        "guard": 5,
+        "integration": 95
+      },
+      "justifications": {
+        "unit": "A model builder needs a real database provider to produce a mapping, so the integration schema creation on three providers is what exercises it.",
+        "guard": "Only the few argument checks of the configuration are reachable by guard tests.",
+        "integration": "Schema creation on SQL Server, PostgreSQL and MySQL builds the mapping on each provider, leaving little uncovered."
+      }
+    },
+    "DeadLetter/DeadLetterMessageFactory.cs": {
+      "defaultTests": [
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Dead letter message factory with a single object initializer",
+      "targets": {
+        "unit": 0,
+        "guard": 90,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "The factory is a single object initializer that the guard theory and every integration test already exercise, so a unit test would add no distinct path.",
+        "guard": "The guard theory covers the argument validation of the factory, which is its only branch surface.",
+        "integration": "Every integration test creates dead letter messages through the factory against a real database."
+      }
+    },
+    "DeadLetter/DeadLetterStoreEF.cs": {
+      "defaultTests": [
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*StoreEF.cs",
+      "reason": "EF Core dead letter store — needs real DbContext",
+      "targets": {
+        "unit": 0,
+        "guard": 8,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "The store is a thin wrapper over a real DbContext, so a unit test would only assert mocks while the shared contract runs it on SQL Server, PostgreSQL and MySQL.",
+        "guard": "Constructor and argument checks are the only guard-reachable surface of the store.",
+        "integration": "The shared contract runs on SQL Server, PostgreSQL and MySQL and covers every query path, and only provider-specific failure branches remain uncovered."
+      }
+    },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 50, "guard": 53, "integration": 30 },
+      "justifications": {
+        "unit": "Registration paths are DI-tested and the tests resolve the dead letter path, but provider-specific branches need real contexts and other features are covered by their own tests.",
+        "guard": "Argument checks of the public registration methods are covered by the guard tests, while the remaining registrations belong to other features.",
+        "integration": "Real-database pipeline runs register the messaging stack; the remaining branches (tenancy, sharding, read-write routing) are exercised by their own suites."
+      }
     },
     "Sharding/FunctionalShardedRepositoryEF.cs": {
       "defaultTests": [
@@ -734,7 +885,12 @@
         "guard"
       ],
       "defaultRule": "*Interceptor.cs",
-      "reason": "EF interceptor with mockeable context"
+      "reason": "EF interceptor with mockeable context",
+      "targets": { "unit": 85, "guard": 20 },
+      "justifications": {
+        "unit": "Soft-delete conversion, deleted-by from the ambient accessor and the 3050 log sentinel are tested; the synchronous override is lightly covered (measured 86%).",
+        "guard": "Constructor guards only (measured 20%)."
+      }
     },
     "SoftDelete/SoftDeleteInterceptorOptions.cs": {
       "defaultTests": [

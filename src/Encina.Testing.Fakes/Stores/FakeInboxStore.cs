@@ -127,6 +127,24 @@ public sealed class FakeInboxStore : IInboxStore
     }
 
     /// <inheritdoc />
+    public Task<Either<EncinaError, Unit>> CacheHandlerErrorAsync(string messageId, string response, CancellationToken cancellationToken = default)
+    {
+        if (_messages.TryGetValue(messageId, out var message))
+        {
+            message.ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            message.Response = response;
+            message.ErrorMessage = null;
+
+            lock (_lock)
+            {
+                _processedMessageIds.Add(messageId);
+            }
+        }
+
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
+    }
+
+    /// <inheritdoc />
     public Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         string messageId,
         string errorMessage,
@@ -137,22 +155,12 @@ public sealed class FakeInboxStore : IInboxStore
         {
             message.ErrorMessage = errorMessage;
             message.NextRetryAtUtc = nextRetryAtUtc;
+            message.RetryCount++;
 
             lock (_lock)
             {
                 _failedMessageIds.Add(messageId);
             }
-        }
-
-        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
-    }
-
-    /// <inheritdoc />
-    public Task<Either<EncinaError, Unit>> IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
-    {
-        if (_messages.TryGetValue(messageId, out var message))
-        {
-            message.RetryCount++;
         }
 
         return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));

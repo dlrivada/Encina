@@ -115,13 +115,13 @@ internal static partial class Log
 
     // Auditing operations: EventIds 5134-5136
     [LoggerMessage(EventId = 5134, Level = LogLevel.Debug, Message = "Audit entry recorded for secret access: '{SecretName}'")]
-    public static partial void AuditEntryRecorded(ILogger logger, string secretName);
+    public static partial void OperationAuditEntryRecorded(ILogger logger, string secretName);
 
     [LoggerMessage(EventId = 5135, Level = LogLevel.Warning, Message = "Failed to record audit entry for secret '{SecretName}'")]
-    public static partial void AuditEntryFailed(ILogger logger, string secretName, Exception exception);
+    public static partial void OperationAuditEntryFailed(ILogger logger, string secretName, Exception exception);
 
     [LoggerMessage(EventId = 5126, Level = LogLevel.Warning, Message = "Audit store rejected the audit entry for secret '{SecretName}': {ErrorCode}")]
-    public static partial void AuditEntryStoreFailed(ILogger logger, string secretName, string errorCode);
+    public static partial void OperationAuditEntryStoreFailed(ILogger logger, string secretName, string errorCode);
 
     [LoggerMessage(EventId = 5136, Level = LogLevel.Debug, Message = "Access audited for secret '{SecretName}' by user '{UserId}'")]
     public static partial void AccessAudited(ILogger logger, string secretName, string userId);

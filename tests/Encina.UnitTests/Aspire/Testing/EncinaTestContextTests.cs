@@ -152,7 +152,7 @@ public sealed class EncinaTestContextTests
         inboxStore.AddAsync(new FakeInboxMessage { MessageId = "test-1" }).GetAwaiter().GetResult();
         sagaStore.AddAsync(new FakeSagaState { SagaId = Guid.NewGuid(), SagaType = "Test" }).GetAwaiter().GetResult();
         scheduledStore.AddAsync(new FakeScheduledMessage { Id = Guid.NewGuid() }).GetAwaiter().GetResult();
-        deadLetterStore.AddAsync(new FakeDeadLetterMessage { Id = Guid.NewGuid() }).GetAwaiter().GetResult();
+        deadLetterStore.AddAsync(new FakeDeadLetterMessage { Id = Guid.NewGuid(), SourceMessageId = "source-1" }).GetAwaiter().GetResult();
 
         var context = new EncinaTestContext(
             new EncinaTestSupportOptions(),
@@ -377,7 +377,7 @@ public sealed class EncinaTestContextTests
         var deadLetterStore = new FakeDeadLetterStore();
         var outboxStore = new FakeOutboxStore();
 
-        await deadLetterStore.AddAsync(new FakeDeadLetterMessage { Id = Guid.NewGuid() });
+        await deadLetterStore.AddAsync(new FakeDeadLetterMessage { Id = Guid.NewGuid(), SourceMessageId = "source-1" });
         await outboxStore.AddAsync(new FakeOutboxMessage { Id = Guid.NewGuid(), NotificationType = "Test" });
 
         var context = new EncinaTestContext(new EncinaTestSupportOptions(), outboxStore, deadLetterStore: deadLetterStore);

@@ -33,8 +33,9 @@ namespace Encina.Security.PII;
 /// When disabled, responses pass through unmasked.
 /// </para>
 /// <para>
-/// If masking fails due to serialization or other errors, the original unmasked response
-/// is returned with a warning logged — masking failures never cause request failures.
+/// Masking fails closed: if it fails due to serialization or other errors, the unmasked response is
+/// never returned. The behavior logs a warning (exception type only) and returns a
+/// <see cref="PIIErrors.MaskingFailed"/> error (<c>pii.masking_failed</c>) instead.
 /// </para>
 /// <para>
 /// <b>Generic constraint handling:</b>
@@ -134,7 +135,8 @@ public sealed class PIIMaskingPipelineBehavior<TRequest, TResponse> : IPipelineB
     }
 
     /// <summary>
-    /// Masks PII in the response object, returning the original on failure.
+    /// Masks PII in the response object; on failure returns a <see cref="PIIErrors.MaskingFailed"/> error
+    /// instead of the unmasked response.
     /// </summary>
     private Either<EncinaError, TResponse> MaskResponse(TResponse response)
     {
@@ -169,17 +171,17 @@ public sealed class PIIMaskingPipelineBehavior<TRequest, TResponse> : IPipelineB
         }
         catch (TargetInvocationException ex) when (ex.InnerException is not OutOfMemoryException)
         {
-            // Masking failures should never cause request failures.
-            // Log warning and return the original response.
-            RecordMaskingFailure(ex.InnerException ?? ex, responseTypeName);
+            // Fail closed: the unmasked response is never returned.
+            var failure = ex.InnerException ?? ex;
+            RecordMaskingFailure(failure, responseTypeName);
 
-            return response;
+            return PIIErrors.MaskingFailed(responseTypeName, failure.ForLogging());
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             RecordMaskingFailure(ex, responseTypeName);
 
-            return response;
+            return PIIErrors.MaskingFailed(responseTypeName, ex.ForLogging());
         }
     }
 

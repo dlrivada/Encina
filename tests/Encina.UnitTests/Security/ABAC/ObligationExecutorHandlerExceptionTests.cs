@@ -22,10 +22,10 @@ public sealed class ObligationExecutorHandlerExceptionTests
 
     private static readonly PolicyEvaluationContext Context = new()
     {
-        SubjectAttributes = AttributeBag.Empty,
-        ResourceAttributes = AttributeBag.Empty,
-        EnvironmentAttributes = AttributeBag.Empty,
-        ActionAttributes = AttributeBag.Empty,
+        SubjectAttributes = new Dictionary<string, AttributeBag>(),
+        ResourceAttributes = new Dictionary<string, AttributeBag>(),
+        EnvironmentAttributes = new Dictionary<string, AttributeBag>(),
+        ActionAttributes = new Dictionary<string, AttributeBag>(),
         RequestType = typeof(object)
     };
 

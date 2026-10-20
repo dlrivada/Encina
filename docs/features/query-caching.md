@@ -184,6 +184,8 @@ When an `IRequestContext` with a `TenantId` is available, cache keys are automat
 
 No additional configuration is needed. The interceptor resolves `IRequestContext` from the service provider and includes the tenant ID in the cache key when present.
 
+When multi-tenancy is on and a request carries no tenant, the query runs uncached: the interceptor bypasses the cache for it rather than sharing a tenant-less key with every tenant. Multi-tenancy is on when the core `Encina.MultiTenancyMarker` is registered, which `AddEncinaTenancy` does; an application with its own tenant provider and no `AddEncinaTenancy` must register it itself with `services.AddSingleton<MultiTenancyMarker>()`.
+
 ## Performance Considerations
 
 ### When to Use Query Caching

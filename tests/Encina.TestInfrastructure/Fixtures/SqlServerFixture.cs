@@ -43,6 +43,7 @@ public sealed class SqlServerFixture : DatabaseFixture<MsSqlContainer>
         await SqlServerSchema.CreateInboxSchemaAsync(sqlConnection);
         await SqlServerSchema.CreateSagaSchemaAsync(sqlConnection);
         await SqlServerSchema.CreateSchedulingSchemaAsync(sqlConnection);
+        await SqlServerSchema.CreateDeadLetterSchemaAsync(sqlConnection);
         await SqlServerSchema.CreateRepositoryTestSchemaAsync(sqlConnection);
         await SqlServerSchema.CreateOrdersSchemaAsync(sqlConnection);
         await SqlServerSchema.CreateTenantTestSchemaAsync(sqlConnection);

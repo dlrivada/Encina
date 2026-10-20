@@ -1,8 +1,8 @@
 using System.Security.Claims;
 using Encina.AspNetCore.Authorization;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -12,13 +12,13 @@ namespace Encina.UnitTests.AspNetCore.Authorization;
 public class ResourceAuthorizerTests
 {
     private readonly IAuthorizationService _authorizationService;
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly ResourceAuthorizer _authorizer;
 
     public ResourceAuthorizerTests()
     {
         _authorizationService = Substitute.For<IAuthorizationService>();
-        _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
         _authorizer = CreateAuthorizer();
     }
 
@@ -70,48 +70,66 @@ public class ResourceAuthorizerTests
         });
     }
 
-    [Fact]
-    public async Task AuthorizeAsync_Generic_NoHttpContext_ReturnsLeftUnauthorized()
+    [Theory]
+    [InlineData("no-context")]
+    [InlineData("anonymous")]
+    [InlineData("null-identity")]
+    public async Task AuthorizeAsync_WithoutAnAuthenticatedRequestIdentity_ReturnsLeftUnauthenticated(string caller)
     {
-        // Arrange - no HTTP context set
-        _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
-
-        var resource = new TestResource("order-123");
+        // Arrange: the caller is the request identity, never HttpContext.User (#1705)
+        _requestContextAccessor.RequestContext.Returns(caller switch
+        {
+            "anonymous" => RequestContext.CreateForTest(),
+            "null-identity" => Substitute.For<IRequestContext>(),
+            _ => null
+        });
 
         // Act
-        var result = await _authorizer.AuthorizeAsync(resource, "CanEdit", CancellationToken.None);
+        var result = await _authorizer.AuthorizeAsync(new TestResource("order-123"), "CanEdit", CancellationToken.None);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            error.GetCode().Match(
-                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthorized),
-                None: () => Assert.Fail("Expected error code"));
-            error.Message.ShouldContain("HTTP context");
-        });
+        result.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated));
+        await _authorizationService.DidNotReceiveWithAnyArgs().AuthorizeAsync(default!, default, default(string)!);
     }
 
     [Fact]
-    public async Task AuthorizeAsync_Generic_UnauthenticatedUser_ReturnsLeftUnauthorized()
+    public async Task AuthorizeAsync_EvaluatesTheRequestIdentityPrincipal()
     {
-        // Arrange - unauthenticated user
-        var httpContext = new DefaultHttpContext(); // default user is not authenticated
-        _httpContextAccessor.HttpContext.Returns(httpContext);
+        SetupAuthenticatedUser("identity-user");
+        _authorizationService
+            .AuthorizeAsync(Arg.Any<ClaimsPrincipal>(), Arg.Any<object?>(), Arg.Any<string>())
+            .Returns(AuthorizationResult.Success());
 
-        var resource = new TestResource("order-123");
+        await _authorizer.AuthorizeAsync(new TestResource("order-123"), "CanEdit", CancellationToken.None);
 
-        // Act
-        var result = await _authorizer.AuthorizeAsync(resource, "CanEdit", CancellationToken.None);
+        await _authorizationService.Received(1).AuthorizeAsync(
+            Arg.Is<ClaimsPrincipal>(user => user.FindFirst(ClaimTypes.NameIdentifier)!.Value == "identity-user"),
+            Arg.Any<object?>(),
+            "CanEdit");
+    }
 
-        // Assert
+    [Fact]
+    public async Task AuthorizeAsync_AnAuthenticatedIdentityWithoutPrincipal_SatisfiesNoPolicy()
+    {
+        _requestContextAccessor.RequestContext.Returns(TestRequestContext.For(RequestIdentity.ForUser("builder-user")));
+        _authorizationService
+            .AuthorizeAsync(Arg.Is<ClaimsPrincipal>(user => user.Identity!.IsAuthenticated), Arg.Any<object?>(), Arg.Any<string>())
+            .Returns(AuthorizationResult.Success());
+        _authorizationService
+            .AuthorizeAsync(Arg.Is<ClaimsPrincipal>(user => !user.Identity!.IsAuthenticated), Arg.Any<object?>(), Arg.Any<string>())
+            .Returns(AuthorizationResult.Failed());
+
+        var result = await _authorizer.AuthorizeAsync(new TestResource("order-123"), "CanEdit", CancellationToken.None);
+
         result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            error.GetCode().Match(
-                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthorized),
-                None: () => Assert.Fail("Expected error code"));
-        });
+    }
+
+    [Fact]
+    public void Constructor_NullArguments_Throw()
+    {
+        Should.Throw<ArgumentNullException>(() => new ResourceAuthorizer(null!, _requestContextAccessor));
+        Should.Throw<ArgumentNullException>(() => new ResourceAuthorizer(_authorizationService, null!));
     }
 
     [Fact]
@@ -249,19 +267,13 @@ public class ResourceAuthorizerTests
 
     private ResourceAuthorizer CreateAuthorizer()
     {
-        return new ResourceAuthorizer(_authorizationService, _httpContextAccessor);
+        return new ResourceAuthorizer(_authorizationService, _requestContextAccessor);
     }
 
     private void SetupAuthenticatedUser(string userId)
     {
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId)
-        };
-        var identity = new ClaimsIdentity(claims, "Test");
-        var principal = new ClaimsPrincipal(identity);
-        var httpContext = new DefaultHttpContext { User = principal };
-        _httpContextAccessor.HttpContext.Returns(httpContext);
+        _requestContextAccessor.RequestContext.Returns(TestRequestContext.For(
+            TestIdentity.User(userId, claims: [new Claim(ClaimTypes.NameIdentifier, userId)])));
     }
 
     private sealed record TestResource(string Id);

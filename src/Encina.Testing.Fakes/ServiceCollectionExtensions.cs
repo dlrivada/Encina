@@ -128,11 +128,14 @@ public static class ServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// The store reads the <see cref="TimeProvider"/> registered in the container when there is one (so a
+    /// <c>FakeTimeProvider</c> drives claim expiry and retention) and <see cref="TimeProvider.System"/> otherwise.
+    /// </remarks>
     public static IServiceCollection AddFakeDeadLetterStore(this IServiceCollection services)
     {
-        var fakeStore = new FakeDeadLetterStore();
-        services.TryAddSingleton(fakeStore);
-        services.TryAddSingleton<IDeadLetterStore>(fakeStore);
+        services.TryAddSingleton(sp => new FakeDeadLetterStore(sp.GetService<TimeProvider>()));
+        services.TryAddSingleton<IDeadLetterStore>(sp => sp.GetRequiredService<FakeDeadLetterStore>());
         return services;
     }
 

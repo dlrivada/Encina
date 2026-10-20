@@ -151,7 +151,7 @@ public sealed class CommandActivityPipelineBehaviorTests : IDisposable
     [Fact]
     public async Task Handle_WithFunctionalFailure_RecordsFailureInActivity()
     {
-        var detector = new TestFailureDetector(detectsFailure: true, failureReason: "payment.declined", errorCode: "PAY001", errorMessage: "Payment declined");
+        var detector = new TestFailureDetector(detectsFailure: true, failureReason: "payment.declined", errorCode: "PAY001");
         var behavior = new CommandActivityPipelineBehavior<TestCommand, string>(detector);
 
         await behavior.Handle(
@@ -166,7 +166,11 @@ public sealed class CommandActivityPipelineBehaviorTests : IDisposable
         activity.GetTagItem("Encina.functional_failure").ShouldBe(true);
         activity.GetTagItem("Encina.failure_reason").ShouldBe("payment.declined");
         activity.GetTagItem("Encina.failure_code").ShouldBe("PAY001");
-        activity.GetTagItem("Encina.failure_message").ShouldBe("Payment declined");
+        activity.GetTagItem("Encina.failure_message").ShouldBeNull();
+        foreach (var tag in activity.Tags)
+        {
+            tag.Value.ShouldNotBe("Payment declined");
+        }
     }
 
     [Fact]
@@ -306,7 +310,7 @@ public sealed class CommandActivityPipelineBehaviorTests : IDisposable
     [Fact]
     public async Task Handle_WithFunctionalFailureNoCode_DoesNotSetCodeTag()
     {
-        var detector = new TestFailureDetector(detectsFailure: true, failureReason: "failed", errorCode: null, errorMessage: null);
+        var detector = new TestFailureDetector(detectsFailure: true, failureReason: "failed", errorCode: null);
         var behavior = new CommandActivityPipelineBehavior<TestCommand, string>(detector);
 
         await behavior.Handle(
@@ -321,7 +325,7 @@ public sealed class CommandActivityPipelineBehaviorTests : IDisposable
         activity.GetTagItem("Encina.failure_message").ShouldBeNull();
     }
 
-    private sealed class TestFailureDetector(bool detectsFailure, string? failureReason, string? errorCode, string? errorMessage) : IFunctionalFailureDetector
+    private sealed class TestFailureDetector(bool detectsFailure, string? failureReason, string? errorCode) : IFunctionalFailureDetector
     {
         public bool TryExtractFailure(object? response, out string reason, out object? capturedFailure)
         {
@@ -331,7 +335,5 @@ public sealed class CommandActivityPipelineBehaviorTests : IDisposable
         }
 
         public string? TryGetErrorCode(object? capturedFailure) => errorCode;
-
-        public string? TryGetErrorMessage(object? capturedFailure) => errorMessage;
     }
 }

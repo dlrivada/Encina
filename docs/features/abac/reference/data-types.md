@@ -24,7 +24,7 @@ Encina supports the 12 data types defined in the XACML 3.0 specification (Append
 | `XACMLDataTypes.Double` | `http://www.w3.org/2001/XMLSchema#double` | `double` | `3.14` |
 | `XACMLDataTypes.Date` | `http://www.w3.org/2001/XMLSchema#date` | `DateOnly` | `2026-03-08` |
 | `XACMLDataTypes.DateTime` | `http://www.w3.org/2001/XMLSchema#dateTime` | `DateTime` | `2026-03-08T12:00:00Z` |
-| `XACMLDataTypes.Time` | `http://www.w3.org/2001/XMLSchema#time` | `TimeOnly` | `12:00:00` |
+| `XACMLDataTypes.Time` | `http://www.w3.org/2001/XMLSchema#time` | `TimeSpan` | `12:00:00` |
 | `XACMLDataTypes.AnyURI` | `http://www.w3.org/2001/XMLSchema#anyURI` | `Uri` | `https://example.com` |
 | `XACMLDataTypes.HexBinary` | `http://www.w3.org/2001/XMLSchema#hexBinary` | `byte[]` | `0x48656C6C6F` |
 | `XACMLDataTypes.Base64Binary` | `http://www.w3.org/2001/XMLSchema#base64Binary` | `byte[]` | `SGVsbG8=` |
@@ -34,7 +34,8 @@ Encina supports the 12 data types defined in the XACML 3.0 specification (Append
 ### Type Notes
 
 - **Integer**: Both `int` and `long` are accepted. Functions internally use `Convert.ToInt64()` for safe coercion.
-- **Date / DateTime / Time**: Encina uses `DateOnly`, `DateTime`, and `TimeOnly` respectively. All DateTime values should be UTC.
+- **Date / DateTime / Time**: Encina uses `DateOnly`, `DateTime`, and `TimeSpan` (time of day) respectively. All DateTime values should be UTC.
+- **Inference from `IAttributeProvider` values**: `AttributeContextBuilder` infers a value as Time only when it is a `TimeSpan`; a `TimeOnly` value is inferred as String and is invisible to a Time designator. `DateTimeOffset` is inferred as DateTime and `Guid`, enums and collections as String. A designator sees only values whose inferred type equals its `DataType`.
 - **HexBinary / Base64Binary**: Both map to `byte[]`. The distinction is in serialization format, not runtime representation.
 - **DayTimeDuration / YearMonthDuration**: Both map to `TimeSpan`. XACML distinguishes them semantically (calendar vs. clock durations), but .NET represents both as `TimeSpan`.
 
@@ -82,7 +83,7 @@ var dateVal = new AttributeValue
 var timeVal = new AttributeValue
 {
     DataType = XACMLDataTypes.Time,
-    Value = new TimeOnly(14, 30, 0)
+    Value = new TimeSpan(14, 30, 0)
 };
 
 // URI literal

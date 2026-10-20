@@ -6,17 +6,16 @@ namespace Encina.UnitTests.Security.ABAC;
 
 /// <summary>
 /// Unit tests for <see cref="ABACErrors"/> factory methods.
-/// Verifies all 17 error codes and factory methods produce correct error instances.
+/// Verifies the error code constants and that each factory method produces the matching error.
 /// </summary>
 public sealed class ABACErrorsTests
 {
     #region Error Code Constants
 
     [Theory]
-    [InlineData(nameof(ABACErrors.AccessDeniedCode), "abac.access_denied")]
     [InlineData(nameof(ABACErrors.IndeterminateCode), "abac.indeterminate")]
-    [InlineData(nameof(ABACErrors.PolicyNotFoundCode), "abac.policy_not_found")]
-    [InlineData(nameof(ABACErrors.PolicySetNotFoundCode), "abac.policy_set_not_found")]
+    [InlineData(nameof(ABACErrors.PolicyNotFoundCode), "abac.policy.not_found")]
+    [InlineData(nameof(ABACErrors.PolicySetNotFoundCode), "abac.policy_set.not_found")]
     [InlineData(nameof(ABACErrors.EvaluationFailedCode), "abac.evaluation_failed")]
     [InlineData(nameof(ABACErrors.AttributeResolutionFailedCode), "abac.attribute_resolution_failed")]
     [InlineData(nameof(ABACErrors.InvalidPolicyCode), "abac.invalid_policy")]
@@ -25,8 +24,6 @@ public sealed class ABACErrorsTests
     [InlineData(nameof(ABACErrors.DuplicatePolicyCode), "abac.duplicate_policy")]
     [InlineData(nameof(ABACErrors.DuplicatePolicySetCode), "abac.duplicate_policy_set")]
     [InlineData(nameof(ABACErrors.CombiningFailedCode), "abac.combining_failed")]
-    [InlineData(nameof(ABACErrors.MissingContextCode), "abac.missing_context")]
-    [InlineData(nameof(ABACErrors.ObligationFailedCode), "abac.obligation_failed")]
     [InlineData(nameof(ABACErrors.FunctionNotFoundCode), "abac.function_not_found")]
     [InlineData(nameof(ABACErrors.FunctionErrorCode), "abac.function_error")]
     [InlineData(nameof(ABACErrors.VariableNotFoundCode), "abac.variable_not_found")]
@@ -37,12 +34,45 @@ public sealed class ABACErrorsTests
         field!.GetValue(null).ShouldBe(expectedValue);
     }
 
+    [Theory]
+    [InlineData(nameof(ABACErrors.AccessDeniedCode), "encina.authorization.abac_access_denied")]
+    [InlineData(nameof(ABACErrors.ConditionNotMetCode), "encina.authorization.abac_condition_not_met")]
+    [InlineData(nameof(ABACErrors.ObligationFailedCode), "encina.authorization.abac_obligation_failed")]
+    [InlineData(nameof(ABACErrors.RequiredPolicyNotFoundCode), "encina.authorization.abac_policy_not_found")]
+    public void DefiniteDenialCode_UsesAuthorizationPrefix(string fieldName, string expectedValue)
+    {
+        var field = typeof(ABACErrors).GetField(fieldName);
+        field.ShouldNotBeNull();
+        var value = (string)field!.GetValue(null)!;
+
+        value.ShouldBe(expectedValue);
+        value.ShouldStartWith(EncinaErrorCodes.AuthorizationPrefix);
+    }
+
+    [Fact]
+    public void PolicyNotFoundCode_StaysAnAdministrativeLookupCode()
+    {
+        ABACErrors.PolicyNotFoundCode.ShouldBe("abac.policy.not_found");
+        ABACErrors.PolicyNotFoundCode.ShouldNotStartWith(EncinaErrorCodes.AuthorizationPrefix);
+    }
+
+    [Fact]
+    public void RequiredPolicyNotFound_UsesTheAuthorizationDenialCode_NotTheLookupCode()
+    {
+        var error = ABACErrors.RequiredPolicyNotFound(typeof(string), "finance-policy");
+
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.RequiredPolicyNotFoundCode);
+        error.GetCode().IfNone("").ShouldNotBe(ABACErrors.PolicyNotFoundCode);
+    }
+
     [Fact]
     public void AllErrorCodes_AreUnique()
     {
         var codes = new[]
         {
             ABACErrors.AccessDeniedCode,
+            ABACErrors.RequiredPolicyNotFoundCode,
+            ABACErrors.ConditionNotMetCode,
             ABACErrors.IndeterminateCode,
             ABACErrors.PolicyNotFoundCode,
             ABACErrors.PolicySetNotFoundCode,
@@ -54,7 +84,6 @@ public sealed class ABACErrorsTests
             ABACErrors.DuplicatePolicyCode,
             ABACErrors.DuplicatePolicySetCode,
             ABACErrors.CombiningFailedCode,
-            ABACErrors.MissingContextCode,
             ABACErrors.ObligationFailedCode,
             ABACErrors.FunctionNotFoundCode,
             ABACErrors.FunctionErrorCode,
@@ -222,12 +251,23 @@ public sealed class ABACErrorsTests
     }
 
     [Fact]
-    public void MissingContext_ReturnsCorrectCode()
+    public void UnauthenticatedCaller_UsesTheSharedCodeAndTheAbacGate()
     {
-        var error = ABACErrors.MissingContext(typeof(string));
+        var error = ABACErrors.UnauthenticatedCaller(typeof(string));
 
-        error.GetCode().IfNone("").ShouldBe(ABACErrors.MissingContextCode);
-        error.Message.ShouldContain("String");
+        error.GetCode().IfNone("").ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
+        var details = error.GetDetails();
+        details["gate"].ShouldBe("abac");
+        details["requestType"].ShouldBe(typeof(string).FullName);
+        details.ShouldNotContainKey("userId");
+        error.Message.ShouldBe("ABAC evaluation requires an authenticated caller. Access denied.");
+    }
+
+    [Fact]
+    public void UnauthenticatedCaller_NullRequestType_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => ABACErrors.UnauthenticatedCaller(null!))
+            .ParamName.ShouldBe("requestType");
     }
 
     [Fact]
@@ -266,7 +306,7 @@ public sealed class ABACErrorsTests
 
         error.GetCode().IfNone("").ShouldBe(ABACErrors.FunctionErrorCode);
         error.Message.ShouldContain("integer-divide");
-        error.Message.ShouldContain("division by zero");
+        error.Message.ShouldNotContain("division by zero");
     }
 
     [Fact]

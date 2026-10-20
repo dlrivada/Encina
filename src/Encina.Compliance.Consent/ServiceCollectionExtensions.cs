@@ -28,7 +28,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="ConsentOptions"/> — Configured via the provided action, validated at first access</item>
     /// <item><see cref="IConsentService"/> → <see cref="DefaultConsentService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IConsentValidator"/> → <see cref="DefaultConsentValidator"/> (Scoped, using TryAdd)</item>
-    /// <item><see cref="ConsentRequiredPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="ConsentRequiredPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>
@@ -78,14 +78,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         // Configure and validate options
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-        else
-        {
-            services.Configure<ConsentOptions>(_ => { });
-        }
+        ConfigureOptions(services, configure);
 
         services.TryAddSingleton<IValidateOptions<ConsentOptions>, ConsentOptionsValidator>();
 
@@ -102,31 +95,52 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IConsentValidator, DefaultConsentValidator>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(ConsentRequiredPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(ConsentRequiredPipelineBehavior<,>)));
 
         // Auto-register from attributes if enabled
         var optionsInstance = new ConsentOptions();
         configure?.Invoke(optionsInstance);
 
-        if (optionsInstance.AddHealthCheck)
+        AddHealthCheck(services, optionsInstance);
+        AddAutoRegistration(services, optionsInstance, Assembly.GetCallingAssembly());
+
+        return services;
+    }
+
+    private static void ConfigureOptions(IServiceCollection services, Action<ConsentOptions>? configure)
+    {
+        if (configure is not null)
+        {
+            services.Configure(configure);
+        }
+        else
+        {
+            services.Configure<ConsentOptions>(_ => { });
+        }
+    }
+
+    private static void AddHealthCheck(IServiceCollection services, ConsentOptions options)
+    {
+        if (options.AddHealthCheck)
         {
             services.AddHealthChecks()
                 .AddCheck<ConsentHealthCheck>(
                     ConsentHealthCheck.DefaultName,
                     tags: ConsentHealthCheck.Tags);
         }
+    }
 
-        if (optionsInstance.AutoRegisterFromAttributes)
+    private static void AddAutoRegistration(IServiceCollection services, ConsentOptions options, Assembly callingAssembly)
+    {
+        if (options.AutoRegisterFromAttributes)
         {
-            var assembliesToScan = optionsInstance.AssembliesToScan.Count > 0
-                ? optionsInstance.AssembliesToScan
-                : [Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly()];
+            var assembliesToScan = options.AssembliesToScan.Count > 0
+                ? options.AssembliesToScan
+                : [Assembly.GetEntryAssembly() ?? callingAssembly];
 
             // Register descriptor and hosted service for deferred auto-registration
             services.AddSingleton(new ConsentAutoRegistrationDescriptor(assembliesToScan));
             services.AddHostedService<ConsentAutoRegistrationHostedService>();
         }
-
-        return services;
     }
 }

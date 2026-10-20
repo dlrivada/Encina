@@ -89,23 +89,10 @@ public sealed class SecurityPipelineBehavior<TRequest, TResponse> : IPipelineBeh
         var requestTypeName = requestType.Name;
         var startedAt = Stopwatch.GetTimestamp();
 
-        // Check for [AllowAnonymous] first - bypasses all security checks
-        if (requestType.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true).Length > 0)
-        {
-            _logger.AllowAnonymousBypass(requestTypeName);
-            return await nextStep().ConfigureAwait(false);
-        }
+        var securityAttributes = DiscoverAttributes(requestType, requestTypeName);
 
-        // Discover security attributes, ordered by Order property
-        var securityAttributes = requestType
-            .GetCustomAttributes(typeof(SecurityAttribute), inherit: true)
-            .Cast<SecurityAttribute>()
-            .OrderBy(a => a.Order)
-            .ThenBy(a => GetAttributeTypePriority(a))
-            .ToList();
-
-        // If no security attributes and not requiring auth by default, proceed
-        if (securityAttributes.Count == 0 && !_options.RequireAuthenticatedByDefault)
+        // [AllowAnonymous], or no attributes and no authentication required by default: proceed
+        if (securityAttributes is null)
         {
             return await nextStep().ConfigureAwait(false);
         }
@@ -114,18 +101,60 @@ public sealed class SecurityPipelineBehavior<TRequest, TResponse> : IPipelineBeh
         using var activity = SecurityDiagnostics.StartAuthorize(requestTypeName);
         _logger.AuthorizationStarted(requestTypeName, securityAttributes.Count);
 
-        // Get security context
+        var denial = await AuthorizeAsync(securityAttributes, request, requestType, activity, startedAt, cancellationToken).ConfigureAwait(false);
+
+        if (denial.HasValue)
+        {
+            return Left<EncinaError, TResponse>(denial.Value); // NOSONAR S6966
+        }
+
+        return await nextStep().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Returns the security attributes to evaluate, ordered by <c>Order</c>, or <c>null</c> when the request
+    /// bypasses the gate (<c>[AllowAnonymous]</c>, or no attributes and no default authentication requirement).
+    /// </summary>
+    private List<SecurityAttribute>? DiscoverAttributes(Type requestType, string requestTypeName)
+    {
+        // Check for [AllowAnonymous] first - bypasses all security checks
+        if (requestType.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true).Length > 0)
+        {
+            _logger.AllowAnonymousBypass(requestTypeName);
+            return null;
+        }
+
+        var securityAttributes = requestType
+            .GetCustomAttributes(typeof(SecurityAttribute), inherit: true)
+            .Cast<SecurityAttribute>()
+            .OrderBy(a => a.Order)
+            .ThenBy(a => GetAttributeTypePriority(a))
+            .ToList();
+
+        return securityAttributes.Count == 0 && !_options.RequireAuthenticatedByDefault ? null : securityAttributes;
+    }
+
+    /// <summary>
+    /// Evaluates the request against the security context, records the outcome and returns the denial error,
+    /// or <c>null</c> when access is allowed.
+    /// </summary>
+    private async ValueTask<EncinaError?> AuthorizeAsync(
+        List<SecurityAttribute> securityAttributes,
+        TRequest request,
+        Type requestType,
+        Activity? activity,
+        long startedAt,
+        CancellationToken cancellationToken)
+    {
+        var requestTypeName = requestType.Name;
         var securityContext = _securityContextAccessor.SecurityContext;
 
         if (securityContext is null)
         {
-            _logger.MissingSecurityContext(requestTypeName);
-
-            if (_options.ThrowOnMissingSecurityContext && (securityAttributes.Count > 0 || _options.RequireAuthenticatedByDefault))
+            var missing = DenyMissingContext(securityAttributes, requestType, activity, startedAt);
+            if (missing.HasValue)
             {
-                var missingError = SecurityErrors.MissingContext(requestType);
-                RecordDenied(activity, startedAt, requestTypeName, SecurityErrors.MissingContextCode, null);
-                return Left<EncinaError, TResponse>(missingError); // NOSONAR S6966
+                return missing;
             }
 
             // Treat as anonymous
@@ -135,47 +164,96 @@ public sealed class SecurityPipelineBehavior<TRequest, TResponse> : IPipelineBeh
         SecurityDiagnostics.SetUserId(activity, securityContext.UserId);
 
         // If requiring auth by default and no attributes, enforce authentication
-        if (securityAttributes.Count == 0 && _options.RequireAuthenticatedByDefault)
+        if (securityAttributes.Count == 0)
         {
-            if (!securityContext.IsAuthenticated)
-            {
-                var unauthError = SecurityErrors.Unauthenticated(requestType);
-                RecordDenied(activity, startedAt, requestTypeName, SecurityErrors.UnauthenticatedCode, securityContext.UserId);
-                return Left<EncinaError, TResponse>(unauthError); // NOSONAR S6966
-            }
-
-            RecordAllowed(activity, startedAt, requestTypeName, securityContext.UserId);
-            return await nextStep().ConfigureAwait(false);
+            return AuthorizeByDefault(securityContext, requestType, activity, startedAt);
         }
 
         // Evaluate each security attribute in order
-        foreach (var attribute in securityAttributes)
+        var denial = await EvaluateAttributesAsync(securityAttributes, securityContext, request, requestType, activity, cancellationToken).ConfigureAwait(false);
+
+        if (denial is { } denied)
         {
-            var attributeTypeName = attribute.GetType().Name;
-
-            var result = attribute switch
-            {
-                DenyAnonymousAttribute => EvaluateDenyAnonymous(securityContext, requestType),
-                RequireRoleAttribute requireRole => EvaluateRequireRole(securityContext, requireRole, requestType),
-                RequireAllRolesAttribute requireAllRoles => EvaluateRequireAllRoles(securityContext, requireAllRoles, requestType),
-                RequirePermissionAttribute requirePermission => await EvaluateRequirePermissionAsync(securityContext, requirePermission, requestType, cancellationToken).ConfigureAwait(false),
-                RequireClaimAttribute requireClaim => EvaluateRequireClaim(securityContext, requireClaim, requestType),
-                RequireOwnershipAttribute requireOwnership => await EvaluateRequireOwnershipAsync(securityContext, requireOwnership, request, requestType, cancellationToken).ConfigureAwait(false),
-                _ => (EncinaError?)null
-            };
-
-            SecurityDiagnostics.RecordAttributeEvaluated(activity, attributeTypeName);
-
-            if (result.HasValue)
-            {
-                RecordDenied(activity, startedAt, requestTypeName, GetDenialCode(attribute), securityContext.UserId);
-                return Left<EncinaError, TResponse>(result.Value); // NOSONAR S6966
-            }
+            RecordDenied(activity, startedAt, requestTypeName, GetDenialCode(denied.Attribute), securityContext.UserId);
+            return denied.Error;
         }
 
         RecordAllowed(activity, startedAt, requestTypeName, securityContext.UserId);
-        return await nextStep().ConfigureAwait(false);
+        return null;
     }
+
+    private EncinaError? DenyMissingContext(
+        List<SecurityAttribute> securityAttributes,
+        Type requestType,
+        Activity? activity,
+        long startedAt)
+    {
+        _logger.MissingSecurityContext(requestType.Name);
+
+        if (!_options.ThrowOnMissingSecurityContext || (securityAttributes.Count == 0 && !_options.RequireAuthenticatedByDefault))
+        {
+            return null;
+        }
+
+        RecordDenied(activity, startedAt, requestType.Name, EncinaErrorCodes.AuthorizationUnauthenticated, null);
+        return SecurityErrors.MissingContext(requestType);
+    }
+
+    private EncinaError? AuthorizeByDefault(
+        ISecurityContext securityContext,
+        Type requestType,
+        Activity? activity,
+        long startedAt)
+    {
+        if (!securityContext.IsAuthenticated)
+        {
+            RecordDenied(activity, startedAt, requestType.Name, EncinaErrorCodes.AuthorizationUnauthenticated, securityContext.UserId);
+            return SecurityErrors.Unauthenticated(requestType);
+        }
+
+        RecordAllowed(activity, startedAt, requestType.Name, securityContext.UserId);
+        return null;
+    }
+
+    private async ValueTask<(EncinaError Error, SecurityAttribute Attribute)?> EvaluateAttributesAsync(
+        List<SecurityAttribute> securityAttributes,
+        ISecurityContext securityContext,
+        TRequest request,
+        Type requestType,
+        Activity? activity,
+        CancellationToken cancellationToken)
+    {
+        foreach (var attribute in securityAttributes)
+        {
+            var result = await EvaluateAttributeAsync(attribute, securityContext, request, requestType, cancellationToken).ConfigureAwait(false);
+
+            SecurityDiagnostics.RecordAttributeEvaluated(activity, attribute.GetType().Name);
+
+            if (result.HasValue)
+            {
+                return (result.Value, attribute);
+            }
+        }
+
+        return null;
+    }
+
+    // crap-exempt: single-question switch — dispatches one security attribute to its evaluator
+    private ValueTask<EncinaError?> EvaluateAttributeAsync(
+        SecurityAttribute attribute,
+        ISecurityContext securityContext,
+        TRequest request,
+        Type requestType,
+        CancellationToken cancellationToken) => attribute switch
+        {
+            DenyAnonymousAttribute => new ValueTask<EncinaError?>(EvaluateDenyAnonymous(securityContext, requestType)),
+            RequireRoleAttribute requireRole => new ValueTask<EncinaError?>(EvaluateRequireRole(securityContext, requireRole, requestType)),
+            RequireAllRolesAttribute requireAllRoles => new ValueTask<EncinaError?>(EvaluateRequireAllRoles(securityContext, requireAllRoles, requestType)),
+            RequirePermissionAttribute requirePermission => EvaluateRequirePermissionAsync(securityContext, requirePermission, requestType, cancellationToken),
+            RequireClaimAttribute requireClaim => new ValueTask<EncinaError?>(EvaluateRequireClaim(securityContext, requireClaim, requestType)),
+            RequireOwnershipAttribute requireOwnership => EvaluateRequireOwnershipAsync(securityContext, requireOwnership, request, requestType, cancellationToken),
+            _ => new ValueTask<EncinaError?>((EncinaError?)null)
+        };
 
     private void RecordAllowed(Activity? activity, long startedAt, string requestTypeName, string? userId)
     {
@@ -341,17 +419,18 @@ public sealed class SecurityPipelineBehavior<TRequest, TResponse> : IPipelineBeh
     }
 
     /// <summary>
-    /// Maps a security attribute to its corresponding <see cref="SecurityErrors"/> code constant.
+    /// Maps a security attribute to its corresponding <see cref="EncinaErrorCodes"/> authorization code.
     /// </summary>
+    // crap-exempt: single-question switch — maps one security attribute to its denial code
     private static string GetDenialCode(SecurityAttribute attribute) => attribute switch
     {
-        DenyAnonymousAttribute => SecurityErrors.UnauthenticatedCode,
-        RequireRoleAttribute => SecurityErrors.InsufficientRolesCode,
-        RequireAllRolesAttribute => SecurityErrors.InsufficientRolesCode,
-        RequirePermissionAttribute => SecurityErrors.PermissionDeniedCode,
-        RequireClaimAttribute => SecurityErrors.ClaimMissingCode,
-        RequireOwnershipAttribute => SecurityErrors.NotOwnerCode,
-        _ => "security.unknown"
+        DenyAnonymousAttribute => EncinaErrorCodes.AuthorizationUnauthenticated,
+        RequireRoleAttribute => EncinaErrorCodes.AuthorizationInsufficientRoles,
+        RequireAllRolesAttribute => EncinaErrorCodes.AuthorizationInsufficientRoles,
+        RequirePermissionAttribute => EncinaErrorCodes.AuthorizationPermissionDenied,
+        RequireClaimAttribute => EncinaErrorCodes.AuthorizationClaimMissing,
+        RequireOwnershipAttribute => EncinaErrorCodes.AuthorizationNotOwner,
+        _ => EncinaErrorCodes.AuthorizationForbidden
     };
 
     /// <summary>

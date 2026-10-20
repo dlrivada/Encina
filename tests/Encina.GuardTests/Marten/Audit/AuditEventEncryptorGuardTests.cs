@@ -24,7 +24,7 @@ public sealed class AuditEventEncryptorGuardTests
         var ex = Should.Throw<ArgumentNullException>(() =>
             new AuditEventEncryptor(
                 null!,
-                Options.Create(new MartenAuditOptions()),
+                Options.Create(new MartenOperationAuditOptions()),
                 Substitute.For<ILogger<AuditEventEncryptor>>()));
         ex.ParamName.ShouldBe("keyProvider");
     }
@@ -46,7 +46,7 @@ public sealed class AuditEventEncryptorGuardTests
         var ex = Should.Throw<ArgumentNullException>(() =>
             new AuditEventEncryptor(
                 Substitute.For<ITemporalKeyProvider>(),
-                Options.Create(new MartenAuditOptions()),
+                Options.Create(new MartenOperationAuditOptions()),
                 null!));
         ex.ParamName.ShouldBe("logger");
     }
@@ -56,7 +56,7 @@ public sealed class AuditEventEncryptorGuardTests
     {
         var sut = new AuditEventEncryptor(
             Substitute.For<ITemporalKeyProvider>(),
-            Options.Create(new MartenAuditOptions()),
+            Options.Create(new MartenOperationAuditOptions()),
             Substitute.For<ILogger<AuditEventEncryptor>>());
 
         var ex = await Should.ThrowAsync<ArgumentNullException>(() =>
@@ -69,7 +69,7 @@ public sealed class AuditEventEncryptorGuardTests
     {
         var sut = new AuditEventEncryptor(
             Substitute.For<ITemporalKeyProvider>(),
-            Options.Create(new MartenAuditOptions()),
+            Options.Create(new MartenOperationAuditOptions()),
             Substitute.For<ILogger<AuditEventEncryptor>>());
 
         var ex = await Should.ThrowAsync<ArgumentNullException>(() =>

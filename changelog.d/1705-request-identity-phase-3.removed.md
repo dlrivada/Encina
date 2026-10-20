@@ -1,0 +1,4 @@
+- `IPrincipalResolver`, `HttpContextPrincipalResolver` and Blazor's `AuthenticationStatePrincipalResolver`: `[Authorize]` reads the request identity instead (#1705).
+- `EncinaAspNetCoreOptions.UserIdClaimType` and `TenantIdClaimType`: claim types are configured once in `RequestIdentityOptions` (`AddEncinaRequestIdentity`) (#1705).
+- `EncinaContextMiddleware` as a public type (it is internal; use `app.UseEncinaContext()`) (#1705).
+- The DI-registered `IRequestContext` fallback of the EF Core `AuditInterceptor`, `SoftDeleteInterceptor` and `QueryCacheInterceptor`: they read only `IRequestContextAccessor` (#1705).

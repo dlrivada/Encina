@@ -1,4 +1,5 @@
 using Encina.Compliance.GDPR;
+using Encina.Testing.Identity;
 
 using NSubstitute;
 
@@ -31,7 +32,7 @@ public class DefaultLawfulBasisSubjectIdExtractorTests
     {
         var request = new RequestWithGuidPatientId(Guid.NewGuid());
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("professional-42");
+        context.Identity.Returns(TestIdentity.User("professional-42"));
 
         var result = _sut.ExtractSubjectId(request, context);
 

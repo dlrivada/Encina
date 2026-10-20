@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 
+using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
@@ -65,6 +66,23 @@ public sealed class EncinaMongoDbOptions
     public bool UseScheduling { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the Dead Letter Queue pattern.
+    /// </summary>
+    /// <remarks>
+    /// When enabled, registers the MongoDB dead letter store, the orchestrator, the manager, the
+    /// health check and (when configured) the cleanup processor, and creates the collection indexes.
+    /// </remarks>
+    public bool UseDeadLetterQueue { get; set; }
+
+    /// <summary>
+    /// Gets the dead letter queue options.
+    /// </summary>
+    /// <remarks>
+    /// Only used when <see cref="UseDeadLetterQueue"/> is <c>true</c>.
+    /// </remarks>
+    public DeadLetterOptions DeadLetterOptions { get; } = new();
+
+    /// <summary>
     /// Gets or sets a value indicating whether to use the Audit Log Store.
     /// </summary>
     /// <remarks>
@@ -79,18 +97,18 @@ public sealed class EncinaMongoDbOptions
     public bool UseAuditLogStore { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether to use the Security Audit Store.
+    /// Gets or sets a value indicating whether to use the Operation Audit Store.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// When enabled, registers IAuditStore implemented by AuditStoreMongoDB.
+    /// When enabled, registers IOperationAuditStore implemented by OperationAuditStoreMongoDB.
     /// </para>
     /// <para>
-    /// The security audit store provides comprehensive audit trail for operations
+    /// The operation audit store provides comprehensive audit trail for operations
     /// including request/response payloads, outcome tracking, and compliance features.
     /// </para>
     /// </remarks>
-    public bool UseSecurityAuditStore { get; set; }
+    public bool UseOperationAuditStore { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether to use the Read Audit Store.
@@ -286,14 +304,19 @@ public sealed class MongoDbCollectionNames
     public string ScheduledMessages { get; set; } = "scheduled_messages";
 
     /// <summary>
+    /// Gets or sets the collection name for dead letter messages.
+    /// </summary>
+    public string DeadLetterMessages { get; set; } = "dead_letter_messages";
+
+    /// <summary>
     /// Gets or sets the collection name for audit logs.
     /// </summary>
     public string AuditLogs { get; set; } = "audit_logs";
 
     /// <summary>
-    /// Gets or sets the collection name for security audit entries.
+    /// Gets or sets the collection name for operation audit entries.
     /// </summary>
-    public string SecurityAuditEntries { get; set; } = "security_audit_entries";
+    public string OperationAuditEntries { get; set; } = "operation_audit_entries";
 
     /// <summary>
     /// Gets or sets the collection name for read audit entries.

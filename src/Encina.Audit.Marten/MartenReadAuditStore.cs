@@ -51,7 +51,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
     private readonly IDocumentSession _session;
     private readonly AuditEventEncryptor _encryptor;
     private readonly ITemporalKeyProvider _keyProvider;
-    private readonly MartenAuditOptions _options;
+    private readonly MartenOperationAuditOptions _options;
     private readonly ILogger<MartenReadAuditStore> _logger;
 
     /// <summary>
@@ -66,7 +66,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
         IDocumentSession session,
         AuditEventEncryptor encryptor,
         ITemporalKeyProvider keyProvider,
-        IOptions<MartenAuditOptions> options,
+        IOptions<MartenOperationAuditOptions> options,
         ILogger<MartenReadAuditStore> logger)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -141,7 +141,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
         {
             var readModels = await _session.Query<ReadAuditEntryReadModel>()
                 .Where(m => m.EntityType == entityType && m.EntityId == entityId)
-                .OrderByDescending(m => m.AccessedAtUtc)
+                .OrderByDescending(m => m.AccessedAtUtc).ThenByDescending(m => m.Id)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -176,7 +176,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
                 .Where(m => m.UserId == userId)
                 .Where(m => m.AccessedAtUtc >= fromUtc)
                 .Where(m => m.AccessedAtUtc <= toUtc)
-                .OrderByDescending(m => m.AccessedAtUtc)
+                .OrderByDescending(m => m.AccessedAtUtc).ThenByDescending(m => m.Id)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -213,7 +213,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
             var totalCount = await q.CountAsync(cancellationToken).ConfigureAwait(false);
 
             var readModels = await q
-                .OrderByDescending(m => m.AccessedAtUtc)
+                .OrderByDescending(m => m.AccessedAtUtc).ThenByDescending(m => m.Id)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync(cancellationToken)
@@ -363,10 +363,10 @@ public sealed class MartenReadAuditStore : IReadAuditStore
     /// Maps a <see cref="ReadAuditEntryReadModel"/> projected document to a <see cref="ReadAuditEntry"/>
     /// domain record.
     /// </summary>
-    private static ReadAuditEntry MapToReadAuditEntry(ReadAuditEntryReadModel model)
+    internal static ReadAuditEntry MapToReadAuditEntry(ReadAuditEntryReadModel model)
     {
         IReadOnlyDictionary<string, object?> metadata = model.MetadataJson is not null
-                && model.MetadataJson != MartenAuditOptions.DefaultShreddedPlaceholder
+                && model.MetadataJson != MartenOperationAuditOptions.DefaultShreddedPlaceholder
             ? JsonSerializer.Deserialize<Dictionary<string, object?>>(model.MetadataJson, MetadataJsonOptions)
                 ?? new Dictionary<string, object?>()
             : new Dictionary<string, object?>();

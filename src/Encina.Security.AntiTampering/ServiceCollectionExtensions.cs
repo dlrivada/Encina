@@ -28,7 +28,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IRequestSigner"/> → <see cref="HMACSigner"/> (Singleton, using TryAdd).</item>
     /// <item><see cref="INonceStore"/> → <see cref="InMemoryNonceStore"/> (Singleton, using TryAdd).</item>
     /// <item><see cref="IKeyProvider"/> → <see cref="InMemoryKeyProvider"/> (Singleton, using TryAdd).</item>
-    /// <item><see cref="HMACValidationPipelineBehavior{TRequest,TResponse}"/> (Transient, using TryAdd).</item>
+    /// <item><see cref="HMACValidationPipelineBehavior{TRequest,TResponse}"/> (Transient, using TryAddEnumerable).</item>
     /// <item><see cref="IRequestSigningClient"/> → <see cref="RequestSigningClient"/> (Singleton, using TryAdd).</item>
     /// </list>
     /// </para>
@@ -83,9 +83,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IKeyProvider, InMemoryKeyProvider>();
 
         // Register pipeline behavior
-        services.TryAddTransient(
-            typeof(IPipelineBehavior<,>),
-            typeof(HMACValidationPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(HMACValidationPipelineBehavior<,>)));
 
         // Register signing client
         services.TryAddSingleton<IRequestSigningClient, RequestSigningClient>();

@@ -11,7 +11,11 @@ namespace Encina.AzureServiceBus;
 /// <summary>
 /// Azure Service Bus-based implementation of the message publisher.
 /// </summary>
-public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePublisher, IAsyncDisposable
+/// <remarks>
+/// The publisher does not own the injected <see cref="ServiceBusClient"/>; the DI container owns
+/// and disposes it, so ending a scope that resolved the publisher leaves the client usable.
+/// </remarks>
+public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePublisher
 {
     private readonly ServiceBusClient _client;
     private readonly ILogger<AzureServiceBusMessagePublisher> _logger;
@@ -37,10 +41,14 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
         _options = options.Value;
     }
 
+    private static string ResolveMessageId(string? messageId) =>
+        string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId;
+
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, Unit>> SendToQueueAsync<TMessage>(
         TMessage message,
         string? queueName = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -57,7 +65,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
             var serviceBusMessage = new ServiceBusMessage(JsonSerializer.SerializeToUtf8Bytes(message))
             {
                 ContentType = "application/json",
-                MessageId = Guid.NewGuid().ToString(),
+                MessageId = ResolveMessageId(messageId),
                 Subject = typeof(TMessage).Name
             };
 
@@ -83,6 +91,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
     public async ValueTask<Either<EncinaError, Unit>> PublishToTopicAsync<TMessage>(
         TMessage message,
         string? topicName = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -99,7 +108,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
             var serviceBusMessage = new ServiceBusMessage(JsonSerializer.SerializeToUtf8Bytes(message))
             {
                 ContentType = "application/json",
-                MessageId = Guid.NewGuid().ToString(),
+                MessageId = ResolveMessageId(messageId),
                 Subject = typeof(TMessage).Name
             };
 
@@ -126,6 +135,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
         TMessage message,
         DateTimeOffset scheduledEnqueueTime,
         string? queueName = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -142,7 +152,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
             var serviceBusMessage = new ServiceBusMessage(JsonSerializer.SerializeToUtf8Bytes(message))
             {
                 ContentType = "application/json",
-                MessageId = Guid.NewGuid().ToString(),
+                MessageId = ResolveMessageId(messageId),
                 Subject = typeof(TMessage).Name
             };
 
@@ -196,11 +206,5 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
                     ex,
                     $"Failed to cancel scheduled message with sequence number {sequenceNumber}."));
         }
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
-    {
-        await _client.DisposeAsync().ConfigureAwait(false);
     }
 }

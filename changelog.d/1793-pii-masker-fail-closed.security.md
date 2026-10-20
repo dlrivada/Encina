@@ -1,0 +1,2 @@
+- PII masking now fails closed (#1793): an invalid or timed-out custom regex pattern masks the whole value instead of returning it unmasked, a masking failure in the response pipeline returns a `pii.masking_failed` error instead of the unmasked response, audit masking failures and serialization failures throw instead of returning the unmasked object, and PII-marked properties without a setter are no longer silently skipped.
+- New `PIIOptions.RegexTimeout` (default 100 ms, must be greater than zero) bounds every custom masking regex.

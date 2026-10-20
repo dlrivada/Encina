@@ -319,10 +319,10 @@ public class NIS2CompliancePipelineBehaviorTests
 
     private NIS2CompliancePipelineBehavior<MFARequiredRequest, Unit> CreateAuditedBehavior(
         NIS2EnforcementMode mode,
-        IAuditStore? store,
+        IOperationAuditStore? store,
         SignalingLogger logger)
     {
-        _serviceProvider.GetService(typeof(IAuditStore)).Returns(store);
+        _serviceProvider.GetService(typeof(IOperationAuditStore)).Returns(store);
         return new(
             _mfaEnforcer,
             _supplyChainValidator,
@@ -331,15 +331,15 @@ public class NIS2CompliancePipelineBehaviorTests
             logger);
     }
 
-    private static IAuditStore CreateStore(
-        TaskCompletionSource<AuditEntry> recorded,
+    private static IOperationAuditStore CreateStore(
+        TaskCompletionSource<OperationAuditEntry> recorded,
         Either<EncinaError, Unit> outcome)
     {
-        var store = Substitute.For<IAuditStore>();
-        store.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        var store = Substitute.For<IOperationAuditStore>();
+        store.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
-                recorded.TrySetResult(call.Arg<AuditEntry>());
+                recorded.TrySetResult(call.Arg<OperationAuditEntry>());
                 return ValueTask.FromResult(outcome);
             });
         return store;
@@ -349,7 +349,7 @@ public class NIS2CompliancePipelineBehaviorTests
     public async Task Handle_BlockedByMFA_WithAuditStore_RecordsFailureEntry()
     {
         // Arrange
-        var recorded = new TaskCompletionSource<AuditEntry>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recorded = new TaskCompletionSource<OperationAuditEntry>(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = CreateStore(recorded, Right<EncinaError, Unit>(Unit.Default));
         var behavior = CreateAuditedBehavior(NIS2EnforcementMode.Block, store, new SignalingLogger(0));
         _mfaEnforcer
@@ -376,7 +376,7 @@ public class NIS2CompliancePipelineBehaviorTests
     public async Task Handle_Passed_WithAuditStore_RecordsSuccessEntry()
     {
         // Arrange
-        var recorded = new TaskCompletionSource<AuditEntry>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recorded = new TaskCompletionSource<OperationAuditEntry>(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = CreateStore(recorded, Right<EncinaError, Unit>(Unit.Default));
         var behavior = CreateAuditedBehavior(NIS2EnforcementMode.Block, store, new SignalingLogger(0));
 
@@ -396,7 +396,7 @@ public class NIS2CompliancePipelineBehaviorTests
     public async Task Handle_AuditStoreReturnsError_LogsErrorCodeAndStillPasses()
     {
         // Arrange
-        var recorded = new TaskCompletionSource<AuditEntry>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recorded = new TaskCompletionSource<OperationAuditEntry>(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = CreateStore(recorded, Left<EncinaError, Unit>(EncinaErrors.Create("test.audit_failed", "SENTINEL-AUDIT-MSG")));
         var logger = new SignalingLogger(AuditFailedEventId);
         var behavior = CreateAuditedBehavior(NIS2EnforcementMode.Block, store, logger);
@@ -416,8 +416,8 @@ public class NIS2CompliancePipelineBehaviorTests
     public async Task Handle_AuditStoreThrows_LogsRedactedExceptionAndStillPasses()
     {
         // Arrange
-        var store = Substitute.For<IAuditStore>();
-        store.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        var store = Substitute.For<IOperationAuditStore>();
+        store.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns<ValueTask<Either<EncinaError, Unit>>>(_ => throw new InvalidOperationException("SENTINEL-THROW-MSG"));
         var logger = new SignalingLogger(AuditExceptionEventId);
         var behavior = CreateAuditedBehavior(NIS2EnforcementMode.Block, store, logger);
@@ -437,7 +437,7 @@ public class NIS2CompliancePipelineBehaviorTests
     public async Task Handle_MFAThrows_BlockMode_WithAuditStore_RecordsBlockedEntry()
     {
         // Arrange
-        var recorded = new TaskCompletionSource<AuditEntry>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recorded = new TaskCompletionSource<OperationAuditEntry>(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = CreateStore(recorded, Right<EncinaError, Unit>(Unit.Default));
         var behavior = CreateAuditedBehavior(NIS2EnforcementMode.Block, store, new SignalingLogger(0));
         _mfaEnforcer

@@ -30,7 +30,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IMFAEnforcer"/> → <c>DefaultMFAEnforcer</c> (Singleton, using TryAdd)</item>
     /// <item><see cref="IEncryptionValidator"/> → <c>DefaultEncryptionValidator</c> (Singleton, using TryAdd)</item>
     /// <item>10 <see cref="INIS2MeasureEvaluator"/> implementations (Singleton, one per Art. 21(2) measure)</item>
-    /// <item><see cref="NIS2CompliancePipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="NIS2CompliancePipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>
@@ -134,7 +134,7 @@ public static class ServiceCollectionExtensions
         // ---------------------------------------------------------------
         // 5. Register pipeline behavior
         // ---------------------------------------------------------------
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(NIS2CompliancePipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(NIS2CompliancePipelineBehavior<,>)));
 
         // ---------------------------------------------------------------
         // 6. Conditional registrations

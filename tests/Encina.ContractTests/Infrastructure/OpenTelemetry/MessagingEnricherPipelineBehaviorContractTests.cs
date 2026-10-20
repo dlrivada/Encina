@@ -1,5 +1,4 @@
 using Encina.OpenTelemetry.Behaviors;
-using Encina.Testing;
 using LanguageExt;
 using NSubstitute;
 using Shouldly;

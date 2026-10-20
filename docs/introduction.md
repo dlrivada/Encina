@@ -58,6 +58,24 @@ Encina and MediatR solve the same request/handler problem; the table below lists
 
 This is not a completeness ranking: MediatR is a smaller, single-purpose library by design, and teams that only need in-process request dispatch may prefer that smaller surface. See [ADR-004](architecture/adr/004-reject-mediator-result.md) for why Encina chose to expose `Either` directly instead of a MediatR-style wrapper.
 
+## Where Encina stands
+
+Beyond MediatR, Encina overlaps with messaging frameworks, event-sourcing frameworks and privacy tooling. This section lists what is different and where another product is the better tool for a job; it is not a ranking. Sources were read on 2026-10-10, and "not found" means the research did not find the capability, not that it does not exist. The full topic-by-topic evidence is in the [competitive landscape assessment](engineering/assessments/2026-10-10-competitive-landscape.md).
+
+| Where Encina differs | Evidence |
+| --- | --- |
+| Failures are `Either` values; none of the surveyed .NET mediators and messaging frameworks was found using a result type (the research's error-model rows list exceptions for all of them) | [MassTransit](https://masstransit.massient.com/), [NServiceBus](https://docs.particular.net/nservicebus/), [Wolverine error handling](https://wolverinefx.net/guide/handlers/error-handling.html) |
+| Outbox, inbox, saga and scheduled-message stores share one interface over ADO.NET, Dapper, EF Core and MongoDB; the MassTransit outbox is documented for EF Core and MongoDB | [MassTransit outbox](https://masstransit.massient.com/documentation/configuration/middleware/outbox), [`AGENTS.md`](https://github.com/dlrivada/Encina/blob/main/AGENTS.md) section 5 |
+| Consent, data subject rights, retention, NIS2 and AI Act modules run in the application layer; no general-purpose framework with these was found, and ABP's GDPR module is a commercial tier | [ABP GDPR module](https://abp.io/docs/10.5/modules/gdpr), [SPEC-002](specifications/SPEC-002-eu-regulatory-readiness.md) |
+| MIT licence for the whole library, with no commercial edition, unlike MediatR 13 and later, MassTransit v9 and NServiceBus; Wolverine, Rebus, CAP and Brighter are also MIT, so this is not unique among the references | [MediatR dual licence](https://www.jimmybogard.com/automapper-and-mediatr-commercial-editions-launch-today/), [MassTransit v9 licence](https://massient.com/license), [NServiceBus pricing](https://particular.net/pricing), [CAP on NuGet](https://www.nuget.org/packages/DotNetCore.CAP), [Brighter on NuGet](https://www.nuget.org/packages/Paramore.Brighter) |
+
+| Choose something else when | Why | Source |
+| --- | --- | --- |
+| You need durable, replayable long-running workflows | Temporal and Dapr Workflow are workflow runtimes; Encina's sagas persist state but do not replay | [Temporal](https://docs.temporal.io/evaluate/why-temporal), [Dapr Workflow](https://docs.dapr.io/developing-applications/building-blocks/workflow/workflow-overview/) |
+| You need failed-message tooling and commercial support today | NServiceBus ships ServiceControl and ServicePulse and sells tiered support; MassTransit v9 and Rebus Pro are commercial offerings. Encina's dead-letter operations API is planned ([#2229](https://github.com/dlrivada/Encina/issues/2229)) | [NServiceBus pricing](https://particular.net/pricing), [MassTransit licence](https://massient.com/license), [Rebus Pro](https://pro.rebus.fm/) |
+| You need source-generated dispatch or Native AOT | The Mediator source generator advertises both; Encina's generators are post-1.0 ([#889](https://github.com/dlrivada/Encina/issues/889)) and its benchmarks are planned ([#2231](https://github.com/dlrivada/Encina/issues/2231)) | [Mediator](https://github.com/martinothamar/Mediator) |
+| You need a broad transport list or a battle-tested release | Wolverine lists many transports and the older frameworks have years of production use; Encina is pre-1.0 with a single maintainer and open p0 bugs ([list](https://github.com/dlrivada/Encina/issues?q=is%3Aissue+is%3Aopen+label%3Abug+label%3Ap0-mandatory)) | [Wolverine transports](https://wolverinefx.net/guide/messaging/introduction.html) |
+
 ## When Encina fits and when it does not
 
 ```mermaid

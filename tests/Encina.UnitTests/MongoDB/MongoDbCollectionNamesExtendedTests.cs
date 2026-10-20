@@ -17,7 +17,7 @@ public sealed class MongoDbCollectionNamesExtendedTests
         names.Sagas.ShouldNotBeNullOrEmpty();
         names.ScheduledMessages.ShouldNotBeNullOrEmpty();
         names.AuditLogs.ShouldNotBeNullOrEmpty();
-        names.SecurityAuditEntries.ShouldNotBeNullOrEmpty();
+        names.OperationAuditEntries.ShouldNotBeNullOrEmpty();
         names.ReadAuditEntries.ShouldNotBeNullOrEmpty();
         names.TokenMappings.ShouldNotBeNullOrEmpty();
         names.RetentionPolicies.ShouldNotBeNullOrEmpty();
@@ -46,7 +46,7 @@ public sealed class MongoDbCollectionNamesExtendedTests
 
         names.Outbox.ShouldContain("_");
         names.ScheduledMessages.ShouldContain("_");
-        names.SecurityAuditEntries.ShouldContain("_");
+        names.OperationAuditEntries.ShouldContain("_");
     }
 
     [Fact]

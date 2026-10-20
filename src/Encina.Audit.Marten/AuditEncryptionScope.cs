@@ -7,7 +7,7 @@ namespace Encina.Audit.Marten;
 /// <para>
 /// Controls the trade-off between privacy and queryability after crypto-shredding.
 /// When temporal keys are destroyed, encrypted fields become permanently unreadable
-/// and are replaced with <see cref="MartenAuditOptions.ShreddedPlaceholder"/> in query results.
+/// and are replaced with <see cref="MartenOperationAuditOptions.ShreddedPlaceholder"/> in query results.
 /// </para>
 /// <para>
 /// <b>PII fields</b> (encrypted with <see cref="PiiFieldsOnly"/>):
@@ -44,7 +44,7 @@ public enum AuditEncryptionScope
     /// <list type="bullet">
     /// <item>Structural fields remain queryable — compliance officers can see
     /// "someone did X to entity Y at time Z" without knowing who.</item>
-    /// <item>PII fields show <see cref="MartenAuditOptions.ShreddedPlaceholder"/>.</item>
+    /// <item>PII fields show <see cref="MartenOperationAuditOptions.ShreddedPlaceholder"/>.</item>
     /// <item>Audit entry counts, outcome distributions, and timeline analysis remain possible.</item>
     /// </list>
     /// </para>

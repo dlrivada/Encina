@@ -1,0 +1,3 @@
+- Dead letter stores and the fake store throw `ArgumentException` for an empty `SourceMessageId` (it is the idempotency key); `FakeDeadLetterStore` no longer substitutes the message id, and `AddToDeadLetterAsync` of `Encina.Aspire.Testing` sets a source id (#583).
+- The PostgreSQL ADO.NET and Dapper dead letter stores capture with `INSERT ... ON CONFLICT ("SourcePattern", "SourceMessageId") DO NOTHING`, so a duplicate capture raises no server error (#583).
+- `AddDeadLetterQueueServices` registers `DeadLetterOptions` with first-wins semantics, like the store and factory: the options of a later call are ignored (#583).

@@ -1,0 +1,1 @@
+- `AddEncinaAuthorization` registers `AuthorizationPipelineBehavior` (with `TryAddEnumerable`), as its documentation said; before, `[Authorize]` requests ran with no gate unless `cfg.AddAuthorization()` was also called (#1705).

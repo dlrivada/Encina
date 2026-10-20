@@ -91,12 +91,13 @@ services.AddEncinaSecurity(); // Won't override your registration
 
 | Code | Meaning |
 |------|---------|
-| `security.unauthenticated` | User is not authenticated |
-| `security.insufficient_roles` | User lacks required roles |
-| `security.permission_denied` | User lacks required permissions |
-| `security.claim_missing` | Required claim missing or wrong value |
-| `security.not_owner` | User is not the resource owner |
-| `security.missing_context` | Security context not available |
+| `encina.authorization.unauthenticated` | User is not authenticated, or the security context is not available (maps to 401) |
+| `encina.authorization.insufficient_roles` | User lacks required roles (403) |
+| `encina.authorization.permission_denied` | User lacks required permissions (403) |
+| `encina.authorization.claim_missing` | Required claim missing or wrong value (403) |
+| `encina.authorization.not_owner` | User is not the resource owner (403) |
+
+`Encina.Security` emits only `encina.authorization.*` codes (the `EncinaErrorCodes.Authorization*` constants in the core package). A missing security context is reported as unauthenticated.
 
 ## Observability
 

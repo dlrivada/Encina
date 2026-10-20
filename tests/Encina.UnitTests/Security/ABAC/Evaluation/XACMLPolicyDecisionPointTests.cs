@@ -29,21 +29,22 @@ public sealed class XACMLPolicyDecisionPointTests
     }
 
     private static PolicyEvaluationContext MakeContext(
-        AttributeBag? subject = null,
-        AttributeBag? resource = null,
-        AttributeBag? environment = null,
-        AttributeBag? action = null) =>
+        IReadOnlyDictionary<string, AttributeBag>? subject = null,
+        IReadOnlyDictionary<string, AttributeBag>? resource = null,
+        IReadOnlyDictionary<string, AttributeBag>? environment = null,
+        IReadOnlyDictionary<string, AttributeBag>? action = null) =>
         new()
         {
-            SubjectAttributes = subject ?? AttributeBag.Empty,
-            ResourceAttributes = resource ?? AttributeBag.Empty,
-            EnvironmentAttributes = environment ?? AttributeBag.Empty,
-            ActionAttributes = action ?? AttributeBag.Empty,
+            SubjectAttributes = subject ?? new Dictionary<string, AttributeBag>(),
+            ResourceAttributes = resource ?? new Dictionary<string, AttributeBag>(),
+            EnvironmentAttributes = environment ?? new Dictionary<string, AttributeBag>(),
+            ActionAttributes = action ?? new Dictionary<string, AttributeBag>(),
             RequestType = typeof(object)
         };
 
-    private static AttributeBag SingleBag(string dataType, object? value) =>
-        AttributeBag.Of(new AttributeValue { DataType = dataType, Value = value });
+    /// <summary>One attribute with a single value, keyed by its attribute identifier.</summary>
+    private static Dictionary<string, AttributeBag> Single(string attributeId, string dataType, object? value) =>
+        new() { [attributeId] = AttributeBag.Of(new AttributeValue { DataType = dataType, Value = value }) };
 
     #region No Policies
 
@@ -190,7 +191,7 @@ public sealed class XACMLPolicyDecisionPointTests
             VariableDefinitions = []
         });
         var pdp = CreatePdp(pap);
-        var ctx = MakeContext(subject: SingleBag(XACMLDataTypes.String, "viewer"));
+        var ctx = MakeContext(subject: Single("role", XACMLDataTypes.String, "viewer"));
 
         var decision = await pdp.EvaluateAsync(ctx);
 
@@ -240,7 +241,7 @@ public sealed class XACMLPolicyDecisionPointTests
             VariableDefinitions = []
         });
         var pdp = CreatePdp(pap);
-        var ctx = MakeContext(resource: SingleBag(XACMLDataTypes.Integer, 5000));
+        var ctx = MakeContext(resource: Single("amount", XACMLDataTypes.Integer, 5000));
 
         var decision = await pdp.EvaluateAsync(ctx);
 
@@ -286,7 +287,7 @@ public sealed class XACMLPolicyDecisionPointTests
             VariableDefinitions = []
         });
         var pdp = CreatePdp(pap);
-        var ctx = MakeContext(resource: SingleBag(XACMLDataTypes.Integer, 500));
+        var ctx = MakeContext(resource: Single("amount", XACMLDataTypes.Integer, 500));
 
         var decision = await pdp.EvaluateAsync(ctx);
 
@@ -656,10 +657,10 @@ public sealed class XACMLPolicyDecisionPointTests
         var pdp = CreatePdp(pap);
         var ctx = new PolicyEvaluationContext
         {
-            SubjectAttributes = AttributeBag.Empty,
-            ResourceAttributes = AttributeBag.Empty,
-            EnvironmentAttributes = AttributeBag.Empty,
-            ActionAttributes = AttributeBag.Empty,
+            SubjectAttributes = new Dictionary<string, AttributeBag>(),
+            ResourceAttributes = new Dictionary<string, AttributeBag>(),
+            EnvironmentAttributes = new Dictionary<string, AttributeBag>(),
+            ActionAttributes = new Dictionary<string, AttributeBag>(),
             RequestType = typeof(object),
             IncludeAdvice = false
         };
@@ -861,7 +862,7 @@ public sealed class XACMLPolicyDecisionPointTests
             ]
         });
         var pdp = CreatePdp(pap);
-        var ctx = MakeContext(subject: SingleBag(XACMLDataTypes.String, "Finance"));
+        var ctx = MakeContext(subject: Single("department", XACMLDataTypes.String, "Finance"));
 
         var decision = await pdp.EvaluateAsync(ctx);
 

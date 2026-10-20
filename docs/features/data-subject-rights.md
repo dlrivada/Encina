@@ -25,13 +25,14 @@ This guide explains how to manage GDPR Data Subject Rights (Articles 15-22) decl
 13. [Domain Notifications](#domain-notifications)
 14. [Configuration Options](#configuration-options)
 15. [Enforcement Modes](#enforcement-modes)
-16. [Database Providers](#database-providers)
-17. [Observability](#observability)
-18. [Health Check](#health-check)
-19. [Error Handling](#error-handling)
-20. [Best Practices](#best-practices)
-21. [Testing](#testing)
-22. [FAQ](#faq)
+16. [Multi-tenancy](#multi-tenancy)
+17. [Database Providers](#database-providers)
+18. [Observability](#observability)
+19. [Health Check](#health-check)
+20. [Error Handling](#error-handling)
+21. [Best Practices](#best-practices)
+22. [Testing](#testing)
+23. [FAQ](#faq)
 
 ---
 
@@ -280,53 +281,57 @@ Received → IdentityVerified → InProgress → Completed
 | `IdentityVerified` | Subject identity confirmed (Article 12(6)) |
 | `InProgress` | Request actively being processed |
 | `Completed` | Request fulfilled successfully |
-| `Rejected` | Request rejected with stated reason (Article 12(4)) |
+| `Rejected` | Request refused with a reason code and an explanation (Article 12(4) and 12(5)); see [Refusing a Request](#refusing-a-request) |
 | `Extended` | Deadline extended by up to 2 additional months (Article 12(3)) |
 | `Expired` | Deadline passed without completion (potential compliance violation) |
 
-### Creating a DSR Request
+### Refusing a Request
+
+A refusal records a standardised reason code and the free-text explanation given to the data subject (Article 12(4)). The request moves to `Rejected` and the event stream keeps both values.
 
 ```csharp
-var store = serviceProvider.GetRequiredService<IDSRRequestStore>();
+var dsrService = serviceProvider.GetRequiredService<IDSRService>();
 
-var request = DSRRequest.Create(
-    id: "req-001",
-    subjectId: "subject-123",
-    rightType: DataSubjectRight.Erasure,
-    receivedAtUtc: DateTimeOffset.UtcNow,
-    requestDetails: "Customer requests deletion of all marketing data");
+var denied = await dsrService.DenyRequestAsync(
+    requestId,
+    DSRRejectionReason.Excessive,
+    "Fourth identical access request in two months; see the request history.");
 
-await store.CreateAsync(request);
+// denied: Either<EncinaError, Unit>
 ```
 
-### Updating Status
+The reason and the explanation are readable afterwards from `DSRRequestAggregate.RejectionReason` / `RejectionExplanation` and from the `DSRRequestReadModel` with the same property names.
 
-```csharp
-// Verify identity
-await store.UpdateStatusAsync("req-001", DSRRequestStatus.IdentityVerified, reason: null);
+#### Refusal reasons
 
-// Begin processing
-await store.UpdateStatusAsync("req-001", DSRRequestStatus.InProgress, reason: null);
+`DSRRejectionReasonExtensions` exposes `LegalBasis` (the citation text) and `IsDraftLawGround` for each code.
 
-// Complete
-await store.UpdateStatusAsync("req-001", DSRRequestStatus.Completed, reason: null);
+| Code | Value | Article | Law | Option |
+|------|-------|---------|-----|--------|
+| `ManifestlyUnfounded` | 1 | GDPR Art. 12(5) | Current | None |
+| `Excessive` | 2 | GDPR Art. 12(5) | Current | None |
+| `IdentityNotVerifiable` | 3 | GDPR Art. 12(2) with Art. 11(2) | Current | None |
+| `RestrictedByLaw` | 4 | GDPR Art. 23 | Current | None |
+| `RightNotApplicable` | 5 | GDPR Art. 17(3), 20(1) or 21(1) | Current | None |
+| `Other` | 99 | GDPR Art. 12(4) | Current | None |
+| `AbusiveIntent` | 100 | Draft Art. 12(5), COM(2025) 837 | Draft law, not adopted | `EnableOmnibusArticle12RefusalGrounds` |
 
-// Or reject
-await store.UpdateStatusAsync("req-001", DSRRequestStatus.Rejected,
-    reason: "Compelling legitimate grounds override subject's interests (Article 21(1))");
-```
+- `AbusiveIntent` is refused with the error code `dsr.rejection_reason_not_enabled` unless `DataSubjectRightsOptions.EnableOmnibusArticle12RefusalGrounds` is `true` (default `false`).
+- Encina only records `Excessive`: the controller judges repetition from the subject's request history and bears the burden of demonstration (Article 12(5)).
+- The per-category erasure refusal (#1188) reuses these codes, so a whole-request refusal and a per-category refusal share one vocabulary.
+
+#### Observability of a refusal
+
+A refusal increments the `dsr.requests.denied.total` counter (tags `dsr.right_type` and `dsr.rejection_reason`), runs inside a `DSR.AggregateCommand` activity tagged with the reason, and logs EventId 8311. A draft-law reason that is not enabled logs EventId 8312.
 
 ### Monitoring Deadlines
 
 ```csharp
 // Get all overdue requests
-var overdue = await store.GetOverdueRequestsAsync();
+var overdue = await dsrService.GetOverdueRequestsAsync();
 
 // Get all pending (active) requests
-var pending = await store.GetPendingRequestsAsync();
-
-// Get request history for a subject
-var history = await store.GetBySubjectIdAsync("subject-123");
+var pending = await dsrService.GetPendingRequestsAsync();
 ```
 
 ---
@@ -605,6 +610,38 @@ services.AddEncinaDataSubjectRights(options =>
 
 ---
 
+## Multi-tenancy
+
+`DefaultDSRService` reads the ambient tenant from `IRequestContextAccessor.RequestContext.TenantId` and scopes every operation to it (#1963; see [SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) DEC-006 and DEC-009 for the fail-closed rule).
+
+| Operation | Tenant behavior |
+|-----------|-----------------|
+| `GetRequestsBySubjectAsync`, `GetPendingRequestsAsync`, `GetOverdueRequestsAsync`, `HasActiveRestrictionAsync` | Filter `DSRRequestReadModel.TenantId` by the ambient tenant |
+| `GetRequestAsync`, `VerifyIdentityAsync`, `StartProcessingAsync`, `CompleteRequestAsync`, `DenyRequestAsync`, `ExtendDeadlineAsync`, `ExpireRequestAsync` | Another tenant's request is `dsr.request_not_found` and is never changed |
+| `SubmitRequestAsync` | Uses the ambient tenant when `tenantId` is `null`; a `tenantId` that contradicts it is refused with `dsr.tenant_required` |
+| `HandleRestrictionAsync` | Records the restriction under the ambient tenant |
+
+Cache keys are tenant-scoped: `dsr:tenant:{tenantId|-}:request:{id}` and `dsr:tenant:{tenantId|-}:restriction:{subjectId}` (`-` when there is no tenant).
+
+`DataSubjectRightsOptions.RequireTenantContext` controls a missing ambient tenant:
+
+| Value | Behavior |
+|-------|----------|
+| `null` (default) | Auto-detect: fail closed with `dsr.tenant_required` when `Encina.Tenancy` is registered (`ITenantProvider` resolves), otherwise run unscoped. Single-tenant applications need no configuration. |
+| `true` | Always fail closed with `dsr.tenant_required` |
+| `false` | Explicit opt-out, logged each time the DSR service is constructed (once per scope) when `Encina.Tenancy` is registered |
+
+```csharp
+services.AddEncinaDataSubjectRights(options =>
+{
+    options.RequireTenantContext = true; // fail closed even without Encina.Tenancy
+});
+```
+
+In `Block` mode, `ProcessingRestrictionPipelineBehavior` blocks a request whose restriction lookup returns `dsr.tenant_required` (it fails closed instead of the usual fail-open on store errors); in `Warn` mode the request proceeds. `DataSubjectRightsHealthCheck` reports `Degraded` (warning "Overdue DSR requests were not checked: the health probe has no tenant context.", data key `overdueRequestCheck` = `skipped: no tenant context`) when the probe has no tenant in a multi-tenant application, because the tenant-scoped overdue query is refused and the Article 12(3) deadline signal is unknown (fail closed for monitoring); single-tenant applications are unaffected. A deadline sweep across tenants needs a per-tenant probe or a system-scope path, which does not exist yet and is tracked as follow-up work.
+
+---
+
 ## Database Providers
 
 The in-memory stores (`InMemoryDSRRequestStore`, `InMemoryDSRAuditStore`) are suitable for development and testing. For production, use a database-backed provider:
@@ -719,7 +756,8 @@ result.Match(
 
 | Code | Description |
 |------|-------------|
-| `dsr.request_not_found` | DSR request ID does not exist |
+| `dsr.request_not_found` | DSR request ID does not exist (or belongs to another tenant) |
+| `dsr.tenant_required` | Tenant isolation is required and the ambient tenant is missing, or a submitted `tenantId` contradicts it |
 | `dsr.request_already_completed` | Request is in a terminal state |
 | `dsr.identity_not_verified` | Identity verification required (Article 12(6)) |
 | `dsr.restriction_active` | Processing restriction blocks the request (Article 18) |

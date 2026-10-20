@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Encina.Diagnostics;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Diagnostics;
 using LanguageExt;
@@ -47,7 +48,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
         sw.Stop();
         result.Match(
             Right: _ => RepositoryActivitySource.Complete(activity, resultCount: 1),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -63,7 +64,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
         sw.Stop();
         result.Match(
             Right: entities => RepositoryActivitySource.Complete(activity, resultCount: entities.Count),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -79,7 +80,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
         sw.Stop();
         result.Match(
             Right: entities => RepositoryActivitySource.Complete(activity, resultCount: entities.Count),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -95,7 +96,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
         sw.Stop();
         result.Match(
             Right: _ => RepositoryActivitySource.Complete(activity, resultCount: 1),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -109,7 +110,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: count => { RepositoryActivitySource.Complete(activity, resultCount: count); },
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -123,7 +124,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: count => { RepositoryActivitySource.Complete(activity, resultCount: count); },
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -137,7 +138,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: _ => RepositoryActivitySource.Complete(activity),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -151,7 +152,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: _ => RepositoryActivitySource.Complete(activity),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -165,7 +166,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: paged => RepositoryActivitySource.Complete(activity, resultCount: paged.Items.Count),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -180,7 +181,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: paged => RepositoryActivitySource.Complete(activity, resultCount: paged.Items.Count),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -194,7 +195,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: paged => RepositoryActivitySource.Complete(activity, resultCount: paged.Items.Count),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -208,7 +209,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: _ => RepositoryActivitySource.Complete(activity),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -222,7 +223,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: _ => RepositoryActivitySource.Complete(activity),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -236,7 +237,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: _ => RepositoryActivitySource.Complete(activity),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -250,7 +251,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: _ => RepositoryActivitySource.Complete(activity),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -264,7 +265,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: added => RepositoryActivitySource.Complete(activity, resultCount: added.Count),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -278,7 +279,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: _ => RepositoryActivitySource.Complete(activity),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -292,7 +293,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: count => { RepositoryActivitySource.Complete(activity, resultCount: count); },
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }
@@ -306,7 +307,7 @@ internal sealed class InstrumentedFunctionalRepository<TEntity, TId> : IFunction
 
         result.Match(
             Right: _ => RepositoryActivitySource.Complete(activity),
-            Left: e => RepositoryActivitySource.Failed(activity, null, e.Message));
+            Left: e => RepositoryActivitySource.Failed(activity, ActivityStatusDescriptions.ForError(e)));
 
         return result;
     }

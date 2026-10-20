@@ -71,7 +71,7 @@ public class ApiGatewayResponseExtensionsTests
     public void ToProblemDetailsResponse_WithUnauthenticatedError_Returns401()
     {
         // Arrange
-        var error = EncinaErrors.Create("authorization.unauthenticated", "Not authenticated");
+        var error = EncinaErrors.Create(EncinaErrorCodes.AuthorizationUnauthenticated, "Not authenticated");
 
         // Act
         var response = error.ToProblemDetailsResponse();
@@ -84,7 +84,7 @@ public class ApiGatewayResponseExtensionsTests
     public void ToProblemDetailsResponse_WithAuthorizationError_Returns403()
     {
         // Arrange
-        var error = EncinaErrors.Create("authorization.forbidden", "Access denied");
+        var error = EncinaErrors.Create(EncinaErrorCodes.AuthorizationForbidden, "Access denied");
 
         // Act
         var response = error.ToProblemDetailsResponse();
@@ -238,8 +238,25 @@ public class ApiGatewayResponseExtensionsTests
     [Theory]
     [InlineData("validation.field_required", 400)]
     [InlineData("encina.guard.validation_failed", 400)]
-    [InlineData("authorization.unauthenticated", 401)]
-    [InlineData("authorization.insufficient_permissions", 403)]
+    [InlineData(EncinaErrorCodes.AuthorizationUnauthenticated, 401)]
+    [InlineData(EncinaErrorCodes.AuthorizationUnauthorized, 403)]
+    [InlineData(EncinaErrorCodes.AuthorizationForbidden, 403)]
+    [InlineData(EncinaErrorCodes.AuthorizationPolicyFailed, 403)]
+    [InlineData(EncinaErrorCodes.AuthorizationResourceDenied, 403)]
+    [InlineData(EncinaErrorCodes.AuthorizationInsufficientRoles, 403)]
+    [InlineData(EncinaErrorCodes.AuthorizationPermissionDenied, 403)]
+    [InlineData(EncinaErrorCodes.AuthorizationClaimMissing, 403)]
+    [InlineData(EncinaErrorCodes.AuthorizationNotOwner, 403)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.AccessDeniedCode, 403)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.ConditionNotMetCode, 403)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.ObligationFailedCode, 403)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.RequiredPolicyNotFoundCode, 403)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantRequiredCode, 403)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantMismatchCode, 403)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.InvalidDecisionAuditQueryCode, 400)]
+    [InlineData("encina.authorization.some_future_denial", 403)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode, 404)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode, 404)]
     [InlineData("entity.not_found", 404)]
     [InlineData("entity.missing", 404)]
     [InlineData("encina.request.handler_missing", 404)]

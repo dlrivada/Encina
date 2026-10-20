@@ -22,6 +22,4 @@ internal sealed class NullFunctionalFailureDetector : IFunctionalFailureDetector
     }
 
     public string? TryGetErrorCode(object? capturedFailure) => null;
-
-    public string? TryGetErrorMessage(object? capturedFailure) => null;
 }

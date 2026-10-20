@@ -33,7 +33,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IDataPortabilityExporter"/> → <see cref="DefaultDataPortabilityExporter"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IDataSubjectIdExtractor"/> → <see cref="DefaultDataSubjectIdExtractor"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="JsonExportFormatWriter"/>, <see cref="CsvExportFormatWriter"/>, <see cref="XmlExportFormatWriter"/> — all three export writers</item>
-    /// <item><see cref="ProcessingRestrictionPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="ProcessingRestrictionPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>
@@ -85,19 +85,17 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         // Configure and validate options
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-        else
-        {
-            services.Configure<DataSubjectRightsOptions>(_ => { });
-        }
+        ConfigureOptions(services, configure);
 
         services.TryAddSingleton<IValidateOptions<DataSubjectRightsOptions>, DataSubjectRightsOptionsValidator>();
 
         // Ensure TimeProvider is available (generic host registers it, but standalone DI may not)
         services.TryAddSingleton(TimeProvider.System);
+
+        // Ensure the request context accessor is available (AddEncina() registers it, but
+        // Encina.Compliance.DataSubjectRights can also be added standalone) — DefaultDSRService
+        // needs it to scope queries by the ambient tenant (#1963).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
 
         // Register default implementations (TryAdd allows override)
         services.TryAddScoped<IDSRService, DefaultDSRService>();
@@ -112,31 +110,52 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<XmlExportFormatWriter>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(ProcessingRestrictionPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(ProcessingRestrictionPipelineBehavior<,>)));
 
         // Instantiate options to inspect flags for health check and auto-registration
         var optionsInstance = new DataSubjectRightsOptions();
         configure?.Invoke(optionsInstance);
 
-        if (optionsInstance.AddHealthCheck)
+        AddHealthCheck(services, optionsInstance);
+        AddAutoRegistration(services, optionsInstance, Assembly.GetCallingAssembly());
+
+        return services;
+    }
+
+    private static void ConfigureOptions(IServiceCollection services, Action<DataSubjectRightsOptions>? configure)
+    {
+        if (configure is not null)
+        {
+            services.Configure(configure);
+        }
+        else
+        {
+            services.Configure<DataSubjectRightsOptions>(_ => { });
+        }
+    }
+
+    private static void AddHealthCheck(IServiceCollection services, DataSubjectRightsOptions options)
+    {
+        if (options.AddHealthCheck)
         {
             services.AddHealthChecks()
                 .AddCheck<DataSubjectRightsHealthCheck>(
                     DataSubjectRightsHealthCheck.DefaultName,
                     tags: DataSubjectRightsHealthCheck.Tags);
         }
+    }
 
-        if (optionsInstance.AutoRegisterFromAttributes)
+    private static void AddAutoRegistration(IServiceCollection services, DataSubjectRightsOptions options, Assembly callingAssembly)
+    {
+        if (options.AutoRegisterFromAttributes)
         {
-            var assembliesToScan = optionsInstance.AssembliesToScan.Count > 0
-                ? optionsInstance.AssembliesToScan
-                : [Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly()];
+            var assembliesToScan = options.AssembliesToScan.Count > 0
+                ? options.AssembliesToScan
+                : [Assembly.GetEntryAssembly() ?? callingAssembly];
 
             // Register descriptor and hosted service for deferred auto-registration
             services.AddSingleton(new DSRAutoRegistrationDescriptor(assembliesToScan));
             services.AddHostedService<DSRAutoRegistrationHostedService>();
         }
-
-        return services;
     }
 }

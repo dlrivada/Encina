@@ -1,0 +1,1 @@
+- `ReadAuditRetentionService` no longer takes the scoped `IReadAuditStore` in its singleton constructor: it receives `IServiceScopeFactory` and resolves the store from a new scope for every purge run, so automatic read-audit purging works with the scoped database stores (ADO.NET, Dapper, EF Core, MongoDB, Marten) when `EnableAutoPurge` is on (#1870).

@@ -303,7 +303,7 @@ await unitOfWork.SaveChangesAsync(ct);
 
 See [Immutable Domain Models](docs/features/immutable-domain-models.md) for full documentation.
 
-### Dapper / ADO.NET / PostgreSQL / MySQL / Oracle
+### Dapper / ADO.NET (SQL Server / PostgreSQL / MySQL)
 
 ```csharp
 // SQL Server with Dapper
@@ -426,7 +426,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 
 | Category | Providers | Default Tags |
 |----------|-----------|--------------|
-| **Databases** | PostgreSQL, MySQL, SQL Server, Oracle, MongoDB, Marten | `database`, `ready` |
+| **Databases** | PostgreSQL, MySQL, SQL Server, MongoDB, Marten | `database`, `ready` |
 | **Message Brokers** | RabbitMQ, Kafka, NATS, MQTT, Azure Service Bus, Amazon SQS | `messaging`, `ready` |
 | **Caching** | Redis (and compatible: Valkey, KeyDB, Dragonfly, Garnet) | `caching`, `ready` |
 | **Scheduling** | Hangfire, Quartz | `scheduling`, `ready` |

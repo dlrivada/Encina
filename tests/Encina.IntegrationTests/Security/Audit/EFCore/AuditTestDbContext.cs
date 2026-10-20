@@ -6,7 +6,7 @@ namespace Encina.IntegrationTests.Security.Audit.EFCore;
 
 /// <summary>
 /// Test DbContext for EF Core audit store integration tests.
-/// Includes AuditEntryEntity and ReadAuditEntryEntity for both store types.
+/// Includes OperationAuditEntryEntity and ReadAuditEntryEntity for both store types.
 /// </summary>
 public sealed class AuditTestDbContext : DbContext
 {
@@ -15,12 +15,12 @@ public sealed class AuditTestDbContext : DbContext
     {
     }
 
-    public DbSet<AuditEntryEntity> SecurityAuditEntries => Set<AuditEntryEntity>();
+    public DbSet<OperationAuditEntryEntity> OperationAuditEntries => Set<OperationAuditEntryEntity>();
     public DbSet<ReadAuditEntryEntity> ReadAuditEntries => Set<ReadAuditEntryEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.ApplyConfiguration(new AuditEntryEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new OperationAuditEntryEntityConfiguration());
         modelBuilder.ApplyConfiguration(new ReadAuditEntryEntityConfiguration());
     }
 }

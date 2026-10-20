@@ -1,10 +1,13 @@
-using System.Security.Claims;
-
 namespace Encina.AspNetCore;
 
 /// <summary>
 /// Configuration options for Encina ASP.NET Core integration.
 /// </summary>
+/// <remarks>
+/// The claim types that map a principal to the request identity (user id, roles, permissions,
+/// tenant) are configured once for every entry point through <see cref="RequestIdentityOptions"/>
+/// (<c>services.AddEncinaRequestIdentity(options => ...)</c>).
+/// </remarks>
 public sealed class EncinaAspNetCoreOptions
 {
     /// <summary>
@@ -14,7 +17,7 @@ public sealed class EncinaAspNetCoreOptions
     public string CorrelationIdHeader { get; set; } = "X-Correlation-ID";
 
     /// <summary>
-    /// HTTP header name for tenant ID.
+    /// HTTP header name for tenant ID, used when the caller is anonymous or its principal carries no tenant claim.
     /// Default: "X-Tenant-ID"
     /// </summary>
     public string TenantIdHeader { get; set; } = "X-Tenant-ID";
@@ -24,30 +27,6 @@ public sealed class EncinaAspNetCoreOptions
     /// Default: "X-Idempotency-Key"
     /// </summary>
     public string IdempotencyKeyHeader { get; set; } = "X-Idempotency-Key";
-
-    /// <summary>
-    /// Claim type for user ID.
-    /// Default: ClaimTypes.NameIdentifier ("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier")
-    /// </summary>
-    /// <remarks>
-    /// Common alternatives:
-    /// - "sub" (OIDC standard)
-    /// - ClaimTypes.NameIdentifier (ASP.NET default)
-    /// - "http://schemas.microsoft.com/identity/claims/objectidentifier" (Azure AD)
-    /// </remarks>
-    public string UserIdClaimType { get; set; } = ClaimTypes.NameIdentifier;
-
-    /// <summary>
-    /// Claim type for tenant ID.
-    /// Default: "tenant_id"
-    /// </summary>
-    /// <remarks>
-    /// Common alternatives:
-    /// - "tenant_id" (custom)
-    /// - "tid" (Azure AD)
-    /// - "http://schemas.microsoft.com/identity/claims/tenantid"
-    /// </remarks>
-    public string TenantIdClaimType { get; set; } = "tenant_id";
 
     /// <summary>
     /// Whether to include request path in Problem Details.

@@ -13,7 +13,14 @@ namespace Encina.Testing.Fakes.Stores;
 /// <para>
 /// Provides full implementation of the dead letter store interface using an in-memory
 /// concurrent dictionary. All operations are synchronous but return completed tasks
-/// for interface compatibility.
+/// for interface compatibility. It follows the same contract as the persistent stores: oldest-first
+/// order (<c>DeadLetteredAtUtc</c>, then <c>Id</c>), a unique <c>(SourcePattern, SourceMessageId)</c>,
+/// a conditional replay mark, an atomic replay claim, set-based deletes, and expiry
+/// (<c>ExpiresAtUtc &lt;= now</c>) evaluated against the injected <see cref="TimeProvider"/>.
+/// </para>
+/// <para>
+/// <b>Registration order.</b> <c>AddFakeDeadLetterStore</c> uses <c>TryAdd</c>, so the first registration
+/// wins: a test that registered a provider store first calls <c>ReplaceWithFakes()</c> to swap in the fake.
 /// </para>
 /// </remarks>
 public sealed class FakeDeadLetterStore : IDeadLetterStore
@@ -33,6 +40,8 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
     {
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
+
+    private DateTime UtcNow() => _timeProvider.GetUtcNow().UtcDateTime;
 
     /// <summary>
     /// Gets a snapshot of all messages currently in the store.
@@ -104,41 +113,75 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
     public int SaveChangesCallCount { get; private set; }
 
     /// <inheritdoc />
-    public Task<Either<EncinaError, Unit>> AddAsync(IDeadLetterMessage message, CancellationToken cancellationToken = default)
+    /// <remarks>
+    /// A message whose timestamps are still at their default is stamped from the store's
+    /// <see cref="TimeProvider"/>. An empty <c>SourceMessageId</c> throws <see cref="ArgumentException"/>, like the
+    /// persistent stores: it is the idempotency key, so a hand-built message must name it.
+    /// </remarks>
+    public Task<Either<EncinaError, bool>> AddAsync(IDeadLetterMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
+        ArgumentException.ThrowIfNullOrEmpty(message.SourceMessageId);
 
-        var fakeMessage = message as FakeDeadLetterMessage ?? new FakeDeadLetterMessage
-        {
-            Id = message.Id,
-            RequestType = message.RequestType,
-            RequestContent = message.RequestContent,
-            ErrorMessage = message.ErrorMessage,
-            ExceptionType = message.ExceptionType,
-            ExceptionMessage = message.ExceptionMessage,
-            ExceptionStackTrace = message.ExceptionStackTrace,
-            CorrelationId = message.CorrelationId,
-            SourcePattern = message.SourcePattern,
-            TotalRetryAttempts = message.TotalRetryAttempts,
-            FirstFailedAtUtc = message.FirstFailedAtUtc,
-            DeadLetteredAtUtc = message.DeadLetteredAtUtc,
-            ExpiresAtUtc = message.ExpiresAtUtc,
-            ReplayedAtUtc = message.ReplayedAtUtc,
-            ReplayResult = message.ReplayResult
-        };
+        var fakeMessage = message as FakeDeadLetterMessage ?? CopyOf(message);
+        Stamp(fakeMessage);
 
         lock (_lock)
         {
+            if (_messages.Values.Any(m => IsSameSource(m, fakeMessage)))
+            {
+                return Task.FromResult<Either<EncinaError, bool>>(false);
+            }
+
             _messages[fakeMessage.Id] = fakeMessage;
             _addedMessages.Add(fakeMessage.Clone());
         }
 
-        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
+        return Task.FromResult<Either<EncinaError, bool>>(true);
     }
+
+    private static bool IsSameSource(FakeDeadLetterMessage existing, FakeDeadLetterMessage candidate)
+        => existing.SourcePattern == candidate.SourcePattern && existing.SourceMessageId == candidate.SourceMessageId;
+
+    private void Stamp(FakeDeadLetterMessage message)
+    {
+        if (message.DeadLetteredAtUtc == default)
+        {
+            message.DeadLetteredAtUtc = UtcNow();
+        }
+
+        if (message.FirstFailedAtUtc == default)
+        {
+            message.FirstFailedAtUtc = message.DeadLetteredAtUtc;
+        }
+    }
+
+    private static FakeDeadLetterMessage CopyOf(IDeadLetterMessage message) => new()
+    {
+        Id = message.Id,
+        RequestType = message.RequestType,
+        RequestContent = message.RequestContent,
+        ErrorCode = message.ErrorCode,
+        ExceptionType = message.ExceptionType,
+        ExceptionStackTrace = message.ExceptionStackTrace,
+        CorrelationId = message.CorrelationId,
+        SourcePattern = message.SourcePattern,
+        SourceMessageId = message.SourceMessageId,
+        TenantId = message.TenantId,
+        TotalRetryAttempts = message.TotalRetryAttempts,
+        FirstFailedAtUtc = message.FirstFailedAtUtc,
+        DeadLetteredAtUtc = message.DeadLetteredAtUtc,
+        ExpiresAtUtc = message.ExpiresAtUtc,
+        ReplayClaimedAtUtc = message.ReplayClaimedAtUtc,
+        ReplayedAtUtc = message.ReplayedAtUtc,
+        ReplayResult = message.ReplayResult
+    };
 
     /// <inheritdoc />
     public Task<Either<EncinaError, Option<IDeadLetterMessage>>> GetAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
+        ArgumentOutOfRangeException.ThrowIfEqual(messageId, Guid.Empty);
+
         _messages.TryGetValue(messageId, out var message);
         var option = message is not null
             ? Option<IDeadLetterMessage>.Some(message)
@@ -151,12 +194,18 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
         DeadLetterFilter? filter = null,
         int skip = 0,
         int take = 100,
+        bool newestFirst = false,
         CancellationToken cancellationToken = default)
     {
-        var query = ApplyFilter(_messages.Values, filter);
+        ArgumentOutOfRangeException.ThrowIfNegative(skip);
+        ArgumentOutOfRangeException.ThrowIfLessThan(take, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(take, DeadLetterStoreLimits.MaxPageSize);
 
-        var messages = query
-            .OrderByDescending(m => m.DeadLetteredAtUtc)
+        var ordered = newestFirst
+            ? ApplyFilter(_messages.Values, filter).OrderByDescending(m => m.DeadLetteredAtUtc).ThenByDescending(m => m.Id)
+            : ApplyFilter(_messages.Values, filter).OrderBy(m => m.DeadLetteredAtUtc).ThenBy(m => m.Id);
+
+        var messages = ordered
             .Skip(skip)
             .Take(take)
             .Cast<IDeadLetterMessage>()
@@ -176,103 +225,127 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
     private static IEnumerable<FakeDeadLetterMessage> ApplyFilter(
         IEnumerable<FakeDeadLetterMessage> source,
         DeadLetterFilter? filter)
-    {
-        var query = source.AsEnumerable();
+        => filter is null
+            ? source
+            : source.Where(m => MatchesIdentity(m, filter) && MatchesState(m, filter));
 
-        if (filter == null)
-        {
-            return query;
-        }
+    private static bool MatchesIdentity(FakeDeadLetterMessage m, DeadLetterFilter filter)
+        => Equal(filter.SourcePattern, m.SourcePattern)
+           && Equal(filter.RequestType, m.RequestType)
+           && Equal(filter.ErrorCode, m.ErrorCode)
+           && Equal(filter.CorrelationId, m.CorrelationId)
+           && Equal(filter.TenantId, m.TenantId)
+           && Equal(filter.SourceMessageId, m.SourceMessageId);
 
-        if (!string.IsNullOrEmpty(filter.SourcePattern))
-        {
-            query = query.Where(m => m.SourcePattern == filter.SourcePattern);
-        }
+    private static bool MatchesState(FakeDeadLetterMessage m, DeadLetterFilter filter)
+        => ReplayStateMatches(filter.ExcludeReplayed, m)
+           && InWindow(m.DeadLetteredAtUtc, filter.DeadLetteredAfterUtc, filter.DeadLetteredBeforeUtc)
+           && ExpiryMatches(filter.ExpiresAtOrBeforeUtc, m);
 
-        if (!string.IsNullOrEmpty(filter.RequestType))
-        {
-            query = query.Where(m => m.RequestType == filter.RequestType);
-        }
+    private static bool InWindow(DateTime deadLetteredAtUtc, DateTime? after, DateTime? before)
+        => (after is not { } from || deadLetteredAtUtc >= from)
+           && (before is not { } to || deadLetteredAtUtc <= to);
 
-        if (!string.IsNullOrEmpty(filter.CorrelationId))
-        {
-            query = query.Where(m => m.CorrelationId == filter.CorrelationId);
-        }
+    private static bool ExpiryMatches(DateTime? expiresAtOrBeforeUtc, FakeDeadLetterMessage m)
+        => expiresAtOrBeforeUtc is not { } expiresBy || m.IsExpiredAt(expiresBy);
 
-        if (filter.ExcludeReplayed is true)
-        {
-            query = query.Where(m => !m.IsReplayed);
-        }
-        else if (filter.ExcludeReplayed is false)
-        {
-            query = query.Where(m => m.IsReplayed);
-        }
+    // A null or empty filter value matches everything.
+    private static bool Equal(string? filterValue, string? actual)
+        => string.IsNullOrEmpty(filterValue) || filterValue == actual;
 
-        if (filter.DeadLetteredAfterUtc.HasValue)
-        {
-            query = query.Where(m => m.DeadLetteredAtUtc >= filter.DeadLetteredAfterUtc.Value);
-        }
-
-        if (filter.DeadLetteredBeforeUtc.HasValue)
-        {
-            query = query.Where(m => m.DeadLetteredAtUtc <= filter.DeadLetteredBeforeUtc.Value);
-        }
-
-        return query;
-    }
+    private static bool ReplayStateMatches(bool? excludeReplayed, FakeDeadLetterMessage m)
+        => excludeReplayed is not { } exclude || exclude != m.IsReplayed;
 
     /// <inheritdoc />
-    public Task<Either<EncinaError, Unit>> MarkAsReplayedAsync(Guid messageId, string replayResult, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, bool>> TryClaimForReplayAsync(
+        Guid messageId,
+        DateTime claimExpiredBeforeUtc,
+        CancellationToken cancellationToken = default)
     {
-        if (_messages.TryGetValue(messageId, out var message))
-        {
-            message.ReplayedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
-            message.ReplayResult = replayResult;
+        ArgumentOutOfRangeException.ThrowIfEqual(messageId, Guid.Empty);
 
-            lock (_lock)
+        lock (_lock)
+        {
+            if (!_messages.TryGetValue(messageId, out var message) || !IsClaimable(message, claimExpiredBeforeUtc))
             {
-                _replayedMessageIds.Add(messageId);
+                return Task.FromResult<Either<EncinaError, bool>>(false);
             }
+
+            message.ReplayClaimedAtUtc = UtcNow();
         }
 
-        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
+        return Task.FromResult<Either<EncinaError, bool>>(true);
+    }
+
+    private static bool IsClaimable(FakeDeadLetterMessage message, DateTime claimExpiredBeforeUtc)
+        => !message.IsReplayed
+           && (message.ReplayClaimedAtUtc is not { } claimedAt || claimedAt <= claimExpiredBeforeUtc);
+
+    /// <inheritdoc />
+    public Task<Either<EncinaError, bool>> MarkAsReplayedAsync(Guid messageId, string replayResult, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfEqual(messageId, Guid.Empty);
+        ArgumentException.ThrowIfNullOrWhiteSpace(replayResult);
+
+        lock (_lock)
+        {
+            if (!_messages.TryGetValue(messageId, out var message) || message.IsReplayed)
+            {
+                return Task.FromResult<Either<EncinaError, bool>>(false);
+            }
+
+            message.ReplayedAtUtc = UtcNow();
+            message.ReplayResult = replayResult;
+            _replayedMessageIds.Add(messageId);
+        }
+
+        return Task.FromResult<Either<EncinaError, bool>>(true);
     }
 
     /// <inheritdoc />
     public Task<Either<EncinaError, bool>> DeleteAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
-        var removed = _messages.TryRemove(messageId, out _);
-        if (removed)
-        {
-            lock (_lock)
-            {
-                _deletedMessageIds.Add(messageId);
-            }
-        }
+        ArgumentOutOfRangeException.ThrowIfEqual(messageId, Guid.Empty);
+
+        var removed = Remove(messageId);
 
         return Task.FromResult<Either<EncinaError, bool>>(removed);
     }
 
     /// <inheritdoc />
+    public Task<Either<EncinaError, int>> DeleteManyAsync(DeadLetterFilter filter, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+
+        var ids = ApplyFilter(_messages.Values, filter).Select(m => m.Id).ToList();
+
+        return Task.FromResult<Either<EncinaError, int>>(ids.Count(Remove));
+    }
+
+    /// <inheritdoc />
     public Task<Either<EncinaError, int>> DeleteExpiredAsync(CancellationToken cancellationToken = default)
     {
+        var now = UtcNow();
         var expiredIds = _messages.Values
-            .Where(m => m.IsExpired)
+            .Where(m => m.IsExpiredAt(now))
             .Select(m => m.Id)
             .ToList();
 
-        foreach (var id in expiredIds)
-        {
-            if (_messages.TryRemove(id, out _))
-            {
-                lock (_lock)
-                {
-                    _deletedMessageIds.Add(id);
-                }
-            }
-        }
+        return Task.FromResult<Either<EncinaError, int>>(expiredIds.Count(Remove));
+    }
 
-        return Task.FromResult<Either<EncinaError, int>>(expiredIds.Count);
+    private bool Remove(Guid messageId)
+    {
+        lock (_lock)
+        {
+            var removed = _messages.TryRemove(messageId, out _);
+            if (removed)
+            {
+                _deletedMessageIds.Add(messageId);
+            }
+
+            return removed;
+        }
     }
 
     /// <inheritdoc />

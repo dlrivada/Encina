@@ -3,6 +3,7 @@ using Encina.Security.Audit;
 
 using LanguageExt;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Security.Secrets.Auditing;
@@ -17,7 +18,7 @@ internal static class SecretAuditRecorder
     /// Builds and records one audit entry for a secret operation.
     /// </summary>
     /// <typeparam name="TRight">The success type of the audited operation's result.</typeparam>
-    /// <param name="auditStore">The store the entry is recorded in.</param>
+    /// <param name="scopeFactory">The scope factory the <see cref="IOperationAuditStore"/> is resolved from for this write.</param>
     /// <param name="requestContextAccessor">Accessor read at the moment the entry is recorded.</param>
     /// <param name="logger">The logger of the calling decorator.</param>
     /// <param name="action">The audit action name (for example <c>SecretAccess</c>).</param>
@@ -30,7 +31,7 @@ internal static class SecretAuditRecorder
     /// <param name="completedAt">When the operation completed.</param>
     /// <param name="cancellationToken">A token to cancel the audit write.</param>
     internal static async ValueTask RecordAsync<TRight>(
-        IAuditStore auditStore,
+        IServiceScopeFactory scopeFactory,
         IRequestContextAccessor requestContextAccessor,
         ILogger logger,
         string action,
@@ -49,15 +50,19 @@ internal static class SecretAuditRecorder
             var entry = BuildEntry(
                 requestContext, action, secretName, isSuccess, errorCode, startedAt, completedAt);
 
+            // The decorators are singletons and database stores are scoped: resolve per write.
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var auditStore = scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
+
             var auditResult = await auditStore.RecordAsync(entry, cancellationToken).ConfigureAwait(false);
             auditResult.Match(
-                Right: _ => Log.AuditEntryRecorded(logger, secretName),
-                Left: e => Log.AuditEntryStoreFailed(logger, secretName, e.GetCode().IfNone("encina.unknown")));
+                Right: _ => Log.OperationAuditEntryRecorded(logger, secretName),
+                Left: e => Log.OperationAuditEntryStoreFailed(logger, secretName, e.GetCode().IfNone("encina.unknown")));
         }
         catch (Exception ex)
         {
             // Audit failures must never block secret operations
-            Log.AuditEntryFailed(logger, secretName, ex.ForLogging());
+            Log.OperationAuditEntryFailed(logger, secretName, ex.ForLogging());
         }
     }
 
@@ -71,7 +76,7 @@ internal static class SecretAuditRecorder
         return result.Value.MatchUnsafe(Right: _ => (string?)null, Left: e => e.GetCode().IfNone("encina.unknown"));
     }
 
-    private static AuditEntry BuildEntry(
+    private static OperationAuditEntry BuildEntry(
         IRequestContext? requestContext,
         string action,
         string secretName,
@@ -80,7 +85,7 @@ internal static class SecretAuditRecorder
         DateTimeOffset startedAt,
         DateTimeOffset completedAt)
     {
-        return new AuditEntry
+        return new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = CorrelationIdOf(requestContext),

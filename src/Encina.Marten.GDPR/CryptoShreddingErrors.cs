@@ -54,6 +54,79 @@ public static class CryptoShreddingErrors
     /// <summary>Error code when <c>[CryptoShredded]</c> attribute is misconfigured.</summary>
     public const string AttributeMisconfiguredCode = "crypto.attribute_misconfigured";
 
+    /// <summary>Error code when a stored <c>[CryptoShredded]</c> value is not a v2 token or the tombstone.</summary>
+    public const string EnvelopeMalformedCode = "crypto.envelope_malformed";
+
+    /// <summary>Error code when the authentication tag or associated data of a stored value does not match.</summary>
+    public const string IntegrityCheckFailedCode = "crypto.integrity_check_failed";
+
+    /// <summary>Error code when the Marten store serializer is not the crypto-shredding serializer.</summary>
+    public const string SerializerUnsupportedCode = "crypto.serializer_unsupported";
+
+    /// <summary>Error code when a non-Marten location reached the erasure router and no other strategy is registered.</summary>
+    public const string ErasureStrategyMissingCode = "crypto.erasure_strategy_missing";
+
+    /// <summary>
+    /// Creates an error when a stored value is neither a v2 token nor the tombstone.
+    /// </summary>
+    /// <param name="propertyName">The property whose stored value is malformed.</param>
+    /// <returns>An error indicating a malformed stored value.</returns>
+    public static EncinaError EnvelopeMalformed(string propertyName) =>
+        EncinaErrors.Create(
+            code: EnvelopeMalformedCode,
+            message: $"The stored value of PII property '{propertyName}' is not a crypto-shredding token.",
+            details: new Dictionary<string, object?>
+            {
+                ["propertyName"] = propertyName,
+                [MetadataKeyStage] = MetadataStageCryptoShredding
+            });
+
+    /// <summary>
+    /// Creates an error when the integrity check of a stored value fails.
+    /// </summary>
+    /// <param name="propertyName">The property whose stored value failed the integrity check.</param>
+    /// <returns>An error indicating an integrity check failure.</returns>
+    public static EncinaError IntegrityCheckFailed(string propertyName) =>
+        EncinaErrors.Create(
+            code: IntegrityCheckFailedCode,
+            message: $"The stored value of PII property '{propertyName}' failed its integrity check.",
+            details: new Dictionary<string, object?>
+            {
+                ["propertyName"] = propertyName,
+                [MetadataKeyStage] = MetadataStageCryptoShredding
+            });
+
+    /// <summary>
+    /// Creates an error when the Marten store serializer is not the crypto-shredding serializer.
+    /// </summary>
+    /// <param name="serializerType">The type of the serializer found on the store.</param>
+    /// <returns>An error indicating an unsupported serializer.</returns>
+    public static EncinaError SerializerUnsupported(Type serializerType) =>
+        EncinaErrors.Create(
+            code: SerializerUnsupportedCode,
+            message: $"The Marten store serializer '{serializerType.Name}' is not the crypto-shredding serializer.",
+            details: new Dictionary<string, object?>
+            {
+                ["serializerType"] = serializerType.FullName,
+                [MetadataKeyStage] = MetadataStageCryptoShredding
+            });
+
+    /// <summary>
+    /// Creates an error when a location that is not crypto-shredded reached the erasure router and no other
+    /// erasure strategy is registered.
+    /// </summary>
+    /// <param name="entityType">The entity type of the location.</param>
+    /// <returns>An error indicating that no erasure strategy can handle the location.</returns>
+    public static EncinaError ErasureStrategyMissing(Type entityType) =>
+        EncinaErrors.Create(
+            code: ErasureStrategyMissingCode,
+            message: $"No erasure strategy is registered for personal data of '{entityType.Name}' outside the Marten event store.",
+            details: new Dictionary<string, object?>
+            {
+                ["entityType"] = entityType.FullName,
+                [MetadataKeyStage] = MetadataStageCryptoShredding
+            });
+
     /// <summary>
     /// Creates an error indicating the subject has already been cryptographically forgotten.
     /// </summary>
@@ -201,7 +274,7 @@ public static class CryptoShreddingErrors
     /// </summary>
     /// <param name="propertyName">The name of the misconfigured property.</param>
     /// <param name="declaringType">The type that declares the misconfigured property.</param>
-    /// <param name="reason">Description of the misconfiguration.</param>
+    /// <param name="reason">The problem flags of the misconfiguration (never a message or a value).</param>
     /// <returns>An error indicating attribute misconfiguration.</returns>
     public static EncinaError AttributeMisconfigured(
         string propertyName,

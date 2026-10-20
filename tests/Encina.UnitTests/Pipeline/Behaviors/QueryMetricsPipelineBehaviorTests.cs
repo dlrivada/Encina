@@ -230,7 +230,5 @@ public sealed class QueryMetricsPipelineBehaviorTests
         }
 
         public string? TryGetErrorCode(object? capturedFailure) => null;
-
-        public string? TryGetErrorMessage(object? capturedFailure) => null;
     }
 }

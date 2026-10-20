@@ -1,7 +1,7 @@
 {
   "package": "Encina.Audit.Marten",
   "generated": "2026-03-30T00:00:00Z",
-  "totalFiles": 29,
+  "totalFiles": 30,
   "targets": {
     "unit": 40,
     "guard": 15
@@ -92,7 +92,13 @@
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 75
+      },
+      "justifications": {
+        "unit": "Every Start method and Complete run in ActivitySourceLifecycleTests (measured 80%); the remainder is the null-listener branch."
+      }
     },
     "Diagnostics/MartenAuditLog.cs": {
       "defaultTests": [
@@ -110,13 +116,21 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Events/AuditEntryRecordedEvent.cs": {
+    "Events/OperationAuditEntryRecordedEvent.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Event.cs",
-      "reason": "Domain event"
+      "reason": "Domain event",
+      "targets": {
+        "unit": 95,
+        "guard": 45
+      },
+      "justifications": {
+        "unit": "The event record is fully constructed in unit tests.",
+        "guard": "Guard tests assert the validated properties (measured 47%)."
+      }
     },
     "Events/EncryptedField.cs": {
       "defaultTests": [
@@ -134,13 +148,21 @@
       "defaultRule": "*Event.cs",
       "reason": "Domain event"
     },
-    "Health/MartenAuditHealthCheck.cs": {
+    "Health/MartenOperationAuditHealthCheck.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "unit": 90,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests run the healthy and unhealthy paths (measured 95%).",
+        "guard": "No guard test executes this class yet; its constructor null checks are asserted by unit tests."
+      }
     },
     "MartenAuditErrors.cs": {
       "defaultTests": [
@@ -149,60 +171,136 @@
       "defaultRule": "*Errors.cs",
       "reason": "Static error factory methods"
     },
-    "MartenAuditOptions.cs": {
+    "MartenOperationAuditOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "The options defaults are asserted in unit tests."
+      }
     },
-    "MartenAuditRetentionService.cs": {
+    "MartenOperationAuditRetentionService.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 40,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests run the purge cycle with a mocked store (measured 42%); the timer loop needs a running host.",
+        "guard": "The existing guard tests use reflection and execute no package code."
+      }
     },
-    "MartenAuditStore.cs": {
+    "MartenOperationAuditStore.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": {
+        "integration": 72,
+        "unit": 50,
+        "guard": 8
+      },
+      "justifications": {
+        "integration": "The Marten integration tests run the store against real PostgreSQL through Testcontainers: every query, the stable-order paging, the duration filter and the user history (measured 73%); the uncovered lines are the crypto-shredded and failure paths.",
+        "unit": "Unit tests mock IDocumentSession, so the LINQ query chains (Query/Where/OrderBy/ToListAsync) cannot execute; they run only in the Marten integration tests (measured 51% operation / 43% read).",
+        "guard": "Guard tests assert only the constructor and argument null checks, which are 8% (operation) / 11% (read) of the file's lines."
+      }
     },
     "MartenReadAuditStore.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": {
+        "integration": 66,
+        "unit": 43,
+        "guard": 10
+      },
+      "justifications": {
+        "integration": "The Marten integration tests run the store against real PostgreSQL through Testcontainers: every query, the stable-order paging and the user history (measured 67%); the uncovered lines are the crypto-shredded and failure paths.",
+        "unit": "Unit tests mock IDocumentSession, so the LINQ query chains (Query/Where/OrderBy/ToListAsync) cannot execute; they run only in the Marten integration tests (measured 51% operation / 43% read).",
+        "guard": "Guard tests assert only the constructor and argument null checks, which are 8% (operation) / 11% (read) of the file's lines."
+      }
     },
-    "Projections/AuditEntryProjection.cs": {
+    "Projections/OperationAuditEntryProjection.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 75,
+        "guard": 10
+      },
+      "justifications": {
+        "unit": "Unit tests run the projection mapping (measured 76%).",
+        "guard": "Guard tests assert only argument validation (measured 15%)."
+      }
     },
-    "Projections/AuditEntryReadModel.cs": {
+    "Projections/OperationAuditEntryReadModel.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 95
+      },
+      "justifications": {
+        "unit": "The read model is fully exercised by projection tests.",
+        "guard": "The read model's property guards are asserted by the guard tests."
+      }
     },
-    "Projections/ConfigureMartenAuditProjections.cs": {
+    "Projections/AuditTimestamps.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Pure DateTime to DateTimeOffset conversion; unit tests cover the Utc, Unspecified and Local kinds (measured 100%).",
+        "guard": "Internal static extension on a value type: it has no reference parameters to null-check, so there is nothing for guard tests to assert."
+      }
+    },
+    "Projections/ConfigureMartenOperationAuditProjections.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests run the registration of every projection.",
+        "guard": "No guard test executes this class; its null checks are asserted by unit tests."
+      }
     },
     "Projections/ReadAuditEntryProjection.cs": {
       "defaultTests": [
@@ -226,7 +324,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 81,
+        "guard": 4
+      },
+      "justifications": {
+        "unit": "Unit tests build the provider for the Marten audit registration and resolve its stores (measured 81.8%); this change only edits XML documentation.",
+        "guard": "Guard tests only reach the null check of the registration method (measured 4.5%); this change only edits XML documentation."
+      }
     },
     "TemporalKeyGranularity.cs": {
       "defaultTests": [

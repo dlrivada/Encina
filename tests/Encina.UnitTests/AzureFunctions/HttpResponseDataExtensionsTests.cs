@@ -40,7 +40,7 @@ public class HttpResponseDataExtensionsTests
     {
         // Arrange
         var error = EncinaErrors.Create(
-            code: "authorization.unauthenticated",
+            code: EncinaErrorCodes.AuthorizationUnauthenticated,
             message: "Authentication required");
 
         // Act
@@ -55,7 +55,7 @@ public class HttpResponseDataExtensionsTests
     {
         // Arrange
         var error = EncinaErrors.Create(
-            code: "authorization.insufficient_roles",
+            code: EncinaErrorCodes.AuthorizationForbidden,
             message: "Insufficient permissions");
 
         // Act
@@ -187,6 +187,7 @@ public class HttpResponseDataExtensionsTests
     [InlineData("validation.email")]
     [InlineData("validation.required_field")]
     [InlineData("validation.invalid_format")]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.InvalidDecisionAuditQueryCode)]
     public void MapErrorCodeToStatusCode_ValidationErrors_Return400(string errorCode)
     {
         // Arrange
@@ -200,8 +201,21 @@ public class HttpResponseDataExtensionsTests
     }
 
     [Theory]
-    [InlineData("authorization.policy_failed")]
-    [InlineData("authorization.role_required")]
+    [InlineData(EncinaErrorCodes.AuthorizationUnauthorized)]
+    [InlineData(EncinaErrorCodes.AuthorizationForbidden)]
+    [InlineData(EncinaErrorCodes.AuthorizationPolicyFailed)]
+    [InlineData(EncinaErrorCodes.AuthorizationResourceDenied)]
+    [InlineData(EncinaErrorCodes.AuthorizationInsufficientRoles)]
+    [InlineData(EncinaErrorCodes.AuthorizationPermissionDenied)]
+    [InlineData(EncinaErrorCodes.AuthorizationClaimMissing)]
+    [InlineData(EncinaErrorCodes.AuthorizationNotOwner)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.AccessDeniedCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.ConditionNotMetCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.ObligationFailedCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.RequiredPolicyNotFoundCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantRequiredCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantMismatchCode)]
+    [InlineData("encina.authorization.some_future_denial")]
     public void MapErrorCodeToStatusCode_AuthorizationErrors_Return403(string errorCode)
     {
         // Arrange
@@ -215,6 +229,8 @@ public class HttpResponseDataExtensionsTests
     }
 
     [Theory]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode)]
     [InlineData("order.not_found")]
     [InlineData("product.not_found")]
     [InlineData("customer.not_found")]

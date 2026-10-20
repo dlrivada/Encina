@@ -27,7 +27,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="GDPROptions"/> — Configured via the provided action, validated at first access</item>
     /// <item><see cref="IProcessingActivityRegistry"/> → <see cref="InMemoryProcessingActivityRegistry"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IGDPRComplianceValidator"/> → <see cref="DefaultGDPRComplianceValidator"/> (Scoped, using TryAdd)</item>
-    /// <item><see cref="GDPRCompliancePipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="GDPRCompliancePipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>
@@ -72,14 +72,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         // Configure and validate options
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-        else
-        {
-            services.Configure<GDPROptions>(_ => { });
-        }
+        ConfigureOptions(services, configure);
 
         services.TryAddSingleton<IValidateOptions<GDPROptions>, GDPROptionsValidator>();
 
@@ -91,7 +84,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IGDPRComplianceValidator, DefaultGDPRComplianceValidator>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(GDPRCompliancePipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(GDPRCompliancePipelineBehavior<,>)));
 
         // Register RoPA exporters (TryAdd allows override)
         services.TryAddSingleton<JsonRoPAExporter>();
@@ -101,26 +94,47 @@ public static class ServiceCollectionExtensions
         var optionsInstance = new GDPROptions();
         configure?.Invoke(optionsInstance);
 
-        if (optionsInstance.AddHealthCheck)
+        AddHealthCheck(services, optionsInstance);
+        AddAutoRegistration(services, optionsInstance, Assembly.GetCallingAssembly());
+
+        return services;
+    }
+
+    private static void ConfigureOptions(IServiceCollection services, Action<GDPROptions>? configure)
+    {
+        if (configure is not null)
+        {
+            services.Configure(configure);
+        }
+        else
+        {
+            services.Configure<GDPROptions>(_ => { });
+        }
+    }
+
+    private static void AddHealthCheck(IServiceCollection services, GDPROptions options)
+    {
+        if (options.AddHealthCheck)
         {
             services.AddHealthChecks()
                 .AddCheck<GDPRHealthCheck>(
                     GDPRHealthCheck.DefaultName,
                     tags: GDPRHealthCheck.Tags);
         }
+    }
 
-        if (optionsInstance.AutoRegisterFromAttributes)
+    private static void AddAutoRegistration(IServiceCollection services, GDPROptions options, Assembly callingAssembly)
+    {
+        if (options.AutoRegisterFromAttributes)
         {
-            var assembliesToScan = optionsInstance.AssembliesToScan.Count > 0
-                ? optionsInstance.AssembliesToScan
-                : [Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly()];
+            var assembliesToScan = options.AssembliesToScan.Count > 0
+                ? options.AssembliesToScan
+                : [Assembly.GetEntryAssembly() ?? callingAssembly];
 
             // Register descriptor and hosted service for deferred auto-registration
             services.AddSingleton(new GDPRAutoRegistrationDescriptor(assembliesToScan));
             services.AddHostedService<GDPRAutoRegistrationHostedService>();
         }
-
-        return services;
     }
 
 }

@@ -77,7 +77,6 @@ Connection strings are defined in `tests/appsettings.Testing.json`:
 | SQL Server | localhost     | 1433 | sa        | Encina123!  |
 | PostgreSQL | localhost     | 5432 | Encina  | Encina123!  |
 | MySQL      | localhost     | 3306 | Encina  | Encina123!  |
-| Oracle XE  | localhost     | 1521 | system    | Encina123!  |
 
 ### Docker Images
 
@@ -88,7 +87,6 @@ Connection strings are defined in `tests/appsettings.Testing.json`:
 | SQL Server | `mcr.microsoft.com/mssql/server:2022-latest`          | ~15 seconds  |
 | PostgreSQL | `postgres:16-alpine`                                  | ~5 seconds   |
 | MySQL      | `mysql:8.0`                                           | ~10 seconds  |
-| Oracle XE  | `container-registry.oracle.com/database/express:21.3.0-xe` | ~60 seconds  |
 | MongoDB    | `mongo:7`                                             | ~5 seconds   |
 
 #### Messaging
@@ -116,8 +114,6 @@ Connection strings are defined in `tests/appsettings.Testing.json`:
 |------------|----------------------------------------------------|--------------|
 | LocalStack | `localstack/localstack:latest`                     | ~30 seconds  |
 | Azurite    | `mcr.microsoft.com/azure-storage/azurite:latest`   | ~5 seconds   |
-
-> **Note**: Oracle XE requires accepting the Oracle license agreement and has significantly longer startup time.
 
 ## Collection Fixture Strategy
 
@@ -212,16 +208,16 @@ public class MyNewStoreTests : IAsyncLifetime
 If you need a new collection (e.g., for a new database provider or a specialized fixture):
 
 1. Add the `[CollectionDefinition]` class to the appropriate `Collections.cs` file
-2. Use a descriptive name following the pattern: `{Provider}-{Database}` (e.g., `ADO-Oracle`)
+2. Use a descriptive name following the pattern: `{Provider}-{Database}` (e.g., `ADO-PostgreSQL`)
 3. For in-memory databases, add `DisableParallelization = true`
 4. Update this document's container count table
 
 ```csharp
 // In the appropriate Collections.cs file
-[CollectionDefinition("ADO-Oracle")]
+[CollectionDefinition("ADO-PostgreSQL")]
 [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
     Justification = "xUnit requires collection types to end with 'Collection'")]
-public class ADOOracleCollection : ICollectionFixture<OracleFixture>
+public class ADOPostgreSqlCollection : ICollectionFixture<PostgreSqlFixture>
 {
 }
 ```
@@ -359,26 +355,15 @@ docker inspect Encina-sqlserver --format='{{.State.Health.Status}}'
 docker-compose logs sqlserver
 ```
 
-### Oracle-Specific Issues
-
-Oracle XE has a large image size (~2 GB) and slow startup (~60 seconds):
-
-**Solutions:**
-
-- Skip Oracle tests during development: `--database sqlserver`
-- Pull image once: `docker pull container-registry.oracle.com/database/express:21.3.0-xe`
-- Keep Oracle container running between test runs
-
 ## Provider Support Matrix
 
-The following table shows which providers are supported by each testing approach:
+The following table shows which providers are supported by each testing approach. Oracle ([ADR-009](../architecture/adr/009-remove-oracle-provider-pre-1.0.md)) and SQLite ([ADR-024](../architecture/adr/024-remove-sqlite-provider-pre-1.0.md)) were removed and are not listed.
 
 | Provider | Testcontainers | Aspire.Hosting | Recommended Approach | Notes |
 |----------|----------------|----------------|---------------------|-------|
 | **PostgreSQL** | `PostgreSqlContainer` | `AddPostgres()` | Testcontainers | Established fixtures, simpler API |
 | **SQL Server** | `MsSqlContainer` | `AddSqlServer()` | Testcontainers | Established fixtures, simpler API |
 | **MySQL** | `MySqlContainer` | `AddMySql()` | Testcontainers | Established fixtures, simpler API |
-| **Oracle** | `GenericContainer` | **Not Supported** | **Testcontainers Only** | Critical - no Aspire alternative |
 | **MongoDB** | `MongoDbContainer` | `AddMongoDB()` | Testcontainers | Established fixtures |
 | **Redis** | `RedisContainer` | `AddRedis()` | Testcontainers | Established fixtures |
 | **RabbitMQ** | `RabbitMqContainer` | `AddRabbitMQ()` | Testcontainers | Established fixtures |
@@ -391,7 +376,6 @@ The following table shows which providers are supported by each testing approach
 **Use Testcontainers when:**
 
 - Component-level database/service tests
-- Oracle database (not supported in Aspire)
 - Fine-grained container control needed
 - Leveraging existing `Encina.TestInfrastructure` fixtures
 
@@ -423,13 +407,11 @@ The `Encina.TestInfrastructure` project provides:
 | Dapper.SqlServer     | ✅          | ✅       | ✅       | ✅   |
 | Dapper.PostgreSQL    | ✅          | ✅       | ✅       | ✅   |
 | Dapper.MySQL         | ✅          | ✅       | ✅       | ✅   |
-| Dapper.Oracle        | ✅          | ✅       | ✅       | ✅   |
 | ADO.SqlServer        | ✅          | ✅       | ✅       | ✅   |
 | ADO.PostgreSQL       | ✅          | ✅       | ✅       | ✅   |
 | ADO.MySQL            | ❌          | ✅       | ✅       | ✅   |
-| ADO.Oracle           | ❌          | ✅       | ✅       | ✅   |
 
-> **Note**: ADO MySQL/Oracle use Testcontainers-based integration tests in Contract/Property/Load projects instead of separate Integration projects.
+> **Note**: ADO MySQL uses Testcontainers-based integration tests in Contract/Property/Load projects instead of separate Integration projects.
 
 ## Resources
 
@@ -439,4 +421,3 @@ The `Encina.TestInfrastructure` project provides:
 - [SQL Server Docker Hub](https://hub.docker.com/r/microsoft/mssql-server)
 - [PostgreSQL Docker Hub](https://hub.docker.com/_/postgres)
 - [MySQL Docker Hub](https://hub.docker.com/_/mysql)
-- [Oracle Container Registry](https://container-registry.oracle.com/)

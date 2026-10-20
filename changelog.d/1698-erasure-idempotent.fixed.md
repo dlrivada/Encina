@@ -1,0 +1,1 @@
+- **Crypto-shredding erasure is idempotent** (#1698). Erasing a subject that is already forgotten succeeds, so a data subject request with several locations of one subject no longer reports failures.

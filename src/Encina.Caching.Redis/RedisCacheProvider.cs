@@ -67,11 +67,11 @@ public sealed partial class RedisCacheProvider : ICacheProvider
 
         if (value.IsNullOrEmpty)
         {
-            LogCacheMiss(_logger, prefixedKey);
+            LogCacheMiss(_logger, CacheKeyRedactor.Redact(prefixedKey));
             return default;
         }
 
-        LogCacheHit(_logger, prefixedKey);
+        LogCacheHit(_logger, CacheKeyRedactor.Redact(prefixedKey));
         return JsonSerializer.Deserialize<T>(value.ToString(), _jsonOptions);
     }
 
@@ -86,7 +86,7 @@ public sealed partial class RedisCacheProvider : ICacheProvider
         var effectiveExpiration = expiration ?? _options.DefaultExpiration;
 
         await Database.StringSetAsync(prefixedKey, json, effectiveExpiration).ConfigureAwait(false);
-        LogCacheSet(_logger, prefixedKey, effectiveExpiration);
+        LogCacheSet(_logger, CacheKeyRedactor.Redact(prefixedKey), effectiveExpiration);
     }
 
     /// <inheritdoc/>
@@ -97,7 +97,7 @@ public sealed partial class RedisCacheProvider : ICacheProvider
 
         var prefixedKey = GetPrefixedKey(key);
         await Database.KeyDeleteAsync(prefixedKey).ConfigureAwait(false);
-        LogCacheRemove(_logger, prefixedKey);
+        LogCacheRemove(_logger, CacheKeyRedactor.Redact(prefixedKey));
     }
 
     /// <inheritdoc/>
@@ -116,7 +116,7 @@ public sealed partial class RedisCacheProvider : ICacheProvider
             count++;
         }
 
-        LogCacheRemovePattern(_logger, prefixedPattern, count);
+        LogCacheRemovePattern(_logger, CacheKeyRedactor.Redact(prefixedPattern), count);
     }
 
     /// <inheritdoc/>
@@ -222,7 +222,7 @@ public sealed partial class RedisCacheProvider : ICacheProvider
             await Database.StringSetAsync(metadataKey, metadataJson, absoluteExpiration.Value).ConfigureAwait(false);
         }
 
-        LogCacheSetSliding(_logger, prefixedKey, slidingExpiration, absoluteExpiration);
+        LogCacheSetSliding(_logger, CacheKeyRedactor.Redact(prefixedKey), slidingExpiration, absoluteExpiration);
     }
 
     /// <inheritdoc/>

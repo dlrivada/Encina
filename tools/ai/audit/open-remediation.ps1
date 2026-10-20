@@ -1,10 +1,38 @@
-# tools/ai/audit/open-remediation.ps1 -Issue <n> (#1345; moved from the unversioned artifacts/knowledge/)
+# tools/ai/audit/open-remediation.ps1 -Issue <n> [-Consolidate [-Set <set>]] (#1345; moved from the unversioned artifacts/knowledge/)
 #
 # Opens the remediation drafts collected for one audited issue (artifacts/knowledge/remediation/<n>-*.md).
+# Before creating anything it compares each draft with the drafts of the audits that ran concurrently (#2234;
+# see the cross-audit duplicate check below) and refuses when one of them is already an issue.
 # Drafts carry an HTML-comment header with title/labels/milestone; unknown labels are dropped; bugs default
 # to Hardening.
+#
+# -Consolidate (delta audits; maintainer decision 2026-10-05: one issue per audit, fixes in batches): every
+# non-bug draft becomes a checklist item and a per-finding subsection of ONE technical_debt.md issue; a [BUG]
+# draft is still opened as its own issue. Every draft still gets its own row in opened.csv (pointing at the
+# consolidated issue URL) so audit-done.ps1's "every draft opened" check keeps working. Full audits do not use it.
+# When one body would exceed GitHub's 65,000-character limit (#1863), the drafts are split, whole and docs before
+# tests, into the fewest parts that each fit; each part is titled "... (part k/n)" with its own finding count and
+# opens with a line naming its place (no URLs: the later parts do not exist yet), and each draft's row carries the
+# URL of the part that holds it. A single draft that alone exceeds the limit fails the run naming it. -WhatIf prints
+# each part's title and writes one preview file per part (delta-<n>-consolidated.part<k>.preview.md).
+#
+# Every issue is opened complete (#1926): a milestone from its route (bug, code debt, security and any mix of code
+# and docs -> v0.14.0 Hardening; docs-only -> v0.21.0 Documentation; a tests draft, alone or in a consolidated
+# issue -> v0.19.0 Providers & Testing; a draft header milestone wins) and one priority label from the draft's own
+# Priority section (High p0-mandatory, Medium p1-recommended, Low p2-post-1.0; a consolidated issue takes the
+# highest of its drafts); only a draft without a Priority section gets its route's default (Hardening
+# p0-mandatory, Documentation and Providers & Testing p1-recommended). Right after each `gh issue create` the issue is
+# added to project 1 with the local keyring credentials (GITHUB_TOKEN/GH_TOKEN cleared for that call; no workflow
+# secret is involved, #1987). A failed project add is reported as a warning naming the issue and the retry command;
+# it does not undo the created issue and does not fail the run (the row is already written, so a re-run does not
+# retry it: run the printed command).
 
-param([Parameter(Mandatory)][int]$Issue)
+param(
+    [Parameter(Mandatory)][int]$Issue,
+    [switch]$Consolidate,
+    [switch]$WhatIf,
+    [string]$Set = 'rules-2026-10'
+)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_audit-lib.ps1')
@@ -13,30 +41,496 @@ $root = Get-MainRoot $PSScriptRoot
 $dir = Join-Path $root 'artifacts\knowledge\remediation'
 $opened = Join-Path $dir 'opened.csv'
 $labels = gh label list --repo dlrivada/Encina --limit 400 --json name --jq '.[].name'
-$ms = gh api repos/dlrivada/Encina/milestones --jq '.[].title'
-foreach ($f in Get-ChildItem $dir -Filter "$Issue-*.md") {
-    if ((Test-Path $opened) -and (Select-String -Path $opened -SimpleMatch $f.Name -Quiet)) { continue }
-    $raw = Get-Content -Raw $f.FullName
+if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh label list failed (exit $LASTEXITCODE); refusing to open issues without the label list"; exit 1 }
+# The milestone titles hold an em dash: decode gh's output as UTF-8 whatever the console code page is.
+$savedEncoding = [Console]::OutputEncoding
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+try { $ms = gh api repos/dlrivada/Encina/milestones --paginate --jq '.[].title' }
+finally { [Console]::OutputEncoding = $savedEncoding }
+if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh api milestones failed (exit $LASTEXITCODE); refusing to open issues without the milestone list"; exit 1 }
+
+# An issue is opened complete or not at all (#1926): every issue carries a milestone and one priority label,
+# derived from its route; a milestone in the draft header wins. The real titles use an em dash (U+2014);
+# [char]0x2014 keeps this file ASCII-only while matching them exactly.
+$dash = [char]0x2014
+$Routes = @{
+    hardening = @{ Milestone = "v0.14.0 $dash Hardening"; Priority = 'p0-mandatory' }
+    docs      = @{ Milestone = "v0.21.0 $dash Documentation"; Priority = 'p1-recommended' }
+    tests     = @{ Milestone = "v0.19.0 $dash Providers & Testing"; Priority = 'p1-recommended' }
+}
+$PriorityLabels = @('p0-mandatory', 'p1-recommended', 'p2-post-1.0')
+
+# bug, code debt and security -> hardening; docs-only -> docs; tests and coverage obligations -> tests.
+function Get-Route([string]$Title, [string]$Kind) {
+    if ($Title.StartsWith('[BUG]')) { return 'hardening' }
+    if ($Title.StartsWith('[TEST]') -or $Kind -eq 'test') { return 'tests' }
+    if ($Kind -eq 'docs') { return 'docs' }
+    return 'hardening'
+}
+
+# The priority a draft states in its own Priority section (High, Medium or Low ticked), or '' when it has none.
+$PriorityByName = @{ High = 'p0-mandatory'; Medium = 'p1-recommended'; Low = 'p2-post-1.0' }
+function Get-DraftPriority([string]$Body) {
+    $sec = [regex]::Match($Body, '(?ms)^##[ \t]+Priority[ \t]*\r?$(.*?)(?=^##[ \t]|\z)')
+    if (-not $sec.Success) { return '' }
+    $o = [regex]::Match($sec.Groups[1].Value, '(?m)^\s*-\s*\[[xX]\]\s*\*{0,2}(High|Medium|Low)\b')
+    if ($o.Success) { return $o.Groups[1].Value }
+    return ''
+}
+
+# Fails loudly when the route's milestone or priority label does not exist in the repository. $Priority is the
+# draft's own priority (High, Medium, Low or ''); the route's default label applies only when there is none.
+function Resolve-RouteMetadata([string]$Route, [string]$DraftMilestone, [string[]]$DraftLabels, [string]$Name, [string]$Priority = '') {
+    $r = $Routes[$Route]
+    $prioLabel = if ($Priority -and $PriorityByName.ContainsKey($Priority)) { $PriorityByName[$Priority] } else { $r.Priority }
+    if ($DraftMilestone -and -not ($ms -contains $DraftMilestone)) { Write-Warning "open-remediation: the header milestone '$DraftMilestone' of $Name is not an existing milestone; using the route's $($r.Milestone)" }
+    $milestone = if ($DraftMilestone -and ($ms -contains $DraftMilestone)) { $DraftMilestone } else { $r.Milestone }
+    if (-not ($ms -contains $milestone)) { Write-Error "open-remediation: milestone '$milestone' for $Name does not exist; no issue was created"; exit 1 }
+    $lab = @($DraftLabels)
+    if (-not ($lab | Where-Object { $PriorityLabels -contains $_ })) {
+        if (-not ($labels -contains $prioLabel)) { Write-Error "open-remediation: priority label '$prioLabel' for $Name does not exist; no issue was created"; exit 1 }
+        $lab += $prioLabel
+    }
+    return @{ Milestone = $milestone; Labels = $lab }
+}
+
+# Adds the issue to project 1. The default token cannot write projects, so the call runs with the keyring token
+# (GITHUB_TOKEN and GH_TOKEN env vars must not override the keyring, so both are cleared for this call only).
+# A failure is a loud warning with the retry command; the created issue is kept.
+function Add-ToProject([string]$Url) {
+    $savedG = $env:GITHUB_TOKEN; $savedH = $env:GH_TOKEN
+    try {
+        $env:GITHUB_TOKEN = $null; $env:GH_TOKEN = $null
+        Remove-Item Env:\GITHUB_TOKEN, Env:\GH_TOKEN -ErrorAction SilentlyContinue
+        $out = try { & gh project item-add 1 --owner dlrivada --url $Url 2>&1 } catch { $global:LASTEXITCODE = 1; $_.Exception.Message }
+        if ($LASTEXITCODE -ne 0) { Write-Warning "open-remediation: gh project item-add failed for $Url (exit $LASTEXITCODE): $($out -join ' '). The issue exists; add it to project 1 with: gh project item-add 1 --owner dlrivada --url $Url"; $global:LASTEXITCODE = 0 }
+    }
+    finally {
+        if ($null -ne $savedG) { $env:GITHUB_TOKEN = $savedG }
+        if ($null -ne $savedH) { $env:GH_TOKEN = $savedH }
+    }
+}
+
+function Get-Draft([System.IO.FileInfo]$File) {
+    $raw = Get-Content -Raw $File.FullName
     $h = ([regex]::Match($raw, '(?s)<!--(.*?)-->')).Groups[1].Value
     # [ \t]*, never \s*: an empty field must not swallow the next header line (#1572 added 'kind:' after 'milestone:').
     $title = ([regex]::Match($h, 'title:[ \t]*(.+)')).Groups[1].Value.Trim()
-    if (-not $title) { Write-Warning "no title in $($f.Name)"; continue }
+    if (-not $title) { Write-Warning "no title in $($File.Name)"; return $null }
     $lab = @((([regex]::Match($h, 'labels:[ \t]*(.+)')).Groups[1].Value -split ',\s*') | ForEach-Object { $_.Trim() } | Where-Object { $labels -contains $_ })
     if (-not $lab) { $lab = @(if ($title.StartsWith('[BUG]')) { 'bug' } elseif ($title.StartsWith('[TEST]')) { 'area-testing' } else { 'technical-debt' }) }
     $m = ([regex]::Match($h, 'milestone:[ \t]*(.*)')).Groups[1].Value.Trim()
     # The real GitHub milestone title uses an em dash (U+2014); [char]0x2014 keeps this file's own bytes
     # ASCII-only while still matching that title exactly, so --milestone below resolves it (#1345 review).
-    if (-not ($ms -contains $m)) { $m = if ($title.StartsWith('[BUG]')) { "v0.14.0 $([char]0x2014) Hardening" } else { '' } }
-    $body = ($raw -replace '(?s)^\s*<!--.*?-->\s*', '').Trim()
-    $bf = Join-Path $env:TEMP "rem-$($f.BaseName).md"; Set-Content $bf $body -Encoding utf8
-    $a = @('issue', 'create', '--repo', 'dlrivada/Encina', '--title', $title, '--body-file', $bf)
-    if ($m) { $a += @('--milestone', $m) }
-    foreach ($l in $lab) { $a += @('--label', $l) }
+    $kind = ([regex]::Match($h, 'kind:[ \t]*(.*)')).Groups[1].Value.Trim().ToLowerInvariant()
+    $bodyText = ($raw -replace '(?s)^\s*<!--.*?-->\s*', '').Trim()
+    $prio = Get-DraftPriority $bodyText
+    $meta = Resolve-RouteMetadata (Get-Route $title $kind) $m $lab $File.Name $prio
+    [pscustomobject]@{
+        Priority = $prio
+        File   = $File
+        Title  = $title
+        Labels = $meta.Labels
+        Milestone = $meta.Milestone
+        Kind   = $kind
+        Body   = ($raw -replace '(?s)^\s*<!--.*?-->\s*', '').Trim()
+    }
+}
+
+# Creates one issue; returns its URL or exits 1.
+function New-Issue([string]$Title, [string]$Body, [string[]]$Lab, [string]$Milestone, [string]$Name) {
+    $bf = Join-Path $env:TEMP "rem-$Name.md"; Set-Content $bf $Body -Encoding utf8
+    $a = @('issue', 'create', '--repo', 'dlrivada/Encina', '--title', $Title, '--body-file', $bf)
+    if ($Milestone) { $a += @('--milestone', $Milestone) }
+    foreach ($l in $Lab) { $a += @('--label', $l) }
     $url = & gh @a
     if ($LASTEXITCODE -ne 0 -or -not $url -or $url -notmatch '^https://github.com/') {
-        Write-Error "open-remediation: gh issue create failed for $($f.Name) (exit $LASTEXITCODE, url: '$url')"
+        Write-Error "open-remediation: gh issue create failed for $Name (exit $LASTEXITCODE, url: '$url')"
         exit 1
     }
-    Add-Content $opened "$($f.Name),$url"
-    "$url  $title"
+    return "$url".Trim()
 }
+
+# #2234 (CodeRabbit on PR #2243): the re-check, the `gh issue create` and the opened.csv row of one draft happen
+# under the shared open-audits lock, so two runs (two audits opening drafts that duplicate each other, or the same
+# audit opened twice) can never both create an issue: the second one sees the first one's row.
+function Open-Draft($Draft) {
+    $lock = Enter-OpenAuditsLock $root
+    try {
+        if ((Test-Path $opened) -and (@(Get-Content $opened | ForEach-Object { ($_ -split ',')[0].Trim() }) -contains $Draft.File.Name)) {
+            "already opened by another run, skipped: $($Draft.File.Name)"
+            return
+        }
+        $problems = @(Get-CrossAuditProblems $Draft -Quiet)
+        if ($problems.Count -gt 0) { Stop-CrossAudit $problems 'nothing more was created: ' }
+        $url = New-Issue $Draft.Title $Draft.Body $Draft.Labels $Draft.Milestone $Draft.File.BaseName
+        # The row is written before the project call, so a project failure never makes a re-run open a duplicate.
+        Add-Content $opened "$($Draft.File.Name),$url"
+    }
+    finally { Exit-OpenAuditsLock $lock }
+    Add-ToProject $url
+    "$url  $($Draft.Title)"
+}
+
+# --- consolidation helpers -------------------------------------------------------------------------------------
+
+# Splits an issue body into ordered { Name; Text } sections on its '## ' headers (fenced code is not scanned).
+function Split-Sections([string]$Body) {
+    $sections = [System.Collections.Generic.List[object]]::new()
+    $name = '(preamble)'; $buf = [System.Collections.Generic.List[string]]::new(); $fence = $false
+    foreach ($line in ($Body -split "`r?`n")) {
+        if ($line -match '^\s*```') { $fence = -not $fence }
+        if (-not $fence -and $line -match '^##\s+(.+?)\s*$' -and $line -notmatch '^###') {
+            $sections.Add([pscustomobject]@{ Name = $name; Text = (($buf -join "`n").Trim()) })
+            $name = $Matches[1]; $buf = [System.Collections.Generic.List[string]]::new()
+        }
+        else { $buf.Add($line) }
+    }
+    $sections.Add([pscustomobject]@{ Name = $name; Text = (($buf -join "`n").Trim()) })
+    return @($sections | Where-Object { $_.Text })
+}
+
+# A '### ' subsection of the consolidated body holds one draft's text, so the draft's own headings go one level down.
+function ConvertTo-Nested([string]$Text) {
+    $fence = $false
+    $out = foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -match '^\s*```') { $fence = -not $fence }
+        if (-not $fence -and $line -match '^#{3,}\s') { "#$line" } else { $line }
+    }
+    return ($out -join "`n")
+}
+
+# Keeps only the ticked options of a checkbox list (the unticked ones are template noise) and every other line.
+function Select-Ticked([string]$Text) {
+    $lines = @($Text -split "`r?`n" | Where-Object { $_ -notmatch '^\s*-\s*\[ \]' })
+    return ($lines -join "`n").Trim()
+}
+
+# Top-level blocks (a line that starts in column 0 plus its indented continuation lines).
+function Get-Blocks([string]$Text) {
+    $blocks = [System.Collections.Generic.List[string]]::new(); $cur = $null
+    foreach ($line in ($Text -split "`r?`n")) {
+        if (-not $line.Trim()) { continue }
+        if ($line -match '^\s' -and $null -ne $cur) { $cur += "`n$line" }
+        else { if ($null -ne $cur) { $blocks.Add($cur) }; $cur = $line }
+    }
+    if ($null -ne $cur) { $blocks.Add($cur) }
+    return $blocks
+}
+
+function Get-TemplateSections([string]$Path) {
+    $raw = (Get-Content -Raw $Path) -replace '(?s)^---.*?---\s*', ''
+    return Split-Sections $raw
+}
+
+function Get-TickedOptions([string]$Text) {
+    @($Text -split "`r?`n" | ForEach-Object { if ($_ -match '^\s*-\s*\[[xX]\]\s*(.+?)\s*$') { $Matches[1] -replace '\*', '' } })
+}
+
+# GitHub rejects an issue body over 65,000 characters. $PartReserve leaves room for the one-line "part k of n" note
+# that is added to each part after the split is decided.
+$MaxBody = 65000
+$PartReserve = 400
+
+# Builds the consolidated body of the given parsed drafts. $PartNote (empty for a single issue) is one line placed
+# right after the local-draft marker. Returns @{ Body; AnyTest; K }.
+function Build-ConsolidatedBody($parsed, [string]$PartNote) {
+    $k = @($parsed).Count
+    $tpl = Get-TemplateSections (Join-Path $root '.github\ISSUE_TEMPLATE\technical_debt.md')
+    $short = { param($t) ($t -replace '^\[[A-Z-]+\]\s*', '').Trim() }
+
+    # Per-draft subsections for each target header, keeping every piece of the draft's text.
+    $target = @{}; foreach ($t in $tpl) { $target[$t.Name] = [System.Collections.Generic.List[string]]::new() }
+    $locationBlocks = [System.Collections.Generic.List[string]]::new()
+    $typeTicked = [System.Collections.Generic.HashSet[string]]::new()
+    $prioRank = @{ High = 3; Medium = 2; Low = 1 }; $effRank = @{ Large = 3; Medium = 2; Small = 1 }
+    $prio = 0; $eff = 0; $prioName = @{}; $related = [System.Collections.Generic.List[string]]::new()
+    $relatedSeen = [System.Collections.Generic.HashSet[string]]::new()
+    $checklist = [System.Collections.Generic.List[string]]::new()
+    $anyTest = $false
+
+    foreach ($p in $parsed) {
+        $t = & $short $p.Draft.Title
+        $perDraft = @{}
+        function Add-Text([string]$Header, [string]$Text) {
+            if (-not $Text) { return }
+            if (-not $perDraft.ContainsKey($Header)) { $perDraft[$Header] = [System.Collections.Generic.List[string]]::new() }
+            $perDraft[$Header].Add($Text)
+        }
+        $dPrio = ''   # a draft without a Priority section (test_implementation.md has none) shows no invented severity
+        if ($p.Test) { $anyTest = $true; [void]$typeTicked.Add('Missing tests') }
+        if ($p.Draft.Kind -eq 'docs') { [void]$typeTicked.Add('Documentation gap') }
+        foreach ($s in $p.Sections) {
+            $text = ConvertTo-Nested $s.Text
+            switch ($s.Name) {
+                'Type' { foreach ($o in (Get-TickedOptions $s.Text)) { [void]$typeTicked.Add($o) } }
+                'Priority' {
+                    foreach ($o in (Get-TickedOptions $s.Text)) {
+                        if ($o -match '^(High|Medium|Low)\b') { $dPrio = $Matches[1]; if ($prioRank[$dPrio] -gt $prio) { $prio = $prioRank[$dPrio] } }
+                    }
+                }
+                'Effort Estimate' {
+                    foreach ($o in (Get-TickedOptions $s.Text)) {
+                        if ($o -match '^(Small|Medium|Large)\b' -and $effRank[$Matches[1]] -gt $eff) { $eff = $effRank[$Matches[1]] }
+                    }
+                }
+                'Location' { foreach ($b in (Get-Blocks $s.Text)) { if (-not $locationBlocks.Contains($b)) { $locationBlocks.Add($b) } } }
+                'Packages / Providers Affected' { foreach ($b in (Get-Blocks $s.Text)) { if (-not $locationBlocks.Contains($b)) { $locationBlocks.Add($b) } } }
+                'Related Issues' {
+                    foreach ($line in ($s.Text -split "`r?`n")) {
+                        if ($line -match '^\s*-\s*#_+') { continue }
+                        $refs = @([regex]::Matches($line, '#(\d+)') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+                        if (-not $line.Trim() -or $line -match '^\s*-\s*none\s*$') { continue }
+                        # Only a line that refers to nothing but the audited issue is replaced by the canonical line below.
+                        if ($refs.Count -eq 1 -and $refs[0] -eq "$Issue") { continue }
+                        $key = if ($refs.Count -eq 1) { "#$($refs[0])" } else { $line.Trim() }
+                        if ($relatedSeen.Add($key)) { $related.Add($line.TrimEnd()) }
+                    }
+                }
+                'Description' { Add-Text 'Description' $text }
+                'Current Behavior' { Add-Text 'Current Behavior' $text }
+                'Expected Behavior' { Add-Text 'Expected Behavior' $text }
+                'Root Cause' { Add-Text 'Root Cause' $text }
+                'Proposed Fix' { Add-Text 'Proposed Fix' $text }
+                'Test Category' { Add-Text 'Current Behavior' ("#### Test Category`n" + (Select-Ticked $text)) }
+                'Current Coverage' { Add-Text 'Current Behavior' ("#### Current Coverage`n" + $text) }
+                'Infrastructure Required' { Add-Text 'Proposed Fix' ("#### Infrastructure Required`n" + (Select-Ticked $text)) }
+                'Test Plan' { Add-Text 'Proposed Fix' ("#### Test Plan`n" + $text) }
+                'Collection Fixture (Integration Tests Only)' { Add-Text 'Proposed Fix' ("#### Collection Fixture`n" + $text) }
+                default { Add-Text 'Current Behavior' ("#### $($s.Name)`n" + $text) }
+            }
+        }
+        $checklist.Add($(if ($dPrio) { "- [ ] $t ($dPrio)" } else { "- [ ] $t" }))
+        foreach ($h in $perDraft.Keys) { $target[$h].Add("### $t`n`n" + ($perDraft[$h] -join "`n`n")) }
+    }
+
+    $nothing = 'No finding supplies text for this section; see the per-finding text in the other sections.'
+    $bodyParts = [System.Collections.Generic.List[string]]::new()
+    $bodyParts.Add("<!-- local-draft: none, reason: consolidated from $k verified remediation drafts of the #$Issue delta audit -->")
+    if ($PartNote) { $bodyParts.Add($PartNote) }
+    foreach ($t in $tpl) {
+        $text = switch ($t.Name) {
+            'Type' {
+                $opts = foreach ($line in ($t.Text -split "`r?`n")) {
+                    if ($line -match '^\s*-\s*\[ \]\s*(.+?)\s*$' -and $typeTicked.Contains($Matches[1])) { "- [x] $($Matches[1])" } else { $line }
+                }
+                $opts -join "`n"
+            }
+            'Description' {
+                $head = "Delta re-audit (``$Set``) of #${Issue}: $k findings are folded into this issue (bugs are opened separately). Each is a checklist item below; the details follow per finding. Fix them in one batch.`n`n" + ($checklist -join "`n")
+                if ($target['Description'].Count) { $head + "`n`n" + ($target['Description'] -join "`n`n") } else { $head }
+            }
+            'Location' { if ($locationBlocks.Count) { $locationBlocks -join "`n" } else { $nothing } }
+            'Priority' {
+                if ($prio -eq 0) { $t.Text + "`n`nNot stated by the drafts" } else {
+                $name = ($prioRank.GetEnumerator() | Where-Object Value -eq $prio).Key
+                (($t.Text -split "`r?`n") | ForEach-Object { if ($_ -match "^\s*-\s*\[ \]\s*\*{0,2}$name\b") { $_ -replace '\[ \]', '[x]' } else { $_ } }) -join "`n" }
+            }
+            'Effort Estimate' {
+                if ($eff -eq 0) { $t.Text + "`n`nNot stated by the drafts" } else {
+                $name = ($effRank.GetEnumerator() | Where-Object Value -eq $eff).Key
+                (($t.Text -split "`r?`n") | ForEach-Object { if ($_ -match "^\s*-\s*\[ \]\s*$name\b") { $_ -replace '\[ \]', '[x]' } else { $_ } }) -join "`n" }
+            }
+            'Related Issues' { (@($related) + "- #$Issue (audited issue)") -join "`n" }
+            default { if ($target[$t.Name].Count) { $target[$t.Name] -join "`n`n" } else { $nothing } }
+        }
+        $bodyParts.Add("## $($t.Name)`n`n$text")
+    }
+    return @{ Body = (($bodyParts -join "`n`n") + "`n"); AnyTest = $anyTest; K = $k }
+}
+
+# Splits the ordered parsed drafts into the fewest consecutive groups whose bodies each fit $Limit characters
+# (greedy: a draft is never split, and a group is closed only when the next draft would overflow it).
+# Fails (exit 1) when one draft alone does not fit.
+function Split-ForLimit($parsed, [int]$Limit) {
+    $groups = [System.Collections.Generic.List[object]]::new()
+    $cur = [System.Collections.Generic.List[object]]::new()
+    # Every draft must fit alone, wherever it sits in the order.
+    foreach ($p in $parsed) {
+        $len = (Build-ConsolidatedBody @($p) '').Body.Length
+        if ($len -gt $Limit) {
+            Write-Error "open-remediation: the draft $($p.Draft.File.Name) alone makes a $len-character body, over the $Limit-character budget of a GitHub issue (65,000 limit); shorten that draft; no issue was created"
+            exit 1
+        }
+    }
+    foreach ($p in $parsed) {
+        $try = @($cur) + $p
+        if ((Build-ConsolidatedBody $try '').Body.Length -le $Limit) { $cur.Add($p); continue }
+        $groups.Add(@($cur)); $cur = [System.Collections.Generic.List[object]]::new(); $cur.Add($p)
+    }
+    if ($cur.Count) { $groups.Add(@($cur)) }
+    return , $groups
+}
+
+# Decides the parts (and validates every size) without creating anything, so a failure leaves nothing behind.
+function Get-ConsolidatedPlan($Drafts) {
+    # Docs drafts before tests drafts, the existing per-draft order kept inside each group.
+    $parsed = @(foreach ($d in $Drafts) { [pscustomobject]@{ Draft = $d; Sections = @(Split-Sections $d.Body); Test = $d.Title.StartsWith('[TEST]') } })
+    $parsed = @(@($parsed | Where-Object { -not $_.Test }) + @($parsed | Where-Object { $_.Test }))
+
+    # Keep one issue when it fits; otherwise the fewest parts that each fit.
+    if ((Build-ConsolidatedBody $parsed '').Body.Length -le $MaxBody) {
+        $groups = [System.Collections.Generic.List[object]]::new(); $groups.Add(@($parsed))
+    }
+    else { $groups = Split-ForLimit $parsed ($MaxBody - $PartReserve) }
+    $n = $groups.Count
+    $topic = switch ($Set) { 'rules-2026-10' { ' (docs and coverage obligations)' } default { '' } }
+
+    $plan = for ($i = 0; $i -lt $n; $i++) {
+        $g = @($groups[$i]); $j = $i + 1
+        # Each part states its place; no URLs, because the later parts do not exist yet when it is created.
+        $note = if ($n -gt 1) { "Part $j of $n of the delta re-audit (``$Set``) of #${Issue}: the other parts are the issues titled with the same text and (part k/$n); each finding is in exactly one part." } else { '' }
+        $built = Build-ConsolidatedBody $g $note
+        if ($built.Body.Length -gt $MaxBody) {
+            Write-Error "open-remediation: part $j of $n is $($built.Body.Length) characters, over the 65,000 limit of a GitHub issue; no issue was created"
+            exit 1
+        }
+        $noun = if ($built.K -eq 1) { 'finding' } else { 'findings' }
+        $suffix = if ($n -gt 1) { " (part $j/$n)" } else { '' }
+        $lab = @('technical-debt'); if ($built.AnyTest) { $lab += 'area-testing' }
+        $lab = @($lab | Where-Object { $labels -contains $_ })
+        if (-not $lab) { $lab = @('technical-debt') }
+        # Any tests draft -> tests route; docs-only -> docs route; otherwise code debt -> hardening.
+        $route = if ($built.AnyTest) { 'tests' } elseif (@($g | Where-Object { $_.Draft.Kind -ne 'docs' }).Count -eq 0) { 'docs' } else { 'hardening' }
+        # The highest priority any draft of the part states; the route's default only when none states one.
+        $topPrio = ''
+        foreach ($rank in 'High', 'Medium', 'Low') { if (-not $topPrio -and @($g | Where-Object { $_.Draft.Priority -eq $rank }).Count) { $topPrio = $rank } }
+        $meta = Resolve-RouteMetadata $route '' $lab "the consolidated issue of #$Issue (part $j)" $topPrio
+        [pscustomobject]@{ Part = $j; Title = "[DEBT] Delta re-audit ($Set) of #${Issue}: $($built.K) $noun$topic$suffix"; Body = $built.Body; Labels = $meta.Labels; Milestone = $meta.Milestone; Drafts = @($g | ForEach-Object { $_.Draft }) }
+    }
+    return , @($plan)
+}
+
+function Open-Consolidated($plan) {
+    $n = $plan.Count
+    if ($WhatIf) {
+        $pdir = Join-Path $root 'artifacts\issues'
+        New-Item -ItemType Directory -Force $pdir | Out-Null
+        foreach ($p in $plan) {
+            $name = if ($n -gt 1) { "delta-$Issue-consolidated.part$($p.Part).preview.md" } else { "delta-$Issue-consolidated.preview.md" }
+            $preview = Join-Path $pdir $name
+            Set-Content -LiteralPath $preview $p.Body -Encoding utf8
+            "WhatIf: $($p.Title)"
+            "WhatIf: preview written to $preview ($($p.Body.Length) characters); nothing created, no rows written"
+        }
+        return
+    }
+
+    # Create every part first, then write the rows: a crashed run is recovered by the same-title reuse below. Under the
+    # shared open-audits lock (#2234), so a second run started meanwhile waits and then finds the parts.
+    $lock = Enter-OpenAuditsLock $root
+    try { Open-ConsolidatedLocked $plan }
+    finally { Exit-OpenAuditsLock $lock }
+}
+
+function Open-ConsolidatedLocked($plan) {
+    $rows = [System.Collections.Generic.List[string]]::new()
+    foreach ($p in $plan) {
+        # Reuse an issue with the exact same title instead of creating a duplicate.
+        $json = & gh issue list --repo dlrivada/Encina --state all --search "$($p.Title) in:title" --json number,title --limit 100
+        if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh issue list failed (exit $LASTEXITCODE)"; exit 1 }
+        $found = @(("$($json -join "`n")" | ConvertFrom-Json) | Where-Object { $_.title -ceq $p.Title }) | Select-Object -First 1
+        if ($found) {
+            $url = "https://github.com/dlrivada/Encina/issues/$($found.number)"
+            "$url  $($p.Title) (already exists; reused, nothing created)"
+        }
+        else {
+            $url = New-Issue $p.Title $p.Body $p.Labels $p.Milestone "consolidated-$Issue-part$($p.Part)"
+            "$url  $($p.Title)"
+        }
+        # Also for a reused issue: item-add is idempotent and a crashed run may have stopped before this call.
+        Add-ToProject $url
+        foreach ($d in $p.Drafts) { $rows.Add("$($d.File.Name),$url") }
+    }
+    Add-Content $opened @($rows)
+}
+
+# --- main ------------------------------------------------------------------------------------------------------
+
+$pattern = if ($Consolidate) { "$Issue-delta-*.md" } else { "$Issue-*.md" }
+$done = if (Test-Path $opened) { @(Get-Content $opened | ForEach-Object { ($_ -split ',')[0].Trim() }) } else { @() }
+$drafts = foreach ($f in Get-ChildItem $dir -Filter $pattern) {
+    if ($done -contains $f.Name) { continue }
+    $d = Get-Draft $f
+    if ($d) { $d }
+}
+
+# #2234: cross-audit duplicate check, before anything is created. Each draft (its finding's own text from the
+# audit's manifest, else the draft body) is compared with the drafts of every audit that ran concurrently with
+# this one (open-audits/<n>.json `concurrent`), with the same evidence rule as the open-issue duplicate search
+# (Test-DuplicateEvidence). A match already opened as an issue means a sequential run would have recorded this
+# finding as its duplicate: nothing is opened, and -Prepare must run again (it records the duplicate). A match not
+# opened yet only warns: the first audit to open its issues wins, and the other one then hits the refusal above.
+try { $thisAudit = @(Get-OpenAudits $root) | Where-Object { [int]$_.issue -eq $Issue } | Select-Object -First 1 }
+catch { Write-Error "open-remediation: $($_.Exception.Message)"; exit 1 }
+if ($null -eq $thisAudit -and @($drafts).Count -gt 0) {
+    Write-Warning "open-remediation: #$Issue is not an open audit (no artifacts/knowledge/open-audits/$Issue.json), so its drafts are not compared with the drafts of concurrent audits (#2234)."
+}
+$findingTextByDraft = @{}
+if ($null -ne $thisAudit -and @($drafts).Count -gt 0) {
+    . (Join-Path $PSScriptRoot '_remediation-checks.ps1')
+    foreach ($manifestFile in @(Get-ChildItem -LiteralPath $dir -Filter "_manifest-$Issue*.json" -File -ErrorAction SilentlyContinue)) {
+        if ($manifestFile.Name -notmatch "^_manifest-$Issue(-delta-[^.]+)?\.json$") { continue }
+        try { $m = Get-Content -LiteralPath $manifestFile.FullName -Raw | ConvertFrom-Json } catch { continue }
+        foreach ($f in @($m.findings)) {
+            if ($f.draftFile -and $f.inputFile -and (Test-Path -LiteralPath ([string]$f.inputFile))) { $findingTextByDraft[(Split-Path -Leaf ([string]$f.draftFile))] = Get-Content -LiteralPath ([string]$f.inputFile) -Raw }
+        }
+    }
+}
+
+# The cross-audit matches of one draft, read fresh from disk (the other audits' drafts and opened.csv): returns the
+# problems (a match already opened as an issue) and warns about a match not opened yet. Empty when this issue is not
+# an open audit.
+function Get-CrossAuditProblems($Draft, [switch]$Quiet) {
+    if ($null -eq $thisAudit) { return @() }
+    $text = if ($findingTextByDraft.ContainsKey($Draft.File.Name)) { $findingTextByDraft[$Draft.File.Name] } else { $Draft.Body }
+    $problems = foreach ($o in @(Get-ConcurrentAuditDrafts $root $thisAudit | Where-Object { Test-DuplicateEvidence $text $_.TitleAndBody })) {
+        if ($o.Url) { "$($Draft.File.Name) duplicates $($o.Name) of the concurrent audit #$($o.Issue), already opened as $($o.Url)" }
+        elseif (-not $Quiet) { Write-Warning "open-remediation: $($Draft.File.Name) matches $($o.Name) of the concurrent audit #$($o.Issue), not opened yet; this audit opens first, and #$($o.Issue)'s remediation must then record its draft as a duplicate (#2234)." }
+    }
+    return @($problems)
+}
+
+function Stop-CrossAudit([string[]]$Problems, [string]$Prefix) {
+    Write-Error "open-remediation: cross-audit duplicate check (#2234) failed, $Prefix$($Problems -join '; '). Run audit-draft-remediation.ps1 -Prepare -Issue $Issue again (it records the duplicate), re-run the remediation stage and the verifier, then open-remediation.ps1 again." -ErrorAction Continue
+    exit 1
+}
+
+$crossProblems = @(foreach ($d in @($drafts)) { Get-CrossAuditProblems $d })
+if ($crossProblems.Count -gt 0) { Stop-CrossAudit $crossProblems 'no issue was created: ' }
+
+if (-not $Consolidate) {
+    foreach ($d in $drafts) { if ($WhatIf) { "WhatIf: would open: $($d.Title)" } else { Open-Draft $d } }
+    return
+}
+
+$rest = @($drafts | Where-Object { -not $_.Title.StartsWith('[BUG]') })
+$plan = $null
+if ($rest.Count) {
+    # One consolidated issue per delta audit: when a non-bug delta draft of this issue already has a row, the
+    # consolidated issue exists, so new drafts are never turned into a second issue.
+    $existing = if (Test-Path $opened) {
+        @(Get-Content $opened | Where-Object { $_.Trim() } | ForEach-Object {
+            $parts = $_ -split ',', 2
+            $name = $parts[0].Trim()
+            $file = Join-Path $dir $name
+            if ($name -like "$Issue-delta-*.md" -and (Test-Path $file)) {
+                $d = Get-Draft (Get-Item $file)
+                if ($d -and -not $d.Title.StartsWith('[BUG]')) { [pscustomobject]@{ Name = $name; Url = $parts[1].Trim() } }
+            }
+        })
+    } else { @() }
+    if ($existing.Count) {
+        $names = ($rest | ForEach-Object { $_.File.Name }) -join ', '
+        Write-Error "open-remediation: the consolidated issue of the #$Issue delta audit already exists ($($existing[0].Url)); refusing to open a second one for the new unopened drafts: $names. Add them to that issue by hand (or open a documented follow-up); no rows were written"
+        exit 1
+    }
+    $plan = Get-ConsolidatedPlan $rest
+}
+
+# A bug is never folded into the batch: it is opened as its own issue, as in a full audit. It is opened only after
+# the consolidated plan is validated, so a refusal or a size failure leaves nothing created.
+foreach ($d in @($drafts | Where-Object { $_.Title.StartsWith('[BUG]') })) {
+    if ($WhatIf) { "WhatIf: would open its own issue: $($d.Title)" } else { Open-Draft $d }
+}
+if ($plan) { Open-Consolidated $plan }

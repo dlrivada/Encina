@@ -11,6 +11,7 @@ namespace Encina.UnitTests.Security.ABAC.Diagnostics;
 /// Unit tests for <see cref="ABACDiagnostics"/>: verifies the ABAC observability
 /// infrastructure including activity sources, meters, counters, and histograms.
 /// </summary>
+[Collection(ABACActivityListenerIsolation.Name)]
 public sealed class ABACDiagnosticsTests
 {
     #region Source Name and Version

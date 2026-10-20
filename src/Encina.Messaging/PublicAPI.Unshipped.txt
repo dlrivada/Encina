@@ -87,13 +87,12 @@ Encina.Messaging.Inbox.InboxMetadata.Timestamp.set -> void
 Encina.Messaging.Inbox.InboxMetadata.UserId.get -> string?
 Encina.Messaging.Inbox.InboxMetadata.UserId.set -> void
 Encina.Messaging.Inbox.InboxOrchestrator
-Encina.Messaging.Inbox.InboxOrchestrator.InboxOrchestrator(Encina.Messaging.Inbox.IInboxStore! store, Encina.Messaging.Inbox.InboxOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Inbox.InboxOrchestrator!>! logger, Encina.Messaging.Inbox.IInboxMessageFactory! messageFactory) -> void
-Encina.Messaging.Inbox.InboxOrchestrator.ProcessAsync<TResponse>(string! messageId, string! requestType, string! correlationId, Encina.Messaging.Inbox.InboxMetadata? metadata, System.Func<System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>!>! processCallback, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Messaging.Inbox.InboxOrchestrator.InboxOrchestrator(Encina.Messaging.Inbox.IInboxStore! store, Encina.Messaging.Inbox.InboxOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Inbox.InboxOrchestrator!>! logger, Encina.Messaging.Inbox.IInboxMessageFactory! messageFactory, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, System.TimeProvider? timeProvider = null, Encina.Messaging.DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null) -> void
+Encina.Messaging.Inbox.InboxOrchestrator.ProcessAsync<TResponse>(object! request, string! messageId, string! requestType, string! correlationId, Encina.Messaging.Inbox.InboxMetadata? metadata, System.Func<System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>>! processCallback, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Messaging.Inbox.InboxOrchestrator.ValidateMessageId(string? messageId, string! requestType, string! correlationId) -> LanguageExt.Option<Encina.EncinaError>
 Encina.Messaging.Inbox.InboxPipelineBehavior<TRequest, TResponse>
 Encina.Messaging.Inbox.InboxPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Messaging.Inbox.InboxPipelineBehavior<TRequest, TResponse>.InboxPipelineBehavior(Encina.Messaging.Inbox.InboxOrchestrator! orchestrator, Encina.Messaging.Inbox.InboxOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Inbox.InboxPipelineBehavior<TRequest, TResponse>!>! logger) -> void
-Encina.Messaging.Inbox.IInboxStore.IncrementRetryCountAsync(string! messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
 const Encina.Messaging.Inbox.InboxErrorCodes.CachedError = "inbox.cached_error" -> string!
 const Encina.Messaging.Inbox.InboxErrorCodes.DeserializationFailed = "inbox.deserialization_failed" -> string!
 const Encina.Messaging.Inbox.InboxErrorCodes.MaxRetriesExceeded = "inbox.max_retries_exceeded" -> string!
@@ -104,13 +103,13 @@ Encina.Messaging.Outbox.IOutboxMessageFactory
 Encina.Messaging.Outbox.IOutboxMessageFactory.Create(System.Guid id, string! notificationType, string! content, System.DateTime createdAtUtc) -> Encina.Messaging.Outbox.IOutboxMessage!
 Encina.Messaging.Outbox.OutboxErrorCodes
 Encina.Messaging.Outbox.OutboxOrchestrator
-Encina.Messaging.Outbox.OutboxOrchestrator.OutboxOrchestrator(Encina.Messaging.Outbox.IOutboxStore! store, Encina.Messaging.Outbox.OutboxOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Outbox.OutboxOrchestrator!>! logger, Encina.Messaging.Outbox.IOutboxMessageFactory! messageFactory) -> void
+Encina.Messaging.Outbox.OutboxOrchestrator.OutboxOrchestrator(Encina.Messaging.Outbox.IOutboxStore! store, Encina.Messaging.Outbox.OutboxOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Outbox.OutboxOrchestrator!>! logger, Encina.Messaging.Outbox.IOutboxMessageFactory! messageFactory, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, System.TimeProvider? timeProvider = null, Encina.Messaging.DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null) -> void
 Encina.Messaging.Outbox.OutboxOrchestrator.AddAsync<TNotification>(TNotification notification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
 Encina.Messaging.Outbox.OutboxOrchestrator.ProcessPendingMessagesAsync(System.Func<Encina.Messaging.Outbox.IOutboxMessage!, System.Type!, object!, System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>>! publishCallback, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, int>>!
 Encina.Messaging.Outbox.OutboxOrchestrator.GetPendingCountAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, int>>!
 Encina.Messaging.Outbox.OutboxPostProcessor<TRequest, TResponse>
 Encina.Messaging.Outbox.OutboxPostProcessor<TRequest, TResponse>.OutboxPostProcessor(Encina.Messaging.Outbox.IOutboxStore! outboxStore, Encina.Messaging.Outbox.IOutboxMessageFactory! messageFactory, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Outbox.OutboxPostProcessor<TRequest, TResponse>!>! logger, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, System.TimeProvider? timeProvider = null) -> void
-Encina.Messaging.Outbox.OutboxPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, LanguageExt.Either<Encina.EncinaError, TResponse> result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Messaging.Outbox.OutboxPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, TResponse response, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 const Encina.Messaging.Outbox.OutboxErrorCodes.DeserializationFailed = "outbox.deserialization_failed" -> string!
 const Encina.Messaging.Outbox.OutboxErrorCodes.MaxRetriesExceeded = "outbox.max_retries_exceeded" -> string!
 const Encina.Messaging.Outbox.OutboxErrorCodes.PublishFailed = "outbox.publish_failed" -> string!
@@ -129,9 +128,10 @@ Encina.Messaging.Sagas.SagaNotFoundContext.Action.get -> Encina.Messaging.Sagas.
 Encina.Messaging.Sagas.SagaNotFoundContext.DeadLetterReason.get -> string?
 Encina.Messaging.Sagas.SagaNotFoundContext.Ignore() -> void
 Encina.Messaging.Sagas.SagaNotFoundContext.MessageType.get -> System.Type!
-Encina.Messaging.Sagas.SagaNotFoundContext.MoveToDeadLetterAsync(string! reason, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Messaging.Sagas.SagaNotFoundContext.MoveToDeadLetterAsync(string! reason, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Messaging.Sagas.SagaNotFoundContext.SagaId.get -> System.Guid
-Encina.Messaging.Sagas.SagaNotFoundContext.SagaNotFoundContext(System.Guid sagaId, string! sagaType, System.Type! messageType, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>? moveToDeadLetterAsync = null) -> void
+Encina.Messaging.Sagas.SagaNotFoundContext.SourceMessageId.get -> string?
+Encina.Messaging.Sagas.SagaNotFoundContext.SagaNotFoundContext(System.Guid sagaId, string! sagaType, System.Type! messageType, string? sourceMessageId = null) -> void
 Encina.Messaging.Sagas.SagaNotFoundContext.SagaType.get -> string!
 Encina.Messaging.Sagas.SagaNotFoundContext.WasIgnored.get -> bool
 Encina.Messaging.Sagas.SagaNotFoundContext.WasMovedToDeadLetter.get -> bool
@@ -146,7 +146,6 @@ static Encina.Messaging.MessagingLog.ProcessedAndCachedMessage(Microsoft.Extensi
 static Encina.Messaging.MessagingLog.ErrorProcessingMessage(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception, string! messageId, string? correlationId) -> void
 static Encina.Messaging.MessagingLog.StoringNotificationsInOutbox(Microsoft.Extensions.Logging.ILogger! logger, int count, string! requestType, string? correlationId) -> void
 static Encina.Messaging.MessagingLog.StoredNotificationsInOutbox(Microsoft.Extensions.Logging.ILogger! logger, int count, string? correlationId) -> void
-static Encina.Messaging.MessagingLog.SkippingOutboxStorageDueToError(Microsoft.Extensions.Logging.ILogger! logger, int count, string! errorMessage, string? correlationId) -> void
 static Encina.Messaging.MessagingLog.OutboxProcessorDisabled(Microsoft.Extensions.Logging.ILogger! logger) -> void
 static Encina.Messaging.MessagingLog.OutboxProcessorStarted(Microsoft.Extensions.Logging.ILogger! logger, System.TimeSpan interval, int batchSize) -> void
 static Encina.Messaging.MessagingLog.ErrorProcessingOutboxMessages(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception) -> void
@@ -158,7 +157,22 @@ static Encina.Messaging.MessagingLog.TransactionStarted(Microsoft.Extensions.Log
 static Encina.Messaging.MessagingLog.TransactionCommitted(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
 static Encina.Messaging.MessagingLog.TransactionRolledBack(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
 Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>
-Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPipelineBehavior(System.Data.IDbConnection! connection) -> void
+Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPipelineBehavior(System.Data.IDbConnection! connection, Encina.Messaging.IDbTransactionAccessor? transactionAccessor = null) -> void
+Encina.Messaging.DbLease
+Encina.Messaging.DbLease.Connection.get -> System.Data.IDbConnection!
+Encina.Messaging.DbLease.CreateCommand() -> System.Data.IDbCommand!
+Encina.Messaging.DbLease.Dispose() -> void
+Encina.Messaging.DbLease.Transaction.get -> System.Data.IDbTransaction?
+static Encina.Messaging.DbLease.Enlisted(System.Data.IDbConnection! connection, Encina.Messaging.IDbTransactionAccessor? accessor) -> Encina.Messaging.DbLease!
+static Encina.Messaging.DbLease.IndependentAsync(System.Data.IDbConnection! connection, Encina.Messaging.IDbTransactionAccessor? accessor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Encina.Messaging.DbLease!>!
+Encina.Messaging.DbTransactionAccessor
+Encina.Messaging.DbTransactionAccessor.Current.get -> System.Data.IDbTransaction?
+Encina.Messaging.DbTransactionAccessor.Current.set -> void
+Encina.Messaging.DbTransactionAccessor.DbTransactionAccessor() -> void
+Encina.Messaging.IDbTransactionAccessor
+Encina.Messaging.IDbTransactionAccessor.Current.get -> System.Data.IDbTransaction?
+Encina.Messaging.IDbTransactionAccessor.Current.set -> void
+Encina.Messaging.Inbox.IInboxStore.CacheHandlerErrorAsync(string! messageId, string! response, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
 Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 static Encina.Messaging.MessagingServiceCollectionExtensions.AddMessagingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Encina.Messaging.MessagingConfiguration! config) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Messaging.MessagingServiceCollectionExtensions.AddMessagingServicesCore<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TOutboxProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Encina.Messaging.MessagingConfiguration! config) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -341,7 +355,7 @@ Encina.Messaging.Recoverability.RecoverabilityContext.IncrementDelayedRetry() ->
 Encina.Messaging.Recoverability.RecoverabilityContext.TransitionToDelayedPhase() -> void
 Encina.Messaging.Recoverability.RecoverabilityContext.CreateFailedMessage(object! request) -> Encina.Messaging.Recoverability.FailedMessage!
 Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>
-Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>.RecoverabilityPipelineBehavior(Encina.Messaging.Recoverability.RecoverabilityOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>!>! logger, Encina.Messaging.Recoverability.IDelayedRetryScheduler? delayedRetryScheduler = null) -> void
+Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>.RecoverabilityPipelineBehavior(Encina.Messaging.Recoverability.RecoverabilityOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>!>! logger, Encina.Messaging.Recoverability.IDelayedRetryScheduler? delayedRetryScheduler = null, System.TimeProvider? timeProvider = null, Encina.Messaging.DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null) -> void
 Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Messaging.Recoverability.RecoverabilityErrorCodes
 const Encina.Messaging.Recoverability.RecoverabilityErrorCodes.Cancelled = "recoverability.cancelled" -> string!
@@ -388,7 +402,7 @@ Encina.Messaging.Recoverability.DelayedRetryScheduler.DelayedRetryScheduler(Enci
 Encina.Messaging.Recoverability.DelayedRetryScheduler.ScheduleRetryAsync<TRequest>(TRequest request, Encina.Messaging.Recoverability.RecoverabilityContext! context, System.TimeSpan delay, int delayedRetryAttempt, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
 Encina.Messaging.Recoverability.DelayedRetryScheduler.CancelScheduledRetryAsync(System.Guid recoverabilityContextId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
 Encina.Messaging.Recoverability.DelayedRetryProcessor
-Encina.Messaging.Recoverability.DelayedRetryProcessor.DelayedRetryProcessor(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Encina.Messaging.Recoverability.RecoverabilityOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Recoverability.DelayedRetryProcessor!>! logger) -> void
+Encina.Messaging.Recoverability.DelayedRetryProcessor.DelayedRetryProcessor(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Encina.Messaging.Recoverability.RecoverabilityOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Recoverability.DelayedRetryProcessor!>! logger, System.TimeProvider? timeProvider = null, Encina.Messaging.DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null) -> void
 Encina.Messaging.Recoverability.DelayedRetryProcessor.ProcessingInterval.get -> System.TimeSpan
 Encina.Messaging.Recoverability.DelayedRetryProcessor.ProcessingInterval.set -> void
 Encina.Messaging.Recoverability.DelayedRetryProcessor.BatchSize.get -> int
@@ -640,8 +654,8 @@ Encina.Messaging.Auditing.AuditingOptions.LogAuditChanges.get -> bool
 Encina.Messaging.Auditing.AuditingOptions.LogAuditChanges.set -> void
 Encina.Messaging.Auditing.AuditingOptions.LogChangesToStore.get -> bool
 Encina.Messaging.Auditing.AuditingOptions.LogChangesToStore.set -> void
-Encina.Messaging.MessagingConfiguration.UseSecurityAuditStore.get -> bool
-Encina.Messaging.MessagingConfiguration.UseSecurityAuditStore.set -> void
+Encina.Messaging.MessagingConfiguration.UseOperationAuditStore.get -> bool
+Encina.Messaging.MessagingConfiguration.UseOperationAuditStore.set -> void
 Encina.Messaging.MessagingConfiguration.UseSoftDelete.get -> bool
 Encina.Messaging.MessagingConfiguration.UseSoftDelete.set -> void
 Encina.Messaging.MessagingConfiguration.SoftDeleteOptions.get -> Encina.Messaging.SoftDelete.SoftDeleteOptions!
@@ -832,8 +846,50 @@ static Encina.Messaging.MessagingLog.OutboxExhaustedMessagesRequeued(Microsoft.E
 static Encina.Messaging.MessagingLog.OutboxBatchSaveFailed(Microsoft.Extensions.Logging.ILogger! logger, int messageCount, string! errorCode) -> void
 static Encina.Messaging.MessagingLog.OutboxMessageOutcomeNotRecorded(Microsoft.Extensions.Logging.ILogger! logger, string! operation, System.Guid messageId, string! errorCode) -> void
 static Encina.Messaging.MessagingLog.OutboxBatchCancelled(Microsoft.Extensions.Logging.ILogger! logger, System.Guid messageId) -> void
-Encina.Messaging.DeadLetter.DeadLetterOrchestrator.DeadLetterOrchestrator(Encina.Messaging.DeadLetter.IDeadLetterStore! store, Encina.Messaging.DeadLetter.IDeadLetterMessageFactory! messageFactory, Encina.Messaging.DeadLetter.DeadLetterOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.DeadLetter.DeadLetterOrchestrator!>! logger, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, System.TimeProvider? timeProvider = null) -> void
-Encina.Messaging.DeadLetter.DeadLetterManager.DeadLetterManager(Encina.Messaging.DeadLetter.IDeadLetterStore! store, Encina.Messaging.DeadLetter.DeadLetterOrchestrator! orchestrator, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.DeadLetter.DeadLetterManager!>! logger, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer) -> void
-Encina.Messaging.Sagas.SagaOrchestrator.SagaOrchestrator(Encina.Messaging.Sagas.ISagaStore! store, Encina.Messaging.Sagas.SagaOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Sagas.SagaOrchestrator!>! logger, Encina.Messaging.Sagas.ISagaStateFactory! stateFactory, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, System.TimeProvider? timeProvider = null) -> void
-Encina.Messaging.Scheduling.SchedulerOrchestrator.SchedulerOrchestrator(Encina.Messaging.Scheduling.IScheduledMessageStore! store, Encina.Messaging.Scheduling.SchedulingOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Scheduling.SchedulerOrchestrator!>! logger, Encina.Messaging.Scheduling.IScheduledMessageFactory! messageFactory, Encina.Messaging.Scheduling.IScheduledMessageRetryPolicy! retryPolicy, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, Encina.Messaging.Scheduling.ICronParser? cronParser = null, System.TimeProvider? timeProvider = null) -> void
+Encina.Messaging.DeadLetter.DeadLetterOrchestrator.DeadLetterOrchestrator(Encina.Messaging.DeadLetter.IDeadLetterStore! store, Encina.Messaging.DeadLetter.IDeadLetterMessageFactory! messageFactory, Encina.Messaging.DeadLetter.DeadLetterOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.DeadLetter.DeadLetterOrchestrator!>! logger, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, Encina.IRequestContextAccessor! requestContextAccessor, System.TimeProvider? timeProvider = null) -> void
+Encina.Messaging.DeadLetter.DeadLetterManager.DeadLetterManager(Encina.Messaging.DeadLetter.IDeadLetterStore! store, Encina.Messaging.DeadLetter.DeadLetterOrchestrator! orchestrator, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.DeadLetter.DeadLetterManager!>! logger, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, Encina.Messaging.DeadLetter.DeadLetterOptions! options, Encina.IRequestContextAccessor! requestContextAccessor, System.TimeProvider? timeProvider = null, Encina.MultiTenancyMarker? tenancy = null) -> void
+Encina.Messaging.DeadLetter.DeadLetterFilter.AllTenants.get -> bool
+Encina.Messaging.DeadLetter.DeadLetterFilter.AllTenants.init -> void
+Encina.Messaging.DeadLetter.DeadLetterFilter.TenantId.get -> string?
+Encina.Messaging.DeadLetter.DeadLetterFilter.TenantId.set -> void
+Encina.Messaging.DeadLetter.DeadLetterFilter.SourceMessageId.get -> string?
+Encina.Messaging.DeadLetter.DeadLetterFilter.SourceMessageId.set -> void
+Encina.Messaging.DeadLetter.DeadLetterFilter.ExpiresAtOrBeforeUtc.get -> System.DateTime?
+Encina.Messaging.DeadLetter.DeadLetterFilter.ExpiresAtOrBeforeUtc.set -> void
+Encina.Messaging.DeadLetter.DeadLetterOptions.ReplayClaimTimeout.get -> System.TimeSpan
+Encina.Messaging.DeadLetter.DeadLetterOptions.ReplayClaimTimeout.set -> void
+Encina.Messaging.DeadLetter.DeadLetterStoreLimits
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.MaxPageSize = 1000 -> int
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.SourcePatternMaxLength = 64 -> int
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.SourceMessageIdMaxLength = 256 -> int
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.RequestTypeMaxLength = 1000 -> int
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.ErrorCodeMaxLength = 256 -> int
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.TenantIdMaxLength = 128 -> int
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.CorrelationIdMaxLength = 256 -> int
+const Encina.Messaging.DeadLetter.DeadLetterStoreLimits.ReplayResultMaxLength = 256 -> int
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.InvalidMessageType = "dlq.invalid_message_type" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.ReplayInProgress = "dlq.replay_in_progress" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.CaptureFailed = "dlq.capture_failed" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.CaptureRejected = "dlq.capture_rejected" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.NotConfigured = "dlq.not_configured" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.SourceMessageIdRequired = "dlq.source_message_id_required" -> string!
+Encina.Messaging.DeadLetter.DeadLetterOrchestrator.AddSerializedAsync(string! requestType, string! requestContent, Encina.Messaging.DeadLetter.DeadLetterContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.DeadLetter.IDeadLetterMessage!>>!
+Encina.Messaging.DeadLetter.DeadLetterSourceCapture
+Encina.Messaging.DeadLetter.DeadLetterSourceCapture.DeadLetterSourceCapture(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Encina.Messaging.DeadLetter.DeadLetterOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.DeadLetter.DeadLetterSourceCapture!>! logger) -> void
+Encina.Messaging.DeadLetter.DeadLetterSourceCapture.IsEnabledFor(string! sourcePattern) -> bool
+static Encina.Messaging.DeadLetter.DeadLetterSourceCapture.IsRetryable(Encina.EncinaError error) -> bool
+Encina.Messaging.DeadLetter.DeadLetterSourceCapture.CaptureAsync(object! request, Encina.Messaging.DeadLetter.DeadLetterContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Messaging.DeadLetter.DeadLetterSourceCapture.CaptureSerializedAsync(string! requestType, string! requestContent, Encina.Messaging.DeadLetter.DeadLetterContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Messaging.DeadLetter.DeadLetterSourceCapture.CaptureFailedMessageAsync(Encina.Messaging.Recoverability.FailedMessage! failedMessage, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.ReplaySucceeded = "success" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.ClaimFailed = "dlq.claim_failed" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.GetFailed = "dlq.get_failed" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.MarkReplayedFailed = "dlq.mark_replayed_failed" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.QueryFailed = "dlq.query_failed" -> string!
+const Encina.Messaging.DeadLetter.DeadLetterErrorCodes.TenantRequired = "encina.authorization.dlq_tenant_required" -> string!
+static Encina.Messaging.MessagingServiceCollectionExtensions.AddDeadLetterQueueServices<TStore, TFactory>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, bool useDeadLetterQueue, Encina.Messaging.DeadLetter.DeadLetterOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Messaging.Sagas.SagaOrchestrator.SagaOrchestrator(Encina.Messaging.Sagas.ISagaStore! store, Encina.Messaging.Sagas.SagaOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Sagas.SagaOrchestrator!>! logger, Encina.Messaging.Sagas.ISagaStateFactory! stateFactory, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, System.TimeProvider? timeProvider = null, Encina.Messaging.DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null) -> void
+Encina.Messaging.Scheduling.SchedulerOrchestrator.SchedulerOrchestrator(Encina.Messaging.Scheduling.IScheduledMessageStore! store, Encina.Messaging.Scheduling.SchedulingOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Scheduling.SchedulerOrchestrator!>! logger, Encina.Messaging.Scheduling.IScheduledMessageFactory! messageFactory, Encina.Messaging.Scheduling.IScheduledMessageRetryPolicy! retryPolicy, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, Encina.Messaging.Scheduling.ICronParser? cronParser = null, System.TimeProvider? timeProvider = null, Encina.Messaging.DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null) -> void
 static Encina.Messaging.MessagingServiceCollectionExtensions.TryAddDefaultMessageSerializer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Messaging.IWrappedDbConnection
+Encina.Messaging.IWrappedDbConnection.InnerConnection.get -> System.Data.IDbConnection!

@@ -26,7 +26,7 @@ namespace Encina.Modules;
 /// </remarks>
 [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
     Justification = "Three generic parameters are required: module type for scoping, request type for pipeline, and response type for the result.")]
-internal sealed class ModuleBehaviorAdapter<TModule, TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+internal sealed class ModuleBehaviorAdapter<TModule, TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>, IPipelineStepIdentity
     where TModule : class, IModule
     where TRequest : IRequest<TResponse>
 {
@@ -61,6 +61,24 @@ internal sealed class ModuleBehaviorAdapter<TModule, TRequest, TResponse> : IPip
         _targetModuleName = module.Name;
         _handlerRegistry = handlerRegistry;
     }
+
+    /// <summary>
+    /// Gets the wrapped module behavior type: the step identity, so two module behaviors adapted for the same
+    /// module and request are not collapsed into one.
+    /// </summary>
+    public Type StepType => _innerBehavior.GetType();
+
+    /// <inheritdoc />
+    public PipelineStepKind Kind => PipelineStepKind.ModuleBehavior;
+
+    /// <inheritdoc />
+    public Type? ModuleType => typeof(TModule);
+
+    /// <inheritdoc />
+    public PipelineStage? DeclaredStage => PipelineStageLookup.Find(StepType)?.Stage;
+
+    /// <inheritdoc />
+    public int? DeclaredOrder => PipelineStageLookup.Find(StepType)?.Order;
 
     /// <summary>
     /// Executes the wrapped behavior only if the request is being processed by the target module.

@@ -1,3 +1,7 @@
+#pragma warning disable CA2012 // NSubstitute ValueTask stubbing pattern
+using System.Buffers;
+using System.Text;
+
 using Encina.Compliance.DataSubjectRights;
 using Encina.Marten.GDPR;
 using Encina.Marten.GDPR.Abstractions;
@@ -6,270 +10,269 @@ using FsCheck;
 using FsCheck.Xunit;
 
 using Marten;
+using Marten.Services;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 
 using NSubstitute;
 
-using Weasel.Core;
-
-using ISerializer = Marten.ISerializer;
-
 namespace Encina.PropertyTests.Marten.GDPR;
 
 /// <summary>
-/// Property-based tests for <see cref="CryptoShredderSerializer"/>. These tests use
-/// <see cref="InMemorySubjectKeyProvider"/> as a real key store and an NSubstitute
-/// <see cref="ISerializer"/> stub for the inner Marten serializer so that the
-/// encryption/decryption pipeline is exercised end-to-end.
+/// Property-based invariants of nested crypto-shredding (#1698) on the real Marten System.Text.Json serializer:
+/// graphs of depth 0-4 with lists, dictionaries, nulls, shared references and 1-3 subjects.
 /// </summary>
 [Trait("Category", "Property")]
 [Trait("Provider", "Marten")]
-public sealed class CryptoShredderSerializerPropertyTests : IDisposable
+public sealed class CryptoShredderSerializerPropertyTests
 {
-    private readonly InMemorySubjectKeyProvider _keyProvider;
-    private readonly DefaultForgottenSubjectHandler _forgottenHandler;
-    private readonly ISerializer _innerSerializer;
-    private readonly CryptoShredderSerializer _sut;
+    private const string Sentinel = "pii-sentinel-";
+    private const string Placeholder = "[REDACTED]";
 
-    public CryptoShredderSerializerPropertyTests()
+    private sealed class Harness : IDisposable
     {
-        _keyProvider = new InMemorySubjectKeyProvider(
-            new FakeTimeProvider(new DateTimeOffset(2026, 3, 15, 12, 0, 0, TimeSpan.Zero)),
-            NullLogger<InMemorySubjectKeyProvider>.Instance);
-        _forgottenHandler = new DefaultForgottenSubjectHandler(
-            NullLogger<DefaultForgottenSubjectHandler>.Instance);
+        private readonly ServiceProvider _provider;
 
-        _innerSerializer = Substitute.For<ISerializer>();
-        _innerSerializer.EnumStorage.Returns(EnumStorage.AsString);
-        _innerSerializer.Casing.Returns(Casing.CamelCase);
-        _innerSerializer.ValueCasting.Returns(ValueCasting.Strict);
-
-        // The inner serializer just captures the document's current field values into JSON
-        // by reading the object's Email property; this is enough to observe the encryption
-        // pipeline without pulling in a real JSON library.
-        _innerSerializer.ToJson(Arg.Any<object?>())
-            .Returns(ci => CaptureJson(ci.Arg<object?>()));
-        _innerSerializer.ToCleanJson(Arg.Any<object?>())
-            .Returns(ci => CaptureJson(ci.Arg<object?>()));
-        _innerSerializer.ToJsonWithTypes(Arg.Any<object>())
-            .Returns(ci => CaptureJson(ci.Arg<object>()));
-
-        _sut = new CryptoShredderSerializer(
-            _innerSerializer,
-            _keyProvider,
-            _forgottenHandler,
-            NullLogger<CryptoShredderSerializer>.Instance);
-    }
-
-    public void Dispose()
-    {
-        _keyProvider.Clear();
-        CryptoShreddedPropertyCache.ClearCache();
-    }
-
-    private static string CaptureJson(object? document)
-    {
-        if (document is null) return "null";
-        if (document is PiiSampleEvent pii)
+        internal Harness(ISubjectKeyProvider? keys = null)
         {
-            return $"{{\"userId\":\"{pii.UserId}\",\"email\":\"{pii.Email}\"}}";
+            Keys = keys ?? new InMemorySubjectKeyProvider(new FakeTimeProvider(), NullLogger<InMemorySubjectKeyProvider>.Instance);
+            var services = new ServiceCollection();
+            services.AddSingleton(Keys);
+            services.AddSingleton(Substitute.For<IForgottenSubjectHandler>());
+            _provider = services.BuildServiceProvider();
+            Serializer = new CryptoShredderSerializer(
+                (SystemTextJsonSerializer)new StoreOptions().Serializer(),
+                _provider.GetRequiredService<IServiceScopeFactory>(),
+                NullLogger<CryptoShredderSerializer>.Instance,
+                Placeholder);
         }
-        return "{\"other\":true}";
+
+        internal ISubjectKeyProvider Keys { get; }
+
+        internal CryptoShredderSerializer Serializer { get; }
+
+        internal Node Read(string json)
+        {
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+            return Serializer.FromJson<Node>(stream);
+        }
+
+        public void Dispose() => _provider.Dispose();
     }
 
-    // ─── Passthrough invariants (non-PII types) ───
-
-    [Property(MaxTest = 50)]
-    public bool ToJson_NonPiiType_PassesThroughToInner(NonEmptyString id)
+    [Property(MaxTest = 60)]
+    public bool Json_ContainsNoPlaintext_AndOneTokenPerNonNullField(int seed)
     {
-        var evt = new NonPiiSampleEvent { Id = id.Get };
-        var json = _sut.ToJson(evt);
-        return json == "{\"other\":true}";
+        using var harness = new Harness();
+        var graph = Build(seed);
+
+        var json = harness.Serializer.ToJson(graph);
+
+        return !json.Contains(Sentinel, StringComparison.Ordinal)
+            && CountTokens(json) == Occurrences(graph).Count;
     }
 
-    [Property(MaxTest = 50)]
-    public bool ToCleanJson_NonPiiType_PassesThroughToInner(NonEmptyString id)
+    [Property(MaxTest = 60)]
+    public bool CallersGraph_IsNeverMutated(int seed)
     {
-        var evt = new NonPiiSampleEvent { Id = id.Get };
-        var json = _sut.ToCleanJson(evt);
-        return json == "{\"other\":true}";
+        using var harness = new Harness();
+        var graph = Build(seed);
+        var before = Snapshot(graph);
+
+        harness.Serializer.ToJson(graph);
+
+        return Snapshot(graph) == before;
     }
 
-    [Property(MaxTest = 50)]
-    public bool ToJsonWithTypes_NonPiiType_PassesThroughToInner(NonEmptyString id)
+    [Property(MaxTest = 60)]
+    public bool RoundTrip_EqualsTheOriginal(int seed)
     {
-        var evt = new NonPiiSampleEvent { Id = id.Get };
-        var json = _sut.ToJsonWithTypes(evt);
-        return json == "{\"other\":true}";
+        using var harness = new Harness();
+        var graph = Build(seed);
+
+        var read = harness.Read(harness.Serializer.ToJson(graph));
+
+        return Snapshot(read) == Snapshot(graph);
     }
 
-    [Fact]
-    public void ToJson_NullDocument_DelegatesToInner()
+    [Property(MaxTest = 40)]
+    public bool ForgettingSubjects_TurnsExactlyTheirFieldsIntoThePlaceholder(int seed, byte forgetMask)
     {
-        _innerSerializer.ToJson((object?)null).Returns("null");
-        var json = _sut.ToJson(null);
-        json.ShouldNotBeNullOrEmpty();
+        using var harness = new Harness();
+        var graph = Build(seed);
+        var json = harness.Serializer.ToJson(graph);
+        var forgotten = Subjects.Where((_, i) => (forgetMask & (1 << i)) != 0).ToHashSet(StringComparer.Ordinal);
+        foreach (var subject in forgotten)
+        {
+            harness.Keys.DeleteSubjectKeysAsync(subject).AsTask().GetAwaiter().GetResult();
+        }
+
+        var expected = Occurrences(graph).Select(o => forgotten.Contains(o.Subject) ? Placeholder : o.Value);
+        var actual = Occurrences(harness.Read(json)).Select(o => o.Value);
+
+        return expected.SequenceEqual(actual);
     }
 
-    [Fact]
-    public void ToCleanJson_NullDocument_DelegatesToInner()
+    [Property(MaxTest = 40)]
+    public bool KeyLookups_AreOncePerDistinctSubjectPerCall(int seed)
     {
-        _innerSerializer.ToCleanJson((object?)null).Returns("null");
-        var json = _sut.ToCleanJson(null);
-        json.ShouldNotBeNullOrEmpty();
+        var real = new InMemorySubjectKeyProvider(new FakeTimeProvider(), NullLogger<InMemorySubjectKeyProvider>.Instance);
+        var keys = Substitute.For<ISubjectKeyProvider>();
+        keys.GetOrCreateSubjectKeyAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ci => real.GetOrCreateSubjectKeyAsync(ci.ArgAt<string>(0)));
+        using var harness = new Harness(keys);
+        var graph = Build(seed);
+
+        harness.Serializer.ToJson(graph);
+
+        var distinct = Occurrences(graph).Select(o => o.Subject).Distinct().Count();
+        return keys.ReceivedCalls().Count() == distinct;
     }
 
-    // ─── Encryption mutation is rolled back ───
-
-    [Property(MaxTest = 50)]
-    public bool ToJson_PiiEvent_OriginalValuesRestoredAfterSerialization(NonEmptyString userId, NonEmptyString email)
+    [Property(MaxTest = 40)]
+    public bool MissingSubjectAnywhere_ThrowsAndLeavesTheBufferEmpty(int seed)
     {
-        var uid = userId.Get.Trim();
-        var plaintextEmail = email.Get.Trim();
-        if (string.IsNullOrWhiteSpace(uid) || string.IsNullOrWhiteSpace(plaintextEmail)) return true;
-        // Avoid email values that happen to collide with encrypted envelope marker
-        if (plaintextEmail.StartsWith("{\"__enc\":true", StringComparison.Ordinal)) return true;
+        using var harness = new Harness();
+        var graph = Build(seed);
+        var victims = AllNodes(graph).Where(n => n.Email is not null).ToList();
+        if (victims.Count == 0)
+        {
+            return true;
+        }
 
-        var evt = new PiiSampleEvent { UserId = uid, Email = plaintextEmail };
-        _sut.ToJson(evt);
-
-        // After serialization, the original plaintext MUST be restored on the object.
-        return evt.Email == plaintextEmail && evt.UserId == uid;
-    }
-
-    [Property(MaxTest = 50)]
-    public bool ToJson_PiiEvent_EncryptsEmailFieldDuringInnerCall(NonEmptyString userId, NonEmptyString email)
-    {
-        var uid = userId.Get.Trim();
-        var plaintext = email.Get.Trim();
-        if (string.IsNullOrWhiteSpace(uid) || string.IsNullOrWhiteSpace(plaintext)) return true;
-        if (plaintext.StartsWith("{\"__enc\":true", StringComparison.Ordinal)) return true;
-
-        string? observedEmail = null;
-        _innerSerializer.ToJson(Arg.Any<object?>())
-            .Returns(ci =>
-            {
-                if (ci.Arg<object?>() is PiiSampleEvent p)
-                {
-                    observedEmail = p.Email;
-                }
-                return "{}";
-            });
-
-        var evt = new PiiSampleEvent { UserId = uid, Email = plaintext };
-        _sut.ToJson(evt);
-
-        // During inner.ToJson, the Email should be the encrypted JSON envelope.
-        return observedEmail is not null
-               && observedEmail.StartsWith("{\"__enc\":true", StringComparison.Ordinal);
-    }
-
-    // ─── Forgotten subject: serialization fails closed (#1646) ───
-
-    [Property(MaxTest = 30)]
-    public bool ToJson_ForgottenSubject_ThrowsAndRestoresOriginal(NonEmptyString userId)
-    {
-        var uid = userId.Get.Trim();
-        if (string.IsNullOrWhiteSpace(uid)) return true;
-
-        // Pre-forget the subject so the key provider returns Left for GetOrCreate.
-        _keyProvider.GetOrCreateSubjectKeyAsync(uid).AsTask().GetAwaiter().GetResult();
-        _keyProvider.DeleteSubjectKeysAsync(uid).AsTask().GetAwaiter().GetResult();
-
-        var evt = new PiiSampleEvent { UserId = uid, Email = "secret@example.com" };
-
-        // The value cannot be encrypted, so the event is never serialized in plaintext.
-        CryptoShreddingEncryptionException? thrown = null;
+        victims[Math.Abs(seed % victims.Count)].SubjectId = null;
+        var buffer = new ArrayBufferWriter<byte>();
         try
         {
-            _sut.ToJson(evt);
+            harness.Serializer.WriteTo(buffer, graph);
+            return false;
         }
         catch (CryptoShreddingEncryptionException ex)
         {
-            thrown = ex;
+            return ex.Reason == CryptoShreddingEncryptionFailureReason.SubjectIdMissing && buffer.WrittenCount == 0;
         }
-
-        // Original values must be preserved.
-        return thrown is { Reason: CryptoShreddingEncryptionFailureReason.KeyUnavailable }
-               && evt.Email == "secret@example.com" && evt.UserId == uid;
     }
 
-    // ─── Decryption pipeline (sync path): round-trip ───
-
-    [Property(MaxTest = 30)]
-    public bool FromJson_PiiEvent_WithEncryptedField_DecryptsToOriginal(NonEmptyString userId, NonEmptyString email)
+    [Property(MaxTest = 60)]
+    public bool Token_FormatParse_RoundTrips(PositiveInt version, byte[] ciphertext)
     {
-        var uid = userId.Get.Trim();
-        var plaintext = email.Get.Trim();
-        if (string.IsNullOrWhiteSpace(uid) || string.IsNullOrWhiteSpace(plaintext)) return true;
-        if (plaintext.StartsWith("{\"__enc\":true", StringComparison.Ordinal)) return true;
+        var token = CryptoShreddingToken.Format(version.Get, new byte[12], ciphertext ?? [], new byte[16]);
 
-        // First encrypt the field via ToJson and capture the encrypted envelope
-        string? encryptedEnvelope = null;
-        _innerSerializer.ToJson(Arg.Any<object?>())
-            .Returns(ci =>
-            {
-                if (ci.Arg<object?>() is PiiSampleEvent p)
-                {
-                    encryptedEnvelope = p.Email;
-                }
-                return "{}";
-            });
+        return CryptoShreddingToken.TryParse(token, out var parsed)
+            && parsed.Version == version.Get
+            && parsed.Ciphertext.SequenceEqual(ciphertext ?? []);
+    }
 
-        var evt = new PiiSampleEvent { UserId = uid, Email = plaintext };
-        _sut.ToJson(evt);
+    [Property(MaxTest = 60)]
+    public bool Token_ArbitraryStringsWithoutThePrefix_NeverParse(string value) =>
+        value is null || value.StartsWith(CryptoShreddingToken.Prefix, StringComparison.Ordinal) || !CryptoShreddingToken.TryParse(value, out _);
 
-        if (encryptedEnvelope is null || !encryptedEnvelope.StartsWith("{\"__enc\":true", StringComparison.Ordinal))
+    // -- Graph model ---------------------------------------------------------------------------------------------
+
+    private static readonly string[] Subjects = ["s-1", "s-2", "s-3"];
+
+    public sealed class Node
+    {
+        public string? SubjectId { get; set; }
+
+        [PersonalData]
+        [CryptoShredded(SubjectIdProperty = nameof(SubjectId))]
+        public string? Email { get; set; }
+
+        public Node? Child { get; set; }
+
+        public List<Node?> Items { get; set; } = [];
+
+        public Dictionary<string, Node> Map { get; set; } = [];
+    }
+
+    private static Node Build(int seed)
+    {
+        var random = new Random(seed);
+        var counter = 0;
+        Node? shared = null;
+        Node Make(int depth)
         {
-            return false;
+            var node = new Node
+            {
+                SubjectId = Subjects[random.Next(Subjects.Length)],
+                Email = random.Next(5) == 0 ? null : $"{Sentinel}{counter++}",
+            };
+            if (depth >= 4)
+            {
+                return node;
+            }
+
+            if (random.Next(2) == 0)
+            {
+                node.Child = Make(depth + 1);
+            }
+
+            for (var i = random.Next(3); i > 0; i--)
+            {
+                node.Items.Add(random.Next(4) == 0 ? null : Make(depth + 1));
+            }
+
+            if (random.Next(3) == 0)
+            {
+                shared ??= Make(depth + 1);
+                node.Map[$"k{counter++}"] = shared;
+            }
+
+            return node;
         }
 
-        // Simulate the inner serializer returning a fresh object with the encrypted envelope
-        var deserialized = new PiiSampleEvent { UserId = uid, Email = encryptedEnvelope };
-        _innerSerializer.FromJson<PiiSampleEvent>(Arg.Any<Stream>())
-            .Returns(deserialized);
-
-        using var stream = new MemoryStream();
-        var roundtrip = _sut.FromJson<PiiSampleEvent>(stream);
-
-        return roundtrip.Email == plaintext && roundtrip.UserId == uid;
+        return Make(0);
     }
 
-    // ─── Delegation invariants ───
-
-    [Fact]
-    public void EnumStorage_ReflectsInner()
+    private static IEnumerable<Node> AllNodes(Node root)
     {
-        _sut.EnumStorage.ShouldBe(EnumStorage.AsString);
+        var stack = new Stack<Node>([root]);
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            yield return node;
+            foreach (var child in Children(node).Reverse())
+            {
+                stack.Push(child);
+            }
+        }
     }
 
-    [Fact]
-    public void Casing_ReflectsInner()
+    private static IEnumerable<Node> Children(Node node)
     {
-        _sut.Casing.ShouldBe(Casing.CamelCase);
+        if (node.Child is not null)
+        {
+            yield return node.Child;
+        }
+
+        foreach (var item in node.Items.OfType<Node>())
+        {
+            yield return item;
+        }
+
+        foreach (var value in node.Map.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => p.Value))
+        {
+            yield return value;
+        }
     }
 
-    [Fact]
-    public void ValueCasting_ReflectsInner()
+    private static List<(string Subject, string Value)> Occurrences(Node root) =>
+        [.. AllNodes(root).Where(n => n.Email is not null).Select(n => (n.SubjectId!, n.Email!))];
+
+    private static string Snapshot(Node root) =>
+        string.Join("|", AllNodes(root).Select(n => $"{n.SubjectId}:{n.Email}:{n.Items.Count}:{n.Map.Count}"));
+
+    private static int CountTokens(string json)
     {
-        _sut.ValueCasting.ShouldBe(ValueCasting.Strict);
-    }
+        var count = 0;
+        for (var index = json.IndexOf("\"cs2:", StringComparison.Ordinal); index >= 0; index = json.IndexOf("\"cs2:", index + 1, StringComparison.Ordinal))
+        {
+            count++;
+        }
 
-    // ─── Test event types ───
-
-    public sealed class NonPiiSampleEvent
-    {
-        public string Id { get; set; } = string.Empty;
-    }
-
-    public sealed class PiiSampleEvent
-    {
-        public string UserId { get; set; } = string.Empty;
-
-        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
-        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
-        public string Email { get; set; } = string.Empty;
+        return count;
     }
 }

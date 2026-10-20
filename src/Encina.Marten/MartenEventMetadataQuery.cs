@@ -56,6 +56,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
         try
         {
             Log.QueryingByCorrelationId(_logger, correlationId);
+            using var noDecrypt = EventReadScope.SuppressDecryption();
             return await QueryEventsByMetadataAsync(
                 e => e.CorrelationId == correlationId,
                 options,
@@ -89,6 +90,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
         try
         {
             Log.QueryingByCausationId(_logger, causationId);
+            using var noDecrypt = EventReadScope.SuppressDecryption();
             return await QueryEventsByMetadataAsync(
                 e => e.CausationId == causationId,
                 options,
@@ -131,6 +133,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
         try
         {
             Log.QueryingCausalChain(_logger, eventId, direction.ToString(), maxDepth);
+            using var noDecrypt = EventReadScope.SuppressDecryption();
 
             return direction == CausalChainDirection.Ancestors
                 ? await GetAncestorChainAsync(eventId, maxDepth, cancellationToken).ConfigureAwait(false)
@@ -162,6 +165,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
 
         try
         {
+            using var noDecrypt = EventReadScope.SuppressDecryption();
             await using var session = _store.QuerySession();
             var eventData = await session.Events
                 .QueryAllRawEvents()

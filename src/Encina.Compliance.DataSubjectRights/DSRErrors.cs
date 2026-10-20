@@ -71,6 +71,15 @@ public static class DSRErrors
     /// <summary>Error code when a DSR request is invalid.</summary>
     public const string InvalidRequestCode = "dsr.invalid_request";
 
+    /// <summary>Error code when a draft-law rejection reason is used while its option is off.</summary>
+    public const string RejectionReasonNotEnabledCode = "dsr.rejection_reason_not_enabled";
+
+    /// <summary>
+    /// Error code when a DSR operation is refused because no tenant is present in the ambient
+    /// request context (or a requested tenant contradicts it) and tenant isolation is required.
+    /// </summary>
+    public const string TenantRequiredCode = "dsr.tenant_required";
+
     /// <summary>Error code when a DSR service operation fails unexpectedly.</summary>
     public const string ServiceErrorCode = "dsr.service_error";
 
@@ -374,6 +383,44 @@ public static class DSRErrors
             message: $"Invalid DSR request: {message}",
             details: new Dictionary<string, object?>
             {
+                [MetadataKeyStageDSR] = MetadataKeyStageDSR
+            });
+
+    /// <summary>
+    /// Creates an error when a draft-law rejection reason is used while
+    /// <see cref="DataSubjectRightsOptions.EnableOmnibusArticle12RefusalGrounds"/> is off.
+    /// </summary>
+    /// <param name="reason">The rejection reason that is not enabled.</param>
+    /// <returns>An error naming the reason and the option, never the data subject.</returns>
+    public static EncinaError RejectionReasonNotEnabled(DSRRejectionReason reason) =>
+        EncinaErrors.Create(
+            code: RejectionReasonNotEnabledCode,
+            message: $"Rejection reason '{reason}' is draft law ({reason.LegalBasis}) and is not enabled. " +
+                $"Set {nameof(DataSubjectRightsOptions)}.{nameof(DataSubjectRightsOptions.EnableOmnibusArticle12RefusalGrounds)} to accept it.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStageDSR] = MetadataKeyStageDSR,
+                ["rejectionReason"] = reason.ToString()
+            });
+
+    /// <summary>
+    /// Creates an error when a DSR operation is refused because tenant isolation is required and
+    /// the ambient request context carries no tenant, or a requested tenant contradicts the
+    /// ambient one.
+    /// </summary>
+    /// <param name="operation">The DSR operation that was refused.</param>
+    /// <returns>
+    /// An error indicating the operation was not run, so it can never read or change another
+    /// tenant's requests (SPEC-002 DEC-006). Contains no tenant or subject identifier.
+    /// </returns>
+    public static EncinaError TenantRequired(string operation) =>
+        EncinaErrors.Create(
+            code: TenantRequiredCode,
+            message: $"DSR operation '{operation}' was refused: tenant isolation is required and the "
+                + "ambient request context carries no tenant or contradicts the requested tenant.",
+            details: new Dictionary<string, object?>
+            {
+                ["operation"] = operation,
                 [MetadataKeyStageDSR] = MetadataKeyStageDSR
             });
 

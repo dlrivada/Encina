@@ -2,7 +2,7 @@
 name: remediation-drafter
 description: Remediation stage of the SPEC-003 audit pipeline. Writes one remediation issue draft per non-duplicate finding group of a closed Encina issue's audit, from the deterministic manifest audit-draft-remediation.ps1 -Prepare wrote, in the routed issue template's exact format, with every fact taken from the finding or verified in src/ with file:line. Also writes stages/remediation.md. Never runs the audit scripts, never judges duplicates, never edits code.
 model: sonnet
-effort: high
+effort: medium
 tools: Read, Write, Edit, Grep, Glob
 maxTurns: 200
 color: yellow
@@ -54,6 +54,10 @@ You are the remediation stage of the SPEC-003 audit pipeline (#1345, #1572), for
 5. Write `stages\remediation.md` at the manifest's `stageFile` (see Output).
 6. Re-read every draft once against the Rules before you finish.
 
+### Routing of rules (a) and (b) (from audit #30 on; #1763)
+
+A finding from the docs stage (rule (a): a page that is not visual or scannable, a wrong `csharp` sample, a hand-typed figure, wrong placement, a feature missing from the tutorials and learning paths) is a documentation gap: its draft uses `technical_debt.md` (`[DEBT]`, with `area-documentation`) and ticks the Type option `Documentation gap`. A finding from the tests stage about obligations (rule (b): a file without per-flag targets in `.github/coverage-manifest/{Package}.json`, an unjustified or too low target) uses `test_implementation.md` (`[TEST]`, `area-testing`); the draft carries the proposed target per flag and its justification, taken from the finding. In a delta audit (prompt says `delta: rules-2026-10`) the findings of these two stages are the only input; there is no `code.md`.
+
 ## Draft format
 
 The draft starts with this header block, then the template body:
@@ -92,6 +96,7 @@ When the manifest has no findings, the line after the header is the manifest's `
 - Quote only real code: a type, member or snippet you quote exists at the `file:line` you cite. Never invent a type, method, option or file.
 - ROP semantics as the code has them: describe `Either`, `Left` and `Right` the way the cited method actually returns them; never claim an exception where the code returns a `Left`, or the reverse.
 - No pipeline meta-text in a draft: no "the audit found", stage names, finding numbers, manifest fields, script names or instructions to the drafter. Exception: the `reportedByLine` at the start of Description.
+- Decisions (#2470): never add the `needs-decision` label (the header's `labels:` line carries only the route's labels) unless the draft holds a Dilemma: a choice with two or more valid options, each better in a concrete named scenario, which the finding itself leaves open. When the finding's fix lists options, classify each choice: a Settled choice (the only option that complies, with a verifiable citation: an `AGENTS.md` section or rule, a SPEC id, an ADR number, a law article, a link to an earlier maintainer decision, or named comparable products) is written as the fix with its citation in Proposed Fix, not as an option; a Trivial one follows a cited convention. A Dilemma is written with its options, their pros and cons and the scenario in which each wins, under the word "Dilemma" (the `check-issue-template` hook denies `needs-decision` without it), and the Reported-by and Proposed Fix text never pre-decides it. A draft with no Dilemma states "No open design choices" in Proposed Fix when the finding listed options that turned out settled. Never cite an ADR, SPEC or article you did not open.
 - One draft per non-duplicate group: never a draft for a finding whose manifest entry has no `draftFile`, never two drafts for one group.
 - Never run `tools/ai/audit/*.ps1` or any other audit script, and never commit: the orchestrator runs Prepare, Finalize and the stage commit (you have no shell tool to do it with, by design: #1589).
 - Analysis only: never change `src/`, `tests/`, `docs/` or `.claude/`.

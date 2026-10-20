@@ -1,18 +1,16 @@
 using System.Buffers;
 using System.Data.Common;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Security.Cryptography;
-using System.Text;
-using Encina.Diagnostics;
-using Encina.Marten.GDPR.Abstractions;
-using Encina.Marten.GDPR.Diagnostics;
-using Encina.Security.Encryption;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
-using LanguageExt;
+using Encina.Marten.GDPR.Diagnostics;
 
 using Marten;
+using Marten.Services;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using Npgsql;
@@ -20,109 +18,97 @@ using Npgsql;
 using Weasel.Core;
 
 using ISerializer = Marten.ISerializer;
+using SystemTextJsonSerializer = Marten.Services.SystemTextJsonSerializer;
 
 namespace Encina.Marten.GDPR;
 
 /// <summary>
-/// A Marten <see cref="ISerializer"/> decorator that transparently encrypts and decrypts
-/// properties marked with <see cref="CryptoShreddedAttribute"/> during event serialization
-/// and deserialization.
+/// The Marten <see cref="ISerializer"/> that crypto-shreds every <see cref="CryptoShreddedAttribute"/> property
+/// Marten serializes, at any depth: nested objects, collection elements, dictionary values, polymorphic members,
+/// records and non-public properties with <c>[JsonInclude]</c>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This serializer wraps an existing Marten <see cref="ISerializer"/> and intercepts the
-/// serialization pipeline to apply field-level AES-256-GCM encryption to PII properties.
-/// Non-PII events are passed through to the inner serializer without modification.
+/// It wraps Marten's <see cref="SystemTextJsonSerializer"/> and installs a System.Text.Json contract modifier on
+/// each of its <see cref="JsonSerializerOptions"/>. Encryption happens in the wrapped property getter, which
+/// receives the declaring object, so the subject is the value of that object's
+/// <see cref="CryptoShreddedAttribute.SubjectIdProperty"/> sibling and the caller's object is never mutated.
+/// Decryption runs after deserialization for every constructed owner.
 /// </para>
 /// <para>
-/// <b>Serialize flow</b> (<c>ToJson</c>, <c>ToCleanJson</c>):
-/// </para>
-/// <list type="number">
-/// <item><description>Fast-path check via <see cref="CryptoShreddedPropertyCache.HasCryptoShreddedProperties"/>
-///   — if no crypto-shredded properties, delegate directly to inner serializer</description></item>
-/// <item><description>For each <c>[CryptoShredded]</c> property: extract subject ID, obtain
-///   the active encryption key and its version via <see cref="ISubjectKeyProvider.GetOrCreateSubjectKeyAsync"/>,
-///   encrypt with AES-256-GCM, replace property value with encrypted JSON envelope</description></item>
-/// <item><description>Serialize modified object with inner serializer, then restore original
-///   property values</description></item>
-/// </list>
-/// <para>
-/// <b>Fail closed</b> (#1646): when a non-null <c>[CryptoShredded]</c> value cannot be encrypted — its
-/// subject id is missing, the key provider returns an error or throws, or the property is misconfigured
-/// (for example getter-only) — serialization throws <see cref="CryptoShreddingEncryptionException"/>
-/// before the inner serializer runs, so Marten's append fails and nothing is stored. Personal data never
-/// reaches the append-only event store in plaintext.
+/// <b>Fail closed.</b> A value that cannot be encrypted throws <see cref="CryptoShreddingEncryptionException"/>
+/// before any byte reaches the caller (the buffer-writer members stage their output). A misconfigured type throws
+/// <see cref="CryptoShreddingConfigurationException"/>. A stored value that cannot be read throws
+/// <see cref="CryptoShreddingDecryptionException"/>; only a forgotten subject reads as the placeholder.
 /// </para>
 /// <para>
-/// <b>Deserialize flow</b> (<c>FromJson</c>, <c>FromJsonAsync</c>):
-/// </para>
-/// <list type="number">
-/// <item><description>Deserialize with inner serializer first</description></item>
-/// <item><description>For each <c>[CryptoShredded]</c> property whose value starts with
-///   <c>{"__enc":true</c>: parse the encrypted envelope, retrieve the key, and decrypt</description></item>
-/// <item><description>For forgotten subjects (key not found): invoke
-///   <see cref="IForgottenSubjectHandler"/> and apply the anonymized placeholder</description></item>
-/// </list>
-/// <para>
-/// Encryption uses <see cref="AesGcm"/> directly with key material from
-/// <see cref="ISubjectKeyProvider"/>, providing authenticated encryption with
-/// 12-byte nonces and 16-byte authentication tags.
-/// </para>
-/// <para>
-/// <b>Thread safety</b>: This class is thread-safe. Marten may invoke serializer methods
-/// concurrently from multiple threads. The <see cref="ISubjectKeyProvider"/> and
-/// <see cref="IForgottenSubjectHandler"/> implementations must also be thread-safe.
+/// <b>Keys</b> are resolved through <see cref="IServiceScopeFactory"/> in a DI scope created lazily per call, and
+/// cached for that call only. <b>Thread safety</b>: the serializer is thread-safe; per-call state lives in
+/// <c>[ThreadStatic]</c> write frames and <c>AsyncLocal</c> read frames.
 /// </para>
 /// </remarks>
 [SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters",
     Justification = "Overloads are required by Marten's ISerializer interface contract.")]
-[SuppressMessage("Reliability", "CA2012:Use ValueTasks correctly",
-    Justification = "Sync-over-async is intentional: Marten's ISerializer.ToJson/FromJson are sync methods, " +
-                    "but ISubjectKeyProvider is async. Marten invokes serializers from within its async pipeline " +
-                    "(no SynchronizationContext), making .GetAwaiter().GetResult() safe here.")]
 public sealed class CryptoShredderSerializer : ISerializer
 {
-    private const int NonceSizeInBytes = 12;
-    private const int TagSizeInBytes = 16;
+    [ThreadStatic]
+    private static ArrayBufferWriter<byte>? t_staging;
 
-    private readonly ISerializer _inner;
-    private readonly ISubjectKeyProvider _subjectKeyProvider;
-    private readonly IForgottenSubjectHandler _forgottenSubjectHandler;
+    [ThreadStatic]
+    private static bool t_stagingInUse;
+
+    private const int MaxRetainedStagingBytes = 1024 * 1024;
+
+    private static readonly ConditionalWeakTable<Type, StrongBox<bool>> StagingNeeded = new();
+
+    private readonly SystemTextJsonSerializer _inner;
     private readonly ILogger<CryptoShredderSerializer> _logger;
-    private readonly string _anonymizedPlaceholder;
+    private readonly CryptoShreddingEngine _engine;
+    private readonly CryptoShreddingContractModifier _modifier;
+    private readonly List<InstalledResolver> _installed = [];
+    private readonly Lock _verifyLock = new();
+    private CryptoShreddingConfigurationException? _verificationFailure;
+    private bool _verified;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="CryptoShredderSerializer"/> class.
+    /// Initializes a new instance of the <see cref="CryptoShredderSerializer"/> class and installs the contract
+    /// modifier on every <see cref="JsonSerializerOptions"/> of <paramref name="inner"/>.
     /// </summary>
-    /// <param name="inner">The inner Marten serializer to delegate to for actual JSON processing.</param>
-    /// <param name="subjectKeyProvider">The provider for per-subject encryption keys.</param>
-    /// <param name="forgottenSubjectHandler">
-    /// The handler invoked when a forgotten subject's data is encountered during deserialization.
-    /// </param>
+    /// <param name="inner">Marten's System.Text.Json serializer.</param>
+    /// <param name="scopeFactory">Creates the per-call DI scope that resolves the key provider and the forgotten-subject handler.</param>
     /// <param name="logger">Logger for structured diagnostic logging.</param>
-    /// <param name="anonymizedPlaceholder">
-    /// The placeholder value substituted for PII properties of forgotten subjects.
-    /// Defaults to <c>"[REDACTED]"</c>.
-    /// </param>
+    /// <param name="anonymizedPlaceholder">The placeholder a forgotten subject's fields read as. Defaults to <c>"[REDACTED]"</c>.</param>
+    /// <exception cref="CryptoShreddingConfigurationException">An options object is already read-only, so the modifier cannot be installed.</exception>
     public CryptoShredderSerializer(
-        ISerializer inner,
-        ISubjectKeyProvider subjectKeyProvider,
-        IForgottenSubjectHandler forgottenSubjectHandler,
+        SystemTextJsonSerializer inner,
+        IServiceScopeFactory scopeFactory,
         ILogger<CryptoShredderSerializer> logger,
-        string anonymizedPlaceholder = "[REDACTED]")
+        string anonymizedPlaceholder = CryptoShredderSerializerFactory.DefaultAnonymizedPlaceholder)
     {
         ArgumentNullException.ThrowIfNull(inner);
-        ArgumentNullException.ThrowIfNull(subjectKeyProvider);
-        ArgumentNullException.ThrowIfNull(forgottenSubjectHandler);
+        ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentException.ThrowIfNullOrWhiteSpace(anonymizedPlaceholder);
 
         _inner = inner;
-        _subjectKeyProvider = subjectKeyProvider;
-        _forgottenSubjectHandler = forgottenSubjectHandler;
         _logger = logger;
-        _anonymizedPlaceholder = anonymizedPlaceholder;
+        _engine = new CryptoShreddingEngine(scopeFactory, logger, anonymizedPlaceholder);
+        _modifier = new CryptoShreddingContractModifier(_engine, logger);
+        inner.Configure(Install);
+        _engine.PathOptions = _installed.Count > 0 ? _installed[0].Options : null;
     }
+
+    /// <summary>Gets the number of options objects the modifier was installed on.</summary>
+    internal int InstalledOptionsCount => _installed.Count;
+
+    /// <summary>Gets the plans of the contracts built so far.</summary>
+    internal CryptoShreddingTypePlanRegistry Registry => _engine.Registry;
+
+    /// <summary>Gets the options the graph walker uses (the first captured options object).</summary>
+    internal JsonSerializerOptions? WalkOptions => _engine.PathOptions;
+
+    /// <summary>Gets the inner serializer.</summary>
+    internal SystemTextJsonSerializer Inner => _inner;
 
     /// <inheritdoc />
     public EnumStorage EnumStorage => _inner.EnumStorage;
@@ -134,66 +120,30 @@ public sealed class CryptoShredderSerializer : ISerializer
     public ValueCasting ValueCasting => _inner.ValueCasting;
 
     /// <inheritdoc />
-    public string ToJson(object? document)
-    {
-        if (document is null || !CryptoShreddedPropertyCache.HasCryptoShreddedProperties(document.GetType()))
-        {
-            return _inner.ToJson(document);
-        }
-
-        return SerializeWithEncryption(document, d => _inner.ToJson(d));
-    }
+    public string ToJson(object? document) => Write(document, d => _inner.ToJson(d));
 
     /// <inheritdoc />
-    public string ToCleanJson(object? document)
-    {
-        if (document is null || !CryptoShreddedPropertyCache.HasCryptoShreddedProperties(document.GetType()))
-        {
-            return _inner.ToCleanJson(document);
-        }
-
-        return SerializeWithEncryption(document, d => _inner.ToCleanJson(d));
-    }
+    public string ToCleanJson(object? document) => Write(document, d => _inner.ToCleanJson(d));
 
     /// <inheritdoc />
     public string ToJsonWithTypes(object document)
     {
         ArgumentNullException.ThrowIfNull(document);
-
-        if (!CryptoShreddedPropertyCache.HasCryptoShreddedProperties(document.GetType()))
-        {
-            return _inner.ToJsonWithTypes(document);
-        }
-
-        return SerializeWithEncryption(document, d => _inner.ToJsonWithTypes(d));
+        return Write(document, d => _inner.ToJsonWithTypes(d!));
     }
 
     /// <inheritdoc />
     public void WriteTo(IBufferWriter<byte> writer, object? value)
     {
         ArgumentNullException.ThrowIfNull(writer);
-
-        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedProperties(value.GetType()))
-        {
-            _inner.WriteTo(writer, value);
-            return;
-        }
-
-        WriteWithEncryption(value, d => _inner.WriteTo(writer, d));
+        WriteStaged(writer, value, static (inner, w, v) => inner.WriteTo(w, v));
     }
 
     /// <inheritdoc />
     public void WriteToCleanJson(IBufferWriter<byte> writer, object? value)
     {
         ArgumentNullException.ThrowIfNull(writer);
-
-        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedProperties(value.GetType()))
-        {
-            _inner.WriteToCleanJson(writer, value);
-            return;
-        }
-
-        WriteWithEncryption(value, d => _inner.WriteToCleanJson(writer, d));
+        WriteStaged(writer, value, static (inner, w, v) => inner.WriteToCleanJson(w, v));
     }
 
     /// <inheritdoc />
@@ -201,665 +151,247 @@ public sealed class CryptoShredderSerializer : ISerializer
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(value);
-
-        if (!CryptoShreddedPropertyCache.HasCryptoShreddedProperties(value.GetType()))
-        {
-            _inner.WriteToJsonWithTypes(writer, value);
-            return;
-        }
-
-        WriteWithEncryption(value, d => _inner.WriteToJsonWithTypes(writer, d));
+        WriteStaged(writer, value, static (inner, w, v) => inner.WriteToJsonWithTypes(w, v!));
     }
 
     /// <inheritdoc />
     public void WriteToParameter(DbParameter parameter, object? value)
     {
         ArgumentNullException.ThrowIfNull(parameter);
-
-        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedProperties(value.GetType()))
-        {
-            _inner.WriteToParameter(parameter, value);
-            return;
-        }
-
-        WriteWithEncryption(value, d => _inner.WriteToParameter(parameter, d));
+        Write(value, v => { ((ISerializer)_inner).WriteToParameter(parameter, v); return 0; });
     }
 
     /// <inheritdoc />
     public void WriteToParameter(NpgsqlParameter parameter, object? value)
     {
         ArgumentNullException.ThrowIfNull(parameter);
+        Write(value, v => { _inner.WriteToParameter(parameter, v); return 0; });
+    }
 
-        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedProperties(value.GetType()))
+    /// <inheritdoc />
+    public T FromJson<T>(Stream stream) => Read(typeof(T), () => _inner.FromJson<T>(stream));
+
+    /// <inheritdoc />
+    public T FromJson<T>(DbDataReader reader, int index) => Read(typeof(T), () => _inner.FromJson<T>(reader, index));
+
+    /// <inheritdoc />
+    public object FromJson(Type type, Stream stream) => Read(type, () => _inner.FromJson(type, stream));
+
+    /// <inheritdoc />
+    public object FromJson(Type type, DbDataReader reader, int index) => Read(type, () => _inner.FromJson(type, reader, index));
+
+    /// <inheritdoc />
+    public ValueTask<T> FromJsonAsync<T>(Stream stream, CancellationToken cancellationToken = default) =>
+        ReadAsync(typeof(T), ct => _inner.FromJsonAsync<T>(stream, ct), cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask<T> FromJsonAsync<T>(DbDataReader reader, int index, CancellationToken cancellationToken = default) =>
+        ReadAsync(typeof(T), ct => _inner.FromJsonAsync<T>(reader, index, ct), cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask<object> FromJsonAsync(Type type, Stream stream, CancellationToken cancellationToken = default) =>
+        ReadAsync(type, ct => _inner.FromJsonAsync(type, stream, ct), cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask<object> FromJsonAsync(Type type, DbDataReader reader, int index, CancellationToken cancellationToken = default) =>
+        ReadAsync(type, ct => _inner.FromJsonAsync(type, reader, index, ct), cancellationToken);
+
+    /// <summary>
+    /// Verifies that crypto-shredding is still installed: for each captured options object the resolver is the
+    /// exact instance installed and the resolver chain is unchanged, and a nested canary serializes to a
+    /// <c>cs2</c> token without its plaintext.
+    /// </summary>
+    /// <exception cref="CryptoShreddingConfigurationException">The modifier is missing, replaced or bypassed.</exception>
+    internal void VerifyContractModifierInstalled()
+    {
+        foreach (var installed in _installed)
         {
-            _inner.WriteToParameter(parameter, value);
-            return;
+            if (!installed.IsIntact() || !CanaryEncrypts(installed.Options))
+            {
+                throw InfrastructureFailure(CryptoShreddingConfigurationProblem.ContractModifierMissing, nameof(JsonSerializerOptions));
+            }
         }
-
-        WriteWithEncryption(value, d => _inner.WriteToParameter(parameter, d));
-    }
-
-    /// <inheritdoc />
-    public T FromJson<T>(Stream stream)
-    {
-        var result = _inner.FromJson<T>(stream);
-        return DecryptIfNeeded(result);
-    }
-
-    /// <inheritdoc />
-    public T FromJson<T>(DbDataReader reader, int index)
-    {
-        var result = _inner.FromJson<T>(reader, index);
-        return DecryptIfNeeded(result);
-    }
-
-    /// <inheritdoc />
-    public object FromJson(Type type, Stream stream)
-    {
-        var result = _inner.FromJson(type, stream);
-        return DecryptIfNeeded(result, type);
-    }
-
-    /// <inheritdoc />
-    public object FromJson(Type type, DbDataReader reader, int index)
-    {
-        var result = _inner.FromJson(type, reader, index);
-        return DecryptIfNeeded(result, type);
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<T> FromJsonAsync<T>(Stream stream, CancellationToken cancellationToken = default)
-    {
-        var result = await _inner.FromJsonAsync<T>(stream, cancellationToken).ConfigureAwait(false);
-        return await DecryptIfNeededAsync(result, cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<T> FromJsonAsync<T>(DbDataReader reader, int index, CancellationToken cancellationToken = default)
-    {
-        var result = await _inner.FromJsonAsync<T>(reader, index, cancellationToken).ConfigureAwait(false);
-        return await DecryptIfNeededAsync(result, cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<object> FromJsonAsync(Type type, Stream stream, CancellationToken cancellationToken = default)
-    {
-        var result = await _inner.FromJsonAsync(type, stream, cancellationToken).ConfigureAwait(false);
-        return await DecryptIfNeededAsync(result, type, cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<object> FromJsonAsync(Type type, DbDataReader reader, int index, CancellationToken cancellationToken = default)
-    {
-        var result = await _inner.FromJsonAsync(type, reader, index, cancellationToken).ConfigureAwait(false);
-        return await DecryptIfNeededAsync(result, type, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Encrypts PII fields on the document, serializes with the inner serializer,
-    /// then restores original values.
+    /// Resolves the contract of <paramref name="type"/> through every captured options object (running the
+    /// modifier) and reports whether the modifier saw the type.
     /// </summary>
-    private string SerializeWithEncryption(object document, Func<object, string> innerSerialize)
+    /// <exception cref="CryptoShreddingConfigurationException">The type is misconfigured.</exception>
+    internal JsonTypeInfo ResolveContract(Type type, out bool modifierSawType)
     {
-        var eventType = document.GetType();
-        var eventTypeName = eventType.Name;
-        var fields = CryptoShreddedPropertyCache.GetFields(eventType);
-
-        using var activity = CryptoShreddingDiagnostics.StartEncryption(eventTypeName);
-        var stopwatch = Stopwatch.GetTimestamp();
-
-        // Save original values for restore
-        var originalValues = new (CryptoShreddedFieldInfo Field, object? Value)[fields.Length];
-        for (var i = 0; i < fields.Length; i++)
+        JsonTypeInfo? first = null;
+        foreach (var installed in _installed)
         {
-            originalValues[i] = (fields[i], fields[i].GetValue(document));
+            first ??= installed.Options.GetTypeInfo(type);
+            installed.Options.GetTypeInfo(type);
         }
 
+        modifierSawType = _engine.Registry.WasSeen(type);
+        return first ?? throw InfrastructureFailure(CryptoShreddingConfigurationProblem.ContractModifierMissing, nameof(JsonSerializerOptions));
+    }
+
+    private void Install(JsonSerializerOptions options)
+    {
+        if (options.IsReadOnly)
+        {
+            throw InfrastructureFailure(CryptoShreddingConfigurationProblem.ContractModifierMissing, nameof(JsonSerializerOptions));
+        }
+
+        var resolver = (options.TypeInfoResolver ?? new DefaultJsonTypeInfoResolver()).WithAddedModifier(_modifier.Modify);
+        options.TypeInfoResolver = resolver;
+        _installed.Add(new InstalledResolver(options, resolver, [.. options.TypeInfoResolverChain]));
+    }
+
+    private T Write<T>(object? document, Func<object?, T> write)
+    {
+        EnsureVerified();
+        using var frame = _engine.Begin(CryptoOperation.Encrypt, document?.GetType());
+        return write(document);
+    }
+
+    private void WriteStaged(IBufferWriter<byte> writer, object? value, Action<SystemTextJsonSerializer, IBufferWriter<byte>, object?> write)
+    {
+        if (value is null || t_stagingInUse || !NeedsStaging(value.GetType()))
+        {
+            Write(value, v => { write(_inner, writer, v); return 0; });
+            return;
+        }
+
+        // A failed write must leave the caller's buffer untouched, so the output is staged and copied on success.
+        var staging = t_staging ??= new ArrayBufferWriter<byte>();
+        staging.ResetWrittenCount();
+        t_stagingInUse = true;
         try
         {
-            ThrowIfUnencryptable(eventType);
-            EncryptFields(document, eventType, fields, eventTypeName);
-
-            var result = innerSerialize(document);
-            CryptoShreddingDiagnostics.RecordSuccess(activity);
-            return result;
-        }
-        catch (Exception ex)
-        {
-            CryptoShreddingDiagnostics.RecordFailed(activity, ex.Message);
-            throw;
+            Write(value, v => { write(_inner, staging, v); return 0; });
+            writer.Write(staging.WrittenSpan);
         }
         finally
         {
-            // Always restore original values to avoid mutating the caller's object
-            foreach (var (field, value) in originalValues)
-            {
-                field.SetValue(document, value);
-            }
-
-            var elapsed = Stopwatch.GetElapsedTime(stopwatch);
-            CryptoShreddingDiagnostics.EncryptionDuration.Record(elapsed.TotalMilliseconds);
+            // Clear zeroes the staged JSON; an oversized buffer is dropped so a thread does not keep it.
+            staging.Clear();
+            t_staging = staging.Capacity > MaxRetainedStagingBytes ? null : staging;
+            t_stagingInUse = false;
         }
     }
 
     /// <summary>
-    /// Refuses to serialize a type that declares a <c>[CryptoShredded]</c> property the serializer cannot
-    /// encrypt (misconfigured or getter-only): it would otherwise be stored in plaintext (#1646).
+    /// Gets whether a root type can reach crypto data: an owner, a container of owners, or an open slot
+    /// (<c>object</c>, interface, abstract or polymorphic member) whose runtime value may be one.
     /// </summary>
-    private void ThrowIfUnencryptable(Type eventType)
+    internal static bool NeedsStaging(Type type) =>
+        StagingNeeded.GetValue(type, static t => new StrongBox<bool>(ComputeNeedsStaging(t))).Value;
+
+    private static bool ComputeNeedsStaging(Type type) =>
+        CryptoShreddedPropertyClassifier.IsOwner(type)
+        || CryptoShreddedPropertyClassifier.ReachesCryptoOwner(type)
+        || HasOpenSlot(type, new HashSet<Type>());
+
+    private static bool HasOpenSlot(Type type, HashSet<Type> visited)
     {
-        var unencryptable = CryptoShreddedPropertyCache.GetUnencryptableProperties(eventType);
-        if (unencryptable.Length == 0)
+        if (IsOpenSlot(type))
         {
-            return;
+            return true;
         }
 
-        CryptoShreddingDiagnostics.EncryptionFailedTotal.Add(1);
-
-        // Every misconfigured property is named, so one failed append shows the whole list to fix.
-        var names = string.Join(", ", unencryptable);
-        _logger.AttributeMisconfigured(unencryptable[0], FullTypeName(eventType), names);
-        throw new CryptoShreddingEncryptionException(
-            eventType, names, CryptoShreddingEncryptionFailureReason.PropertyMisconfigured);
-    }
-
-    // The same form the exception uses, so a log line and the exception correlate.
-    private static string FullTypeName(Type type) => type.FullName ?? type.Name;
-
-    /// <summary>
-    /// Encrypts each PII field on the document in place. A <c>null</c> value stays <c>null</c>; any other
-    /// value is encrypted or serialization throws <see cref="CryptoShreddingEncryptionException"/> — it is
-    /// never left in plaintext (#1646). Logs carry the field name and event type, never the subject id (#1429).
-    /// </summary>
-    private void EncryptFields(
-        object document, Type eventType, CryptoShreddedFieldInfo[] fields, string eventTypeName)
-    {
-        foreach (var field in fields)
-        {
-            var plaintext = field.GetValue(document) as string;
-            if (plaintext is null)
-            {
-                // Null values stay null — no encryption needed
-                continue;
-            }
-
-            // An unsupported declared subject-id type is already unencryptable (ThrowIfUnencryptable); this
-            // still throws InvalidOperationException when the runtime value is of an unsupported type (#1174).
-            var subjectId = field.ResolveSubjectId(document)
-                ?? throw SubjectIdMissing(field, eventType);
-
-            field.SetValue(document, EncryptField(subjectId, plaintext, field.Property.Name, eventType));
-            CryptoShreddingDiagnostics.EncryptionTotal.Add(1);
-            _logger.PiiFieldEncrypted(field.Property.Name, eventTypeName);
-        }
-    }
-
-    private CryptoShreddingEncryptionException SubjectIdMissing(CryptoShreddedFieldInfo field, Type eventType)
-    {
-        // The data subject's own identifier is never logged (#1429, following #1314);
-        // the configured property name is the identifying-but-safe correlation here.
-        CryptoShreddingDiagnostics.EncryptionFailedTotal.Add(1);
-        _logger.EncryptionSubjectIdMissing(field.Property.Name, FullTypeName(eventType), field.SubjectIdProperty);
-        return new CryptoShreddingEncryptionException(
-            eventType, field.Property.Name, CryptoShreddingEncryptionFailureReason.SubjectIdMissing);
-    }
-
-    /// <summary>
-    /// Encrypts PII fields on the document, invokes a writer-based inner serialization
-    /// (buffer or parameter), then restores original values. Shares the encrypt/restore
-    /// pipeline of <see cref="SerializeWithEncryption"/>.
-    /// </summary>
-    private void WriteWithEncryption(object document, Action<object> innerWrite)
-    {
-        SerializeWithEncryption(document, d =>
-        {
-            innerWrite(d);
-            return string.Empty;
-        });
-    }
-
-    /// <summary>
-    /// Encrypts a single plaintext value using AES-256-GCM with the subject's active key.
-    /// </summary>
-    /// <returns>The encrypted JSON envelope string.</returns>
-    /// <exception cref="CryptoShreddingEncryptionException">The key could not be obtained or is unusable.</exception>
-    private string EncryptField(string subjectId, string plaintext, string propertyName, Type eventType)
-    {
-        var key = GetEncryptionKey(subjectId, propertyName, eventType);
-
-        // The version comes with the key material from one provider call, never from a second
-        // lookup that a concurrent rotation could make disagree, and is never guessed (#1646).
-        var keyId = $"subject:{subjectId}:v{key.Version}";
-
-        var plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
-        var nonce = new byte[NonceSizeInBytes];
-        RandomNumberGenerator.Fill(nonce);
-
-        var ciphertext = new byte[plaintextBytes.Length];
-        var tag = new byte[TagSizeInBytes];
-
-        using var aesGcm = new AesGcm(key.KeyMaterial, TagSizeInBytes);
-        aesGcm.Encrypt(nonce, plaintextBytes, ciphertext, tag);
-
-        var encryptedValue = new EncryptedValue
-        {
-            KeyId = keyId,
-            Ciphertext = [.. ciphertext],
-            Nonce = [.. nonce],
-            Tag = [.. tag],
-            Algorithm = EncryptionAlgorithm.Aes256Gcm
-        };
-
-        return EncryptedFieldJsonConverter.Serialize(encryptedValue);
-    }
-
-    /// <summary>
-    /// Obtains the subject's active key and its version. Every failure — a <c>Left</c>, an exception or an
-    /// unusable key — throws, so the value is never serialized in plaintext (#1646).
-    /// </summary>
-    private SubjectEncryptionKey GetEncryptionKey(string subjectId, string propertyName, Type eventType)
-    {
-        Either<EncinaError, SubjectEncryptionKey> keyResult;
-        try
-        {
-            // Sync-over-async is safe here because Marten invokes serializers from within its
-            // async pipeline (no SynchronizationContext)
-            keyResult = _subjectKeyProvider
-                .GetOrCreateSubjectKeyAsync(subjectId)
-                .GetAwaiter()
-                .GetResult();
-        }
-        catch (Exception ex)
-        {
-            throw KeyUnavailable(propertyName, eventType, CryptoShreddingErrors.KeyStoreErrorCode, ex);
-        }
-
-        if (keyResult.IsLeft)
-        {
-            var errorCode = ((EncinaError)keyResult).GetCode().IfNone(CryptoShreddingErrors.EncryptionFailedCode);
-            throw KeyUnavailable(propertyName, eventType, errorCode, exception: null);
-        }
-
-        var key = (SubjectEncryptionKey)keyResult;
-        return IsUsable(key)
-            ? key
-            : throw KeyUnavailable(propertyName, eventType, CryptoShreddingErrors.EncryptionFailedCode, exception: null);
-    }
-
-    // An AES-256 key is 32 bytes; a version below 1 would write a key id no decryption can resolve.
-    private static bool IsUsable(SubjectEncryptionKey? key) =>
-        key is { Version: >= 1, KeyMaterial.Length: 32 };
-
-    /// <summary>
-    /// Records a key failure by error code (and the exception redacted, never its message or the
-    /// subject id) and builds the exception that stops serialization.
-    /// </summary>
-    private CryptoShreddingEncryptionException KeyUnavailable(
-        string propertyName, Type eventType, string errorCode, Exception? exception)
-    {
-        CryptoShreddingDiagnostics.EncryptionFailedTotal.Add(1);
-        _logger.EncryptionFailed(propertyName, FullTypeName(eventType), errorCode, exception?.ForLogging());
-        return new CryptoShreddingEncryptionException(
-            eventType, propertyName, CryptoShreddingEncryptionFailureReason.KeyUnavailable, errorCode);
-    }
-
-    /// <summary>
-    /// Decrypts PII fields on a deserialized object (sync path).
-    /// </summary>
-    private T DecryptIfNeeded<T>(T result)
-    {
-        if (result is null)
-        {
-            return result;
-        }
-
-        var type = result.GetType();
-        if (!CryptoShreddedPropertyCache.HasCryptoShreddedFields(type))
-        {
-            return result;
-        }
-
-        DecryptFields(result, type);
-        return result;
-    }
-
-    /// <summary>
-    /// Decrypts PII fields on a deserialized object (sync path with explicit type).
-    /// </summary>
-    private object DecryptIfNeeded(object result, Type type)
-    {
-        if (!CryptoShreddedPropertyCache.HasCryptoShreddedFields(type))
-        {
-            return result;
-        }
-
-        DecryptFields(result, type);
-        return result;
-    }
-
-    /// <summary>
-    /// Decrypts PII fields on a deserialized object (async path).
-    /// </summary>
-    private async ValueTask<T> DecryptIfNeededAsync<T>(T result, CancellationToken cancellationToken)
-    {
-        if (result is null)
-        {
-            return result;
-        }
-
-        var type = result.GetType();
-        if (!CryptoShreddedPropertyCache.HasCryptoShreddedFields(type))
-        {
-            return result;
-        }
-
-        await DecryptFieldsAsync(result, type, cancellationToken).ConfigureAwait(false);
-        return result;
-    }
-
-    /// <summary>
-    /// Decrypts PII fields on a deserialized object (async path with explicit type).
-    /// </summary>
-    private async ValueTask<object> DecryptIfNeededAsync(object result, Type type, CancellationToken cancellationToken)
-    {
-        if (!CryptoShreddedPropertyCache.HasCryptoShreddedFields(type))
-        {
-            return result;
-        }
-
-        await DecryptFieldsAsync(result, type, cancellationToken).ConfigureAwait(false);
-        return result;
-    }
-
-    /// <summary>
-    /// Resolves the current encrypted value and its subject id for a field, when the field
-    /// actually holds an encrypted envelope and a subject id can be resolved for it.
-    /// </summary>
-    private static bool TryGetEncryptedFieldSubject(
-        object target, CryptoShreddedFieldInfo field,
-        out string currentValue, out string subjectId)
-    {
-        currentValue = string.Empty;
-        subjectId = string.Empty;
-
-        var value = field.GetValue(target) as string;
-        if (value is null || !EncryptedFieldJsonConverter.IsEncryptedField(value))
+        if (CryptoShreddedPropertyClassifier.IsTerminal(type) || !visited.Add(type))
         {
             return false;
         }
 
-        var resolvedSubjectId = field.ResolveSubjectId(target);
-        if (resolvedSubjectId is null)
+        return CryptoShreddedPropertyClassifier.ComponentTypes(type).Any(component => HasOpenSlot(component, visited));
+    }
+
+    private static bool IsOpenSlot(Type type) =>
+        type == typeof(object) || IsOpenInterfaceOrBase(type) || IsPolymorphic(type);
+
+    private static bool IsOpenInterfaceOrBase(Type type) =>
+        type.IsInterface ? !type.IsGenericType : type.IsAbstract && !type.IsSealed;
+
+    private static bool IsPolymorphic(Type type) =>
+        type.IsDefined(typeof(System.Text.Json.Serialization.JsonDerivedTypeAttribute), inherit: false);
+
+    private T Read<T>(Type rootType, Func<T> read)
+    {
+        using var frame = _engine.Begin(CryptoOperation.Decrypt, rootType);
+        var result = read();
+        _engine.DecryptPending(frame, result);
+        return result;
+    }
+
+    private async ValueTask<T> ReadAsync<T>(Type rootType, Func<CancellationToken, ValueTask<T>> read, CancellationToken cancellationToken)
+    {
+        var frame = _engine.Begin(CryptoOperation.Decrypt, rootType);
+        await using (frame.ConfigureAwait(false))
+        {
+            var result = await read(cancellationToken).ConfigureAwait(false);
+            await _engine.DecryptPendingAsync(frame, result, cancellationToken).ConfigureAwait(false);
+            return result;
+        }
+    }
+
+    // The installation is verified once, lazily, on the first write of the process; a failure keeps failing.
+    private void EnsureVerified()
+    {
+        if (Volatile.Read(ref _verified))
+        {
+            return;
+        }
+
+        lock (_verifyLock)
+        {
+            if (!_verified && _verificationFailure is null)
+            {
+                RunVerification();
+            }
+        }
+
+        if (_verificationFailure is { } failure)
+        {
+            throw failure;
+        }
+    }
+
+    private void RunVerification()
+    {
+        try
+        {
+            VerifyContractModifierInstalled();
+            Volatile.Write(ref _verified, true);
+        }
+        catch (CryptoShreddingConfigurationException ex)
+        {
+            _verificationFailure = ex;
+        }
+    }
+
+    private bool CanaryEncrypts(JsonSerializerOptions options)
+    {
+        using var frame = _engine.Begin(CryptoOperation.Encrypt, typeof(CryptoShreddingCanaryHolder));
+        frame.WriteKeys[CryptoShreddingCanary.Subject] = CryptoShreddingEphemeralKey.Create();
+        try
+        {
+            var json = JsonSerializer.Serialize(new CryptoShreddingCanaryHolder(), options);
+            return json.Contains(CryptoShreddingToken.Prefix, StringComparison.Ordinal)
+                && !json.Contains(CryptoShreddingCanary.Plaintext, StringComparison.Ordinal);
+        }
+        catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException)
         {
             return false;
         }
-
-        currentValue = value;
-        subjectId = resolvedSubjectId;
-        return true;
     }
 
-    /// <summary>
-    /// Records the outcome of decrypting one field: forgotten-subject access (placeholder
-    /// applied) or a normal successful decryption. Never logs the subject id (#1429).
-    /// </summary>
-    private void RecordDecryptedField(string? decrypted, string propertyName, string eventTypeName)
+    private CryptoShreddingConfigurationException InfrastructureFailure(CryptoShreddingConfigurationProblem problem, string componentType)
     {
-        if (decrypted == _anonymizedPlaceholder)
-        {
-            CryptoShreddingDiagnostics.ForgottenAccessTotal.Add(1);
-            _logger.ForgottenSubjectAccessed(propertyName, eventTypeName);
-        }
-        else
-        {
-            CryptoShreddingDiagnostics.DecryptionTotal.Add(1);
-            _logger.PiiFieldDecrypted(propertyName, eventTypeName);
-        }
+        _logger.CryptoShreddingInfrastructureInvalid(problem.ToString(), componentType);
+        return new CryptoShreddingConfigurationException(problem, [], componentType);
     }
 
-    /// <summary>
-    /// Iterates PII fields and decrypts their values in-place (sync path).
-    /// </summary>
-    private void DecryptFields(object target, Type eventType)
+    private sealed record InstalledResolver(JsonSerializerOptions Options, IJsonTypeInfoResolver Resolver, IJsonTypeInfoResolver[] Chain)
     {
-        var eventTypeName = eventType.Name;
-        var fields = CryptoShreddedPropertyCache.GetFields(eventType);
-
-        using var activity = CryptoShreddingDiagnostics.StartDecryption(eventTypeName);
-        var stopwatch = Stopwatch.GetTimestamp();
-
-        try
-        {
-            foreach (var field in fields)
-            {
-                if (!TryGetEncryptedFieldSubject(target, field, out var currentValue, out var subjectId))
-                {
-                    continue;
-                }
-
-                var decrypted = DecryptField(subjectId, currentValue, field.Property.Name, eventType);
-                field.SetValue(target, decrypted);
-                RecordDecryptedField(decrypted, field.Property.Name, eventTypeName);
-            }
-
-            CryptoShreddingDiagnostics.RecordSuccess(activity);
-        }
-        catch (Exception ex)
-        {
-            CryptoShreddingDiagnostics.RecordFailed(activity, ex.Message);
-            throw;
-        }
-        finally
-        {
-            var elapsed = Stopwatch.GetElapsedTime(stopwatch);
-            CryptoShreddingDiagnostics.DecryptionDuration.Record(elapsed.TotalMilliseconds);
-        }
-    }
-
-    /// <summary>
-    /// Iterates PII fields and decrypts their values in-place (async path).
-    /// </summary>
-    private async ValueTask DecryptFieldsAsync(object target, Type eventType, CancellationToken cancellationToken)
-    {
-        var eventTypeName = eventType.Name;
-        var fields = CryptoShreddedPropertyCache.GetFields(eventType);
-
-        using var activity = CryptoShreddingDiagnostics.StartDecryption(eventTypeName);
-        var stopwatch = Stopwatch.GetTimestamp();
-
-        try
-        {
-            foreach (var field in fields)
-            {
-                if (!TryGetEncryptedFieldSubject(target, field, out var currentValue, out var subjectId))
-                {
-                    continue;
-                }
-
-                var decrypted = await DecryptFieldAsync(subjectId, currentValue, field.Property.Name, eventType, cancellationToken)
-                    .ConfigureAwait(false);
-                field.SetValue(target, decrypted);
-                RecordDecryptedField(decrypted, field.Property.Name, eventTypeName);
-            }
-
-            CryptoShreddingDiagnostics.RecordSuccess(activity);
-        }
-        catch (Exception ex)
-        {
-            CryptoShreddingDiagnostics.RecordFailed(activity, ex.Message);
-            throw;
-        }
-        finally
-        {
-            var elapsed = Stopwatch.GetElapsedTime(stopwatch);
-            CryptoShreddingDiagnostics.DecryptionDuration.Record(elapsed.TotalMilliseconds);
-        }
-    }
-
-    /// <summary>
-    /// Decrypts a single encrypted field value (sync path — uses sync-over-async).
-    /// </summary>
-    private string? DecryptField(string subjectId, string encryptedJson, string propertyName, Type eventType)
-    {
-        try
-        {
-            var encryptedValue = EncryptedFieldJsonConverter.TryParse(encryptedJson);
-            if (encryptedValue is null)
-            {
-                _logger.LogWarning(
-                    "Failed to parse encrypted envelope for field '{FieldName}' on event type '{EventType}'",
-                    propertyName,
-                    eventType.Name);
-                return encryptedJson;
-            }
-
-            // Extract version from key ID: "subject:{subjectId}:v{version}"
-            var version = ExtractKeyVersion(encryptedValue.Value.KeyId);
-
-            var keyResult = _subjectKeyProvider
-                .GetSubjectKeyAsync(subjectId, version)
-                .GetAwaiter()
-                .GetResult();
-
-            return keyResult.Match(
-                Right: keyMaterial => DecryptWithKey(encryptedValue.Value, keyMaterial),
-                Left: error =>
-                {
-                    // Subject is forgotten or key not found — apply placeholder
-                    HandleForgottenSubjectSync(subjectId, propertyName, eventType);
-                    return _anonymizedPlaceholder;
-                });
-        }
-        catch (Exception ex)
-        {
-            CryptoShreddingDiagnostics.DecryptionFailedTotal.Add(1);
-            _logger.DecryptionFailed(propertyName, eventType.Name, ex.ForLogging());
-            return _anonymizedPlaceholder;
-        }
-    }
-
-    /// <summary>
-    /// Decrypts a single encrypted field value (async path).
-    /// </summary>
-    private async ValueTask<string?> DecryptFieldAsync(
-        string subjectId,
-        string encryptedJson,
-        string propertyName,
-        Type eventType,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var encryptedValue = EncryptedFieldJsonConverter.TryParse(encryptedJson);
-            if (encryptedValue is null)
-            {
-                _logger.LogWarning(
-                    "Failed to parse encrypted envelope for field '{FieldName}' on event type '{EventType}'",
-                    propertyName,
-                    eventType.Name);
-                return encryptedJson;
-            }
-
-            var version = ExtractKeyVersion(encryptedValue.Value.KeyId);
-
-            var keyResult = await _subjectKeyProvider
-                .GetSubjectKeyAsync(subjectId, version, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (keyResult.IsRight)
-            {
-                var keyMaterial = (byte[])keyResult;
-                return DecryptWithKey(encryptedValue.Value, keyMaterial);
-            }
-
-            // Subject is forgotten or key not found — apply placeholder
-            await HandleForgottenSubjectAsync(subjectId, propertyName, eventType, cancellationToken)
-                .ConfigureAwait(false);
-            return _anonymizedPlaceholder;
-        }
-        catch (Exception ex)
-        {
-            CryptoShreddingDiagnostics.DecryptionFailedTotal.Add(1);
-            _logger.DecryptionFailed(propertyName, eventType.Name, ex.ForLogging());
-            return _anonymizedPlaceholder;
-        }
-    }
-
-    /// <summary>
-    /// Performs AES-256-GCM decryption using the provided key material.
-    /// </summary>
-    private static string DecryptWithKey(EncryptedValue encryptedValue, byte[] keyMaterial)
-    {
-        var ciphertext = encryptedValue.Ciphertext.AsSpan();
-        var nonce = encryptedValue.Nonce.AsSpan();
-        var tag = encryptedValue.Tag.AsSpan();
-
-        var plaintext = new byte[ciphertext.Length];
-
-        using var aesGcm = new AesGcm(keyMaterial, TagSizeInBytes);
-        aesGcm.Decrypt(nonce, ciphertext, tag, plaintext);
-
-        return Encoding.UTF8.GetString(plaintext);
-    }
-
-    /// <summary>
-    /// Extracts the key version number from a key ID string.
-    /// </summary>
-    /// <param name="keyId">The key ID in format <c>"subject:{subjectId}:v{version}"</c>.</param>
-    /// <returns>The version number, or <c>null</c> if parsing fails.</returns>
-    private static int? ExtractKeyVersion(string keyId)
-    {
-        // Format: "subject:{subjectId}:v{version}"
-        var lastColon = keyId.LastIndexOf(":v", StringComparison.Ordinal);
-        if (lastColon < 0)
-        {
-            return null;
-        }
-
-        var versionStr = keyId.AsSpan(lastColon + 2);
-        return int.TryParse(versionStr, out var version) ? version : null;
-    }
-
-    /// <summary>
-    /// Invokes the forgotten subject handler (sync path — fire-and-forget).
-    /// </summary>
-    private void HandleForgottenSubjectSync(string subjectId, string propertyName, Type eventType)
-    {
-        try
-        {
-            _forgottenSubjectHandler
-                .HandleForgottenSubjectAsync(subjectId, propertyName, eventType)
-                .GetAwaiter()
-                .GetResult();
-        }
-        catch (Exception ex)
-        {
-            // The data subject's own identifier is never logged (#1429, following #1314);
-            // correlate via the field name instead.
-            _logger.LogWarning(ex.ForLogging(), "Forgotten subject handler failed for field '{FieldName}'", propertyName);
-        }
-    }
-
-    /// <summary>
-    /// Invokes the forgotten subject handler (async path).
-    /// </summary>
-    private async ValueTask HandleForgottenSubjectAsync(
-        string subjectId,
-        string propertyName,
-        Type eventType,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _forgottenSubjectHandler
-                .HandleForgottenSubjectAsync(subjectId, propertyName, eventType, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            // The data subject's own identifier is never logged (#1429, following #1314);
-            // correlate via the field name instead.
-            _logger.LogWarning(ex.ForLogging(), "Forgotten subject handler failed for field '{FieldName}'", propertyName);
-        }
+        internal bool IsIntact() =>
+            ReferenceEquals(Options.TypeInfoResolver, Resolver)
+            && Options.TypeInfoResolverChain.SequenceEqual(Chain);
     }
 }

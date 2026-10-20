@@ -1,0 +1,1 @@
+- ASP.NET Core, Azure Functions and AWS Lambda error mappers now answer 401 for `encina.authorization.unauthenticated` and 403 for every other `encina.authorization.*` code instead of 500, comparing against the `EncinaErrorCodes` constants (#1903).

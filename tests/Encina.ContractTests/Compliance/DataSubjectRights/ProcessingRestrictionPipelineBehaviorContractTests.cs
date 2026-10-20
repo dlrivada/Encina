@@ -155,6 +155,42 @@ public class ProcessingRestrictionPipelineBehaviorContractTests
         nextCalled.ShouldBeFalse("Block mode should NOT call next step for restricted subject");
     }
 
+    [Fact]
+    public async Task Contract_TenantRequiredLookup_BlockMode_ShouldFailClosed()
+    {
+        // Arrange — the restriction lookup is refused because no tenant is present (#1963).
+        var dsrService = Substitute.For<IDSRService>();
+        dsrService.HasActiveRestrictionAsync("subject-1", Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, bool>>(
+                Left<EncinaError, bool>(DSRErrors.TenantRequired("HasActiveRestriction"))));
+        var options = Options.Create(new DataSubjectRightsOptions
+        {
+            RestrictionEnforcementMode = DSREnforcementMode.Block
+        });
+        var behavior = new ProcessingRestrictionPipelineBehavior<RestrictedCommand, Unit>(
+            dsrService,
+            Substitute.For<IDataSubjectIdExtractor>(),
+            options,
+            NullLoggerFactory.Instance.CreateLogger<ProcessingRestrictionPipelineBehavior<RestrictedCommand, Unit>>());
+        var nextCalled = false;
+
+        // Act
+        var result = await behavior.Handle(
+            new RestrictedCommand("subject-1"),
+            Substitute.For<IRequestContext>(),
+            () =>
+            {
+                nextCalled = true;
+                return new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit));
+            },
+            CancellationToken.None);
+
+        // Assert — unknown restriction status is never read as "no restriction".
+        result.IsLeft.ShouldBeTrue("a missing tenant must block, not allow, in Block mode");
+        result.LeftAsEnumerable().Single().GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.TenantRequiredCode);
+        nextCalled.ShouldBeFalse();
+    }
+
     #endregion
 
     #region Contract: Unrestricted subject passes through

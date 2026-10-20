@@ -1,27 +1,39 @@
+using LanguageExt;
+
 namespace Encina;
 
 /// <summary>
-/// Executes logic before the main pipeline for a request.
+/// Executes typed logic before the inner pipeline steps and the handler for a request.
 /// </summary>
 /// <typeparam name="TRequest">Request type being processed.</typeparam>
 /// <remarks>
-/// Runs before any behavior. Ideal for normalizing data, enriching context, or enforcing light
-/// auditing policies.
+/// <para>
+/// A pre-processor is typed sugar over a pipeline behavior: it has no <c>next</c> to forget or call twice.
+/// Its default stage is <see cref="PipelineStage.Application"/> (inside every security, compliance and
+/// transaction stage); declare another with <see cref="PipelineStageAttribute"/>.
+/// </para>
+/// <para>
+/// <b>Phase note (#2184):</b> stage placement is not yet applied; until the order resolver lands, pre-processors still
+/// run before every behavior. The abort semantics below already apply.
+/// </para>
+/// <para>
+/// A <c>Left</c> result aborts the request: the inner steps and the handler do not run and the error is returned.
+/// Anything that needs wrapping, timing or catching belongs in an <see cref="IPipelineBehavior{TRequest, TResponse}"/>.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
-/// public sealed class UserContextEnricher&lt;TRequest&gt; : IRequestPreProcessor&lt;TRequest&gt;
+/// public sealed class RequestStartLogger&lt;TRequest&gt;(ILogger&lt;RequestStartLogger&lt;TRequest&gt;&gt; logger)
+///     : IRequestPreProcessor&lt;TRequest&gt;
 /// {
-///     private readonly IHttpContextAccessor _httpContextAccessor;
-///
-///     public Task Process(TRequest request, IRequestContext context, CancellationToken cancellationToken)
+///     public ValueTask&lt;Either&lt;EncinaError, Unit&gt;&gt; Process(
+///         TRequest request, IRequestContext context, CancellationToken cancellationToken)
 ///     {
-///         var userId = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-///         if (userId is not null)
-///         {
-///             context = context.WithUserId(userId);
-///         }
-///         return Task.CompletedTask;
+///         logger.LogDebug(
+///             "Starting {Request} (correlation: {CorrelationId})",
+///             typeof(TRequest).Name,
+///             context.CorrelationId);
+///         return ValueTask.FromResult&lt;Either&lt;EncinaError, Unit&gt;&gt;(Unit.Default);
 ///     }
 /// }
 /// </code>
@@ -34,9 +46,6 @@ public interface IRequestPreProcessor<in TRequest>
     /// <param name="request">Original request.</param>
     /// <param name="context">Request context that can be enriched with user info, tenant ID, etc.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <remarks>
-    /// Pre-processors can enrich the context by calling <c>With*</c> methods.
-    /// The enriched context flows to subsequent behaviors and handlers.
-    /// </remarks>
-    Task Process(TRequest request, IRequestContext context, CancellationToken cancellationToken);
+    /// <returns><c>Right</c> to continue; <c>Left</c> to abort the request with that error.</returns>
+    ValueTask<Either<EncinaError, Unit>> Process(TRequest request, IRequestContext context, CancellationToken cancellationToken);
 }

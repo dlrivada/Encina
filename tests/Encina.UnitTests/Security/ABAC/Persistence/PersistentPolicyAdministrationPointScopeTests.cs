@@ -6,6 +6,7 @@ using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -64,7 +65,8 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
             new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         var pap = new PersistentPolicyAdministrationPoint(
             provider.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<PersistentPolicyAdministrationPoint>.Instance);
+            NullLogger<PersistentPolicyAdministrationPoint>.Instance,
+            Substitute.For<IRequestContextAccessor>());
 
         var first = pap.GetPolicySetsAsync().AsTask();
         var second = pap.GetPolicySetsAsync().AsTask();
@@ -94,18 +96,18 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
                 .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
             return store;
         });
-        services.AddScoped<IAuditStore>(sp =>
+        services.AddScoped<IOperationAuditStore>(sp =>
         {
             auditStoreScopes.Add(sp.GetRequiredService<ScopeMarker>());
-            var audit = Substitute.For<IAuditStore>();
-            audit.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+            var audit = Substitute.For<IOperationAuditStore>();
+            audit.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
                 .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
             return audit;
         });
         using var provider = services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("alice");
+        context.Identity.Returns(TestIdentity.User("alice"));
         var accessor = Substitute.For<IRequestContextAccessor>();
         accessor.RequestContext.Returns(context);
         var pap = new PersistentPolicyAdministrationPoint(
@@ -131,7 +133,6 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
         var stores = new List<IPolicyStore>();
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton(Substitute.For<global::Encina.Security.ISecurityContextAccessor>());
         services.AddSingleton(cache);
         services.AddSingleton(pubSub);
         services.AddSingleton<TimeProvider>(clock);
@@ -147,7 +148,7 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
         });
         var accessor = Substitute.For<IRequestContextAccessor>();
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("alice");
+        context.Identity.Returns(TestIdentity.User("alice"));
         accessor.RequestContext.Returns(context);
         services.AddSingleton(accessor);
         services.AddEncinaABAC(options =>
@@ -204,7 +205,6 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
         var innerReads = 0;
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton(Substitute.For<global::Encina.Security.ISecurityContextAccessor>());
         services.AddEncinaMemoryCache();
         services.AddScoped<IPolicyStore>(_ =>
         {
@@ -225,7 +225,7 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
             return store;
         });
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("alice");
+        context.Identity.Returns(TestIdentity.User("alice"));
         var accessor = Substitute.For<IRequestContextAccessor>();
         accessor.RequestContext.Returns(context);
         services.AddSingleton(accessor);
@@ -286,7 +286,7 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
     {
         private readonly List<ScopeTracker> _policyScopes = [];
         private readonly List<ScopeTracker> _auditScopes = [];
-        private readonly List<AuditEntry> _entries = [];
+        private readonly List<OperationAuditEntry> _entries = [];
         private readonly ServiceProvider _provider;
 
         public FailingStoreHarness(Exception? failure)
@@ -307,13 +307,13 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
                         : throw failure);
                 return store;
             });
-            services.AddScoped<IAuditStore>(sp =>
+            services.AddScoped<IOperationAuditStore>(sp =>
             {
                 _auditScopes.Add(sp.GetRequiredService<ScopeTracker>());
-                var audit = Substitute.For<IAuditStore>();
-                audit.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>()).Returns(call =>
+                var audit = Substitute.For<IOperationAuditStore>();
+                audit.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>()).Returns(call =>
                 {
-                    _entries.Add(call.Arg<AuditEntry>());
+                    _entries.Add(call.Arg<OperationAuditEntry>());
                     return new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit));
                 });
                 return audit;
@@ -321,7 +321,7 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
             _provider = services.BuildServiceProvider(
                 new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
             var context = Substitute.For<IRequestContext>();
-            context.UserId.Returns("alice");
+            context.Identity.Returns(TestIdentity.User("alice"));
             var accessor = Substitute.For<IRequestContextAccessor>();
             accessor.RequestContext.Returns(context);
             Pap = new PersistentPolicyAdministrationPoint(

@@ -1,0 +1,1 @@
+- A low-ceremony saga whose step failed now ends `Compensated` once every compensation succeeded, or `Failed` with a `saga.compensation_failed:<ExceptionType>` code when a compensation threw, persisted through `ISagaStore` on all 10 providers; it no longer stays `Compensating` forever and is no longer reported as stuck (#2085).

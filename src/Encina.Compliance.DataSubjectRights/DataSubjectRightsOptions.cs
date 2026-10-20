@@ -24,6 +24,7 @@ namespace Encina.Compliance.DataSubjectRights;
 ///     options.RestrictionEnforcementMode = DSREnforcementMode.Warn; // gradual adoption
 ///     options.DefaultDeadlineDays = 30;
 ///     options.AddHealthCheck = true;
+///     options.EnableOmnibusArticle12RefusalGrounds = false; // current law (default)
 ///     options.AssembliesToScan.Add(typeof(Program).Assembly);
 /// });
 /// </code>
@@ -56,7 +57,7 @@ public sealed class DataSubjectRightsOptions
     /// <remarks>
     /// <para>
     /// When the subject id is missing (the subject-id property is <c>null</c>, <see cref="Guid.Empty"/>
-    /// or empty, or no property exists and <see cref="IRequestContext.UserId"/> is not set), the
+    /// or empty, or no property exists and <see cref="RequestIdentity.UserId"/> is not set), the
     /// restriction status of the data subject is unknown:
     /// </para>
     /// <list type="bullet">
@@ -74,6 +75,54 @@ public sealed class DataSubjectRightsOptions
     /// </para>
     /// </remarks>
     public bool FailClosedOnMissingSubjectId { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether the draft-law refusal grounds of the Digital Omnibus are accepted when a
+    /// request is denied.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Draft law: COM(2025) 837 (Digital Omnibus) proposes to amend GDPR Article 12(5) so that an
+    /// access request used for purposes other than data protection can be refused
+    /// (<see cref="DSRRejectionReason.AbusiveIntent"/>). The proposal is not adopted.
+    /// </para>
+    /// <para>
+    /// <c>false</c> (default): current law applies and <c>IDSRService.DenyRequestAsync</c> refuses a
+    /// draft ground with <see cref="DSRErrors.RejectionReasonNotEnabledCode"/>. <c>true</c>: the draft
+    /// ground is accepted. Set it only once the amendment is adopted and applies to your processing
+    /// (SPEC-002 REQ-024).
+    /// </para>
+    /// </remarks>
+    public bool EnableOmnibusArticle12RefusalGrounds { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether <c>IDSRService</c> queries and lifecycle commands fail closed when no
+    /// tenant is present in the ambient <see cref="IRequestContext"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every query already filters by <c>DSRRequestReadModel.TenantId</c> using the ambient tenant,
+    /// and a request that belongs to another tenant is reported as not found, so a request scoped
+    /// to one tenant never observes or mutates another tenant's requests or restrictions (#1963).
+    /// This flag only controls what happens when the ambient tenant itself is missing.
+    /// </para>
+    /// <para>
+    /// The default is <c>null</c> (auto-detect, fail-closed by default in a multi-tenant
+    /// application, SPEC-002 DEC-006/DEC-009): when <c>Encina.Tenancy</c> is registered
+    /// (<c>Encina.Tenancy.ITenantProvider</c> is resolvable), a missing ambient tenant returns
+    /// <see cref="DSRErrors.TenantRequiredCode"/> instead of running an unscoped operation; when
+    /// tenancy is not registered at all, the operation runs without a tenant (the behavior
+    /// single-tenant applications expect without configuration).
+    /// </para>
+    /// <para>
+    /// Set explicitly to override the auto-detected behavior: <c>true</c> always fails closed, even
+    /// in an application that has not registered <c>Encina.Tenancy</c>. <c>false</c> is an explicit
+    /// opt-out that always allows an unscoped operation even when multi-tenancy is enabled; the
+    /// service logs this opt-out whenever it is constructed (once per scope, because it is
+    /// registered scoped) so it is never silent.
+    /// </para>
+    /// </remarks>
+    public bool? RequireTenantContext { get; set; }
 
     /// <summary>
     /// Gets or sets whether to register a DSR health check with <c>IHealthChecksBuilder</c>.

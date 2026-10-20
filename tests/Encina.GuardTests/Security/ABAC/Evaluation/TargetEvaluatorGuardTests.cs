@@ -16,10 +16,10 @@ public class TargetEvaluatorGuardTests
 {
     private static PolicyEvaluationContext CreateContext() => new()
     {
-        SubjectAttributes = AttributeBag.Empty,
-        ResourceAttributes = AttributeBag.Empty,
-        EnvironmentAttributes = AttributeBag.Empty,
-        ActionAttributes = AttributeBag.Empty,
+        SubjectAttributes = new Dictionary<string, AttributeBag>(),
+        ResourceAttributes = new Dictionary<string, AttributeBag>(),
+        EnvironmentAttributes = new Dictionary<string, AttributeBag>(),
+        ActionAttributes = new Dictionary<string, AttributeBag>(),
         RequestType = typeof(object)
     };
 
@@ -177,10 +177,13 @@ public class TargetEvaluatorGuardTests
 
         var context = new PolicyEvaluationContext
         {
-            SubjectAttributes = AttributeBag.Of(new AttributeValue { DataType = XACMLDataTypes.String, Value = "Admin" }),
-            ResourceAttributes = AttributeBag.Empty,
-            EnvironmentAttributes = AttributeBag.Empty,
-            ActionAttributes = AttributeBag.Empty,
+            SubjectAttributes = new Dictionary<string, AttributeBag>
+            {
+                ["role"] = AttributeBag.Of(new AttributeValue { DataType = XACMLDataTypes.String, Value = "Admin" })
+            },
+            ResourceAttributes = new Dictionary<string, AttributeBag>(),
+            EnvironmentAttributes = new Dictionary<string, AttributeBag>(),
+            ActionAttributes = new Dictionary<string, AttributeBag>(),
             RequestType = typeof(object)
         };
 

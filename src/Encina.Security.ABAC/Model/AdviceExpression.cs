@@ -29,7 +29,7 @@ namespace Encina.Security.ABAC;
 ///             AttributeId = "message",
 ///             Value = new AttributeValue
 ///             {
-///                 DataType = "string",
+///                 DataType = XACMLDataTypes.String,
 ///                 Value = "Contact your manager to request access."
 ///             }
 ///         }

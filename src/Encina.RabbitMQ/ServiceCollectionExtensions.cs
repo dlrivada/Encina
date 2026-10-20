@@ -59,6 +59,7 @@ public static class ServiceCollectionExtensions
             return connection.CreateChannelAsync().GetAwaiter().GetResult();
         });
 
+        services.TryAddSingleton(TimeProvider.System);
         services.TryAddScoped<IRabbitMQMessagePublisher, RabbitMQMessagePublisher>();
 
         // Register health check if enabled

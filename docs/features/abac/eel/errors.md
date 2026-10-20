@@ -68,7 +68,7 @@ Details:
 
 Runtime errors occur when a compiled expression executes against an `EELGlobals` instance.
 The `EELCompiler.EvaluateAsync` method wraps any exception thrown during `runner.Invoke`
-into `ABACErrors.InvalidCondition(expression, $"Evaluation failed: {ex.Message}")`.
+into `ABACErrors.InvalidCondition(expression, $"Evaluation failed ({ex.GetType().Name}).")`. Only the exception type name is recorded; the exception message is never copied into the error, because it can contain attribute values.
 
 The ABAC pipeline behavior does not call `EvaluateAsync`: it compiles each `[RequireCondition]` expression with `EELCompiler.CompileAsync`, invokes the cached delegate itself and catches the exception. A compile or runtime error there makes the decision Indeterminate, and the request is denied with `abac.indeterminate` in every enforcement mode, `Warn` included.
 
@@ -80,13 +80,11 @@ The ABAC pipeline behavior does not call `EvaluateAsync`: it compiles each `[Req
 
 ```
 Code:    abac.invalid_condition
-Message: Condition expression is invalid: Evaluation failed: 'System.Dynamic.ExpandoObject'
-         does not contain a definition for 'nonExistent'
+Message: Condition expression is invalid: Evaluation failed (RuntimeBinderException).
 Details:
   stage:      abac
   expression: user.nonExistent == "x"
-  reason:     Evaluation failed: 'System.Dynamic.ExpandoObject' does not contain a
-              definition for 'nonExistent'
+  reason:     Evaluation failed (RuntimeBinderException).
 ```
 
 ### Common Runtime Exception Types
@@ -108,12 +106,13 @@ errors may appear in the broader policy evaluation pipeline:
 
 | Error Code                        | Trigger                                                    |
 |-----------------------------------|------------------------------------------------------------|
-| `abac.evaluation_failed`          | Policy evaluation threw an unhandled exception             |
-| `abac.access_denied`              | Policy evaluation produced a Deny decision                 |
+| `abac.evaluation_failed`          | Policy evaluation threw an unhandled exception. The error message never includes the exception message; the exception type is in the details |
+| `encina.authorization.abac_access_denied` | Policy evaluation produced a Deny decision (HTTP 403) |
 | `abac.indeterminate`              | Evaluation could not reach Permit or Deny                  |
-| `abac.policy_not_found`           | Referenced policy ID does not exist in the store, or a `[RequirePolicy]` name matches no top-level policy set or standalone policy |
-| `abac.condition_not_met`          | A `[RequireCondition]` expression evaluated to `false`     |
-| `abac.policy_set_not_found`       | Referenced policy set ID does not exist in the store       |
+| `abac.policy.not_found`           | Administrative lookup: a PAP operation or `EvaluatePolicyAsync` names a policy ID that does not exist (never returned by the PEP) |
+| `encina.authorization.abac_policy_not_found` | A `[RequirePolicy]` name matches no top-level policy set or standalone policy (HTTP 403) |
+| `encina.authorization.abac_condition_not_met` | A `[RequireCondition]` expression evaluated to `false` (HTTP 403) |
+| `abac.policy_set.not_found`       | Referenced policy set ID does not exist in the store       |
 | `abac.attribute_resolution_failed`| Required attribute (MustBePresent) could not be resolved   |
 | `abac.invalid_policy`             | Policy definition is structurally invalid                  |
 | `abac.invalid_policy_set`         | Policy set definition is structurally invalid              |
@@ -121,9 +120,9 @@ errors may appear in the broader policy evaluation pipeline:
 | `abac.duplicate_policy_set`       | A policy set with the same ID already exists               |
 | `abac.combining_failed`           | Combining algorithm produced Indeterminate                 |
 | `abac.missing_context`            | No authenticated security context with a user              |
-| `abac.obligation_failed`          | Mandatory obligation handler failed (access denied per XACML) |
+| `encina.authorization.abac_obligation_failed` | Mandatory obligation handler failed (access denied per XACML; HTTP 403) |
 | `abac.function_not_found`         | Referenced function not in the function registry           |
-| `abac.function_error`             | Custom function threw an exception during evaluation       |
+| `abac.function_error`             | Custom function threw an exception during evaluation. The error message never includes the exception message; the exception type is in `details["exceptionType"]` |
 | `abac.variable_not_found`         | VariableReference targets an undefined VariableDefinition  |
 
 ---
@@ -150,8 +149,10 @@ EEL expressions:
 
 ## Debugging Tips
 
-1. **Read the `reason` field.** Every `abac.invalid_condition` error includes the Roslyn
-   diagnostic or exception message in `Details["reason"]`.
+1. **Read the `reason` field.** For a compilation error it carries the Roslyn diagnostic
+   with its position. For a runtime error it carries only the exception type name
+   (for example `Evaluation failed (RuntimeBinderException).`), never the exception
+   message; use the type to narrow the cause with the table above, then check the `expression` field.
 
 2. **Check the `expression` field.** The full expression string is preserved in
    `Details["expression"]` for logging and diagnostics.

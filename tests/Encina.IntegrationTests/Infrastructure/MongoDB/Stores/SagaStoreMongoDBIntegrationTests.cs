@@ -1,3 +1,4 @@
+using Encina.IntegrationTests.Infrastructure.Sagas;
 using Encina.MongoDB;
 using Encina.MongoDB.Sagas;
 using Encina.TestInfrastructure.Fixtures;
@@ -40,6 +41,14 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Fact]
+    public Task RunAsync_WhenStepFailsAndCompensationsSucceed_PersistsCompensated() =>
+        SagaRunnerOutcomeScenarios.AssertStepFailureEndsCompensatedAsync(CreateStore(), new SagaStateFactory());
+
+    [Fact]
+    public Task RunAsync_WhenStepFailsAndCompensationThrows_PersistsFailed() =>
+        SagaRunnerOutcomeScenarios.AssertCompensationFailureEndsFailedAsync(CreateStore(), new SagaStateFactory());
 
     [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistSaga()

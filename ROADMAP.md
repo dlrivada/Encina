@@ -200,6 +200,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ Input Sanitization [#399](https://github.com/dlrivada/Encina/issues/399) - `Encina.Security.Sanitization` with attribute-based input sanitization and output encoding
 - ✅ Secrets Management [#400](https://github.com/dlrivada/Encina/issues/400) - `Encina.Security.Secrets` with ISP-compliant secrets management and vault integration (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager)
 - ✅ ABAC Engine [#401](https://github.com/dlrivada/Encina/issues/401) - `Encina.Security.ABAC` with XACML 3.0 evaluation model, 70+ standard functions, 8 combining algorithms, EEL (Encina Expression Language), fluent builder DSL, obligations/advice, 764 unit tests, 22 documentation files, 3 ADRs
+- ✅ ABAC Decision Audit Trail [#751](https://github.com/dlrivada/Encina/issues/751) - opt-in `ABACOptions.DecisionAudit`: one write-ahead, fail-closed `OperationAuditEntry` per decision at the enforcement point, evaluation trace, `IABACDecisionAuditReader` with tenant gate and JSON Lines export, [ADR-047](docs/architecture/adr/047-abac-decision-audit.md)
 - ✅ Persistent PAP [#691](https://github.com/dlrivada/Encina/issues/691) - Database-backed `PersistentPolicyAdministrationPoint` with `IPolicyStore`, `IPolicySerializer`, `CachingPolicyStoreDecorator` (cache-aside + PubSub invalidation), `PolicyEntityMapper`, 11 provider implementations (EF Core, Dapper, ADO.NET, MongoDB), 182 integration tests, serialization benchmarks
 - ✅ Processor Agreements [#410](https://github.com/dlrivada/Encina/issues/410) - `Encina.Compliance.ProcessorAgreements` with Art. 28 DPA management, `IProcessorRegistry`, `IDPAStore`, `IDPAValidator`, sub-processor hierarchy, mandatory terms compliance, 7 notifications, expiration scheduling, pipeline enforcement, 10 database providers, 360+ tests
 - ✅ Breach Notification [#408](https://github.com/dlrivada/Encina/issues/408) - `Encina.Compliance.BreachNotification` with GDPR Art. 33-34, 72-hour workflow, severity assessment, SIEM integration, 10 database providers
@@ -222,7 +223,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
   - ✅ Lawful Basis [#779](https://github.com/dlrivada/Encina/issues/779) — Extracted to `Encina.Compliance.LawfulBasis` + migrated to Marten event sourcing
   - ✅ Breach Notification [#780](https://github.com/dlrivada/Encina/issues/780) — Migrated to Marten event sourcing
   - ✅ DPIA [#781](https://github.com/dlrivada/Encina/issues/781) — Migrated to Marten event sourcing
-- ✅ Encina.Audit.Marten [#800](https://github.com/dlrivada/Encina/issues/800) — Event-sourced IAuditStore with temporal crypto-shredding for compliance-grade audit trails
+- ✅ Encina.Audit.Marten [#800](https://github.com/dlrivada/Encina/issues/800) — Event-sourced IOperationAuditStore with temporal crypto-shredding for compliance-grade audit trails
 - ✅ NIS2 Directive compliance [#414](https://github.com/dlrivada/Encina/issues/414) — Stateless rule engine for Art. 21 measures, MFA enforcement, encryption validation, supply chain security, incident timelines, management accountability
 - ✅ AI Act compliance [#415](https://github.com/dlrivada/Encina/issues/415) — `Encina.Compliance.AIAct` with EU AI Act (EU 2024/1689) risk classification, prohibited practices detection, human oversight enforcement, transparency obligations, attribute-based pipeline behavior, 135 tests
 
@@ -310,6 +311,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - Distributed Lock providers
 - Serverless enhancements
 - Validation enhancements
+- Persistent dead letter queue on the 10 database providers (#583, SPEC-000 DEC-008)
 
 → [View v0.19.0 Issues](https://github.com/dlrivada/Encina/milestone/16)
 
@@ -464,7 +466,7 @@ Key areas already completed:
   - API Versioning Integration [#348](https://github.com/dlrivada/Encina/issues/348) — Versioned handlers with `[ApiVersion]`, VersionedRequestDispatcher
   - Request Batching [#349](https://github.com/dlrivada/Encina/issues/349) — BatchCommand/BatchQuery with AllOrNothing, PartialSuccess strategies
   - Domain vs Integration Events [#350](https://github.com/dlrivada/Encina/issues/350) — IDomainEvent, IIntegrationEvent, DomainEventDispatcher (DDD best practice)
-  - Audit Trail Behavior [#351](https://github.com/dlrivada/Encina/issues/351) — `[Auditable]` attribute, IAuditStore, sensitive data redaction (GDPR/compliance)
+  - Audit Trail Behavior [#351](https://github.com/dlrivada/Encina/issues/351) — `[Auditable]` attribute, IOperationAuditStore, sensitive data redaction (GDPR/compliance)
   - Modular Monolith [#352](https://github.com/dlrivada/Encina/issues/352) — EncinaModule, IModuleEventBus, module isolation (architecture 2025)
   - ✅ CDC Integration [#353](https://github.com/dlrivada/Encina/issues/353) — Change Data Capture with SQL Server, Debezium/Kafka providers - **COMPLETED**
   - Enhanced Streaming [#354](https://github.com/dlrivada/Encina/issues/354) — Stream pipeline behaviors, backpressure, parallel processing

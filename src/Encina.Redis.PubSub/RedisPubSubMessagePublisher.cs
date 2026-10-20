@@ -45,6 +45,7 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
     public async ValueTask<Either<EncinaError, long>> PublishAsync<TMessage>(
         TMessage message,
         string? channel = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -58,6 +59,7 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
 
             var payload = JsonSerializer.Serialize(new RedisMessageWrapper<TMessage>
             {
+                MessageId = string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId,
                 MessageType = typeof(TMessage).FullName ?? typeof(TMessage).Name,
                 Payload = message,
                 TimestampUtc = _timeProvider.GetUtcNow().UtcDateTime
@@ -160,6 +162,7 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
 
 internal sealed class RedisMessageWrapper<T>
 {
+    public string MessageId { get; set; } = string.Empty;
     public string MessageType { get; set; } = string.Empty;
     public T? Payload { get; set; }
     public DateTime TimestampUtc { get; set; }

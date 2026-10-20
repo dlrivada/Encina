@@ -1,0 +1,2 @@
+- Breaking: `InboxOrchestrator.ProcessAsync` takes the request as its new first parameter, so the inbox can dead-letter it (#1991).
+- Breaking: `SagaNotFoundContext` takes the caller's `sourceMessageId` instead of a dead letter delegate; `MoveToDeadLetterAsync` returns the capture's result, and `ISagaNotFoundDispatcher.DispatchAsync` returns the error of a move the handler did not recover from instead of success (#2203).

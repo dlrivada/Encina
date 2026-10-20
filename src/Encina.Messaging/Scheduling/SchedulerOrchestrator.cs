@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Encina.Diagnostics;
+using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -37,6 +38,7 @@ public sealed class SchedulerOrchestrator
     private readonly ICronParser? _cronParser;
     private readonly TimeProvider _timeProvider;
     private readonly IMessageSerializer _messageSerializer;
+    private readonly DeadLetterSourceCapture? _deadLetterCapture;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SchedulerOrchestrator"/> class.
@@ -57,6 +59,13 @@ public sealed class SchedulerOrchestrator
     /// </param>
     /// <param name="cronParser">Optional cron parser for recurring messages.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
+    /// <param name="deadLetterCapture">
+    /// Optional dead letter capture, registered with the dead letter queue: while
+    /// <c>DeadLetterOptions.IntegrateWithScheduling</c> is on, a message whose failure the retry policy
+    /// dead-letters is captured (stored type name and content, keyed by the message id) before that state is
+    /// recorded; when the capture fails in a retryable way the message keeps its state and runs again in a later
+    /// cycle, and a capture the queue rejects (<c>dlq.capture_rejected</c>) does not stop the state being recorded.
+    /// </param>
     /// <exception cref="ArgumentNullException">
     /// Thrown when any required dependency (<paramref name="store"/>,
     /// <paramref name="options"/>, <paramref name="logger"/>,
@@ -71,8 +80,10 @@ public sealed class SchedulerOrchestrator
         IScheduledMessageRetryPolicy retryPolicy,
         IMessageSerializer messageSerializer,
         ICronParser? cronParser = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        DeadLetterSourceCapture? deadLetterCapture = null)
     {
+        _deadLetterCapture = deadLetterCapture;
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -266,8 +277,9 @@ public sealed class SchedulerOrchestrator
     /// <returns>
     /// On success, the number of messages dispatched successfully in this batch (i.e.
     /// callbacks that returned <c>Right</c>). Failed messages still update the store but
-    /// do not increment the count. On store retrieval failure, returns
-    /// <c>Left(EncinaError)</c>.
+    /// do not increment the count. On store retrieval failure, or when the store fails to
+    /// save the batch outcomes (<see cref="IScheduledMessageStore.SaveChangesAsync"/>),
+    /// returns <c>Left(EncinaError)</c>. When no message is due, nothing is saved.
     /// </returns>
     /// <remarks>
     /// <para>
@@ -299,21 +311,65 @@ public sealed class SchedulerOrchestrator
         if (messagesResult.IsLeft)
             return messagesResult.LeftToArray()[0];
 
-        var messages = messagesResult.Match(Right: m => m, Left: _ => Enumerable.Empty<IScheduledMessage>());
+        var messages = messagesResult.Match(Right: m => m, Left: _ => Enumerable.Empty<IScheduledMessage>()).ToList();
+        if (messages.Count == 0)
+            return 0;
+
+        var processedCount = await ProcessBatchAsync(messages, executeCallback, cancellationToken).ConfigureAwait(false);
+
+        var saveResult = await SaveBatchOutcomesAsync(messages.Count).ConfigureAwait(false);
+        if (saveResult.IsLeft)
+            return saveResult.LeftToArray()[0];
+
+        return processedCount;
+    }
+
+    private async Task<int> ProcessBatchAsync(
+        List<IScheduledMessage> messages,
+        Func<IScheduledMessage, Type, object, CancellationToken, ValueTask<Either<EncinaError, Unit>>> executeCallback,
+        CancellationToken cancellationToken)
+    {
         var processedCount = 0;
 
-        foreach (var message in messages)
+        try
         {
-            if (cancellationToken.IsCancellationRequested)
-                break;
-
-            if (await TryProcessMessageAsync(message, executeCallback, cancellationToken).ConfigureAwait(false))
+            foreach (var message in messages)
             {
-                processedCount++;
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                if (await TryProcessMessageAsync(message, executeCallback, cancellationToken).ConfigureAwait(false))
+                {
+                    processedCount++;
+                }
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled mid-batch: the messages dispatched before it still need their outcomes saved,
+            // otherwise they run again on the next start. The cancellation then propagates.
+            await SaveBatchOutcomesAsync(messages.Count).ConfigureAwait(false);
+            throw;
         }
 
         return processedCount;
+    }
+
+    /// <summary>
+    /// Commits the batch outcomes. They are saved even when the host is stopping: they describe
+    /// dispatches that already happened, and dropping them would run those messages again.
+    /// Stores that write immediately return success without doing anything.
+    /// </summary>
+    private async Task<Either<EncinaError, Unit>> SaveBatchOutcomesAsync(int messageCount)
+    {
+        var saveResult = await _store.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+        if (saveResult.IsLeft)
+        {
+            // Only the error code: EncinaError.Message can carry personal data.
+            Log.StoreSaveChangesFailed(_logger, messageCount, saveResult.LeftToArray()[0].GetCode().IfNone("unknown"));
+        }
+
+        return saveResult;
     }
 
     /// <summary>
@@ -347,7 +403,10 @@ public sealed class SchedulerOrchestrator
             // Real failures use the Either path above.
             Log.ExecutionFailed(_logger, ex.ForLogging(), message.Id);
             // The exception message may carry personal data; store only the exception type.
-            await MarkAsFailedAsync(message, ex.GetType().FullName ?? ex.GetType().Name, cancellationToken).ConfigureAwait(false);
+            await MarkAsFailedAsync(
+                message,
+                new ScheduledFailure(ex.GetType().FullName ?? ex.GetType().Name, SchedulingErrorCodes.ExecutionFailed, ex),
+                cancellationToken).ConfigureAwait(false);
             return false;
         }
     }
@@ -381,7 +440,10 @@ public sealed class SchedulerOrchestrator
         if (requestType == null)
         {
             Log.UnknownRequestType(_logger, message.Id, message.RequestType);
-            await MarkAsFailedAsync(message, $"Unknown request type: {message.RequestType}", cancellationToken).ConfigureAwait(false);
+            await MarkAsFailedAsync(
+                message,
+                new ScheduledFailure($"Unknown request type: {message.RequestType}", SchedulingErrorCodes.UnknownRequestType),
+                cancellationToken).ConfigureAwait(false);
             return false;
         }
 
@@ -389,7 +451,10 @@ public sealed class SchedulerOrchestrator
         if (request == null)
         {
             Log.DeserializationFailed(_logger, message.Id, message.RequestType);
-            await MarkAsFailedAsync(message, "Failed to deserialize request", cancellationToken).ConfigureAwait(false);
+            await MarkAsFailedAsync(
+                message,
+                new ScheduledFailure("Failed to deserialize request", SchedulingErrorCodes.DeserializationFailed),
+                cancellationToken).ConfigureAwait(false);
             return false;
         }
 
@@ -401,7 +466,7 @@ public sealed class SchedulerOrchestrator
             // EncinaError.Message can carry personal data (e.g. a data-subject id), so only
             // the error code is logged and stored (#1259 review).
             Log.DispatchFailed(_logger, message.Id, errorCode);
-            await MarkAsFailedAsync(message, errorCode, cancellationToken).ConfigureAwait(false);
+            await MarkAsFailedAsync(message, new ScheduledFailure(errorCode, errorCode), cancellationToken).ConfigureAwait(false);
             return false;
         }
 
@@ -457,15 +522,59 @@ public sealed class SchedulerOrchestrator
             }).ConfigureAwait(false);
     }
 
-    private async Task MarkAsFailedAsync(IScheduledMessage message, string errorMessage, CancellationToken cancellationToken)
+    // Reason is what the store keeps in ErrorMessage (an error code, an exception type or a fixed text, never
+    // EncinaError.Message); ErrorCode is what a dead letter records.
+    private readonly record struct ScheduledFailure(string Reason, string ErrorCode, Exception? Exception = null);
+
+    private async Task MarkAsFailedAsync(IScheduledMessage message, ScheduledFailure failure, CancellationToken cancellationToken)
     {
         var decision = _retryPolicy.Compute(message.RetryCount, _options.MaxRetries, _timeProvider.GetUtcNow().UtcDateTime);
-        var storeResult = await _store.MarkAsFailedAsync(message.Id, errorMessage, decision.NextRetryAtUtc, cancellationToken).ConfigureAwait(false);
+
+        // The dead letter is captured before the dead-lettered state is recorded: when the capture fails the
+        // message keeps its state and runs (and is captured) again in a later cycle, instead of ending without
+        // its dead letter. The capture logs its own failure; it is idempotent on the message id. A capture the dead
+        // letter queue rejects can never succeed, so the dead-lettered state is recorded anyway.
+        if (decision.IsDeadLettered && !await CapturedOrRejectedAsync(message, failure, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        var storeResult = await _store.MarkAsFailedAsync(message.Id, failure.Reason, decision.NextRetryAtUtc, cancellationToken).ConfigureAwait(false);
         if (storeResult.IsLeft)
         {
             var storeError = storeResult.LeftToArray()[0];
             Log.StoreMarkAsFailedError(_logger, message.Id, storeError.GetCode().IfNone("unknown"));
         }
+    }
+
+    // False only when the capture failed in a way worth trying again (the message then stays due).
+    private async Task<bool> CapturedOrRejectedAsync(IScheduledMessage message, ScheduledFailure failure, CancellationToken cancellationToken)
+    {
+        var captured = await CaptureDeadLetterAsync(message, failure, cancellationToken).ConfigureAwait(false);
+        return captured.IsRight || !DeadLetterSourceCapture.IsRetryable(captured.LeftToArray()[0]);
+    }
+
+    // The stored type name and content are captured as they are (IMessageSerializer wrote the content, so
+    // the replay reads it back).
+    private Task<Either<EncinaError, Unit>> CaptureDeadLetterAsync(
+        IScheduledMessage message,
+        ScheduledFailure failure,
+        CancellationToken cancellationToken)
+    {
+        if (_deadLetterCapture is null)
+            return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+
+        return _deadLetterCapture.CaptureSerializedAsync(
+            message.RequestType,
+            message.Content,
+            new DeadLetterContext(
+                EncinaErrors.Create(failure.ErrorCode, "Scheduled message used up its retries"),
+                failure.Exception,
+                DeadLetterSourcePatterns.Scheduling,
+                message.RetryCount + 1,
+                DeadLetterInputs.AsUtc(message.CreatedAtUtc),
+                SourceMessageId: message.Id.ToString("D")),
+            cancellationToken);
     }
 }
 
@@ -643,4 +752,10 @@ internal static partial class Log
         Level = LogLevel.Error,
         Message = "Failed to update store for message {MessageId} after dispatch failure: error code {StoreErrorCode}")]
     public static partial void StoreMarkAsFailedError(ILogger logger, Guid messageId, string storeErrorCode);
+
+    [LoggerMessage(
+        EventId = 2989,
+        Level = LogLevel.Error,
+        Message = "Failed to save the outcomes of {MessageCount} scheduled messages: error code {StoreErrorCode}")]
+    public static partial void StoreSaveChangesFailed(ILogger logger, int messageCount, string storeErrorCode);
 }

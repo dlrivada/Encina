@@ -1,0 +1,1 @@
+- `SagaHealthCheck` now reports Unhealthy, with only the error code in its description and data, when the saga store returns an error, instead of reporting Healthy (#1957).

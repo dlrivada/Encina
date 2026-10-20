@@ -12,7 +12,7 @@ namespace Encina.LoadTests.Security.Audit;
 /// <remarks>
 /// <para>
 /// The audit pipeline is the hot path for every audited command in compliance-grade
-/// applications (SOX, NIS2, GDPR). These tests validate that <see cref="InMemoryAuditStore"/>
+/// applications (SOX, NIS2, GDPR). These tests validate that <see cref="InMemoryOperationAuditStore"/>
 /// can sustain high concurrency without contention or memory leaks.
 /// </para>
 /// <para>
@@ -63,7 +63,7 @@ public static class AuditPipelineLoadTests
 
     /// <summary>
     /// Scenario 1: Multiple workers writing audit entries simultaneously via
-    /// <see cref="IAuditStore.RecordAsync"/>. Measures pure write throughput and
+    /// <see cref="IOperationAuditStore.RecordAsync"/>. Measures pure write throughput and
     /// contention on the underlying <see cref="ConcurrentDictionary{TKey,TValue}"/>.
     /// </summary>
     /// <param name="workerCount">Number of concurrent workers simulating parallel command execution.</param>
@@ -81,7 +81,7 @@ public static class AuditPipelineLoadTests
         Console.WriteLine($"Workers: {workerCount} | Duration: {testDuration.TotalSeconds}s");
         Console.WriteLine();
 
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
         var latencies = new ConcurrentBag<double>();
         long totalOperations = 0;
         long totalErrors = 0;
@@ -161,7 +161,7 @@ public static class AuditPipelineLoadTests
         Console.WriteLine($"Writers: {writeWorkers} | Readers: {readWorkers} | Duration: {testDuration.TotalSeconds}s");
         Console.WriteLine();
 
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
         var writeLatencies = new ConcurrentBag<double>();
         var readLatencies = new ConcurrentBag<double>();
         long totalWrites = 0;
@@ -216,7 +216,7 @@ public static class AuditPipelineLoadTests
                 var localSw = new Stopwatch();
                 while (!cts.IsCancellationRequested)
                 {
-                    var query = new AuditQuery
+                    var query = new OperationAuditQuery
                     {
                         EntityType = "Order",
                         PageSize = 50
@@ -274,7 +274,7 @@ public static class AuditPipelineLoadTests
         Console.WriteLine($"Burst size: {burstSize:N0} | Workers: {burstWorkers}");
         Console.WriteLine();
 
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
         var latencies = new ConcurrentBag<double>();
         long totalOperations = 0;
         long totalErrors = 0;
@@ -335,7 +335,7 @@ public static class AuditPipelineLoadTests
 
     /// <summary>
     /// Scenario 4: Purge entries while writes are happening — validates that
-    /// <see cref="IAuditStore.PurgeEntriesAsync"/> does not block or corrupt concurrent writes.
+    /// <see cref="IOperationAuditStore.PurgeEntriesAsync"/> does not block or corrupt concurrent writes.
     /// </summary>
     /// <param name="workerCount">Number of concurrent write workers.</param>
     /// <param name="duration">How long to run the test.</param>
@@ -352,7 +352,7 @@ public static class AuditPipelineLoadTests
         Console.WriteLine($"Writers: {workerCount} | Purge interval: 2s | Duration: {testDuration.TotalSeconds}s");
         Console.WriteLine();
 
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
         var writeLatencies = new ConcurrentBag<double>();
         var purgeLatencies = new ConcurrentBag<double>();
         long totalWrites = 0;
@@ -502,7 +502,7 @@ public static class AuditPipelineLoadTests
         return sorted[Math.Clamp(index, 0, sorted.Length - 1)];
     }
 
-    private static AuditEntry CreateAuditEntry(string payload) => new()
+    private static OperationAuditEntry CreateAuditEntry(string payload) => new()
     {
         Id = Guid.NewGuid(),
         CorrelationId = Guid.NewGuid().ToString("N"),

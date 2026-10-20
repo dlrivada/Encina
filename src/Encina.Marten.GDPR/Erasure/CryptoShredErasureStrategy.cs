@@ -16,18 +16,22 @@ namespace Encina.Marten.GDPR;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This strategy bridges the <c>Encina.Compliance.DataSubjectRights</c> erasure workflow with
-/// the crypto-shredding infrastructure. Unlike <see cref="HardDeleteErasureStrategy"/> which
-/// nullifies field values, this strategy deletes the per-subject encryption keys — the encrypted
-/// ciphertext remains in the immutable event store but becomes permanently unreadable.
+/// Unlike <see cref="HardDeleteErasureStrategy"/>, which nullifies field values, this strategy deletes the
+/// per-subject encryption keys: the ciphertext remains in the immutable event store but becomes permanently
+/// unreadable. This satisfies GDPR Article 17 without modifying event history.
 /// </para>
 /// <para>
-/// This approach satisfies GDPR Article 17 without modifying event history, making it ideal
-/// for event-sourced systems where immutability of the event log is a core invariant.
+/// <b>Erasure is subject-wide.</b> The subject id is taken from <see cref="PersonalDataLocation.EntityId"/> and
+/// every key of that subject is deleted, whatever <see cref="PersonalDataLocation.FieldName"/> says, so one
+/// location shreds every crypto-shredded field of the subject (#1144 tracks field-scoped keys).
 /// </para>
 /// <para>
-/// The subject ID is extracted from <see cref="PersonalDataLocation.EntityId"/>, which is
-/// expected to contain the data subject's unique identifier.
+/// <b>Idempotent.</b> Erasing a subject that is already forgotten succeeds (event 8480): the data subject rights
+/// executor calls the strategy once per location, and several locations share one subject key.
+/// </para>
+/// <para>
+/// <c>AddEncinaMartenGdpr</c> registers it behind an internal routing strategy, so locations of the Marten
+/// locator always reach it, whatever other <see cref="IDataErasureStrategy"/> the application registers first.
 /// </para>
 /// </remarks>
 public sealed class CryptoShredErasureStrategy : IDataErasureStrategy
@@ -53,12 +57,8 @@ public sealed class CryptoShredErasureStrategy : IDataErasureStrategy
 
     /// <inheritdoc />
     /// <remarks>
-    /// <para>
-    /// Extracts the subject ID from <see cref="PersonalDataLocation.EntityId"/> and calls
-    /// <see cref="ISubjectKeyProvider.DeleteSubjectKeysAsync"/> to delete all encryption
-    /// key versions for the subject. The encrypted PII remains in the event store but
-    /// becomes permanently unreadable without the key material.
-    /// </para>
+    /// Calls <see cref="ISubjectKeyProvider.DeleteSubjectKeysAsync"/> for the subject in
+    /// <see cref="PersonalDataLocation.EntityId"/>; a subject that is already forgotten is a success.
     /// </remarks>
     public async ValueTask<Either<EncinaError, Unit>> EraseFieldAsync(
         PersonalDataLocation location,
@@ -66,24 +66,36 @@ public sealed class CryptoShredErasureStrategy : IDataErasureStrategy
     {
         ArgumentNullException.ThrowIfNull(location);
 
-        var subjectId = location.EntityId;
         using var activity = CryptoShreddingDiagnostics.StartErasure();
 
-        // The data subject's own identifier is never logged (#1429, following #1314); correlate
-        // via the field name and entity type instead.
-        _logger.LogDebug(
-            "Crypto-shredding erasure for field '{FieldName}' on entity {EntityType}",
-            location.FieldName,
-            location.EntityType.Name);
+        // The data subject's own identifier is never logged (#1429, following #1314).
+        _logger.ErasureRequested(location.EntityType.Name, location.FieldName);
 
         var result = await _subjectKeyProvider
-            .DeleteSubjectKeysAsync(subjectId, cancellationToken)
+            .DeleteSubjectKeysAsync(location.EntityId, cancellationToken)
             .ConfigureAwait(false);
 
-        result.Match(
-            _ => CryptoShreddingDiagnostics.RecordSuccess(activity),
-            _ => CryptoShreddingDiagnostics.RecordFailed(activity, "Erasure failed"));
+        return result.Match(
+            Right: _ => Succeeded(activity),
+            Left: error => Failed(activity, location, error));
+    }
 
-        return result.Map(_ => unit);
+    private static Either<EncinaError, Unit> Succeeded(System.Diagnostics.Activity? activity)
+    {
+        CryptoShreddingDiagnostics.RecordSuccess(activity);
+        return Right<EncinaError, Unit>(unit);
+    }
+
+    private Either<EncinaError, Unit> Failed(System.Diagnostics.Activity? activity, PersonalDataLocation location, EncinaError error)
+    {
+        var code = CryptoShreddingEngine.ErrorCode(error, CryptoShreddingErrors.KeyStoreErrorCode);
+        if (code == CryptoShreddingErrors.SubjectForgottenCode)
+        {
+            _logger.ErasureSubjectAlreadyForgotten(location.EntityType.Name, location.FieldName);
+            return Succeeded(activity);
+        }
+
+        CryptoShreddingDiagnostics.RecordFailed(activity, code);
+        return Left<EncinaError, Unit>(error);
     }
 }

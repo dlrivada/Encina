@@ -128,7 +128,7 @@ public sealed class CachedShardedQueryExecutor : IShardedQueryExecutor
 
         if (cached is not null)
         {
-            _logger.LogDebug("Cache hit for scatter-gather query '{CacheKey}'", cacheKey);
+            _logger.LogDebug("Cache hit for scatter-gather query '{CacheKey}'", CacheKeyRedactor.Redact(cacheKey));
             return Either<EncinaError, ShardedQueryResult<T>>.Right(cached);
         }
 
@@ -136,33 +136,43 @@ public sealed class CachedShardedQueryExecutor : IShardedQueryExecutor
         var result = await _inner.ExecuteAsync(shardIds, queryFactory, cancellationToken)
             .ConfigureAwait(false);
 
-        // Cache successful results that don't exceed the size limit
-        if (result.IsRight)
-        {
-            var queryResult = result.Match(Right: r => r, Left: _ => default!);
-
-            if (queryResult.Results.Count <= _options.MaxCachedResultSize)
-            {
-                await _cache.SetAsync(composedKey, queryResult, duration, cancellationToken)
-                    .ConfigureAwait(false);
-
-                _logger.LogDebug(
-                    "Cached scatter-gather result for '{CacheKey}' ({Count} items, TTL {Duration})",
-                    cacheKey,
-                    queryResult.Results.Count,
-                    duration);
-            }
-            else
-            {
-                _logger.LogDebug(
-                    "Scatter-gather result for '{CacheKey}' exceeds max size ({Count} > {Max}), not caching",
-                    cacheKey,
-                    queryResult.Results.Count,
-                    _options.MaxCachedResultSize);
-            }
-        }
+        await CacheResultAsync(result, composedKey, cacheKey, duration, cancellationToken).ConfigureAwait(false);
 
         return result;
+    }
+
+    // Caches a successful result that does not exceed the size limit; the key is logged redacted.
+    private async Task CacheResultAsync<T>(
+        Either<EncinaError, ShardedQueryResult<T>> result,
+        string composedKey,
+        string cacheKey,
+        TimeSpan duration,
+        CancellationToken cancellationToken)
+    {
+        if (!result.IsRight)
+        {
+            return;
+        }
+
+        var queryResult = result.Match(Right: r => r, Left: _ => default!);
+
+        if (queryResult.Results.Count > _options.MaxCachedResultSize)
+        {
+            _logger.LogDebug(
+                "Scatter-gather result for '{CacheKey}' exceeds max size ({Count} > {Max}), not caching",
+                CacheKeyRedactor.Redact(cacheKey),
+                queryResult.Results.Count,
+                _options.MaxCachedResultSize);
+            return;
+        }
+
+        await _cache.SetAsync(composedKey, queryResult, duration, cancellationToken).ConfigureAwait(false);
+
+        _logger.LogDebug(
+            "Cached scatter-gather result for '{CacheKey}' ({Count} items, TTL {Duration})",
+            CacheKeyRedactor.Redact(cacheKey),
+            queryResult.Results.Count,
+            duration);
     }
 
     /// <summary>
@@ -197,7 +207,7 @@ public sealed class CachedShardedQueryExecutor : IShardedQueryExecutor
 
         if (cached is not null)
         {
-            _logger.LogDebug("Cache hit for scatter-gather all-shards query '{CacheKey}'", cacheKey);
+            _logger.LogDebug("Cache hit for scatter-gather all-shards query '{CacheKey}'", CacheKeyRedactor.Redact(cacheKey));
             return Either<EncinaError, ShardedQueryResult<T>>.Right(cached);
         }
 
@@ -205,17 +215,7 @@ public sealed class CachedShardedQueryExecutor : IShardedQueryExecutor
         var result = await _inner.ExecuteAllAsync(queryFactory, cancellationToken)
             .ConfigureAwait(false);
 
-        // Cache successful results that don't exceed the size limit
-        if (result.IsRight)
-        {
-            var queryResult = result.Match(Right: r => r, Left: _ => default!);
-
-            if (queryResult.Results.Count <= _options.MaxCachedResultSize)
-            {
-                await _cache.SetAsync(composedKey, queryResult, duration, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-        }
+        await CacheResultAsync(result, composedKey, cacheKey, duration, cancellationToken).ConfigureAwait(false);
 
         return result;
     }
@@ -236,7 +236,7 @@ public sealed class CachedShardedQueryExecutor : IShardedQueryExecutor
         var fullPattern = $"{DefaultKeyPrefix}:{cacheKeyPattern}";
         await _cache.RemoveByPatternAsync(fullPattern, cancellationToken).ConfigureAwait(false);
 
-        _logger.LogDebug("Invalidated scatter-gather cache entries matching '{Pattern}'", fullPattern);
+        _logger.LogDebug("Invalidated scatter-gather cache entries matching '{Pattern}'", CacheKeyRedactor.Redact(fullPattern));
 
         if (_pubSub is not null)
         {

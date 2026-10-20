@@ -1,19 +1,19 @@
 using Encina.Marten.GDPR.Abstractions;
+using Encina.Marten.GDPR.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Marten.GDPR;
 
 /// <summary>
-/// Default implementation of <see cref="IForgottenSubjectHandler"/> that logs when a
-/// forgotten subject's encrypted field is encountered during deserialization.
+/// Default implementation of <see cref="IForgottenSubjectHandler"/> that logs when data of a forgotten subject
+/// is read.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This handler is a no-op beyond structured logging. When the serializer encounters an
-/// encrypted PII field for a forgotten subject (whose keys have been deleted), it invokes
-/// this handler to notify the application. The serializer itself handles the fallback
-/// behavior (e.g., returning <c>null</c> or a placeholder value).
+/// This handler is a no-op beyond structured logging (event 8477, with the root document type and the field path,
+/// never the subject id). The serializer itself applies the anonymized placeholder to the fields of the forgotten
+/// subject before it calls the handler.
 /// </para>
 /// <para>
 /// Applications can register a custom <see cref="IForgottenSubjectHandler"/> implementation
@@ -42,18 +42,15 @@ public sealed class DefaultForgottenSubjectHandler : IForgottenSubjectHandler
     /// <inheritdoc />
     public ValueTask HandleForgottenSubjectAsync(
         string subjectId,
-        string propertyName,
-        Type eventType,
+        string fieldPath,
+        Type documentType,
         CancellationToken cancellationToken = default)
     {
-        // The data subject's own identifier is never logged (#1429, following #1314);
-        // correlate via the field name and event type instead.
-        _logger.LogInformation(
-            "Encountered forgotten subject while deserializing field '{PropertyName}' on event type {EventType}. " +
-            "The field value will be returned as null",
-            propertyName,
-            eventType.Name);
+        ArgumentNullException.ThrowIfNull(fieldPath);
+        ArgumentNullException.ThrowIfNull(documentType);
 
+        // The data subject's own identifier is never logged (#1429, following #1314).
+        _logger.ForgottenSubjectEncountered(documentType.Name, fieldPath);
         return ValueTask.CompletedTask;
     }
 }

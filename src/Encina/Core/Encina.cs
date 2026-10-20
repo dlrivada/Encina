@@ -90,8 +90,10 @@ public sealed partial class Encina(
             return new ValueTask<Either<EncinaError, TResponse>>(error);
         }
 
-        var context = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider);
-        return new ValueTask<Either<EncinaError, TResponse>>(RequestDispatcher.ExecuteAsync(this, request, context, cancellationToken));
+        var resolved = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider, _logger);
+        return resolved.Case is IRequestContext context
+            ? new ValueTask<Either<EncinaError, TResponse>>(RequestDispatcher.ExecuteAsync(this, request, context, cancellationToken))
+            : new ValueTask<Either<EncinaError, TResponse>>((EncinaError)resolved.Case);
     }
 
     private ValueTask<Either<EncinaError, Unit>> PublishCore<TNotification>(TNotification notification, IRequestContext? explicitContext, CancellationToken cancellationToken)
@@ -103,8 +105,10 @@ public sealed partial class Encina(
             return new ValueTask<Either<EncinaError, Unit>>(error);
         }
 
-        var context = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider);
-        return new ValueTask<Either<EncinaError, Unit>>(NotificationDispatcher.ExecuteAsync(this, notification, context, cancellationToken));
+        var resolved = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider, _logger);
+        return resolved.Case is IRequestContext context
+            ? new ValueTask<Either<EncinaError, Unit>>(NotificationDispatcher.ExecuteAsync(this, notification, context, cancellationToken))
+            : new ValueTask<Either<EncinaError, Unit>>((EncinaError)resolved.Case);
     }
 
     private void LogSendOutcome<TResponse>(Type requestType, Type handlerType, Either<EncinaError, TResponse> outcome)
@@ -172,7 +176,8 @@ public sealed partial class Encina(
         {
             var typedRequest = (TRequest)request;
             var typedHandler = (IRequestHandler<TRequest, TResponse>)handler;
-            var pipelineBuilder = new PipelineBuilder<TRequest, TResponse>(typedRequest, typedHandler, context, cancellationToken);
+            var resolver = provider.GetRequiredService<PipelineOrderResolver>();
+            var pipelineBuilder = new PipelineBuilder<TRequest, TResponse>(typedRequest, typedHandler, context, resolver, cancellationToken);
             var pipeline = pipelineBuilder.Build(provider);
             var outcome = await pipeline().ConfigureAwait(false);
             return outcome;

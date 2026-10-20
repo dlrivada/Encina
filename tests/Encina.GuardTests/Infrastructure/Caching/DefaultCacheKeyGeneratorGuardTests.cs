@@ -1,3 +1,5 @@
+using Encina.Testing.Identity;
+
 namespace Encina.GuardTests.Infrastructure.Caching;
 
 /// <summary>
@@ -115,7 +117,7 @@ public class DefaultCacheKeyGeneratorGuardTests
     {
         var context = Substitute.For<IRequestContext>();
         context.TenantId.Returns("tenant1");
-        context.UserId.Returns("user1");
+        context.Identity.Returns(TestIdentity.User("user1"));
         context.CorrelationId.Returns("corr-123");
         return context;
     }

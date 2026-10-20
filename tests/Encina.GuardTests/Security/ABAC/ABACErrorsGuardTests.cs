@@ -18,6 +18,7 @@ public class ABACErrorsGuardTests
         ABACErrors.AccessDeniedCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.IndeterminateCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.PolicyNotFoundCode.ShouldNotBeNullOrWhiteSpace();
+        ABACErrors.RequiredPolicyNotFoundCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.PolicySetNotFoundCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.EvaluationFailedCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.AttributeResolutionFailedCode.ShouldNotBeNullOrWhiteSpace();
@@ -27,7 +28,6 @@ public class ABACErrorsGuardTests
         ABACErrors.DuplicatePolicyCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.DuplicatePolicySetCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.CombiningFailedCode.ShouldNotBeNullOrWhiteSpace();
-        ABACErrors.MissingContextCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.ObligationFailedCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.FunctionNotFoundCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.FunctionErrorCode.ShouldNotBeNullOrWhiteSpace();
@@ -64,7 +64,7 @@ public class ABACErrorsGuardTests
     {
         var error = ABACErrors.RequiredPolicyNotFound(typeof(string), "policy-a");
 
-        error.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.PolicyNotFoundCode);
+        error.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.RequiredPolicyNotFoundCode);
         error.Message.ShouldNotContain("policy-a");
         error.GetDetails()["policyId"].ShouldBe("policy-a");
     }
@@ -261,14 +261,22 @@ public class ABACErrorsGuardTests
 
     #endregion
 
-    #region MissingContext
+    #region UnauthenticatedCaller
 
     [Fact]
-    public void MissingContext_ContainsRequestType()
+    public void UnauthenticatedCaller_NullRequestType_ThrowsArgumentNullException()
     {
-        var error = ABACErrors.MissingContext(typeof(string));
-        error.Message.ShouldContain("String");
-        error.Message.ShouldContain("Security context");
+        Should.Throw<ArgumentNullException>(() => ABACErrors.UnauthenticatedCaller(null!))
+            .ParamName.ShouldBe("requestType");
+    }
+
+    [Fact]
+    public void UnauthenticatedCaller_CarriesTheRequestTypeAndTheAbacGate()
+    {
+        var error = ABACErrors.UnauthenticatedCaller(typeof(string));
+        error.GetCode().IfNone(string.Empty).ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
+        error.GetDetails()["requestType"].ShouldBe(typeof(string).FullName);
+        error.GetDetails()["gate"].ShouldBe("abac");
     }
 
     #endregion
@@ -305,7 +313,7 @@ public class ABACErrorsGuardTests
     {
         var error = ABACErrors.FunctionError("string-equal", new ArgumentException("bad arg"));
         error.Message.ShouldContain("string-equal");
-        error.Message.ShouldContain("bad arg");
+        error.Message.ShouldNotContain("bad arg");
     }
 
     #endregion

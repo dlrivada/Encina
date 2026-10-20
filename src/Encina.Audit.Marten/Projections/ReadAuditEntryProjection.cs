@@ -43,7 +43,7 @@ public sealed partial class ReadAuditEntryProjection : EventProjection
     /// using the default shredded placeholder and a null logger.
     /// </summary>
     public ReadAuditEntryProjection()
-        : this(MartenAuditOptions.DefaultShreddedPlaceholder, NullLogger<ReadAuditEntryProjection>.Instance)
+        : this(MartenOperationAuditOptions.DefaultShreddedPlaceholder, NullLogger<ReadAuditEntryProjection>.Instance)
     {
     }
 
@@ -92,7 +92,7 @@ public sealed partial class ReadAuditEntryProjection : EventProjection
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(operations);
 
-        var (keyMaterial, isShredded) = await AuditEntryProjection.LoadTemporalKeyAsync(
+        var (keyMaterial, isShredded) = await OperationAuditEntryProjection.LoadTemporalKeyAsync(
             operations, @event.TemporalKeyPeriod, cancellationToken).ConfigureAwait(false);
 
         return MapToReadModel(@event, keyMaterial, isShredded);

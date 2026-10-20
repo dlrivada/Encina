@@ -71,6 +71,9 @@ public static class ServiceCollectionExtensions
         // Configure options
         services.Configure(configure);
 
+        // TenantResolutionMiddleware stamps the contexts it creates with the injected clock.
+        services.TryAddSingleton(TimeProvider.System);
+
         // Register built-in resolvers (they check Enabled flag internally)
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITenantResolver, HeaderTenantResolver>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITenantResolver, ClaimTenantResolver>());

@@ -1,8 +1,11 @@
 #pragma warning disable CA2012 // ValueTask instances used in NSubstitute mock setup
 
+using Encina.Diagnostics;
 using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Attributes;
+using Encina.Testing.Identity;
+using Encina.UnitTests.OpenTelemetry;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -17,6 +20,7 @@ namespace Encina.UnitTests.Security.Sanitization;
 /// <summary>
 /// Unit tests for <see cref="OutputEncodingPipelineBehavior{TRequest, TResponse}"/>.
 /// </summary>
+[Collection("ActivityListenerIsolation")]
 public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
 {
     private readonly IOutputEncoder _encoder;
@@ -27,7 +31,7 @@ public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
     {
         _encoder = Substitute.For<IOutputEncoder>();
         _options = new SanitizationOptions();
-        _context = RequestContext.CreateForTest(userId: "test-user");
+        _context = TestRequestContext.For(TestIdentity.User("test-user"));
 
         EncodingPropertyCache.ClearCache();
     }
@@ -296,6 +300,26 @@ public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
             CancellationToken.None);
 
         result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_EncoderThrowsException_ActivityStatusIsTheErrorCodeNotTheMessage()
+    {
+        using var capture = new ActivityStatusCapture();
+        var secret = "SECRET-" + Guid.NewGuid().ToString("N");
+        _options.EnableTracing = true;
+        var response = new HtmlEncodedResponse { Title = "test" };
+        var behavior = CreateBehavior<HtmlQuery, HtmlEncodedResponse>();
+        _encoder.EncodeForHtml(Arg.Any<string>()).Throws(new InvalidOperationException(secret));
+
+        var result = await behavior.Handle(
+            new HtmlQuery(),
+            _context,
+            () => ValueTask.FromResult<Either<EncinaError, HtmlEncodedResponse>>(Right(response)),
+            CancellationToken.None);
+
+        var error = result.LeftAsEnumerable().Single();
+        capture.ShouldHaveErrorStatus(ActivityStatusDescriptions.ForError(error), secret);
     }
 
     #endregion

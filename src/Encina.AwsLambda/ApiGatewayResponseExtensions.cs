@@ -73,8 +73,8 @@ public static class ApiGatewayResponseExtensions
     /// </para>
     /// <list type="bullet">
     /// <item><description><b>400 Bad Request</b>: validation.*, guard.validation_failed</description></item>
-    /// <item><description><b>401 Unauthorized</b>: authorization.unauthenticated</description></item>
-    /// <item><description><b>403 Forbidden</b>: authorization.*</description></item>
+    /// <item><description><b>401 Unauthorized</b>: encina.authorization.unauthenticated</description></item>
+    /// <item><description><b>403 Forbidden</b>: encina.authorization.* (every other authorization code)</description></item>
     /// <item><description><b>404 Not Found</b>: *.not_found, encina.request.handler_missing</description></item>
     /// <item><description><b>409 Conflict</b>: *.conflict, *.already_exists</description></item>
     /// <item><description><b>500 Internal Server Error</b>: Default for unrecognized codes</description></item>
@@ -235,36 +235,31 @@ public static class ApiGatewayResponseExtensions
         var code = error.GetCode().IfNone(string.Empty).ToLowerInvariant();
 
         // 400 Bad Request: Validation errors
-        if (code.StartsWith("validation.", StringComparison.Ordinal) ||
-            code == "encina.guard.validation_failed")
+        if (IsValidationCode(code))
         {
             return (int)HttpStatusCode.BadRequest;
         }
 
         // 401 Unauthorized: Authentication required
-        if (code == "authorization.unauthenticated")
+        if (code == EncinaErrorCodes.AuthorizationUnauthenticated)
         {
             return (int)HttpStatusCode.Unauthorized;
         }
 
-        // 403 Forbidden: Authorized but insufficient permissions
-        if (code.StartsWith("authorization.", StringComparison.Ordinal))
+        // 403 Forbidden: authenticated identity denied (every other encina.authorization.* code)
+        if (code.StartsWith(EncinaErrorCodes.AuthorizationPrefix, StringComparison.Ordinal))
         {
             return (int)HttpStatusCode.Forbidden;
         }
 
         // 404 Not Found
-        if (code.EndsWith(".not_found", StringComparison.Ordinal) ||
-            code == "encina.request.handler_missing" ||
-            code.EndsWith(".missing", StringComparison.Ordinal))
+        if (IsNotFoundCode(code))
         {
             return (int)HttpStatusCode.NotFound;
         }
 
         // 409 Conflict
-        if (code.EndsWith(".conflict", StringComparison.Ordinal) ||
-            code.EndsWith(".already_exists", StringComparison.Ordinal) ||
-            code.EndsWith(".duplicate", StringComparison.Ordinal))
+        if (IsConflictCode(code))
         {
             return (int)HttpStatusCode.Conflict;
         }
@@ -272,6 +267,19 @@ public static class ApiGatewayResponseExtensions
         // 500 Internal Server Error: Default for unknown/unhandled errors
         return (int)HttpStatusCode.InternalServerError;
     }
+
+    private static bool IsValidationCode(string code) =>
+        code.StartsWith("validation.", StringComparison.Ordinal) || code == "encina.guard.validation_failed";
+
+    private static bool IsNotFoundCode(string code) =>
+        code.EndsWith(".not_found", StringComparison.Ordinal) ||
+        code == "encina.request.handler_missing" ||
+        code.EndsWith(".missing", StringComparison.Ordinal);
+
+    private static bool IsConflictCode(string code) =>
+        code.EndsWith(".conflict", StringComparison.Ordinal) ||
+        code.EndsWith(".already_exists", StringComparison.Ordinal) ||
+        code.EndsWith(".duplicate", StringComparison.Ordinal);
 
     internal static string GetTitle(int statusCode) => statusCode switch
     {

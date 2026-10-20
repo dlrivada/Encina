@@ -45,12 +45,21 @@ public static class EncinaErrors
     }
 
     /// <summary>
-    /// Creates an authorization unauthorized error indicating the user is not authenticated.
+    /// Creates an authorization denial: an authenticated identity is not allowed to perform the operation (403).
     /// </summary>
     /// <param name="details">Optional structured metadata as a dictionary.</param>
     /// <returns>An <see cref="EncinaError"/> with code <see cref="EncinaErrorCodes.AuthorizationUnauthorized"/>.</returns>
+    /// <remarks>Use <see cref="Unauthenticated"/> when the caller has no authenticated identity (401).</remarks>
     public static EncinaError Unauthorized(IReadOnlyDictionary<string, object?>? details = null)
-        => Create(EncinaErrorCodes.AuthorizationUnauthorized, "Authentication is required.", details: details);
+        => Create(EncinaErrorCodes.AuthorizationUnauthorized, "Access denied.", details: details);
+
+    /// <summary>
+    /// Creates an authentication error: the request needs an authenticated identity and has none (401).
+    /// </summary>
+    /// <param name="details">Optional structured metadata as a dictionary.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="EncinaErrorCodes.AuthorizationUnauthenticated"/>.</returns>
+    public static EncinaError Unauthenticated(IReadOnlyDictionary<string, object?>? details = null)
+        => Create(EncinaErrorCodes.AuthorizationUnauthenticated, "Authentication is required.", details: details);
 
     /// <summary>
     /// Wraps an exception inside a typed error.

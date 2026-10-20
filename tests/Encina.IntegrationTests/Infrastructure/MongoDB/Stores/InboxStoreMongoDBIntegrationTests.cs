@@ -262,34 +262,6 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task IncrementRetryCountAsync_ShouldIncrementCount()
-    {
-
-        // Arrange
-        var collection = GetCollection();
-        var messageId = Guid.NewGuid().ToString();
-        var message = new InboxMessage
-        {
-            MessageId = messageId,
-            RequestType = "Test",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
-            RetryCount = 2
-        };
-
-        await collection.InsertOneAsync(message);
-
-        var store = CreateStore();
-
-        // Act
-        await store.IncrementRetryCountAsync(messageId);
-
-        // Assert
-        var updated = await collection.Find(m => m.MessageId == messageId).FirstOrDefaultAsync();
-        updated!.RetryCount.ShouldBe(3);
-    }
-
-    [Fact]
     public async Task EdgeCase_NullProcessedAtUtc_ShouldBeStoredCorrectly()
     {
 
@@ -394,6 +366,35 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
             stored.ShouldNotBeNull();
         }
     }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public Task Pipeline_ThrowingHandler_PersistsRetryCountAndRunsMaxRetriesTimes(int maxRetries) =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertThrowingHandlerRunsMaxRetriesTimesAsync(
+            global::Encina.IntegrationTests.Messaging.InboxPipelineHarnesses.Mongo(_fixture), maxRetries, transactional: false);
+
+    [Fact]
+    public Task Pipeline_HandlerLeft_IsCached() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertHandlerLeftIsCachedAfterRollbackAsync(
+            global::Encina.IntegrationTests.Messaging.InboxPipelineHarnesses.Mongo(_fixture), transactional: false);
+
+    [Fact]
+    public Task Pipeline_SuccessfulHandler_IsCached() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertSuccessIsCachedAsync(
+            global::Encina.IntegrationTests.Messaging.InboxPipelineHarnesses.Mongo(_fixture), transactional: false);
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public Task Orchestrator_HandlerAlwaysThrows_RunsHandlerMaxRetriesTimesThenRejects(int maxRetries) =>
+        global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerRunsMaxRetriesTimesAsync(
+            CreateStore(), new InboxMessageFactory(), maxRetries);
+
+    [Fact]
+    public Task Orchestrator_HandlerLeft_IsCachedAndNotRerun() =>
+        global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerLeftIsCachedAsync(
+            CreateStore(), new InboxMessageFactory());
 
     private InboxStoreMongoDB CreateStore()
     {

@@ -38,24 +38,24 @@ public sealed class CryptoShreddingOptions
     public string AnonymizedPlaceholder { get; set; } = CryptoShredderSerializerFactory.DefaultAnonymizedPlaceholder;
 
     /// <summary>
-    /// Gets or sets whether to scan assemblies at startup for <see cref="CryptoShreddedAttribute"/>
-    /// decorations and validate their configuration.
+    /// Gets or sets whether a hosted service validates crypto-shredding at startup and stops the host when
+    /// anything is wrong.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// When enabled, a hosted service scans <see cref="AssembliesToScan"/> for event types
-    /// with <c>[CryptoShredded]</c> properties and validates that:
+    /// When enabled, the validator checks that the store serializer is wrapped and the contract modifier is still
+    /// installed (resolver identity and a nested canary), checks the infrastructure (the async daemon does not skip
+    /// serialization errors, the erasure router and the Marten locator are not bypassed), and classifies every
+    /// type of <see cref="AssembliesToScan"/> that declares or reaches a <c>[CryptoShredded]</c> property, at any
+    /// depth, through the System.Text.Json contract. All issues are reported at once in one
+    /// <see cref="CryptoShreddingConfigurationException"/>, with a reason per property.
     /// </para>
-    /// <list type="bullet">
-    /// <item><description>Each property also has <c>[PersonalData]</c></description></item>
-    /// <item><description>The encrypted property is of type <c>string</c></description></item>
-    /// <item><description>The <c>SubjectIdProperty</c> references a valid public property on the declaring type</description></item>
-    /// <item><description>That subject-id property is readable (has a getter)</description></item>
-    /// <item><description>Its type is a supported subject-id type (<c>string</c>, <c>Guid</c>, integer types, <c>IFormattable</c> ids and wrappers with a public <c>Value</c>)</description></item>
-    /// </list>
+    /// <para>
+    /// Turning it off is an explicit, logged opt-out (event 8462); misconfigured types then fail on first use.
+    /// </para>
     /// </remarks>
     /// <value>Defaults to <c>true</c>.</value>
-    public bool AutoRegisterFromAttributes { get; set; } = true;
+    public bool ValidateOnStartup { get; set; } = true;
 
     /// <summary>
     /// Gets or sets whether to register a health check for the crypto-shredding subsystem.
@@ -101,11 +101,11 @@ public sealed class CryptoShreddingOptions
     public bool UsePostgreSqlKeyStore { get; set; }
 
     /// <summary>
-    /// Gets the list of assemblies to scan for event types with <see cref="CryptoShreddedAttribute"/>.
+    /// Gets the list of assemblies the startup validation scans for types with <see cref="CryptoShreddedAttribute"/>.
     /// </summary>
     /// <remarks>
-    /// If empty and <see cref="AutoRegisterFromAttributes"/> is <c>true</c>, the entry
-    /// assembly (or calling assembly) is scanned by default.
+    /// If empty and <see cref="ValidateOnStartup"/> is <c>true</c>, the entry assembly (or calling assembly) is
+    /// scanned. Types outside the scanned assemblies are validated by the contract modifier on first use.
     /// </remarks>
     public List<Assembly> AssembliesToScan { get; } = [];
 }

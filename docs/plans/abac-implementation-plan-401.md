@@ -4,6 +4,7 @@
 > **Type**: Feature
 > **Complexity**: Very High (11 phases, cross-cutting, ~168-190 files)
 > **Estimated Scope**: ~6,000-8,000 lines of production code + ~5,000-6,500 lines of tests + ~3,000-4,000 lines of documentation
+> **Follow-up**: the decision audit trail is planned in [abac-decision-audit-implementation-plan-751.md](abac-decision-audit-implementation-plan-751.md) (#751).
 
 ---
 
@@ -470,6 +471,8 @@ REFERENCE FILES:
      - `abac.function_not_found` — Referenced function not in registry
      - `abac.function_error` — Function evaluation threw an exception
      - `abac.variable_not_found` — VariableReference to undefined VariableDefinition
+
+> Codes renamed by #1984 (2026-10-09): definite denials are encina.authorization.abac_*; admin lookups are abac.policy.not_found and abac.policy_set.not_found.
 
 5. **Constants** (`EnvironmentAttributes.cs`, `XACMLDataTypes.cs`, `XACMLFunctionIds.cs`):
    - `EnvironmentAttributes`: `CurrentTime`, `DayOfWeek`, `IsBusinessHours`, `IpAddress`, `UserAgent`, `TenantId`, `Region`, `RequestPath`, `HttpMethod`

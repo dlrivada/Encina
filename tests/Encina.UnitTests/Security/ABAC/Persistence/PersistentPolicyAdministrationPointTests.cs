@@ -3,6 +3,7 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Persistence;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -26,7 +27,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         _store = Substitute.For<IPolicyStore>();
         var logger = NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
         var requestContext = Substitute.For<IRequestContext>();
-        requestContext.UserId.Returns("test-user");
+        requestContext.Identity.Returns(TestIdentity.User("test-user"));
         var accessor = Substitute.For<IRequestContextAccessor>();
         accessor.RequestContext.Returns(requestContext);
         var provider = new ServiceCollection().AddScoped(_ => _store).BuildServiceProvider();
@@ -654,8 +655,10 @@ public sealed class PersistentPolicyAdministrationPointTests
         // Act
         var result = await _sut.UpdatePolicyAsync(policy);
 
-        // Assert
+        // Assert: an administrative lookup keeps the resource-style code (not an authorization denial)
         result.IsLeft.ShouldBeTrue();
+        result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty))
+            .ShouldBe(ABACErrors.PolicyNotFoundCode);
     }
 
     [Fact]
@@ -722,8 +725,10 @@ public sealed class PersistentPolicyAdministrationPointTests
         // Act
         var result = await _sut.RemovePolicyAsync("p-ghost");
 
-        // Assert
+        // Assert: an administrative lookup keeps the resource-style code (not an authorization denial)
         result.IsLeft.ShouldBeTrue();
+        result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty))
+            .ShouldBe(ABACErrors.PolicyNotFoundCode);
     }
 
     [Fact]
@@ -745,7 +750,8 @@ public sealed class PersistentPolicyAdministrationPointTests
     {
         var act = () => new PersistentPolicyAdministrationPoint(
             null!,
-            NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>());
+            NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>(),
+            Substitute.For<IRequestContextAccessor>());
 
         Should.Throw<ArgumentNullException>(act);
     }
@@ -754,7 +760,7 @@ public sealed class PersistentPolicyAdministrationPointTests
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
-        var act = () => new PersistentPolicyAdministrationPoint(scopeFactory, null!);
+        var act = () => new PersistentPolicyAdministrationPoint(scopeFactory, null!, Substitute.For<IRequestContextAccessor>());
 
         Should.Throw<ArgumentNullException>(act);
     }

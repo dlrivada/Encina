@@ -39,6 +39,11 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
     }
 
     /// <inheritdoc/>
+    /// <exception cref="InvalidOperationException">
+    /// The request's <see cref="CacheAttribute.VaryByUser"/> is set and the request identity is not an
+    /// authenticated user; such a request is never cached (<see cref="QueryCachingPipelineBehavior{TRequest, TResponse}"/>
+    /// bypasses the cache before asking for a key).
+    /// </exception>
     public string GenerateKey<TRequest, TResponse>(TRequest request, IRequestContext context)
         where TRequest : IRequest<TResponse>
     {
@@ -63,7 +68,7 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
 
         if (!string.IsNullOrEmpty(context.TenantId))
         {
-            parts.Add($"t:{context.TenantId}");
+            parts.Add($"t:{CacheKeyRedactor.EscapeSegment(context.TenantId)}");
         }
         else
         {
@@ -84,7 +89,7 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
 
         var result = new StringBuilder();
         var tenantPrefix = !string.IsNullOrEmpty(context.TenantId)
-            ? $"{_options.KeyPrefix}:t:{context.TenantId}:"
+            ? $"{_options.KeyPrefix}:t:{CacheKeyRedactor.EscapeSegment(context.TenantId)}:"
             : $"{_options.KeyPrefix}:";
 
         result.Append(tenantPrefix);
@@ -110,14 +115,13 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
         var varyByTenant = cacheAttribute?.VaryByTenant ?? true;
         if (varyByTenant && !string.IsNullOrEmpty(context.TenantId))
         {
-            parts.Add($"t:{context.TenantId}");
+            parts.Add($"t:{CacheKeyRedactor.EscapeSegment(context.TenantId)}");
         }
 
-        // User isolation (default: false)
-        var varyByUser = cacheAttribute?.VaryByUser ?? false;
-        if (varyByUser && !string.IsNullOrEmpty(context.UserId))
+        // User isolation (default: false). A non-user identity has no key: the caller bypasses the cache.
+        if (cacheAttribute?.VaryByUser == true)
         {
-            parts.Add($"u:{context.UserId}");
+            parts.Add($"u:{CacheKeyRedactor.EscapeSegment(CacheUserIdentity.RequireUserId(context))}");
         }
 
         // Request type
@@ -146,15 +150,15 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
         if (cacheAttribute.VaryByTenant && !string.IsNullOrEmpty(context.TenantId))
         {
             result.Append("t:");
-            result.Append(context.TenantId);
+            result.Append(CacheKeyRedactor.EscapeSegment(context.TenantId));
             result.Append(':');
         }
 
-        // User
-        if (cacheAttribute.VaryByUser && !string.IsNullOrEmpty(context.UserId))
+        // User. A non-user identity has no key: the caller bypasses the cache.
+        if (cacheAttribute.VaryByUser)
         {
             result.Append("u:");
-            result.Append(context.UserId);
+            result.Append(CacheKeyRedactor.EscapeSegment(CacheUserIdentity.RequireUserId(context)));
             result.Append(':');
         }
 

@@ -8,7 +8,11 @@ namespace Encina;
 /// <typeparam name="TRequest">Request type traversing the pipeline.</typeparam>
 /// <typeparam name="TResponse">Response type returned by the final handler.</typeparam>
 /// <remarks>
-/// Behaviors are chained in reverse registration order. Each one decides whether to invoke the next step or short-circuit the flow with its own response.
+/// <b>Phase note (#2184):</b> the stage contract is declared but not yet applied; until the order resolver lands,
+/// behaviors still run in registration order. Once applied, behaviors run in the order of their <see cref="PipelineStage"/> (declared with <see cref="PipelineStageAttribute"/>),
+/// then by <see cref="PipelineStageAttribute.Order"/>; lower values are further out. A behavior without a declared
+/// stage is placed in <see cref="PipelineStage.Application"/>. Each one decides whether to invoke the next step or
+/// short-circuit the flow with its own response.
 /// </remarks>
 /// <example>
 /// <code>
@@ -22,9 +26,9 @@ namespace Encina;
 ///         CancellationToken cancellationToken)
 ///     {
 ///         logger.LogInformation(
-///             "Handling {Request} for user {UserId} (correlation: {CorrelationId})",
+///             "Handling {Request} as {IdentityKind} (correlation: {CorrelationId})",
 ///             typeof(TRequest).Name,
-///             context.UserId,
+///             context.Identity.Kind,
 ///             context.CorrelationId);
 ///         var response = await nextStep().ConfigureAwait(false);
 ///         logger.LogInformation("Handled {Request}", typeof(TRequest).Name);

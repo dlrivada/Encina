@@ -66,7 +66,7 @@ public sealed class ReadAuditStoreADO : IReadAuditStore
                    ""CorrelationId"", ""Purpose"", ""AccessMethod"", ""EntityCount"", ""Metadata""
             FROM ""{_tableName}""
             WHERE ""EntityType"" = @EntityType AND ""EntityId"" = @EntityId
-            ORDER BY ""AccessedAtUtc"" DESC";
+            ORDER BY ""AccessedAtUtc"" DESC, ""Id"" DESC";
 
         _selectByUserSql = $@"
             SELECT ""Id"", ""EntityType"", ""EntityId"", ""UserId"", ""TenantId"", ""AccessedAtUtc"",
@@ -75,7 +75,7 @@ public sealed class ReadAuditStoreADO : IReadAuditStore
             WHERE ""UserId"" = @UserId
               AND ""AccessedAtUtc"" >= @FromUtc
               AND ""AccessedAtUtc"" <= @ToUtc
-            ORDER BY ""AccessedAtUtc"" DESC";
+            ORDER BY ""AccessedAtUtc"" DESC, ""Id"" DESC";
 
         _purgeSql = $@"
             WITH deleted AS (
@@ -227,7 +227,7 @@ public sealed class ReadAuditStoreADO : IReadAuditStore
                        ""CorrelationId"", ""Purpose"", ""AccessMethod"", ""EntityCount"", ""Metadata""
                 FROM ""{_tableName}""
                 {whereClauseStr}
-                ORDER BY ""AccessedAtUtc"" DESC
+                ORDER BY ""AccessedAtUtc"" DESC, ""Id"" DESC
                 LIMIT @PageSize OFFSET @Offset";
 
             using var selectCommand = _connection.CreateCommand();

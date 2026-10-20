@@ -229,6 +229,7 @@ public sealed class StoreImplementationContractTests : IDisposable
         (await store.MarkAsProcessedAsync(messageId, "{\"result\":\"ok\"}")).ShouldBeRight();
         (await store.SaveChangesAsync()).ShouldBeRight();
 
+        _dbContext.ChangeTracker.Clear(); // the inbox store writes through its own context
         var updated = await _dbContext.InboxMessages.FindAsync(messageId);
         updated!.ProcessedAtUtc.ShouldNotBeNull();
         updated.Response.ShouldBe("{\"result\":\"ok\"}");
@@ -254,33 +255,11 @@ public sealed class StoreImplementationContractTests : IDisposable
         (await store.MarkAsFailedAsync(messageId, "Timeout", retryAt)).ShouldBeRight();
         (await store.SaveChangesAsync()).ShouldBeRight();
 
+        _dbContext.ChangeTracker.Clear(); // the inbox store writes through its own context
         var updated = await _dbContext.InboxMessages.FindAsync(messageId);
         updated!.ErrorMessage.ShouldBe("Timeout");
         updated.RetryCount.ShouldBe(1);
         updated.NextRetryAtUtc.ShouldBe(retryAt);
-    }
-
-    [Fact]
-    public async Task InboxStore_IncrementRetryCount_ShouldIncrement()
-    {
-        // Exercises: InboxStoreEF.IncrementRetryCountAsync (lines 112-126)
-        var store = new InboxStoreEF(_dbContext, _timeProvider);
-        var messageId = $"inbox-retry-{Guid.NewGuid()}";
-        _dbContext.InboxMessages.Add(new InboxMessage
-        {
-            MessageId = messageId,
-            RequestType = "TestCmd",
-            ReceivedAtUtc = _timeProvider.GetUtcNow().UtcDateTime,
-            ExpiresAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(7),
-            RetryCount = 2,
-        });
-        await _dbContext.SaveChangesAsync();
-
-        (await store.IncrementRetryCountAsync(messageId)).ShouldBeRight();
-        (await store.SaveChangesAsync()).ShouldBeRight();
-
-        var updated = await _dbContext.InboxMessages.FindAsync(messageId);
-        updated!.RetryCount.ShouldBe(3);
     }
 
     [Fact]

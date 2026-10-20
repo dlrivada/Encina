@@ -4,8 +4,8 @@
 
 ## Justification
 
-### 1. Fire-and-Forget Pattern
-The `AuditPipelineBehavior` records audit entries asynchronously (fire-and-forget). The performance bottleneck is the underlying store (database I/O), not the audit logic itself. Micro-benchmarking the in-memory orchestration adds negligible value.
+### 1. Awaited Audit Write
+The `AuditPipelineBehavior` awaits each audit write before it returns, in a child scope of its own. Under the default `FailClosed` failure mode a failed write turns a successful request into `OperationAuditErrors.WriteFailedCode`. The performance bottleneck is the underlying store (database I/O), not the audit logic itself. Micro-benchmarking the in-memory orchestration adds negligible value.
 
 ### 2. Store Performance Is Provider-Dependent
 Audit store performance is dominated by database write latency, which varies by provider (SQL Server ~5ms, PostgreSQL ~3ms, MySQL ~4ms). BenchmarkDotNet cannot meaningfully benchmark I/O-bound operations — use Load Tests instead.
@@ -14,12 +14,12 @@ Audit store performance is dominated by database write latency, which varies by 
 The `Encina.Audit.Marten.Benchmarks` project already benchmarks the most computationally expensive audit path: temporal crypto-shredding encryption, which adds ~900ns per field.
 
 ### 4. Adequate Coverage from Other Test Types
-- **Unit Tests**: Cover AuditPipelineBehavior, InMemoryAuditStore, AuditEntryFactory
+- **Unit Tests**: Cover AuditPipelineBehavior, InMemoryOperationAuditStore, DefaultOperationAuditEntryFactory
 - **Load Tests**: Validate concurrent write throughput (the actual performance concern)
 - **Integration Tests**: Cover all 10 database providers with real I/O
 
 ### 5. Recommended Alternative
-If audit entry creation overhead becomes a concern, profile the `DefaultAuditEntryFactory` and `RequestMetadataExtractor` using `dotnet-trace` rather than BenchmarkDotNet.
+If audit entry creation overhead becomes a concern, profile the `DefaultOperationAuditEntryFactory` and `RequestMetadataExtractor` using `dotnet-trace` rather than BenchmarkDotNet.
 
 ## Related Files
 - `src/Encina.Security.Audit/` — Source

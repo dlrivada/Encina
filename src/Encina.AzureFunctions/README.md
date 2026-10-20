@@ -208,8 +208,8 @@ if (result.IsLeft)
 |--------------------|-------------|
 | `validation.*` | 400 Bad Request |
 | `encina.guard.validation_failed` | 400 Bad Request |
-| `authorization.unauthenticated` | 401 Unauthorized |
-| `authorization.*` | 403 Forbidden |
+| `encina.authorization.unauthenticated` | 401 Unauthorized |
+| `encina.authorization.*` | 403 Forbidden |
 | `*.not_found`, `*.missing` | 404 Not Found |
 | `encina.request.handler_missing` | 404 Not Found |
 | `*.conflict`, `*.already_exists`, `*.duplicate` | 409 Conflict |

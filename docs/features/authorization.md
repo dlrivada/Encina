@@ -202,7 +202,8 @@ All authorization errors use structured `EncinaErrorCodes` constants and include
 
 | Scenario | Error Code | HTTP Status |
 |----------|-----------|-------------|
-| No authenticated user | `encina.authorization.unauthorized` | 401 |
+| Anonymous identity | `encina.authorization.unauthenticated` | 401 |
+| Caller not allowed (denial) | `encina.authorization.unauthorized` | 403 |
 | User lacks required role | `encina.authorization.forbidden` | 403 |
 | Policy not satisfied | `encina.authorization.policy_failed` | 403 |
 | Resource authorization denied | `encina.authorization.resource_denied` | 403 |

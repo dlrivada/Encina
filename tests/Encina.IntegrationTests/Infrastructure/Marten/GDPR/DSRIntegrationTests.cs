@@ -34,7 +34,6 @@ public sealed class DSRIntegrationTests : IDisposable
     public void Dispose()
     {
         _keyProvider.Clear();
-        CryptoShreddedPropertyCache.ClearCache();
     }
 
     [Fact]

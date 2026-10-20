@@ -113,13 +113,15 @@ public sealed record DSRRequestCompleted(
 /// </para>
 /// </remarks>
 /// <param name="RequestId">The DSR request identifier.</param>
-/// <param name="RejectionReason">Explanation of why the request was denied (required for Article 12(4) compliance).</param>
+/// <param name="RejectionReason">Standardised reason code of the refusal (GDPR Article 12(5) and related grounds).</param>
+/// <param name="RejectionExplanation">Explanation given to the data subject and recorded as the controller's demonstration (required by Article 12(4) and 12(5)).</param>
 /// <param name="DeniedAtUtc">Timestamp when the request was denied (UTC).</param>
 /// <param name="TenantId">Tenant identifier for multi-tenancy scoping.</param>
 /// <param name="ModuleId">Module identifier for modular monolith scoping.</param>
 public sealed record DSRRequestDenied(
     Guid RequestId,
-    string RejectionReason,
+    DSRRejectionReason RejectionReason,
+    string RejectionExplanation,
     DateTimeOffset DeniedAtUtc,
     string? TenantId,
     string? ModuleId) : INotification;

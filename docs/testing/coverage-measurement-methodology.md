@@ -134,7 +134,59 @@ A rule can carry a **condition** like `contains_interface`, which requires addit
 
 ### Overrides
 
-Manifests can contain per-file overrides that replace the automatically computed `defaultTests`. The generator owns only the package-level `package`, `generated`, `totalFiles` and `files` keys and each file's `defaultTests`, `defaultRule` and `reason`. When the output manifest already exists, every other key (`targets`, `reviewed`, a per-file `override` and any unknown key) is preserved unchanged in its original position, so regenerating does not destroy them. This allows targeted corrections when the automatic rules misclassify a file — for example, a store-like file that genuinely does not need integration tests because it holds only pure helpers.
+Manifests can contain per-file overrides that replace the automatically computed `defaultTests`. The generator owns only the package-level `package`, `generated`, `totalFiles` and `files` keys and each file's `defaultTests`, `defaultRule` and `reason`. When the output manifest already exists, every other key (`targets`, `reviewed`, a per-file `override`, a per-file `targets` and `justifications` (see [Per-file targets and justifications](#per-file-targets-and-justifications)) and any unknown key) is preserved unchanged in its original position, so regenerating does not destroy them. The generator never invents per-file `targets` or `justifications`; people write them. This allows targeted corrections when the automatic rules misclassify a file — for example, a store-like file that genuinely does not need integration tests because it holds only pure helpers.
+
+### Per-file targets and justifications
+
+A file entry under `files` may carry two extra keys:
+
+- `targets`: `{ "<flag>": <whole number 0-100> }`, where the flag is one of `unit`, `guard`, `contract`, `property` or `integration`.
+- `justifications`: `{ "<flag>": "<one sentence>" }`, the reason for each target.
+
+Per-file targets are an additional obligation for that file on top of the package-level targets; they override nothing. Every target requires a justification. A target of `0` needs a justification that says why the flag cannot exercise the file. The existing `reason` field is unchanged and still explains the `defaultTests` classification.
+
+The entry for `DataAnnotationsValidationProvider.cs` in `.github/coverage-manifest/Encina.DataAnnotations.json` is a real example (the numbers are targets, not measurements):
+
+```json
+"DataAnnotationsValidationProvider.cs": {
+  "defaultTests": [
+    "unit",
+    "guard"
+  ],
+  "defaultRule": "*Provider.cs",
+  "reason": "Provider implementation with mockeable deps",
+  "targets": { "unit": 90, "property": 90, "guard": 0 },
+  "justifications": {
+    "unit": "Validation and attribute-error mapping are pure logic that unit tests can drive to near-full coverage.",
+    "property": "Property tests drive the provider with generated models, so near-full coverage is realistic.",
+    "guard": "Guard tests for the null-argument checks are not written yet (tracked in #1825), so no guard test can exercise the file today."
+  }
+}
+```
+
+`coverage-report.cs` supports both halves. Validate the manifests (exit 1 when a rule is broken) and check the per-file logic without repository access:
+
+```powershell
+dotnet run --file .github/scripts/coverage-report.cs -- --check-justifications [--manifest <dir>]
+dotnet run --file .github/scripts/coverage-report.cs -- --self-test
+```
+
+To measure, run each flag's tests with its own results folder, then build the report. `<Flag>Tests` is `UnitTests`, `GuardTests`, `ContractTests`, `PropertyTests` or `IntegrationTests`; these are the folder names `coverage-report.cs` classifies, and any other folder name is skipped. The report's "Per-file targets" table is the measurement. All commands run from the repository root; without the project argument every test project would write to one folder and be counted as one flag.
+
+```powershell
+dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage" --results-directory artifacts\coverage\<Flag>Tests
+dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/coverage --output artifacts/coverage-report
+```
+
+- `--check-justifications` lists every target without a justification, every justification without a target, every unknown flag, every value that is not an integer from 0 to 100 and every pair of flag keys that differ only by case (`unit` and `Unit`), and exits 1 if it finds any.
+- The default report adds a "Per-file targets" table with the measured value against the target for each flag, and prints the rows below target on the console. Each value is measured straight from that flag's Cobertura data, whatever the file's `defaultTests` say; a flag with no data counts as below any target above 0. The report has no exit code for this; the CI gate is #1651.
+- The report compares the unrounded measured percentage with the target and rounds only for display (two decimals), so 89.96% does not meet 90.
+
+Generator deviation: the generator preserves per-file targets and justifications and never invents them, because a justification is a judgement about a specific file that a generator cannot make; it keeps its generic `reason` for `defaultTests`.
+
+Per-file targets are not yet shown on the coverage dashboard or in the docref index.
+
+Rule: `AGENTS.md` section 9 requires targets and justifications for every new file, and every file a PR touches, under `src/`, and PRs report measured coverage against them.
 
 ### Per-package targets
 

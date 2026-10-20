@@ -9,10 +9,12 @@ using Encina.Compliance.GDPR;
 using Encina.Diagnostics;
 using Encina.Marten;
 using Encina.Marten.Projections;
+using Encina.Tenancy;
 
 using LanguageExt;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using static LanguageExt.Prelude;
 
@@ -36,10 +38,22 @@ namespace Encina.Compliance.DataSubjectRights.Services;
 /// <para>
 /// Cache key patterns:
 /// <list type="bullet">
-///   <item><description><c>"dsr:request:{id}"</c> — Individual request lookup by ID</description></item>
-///   <item><description><c>"dsr:restriction:{subjectId}"</c> — Active restriction check by subject</description></item>
+///   <item><description><c>"dsr:tenant:{tenantId|-}:request:{id}"</c> — Individual request lookup by ID</description></item>
+///   <item><description><c>"dsr:tenant:{tenantId|-}:restriction:{subjectId}"</c> — Active restriction check by subject</description></item>
 /// </list>
+/// Keys are scoped by the ambient tenant (the literal <c>"-"</c> when none is present) so a cached
+/// answer from one tenant is never served to another (#1963).
 /// Cache invalidation is fire-and-forget — cache misses are acceptable.
+/// </para>
+/// <para>
+/// <b>Tenant isolation (#1963):</b> Every query reads the ambient tenant from
+/// <see cref="IRequestContextAccessor.RequestContext"/> and filters
+/// <see cref="DSRRequestReadModel.TenantId"/> against it; a request loaded by id that belongs to
+/// another tenant is reported as not found and never mutated. This mirrors the Consent module
+/// (#1315). <see cref="DataSubjectRightsOptions.RequireTenantContext"/> controls whether a missing
+/// ambient tenant fails closed: its default (<c>null</c>) fails closed when <c>Encina.Tenancy</c>
+/// is registered and allows the unscoped operation otherwise; an explicit <c>false</c> is an
+/// opt-out that is logged once (SPEC-002 DEC-006, DEC-009).
 /// </para>
 /// </remarks>
 internal sealed class DefaultDSRService : IDSRService
@@ -51,13 +65,22 @@ internal sealed class DefaultDSRService : IDSRService
     private readonly IDataPortabilityExporter _portabilityExporter;
     private readonly IProcessingActivityRegistry _processingActivityRegistry;
     private readonly ICacheProvider _cache;
+    private readonly DataSubjectRightsOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DefaultDSRService> _logger;
     private readonly IEncina? _encina;
+    private readonly IRequestContextAccessor _requestContextAccessor;
+    private readonly bool _isMultiTenantApplication;
 
     /// <summary>
     /// Initializes a new instance of <see cref="DefaultDSRService"/>.
     /// </summary>
+    /// <remarks>
+    /// <paramref name="tenantProvider"/> is present only when <c>Encina.Tenancy</c> is registered.
+    /// It is used solely to detect a multi-tenant application for
+    /// <see cref="DataSubjectRightsOptions.RequireTenantContext"/> auto-detection (#1963); queries
+    /// scope by the ambient <see cref="IRequestContext"/> directly, never through this provider.
+    /// </remarks>
     public DefaultDSRService(
         IAggregateRepository<DSRRequestAggregate> repository,
         IReadModelRepository<DSRRequestReadModel> readModelRepository,
@@ -66,9 +89,12 @@ internal sealed class DefaultDSRService : IDSRService
         IDataPortabilityExporter portabilityExporter,
         IProcessingActivityRegistry processingActivityRegistry,
         ICacheProvider cache,
+        IOptions<DataSubjectRightsOptions> options,
         TimeProvider timeProvider,
+        IRequestContextAccessor requestContextAccessor,
         ILogger<DefaultDSRService> logger,
-        IEncina? encina = null)
+        IEncina? encina = null,
+        ITenantProvider? tenantProvider = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(readModelRepository);
@@ -77,7 +103,9 @@ internal sealed class DefaultDSRService : IDSRService
         ArgumentNullException.ThrowIfNull(portabilityExporter);
         ArgumentNullException.ThrowIfNull(processingActivityRegistry);
         ArgumentNullException.ThrowIfNull(cache);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(requestContextAccessor);
         ArgumentNullException.ThrowIfNull(logger);
 
         _repository = repository;
@@ -87,10 +115,34 @@ internal sealed class DefaultDSRService : IDSRService
         _portabilityExporter = portabilityExporter;
         _processingActivityRegistry = processingActivityRegistry;
         _cache = cache;
+        _options = options.Value;
         _timeProvider = timeProvider;
         _logger = logger;
         _encina = encina;
+        _requestContextAccessor = requestContextAccessor;
+        _isMultiTenantApplication = tenantProvider is not null;
+
+        // An explicit opt-out (RequireTenantContext == false) while the application is
+        // multi-tenant is exactly the case SPEC-002 DEC-006 requires to be logged, never silent.
+        if (_options.RequireTenantContext == false && _isMultiTenantApplication)
+        {
+            _logger.DSRTenantEnforcementOptedOut();
+        }
     }
+
+    /// <summary>
+    /// Reads the ambient tenant id from the request context, or <c>null</c> when no tenant is
+    /// present.
+    /// </summary>
+    private string? CurrentTenantId => _requestContextAccessor.RequestContext?.TenantId;
+
+    /// <summary>
+    /// Whether a missing ambient tenant fails an operation closed: the explicit
+    /// <see cref="DataSubjectRightsOptions.RequireTenantContext"/> value when set, otherwise
+    /// auto-detected from whether the application registered <c>Encina.Tenancy</c>
+    /// (SPEC-002 DEC-006/DEC-009).
+    /// </summary>
+    private bool IsTenantContextRequired => _options.RequireTenantContext ?? _isMultiTenantApplication;
 
     // ========================================================================
     // Lifecycle commands (write-side via DSRRequestAggregate)
@@ -109,13 +161,18 @@ internal sealed class DefaultDSRService : IDSRService
         // via the right type instead.
         _logger.DSRRequestStarted(rightType.ToString());
 
+        if (!TryResolveWriteTenantScope("SubmitRequest", tenantId, out var effectiveTenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
+
         try
         {
             var id = Guid.NewGuid();
             var receivedAtUtc = _timeProvider.GetUtcNow();
 
             var aggregate = DSRRequestAggregate.Submit(
-                id, subjectId, rightType, receivedAtUtc, requestDetails, tenantId, moduleId);
+                id, subjectId, rightType, receivedAtUtc, requestDetails, effectiveTenantId, moduleId);
 
             var result = await _repository.CreateAsync(aggregate, cancellationToken);
 
@@ -145,9 +202,14 @@ internal sealed class DefaultDSRService : IDSRService
     {
         _logger.LogDebug("Verifying identity for DSR request '{RequestId}' by '{VerifiedBy}'", requestId, verifiedBy);
 
+        if (!TryResolveTenantScope("VerifyIdentity", out var tenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
+
         try
         {
-            var loadResult = await _repository.LoadAsync(requestId, cancellationToken);
+            var loadResult = await LoadScopedAsync(requestId, tenantId, cancellationToken);
 
             return await loadResult.MatchAsync<Either<EncinaError, Unit>>(
                 RightAsync: async aggregate =>
@@ -186,9 +248,14 @@ internal sealed class DefaultDSRService : IDSRService
     {
         _logger.LogDebug("Starting processing for DSR request '{RequestId}'", requestId);
 
+        if (!TryResolveTenantScope("StartProcessing", out var tenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
+
         try
         {
-            var loadResult = await _repository.LoadAsync(requestId, cancellationToken);
+            var loadResult = await LoadScopedAsync(requestId, tenantId, cancellationToken);
 
             return await loadResult.MatchAsync<Either<EncinaError, Unit>>(
                 RightAsync: async aggregate =>
@@ -226,9 +293,14 @@ internal sealed class DefaultDSRService : IDSRService
     {
         _logger.LogDebug("Completing DSR request '{RequestId}'", requestId);
 
+        if (!TryResolveTenantScope("CompleteRequest", out var tenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
+
         try
         {
-            var loadResult = await _repository.LoadAsync(requestId, cancellationToken);
+            var loadResult = await LoadScopedAsync(requestId, tenantId, cancellationToken);
 
             return await loadResult.MatchAsync<Either<EncinaError, Unit>>(
                 RightAsync: async aggregate =>
@@ -264,27 +336,74 @@ internal sealed class DefaultDSRService : IDSRService
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, Unit>> DenyRequestAsync(
         Guid requestId,
-        string rejectionReason,
+        DSRRejectionReason rejectionReason,
+        string rejectionExplanation,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Denying DSR request '{RequestId}'", requestId);
+        using var activity = DataSubjectRightsDiagnostics.StartAggregateCommand("Deny", requestId);
+        activity?.SetTag(DataSubjectRightsDiagnostics.TagRejectionReason, rejectionReason.ToString());
+
+        Either<EncinaError, Unit> result = ValidateDenyInput(rejectionReason, rejectionExplanation) is { } invalid
+            ? invalid
+            : await DenyCoreAsync(requestId, rejectionReason, rejectionExplanation, activity, cancellationToken);
+
+        result.IfRight(_ => DataSubjectRightsDiagnostics.RecordCompleted(activity));
+        result.IfLeft(error => DataSubjectRightsDiagnostics.RecordFailed(activity, ActivityStatusDescriptions.ForError(error)));
+        return result;
+    }
+
+    /// <summary>
+    /// Validates the input of a denial at the service boundary: a defined reason, a non-blank
+    /// explanation and, for a draft-law ground, the option that enables it.
+    /// </summary>
+    private EncinaError? ValidateDenyInput(DSRRejectionReason rejectionReason, string rejectionExplanation)
+    {
+        if (!Enum.IsDefined(rejectionReason))
+        {
+            return DSRErrors.InvalidRequest("The rejection reason is not a defined value.");
+        }
+
+        if (string.IsNullOrWhiteSpace(rejectionExplanation))
+        {
+            return DSRErrors.InvalidRequest("A rejection explanation is required.");
+        }
+
+        if (rejectionReason.IsDraftLawGround && !_options.EnableOmnibusArticle12RefusalGrounds)
+        {
+            _logger.DSRRejectionReasonNotEnabled(rejectionReason.ToString());
+            return DSRErrors.RejectionReasonNotEnabled(rejectionReason);
+        }
+
+        return null;
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> DenyCoreAsync(
+        Guid requestId,
+        DSRRejectionReason rejectionReason,
+        string rejectionExplanation,
+        Activity? activity,
+        CancellationToken cancellationToken)
+    {
+        if (!TryResolveTenantScope("DenyRequest", out var tenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
 
         try
         {
-            var loadResult = await _repository.LoadAsync(requestId, cancellationToken);
+            var loadResult = await LoadScopedAsync(requestId, tenantId, cancellationToken);
 
             return await loadResult.MatchAsync<Either<EncinaError, Unit>>(
                 RightAsync: async aggregate =>
                 {
                     var deniedAtUtc = _timeProvider.GetUtcNow();
-                    aggregate.Deny(rejectionReason, deniedAtUtc);
+                    aggregate.Deny(rejectionReason, rejectionExplanation, deniedAtUtc);
                     var saveResult = await _repository.SaveAsync(aggregate, cancellationToken);
 
                     return saveResult.Match<Either<EncinaError, Unit>>(
                         Right: _ =>
                         {
-                            InvalidateRequestCache(requestId);
-                            InvalidateRestrictionCache(aggregate.SubjectId);
+                            OnRequestDenied(aggregate, rejectionReason, activity);
                             return Unit.Default;
                         },
                         Left: error => error);
@@ -303,6 +422,19 @@ internal sealed class DefaultDSRService : IDSRService
         }
     }
 
+    private void OnRequestDenied(DSRRequestAggregate aggregate, DSRRejectionReason rejectionReason, Activity? activity)
+    {
+        if (aggregate.TenantId is not null)
+        {
+            activity?.SetTag(DataSubjectRightsDiagnostics.TagTenantId, aggregate.TenantId);
+        }
+
+        DataSubjectRightsDiagnostics.RecordDenied(rejectionReason, aggregate.RightType);
+        _logger.DSRRequestDenied(aggregate.RightType.ToString(), rejectionReason.ToString());
+        InvalidateRequestCache(aggregate.Id);
+        InvalidateRestrictionCache(aggregate.SubjectId);
+    }
+
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, Unit>> ExtendDeadlineAsync(
         Guid requestId,
@@ -311,9 +443,14 @@ internal sealed class DefaultDSRService : IDSRService
     {
         _logger.LogDebug("Extending deadline for DSR request '{RequestId}'", requestId);
 
+        if (!TryResolveTenantScope("ExtendDeadline", out var tenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
+
         try
         {
-            var loadResult = await _repository.LoadAsync(requestId, cancellationToken);
+            var loadResult = await LoadScopedAsync(requestId, tenantId, cancellationToken);
 
             return await loadResult.MatchAsync<Either<EncinaError, Unit>>(
                 RightAsync: async aggregate =>
@@ -351,9 +488,14 @@ internal sealed class DefaultDSRService : IDSRService
     {
         _logger.LogDebug("Expiring DSR request '{RequestId}'", requestId);
 
+        if (!TryResolveTenantScope("ExpireRequest", out var tenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
+
         try
         {
-            var loadResult = await _repository.LoadAsync(requestId, cancellationToken);
+            var loadResult = await LoadScopedAsync(requestId, tenantId, cancellationToken);
 
             return await loadResult.MatchAsync<Either<EncinaError, Unit>>(
                 RightAsync: async aggregate =>
@@ -438,7 +580,7 @@ internal sealed class DefaultDSRService : IDSRService
             Left: error =>
             {
                 _logger.DSRRequestFailed(rightType.ToString(), error.GetCode().IfNone("encina.unknown"));
-                RecordFailure(activity, stopwatch, rightType, error.GetCode().IfNone("encina.unknown"));
+                RecordFailure(activity, stopwatch, rightType, ActivityStatusDescriptions.ForError(error));
 
                 return (Either<EncinaError, AccessResponse>)error;
             }).ConfigureAwait(false);
@@ -523,7 +665,7 @@ internal sealed class DefaultDSRService : IDSRService
             Left: error =>
             {
                 _logger.DSRRequestFailed(rightType.ToString(), error.GetCode().IfNone("encina.unknown"));
-                RecordFailure(activity, stopwatch, rightType, error.GetCode().IfNone("encina.unknown"));
+                RecordFailure(activity, stopwatch, rightType, ActivityStatusDescriptions.ForError(error));
 
                 return Left<EncinaError, ErasureResult>(
                     DSRErrors.ErasureFailed(request.SubjectId, error.Message));
@@ -544,13 +686,21 @@ internal sealed class DefaultDSRService : IDSRService
         using var activity = DataSubjectRightsDiagnostics.StartDSRRequest(rightType);
         var stopwatch = Stopwatch.StartNew();
 
+        // The restriction is recorded under the ambient tenant, so it is visible to that tenant's
+        // restriction checks and never to another tenant's (#1963).
+        if (!TryResolveWriteTenantScope("HandleRestriction", null, out var tenantId, out var tenantError))
+        {
+            RecordFailure(activity, stopwatch, rightType, DSRErrors.TenantRequiredCode);
+            return tenantError!.Value;
+        }
+
         try
         {
             // Create a DSR request aggregate for the restriction
             var id = Guid.NewGuid();
             var aggregate = DSRRequestAggregate.Submit(
                 id, request.SubjectId, DataSubjectRight.Restriction, now,
-                $"Restriction reason: {request.Reason}");
+                $"Restriction reason: {request.Reason}", tenantId);
 
             var createResult = await _repository.CreateAsync(aggregate, cancellationToken);
 
@@ -575,7 +725,7 @@ internal sealed class DefaultDSRService : IDSRService
                 Left: error =>
                 {
                     _logger.DSRRequestFailed(rightType.ToString(), error.GetCode().IfNone("encina.unknown"));
-                    RecordFailure(activity, stopwatch, rightType, error.GetCode().IfNone("encina.unknown"));
+                    RecordFailure(activity, stopwatch, rightType, ActivityStatusDescriptions.ForError(error));
                     return error;
                 });
         }
@@ -614,7 +764,7 @@ internal sealed class DefaultDSRService : IDSRService
             Left: error =>
             {
                 _logger.DSRRequestFailed(rightType.ToString(), error.GetCode().IfNone("encina.unknown"));
-                RecordFailure(activity, stopwatch, rightType, error.GetCode().IfNone("encina.unknown"));
+                RecordFailure(activity, stopwatch, rightType, ActivityStatusDescriptions.ForError(error));
 
                 return Left<EncinaError, PortabilityResponse>(error);
             });
@@ -656,12 +806,19 @@ internal sealed class DefaultDSRService : IDSRService
     {
         _logger.LogDebug("Getting DSR request '{RequestId}'", requestId);
 
-        var cacheKey = $"dsr:request:{requestId}";
+        if (!TryResolveTenantScope("GetRequest", out var tenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
+
+        var cacheKey = RequestCacheKey(requestId, tenantId);
 
         try
         {
             var cached = await _cache.GetAsync<DSRRequestReadModel>(cacheKey, cancellationToken);
-            if (cached is not null)
+            // A tenant-mismatched cache entry is treated as a miss and re-fetched from the read
+            // model, which applies the tenant check below (#1963).
+            if (cached is not null && TenantsMatch(cached.TenantId, tenantId))
             {
                 return cached;
             }
@@ -671,6 +828,13 @@ internal sealed class DefaultDSRService : IDSRService
             return await result.MatchAsync<Either<EncinaError, DSRRequestReadModel>>(
                 RightAsync: async readModel =>
                 {
+                    // A request read by id that belongs to a different tenant is reported as not
+                    // found, never returned (#1963).
+                    if (!TenantsMatch(readModel.TenantId, tenantId))
+                    {
+                        return DSRErrors.RequestNotFound(requestId.ToString());
+                    }
+
                     await _cache.SetAsync(cacheKey, readModel, TimeSpan.FromMinutes(5), cancellationToken);
                     return readModel;
                 },
@@ -691,10 +855,15 @@ internal sealed class DefaultDSRService : IDSRService
         // The data subject's own identifier is never logged (#1429, following #1314).
         _logger.LogDebug("Getting DSR requests for subject");
 
+        if (!TryResolveTenantScope("GetRequestsBySubject", out var tenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
+
         try
         {
             return await _readModelRepository.QueryAsync(
-                q => q.Where(r => r.SubjectId == subjectId),
+                q => q.Where(r => r.SubjectId == subjectId && r.TenantId == tenantId),
                 cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -710,14 +879,20 @@ internal sealed class DefaultDSRService : IDSRService
     {
         _logger.LogDebug("Getting pending DSR requests");
 
+        if (!TryResolveTenantScope("GetPendingRequests", out var tenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
+
         try
         {
             return await _readModelRepository.QueryAsync(
                 q => q.Where(r =>
-                    r.Status == DSRRequestStatus.Received
-                    || r.Status == DSRRequestStatus.IdentityVerified
-                    || r.Status == DSRRequestStatus.InProgress
-                    || r.Status == DSRRequestStatus.Extended),
+                    r.TenantId == tenantId
+                    && (r.Status == DSRRequestStatus.Received
+                        || r.Status == DSRRequestStatus.IdentityVerified
+                        || r.Status == DSRRequestStatus.InProgress
+                        || r.Status == DSRRequestStatus.Extended)),
                 cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -733,13 +908,19 @@ internal sealed class DefaultDSRService : IDSRService
     {
         _logger.LogDebug("Getting overdue DSR requests");
 
+        if (!TryResolveTenantScope("GetOverdueRequests", out var tenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
+
         try
         {
             var now = _timeProvider.GetUtcNow();
 
             var result = await _readModelRepository.QueryAsync(
                 q => q.Where(r =>
-                    r.Status != DSRRequestStatus.Completed
+                    r.TenantId == tenantId
+                    && r.Status != DSRRequestStatus.Completed
                     && r.Status != DSRRequestStatus.Rejected
                     && r.Status != DSRRequestStatus.Expired),
                 cancellationToken);
@@ -768,7 +949,14 @@ internal sealed class DefaultDSRService : IDSRService
         // The data subject's own identifier is never logged (#1429, following #1314).
         _logger.LogDebug("Checking active restriction for subject");
 
-        var cacheKey = $"dsr:restriction:{subjectId}";
+        if (!TryResolveTenantScope("HasActiveRestriction", out var tenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
+
+        // The cache key is scoped by tenant so one tenant's restriction answer is never served to
+        // another (#1963).
+        var cacheKey = RestrictionCacheKey(subjectId, tenantId);
 
         try
         {
@@ -781,6 +969,7 @@ internal sealed class DefaultDSRService : IDSRService
             var result = await _readModelRepository.QueryAsync(
                 q => q.Where(r =>
                     r.SubjectId == subjectId
+                    && r.TenantId == tenantId
                     && r.RightType == DataSubjectRight.Restriction
                     && (r.Status == DSRRequestStatus.Received
                         || r.Status == DSRRequestStatus.IdentityVerified
@@ -845,14 +1034,114 @@ internal sealed class DefaultDSRService : IDSRService
             new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagRightType, rightType.ToString()));
     }
 
+    // A mutation only proceeds after the loaded request matched the ambient tenant, so the
+    // ambient tenant names exactly the cache entries the mutation made stale (#1963).
     private void InvalidateRequestCache(Guid requestId)
     {
-        _ = _cache.RemoveAsync($"dsr:request:{requestId}", CancellationToken.None);
+        _ = _cache.RemoveAsync(RequestCacheKey(requestId, CurrentTenantId), CancellationToken.None);
     }
 
     private void InvalidateRestrictionCache(string subjectId)
     {
-        _ = _cache.RemoveAsync($"dsr:restriction:{subjectId}", CancellationToken.None);
+        _ = _cache.RemoveAsync(RestrictionCacheKey(subjectId, CurrentTenantId), CancellationToken.None);
+    }
+
+    private static string RequestCacheKey(Guid requestId, string? tenantId) =>
+        $"dsr:tenant:{TenantCacheSegment(tenantId)}:request:{requestId}";
+
+    private static string RestrictionCacheKey(string subjectId, string? tenantId) =>
+        $"dsr:tenant:{TenantCacheSegment(tenantId)}:restriction:{subjectId}";
+
+    /// <summary>
+    /// Renders a tenant id for use inside a cache key: the tenant itself, or the literal
+    /// <c>"-"</c> when no tenant is present.
+    /// </summary>
+    private static string TenantCacheSegment(string? tenantId) =>
+        string.IsNullOrEmpty(tenantId) ? "-" : tenantId;
+
+    /// <summary>
+    /// Compares two tenant ids treating <c>null</c> and empty string as the same "no tenant"
+    /// value.
+    /// </summary>
+    private static bool TenantsMatch(string? left, string? right) =>
+        string.Equals(TenantCacheSegment(left), TenantCacheSegment(right), StringComparison.Ordinal);
+
+    /// <summary>
+    /// Resolves the ambient tenant for a query or lifecycle command, failing closed when tenant
+    /// isolation is required (<see cref="DataSubjectRightsOptions.RequireTenantContext"/>) and no
+    /// tenant is present (#1963, SPEC-002 DEC-006).
+    /// </summary>
+    private bool TryResolveTenantScope(string operation, out string? tenantId, out EncinaError? error)
+    {
+        tenantId = NormalizeTenant(CurrentTenantId);
+
+        if (tenantId is null && IsTenantContextRequired)
+        {
+            return Refuse(operation, out tenantId, out error);
+        }
+
+        error = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Resolves the tenant a new request should be recorded under: the explicit
+    /// <paramref name="explicitTenantId"/> when it agrees with the ambient tenant, otherwise the
+    /// ambient tenant. An explicit tenant that contradicts the ambient one is refused, so a request
+    /// scoped to one tenant can never write into another tenant's data (#1963).
+    /// </summary>
+    private bool TryResolveWriteTenantScope(
+        string operation, string? explicitTenantId, out string? tenantId, out EncinaError? error)
+    {
+        var ambientTenantId = NormalizeTenant(CurrentTenantId);
+        var requestedTenantId = NormalizeTenant(explicitTenantId);
+
+        if (Contradicts(requestedTenantId, ambientTenantId))
+        {
+            return Refuse(operation, out tenantId, out error);
+        }
+
+        tenantId = requestedTenantId ?? ambientTenantId;
+
+        if (tenantId is null && IsTenantContextRequired)
+        {
+            return Refuse(operation, out tenantId, out error);
+        }
+
+        error = null;
+        return true;
+    }
+
+    private static bool Contradicts(string? requestedTenantId, string? ambientTenantId) =>
+        requestedTenantId is not null && ambientTenantId is not null
+        && !TenantsMatch(requestedTenantId, ambientTenantId);
+
+    private bool Refuse(string operation, out string? tenantId, out EncinaError? error)
+    {
+        _logger.DSRTenantContextMissing(operation);
+        tenantId = null;
+        error = DSRErrors.TenantRequired(operation);
+        return false;
+    }
+
+    private static string? NormalizeTenant(string? tenantId) =>
+        string.IsNullOrEmpty(tenantId) ? null : tenantId;
+
+    /// <summary>
+    /// Loads a request aggregate for a lifecycle command. A request that does not exist, or that
+    /// belongs to another tenant, is reported as not found and is never handed to the caller for
+    /// mutation (#1963).
+    /// </summary>
+    private async ValueTask<Either<EncinaError, DSRRequestAggregate>> LoadScopedAsync(
+        Guid requestId, string? tenantId, CancellationToken cancellationToken)
+    {
+        var loadResult = await _repository.LoadAsync(requestId, cancellationToken);
+
+        return loadResult.Match<Either<EncinaError, DSRRequestAggregate>>(
+            Right: aggregate => TenantsMatch(aggregate.TenantId, tenantId)
+                ? aggregate
+                : DSRErrors.RequestNotFound(requestId.ToString()),
+            Left: _ => DSRErrors.RequestNotFound(requestId.ToString()));
     }
 
     private async ValueTask PublishNotificationAsync<TNotification>(

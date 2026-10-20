@@ -26,13 +26,34 @@
 #      placeholders, and that stages/remediation.md carries the manifest's line for every finding. It prints
 #      every problem and exits 1 when any remains; the orchestrator re-spawns the drafter with that output.
 #
-# -Only "<stage> <n>" (one value per run today, because PowerShell rejects a repeated parameter and pwsh -File does
-# not split a list; comma-separated values are #1645's scope; -Prepare only; #1492 decision 3, widened by #1491 decision 4): prepares only
+# -Issue <n> (#2234) names the audit when several are open; it may be omitted from the audit's wia-<n> worktree or
+# with one open audit (Resolve-OpenAudit, _audit-lib.ps1). Cross-audit duplicates (#2234): -Prepare also compares
+# every finding group with the drafts of the audits that ran concurrently with this one (its state file's
+# `concurrent`, recorded in the manifest as concurrentAudits), with the same evidence rule as the open-issue search
+# (Test-DuplicateEvidence). A match already opened as an issue (opened.csv) makes the group a duplicate of that
+# issue (" (draft <file> of the concurrent audit #m)" on its line). A match not opened yet stops -Prepare before
+# anything is written only when the other audit has the LOWER issue number (it goes first, as in queue order; a
+# higher-numbered audit's unopened draft does not stop this one, so two audits never block each other): open the
+# other audit's remediation first, or pass -NotDuplicate when the verifier ruled it is not a duplicate. -NotDuplicate and
+# -DuplicateOf skip the check for their group.
+#
+# Every list parameter (-Only, -DuplicateOf, -MergeInto, -NotDuplicate, -NoMerge) takes an array in-process and a
+# single comma-separated string under `pwsh -File` ('tests 8,tests 9'; #1863, which settles #1645's limitation).
+# A list parameter that is supplied but empty after splitting (-Only ',,,') is a usage error: exit 2, nothing touched.
+#
+# -NotDuplicate "<stage> <n>" (-Prepare only; #1863): the verifier ruled the finding is not a duplicate. It skips the
+# evidence duplicate decision AND the location merge, so the finding gets its own draft with the normal draft line;
+# the manifest records duplicateSource 'manual not-duplicate'. -NoMerge "<stage> <n>" (#1863): the finding is never
+# merged into another by location and nothing is merged into it. Both persist through later -Prepare runs (the
+# manifest's notDuplicateOverrides/noMergeOverrides), are lessons, and apply to the named findings under -Only. A
+# finding named in both -NotDuplicate and -DuplicateOf, or an unknown key, fails before anything is written.
+#
+# -Only "<stage> <n>" (-Prepare only; #1492 decision 3, widened by #1491 decision 4): prepares only
 # the named finding's location group. Every other finding keeps its draft, its input and its stages/remediation.md
 # line untouched: the manifest carries that line verbatim with "regenerate": false. Requires an existing
 # stages/remediation.md with a line for every other finding.
 #
-# -DuplicateOf "<stage> <n>=<issue>" (one value per run today, like -Only; #1645; -Prepare only; #1534): records the named finding's whole
+# -DuplicateOf "<stage> <n>=<issue>" (-Prepare only; #1534): records the named finding's whole
 # group as a duplicate of the given OPEN issue by explicit, logged override (" (manual override)" on its line,
 # a lesson in the manifest). A malformed entry or an unknown key fails before any file is touched; the issue
 # must be OPEN (checked with gh unless -NoGh). An override's group is always prepared, even without -Only.
@@ -79,7 +100,10 @@ param(
     [switch]$NoGh,
     [string[]]$Only,
     [string[]]$DuplicateOf,
-    [string[]]$MergeInto
+    [string[]]$MergeInto,
+    [string[]]$NotDuplicate,
+    [string[]]$NoMerge,
+    [int]$Issue
 )
 
 $ErrorActionPreference = 'Stop'
@@ -91,21 +115,47 @@ function Stop-Remediation([string]$Message) {
     exit 1
 }
 
+# #1863: PowerShell rejects a repeated parameter name and `pwsh -File` hands "a","b" over as the one string 'a,b',
+# so every list parameter accepts an array (in-process) and a single comma-separated string alike.
+function Expand-Specs([string[]]$Values) {
+    return , @($Values | Where-Object { $null -ne $_ } | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+}
+$Only = Expand-Specs $Only
+$DuplicateOf = Expand-Specs $DuplicateOf
+$MergeInto = Expand-Specs $MergeInto
+$NotDuplicate = Expand-Specs $NotDuplicate
+$NoMerge = Expand-Specs $NoMerge
+
+# #1863: a list parameter that was supplied but is empty after normalisation (e.g. -Only ',,,') is a usage error
+# (exit 2), never a silent fall-through to a full -Prepare; checked before anything on disk is touched.
+foreach ($listParam in @(@{ Name = 'Only'; Count = $Only.Count }, @{ Name = 'DuplicateOf'; Count = $DuplicateOf.Count }, @{ Name = 'MergeInto'; Count = $MergeInto.Count }, @{ Name = 'NotDuplicate'; Count = $NotDuplicate.Count }, @{ Name = 'NoMerge'; Count = $NoMerge.Count })) {
+    if ($PSBoundParameters.ContainsKey($listParam.Name) -and $listParam.Count -eq 0) {
+        [Console]::Error.WriteLine("audit-draft-remediation: -$($listParam.Name) was supplied but names no finding after splitting on commas; pass at least one value or omit the parameter.")
+        exit 2
+    }
+}
+
 if ($Prepare -eq $Finalize) { Stop-Remediation 'pass exactly one of -Prepare or -Finalize.' }
-if ($Finalize -and (($Only -and $Only.Count -gt 0) -or ($DuplicateOf -and $DuplicateOf.Count -gt 0) -or ($MergeInto -and $MergeInto.Count -gt 0))) {
-    Stop-Remediation '-Only, -DuplicateOf and -MergeInto apply to -Prepare only.'
+if ($Finalize -and ($Only.Count -gt 0 -or $DuplicateOf.Count -gt 0 -or $MergeInto.Count -gt 0 -or $NotDuplicate.Count -gt 0 -or $NoMerge.Count -gt 0)) {
+    Stop-Remediation '-Only, -DuplicateOf, -MergeInto, -NotDuplicate and -NoMerge apply to -Prepare only.'
+}
+
+# '<stage> <n>' values (-Only, -NotDuplicate, -NoMerge) to a set of 'stage|n' keys.
+function ConvertTo-KeySet([string]$Option, [string[]]$Specs) {
+    $set = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($spec in $Specs) {
+        $specParts = @($spec -split '\s+' | Where-Object { $_ -ne '' })
+        if ($specParts.Count -ne 2) { Stop-Remediation "$Option value '$spec' must be '<stage> <n>' (e.g. 'code 3')." }
+        [void]$set.Add("$($specParts[0])|$($specParts[1])")
+    }
+    return , $set
 }
 
 # Fail-fast argument parsing, before any file or gh call (#1492 decision 3, #1534).
 $onlyKeys = $null
-if ($Only -and $Only.Count -gt 0) {
-    $onlyKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($spec in $Only) {
-        $specParts = @($spec -split '\s+' | Where-Object { $_ -ne '' })
-        if ($specParts.Count -ne 2) { Stop-Remediation "-Only value '$spec' must be '<stage> <n>' (e.g. 'code 3')." }
-        [void]$onlyKeys.Add("$($specParts[0])|$($specParts[1])")
-    }
-}
+if ($Only.Count -gt 0) { $onlyKeys = ConvertTo-KeySet '-Only' $Only }
+$newNotDuplicateKeys = ConvertTo-KeySet '-NotDuplicate' $NotDuplicate
+$newNoMergeKeys = ConvertTo-KeySet '-NoMerge' $NoMerge
 $duplicateOfEntries = $null
 if ($DuplicateOf -and $DuplicateOf.Count -gt 0) {
     $duplicateOfEntries = [ordered]@{}
@@ -118,6 +168,10 @@ if ($DuplicateOf -and $DuplicateOf.Count -gt 0) {
             Stop-Remediation "-DuplicateOf has conflicting entries for '$($dupKey -replace '\|', ' ')' (#$($duplicateOfEntries[$dupKey]) and #$dupIssue)."
         }
         $duplicateOfEntries[$dupKey] = $dupIssue
+    }
+    # #1863 decision 4: a finding cannot be both a manual duplicate and a manual not-duplicate.
+    foreach ($dupKey in $duplicateOfEntries.Keys) {
+        if ($newNotDuplicateKeys.Contains($dupKey)) { Stop-Remediation "'$($dupKey -replace '\|', ' ')' is named in both -DuplicateOf and -NotDuplicate; choose one." }
     }
 }
 
@@ -139,21 +193,19 @@ function ConvertTo-MergeEntries([string[]]$Specs) {
     }
     return , $entries
 }
-# PowerShell rejects a repeated parameter name and `pwsh -File` hands "a","b" over as the one string 'a,b', so
-# several overrides arrive as one comma-separated value: -MergeInto 'docs 6=code 2','docs 5=code 3'.
-if ($MergeInto) { $MergeInto = @($MergeInto | ForEach-Object { $_ -split ',' } | Where-Object { $_.Trim() -ne '' }) }
-$newMergeEntries = if ($MergeInto -and $MergeInto.Count -gt 0) { ConvertTo-MergeEntries $MergeInto } else { [ordered]@{} }
+$newMergeEntries = if ($MergeInto.Count -gt 0) { ConvertTo-MergeEntries $MergeInto } else { [ordered]@{} }
 $mergeIntoEntries = $null   # the effective set (previous manifest's merges plus this run's), built in -Prepare
 
 $mainRoot = Get-MainRoot $PSScriptRoot
-$audit = Get-CurrentAudit $mainRoot
-if ($null -eq $audit) { Stop-Remediation 'no open audit (artifacts/knowledge/current-audit.json not found). Run audit-next.ps1 first.' }
+try { $audit = Resolve-OpenAudit $mainRoot $Issue $PSScriptRoot }
+catch { Stop-Remediation $_.Exception.Message }
 
 $wt = [string]$audit.worktree
 $n = [string]$audit.issue
 $stagesDir = Get-StagesDir $wt
 $pipelineDir = Join-Path $wt 'tools\ai\audit'
-try { $pipeline = Get-Pipeline $pipelineDir } catch { Stop-Remediation "cannot read $pipelineDir\pipeline.json: $($_.Exception.Message)" }
+$pipelineFile = Get-AuditPipelineFile $audit
+try { $pipeline = Get-Pipeline $pipelineDir $pipelineFile } catch { Stop-Remediation "cannot read $pipelineDir\$($pipelineFile): $($_.Exception.Message)" }
 
 function Get-StageFile([string]$Name) {
     $def = $pipeline.stages | Where-Object { $_.stage -eq $Name }
@@ -183,6 +235,8 @@ function Get-AllFindings {
     $script:SplitFindingsNotes = [System.Collections.Generic.List[string]]::new()
     $found = [System.Collections.Generic.List[pscustomobject]]::new()
     foreach ($stageName in 'code', 'tests', 'docs') {
+        # A delta pipeline (#1763) has no code stage: only the finding stages the pipeline defines are read.
+        if ($null -eq ($pipeline.stages | Where-Object { $_.stage -eq $stageName })) { continue }
         $stageFile = Get-StageFile $stageName
         if (-not (Test-FindingsHeaderPresent $stageFile)) { Stop-Remediation "stages\$(Split-Path -Leaf $stageFile) has no '## Findings' header; the stage must write one (with '- none' when there are no findings)." }
         try { foreach ($f in (Split-Findings $stageName (Get-StageSection $stageFile 'Findings'))) { $found.Add($f) } }
@@ -195,7 +249,11 @@ $remediationDir = Join-Path $mainRoot 'artifacts\knowledge\remediation'
 $sandboxDir = Join-Path $remediationDir "_dryrun-$n"
 $outDir = if ($DryRun) { $sandboxDir } else { $remediationDir }
 $stageOut = if ($DryRun) { Join-Path $sandboxDir 'remediation.md' } else { Get-StageFile 'remediation' }
-$manifestPath = Join-Path $outDir "_manifest-$n.json"
+# #1763: a delta audit writes, reads and cleans only files named with the delta prefix (<n>-delta-2026-10-*.md,
+# _manifest-<n>-delta-2026-10.json, ...), so the original audit's drafts and manifest of the same issue are never
+# touched and opened.csv can never confuse a delta draft with an original one. $fileKey is that name stem.
+$fileKey = if (Test-DeltaAudit $audit) { "$n-$([string]$pipeline.delta.folder)" } else { "$n" }
+$manifestPath = Join-Path $outDir "_manifest-$fileKey.json"
 $lessonsHeading = '## Lessons for the pipeline'
 
 function Get-GhResult([string[]]$Arguments, [string]$What) {
@@ -264,14 +322,14 @@ if ($Finalize) {
     # renamed per group; any other extra is removed below.
     foreach ($f in @($manifest.findings)) {
         if (-not $f.draftFile -or (Test-Path -LiteralPath $f.draftFile)) { continue }
-        $prefix = "$n-$($f.stage)-$($f.id)-"
+        $prefix = "$fileKey-$($f.stage)-$($f.id)-"
         $misnamed = @(Get-ChildItem -LiteralPath $outDir -Filter "$prefix*.md" -File -ErrorAction SilentlyContinue | Where-Object { -not $expectedDrafts.Contains($_.FullName) } | Sort-Object Name | Select-Object -First 1)
         if ($misnamed.Count -eq 1) {
             Move-Item -LiteralPath $misnamed[0].FullName -Destination $f.draftFile
             $notes.Add("$($f.label): renamed $($misnamed[0].Name) to the manifest's draft name $(Split-Path -Leaf $f.draftFile).")
         }
     }
-    foreach ($onDisk in @(Get-ChildItem -LiteralPath $outDir -Filter "$n-*.md" -File -ErrorAction SilentlyContinue)) {
+    foreach ($onDisk in @(Get-ChildItem -LiteralPath $outDir -Filter "$fileKey-*.md" -File -ErrorAction SilentlyContinue)) {
         if (-not $expectedDrafts.Contains($onDisk.FullName)) {
             Remove-Item -LiteralPath $onDisk.FullName -Force
             $notes.Add("removed $($onDisk.Name): not a draft the manifest names (an orphan, a second draft of one group, or a draft of a duplicate/merged finding); open-remediation.ps1 would have opened it as an extra issue.")
@@ -446,11 +504,40 @@ if (Test-Path -LiteralPath $manifestPath) {
 }
 foreach ($mergeSrc in $newMergeEntries.Keys) { $mergeIntoEntries[$mergeSrc] = $newMergeEntries[$mergeSrc] }
 
+# #1863: -NotDuplicate and -NoMerge persist like merges: the previous manifest's overrides are re-applied by every
+# later -Prepare (full or -Only), so an -Only run never silently re-merges or re-matches a finding the verifier
+# ruled on. A kept -NotDuplicate is dropped when this run's -DuplicateOf names that finding (the newer decision
+# wins); a kept override whose finding no longer exists is dropped with a note. -NotDuplicate implies -NoMerge.
+$notDuplicateKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$noMergeKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($k in $newNotDuplicateKeys) { [void]$notDuplicateKeys.Add($k) }
+foreach ($k in $newNoMergeKeys) { [void]$noMergeKeys.Add($k) }
+if (Test-Path -LiteralPath $manifestPath) {
+    $previousOverrides = $null
+    try { $previousOverrides = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json } catch { $previousOverrides = $null }
+    if ($previousOverrides) {
+        foreach ($pair in @(@{ Option = '-NotDuplicate'; Set = $notDuplicateKeys; Names = @($previousOverrides.notDuplicateOverrides) }, @{ Option = '-NoMerge'; Set = $noMergeKeys; Names = @($previousOverrides.noMergeOverrides) })) {
+            foreach ($keptName in @($pair.Names | Where-Object { $_ })) {
+                $keptKey = (@($keptName -split '\s+' | Where-Object { $_ -ne '' }) -join '|')
+                if (-not $allFindingKeys.Contains($keptKey)) { $mergeNotes.Add("dropped the $($pair.Option) override '$keptName' of the previous manifest: that finding is no longer in the stage artifacts."); continue }
+                if ($pair.Option -eq '-NotDuplicate' -and $duplicateOfEntries -and $duplicateOfEntries.Contains($keptKey)) { $mergeNotes.Add("dropped the -NotDuplicate override '$keptName' of the previous manifest: this run's -DuplicateOf names it."); continue }
+                if ($pair.Set.Add($keptKey) -and -not ($newNotDuplicateKeys.Contains($keptKey) -or $newNoMergeKeys.Contains($keptKey))) { $mergeNotes.Add("keeping the $($pair.Option) override '$keptName' of the previous manifest.") }
+            }
+        }
+    }
+}
+foreach ($k in $notDuplicateKeys) { [void]$noMergeKeys.Add($k) }
+
 $requestedKeys = @()
+foreach ($k in $newNotDuplicateKeys) { $requestedKeys += [pscustomobject]@{ Option = '-NotDuplicate'; Key = $k } }
+foreach ($k in $newNoMergeKeys) { $requestedKeys += [pscustomobject]@{ Option = '-NoMerge'; Key = $k } }
 if ($duplicateOfEntries) { $requestedKeys += @($duplicateOfEntries.Keys | ForEach-Object { [pscustomobject]@{ Option = '-DuplicateOf'; Key = $_ } }) }
 foreach ($mergeSrc in $mergeIntoEntries.Keys) {
     $requestedKeys += [pscustomobject]@{ Option = '-MergeInto'; Key = $mergeSrc }
     $requestedKeys += [pscustomobject]@{ Option = '-MergeInto'; Key = $mergeIntoEntries[$mergeSrc] }
+    foreach ($mergeEnd in $mergeSrc, $mergeIntoEntries[$mergeSrc]) {
+        if ($noMergeKeys.Contains($mergeEnd)) { Stop-Remediation "-MergeInto '$($mergeSrc -replace '\|', ' ')=$($mergeIntoEntries[$mergeSrc] -replace '\|', ' ')' names '$($mergeEnd -replace '\|', ' ')', which -NoMerge or -NotDuplicate keeps out of every merge." }
+    }
 }
 if ($onlyKeys) { $requestedKeys += @($onlyKeys | ForEach-Object { [pscustomobject]@{ Option = '-Only'; Key = $_ } }) }
 foreach ($requested in $requestedKeys) {
@@ -469,7 +556,22 @@ if ($duplicateOfEntries -and -not $NoGh) {
 
 # #1491: groups by leading location anchor, computed from the FULL finding set so an -Only run picks the same
 # group and primary a full run would.
-$groups = Group-FindingsByLocation $allFindings
+$groups = [System.Collections.Generic.List[object]]::new([object[]]@(Group-FindingsByLocation $allFindings))
+# #1863: a -NoMerge or -NotDuplicate finding is never merged by location, and nothing is merged into it: it leaves
+# its location group and stands alone, so it gets its own draft whatever else cites its file:line.
+$leftGroupIndexByKey = @{}   # no-merge key -> the index of the group it left (its siblings are re-prepared with it)
+foreach ($noMergeKey in $noMergeKeys) {
+    foreach ($splitGroup in @($groups)) {
+        $splitMember = @($splitGroup.Members | Where-Object { "$($_.Stage)|$($_.Id)" -ieq $noMergeKey }) | Select-Object -First 1
+        if ($null -eq $splitMember -or $splitGroup.Members.Count -le 1) { continue }
+        $leftGroupIndexByKey[$noMergeKey] = $groups.IndexOf($splitGroup)
+        [void]$splitGroup.Members.Remove($splitMember)
+        $aloneMembers = [System.Collections.Generic.List[pscustomobject]]::new()
+        $aloneMembers.Add($splitMember)
+        $groups.Add([pscustomobject]@{ Anchor = $splitGroup.Anchor; Members = $aloneMembers })
+        break
+    }
+}
 $groupIndexByKey = @{}
 for ($gi = 0; $gi -lt $groups.Count; $gi++) {
     $groups[$gi] | Add-Member -NotePropertyName Primary -NotePropertyValue (Get-GroupPrimary $groups[$gi].Members)
@@ -494,8 +596,8 @@ if ($duplicateOfEntries) {
 $manualMergeKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 $mergeTargetGroupIndexes = [System.Collections.Generic.List[int]]::new()   # groups of THIS run's -MergeInto only
 $mergeLessonItems = [System.Collections.Generic.List[pscustomobject]]::new()
+$groupMergedInto = @{}   # a plain hashtable: an ordered dictionary would read an int key as a position
 if ($mergeIntoEntries.Count -gt 0) {
-    $groupMergedInto = @{}   # a plain hashtable: an ordered dictionary would read an int key as a position
     $mergeSourceOrder = [System.Collections.Generic.List[int]]::new()
     foreach ($mergeSrc in $mergeIntoEntries.Keys) {
         $mergeTgt = $mergeIntoEntries[$mergeSrc]
@@ -560,6 +662,13 @@ if ($mergeIntoEntries.Count -gt 0) {
         if ($newMergeEntries.Contains($mergeSrc) -and -not $mergeTargetGroupIndexes.Contains($tgtIdx)) { $mergeTargetGroupIndexes.Add($tgtIdx) }
     }
 }
+# #1863: a -NoMerge split can leave a group whose remaining members a manual merge then moved into its target,
+# emptying it. The group those members live in now is the merge target, so the left-group index follows the merge
+# and never points at an emptied group (its remaining members must be re-prepared with the split).
+foreach ($leftKey in @($leftGroupIndexByKey.Keys)) {
+    $leftIdx = [int]$leftGroupIndexByKey[$leftKey]
+    if ($groupMergedInto.ContainsKey($leftIdx)) { $leftGroupIndexByKey[$leftKey] = [int]$groupMergedInto[$leftIdx] }
+}
 foreach ($note in $mergeNotes) { "audit-draft-remediation: $note" }
 
 # #1492 decision 3: -Only keeps every other finding's existing line and lessons, read from the stage file this
@@ -602,6 +711,11 @@ if ($onlyKeys) {
     }
     foreach ($dupGroupIdx in $groupDuplicateIssue.Keys) { if ($seenGroups.Add($dupGroupIdx)) { $touchedGroupIndexes.Add($dupGroupIdx) } }
     foreach ($mergeGroupIdx in $mergeTargetGroupIndexes) { if ($seenGroups.Add($mergeGroupIdx)) { $touchedGroupIndexes.Add($mergeGroupIdx) } }
+    # #1863: an override of this run always takes effect on its own finding, and on the group it left.
+    foreach ($overrideKey in @($newNotDuplicateKeys) + @($newNoMergeKeys)) {
+        if ($seenGroups.Add($groupIndexByKey[$overrideKey])) { $touchedGroupIndexes.Add($groupIndexByKey[$overrideKey]) }
+        if ($leftGroupIndexByKey.ContainsKey($overrideKey) -and $seenGroups.Add($leftGroupIndexByKey[$overrideKey])) { $touchedGroupIndexes.Add($leftGroupIndexByKey[$overrideKey]) }
+    }
 }
 else { for ($gi = 0; $gi -lt $groups.Count; $gi++) { if ($groups[$gi].Members.Count -gt 0) { $touchedGroupIndexes.Add($gi) } } }
 
@@ -625,7 +739,7 @@ if ($onlyKeys) {
 }
 
 function Get-FindingLabel($Finding) { "$($Finding.Stage) $($Finding.Id) ($($Finding.Severity))" }
-function Get-InputPath($Finding) { Join-Path $outDir "_input-$n-$($Finding.Stage)-$($Finding.Id).md" }
+function Get-InputPath($Finding) { Join-Path $outDir "_input-$fileKey-$($Finding.Stage)-$($Finding.Id).md" }
 
 # Every gh call (the duplicate search) runs here, before anything on disk is touched (#1548): a failure stops
 # the run with the previous outputs intact.
@@ -643,11 +757,17 @@ foreach ($splitNote in @($script:SplitFindingsNotes)) {
 if ($duplicateOfEntries) {
     foreach ($dupKey in $duplicateOfEntries.Keys) { $lessons.Add("$($dupKey -replace '\|', ' '): recorded as duplicate of #$($duplicateOfEntries[$dupKey]) by manual override") }
 }
+foreach ($k in $notDuplicateKeys) { if ($touchedMemberKeys.Contains($k)) { $lessons.Add("$($k -replace '\|', ' '): recorded as not a duplicate and kept out of location merges by manual override") } }
+foreach ($k in $noMergeKeys) { if ($touchedMemberKeys.Contains($k) -and -not $notDuplicateKeys.Contains($k)) { $lessons.Add("$($k -replace '\|', ' '): kept out of location merges by manual override") } }
 # A kept merge's lesson stays with the stage file's own lines (keptLessons) unless its source is prepared again.
 foreach ($mergeLesson in $mergeLessonItems) { if ($touchedMemberKeys.Contains($mergeLesson.Key)) { $lessons.Add($mergeLesson.Text) } }
 
 $entriesByKey = @{}
 $ghIssueCache = @{}
+# #2234: the drafts of every audit that ran concurrently with this one (open-audits/<n>.json `concurrent`), for the
+# cross-audit duplicate check inside the loop below.
+$concurrentDrafts = @(Get-ConcurrentAuditDrafts $mainRoot $audit)
+$crossAuditBlocks = [System.Collections.Generic.List[string]]::new()
 # #1592: the types declared in the audited worktree's src/, for the "partially related" rule (route (b) of
 # Test-PartialDuplicateEvidence); scanned once per run, skipped under -NoGh (no duplicate search runs then).
 $declaredTypes = if ($NoGh) { , [System.Collections.Generic.HashSet[string]]::new() } else { Get-DeclaredEncinaTypes (Join-Path $wt 'src') }
@@ -660,13 +780,15 @@ foreach ($gi in $touchedGroupIndexes) {
 
     $duplicateOfIssue = $null
     $duplicateSource = $null
+    $crossAuditNote = ''
     $partiallyRelated = [System.Collections.Generic.List[string]]::new()
     $possiblyRelated = [System.Collections.Generic.List[string]]::new()
     if ($groupDuplicateIssue.ContainsKey($gi)) {
         $duplicateOfIssue = $groupDuplicateIssue[$gi]
         $duplicateSource = 'manual override'
     }
-    elseif (-not $NoGh) {
+    elseif ($notDuplicateKeys.Contains($primaryKey)) { $duplicateSource = 'manual not-duplicate' }
+    if (-not $groupDuplicateIssue.ContainsKey($gi) -and -not $NoGh) {
         # One search per term (GitHub ANDs a space-separated query), merged by number, capped at 10.
         $candidatesByNumber = [ordered]@{}
         foreach ($term in (Get-SearchTerms $primary.Text)) {
@@ -687,7 +809,9 @@ foreach ($gi in $touchedGroupIndexes) {
             [pscustomobject]@{ Number = $number; Title = [string]$c.title; TitleAndBody = if ($cached) { "$($cached.title)`n$($cached.body)" } else { '' } }
         }
         $evidenceCandidates = @($evidenceCandidates)
-        $duplicateOfIssue = Find-DuplicateAmongCandidates $primary.Text $evidenceCandidates
+        # #1863: a -NotDuplicate finding skips the evidence decision; a candidate that would have matched is
+        # then listed as partially or possibly related like any other.
+        $duplicateOfIssue = if ($duplicateSource -eq 'manual not-duplicate') { $null } else { Find-DuplicateAmongCandidates $primary.Text $evidenceCandidates }
         if ($duplicateOfIssue) { $duplicateSource = 'evidence' }
         else {
             foreach ($c in $evidenceCandidates) {
@@ -697,13 +821,37 @@ foreach ($gi in $touchedGroupIndexes) {
             }
         }
     }
+    # #2234: the drafts of the concurrent audits, with the same evidence rule as the open-issue search (and also
+    # under -NoGh: it reads only local files). A match already opened as an issue makes this group a duplicate of
+    # that issue, as a sequential run would have found it; a match not opened yet stops the run below.
+    if (-not $duplicateOfIssue -and $duplicateSource -ne 'manual not-duplicate') {
+        $crossMatches = @($concurrentDrafts | Where-Object { Test-DuplicateEvidence $primary.Text $_.TitleAndBody })
+        $crossOpened = @($crossMatches | Where-Object { $_.Number -gt 0 } | Sort-Object Number)
+        if ($crossOpened.Count -gt 0) {
+            $duplicateOfIssue = [string]$crossOpened[0].Number
+            $duplicateSource = 'cross-audit'
+            $crossAuditNote = " (draft $($crossOpened[0].Name) of the concurrent audit #$($crossOpened[0].Issue))"
+            $partiallyRelated.Clear()
+            $possiblyRelated.Clear()
+        }
+        else {
+            # Deterministic priority (CodeRabbit on PR #2243): of two audits whose unopened drafts match, the one with
+            # the LOWER issue number goes first, as in the sequential queue order. A match with a higher-numbered
+            # audit's unopened draft does not stop this one (that audit waits for ours); a match with a lower-numbered
+            # one does, so the two can never block each other.
+            $lowerMatches = @($crossMatches | Where-Object { [int]$_.Issue -lt [int]$n } | Sort-Object Issue, Name)
+            if ($lowerMatches.Count -gt 0) {
+                $crossAuditBlocks.Add("$primaryLabel matches the draft $($lowerMatches[0].Name) of the concurrent audit #$($lowerMatches[0].Issue), which is not opened as an issue yet (the lower-numbered audit goes first)")
+            }
+        }
+    }
 
     $kind = $null
     $kindOptions = @()
     $draftFile = $null
     $primaryLine = $null
     if ($duplicateOfIssue) {
-        $primaryLine = if ($duplicateSource -eq 'manual override') { "- $primaryLabel`: duplicate of #$duplicateOfIssue (manual override)" } else { "- $primaryLabel`: duplicate of #$duplicateOfIssue" }
+        $primaryLine = if ($duplicateSource -eq 'manual override') { "- $primaryLabel`: duplicate of #$duplicateOfIssue (manual override)" } else { "- $primaryLabel`: duplicate of #$duplicateOfIssue$crossAuditNote" }
     }
     else {
         # Deterministic where the stage decides it; a code-stage finding is a bug, debt or documentation drift
@@ -713,7 +861,7 @@ foreach ($gi in $touchedGroupIndexes) {
             'docs' { $kind = 'docs'; $kindOptions = @('docs') }
             default { $kind = 'drafter-decides'; $kindOptions = @('bug', 'debt', 'docs') }
         }
-        $draftFile = Join-Path $outDir "$n-$($primary.Stage)-$($primary.Id)-$(New-Slug $primary.Text).md"
+        $draftFile = Join-Path $outDir "$fileKey-$($primary.Stage)-$($primary.Id)-$(New-Slug $primary.Text).md"
         $primaryLine = "- $primaryLabel`: draft $(Split-Path -Leaf $draftFile)"
     }
 
@@ -756,6 +904,13 @@ foreach ($gi in $touchedGroupIndexes) {
     }
 }
 
+# #2234: a finding that matches a concurrent audit's draft that is not an issue yet cannot be decided now: in a
+# sequential run that draft would already be an issue and the finding its duplicate. Stop before anything on disk
+# is touched; the orchestrator opens the other audit's remediation first (or records the verifier's ruling).
+if ($crossAuditBlocks.Count -gt 0) {
+    Stop-Remediation ("cross-audit duplicate check (#2234): " + ($crossAuditBlocks -join '; ') + ". Nothing was written. Open that audit's remediation issues first (open-remediation.ps1 -Issue <m>, after its verifier PASS) and run -Prepare again, which then records the duplicate; or, when audit-verifier ruled the finding is not a duplicate, run -Prepare again with -NotDuplicate '<stage> <n>'.")
+}
+
 # Untouched findings of an -Only run: their existing line, draft and input, verbatim (#1492 decision 3). When
 # several files match a finding's '<n>-<stage>-<id>-' prefix, the previous manifest's draftFile wins (never an
 # arbitrary first match); without one, the file named exactly as -Prepare would name it today; else the first
@@ -769,9 +924,9 @@ $findingEntries = foreach ($f in $allFindings) {
     $key = "$($f.Stage)|$($f.Id)"
     if ($entriesByKey.ContainsKey($key)) { $entriesByKey[$key]; continue }
     $group = $groups[$groupIndexByKey[$key]]
-    $candidates = @(Get-ChildItem -LiteralPath $outDir -Filter "$n-$($f.Stage)-$($f.Id)-*.md" -File -ErrorAction SilentlyContinue | Sort-Object Name)
+    $candidates = @(Get-ChildItem -LiteralPath $outDir -Filter "$fileKey-$($f.Stage)-$($f.Id)-*.md" -File -ErrorAction SilentlyContinue | Sort-Object Name)
     $previousDraft = $previousDraftByKey["$($f.Stage) $($f.Id)"]
-    $todayName = "$n-$($f.Stage)-$($f.Id)-$(New-Slug $f.Text).md"
+    $todayName = "$fileKey-$($f.Stage)-$($f.Id)-$(New-Slug $f.Text).md"
     $existingDraft = @($candidates | Where-Object { $previousDraft -and $_.FullName -ieq $previousDraft })
     if ($existingDraft.Count -eq 0) { $existingDraft = @($candidates | Where-Object { $_.Name -ieq $todayName }) }
     if ($existingDraft.Count -eq 0) { $existingDraft = @($candidates | Select-Object -First 1) }
@@ -807,6 +962,8 @@ $findingEntries = foreach ($f in $allFindings) {
 $manifest = [ordered]@{
     issue          = [int]$n
     worktree       = $wt
+    # #2234: the audits whose drafts the cross-audit duplicate check compared (audit-verifier repeats it).
+    concurrentAudits = @(@($audit.concurrent) | ForEach-Object { [int]$_ })
     dryRun         = [bool]$DryRun
     only           = if ($Only) { @($Only) } else { $null }
     outputDir      = $outDir
@@ -818,6 +975,8 @@ $manifest = [ordered]@{
     lessons        = @($lessons)
     keptLessons    = @($keptLessons)
     mergeOverrides = @($mergeIntoEntries.Keys | ForEach-Object { "$($_ -replace '\|', ' ')=$($mergeIntoEntries[$_] -replace '\|', ' ')" })
+    notDuplicateOverrides = @($notDuplicateKeys | ForEach-Object { $_ -replace '\|', ' ' })
+    noMergeOverrides      = @($noMergeKeys | Where-Object { -not $notDuplicateKeys.Contains($_) } | ForEach-Object { $_ -replace '\|', ' ' })
     routes         = $routes
     findings       = @($findingEntries)
 }
@@ -828,7 +987,7 @@ if ($onlyKeys) {
     foreach ($gi in $touchedGroupIndexes) {
         foreach ($member in $groups[$gi].Members) {
             # A literal separator right after the id, so "code 1" never matches "code 10"'s files (#1492).
-            foreach ($pattern in "$n-$($member.Stage)-$($member.Id)-*.md", "_input-$n-$($member.Stage)-$($member.Id).md") {
+            foreach ($pattern in "$fileKey-$($member.Stage)-$($member.Id)-*.md", "_input-$fileKey-$($member.Stage)-$($member.Id).md") {
                 foreach ($staleFile in (Get-ChildItem -LiteralPath $outDir -Filter $pattern -File -ErrorAction SilentlyContinue)) {
                     Remove-Item -LiteralPath $staleFile.FullName -Force
                     "audit-draft-remediation: removed previous output $($staleFile.Name)"
@@ -839,7 +998,7 @@ if ($onlyKeys) {
 }
 else {
     # The _brief-/_classify-/_classify-brief- files are the pre-#1572 local-model intermediates of this audit.
-    foreach ($pattern in "$n-*.md", "_input-$n-*.md", "_manifest-$n.json", "_brief-$n-*.md", "_classify-$n-*.md", "_classify-brief-$n-*.md") {
+    foreach ($pattern in "$fileKey-*.md", "_input-$fileKey-*.md", "_manifest-$fileKey.json", "_brief-$fileKey-*.md", "_classify-$fileKey-*.md", "_classify-brief-$fileKey-*.md") {
         foreach ($staleFile in (Get-ChildItem -LiteralPath $outDir -Filter $pattern -File -ErrorAction SilentlyContinue)) {
             Remove-Item -LiteralPath $staleFile.FullName -Force
             "audit-draft-remediation: removed previous output $($staleFile.Name)"
@@ -860,5 +1019,5 @@ foreach ($f in $allFindings) {
 Set-Content -LiteralPath $manifestPath -Encoding utf8 -Value ($manifest | ConvertTo-Json -Depth 8)
 
 $draftCount = @($manifest.findings | Where-Object { $_.regenerate -and $_.draftFile }).Count
-"audit-draft-remediation: -Prepare wrote $manifestPath for #$n ($($allFindings.Count) finding(s), $draftCount draft(s) to write$(if ($DryRun) { ', dry run' })). Next: spawn remediation-drafter (naming #$n and wia-$n), then run -Finalize$(if ($DryRun) { ' -DryRun' })."
+"audit-draft-remediation: -Prepare wrote $manifestPath for #$n ($($allFindings.Count) finding(s), $draftCount draft(s) to write$(if ($DryRun) { ', dry run' })). Next: spawn remediation-drafter (naming #$n and wia-$n), then run -Finalize -Issue $n$(if ($DryRun) { ' -DryRun' })."
 exit 0

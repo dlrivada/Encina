@@ -102,6 +102,7 @@ public class InboxStoreEFTests : IDisposable
         (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
+        _dbContext.ChangeTracker.Clear(); // the store writes through its own context
         var updated = await _dbContext.InboxMessages.FindAsync("process-test-id");
         updated!.Response.ShouldBe("{\"result\":\"success\"}");
         updated.ProcessedAtUtc.ShouldNotBeNull();
@@ -131,6 +132,7 @@ public class InboxStoreEFTests : IDisposable
         (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
+        _dbContext.ChangeTracker.Clear(); // the store writes through its own context
         var updated = await _dbContext.InboxMessages.FindAsync("fail-test-id");
         updated!.ErrorMessage.ShouldBe("Test error");
         updated.RetryCount.ShouldBe(1);

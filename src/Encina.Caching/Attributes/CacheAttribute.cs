@@ -15,7 +15,8 @@ namespace Encina.Caching;
 /// </para>
 /// <para>
 /// <b>Tenant and User Isolation</b>:
-/// Cache keys automatically include tenant ID. Set <see cref="VaryByUser"/> to include user ID.
+/// Cache keys automatically include tenant ID. Set <see cref="VaryByUser"/> to include user ID;
+/// such a request is cached only for an authenticated user and bypasses the cache otherwise.
 /// </para>
 /// <para>
 /// <b>Expiration</b>:
@@ -76,6 +77,9 @@ public sealed class CacheAttribute : Attribute
     /// <remarks>
     /// When <c>true</c>, each user gets their own cached copy.
     /// Use this for user-specific data like preferences or personalized content.
+    /// A request whose identity is not an authenticated <see cref="IdentityKind.User"/> (anonymous,
+    /// a service) is never cached: it bypasses the cache with no read and no write, so one caller's
+    /// response is never served to another.
     /// </remarks>
     /// <value>The default is <c>false</c> (shared cache across users).</value>
     public bool VaryByUser { get; init; }

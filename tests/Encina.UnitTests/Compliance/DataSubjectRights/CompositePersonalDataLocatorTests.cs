@@ -103,7 +103,7 @@ public class CompositePersonalDataLocatorTests
     }
 
     [Fact]
-    public async Task LocateAllDataAsync_PartialFailure_ReturnsSuccessfulResults()
+    public async Task LocateAllDataAsync_PartialFailure_FailsClosed()
     {
         var locator1 = CreateSuccessLocator(CreateLocation("Email"));
         var locator2 = CreateFailLocator("Database unavailable");
@@ -114,9 +114,8 @@ public class CompositePersonalDataLocatorTests
 
         var result = await sut.LocateAllDataAsync("subject-1");
 
-        result.IsRight.ShouldBeTrue();
-        var data = result.RightAsEnumerable().First();
-        data.Count.ShouldBe(1);
+        // Fail closed (#1698): a partial inventory would make the request look complete.
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]

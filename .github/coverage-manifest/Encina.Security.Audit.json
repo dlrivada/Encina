@@ -1,19 +1,25 @@
 {
   "package": "Encina.Security.Audit",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 38,
+  "totalFiles": 43,
   "targets": {
     "contract": 15,
     "guard": 20,
     "unit": 70
   },
   "files": {
-    "Abstractions/IAuditEntryFactory.cs": {
+    "Abstractions/IOperationAuditEntryFactory.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interfaces have no implementation to test",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "An interface has no executable lines; this change only alters the return type to Either<EncinaError, OperationAuditEntry>."
+      }
     },
-    "Abstractions/IAuditStore.cs": {
+    "Abstractions/IOperationAuditStore.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
       "reason": "Interfaces have no implementation to test"
@@ -24,7 +30,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "An interface has no executable lines; this change only edits its documentation.",
+        "guard": "An interface has no executable lines; this change only edits its documentation."
+      }
     },
     "Abstractions/IReadAuditContext.cs": {
       "defaultTests": [],
@@ -54,7 +68,17 @@
         "contract"
       ],
       "defaultRule": "*Repository.cs",
-      "reason": "Abstract/base repository"
+      "reason": "Abstract/base repository",
+      "targets": {
+        "unit": 100,
+        "guard": 15,
+        "contract": 30
+      },
+      "justifications": {
+        "unit": "Unit tests drive every decorated read method and the audit record it writes, using a fake read audit store.",
+        "guard": "Guard tests only assert argument checks; the remaining lines are driven by unit and integration tests.",
+        "contract": "Contract tests pin the public repository interface; the decorator's audit internals are driven by unit tests."
+      }
     },
     "AuditedRepository.cs": {
       "defaultTests": [
@@ -63,22 +87,46 @@
         "contract"
       ],
       "defaultRule": "*Repository.cs",
-      "reason": "Abstract/base repository"
+      "reason": "Abstract/base repository",
+      "targets": {
+        "unit": 100,
+        "guard": 10,
+        "contract": 25
+      },
+      "justifications": {
+        "unit": "Unit tests drive every decorated write method and the audit record it writes, using a fake audit store.",
+        "guard": "Guard tests only assert argument checks; the remaining lines are driven by unit and integration tests.",
+        "contract": "Contract tests pin the public repository interface; the decorator's audit internals are driven by unit tests."
+      }
     },
-    "AuditEntry.cs": {
+    "OperationAuditEntry.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 90
+      },
+      "justifications": {
+        "unit": "The entry record and its duration calculation are fully unit-tested.",
+        "guard": "Guard tests assert the required properties (measured 94%)."
+      }
     },
-    "AuditOptions.cs": {
+    "OperationAuditOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "The options defaults and helpers are fully unit-tested."
+      }
     },
     "AuditOutcome.cs": {
       "defaultTests": [
@@ -92,34 +140,116 @@
       "defaultTests": [
         "unit",
         "guard",
-        "contract"
+        "contract",
+        "integration"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 98,
+        "guard": 21,
+        "contract": 73,
+        "integration": 55
+      },
+      "justifications": {
+        "unit": "Unit tests drive every branch: ordering, both failure modes, handler Left, handler throw and cancellation, the child scope (measured 98%).",
+        "guard": "Guard tests cover the constructor null checks and the pass-through of a skipped request; the audit and failure paths are exercised by the other flags (measured 21.6%).",
+        "contract": "Contract tests run the non-auditable, auditable and skipped paths and the interface contract; the failure-mode branches are only reached by unit tests (measured 73.9%).",
+        "integration": "Integration tests run the awaited write on ADO SqlServer, EF Core SqlServer and MongoDB; failure branches need a failing store and are covered by unit tests (measured 55.9%)."
+      }
     },
-    "AuditQuery.cs": {
+    "OperationAuditErrors.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*Errors.cs",
+      "reason": "Static error factory",
+      "targets": {
+        "unit": 100,
+        "guard": 20,
+        "contract": 100
+      },
+      "justifications": {
+        "unit": "Unit tests build the error through the failing-store paths (measured 100%).",
+        "guard": "Guard tests cover the four null checks of MaskingFailed and WriteFailed (measured 20%).",
+        "contract": "Contract tests assert the error code and message contract (measured 100%)."
+      }
+    },
+    "OperationAuditFailureMode.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Enum without executable lines",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "An enum has no executable lines; its values are exercised through the behavior tests."
+      }
+    },
+    "OperationAuditMaskingStartupValidator.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal hosted startup validator",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests cover missing masker, NullPiiMasker, a real masker, the opt-out warning and every lifecycle hook (measured 100%).",
+        "guard": "The class is internal and the guard test project has no access to it; its constructor null checks are executed by the unit tests."
+      }
+    },
+    "OperationAuditQuery.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Query.cs",
-      "reason": "Query DTO"
+      "reason": "Query DTO",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests run every filter builder and paging helper.",
+        "guard": "The query DTO has no guarded parameters."
+      }
     },
-    "AuditRetentionService.cs": {
+    "OperationAuditRetentionService.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 80,
+        "guard": 10
+      },
+      "justifications": {
+        "unit": "Unit tests run the purge loop with a fake clock and a scoped store (measured 85%).",
+        "guard": "Guard tests assert only the constructor null checks (measured 14%)."
+      }
     },
-    "DefaultAuditEntryFactory.cs": {
+    "DefaultOperationAuditEntryFactory.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Factory with creation logic",
+      "targets": {
+        "unit": 100,
+        "guard": 90
+      },
+      "justifications": {
+        "unit": "Unit tests cover payload, metadata and identity steps, the masking failure and the fail-closed error (measured 100%).",
+        "guard": "Guard tests cover the argument validation (measured 90%)."
+      }
     },
     "DefaultSensitiveDataRedactor.cs": {
       "defaultTests": [
@@ -127,14 +257,28 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 98,
+        "guard": 87
+      },
+      "justifications": {
+        "unit": "Unit tests run the field matching, the JSON round trip and the fail-closed throws on unserializable and malformed input (measured 98%).",
+        "guard": "Guard tests assert the null checks of every public overload (measured 87%)."
+      }
     },
     "Diagnostics/ReadAuditActivitySource.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 50
+      },
+      "justifications": {
+        "unit": "Target 50% set for #2134; unit tests cover span creation and tags, and the rest is the no-listener fast path."
+      }
     },
     "Diagnostics/ReadAuditLog.cs": {
       "defaultTests": [
@@ -152,13 +296,37 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Health/AuditStoreHealthCheck.cs": {
+    "Diagnostics/OperationAuditMeter.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "The counter is created at type load and incremented by the masking-failure tests through a MeterListener (measured 100%).",
+        "guard": "The class has no parameters to guard."
+      }
+    },
+    "Health/OperationAuditStoreHealthCheck.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "unit": 95,
+        "guard": 25
+      },
+      "justifications": {
+        "unit": "Unit tests run the healthy and failing paths.",
+        "guard": "Guard tests assert only the constructor null checks (measured 26%)."
+      }
     },
     "Health/ReadAuditStoreHealthCheck.cs": {
       "defaultTests": [
@@ -168,20 +336,40 @@
       "defaultRule": "*HealthCheck.cs",
       "reason": "Health check with mockeable service dependencies"
     },
-    "InMemoryAuditStore.cs": {
+    "InMemoryOperationAuditStore.cs": {
       "defaultTests": [],
       "defaultRule": "*Store.cs",
-      "reason": "Interface — no implementation"
+      "reason": "In-memory implementation of IOperationAuditStore for development and tests",
+      "override": ["unit"],
+      "targets": {
+        "unit": 97
+      },
+      "justifications": {
+        "unit": "Pure in-memory logic: the unit tests run every method, the stable ordering and the pre-cancelled-token early returns (measured 98.81%)."
+      }
     },
     "InMemoryReadAuditStore.cs": {
       "defaultTests": [],
       "defaultRule": "*Store.cs",
-      "reason": "Interface — no implementation"
+      "reason": "In-memory implementation of IReadAuditStore for development and tests",
+      "override": ["unit"],
+      "targets": {
+        "unit": 99
+      },
+      "justifications": {
+        "unit": "Pure in-memory logic: the unit tests run every method, the stable ordering and the pre-cancelled-token early returns (measured 100%)."
+      }
     },
     "Log.cs": {
       "defaultTests": [],
       "defaultRule": "Log.cs",
-      "reason": "Source-generated [LoggerMessage] delegates, no logic"
+      "reason": "Source-generated [LoggerMessage] delegates, no logic",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "Source-generated [LoggerMessage] delegates, no logic; the new warning is asserted through the startup validator unit tests."
+      }
     },
     "Notifications/SensitiveDataAccessedNotification.cs": {
       "defaultTests": [
@@ -197,7 +385,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "Two pass-through lines, both executed (measured 100%).",
+        "guard": "The two pass-through lines are reached by the guard tests too (measured 100%)."
+      }
     },
     "PagedResult.cs": {
       "defaultTests": [
@@ -275,7 +471,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 85,
+        "guard": 10
+      },
+      "justifications": {
+        "unit": "The purge loop, scope per run, error and exception branches are all unit tested with a fake clock; the remaining lines are the cancellation catch race.",
+        "guard": "Guard tests can only exercise the constructor null checks (measured 12%); the purge loop is covered by the unit flag."
+      }
     },
     "RequestMetadataExtractor.cs": {
       "defaultTests": [
@@ -291,7 +495,28 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 92,
+        "guard": 82
+      },
+      "justifications": {
+        "unit": "Unit tests build the provider for both Add methods, the masker requirement and the opt-out (measured 93%).",
+        "guard": "Guard tests assert the null service collection checks (measured 82%)."
+      }
+    },
+    "OperationAuditStoreRegistration.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Static registration helper with pure logic; null guards are asserted by unit tests",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "Unit tests cover every branch of the in-memory default detection, including decorated and keyed registrations."
+      }
     }
   }
 }

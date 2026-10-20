@@ -63,7 +63,7 @@ public class MartenAuditErrorsGuardTests
     [Fact]
     public void ProjectionFailed_WithoutException_ReturnsError()
     {
-        var error = MartenAuditErrors.ProjectionFailed("AuditEntryProjection");
+        var error = MartenAuditErrors.ProjectionFailed("OperationAuditEntryProjection");
         error.Message.ShouldNotBeNullOrEmpty();
     }
 

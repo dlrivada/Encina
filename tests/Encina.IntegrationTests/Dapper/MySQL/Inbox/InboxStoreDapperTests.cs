@@ -19,6 +19,7 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
     private static readonly string[] s_oneMessageId = ["msg-1"];
 
     private readonly MySqlFixture _fixture;
+    private System.Data.IDbConnection _connection = null!;
     private InboxStoreDapper _store = null!;
 
     public InboxStoreDapperTests(MySqlFixture fixture)
@@ -29,10 +30,15 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         await _fixture.ClearAllDataAsync();
-        _store = new InboxStoreDapper(_fixture.CreateConnection());
+        _connection = _fixture.CreateConnection();
+        _store = new InboxStoreDapper(_connection);
     }
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync()
+    {
+        _connection?.Dispose();
+        return ValueTask.CompletedTask;
+    }
 
     #region AddAsync Tests
 
@@ -260,6 +266,54 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
         Assert.Null(result.ErrorMessage);
         Assert.NotNull(result.ProcessedAtUtc);
     }
+
+    #endregion
+
+    #region Pipeline inbox boundary (#2084, ADR-048)
+
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(3, true)]
+    [InlineData(3, false)]
+    public Task Pipeline_ThrowingHandler_PersistsRetryCountAndRunsMaxRetriesTimes(int maxRetries, bool transactional) =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertThrowingHandlerRunsMaxRetriesTimesAsync(
+            Harness(), maxRetries, transactional);
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public Task Pipeline_HandlerLeft_IsCachedEvenWhenTheTransactionRollsBack(bool transactional) =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertHandlerLeftIsCachedAfterRollbackAsync(
+            Harness(), transactional);
+
+    [Fact]
+    public Task Pipeline_SuccessfulHandler_IsCachedAndCommitted() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertSuccessIsCachedAsync(
+            Harness(), transactional: true);
+
+    [Fact]
+    public Task Pipeline_FailedBusinessCommit_LeavesMessageUnprocessed() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertFailedBusinessCommitLeavesMessageUnprocessedAsync(
+            Harness());
+
+    private global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.Harness Harness() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineHarnesses.DapperMySql(_fixture);
+
+    #endregion
+
+    #region Orchestrator retry contract (#2084)
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public Task Orchestrator_HandlerAlwaysThrows_RunsHandlerMaxRetriesTimesThenRejects(int maxRetries) =>
+        global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerRunsMaxRetriesTimesAsync(
+            _store, new InboxMessageFactory(), maxRetries);
+
+    [Fact]
+    public Task Orchestrator_HandlerLeft_IsCachedAndNotRerun() =>
+        global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerLeftIsCachedAsync(
+            _store, new InboxMessageFactory());
 
     #endregion
 

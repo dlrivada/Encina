@@ -361,7 +361,7 @@ public sealed class MessagingConfiguration
     /// <list type="bullet">
     /// <item><description>Automatic <c>CreatedAtUtc</c> and <c>CreatedBy</c> on entity creation</description></item>
     /// <item><description>Automatic <c>ModifiedAtUtc</c> and <c>ModifiedBy</c> on entity modification</description></item>
-    /// <item><description>User ID resolution from <see cref="IRequestContext.UserId"/></description></item>
+    /// <item><description>User ID resolution from <see cref="RequestIdentity.UserId"/></description></item>
     /// <item><description>Granular control via <see cref="AuditingOptions"/></description></item>
     /// </list>
     /// </para>
@@ -421,7 +421,7 @@ public sealed class MessagingConfiguration
     /// <list type="bullet">
     /// <item><description>Automatic conversion of delete to soft delete on <c>SaveChanges</c></description></item>
     /// <item><description>Automatic <c>DeletedAtUtc</c> timestamp population</description></item>
-    /// <item><description>Automatic <c>DeletedBy</c> user tracking from <see cref="IRequestContext.UserId"/></description></item>
+    /// <item><description>Automatic <c>DeletedBy</c> user tracking from <see cref="RequestIdentity.UserId"/></description></item>
     /// <item><description>Global query filters to exclude soft-deleted entities from queries</description></item>
     /// </list>
     /// </para>
@@ -456,17 +456,17 @@ public sealed class MessagingConfiguration
     public bool UseSoftDelete { get; set; }
 
     /// <summary>
-    /// Gets or sets whether to enable security audit trail storage.
+    /// Gets or sets whether to enable operation audit trail storage.
     /// </summary>
     /// <remarks>
     /// <para>
     /// When enabled, CQRS request/response operations are audited to the database
-    /// using the provider-specific <c>IAuditStore</c> implementation from
+    /// using the provider-specific <c>IOperationAuditStore</c> implementation from
     /// <c>Encina.Security.Audit</c>. This is separate from <see cref="UseAuditLogStore"/>
     /// which logs entity changes.
     /// </para>
     /// <para>
-    /// Security audit trail features:
+    /// Operation audit trail features:
     /// <list type="bullet">
     /// <item><description>Records command and query operations with outcomes</description></item>
     /// <item><description>Captures user, tenant, correlation, and timing information</description></item>
@@ -484,11 +484,11 @@ public sealed class MessagingConfiguration
     /// <code>
     /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
     /// {
-    ///     config.UseSecurityAuditStore = true;
+    ///     config.UseOperationAuditStore = true;
     /// });
     /// </code>
     /// </example>
-    public bool UseSecurityAuditStore { get; set; }
+    public bool UseOperationAuditStore { get; set; }
 
     /// <summary>
     /// Gets or sets whether to enable read audit trail storage.
@@ -497,7 +497,7 @@ public sealed class MessagingConfiguration
     /// <para>
     /// When enabled, read access operations on sensitive entities are audited to the
     /// database using the provider-specific <c>IReadAuditStore</c> implementation from
-    /// <c>Encina.Security.Audit</c>. This is separate from <see cref="UseSecurityAuditStore"/>
+    /// <c>Encina.Security.Audit</c>. This is separate from <see cref="UseOperationAuditStore"/>
     /// which audits CQRS request/response operations.
     /// </para>
     /// <para>
@@ -976,6 +976,35 @@ public sealed class MessagingConfiguration
     /// <summary>
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
-    public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseReadAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseAnonymization || UseRetention || UseDataResidency || UseCrossBorderTransfer || UseBreachNotification;
+    public bool IsAnyPatternEnabled => Array.IndexOf(PatternFlags(), true) >= 0;
+
+    private bool[] PatternFlags() =>
+    [
+        UseTransactions,
+        UseOutbox,
+        UseInbox,
+        UseSagas,
+        UseRoutingSlips,
+        UseScheduling,
+        UseRecoverability,
+        UseDeadLetterQueue,
+        UseContentRouter,
+        UseScatterGather,
+        UseTenancy,
+        UseModuleIsolation,
+        UseReadWriteSeparation,
+        UseDomainEvents,
+        UseAuditing,
+        UseAuditLogStore,
+        UseOperationAuditStore,
+        UseReadAuditStore,
+        UseSoftDelete,
+        UseTemporalTables,
+        UseQueryCache,
+        UseAnonymization,
+        UseRetention,
+        UseDataResidency,
+        UseCrossBorderTransfer,
+        UseBreachNotification
+    ];
 }

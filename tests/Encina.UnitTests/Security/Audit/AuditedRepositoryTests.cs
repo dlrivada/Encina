@@ -3,6 +3,8 @@
 using System.Linq.Expressions;
 using Encina.DomainModeling;
 using Encina.Security.Audit;
+using Encina.Testing.Identity;
+using Encina.UnitTests.OpenTelemetry;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -19,6 +21,7 @@ namespace Encina.UnitTests.Security.Audit;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Feature", "Audit")]
+[Collection("ActivityListenerIsolation")]
 public sealed class AuditedRepositoryTests
 {
     // ── Constructor guards ──────────────────────────────────────────────
@@ -549,11 +552,12 @@ public sealed class AuditedRepositoryTests
     // ── ShouldAudit sampling / exclusion logic ──────────────────────────
 
     [Fact]
-    public async Task ExcludeSystemAccess_NoUserId_DoesNotAudit()
+    public async Task ExcludeSystemAccess_AnonymousIdentity_StillAudits()
     {
+        // Only a declared service identity is system access: an anonymous read is audited (fail closed).
         var harness = new Harness(samplingRate: 1.0);
         harness.Options.ExcludeSystemAccess = true;
-        harness.RequestContext.UserId.Returns((string?)null);
+        harness.RequestContext.Identity.Returns(TestIdentity.Anonymous);
 
         harness.Inner.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(new List<AuditedTestEntity>().AsReadOnly());
@@ -561,7 +565,8 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         await sut.GetAllAsync();
 
-        harness.LoggedEntries.ShouldBeEmpty();
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].UserId.ShouldBeNull();
     }
 
     [Fact]
@@ -569,7 +574,7 @@ public sealed class AuditedRepositoryTests
     {
         var harness = new Harness(samplingRate: 1.0);
         harness.Options.ExcludeSystemAccess = true;
-        harness.RequestContext.UserId.Returns("user-42");
+        harness.RequestContext.Identity.Returns(TestIdentity.User("user-42"));
 
         harness.Inner.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(new List<AuditedTestEntity>().AsReadOnly());
@@ -579,6 +584,29 @@ public sealed class AuditedRepositoryTests
 
         harness.LoggedEntries.Count.ShouldBe(1);
         harness.LoggedEntries[0].UserId.ShouldBe("user-42");
+    }
+
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(false, 1)]
+    public async Task ExcludeSystemAccess_ADeclaredServiceScope_IsSystemAccess(bool excludeSystemAccess, int expectedEntries)
+    {
+        // The service identity comes from a declared test service opened with RunAsServiceAsync.
+        var host = new global::Encina.UnitTests.Core.Identity.ScopeTestHost();
+        var harness = new Harness(samplingRate: 1.0);
+        harness.Options.ExcludeSystemAccess = excludeSystemAccess;
+        harness.Inner.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<AuditedTestEntity>().AsReadOnly());
+
+        var outcome = await host.Factory.RunAsServiceAsync(global::Encina.UnitTests.Core.Identity.ScopeTestHost.Job, async (context, ct) =>
+        {
+            context.Identity.Kind.ShouldBe(IdentityKind.Service);
+            harness.RequestContext.Identity.Returns(context.Identity);
+            await harness.CreateRepository().GetAllAsync(ct);
+        });
+
+        outcome.IsRight.ShouldBeTrue();
+        harness.LoggedEntries.Count.ShouldBe(expectedEntries);
     }
 
     [Fact]
@@ -612,6 +640,23 @@ public sealed class AuditedRepositoryTests
 
         var items = await sut.GetAllAsync();
         items.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task AuditStoreThrows_ActivityStatusCarriesOnlyTheExceptionType()
+    {
+        using var capture = new ActivityStatusCapture();
+        var secret = "SECRET-" + Guid.NewGuid().ToString("N");
+        var harness = new Harness(samplingRate: 1.0);
+        harness.Store
+            .LogReadAsync(Arg.Any<ReadAuditEntry>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, Unit>>>(_ => throw new InvalidOperationException(secret));
+        harness.Inner.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<AuditedTestEntity> { new() { Id = Guid.NewGuid() } }.AsReadOnly());
+
+        await harness.CreateRepository().GetAllAsync();
+
+        capture.ShouldHaveErrorStatus(nameof(InvalidOperationException), secret);
     }
 
     // ── RequirePurpose branch ───────────────────────────────────────────
@@ -671,7 +716,7 @@ public sealed class AuditedRepositoryTests
 
         public Harness(double? samplingRate = null)
         {
-            RequestContext.UserId.Returns("test-user");
+            RequestContext.Identity.Returns(TestIdentity.User("test-user"));
             RequestContext.TenantId.Returns("tenant-1");
             RequestContext.CorrelationId.Returns("corr-id");
 

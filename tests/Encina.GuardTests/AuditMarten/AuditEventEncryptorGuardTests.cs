@@ -9,7 +9,7 @@ public class AuditEventEncryptorGuardTests
     private static readonly ITemporalKeyProvider KeyProvider = new InMemoryTemporalKeyProvider(
         TimeProvider.System, NullLogger<InMemoryTemporalKeyProvider>.Instance);
 
-    private static readonly MartenAuditOptions Options = new();
+    private static readonly MartenOperationAuditOptions Options = new();
 
     [Fact]
     public void Constructor_NullKeyProvider_Throws()

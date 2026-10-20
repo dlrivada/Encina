@@ -45,13 +45,15 @@ internal static class ShadowShardingServiceCollectionExtensions
         // Decorate IShardRouter with ShadowShardRouterDecorator
         DecorateShadowShardRouter(services, options);
 
-        // Register pipeline behaviors as open generics
+        // Register pipeline behaviors as open generics under IPipelineBehavior<,>, the only service
+        // type PipelineBuilder resolves. The ICommand<TResponse> / IQuery<TResponse> constraints on the
+        // behaviors make the container skip them for requests of the other kind.
         services.TryAddEnumerable(ServiceDescriptor.Scoped(
-            typeof(ICommandPipelineBehavior<,>),
+            typeof(IPipelineBehavior<,>),
             typeof(ShadowWritePipelineBehavior<,>)));
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped(
-            typeof(IQueryPipelineBehavior<,>),
+            typeof(IPipelineBehavior<,>),
             typeof(ShadowReadPipelineBehavior<,>)));
     }
 

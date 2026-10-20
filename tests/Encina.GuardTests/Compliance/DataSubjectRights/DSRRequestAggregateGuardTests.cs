@@ -83,26 +83,38 @@ public class DSRRequestAggregateGuardTests
     #region Deny Guard Tests
 
     [Fact]
-    public void Deny_NullRejectionReason_ThrowsArgumentException()
+    public void Deny_NullRejectionExplanation_ThrowsArgumentException()
     {
         var aggregate = DSRRequestAggregate.Submit(
             Guid.NewGuid(), "subject-1", DataSubjectRight.Access, Now);
 
-        var act = () => aggregate.Deny(null!, Now.AddHours(1));
+        var act = () => aggregate.Deny(DSRRejectionReason.Other, null!, Now.AddHours(1));
 
         var ex = Should.Throw<ArgumentException>(act);
-        ex.ParamName.ShouldBe("rejectionReason");
+        ex.ParamName.ShouldBe("rejectionExplanation");
     }
 
     [Fact]
-    public void Deny_EmptyRejectionReason_ThrowsArgumentException()
+    public void Deny_EmptyRejectionExplanation_ThrowsArgumentException()
     {
         var aggregate = DSRRequestAggregate.Submit(
             Guid.NewGuid(), "subject-1", DataSubjectRight.Access, Now);
 
-        var act = () => aggregate.Deny("", Now.AddHours(1));
+        var act = () => aggregate.Deny(DSRRejectionReason.Other, "", Now.AddHours(1));
 
         Should.Throw<ArgumentException>(act);
+    }
+
+    [Fact]
+    public void Deny_UndefinedRejectionReason_ThrowsArgumentOutOfRangeException()
+    {
+        var aggregate = DSRRequestAggregate.Submit(
+            Guid.NewGuid(), "subject-1", DataSubjectRight.Access, Now);
+
+        var act = () => aggregate.Deny((DSRRejectionReason)0, "explanation", Now.AddHours(1));
+
+        var ex = Should.Throw<ArgumentOutOfRangeException>(act);
+        ex.ParamName.ShouldBe("rejectionReason");
     }
 
     #endregion

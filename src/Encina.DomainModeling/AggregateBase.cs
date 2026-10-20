@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Encina.DomainModeling;
 
 /// <summary>
@@ -64,12 +66,18 @@ public abstract class AggregateBase : IAggregate
     private readonly List<object> _uncommittedEvents = [];
 
     /// <inheritdoc />
+    /// <remarks>
+    /// <c>[JsonInclude]</c> lets System.Text.Json restore the protected setter, so a serialized snapshot keeps its id.
+    /// </remarks>
+    [JsonInclude]
     public Guid Id { get; protected set; }
 
     /// <inheritdoc />
     public int Version { get; set; }
 
     /// <inheritdoc />
+    /// <remarks>Not serialized: uncommitted events belong to the unit of work, not to the aggregate's state.</remarks>
+    [JsonIgnore]
     public IReadOnlyList<object> UncommittedEvents => _uncommittedEvents.AsReadOnly();
 
     /// <inheritdoc />

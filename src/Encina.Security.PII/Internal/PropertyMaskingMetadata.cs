@@ -22,7 +22,7 @@ internal readonly record struct PropertyMaskingMetadata
         string? pattern,
         string? replacement,
         bool logOnly,
-        Action<object, object?> setter)
+        Action<object, object?>? setter)
     {
         Property = property;
         Type = type;
@@ -64,9 +64,10 @@ internal readonly record struct PropertyMaskingMetadata
     internal bool LogOnly { get; }
 
     /// <summary>
-    /// Compiled setter delegate for setting the property value without reflection overhead.
+    /// Compiled setter delegate for setting the property value without reflection overhead;
+    /// <c>null</c> when the property has no usable setter.
     /// </summary>
-    internal Action<object, object?> Setter { get; }
+    internal Action<object, object?>? Setter { get; }
 
     /// <summary>
     /// Gets the property value from the target instance.
@@ -76,5 +77,14 @@ internal readonly record struct PropertyMaskingMetadata
     /// <summary>
     /// Sets the property value on the target instance using the compiled setter.
     /// </summary>
-    internal void SetValue(object instance, object? value) => Setter(instance, value);
+    /// <exception cref="InvalidOperationException">The property has no usable setter.</exception>
+    internal void SetValue(object instance, object? value)
+    {
+        if (Setter is null)
+        {
+            throw new InvalidOperationException($"Property '{Property.Name}' has no usable setter.");
+        }
+
+        Setter(instance, value);
+    }
 }

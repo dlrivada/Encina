@@ -2,6 +2,7 @@ using Encina;
 using Encina.DomainModeling;
 using Encina.MongoDB.Repository;
 using Encina.TestInfrastructure.Fixtures;
+using Encina.Testing.Identity;
 using Encina.Testing.Time;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
@@ -39,7 +40,7 @@ public class AuditFieldPopulationMongoDBTests : IAsyncLifetime
         _fixture = fixture;
         _fakeTimeProvider = new FakeTimeProvider(FixedTime);
         _mockRequestContext = Substitute.For<IRequestContext>();
-        _mockRequestContext.UserId.Returns(TestUserId);
+        _mockRequestContext.Identity.Returns(TestIdentity.User(TestUserId));
     }
 
     public ValueTask InitializeAsync()
@@ -246,7 +247,7 @@ public class AuditFieldPopulationMongoDBTests : IAsyncLifetime
 
         // Update with different user
         var updateContext = Substitute.For<IRequestContext>();
-        updateContext.UserId.Returns("mongo-update-user");
+        updateContext.Identity.Returns(TestIdentity.User("mongo-update-user"));
         var updateRepository = new FunctionalRepositoryMongoDB<AuditableDocument, Guid>(
             _auditableCollection!,
             d => d.Id,

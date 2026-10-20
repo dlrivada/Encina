@@ -11,41 +11,53 @@ namespace Encina.RabbitMQ;
 /// <summary>
 /// RabbitMQ-based implementation of the message publisher.
 /// </summary>
-public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsyncDisposable
+/// <remarks>
+/// The publisher does not own the injected <see cref="IChannel"/>; the DI container owns
+/// and disposes it, so ending a scope that resolved the publisher leaves the channel usable.
+/// </remarks>
+public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher
 {
-    private readonly IConnection _connection;
     private readonly IChannel _channel;
     private readonly ILogger<RabbitMQMessagePublisher> _logger;
     private readonly EncinaRabbitMQOptions _options;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RabbitMQMessagePublisher"/> class.
     /// </summary>
-    /// <param name="connection">The RabbitMQ connection.</param>
-    /// <param name="channel">The RabbitMQ channel.</param>
+    /// <param name="channel">The shared RabbitMQ channel (owned by the DI container).</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
+    /// <param name="timeProvider">The time provider. If <c>null</c>, <see cref="TimeProvider.System"/> is used.</param>
     public RabbitMQMessagePublisher(
-        IConnection connection,
         IChannel channel,
         ILogger<RabbitMQMessagePublisher> logger,
-        IOptions<EncinaRabbitMQOptions> options)
+        IOptions<EncinaRabbitMQOptions> options,
+        TimeProvider? timeProvider = null)
     {
-        ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(channel);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
 
-        _connection = connection;
         _channel = channel;
         _logger = logger;
         _options = options.Value;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
+
+    private BasicProperties CreateProperties(string? messageId) => new()
+    {
+        ContentType = "application/json",
+        DeliveryMode = _options.Durable ? DeliveryModes.Persistent : DeliveryModes.Transient,
+        MessageId = string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId,
+        Timestamp = new AmqpTimestamp(_timeProvider.GetUtcNow().ToUnixTimeSeconds())
+    };
 
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
         TMessage message,
         string? routingKey = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -58,13 +70,7 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
             Log.PublishingMessage(_logger, typeof(TMessage).Name, _options.ExchangeName, effectiveRoutingKey);
 
             var body = JsonSerializer.SerializeToUtf8Bytes(message);
-            var properties = new BasicProperties
-            {
-                ContentType = "application/json",
-                DeliveryMode = _options.Durable ? DeliveryModes.Persistent : DeliveryModes.Transient,
-                MessageId = Guid.NewGuid().ToString(),
-                Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds())
-            };
+            var properties = CreateProperties(messageId);
 
             await _channel.BasicPublishAsync(
                 exchange: _options.ExchangeName,
@@ -94,6 +100,7 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
     public async ValueTask<Either<EncinaError, Unit>> SendToQueueAsync<TMessage>(
         string queueName,
         TMessage message,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -105,13 +112,7 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
             Log.SendingToQueue(_logger, typeof(TMessage).Name, queueName);
 
             var body = JsonSerializer.SerializeToUtf8Bytes(message);
-            var properties = new BasicProperties
-            {
-                ContentType = "application/json",
-                DeliveryMode = _options.Durable ? DeliveryModes.Persistent : DeliveryModes.Transient,
-                MessageId = Guid.NewGuid().ToString(),
-                Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds())
-            };
+            var properties = CreateProperties(messageId);
 
             await _channel.BasicPublishAsync(
                 exchange: string.Empty,
@@ -153,12 +154,5 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
             EncinaErrors.Create(
                 "RABBITMQ_RPC_NOT_IMPLEMENTED",
                 "RPC pattern is not yet implemented. Use MassTransit for request/reply patterns."));
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
-    {
-        await _channel.CloseAsync().ConfigureAwait(false);
-        await _connection.CloseAsync().ConfigureAwait(false);
     }
 }

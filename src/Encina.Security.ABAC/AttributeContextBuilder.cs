@@ -1,18 +1,24 @@
 namespace Encina.Security.ABAC;
 
 /// <summary>
-/// Builds a <see cref="PolicyEvaluationContext"/> from raw attribute dictionaries,
-/// wrapping values in <see cref="AttributeBag"/> instances for XACML bag function compatibility.
+/// Builds a <see cref="PolicyEvaluationContext"/> from raw attribute dictionaries, keeping one
+/// <see cref="AttributeBag"/> per attribute identifier for XACML designator selection.
 /// </summary>
 /// <remarks>
 /// <para>
 /// The builder converts the key-value attribute dictionaries returned by
-/// <see cref="IAttributeProvider"/> into the XACML-compatible <see cref="AttributeBag"/>
-/// structure expected by the <see cref="IPolicyDecisionPoint"/>.
+/// <see cref="IAttributeProvider"/> into the per-attribute <see cref="AttributeBag"/>
+/// dictionaries expected by the <see cref="IPolicyDecisionPoint"/>. Each dictionary key is the
+/// attribute identifier an <see cref="AttributeDesignator.AttributeId"/> names (#1983).
 /// </para>
 /// <para>
 /// Each attribute value is wrapped in an <see cref="AttributeValue"/> with an automatically
-/// inferred data type. Collections are expanded into multi-valued bags per XACML 3.0 §7.3.2.
+/// inferred data type and stored as a single-value bag under its key. A collection value is
+/// stored as one value; it is not expanded into a multi-valued bag.
+/// </para>
+/// <para>
+/// The action category holds one attribute, <c>"name"</c>, with the request type name: the
+/// same value the EEL variable <c>action.name</c> of <see cref="RequireConditionAttribute"/> reads.
 /// </para>
 /// </remarks>
 /// <example>
@@ -20,13 +26,21 @@ namespace Encina.Security.ABAC;
 /// var context = AttributeContextBuilder.Build(
 ///     subjectAttributes: new Dictionary&lt;string, object&gt; { ["department"] = "Finance" },
 ///     resourceAttributes: new Dictionary&lt;string, object&gt; { ["classification"] = "confidential" },
-///     environmentAttributes: new Dictionary&lt;string, object&gt; { ["currentTime"] = DateTime.UtcNow },
+///     environmentAttributes: new Dictionary&lt;string, object&gt; { ["currentTime"] = timeProvider.GetUtcNow() },
 ///     requestType: typeof(GetReportQuery),
 ///     includeAdvice: true);
+///
+/// // context.SubjectAttributes["department"] is a bag with the single string value "Finance".
 /// </code>
 /// </example>
 public static class AttributeContextBuilder
 {
+    /// <summary>
+    /// The attribute identifier of the action category that holds the request type name; the EEL
+    /// variable <c>action</c> of <see cref="Enforcement.ABACRequirementEvaluator"/> uses the same id.
+    /// </summary>
+    internal const string ActionNameAttributeId = "name";
+
     /// <summary>
     /// Builds a <see cref="PolicyEvaluationContext"/> from attribute dictionaries.
     /// </summary>
@@ -50,65 +64,63 @@ public static class AttributeContextBuilder
 
         return new PolicyEvaluationContext
         {
-            SubjectAttributes = ToBag(subjectAttributes),
-            ResourceAttributes = ToBag(resourceAttributes),
-            EnvironmentAttributes = ToBag(environmentAttributes),
-            ActionAttributes = CreateActionBag(requestType),
+            SubjectAttributes = ToAttributeBags(subjectAttributes),
+            ResourceAttributes = ToAttributeBags(resourceAttributes),
+            EnvironmentAttributes = ToAttributeBags(environmentAttributes),
+            ActionAttributes = CreateActionAttributes(requestType),
             RequestType = requestType,
             IncludeAdvice = includeAdvice
         };
     }
 
     /// <summary>
-    /// Converts an attribute dictionary to an <see cref="AttributeBag"/>.
+    /// Converts an attribute dictionary to one <see cref="AttributeBag"/> per attribute identifier.
     /// </summary>
-    /// <param name="attributes">The attribute key-value pairs to convert.</param>
-    /// <returns>An <see cref="AttributeBag"/> containing the converted values.</returns>
-    /// <remarks>
-    /// Each entry produces one <see cref="AttributeValue"/> with an inferred data type.
-    /// If the dictionary is empty, <see cref="AttributeBag.Empty"/> is returned.
-    /// </remarks>
-    public static AttributeBag ToBag(IReadOnlyDictionary<string, object> attributes)
+    /// <param name="attributes">The attribute key-value pairs to convert; each key is an attribute identifier.</param>
+    /// <returns>
+    /// A read-only dictionary with the same keys (compared ordinally), each mapped to a
+    /// single-value <see cref="AttributeBag"/> with the value and its inferred data type.
+    /// </returns>
+    public static IReadOnlyDictionary<string, AttributeBag> ToAttributeBags(IReadOnlyDictionary<string, object> attributes)
     {
         ArgumentNullException.ThrowIfNull(attributes);
 
-        if (attributes.Count == 0)
-        {
-            return AttributeBag.Empty;
-        }
+        var bags = new Dictionary<string, AttributeBag>(attributes.Count, StringComparer.Ordinal);
 
-        var values = new List<AttributeValue>(attributes.Count);
-
-        foreach (var kvp in attributes)
+        foreach (var (attributeId, value) in attributes)
         {
-            values.Add(new AttributeValue
+            bags[attributeId] = AttributeBag.Of(new AttributeValue
             {
-                DataType = InferDataType(kvp.Value),
-                Value = kvp.Value
+                DataType = InferDataType(value),
+                Value = value
             });
         }
 
-        return AttributeBag.FromValues(values);
+        return bags.AsReadOnly();
     }
 
     // ── Private Helpers ─────────────────────────────────────────────
 
-    private static AttributeBag CreateActionBag(Type requestType)
-    {
-        return AttributeBag.Of(new AttributeValue
+    private static System.Collections.ObjectModel.ReadOnlyDictionary<string, AttributeBag> CreateActionAttributes(Type requestType) =>
+        new Dictionary<string, AttributeBag>(StringComparer.Ordinal)
         {
-            DataType = XACMLDataTypes.String,
-            Value = requestType.Name
-        });
-    }
+            [ActionNameAttributeId] = AttributeBag.Of(new AttributeValue
+            {
+                DataType = XACMLDataTypes.String,
+                Value = requestType.Name
+            })
+        }.AsReadOnly();
 
+    // crap-exempt: single-question switch — maps a CLR value to its XACML data type identifier.
     private static string InferDataType(object? value) => value switch
     {
         string => XACMLDataTypes.String,
-        int or long => XACMLDataTypes.Integer,
+        sbyte or byte or short or ushort or int or uint or long or ulong => XACMLDataTypes.Integer,
         bool => XACMLDataTypes.Boolean,
         double or float or decimal => XACMLDataTypes.Double,
         DateTime or DateTimeOffset => XACMLDataTypes.DateTime,
+        DateOnly => XACMLDataTypes.Date,
+        TimeSpan => XACMLDataTypes.Time,
         Uri => XACMLDataTypes.AnyURI,
         _ => XACMLDataTypes.String
     };

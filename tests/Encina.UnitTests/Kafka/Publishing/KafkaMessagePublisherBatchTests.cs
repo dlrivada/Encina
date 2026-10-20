@@ -10,7 +10,7 @@ namespace Encina.UnitTests.Kafka.Publishing;
 /// Unit tests for the failure paths of <see cref="KafkaMessagePublisher.ProduceBatchAsync{TMessage}"/>:
 /// a message that fails to produce and a source sequence that fails while it is enumerated.
 /// </summary>
-public sealed class KafkaMessagePublisherBatchTests : IDisposable
+public sealed class KafkaMessagePublisherBatchTests
 {
     private const string SentinelMessage = "sentinel-secret-message";
 
@@ -25,8 +25,6 @@ public sealed class KafkaMessagePublisherBatchTests : IDisposable
             _logger,
             Options.Create(new EncinaKafkaOptions { DefaultEventTopic = "test-events" }));
     }
-
-    public void Dispose() => _publisher.Dispose();
 
     [Fact]
     public async Task ProduceBatchAsync_WhenTheSecondMessageFails_ReturnsThatErrorAndStopsProducing()
@@ -52,9 +50,9 @@ public sealed class KafkaMessagePublisherBatchTests : IDisposable
         // Act
         var result = await _publisher.ProduceBatchAsync(new[]
         {
-            (new Payload("a"), (string?)null),
-            (new Payload("b"), null),
-            (new Payload("c"), null)
+            (new Payload("a"), (string?)null, (string?)null),
+            (new Payload("b"), null, null),
+            (new Payload("c"), null, null)
         });
 
         // Assert
@@ -86,9 +84,9 @@ public sealed class KafkaMessagePublisherBatchTests : IDisposable
         entry.Message.ShouldNotContain(SentinelMessage);
     }
 
-    private static IEnumerable<(Payload Message, string? Key)> FailingSequence()
+    private static IEnumerable<(Payload Message, string? Key, string? MessageId)> FailingSequence()
     {
-        yield return (new Payload("a"), null);
+        yield return (new Payload("a"), null, null);
         throw new InvalidOperationException(SentinelMessage);
     }
 

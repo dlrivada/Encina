@@ -2,7 +2,7 @@
 name: pr-reviewer
 description: CodeRabbit-style review of a published pull request against AGENTS.md, CLAUDE.md, the path_instructions of .coderabbit.yaml and its linked issue's acceptance criteria. Fallback for when CodeRabbit is unavailable or rate-limited. Read-only on the repository except its own artifacts/pr-review/<pr>.md.
 model: sonnet
-effort: high
+effort: medium
 tools: Agent(Explore), PowerShell, Read, Grep, Glob, Write, Edit
 maxTurns: 60
 color: orange
@@ -65,9 +65,27 @@ decision, never bypassed (#1345; the #1346 worker bypassed `block-main-checkout-
    rules: §3 code rules (`TimeProvider`, `[JsonIgnore]` + `ToString()` override on secrets, async DB calls,
    registration completeness, errors never swallowed in background infrastructure, fail-closed gates,
    `EncinaError.Message` never logged, Railway Oriented Programming), §5 provider coherence, §6 cross-cutting
-   check, §7 EventIds, §9 testing obligations, as applicable to the files actually touched.
+   check, §7 EventIds, §9 testing obligations, as applicable to the files actually touched. The §9
+   per-file obligations (#1762) apply to every new file, and every file the PR touches, under `src/`: it has
+   per-flag `targets` with one-sentence `justifications` in its package manifest (a 0 only with a reason),
+   the targets are plausible (demanding, not a copy of the current number), and the PR reports measured
+   per-flag coverage that meets them (run `dotnet run --file .github/scripts/coverage-report.cs --
+   --check-justifications` and read the "Per-file targets" table the PR reports, or regenerate it from the per-flag runs); a missing, unjustified or
+   unmet target is a finding in section (b).
 3. Check every acceptance criterion of the linked issue against the diff: `met` (name the file/line
    evidence), `not met`, or `not verifiable` (state what evidence is missing).
+   **Decision register (#2470).** Find the register of the linked issue: the Design Choices of its plan
+   (`docs/plans/*-implementation-plan-<issue>.md`: each choice with `Class:`, `Settled by:`, `Verified:`), or the issue
+   comment headed "Decision register" (`gh issue view <N> --repo dlrivada/Encina --comments`). One of these two is the
+   mandatory source; the knowledge record the PR adds (`docs/knowledge/issues/<N>.md`) is only a copy of it and never
+   replaces it (it carries no `Class` or `Verified` fields). Compare the diff with it: a decision the code takes (a default value,
+   error semantics, a storage or retention choice, a public name, behaviour on missing context, a new dependency, an
+   ordering guarantee) that is not in the register is a finding "unregistered decision" (severity `major` when the
+   choice has a consequence for users or for another provider, otherwise `minor`). The fix is to add the entry to the
+   register and classify it the same way: Trivial (cited convention), Settled (the only option that complies, with a
+   verifiable citation) or Dilemma (two or more valid options, each better in a named scenario; only the maintainer
+   decides it). Also report a Settled or Trivial entry the diff contradicts. A linked issue with no register at all is a
+   finding of its own (the orchestrator should have run `decision-extractor`).
 4. Write the security section: secrets or personal data reaching logs, activity tags, health-check results
    or plaintext storage; injection; fail-open gates instead of fail-closed. Known failure patterns to check
    (project history, same list `adversarial-reviewer` carries, since the underlying rules are the same
@@ -88,7 +106,8 @@ decision, never bypassed (#1345; the #1346 worker bypassed `block-main-checkout-
 6. Write `artifacts/pr-review/<pr>.md` with exactly these five sections:
    - **(a) Summary and walkthrough** — a short description of what the diff does.
    - **(b) Findings** — one entry per finding: `file:line`, severity (`blocker`/`major`/`minor`/`nit`), a
-     suggested fix, and a verification note (how you checked it, or what would confirm it).
+     suggested fix, and a verification note (how you checked it, or what would confirm it). Per-file
+     obligation gaps (step 2) are findings here.
    - **(c) Linked-issue check** — each acceptance criterion of the linked issue, marked `met` / `not met` /
      `not verifiable`.
    - **(d) Security** — the section from step 4, even when empty ("nothing found" is a valid, stated result).

@@ -14,6 +14,11 @@ namespace Encina.Messaging.DeadLetter;
 /// <item><description>Cleaning up old messages</description></item>
 /// </list>
 /// </para>
+/// <para>
+/// Reads, replays and deletes default to the ambient <c>IRequestContext.TenantId</c> when one is present;
+/// set <see cref="DeadLetterFilter.AllTenants"/> on the filter to work across every tenant. Every store
+/// failure is returned as a <c>Left</c>; the stored replay outcome is a code, never error text.
+/// </para>
 /// </remarks>
 public interface IDeadLetterManager
 {
@@ -31,7 +36,10 @@ public interface IDeadLetterManager
     /// Replays all messages matching the specified filter.
     /// </summary>
     /// <param name="filter">Filter criteria for messages to replay.</param>
-    /// <param name="maxMessages">Maximum number of messages to replay. Default: 100.</param>
+    /// <param name="maxMessages">
+    /// Maximum number of messages to replay. Default: 100; values above
+    /// <see cref="DeadLetterStoreLimits.MaxPageSize"/> are capped to it. The caller's filter is not modified.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Right with batch replay result, or Left with error details.</returns>
     Task<Either<EncinaError, BatchReplayResult>> ReplayAllAsync(
@@ -94,7 +102,10 @@ public interface IDeadLetterManager
     /// <summary>
     /// Deletes all messages matching the filter.
     /// </summary>
-    /// <param name="filter">Filter criteria for messages to delete.</param>
+    /// <param name="filter">
+    /// Filter criteria for messages to delete. <see cref="DeadLetterFilter.All"/> deletes the whole queue
+    /// (of the ambient tenant, when there is one) in one statement, with no confirmation parameter.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The number of messages deleted, or an error.</returns>
     Task<Either<EncinaError, int>> DeleteAllAsync(

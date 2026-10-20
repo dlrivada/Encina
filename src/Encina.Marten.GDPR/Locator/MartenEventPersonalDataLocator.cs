@@ -1,8 +1,14 @@
-using System.Reflection;
+using System.Text.Json;
+
 using Encina.Compliance.DataSubjectRights;
 using Encina.Diagnostics;
+using Encina.Marten.GDPR.Diagnostics;
+
 using LanguageExt;
+
 using Marten;
+using Marten.Exceptions;
+
 using Microsoft.Extensions.Logging;
 
 using static LanguageExt.Prelude;
@@ -10,23 +16,26 @@ using static LanguageExt.Prelude;
 namespace Encina.Marten.GDPR;
 
 /// <summary>
-/// Locates personal data associated with a data subject across the Marten event store.
+/// Locates crypto-shredded personal data of a data subject across the Marten event store, at any depth of each
+/// event.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Implements <see cref="IPersonalDataLocator"/> by scanning the Marten event store for events
-/// containing properties decorated with both <c>[CryptoShredded]</c> and <c>[PersonalData]</c>.
-/// For each matching field, a <see cref="PersonalDataLocation"/> is returned with the field's
-/// metadata and current value.
+/// The locator reads every raw event of the store while a subject filter is active, so only the requested
+/// subject's fields are decrypted and no key of another subject is fetched: an unreadable event of another
+/// subject never blocks this subject's request. It then walks each event over its System.Text.Json contract and
+/// returns one <see cref="PersonalDataLocation"/> per non-null field whose own subject-id sibling equals the
+/// requested subject.
 /// </para>
 /// <para>
-/// This locator queries all raw events from the store and filters in-memory by subject ID.
-/// This is acceptable because GDPR data subject rights operations (access, erasure, portability)
-/// are rare administrative operations, not hot-path queries.
+/// <see cref="PersonalDataLocation.FieldName"/> is the field path: the bare property name at the top level,
+/// <c>Contact.Email</c> for a nested object, <c>Items[].Note</c> for collection elements and <c>Notes{}.Text</c> for
+/// dictionary values. A path never contains an index or a dictionary key.
 /// </para>
 /// <para>
-/// Uses the static <c>CryptoShreddedPropertyCache</c> for efficient property discovery without
-/// per-event reflection overhead.
+/// Fails closed: a store whose serializer is not the crypto-shredding serializer returns
+/// <c>crypto.serializer_unsupported</c>, and a failed read of the requested subject's data returns
+/// <c>crypto.key_store_error</c> instead of a partial inventory.
 /// </para>
 /// </remarks>
 public sealed class MartenEventPersonalDataLocator : IPersonalDataLocator
@@ -57,101 +66,105 @@ public sealed class MartenEventPersonalDataLocator : IPersonalDataLocator
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
 
+        // The data subject's own identifier is never logged (#1429, following #1314).
+        _logger.PersonalDataLocateStarted();
+
+        var storeSerializer = _session.DocumentStore.Options.Serializer();
+        if (storeSerializer is not CryptoShredderSerializer serializer)
+        {
+            return CryptoShreddingErrors.SerializerUnsupported(storeSerializer.GetType());
+        }
+
         try
         {
-            // The data subject's own identifier is never logged (#1429, following #1314).
-            _logger.LogDebug("Locating personal data in Marten event store");
-
-            // Query all raw events from the store
-            var allEvents = await _session.Events
-                .QueryAllRawEvents()
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            var locations = new List<PersonalDataLocation>();
-
-            foreach (var eventData in allEvents)
-            {
-                if (eventData.Data is { } eventBody)
-                {
-                    locations.AddRange(LocateFieldsInEvent(eventBody, subjectId));
-                }
-            }
-
-            _logger.LogDebug("Located {Count} personal data fields", locations.Count);
-
+            var locations = await LocateAsync(serializer, subjectId, cancellationToken).ConfigureAwait(false);
+            _logger.PersonalDataLocateCompleted(locations.Count);
             return Right<EncinaError, IReadOnlyList<PersonalDataLocation>>(locations);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // The data subject's own identifier is never logged (#1429, following #1314).
-            _logger.LogError(ex.ForLogging(), "Failed to locate personal data");
-
-            return Left<EncinaError, IReadOnlyList<PersonalDataLocation>>(
-                CryptoShreddingErrors.KeyStoreError("LocateAllData", ex));
+            _logger.PersonalDataLocateFailed(ex.ForLogging(), FailingEventSequence(ex));
+            return CryptoShreddingErrors.KeyStoreError("LocateAllData", ex);
         }
     }
 
-    /// <summary>
-    /// Finds every crypto-shredded field on one event body that belongs to the given subject.
-    /// </summary>
-    /// <remarks>
-    /// Internal (rather than private) and static so it can be unit-tested directly against plain
-    /// CLR objects, without mocking Marten's query pipeline — this is where the leak fixed by
-    /// #1429 lived (<c>EntityId</c> below is the subject id itself for this locator).
-    /// </remarks>
-    internal static IEnumerable<PersonalDataLocation> LocateFieldsInEvent(object eventBody, string subjectId)
+    private async Task<List<PersonalDataLocation>> LocateAsync(
+        CryptoShredderSerializer serializer, string subjectId, CancellationToken cancellationToken)
     {
-        var eventType = eventBody.GetType();
-        var fields = CryptoShreddedPropertyCache.GetFields(eventType);
+        using var filter = CryptoShreddingCallScope.FilterToSubject(subjectId);
+        var events = await _session.Events.QueryAllRawEvents().ToListAsync(cancellationToken).ConfigureAwait(false);
 
-        foreach (var field in fields)
+        var locations = new List<PersonalDataLocation>();
+        foreach (var @event in events)
         {
-            if (TryBuildLocation(eventBody, eventType, field, subjectId, out var location))
+            if (@event.Data is { } body)
             {
-                yield return location;
+                locations.AddRange(LocateFieldsInEvent(body, subjectId, serializer.WalkOptions!, serializer.Registry));
+            }
+        }
+
+        return locations;
+    }
+
+    /// <summary>
+    /// Finds every crypto-shredded field of one event body, at any depth, that belongs to the given subject, and
+    /// records each location for the erasure router.
+    /// </summary>
+    internal static IEnumerable<PersonalDataLocation> LocateFieldsInEvent(
+        object eventBody, string subjectId, JsonSerializerOptions options, CryptoShreddingTypePlanRegistry registry)
+    {
+        foreach (var occurrence in CryptoShreddedGraphWalker.Walk(eventBody, options, registry))
+        {
+            if (BelongsTo(occurrence, subjectId) && occurrence.Field.Getter(occurrence.Owner) is { } value)
+            {
+                yield return BuildLocation(eventBody.GetType(), subjectId, occurrence, value);
             }
         }
     }
 
-    /// <summary>
-    /// Builds a <see cref="PersonalDataLocation"/> for one field when it belongs to the given
-    /// subject and carries a resolvable <see cref="PersonalDataAttribute"/>.
-    /// </summary>
-    internal static bool TryBuildLocation(
-        object eventBody,
-        Type eventType,
-        CryptoShreddedFieldInfo field,
-        string subjectId,
-        out PersonalDataLocation location)
+    private static bool BelongsTo(CryptoShreddedOccurrence occurrence, string subjectId)
     {
-        location = null!;
-
-        // Read the subject ID from the event's subject ID property (string, Guid, integer or strongly-typed id)
-        var eventSubjectId = field.ResolveSubjectId(eventBody);
-        if (!string.Equals(eventSubjectId, subjectId, StringComparison.Ordinal))
+        try
+        {
+            return string.Equals(occurrence.Field.ResolveSubjectId(occurrence.Owner), subjectId, StringComparison.Ordinal);
+        }
+        catch (InvalidOperationException)
         {
             return false;
         }
+    }
 
-        // Get the PersonalData attribute for category and flags
-        var personalDataAttr = field.Property.GetCustomAttribute<PersonalDataAttribute>();
-        if (personalDataAttr is null)
-        {
-            return false;
-        }
-
-        location = new PersonalDataLocation
+    private static PersonalDataLocation BuildLocation(Type eventType, string subjectId, CryptoShreddedOccurrence occurrence, object value)
+    {
+        var personalData = occurrence.Field.PersonalData;
+        var location = new PersonalDataLocation
         {
             EntityType = eventType,
             EntityId = subjectId,
-            FieldName = field.Property.Name,
-            Category = personalDataAttr.Category,
-            IsErasable = personalDataAttr.Erasable,
-            IsPortable = personalDataAttr.Portable,
-            HasLegalRetention = personalDataAttr.LegalRetention,
-            CurrentValue = field.GetValue(eventBody)
+            FieldName = occurrence.Path,
+            Category = personalData.Category,
+            IsErasable = personalData.Erasable,
+            IsPortable = personalData.Portable,
+            HasLegalRetention = personalData.LegalRetention,
+            CurrentValue = value
         };
-        return true;
+
+        CryptoShredRoutingErasureStrategy.MarkMartenLocation(location);
+        return location;
+    }
+
+    // Marten wraps a failed event read with its sequence number, which identifies the event without a stream id
+    // (an application may key streams by subject).
+    private static long? FailingEventSequence(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is EventDeserializationFailureException failure)
+            {
+                return failure.Sequence;
+            }
+        }
+
+        return null;
     }
 }

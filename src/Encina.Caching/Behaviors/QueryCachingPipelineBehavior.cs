@@ -24,6 +24,23 @@ namespace Encina.Caching;
 /// <para>
 /// Only successful responses (Right side of Either) are cached. Error responses are not cached.
 /// </para>
+/// <para>
+/// A request marked <see cref="CacheAttribute.VaryByUser"/> is cached only for an authenticated
+/// <see cref="IdentityKind.User"/>. Any other identity (anonymous, a service) bypasses the cache with
+/// no read and no write, and logs a Debug message (EventId 3512) with the identity kind only.
+/// </para>
+/// <para>
+/// The identity is read once per request and the key is built from that snapshot. Because an
+/// identity reads as anonymous once its scope ends, a <c>VaryByUser</c> entry is read, served or
+/// written only while the context still reports that same identity; a request whose scope ended
+/// meanwhile runs its handler without the cache, so no response is ever shared across callers.
+/// </para>
+/// <para>
+/// When multi-tenancy is enabled (the <see cref="MultiTenancyMarker"/> is registered) and the request
+/// context carries no tenant, a request that varies by tenant (the default) bypasses the cache with no
+/// read and no write, and logs a Debug message (EventId 3513) with the request type only. Without
+/// multi-tenancy the behavior is unchanged.
+/// </para>
 /// </remarks>
 public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
@@ -33,6 +50,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
     private readonly CachingOptions _options;
     private readonly ILogger<QueryCachingPipelineBehavior<TRequest, TResponse>> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly bool _multiTenant;
     private static readonly CacheAttribute? CacheAttribute = typeof(TRequest).GetCustomAttribute<CacheAttribute>();
 
     /// <summary>
@@ -43,12 +61,17 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
     /// <param name="options">The caching options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="timeProvider">The time provider for testing.</param>
+    /// <param name="multiTenancy">
+    /// The multi-tenancy marker (registered by <c>AddEncinaTenancy</c>); when present, a request that varies
+    /// by tenant and carries no tenant bypasses the cache.
+    /// </param>
     public QueryCachingPipelineBehavior(
         ICacheProvider cacheProvider,
         ICacheKeyGenerator keyGenerator,
         IOptions<CachingOptions> options,
         ILogger<QueryCachingPipelineBehavior<TRequest, TResponse>> logger,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        MultiTenancyMarker? multiTenancy = null)
     {
         ArgumentNullException.ThrowIfNull(cacheProvider);
         ArgumentNullException.ThrowIfNull(keyGenerator);
@@ -60,6 +83,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         _options = options.Value;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _multiTenant = multiTenancy is not null;
     }
 
     /// <inheritdoc/>
@@ -73,37 +97,113 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(nextStep);
 
-        // Check if caching is enabled and request has [Cache] attribute
-        if (!_options.EnableQueryCaching || CacheAttribute is null)
+        // The identity is read once: it reads Anonymous as soon as its scope ends (#1892), so the
+        // bypass decision and the key are taken from this snapshot, never from a second read.
+        var identity = context.Identity;
+        if (!ShouldUseCache(context, identity))
         {
             return await nextStep().ConfigureAwait(false);
         }
 
-        var cacheKey = _keyGenerator.GenerateKey<TRequest, TResponse>(request, context);
+        var cacheKey = _keyGenerator.GenerateKey<TRequest, TResponse>(request, KeyContext(context, identity));
 
-        var (found, cachedValue) = await TryGetFromCacheAsync(cacheKey, context.CorrelationId, cancellationToken)
-            .ConfigureAwait(false);
+        // Log sites receive the key with its tenant and user segments redacted, never the real key.
+        var logKey = CacheKeyRedactor.Redact(cacheKey, context.TenantId, identity?.UserId);
 
+        var (found, cachedValue) = await TryGetForCallerAsync(cacheKey, logKey, context, identity, cancellationToken).ConfigureAwait(false);
         if (found)
         {
             return cachedValue!;
         }
 
-        // Execute handler
         var result = await nextStep().ConfigureAwait(false);
 
-        // Cache successful responses only
-        if (result.IsRight)
+        // Cache successful responses only, and never a response produced after the user's scope ended.
+        if (result.IsRight && IsSameCaller(context, identity))
         {
-            await TryCacheResultAsync(result, cacheKey, context.CorrelationId, cancellationToken)
+            await TryCacheResultAsync(result, cacheKey, logKey, context.CorrelationId, cancellationToken)
                 .ConfigureAwait(false);
         }
 
         return result;
     }
 
+    // Caching is enabled, the request has [Cache], and a per-user entry has a user: any other
+    // identity bypasses the cache (no read, no write).
+    private bool ShouldUseCache(IRequestContext context, RequestIdentity? identity)
+    {
+        return _options.EnableQueryCaching
+            && CacheAttribute is not null
+            && TenantAllowsCache(context)
+            && UserAllowsCache(identity);
+    }
+
+    // Fail closed for the cache, not the query: with multi-tenancy on, a tenant-scoped entry
+    // without a tenant would be the tenant-less key shared by every tenant's callers.
+    private bool TenantAllowsCache(IRequestContext context)
+    {
+        if (!CacheAttribute!.VaryByTenant || !_multiTenant || !string.IsNullOrWhiteSpace(context.TenantId))
+        {
+            return true;
+        }
+
+        LogTenantMissingBypassed(_logger, typeof(TRequest).Name);
+        return false;
+    }
+
+    private bool UserAllowsCache(RequestIdentity? identity)
+    {
+        if (!CacheAttribute!.VaryByUser || CacheUserIdentity.IsUser(identity))
+        {
+            return true;
+        }
+
+        LogVaryByUserBypassed(_logger, typeof(TRequest).Name, identity?.Kind ?? IdentityKind.Anonymous);
+        return false;
+    }
+
+    // Reads the entry only while the caller is still the identity the key was built from, and does
+    // not serve a hit read after the scope ended: the caller is no longer that user.
+    private async ValueTask<(bool Found, TResponse? Value)> TryGetForCallerAsync(
+        string cacheKey,
+        string logKey,
+        IRequestContext context,
+        RequestIdentity? identity,
+        CancellationToken cancellationToken)
+    {
+        if (!IsSameCaller(context, identity))
+        {
+            return (false, default);
+        }
+
+        var cached = await TryGetFromCacheAsync(cacheKey, logKey, context.CorrelationId, cancellationToken).ConfigureAwait(false);
+        if (!cached.Found || !IsSameCaller(context, identity))
+        {
+            return (false, default);
+        }
+
+        // Only a hit that is served is logged and extends a sliding entry.
+        LogCacheHit(_logger, typeof(TRequest).Name, logKey, context.CorrelationId);
+        if (CacheAttribute!.SlidingExpiration)
+        {
+            _ = _cacheProvider.RefreshAsync(cacheKey, cancellationToken);
+        }
+
+        return cached;
+    }
+
+    // A VaryByUser key is built from the pinned snapshot, so a custom generator reads the same identity.
+    private static IRequestContext KeyContext(IRequestContext context, RequestIdentity? identity) =>
+        CacheAttribute!.VaryByUser ? new IdentityPinnedRequestContext(context, identity!) : context;
+
+    // A VaryByUser entry is read or written only while the live context still reports the very
+    // identity the key was built from (the same instance: an ended scope reads Anonymous).
+    private static bool IsSameCaller(IRequestContext context, RequestIdentity? identity) =>
+        !CacheAttribute!.VaryByUser || ReferenceEquals(context.Identity, identity);
+
     private async ValueTask<(bool Found, TResponse? Value)> TryGetFromCacheAsync(
         string cacheKey,
+        string logKey,
         string correlationId,
         CancellationToken cancellationToken)
     {
@@ -114,22 +214,15 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
 
             if (cached is null)
             {
-                LogCacheMiss(_logger, typeof(TRequest).Name, cacheKey, correlationId);
+                LogCacheMiss(_logger, typeof(TRequest).Name, logKey, correlationId);
                 return (false, default);
-            }
-
-            LogCacheHit(_logger, typeof(TRequest).Name, cacheKey, correlationId);
-
-            if (CacheAttribute!.SlidingExpiration)
-            {
-                _ = _cacheProvider.RefreshAsync(cacheKey, cancellationToken);
             }
 
             return (true, cached.Value);
         }
         catch (Exception ex)
         {
-            LogCacheError(_logger, typeof(TRequest).Name, cacheKey, ex.ForLogging());
+            LogCacheError(_logger, typeof(TRequest).Name, logKey, ex.ForLogging());
 
             if (_options.ThrowOnCacheErrors)
             {
@@ -143,6 +236,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
     private async Task TryCacheResultAsync(
         Either<EncinaError, TResponse> result,
         string cacheKey,
+        string logKey,
         string correlationId,
         CancellationToken cancellationToken)
     {
@@ -156,11 +250,11 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
 
             await StoreCacheEntryAsync(entry, cacheKey, cancellationToken).ConfigureAwait(false);
 
-            LogCacheSet(_logger, typeof(TRequest).Name, cacheKey, CacheAttribute!.DurationSeconds, correlationId);
+            LogCacheSet(_logger, typeof(TRequest).Name, logKey, CacheAttribute!.DurationSeconds, correlationId);
         }
         catch (Exception ex)
         {
-            LogCacheError(_logger, typeof(TRequest).Name, cacheKey, ex.ForLogging());
+            LogCacheError(_logger, typeof(TRequest).Name, logKey, ex.ForLogging());
 
             if (_options.ThrowOnCacheErrors)
             {
@@ -233,6 +327,23 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         string requestType,
         string cacheKey,
         Exception exception);
+
+    [LoggerMessage(
+        EventId = 3512,
+        Level = LogLevel.Debug,
+        Message = "{RequestType} varies by user but the request identity is {IdentityKind}, not an authenticated user; the cache is bypassed (no read, no write)")]
+    private static partial void LogVaryByUserBypassed(
+        ILogger logger,
+        string requestType,
+        IdentityKind identityKind);
+
+    [LoggerMessage(
+        EventId = 3513,
+        Level = LogLevel.Debug,
+        Message = "{RequestType} varies by tenant but multi-tenancy is enabled and the request context has no tenant; the cache is bypassed (no read, no write)")]
+    private static partial void LogTenantMissingBypassed(
+        ILogger logger,
+        string requestType);
 }
 
 /// <summary>

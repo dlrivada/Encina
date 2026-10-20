@@ -11,7 +11,12 @@ namespace Encina.Kafka;
 /// <summary>
 /// Kafka-based implementation of the message publisher.
 /// </summary>
-public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
+/// <remarks>
+/// The publisher does not own the injected producer; the DI container owns and disposes it, so
+/// ending a scope that resolved the publisher neither flushes nor disposes the shared producer.
+/// Every publish awaits its delivery report, so no message is pending when the scope ends.
+/// </remarks>
+public sealed class KafkaMessagePublisher : IKafkaMessagePublisher
 {
     private readonly IProducer<string, byte[]> _producer;
     private readonly ILogger<KafkaMessagePublisher> _logger;
@@ -37,11 +42,17 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
         _options = options.Value;
     }
 
+    private const string MessageIdHeader = "MessageId";
+
+    private static string ResolveMessageId(string? messageId) =>
+        string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId;
+
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, KafkaDeliveryResult>> ProduceAsync<TMessage>(
         TMessage message,
         string? topic = null,
         string? key = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -59,7 +70,8 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
                 Value = JsonSerializer.SerializeToUtf8Bytes(message),
                 Headers = new Headers
                 {
-                    { "MessageType", System.Text.Encoding.UTF8.GetBytes(typeof(TMessage).FullName ?? typeof(TMessage).Name) }
+                    { "MessageType", System.Text.Encoding.UTF8.GetBytes(typeof(TMessage).FullName ?? typeof(TMessage).Name) },
+                    { MessageIdHeader, System.Text.Encoding.UTF8.GetBytes(ResolveMessageId(messageId)) }
                 }
             };
 
@@ -95,7 +107,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
 
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, IReadOnlyList<KafkaDeliveryResult>>> ProduceBatchAsync<TMessage>(
-        IEnumerable<(TMessage Message, string? Key)> messages,
+        IEnumerable<(TMessage Message, string? Key, string? MessageId)> messages,
         string? topic = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
@@ -107,9 +119,9 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
 
         try
         {
-            foreach (var (message, key) in messages)
+            foreach (var (message, key, messageId) in messages)
             {
-                var result = await ProduceAsync(message, effectiveTopic, key, cancellationToken).ConfigureAwait(false);
+                var result = await ProduceAsync(message, effectiveTopic, key, messageId, cancellationToken).ConfigureAwait(false);
 
                 var failure = CollectOrFail(result, results);
                 if (failure is not null)
@@ -150,6 +162,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
         IDictionary<string, byte[]> headers,
         string? topic = null,
         string? key = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -168,7 +181,10 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
                 kafkaHeaders.Add(header.Key, header.Value);
             }
 
+            kafkaHeaders.Remove("MessageType");
             kafkaHeaders.Add("MessageType", System.Text.Encoding.UTF8.GetBytes(typeof(TMessage).FullName ?? typeof(TMessage).Name));
+            kafkaHeaders.Remove(MessageIdHeader);
+            kafkaHeaders.Add(MessageIdHeader, System.Text.Encoding.UTF8.GetBytes(ResolveMessageId(messageId)));
 
             var kafkaMessage = new Message<string, byte[]>
             {
@@ -199,12 +215,5 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
                     ex,
                     $"Failed to produce message of type {typeof(TMessage).Name} with headers."));
         }
-    }
-
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _producer.Flush(TimeSpan.FromSeconds(10));
-        _producer.Dispose();
     }
 }

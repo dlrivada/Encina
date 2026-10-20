@@ -55,7 +55,7 @@ public sealed partial class RedisPubSubProvider : IPubSubProvider
         cancellationToken.ThrowIfCancellationRequested();
 
         await Subscriber.PublishAsync(RedisChannel.Literal(channel), message).ConfigureAwait(false);
-        LogPublish(_logger, channel, message);
+        LogPublish(_logger, channel);
     }
 
     /// <inheritdoc/>
@@ -135,7 +135,7 @@ public sealed partial class RedisPubSubProvider : IPubSubProvider
             }
         }).ConfigureAwait(false);
 
-        LogSubscribePattern(_logger, pattern);
+        LogSubscribePattern(_logger, CacheKeyRedactor.Redact(pattern));
 
         return new PatternSubscription(Subscriber, redisPattern);
     }
@@ -157,7 +157,7 @@ public sealed partial class RedisPubSubProvider : IPubSubProvider
         cancellationToken.ThrowIfCancellationRequested();
 
         await Subscriber.UnsubscribeAsync(RedisChannel.Pattern(pattern)).ConfigureAwait(false);
-        LogUnsubscribePattern(_logger, pattern);
+        LogUnsubscribePattern(_logger, CacheKeyRedactor.Redact(pattern));
     }
 
     /// <inheritdoc/>
@@ -177,8 +177,8 @@ public sealed partial class RedisPubSubProvider : IPubSubProvider
     [LoggerMessage(
         EventId = 3610,
         Level = LogLevel.Debug,
-        Message = "Publishing to channel {Channel}: {Message}")]
-    private static partial void LogPublish(ILogger logger, string channel, string message);
+        Message = "Publishing to channel {Channel}")]
+    private static partial void LogPublish(ILogger logger, string channel);
 
     [LoggerMessage(
         EventId = 3611,

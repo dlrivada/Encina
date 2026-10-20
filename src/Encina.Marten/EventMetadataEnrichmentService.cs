@@ -97,35 +97,11 @@ internal sealed partial class EventMetadataEnrichmentService
         IRequestContext context,
         IReadOnlyCollection<object> events)
     {
-        // User ID
-        if (_options.CaptureUserId && !string.IsNullOrWhiteSpace(context.UserId))
-        {
-            session.SetHeader("UserId", context.UserId);
-        }
-
-        // Tenant ID
-        if (_options.CaptureTenantId && !string.IsNullOrWhiteSpace(context.TenantId))
-        {
-            session.SetHeader("TenantId", context.TenantId);
-        }
-
-        // Timestamp
-        if (_options.CaptureTimestamp)
-        {
-            session.SetHeader("Timestamp", context.Timestamp.ToString("O"));
-        }
-
-        // Commit SHA
-        if (_options.CaptureCommitSha && !string.IsNullOrWhiteSpace(_options.CommitSha))
-        {
-            session.SetHeader("CommitSha", _options.CommitSha);
-        }
-
-        // Semantic Version
-        if (_options.CaptureSemanticVersion && !string.IsNullOrWhiteSpace(_options.SemanticVersion))
-        {
-            session.SetHeader("SemanticVersion", _options.SemanticVersion);
-        }
+        SetHeaderWhen(session, "UserId", _options.CaptureUserId, context.UserId);
+        SetHeaderWhen(session, "TenantId", _options.CaptureTenantId, context.TenantId);
+        SetHeaderWhen(session, "Timestamp", _options.CaptureTimestamp, context.Timestamp.ToString("O"));
+        SetHeaderWhen(session, "CommitSha", _options.CaptureCommitSha, _options.CommitSha);
+        SetHeaderWhen(session, "SemanticVersion", _options.CaptureSemanticVersion, _options.SemanticVersion);
 
         // Custom headers from configuration
         foreach (var header in _options.CustomHeaders)
@@ -135,6 +111,15 @@ internal sealed partial class EventMetadataEnrichmentService
 
         // Headers from registered enrichers
         ApplyEnricherHeaders(session, context, events);
+    }
+
+    // Sets a header only when its capture option is on and the value is not blank.
+    private static void SetHeaderWhen(IDocumentSession session, string key, bool capture, string? value)
+    {
+        if (capture && !string.IsNullOrWhiteSpace(value))
+        {
+            session.SetHeader(key, value);
+        }
     }
 
     private void ApplyEnricherHeaders(

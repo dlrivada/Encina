@@ -1,0 +1,19 @@
+## Scope
+Closing commit 8ebf437b (2025-12-24 19:10 +0100, no PR; `Closes #45`) changed `tests/Encina.TestInfrastructure/Extensions/EitherAssertionExtensions.cs` (added, 213 lines) and `Encina.TestInfrastructure.csproj`. Provenance by `git log --diff-filter=A`: that file was added in 8ebf437b; `src/Encina.Testing/Assertions/EitherAssertions.cs` was added in 929046c50 (2025-12-24 19:36 +0100), later extended by ab423a830 (#170) and e0576aa0c.
+Today:
+- `src/Encina.Testing/Assertions/EitherAssertions.cs` (namespace Encina.Testing): ShouldBeSuccess/Right/Error/Left, `*And` (AndConstraint), ShouldBeErrorWithCode, ShouldBeErrorContaining, ShouldBeValidationError, ShouldBeAuthorizationError, ShouldBeNotFoundError, ShouldBeValidationErrorForProperty, async variants.
+- `src/Encina.Testing.Shouldly/EitherShouldlyExtensions.cs` (Shouldly twin).
+- `tests/Encina.TestInfrastructure/Extensions/EitherAssertionExtensions.cs` now holds only AllShouldBeSuccess, AllShouldBeError, ShouldContainSuccess, ShouldContainError (single-item assertions were migrated, #112 closed).
+- Tests: `tests/Encina.UnitTests/Testing/EitherAssertionsTests.cs`, `tests/Encina.UnitTests/Testing/Base/EitherAssertionsTests.cs`, `tests/Encina.GuardTests/Testing/Assertions/AssertionsGuardTests.cs`, `tests/Encina.UnitTests/Testing/Shouldly/EitherShouldlyExtensionsTests.cs`, examples in `tests/Encina.Testing.Examples/Unit/EitherAssertionExamples.cs`. Manifest: `.github/coverage-manifest/Encina.Testing.json` lists `Assertions/EitherAssertions.cs` (unit, guard).
+Not delivered as written: `ShouldHaveValue`, `ShouldHaveErrorCode`, `ShouldHaveErrorMessage` (grep of src and tests: no such Either assertions); a Contract test for EitherAssertions (none under tests/Encina.ContractTests/Testing); "Works with FluentAssertions" (banned by AGENTS.md; own AndConstraint and the Shouldly package instead). The pre-draft claim "implementation uses FluentAssertions" is false. Pre-draft packages kept only Encina.Testing, plus Encina.Testing.Shouldly which exists.
+Per-file coverage figures were not measured at this stage.
+## Destinations
+- Regression test: present (`tests/Encina.UnitTests/Testing/EitherAssertionsTests.cs`, 74 Fact/Theory across the two EitherAssertionsTests files).
+- Docs: `docs/INVENTORY.md` lines ~3141-3158 list ShouldBeSuccess/ShouldBeError, `*And`, async variants: present. `src/Encina.Testing/README.md` does not exist (the issue's "Add documentation" has no package README); `docs/en/guides/TESTING.md` has no ShouldBeSuccess hit.
+- ADR: none needed; the pre-draft's ADR candidate has no source and was dropped. Pre-draft "Rules and lessons" were acceptance criteria, not decisions, and were dropped.
+- Contract tests: missing.
+## Successor and duplicate issues
+No successor or duplicate. Related #112 (migrate existing tests to the assertions) is CLOSED (created 2025-12-24T18:19:10Z, closed 2025-12-24T19:47:22Z). Open-issue searches by `ShouldHaveErrorCode`, `ShouldHaveValue`, `ShouldBeSuccess` and `EitherAssertions` (gh issue list --state open --search): no issue tracks the unshipped ShouldHave* names or a Contract test for EitherAssertions. Open issues that touch the shipped assertions but are not trackers of those gaps: #1689 (Encina.Testing has no package README: tracks the missing README), #2319, #2323, #1922 (bugs in the shipped assertions), #2328 (INVENTORY.md caveat), #2121, #2329, #2330, #2122 (test gaps). Their bodies were not read in full here; state is OPEN from the search.
+## Lessons for the pipeline
+- The pre-draft listed `closed_at: 12/24/2025`, `linked_prs: [unknown]` and "code touched unknown"; `git show --stat` of the timeline `closed` commit resolved the files, and the first-add commit of the src file (`--diff-filter=A`) differs from the closing commit.
+- `git log --follow` on the src file lists the closing commit because git detects a copy; take provenance from `--diff-filter=A`.

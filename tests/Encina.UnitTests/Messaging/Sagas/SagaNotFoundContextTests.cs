@@ -1,3 +1,4 @@
+using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Sagas;
 using Encina.Testing.Shouldly;
 using LanguageExt;
@@ -87,16 +88,12 @@ public sealed class SagaNotFoundContextTests
     {
         // Arrange
         var handlerInvoked = false;
-        string? capturedReason = null;
-
-        Task Handler(string reason, CancellationToken ct)
+        var context = new SagaNotFoundContext(Guid.NewGuid(), "Saga", typeof(TestMessage), "msg-1");
+        context.UseDeadLetter(_ =>
         {
             handlerInvoked = true;
-            capturedReason = reason;
-            return Task.CompletedTask;
-        }
-
-        var context = new SagaNotFoundContext(Guid.NewGuid(), "Saga", typeof(TestMessage), Handler);
+            return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+        });
 
         // Act
         var result = await context.MoveToDeadLetterAsync("Test reason");
@@ -104,7 +101,7 @@ public sealed class SagaNotFoundContextTests
         // Assert
         result.ShouldBeRight();
         handlerInvoked.ShouldBeTrue();
-        capturedReason.ShouldBe("Test reason");
+        context.SourceMessageId.ShouldBe("msg-1");
         context.Action.ShouldBe(SagaNotFoundAction.MovedToDeadLetter);
         context.DeadLetterReason.ShouldBe("Test reason");
         context.WasMovedToDeadLetter.ShouldBeTrue();
@@ -115,7 +112,7 @@ public sealed class SagaNotFoundContextTests
     public async Task MoveToDeadLetterAsync_NullReason_ThrowsArgumentException()
     {
         // Arrange
-        var context = new SagaNotFoundContext(Guid.NewGuid(), "Saga", typeof(TestMessage), (_, _) => Task.CompletedTask);
+        var context = WiredContext();
 
         // Act
         var act = async () => await context.MoveToDeadLetterAsync(null!);
@@ -128,7 +125,7 @@ public sealed class SagaNotFoundContextTests
     public async Task MoveToDeadLetterAsync_EmptyReason_ThrowsArgumentException()
     {
         // Arrange
-        var context = new SagaNotFoundContext(Guid.NewGuid(), "Saga", typeof(TestMessage), (_, _) => Task.CompletedTask);
+        var context = WiredContext();
 
         // Act
         var act = async () => await context.MoveToDeadLetterAsync(string.Empty);
@@ -141,7 +138,7 @@ public sealed class SagaNotFoundContextTests
     public async Task MoveToDeadLetterAsync_WhitespaceReason_ThrowsArgumentException()
     {
         // Arrange
-        var context = new SagaNotFoundContext(Guid.NewGuid(), "Saga", typeof(TestMessage), (_, _) => Task.CompletedTask);
+        var context = WiredContext();
 
         // Act
         var act = async () => await context.MoveToDeadLetterAsync("   ");
@@ -160,8 +157,51 @@ public sealed class SagaNotFoundContextTests
         var result = await context.MoveToDeadLetterAsync("Test reason");
 
         // Assert
-        var error = result.ShouldBeLeft();
-        error.Message.ShouldContain("Dead letter handling is not configured");
+        result.ShouldBeErrorWithCode(DeadLetterErrorCodes.NotConfigured);
+        context.WasMovedToDeadLetter.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public async Task MoveToDeadLetterAsync_NoSourceMessageId_ReturnsSourceMessageIdRequired_WithoutCapturing(string? sourceMessageId)
+    {
+        // Arrange
+        var captured = false;
+        var context = new SagaNotFoundContext(Guid.NewGuid(), "Saga", typeof(TestMessage), sourceMessageId);
+        context.UseDeadLetter(_ => { captured = true; return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default); });
+
+        // Act
+        var result = await context.MoveToDeadLetterAsync("Test reason");
+
+        // Assert
+        result.ShouldBeErrorWithCode(DeadLetterErrorCodes.SourceMessageIdRequired);
+        captured.ShouldBeFalse();
+        context.WasMovedToDeadLetter.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task MoveToDeadLetterAsync_CaptureFails_ReturnsTheErrorAndDoesNotMarkMoved()
+    {
+        // Arrange
+        var context = new SagaNotFoundContext(Guid.NewGuid(), "Saga", typeof(TestMessage), "msg-1");
+        context.UseDeadLetter(_ => Task.FromResult<Either<EncinaError, Unit>>(EncinaErrors.Create(DeadLetterErrorCodes.StoreFailed, "down")));
+
+        // Act
+        var result = await context.MoveToDeadLetterAsync("Test reason");
+
+        // Assert
+        result.ShouldBeErrorWithCode(DeadLetterErrorCodes.StoreFailed);
+        context.WasMovedToDeadLetter.ShouldBeFalse();
+        context.DeadLetterReason.ShouldBeNull();
+    }
+
+    private static SagaNotFoundContext WiredContext()
+    {
+        var context = new SagaNotFoundContext(Guid.NewGuid(), "Saga", typeof(TestMessage), "msg-1");
+        context.UseDeadLetter(_ => Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
+        return context;
     }
 
     [Fact]
@@ -169,14 +209,12 @@ public sealed class SagaNotFoundContextTests
     {
         // Arrange
         CancellationToken capturedToken = default;
-
-        Task Handler(string reason, CancellationToken ct)
+        var context = new SagaNotFoundContext(Guid.NewGuid(), "Saga", typeof(TestMessage), "msg-1");
+        context.UseDeadLetter(ct =>
         {
             capturedToken = ct;
-            return Task.CompletedTask;
-        }
-
-        var context = new SagaNotFoundContext(Guid.NewGuid(), "Saga", typeof(TestMessage), Handler);
+            return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+        });
         using var cts = new CancellationTokenSource();
         var expectedToken = cts.Token;
 

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using Encina.Diagnostics;
 using Encina.Security.Secrets.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -87,34 +88,56 @@ internal sealed class SecretInjectionPipelineBehavior<TRequest, TResponse> : IPi
             return await nextStep().ConfigureAwait(false);
         }
 
+        return await HandleInjectionAsync(request, nextStep, requestTypeName, properties.Length, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> HandleInjectionAsync(
+        TRequest request,
+        RequestHandlerCallback<TResponse> nextStep,
+        string requestTypeName,
+        int propertyCount,
+        CancellationToken cancellationToken)
+    {
         var startedAt = Stopwatch.GetTimestamp();
 
         // Start tracing if enabled
-        using var activity = _options.EnableTracing
-            ? SecretsDiagnostics.StartSecretInjection(requestTypeName)
-            : null;
+        using var activity = StartActivity(requestTypeName);
 
-        Log.SecretInjectionStarted(_logger, requestTypeName, properties.Length);
+        Log.SecretInjectionStarted(_logger, requestTypeName, propertyCount);
 
-        // Perform injection
+        var failure = await InjectAsync(request, activity, startedAt, requestTypeName, cancellationToken).ConfigureAwait(false);
+
+        return await failure.Match(
+            Some: error => ValueTask.FromResult<Either<EncinaError, TResponse>>(error),
+            None: () => nextStep()).ConfigureAwait(false);
+    }
+
+    private Activity? StartActivity(string requestTypeName)
+        => _options.EnableTracing ? SecretsDiagnostics.StartSecretInjection(requestTypeName) : null;
+
+    /// <summary>
+    /// Injects the secrets and records the outcome; returns the error when the injection failed.
+    /// </summary>
+    private async ValueTask<Option<EncinaError>> InjectAsync(
+        TRequest request,
+        Activity? activity,
+        long startedAt,
+        string requestTypeName,
+        CancellationToken cancellationToken)
+    {
         var injectionResult = await _orchestrator.InjectAsync(request, cancellationToken).ConfigureAwait(false);
 
-        if (injectionResult.IsLeft)
-        {
-            var errorMessage = injectionResult.Match(
-                Right: _ => string.Empty,
-                Left: e => e.Message);
-
-            RecordFailure(activity, startedAt, requestTypeName, errorMessage);
-            return injectionResult.Match<Either<EncinaError, TResponse>>(
-                Right: _ => default!,
-                Left: e => e);
-        }
-
-        var injectedCount = injectionResult.Match(Right: v => v, Left: _ => 0);
-        RecordSuccess(activity, startedAt, requestTypeName, injectedCount);
-
-        return await nextStep().ConfigureAwait(false);
+        return injectionResult.Match(
+            Right: injectedCount =>
+            {
+                RecordSuccess(activity, startedAt, requestTypeName, injectedCount);
+                return Option<EncinaError>.None;
+            },
+            Left: error =>
+            {
+                RecordFailure(activity, startedAt, requestTypeName, ActivityStatusDescriptions.ForError(error));
+                return Option<EncinaError>.Some(error);
+            });
     }
 
     /// <summary>
@@ -149,11 +172,11 @@ internal sealed class SecretInjectionPipelineBehavior<TRequest, TResponse> : IPi
     /// <summary>
     /// Records a failed pipeline operation with tracing and metrics.
     /// </summary>
-    private void RecordFailure(Activity? activity, long startedAt, string requestTypeName, string errorMessage)
+    private void RecordFailure(Activity? activity, long startedAt, string requestTypeName, string errorCode)
     {
         if (_options.EnableTracing)
         {
-            SecretsDiagnostics.RecordFailure(activity, errorMessage);
+            SecretsDiagnostics.RecordFailure(activity, errorCode);
         }
 
         if (_options.EnableMetrics)

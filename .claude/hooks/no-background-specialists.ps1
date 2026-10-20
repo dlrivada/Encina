@@ -25,7 +25,8 @@ param([string]$Agent)
 $ErrorActionPreference = 'Stop'
 
 try {
-    $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    . (Join-Path $PSScriptRoot '_read-payload.ps1')
+    $payload = Read-HookStdin | ConvertFrom-Json
     $toolName = [string]$payload.tool_name
     if ($toolName -notin 'Agent', 'Task', 'Bash', 'PowerShell') { exit 0 }
 

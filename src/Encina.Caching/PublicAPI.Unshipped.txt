@@ -46,6 +46,9 @@ Encina.Caching.CacheConfiguration<TRequest>.VaryByUser.init -> void
 Encina.Caching.CacheInvalidationPipelineBehavior<TRequest, TResponse>
 Encina.Caching.CacheInvalidationPipelineBehavior<TRequest, TResponse>.CacheInvalidationPipelineBehavior(Encina.Caching.ICacheProvider! cacheProvider, Encina.Caching.ICacheKeyGenerator! keyGenerator, Microsoft.Extensions.Options.IOptions<Encina.Caching.CachingOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Caching.CacheInvalidationPipelineBehavior<TRequest, TResponse>!>! logger, Encina.Caching.IPubSubProvider? pubSubProvider = null) -> void
 Encina.Caching.CacheInvalidationPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Caching.CacheKeyRedactor
+const Encina.Caching.CacheKeyRedactor.Mask = "***" -> string!
+static Encina.Caching.CacheKeyRedactor.Redact(string? key, string? tenantId = null, string? userId = null) -> string!
 Encina.Caching.CachePriority
 Encina.Caching.CachePriority.High = 2 -> Encina.Caching.CachePriority
 Encina.Caching.CachePriority.Low = 0 -> Encina.Caching.CachePriority
@@ -150,7 +153,7 @@ Encina.Caching.IPubSubProvider.UnsubscribeAsync(string! channel, System.Threadin
 Encina.Caching.IPubSubProvider.UnsubscribePatternAsync(string! pattern, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Encina.Caching.QueryCachingPipelineBehavior<TRequest, TResponse>
 Encina.Caching.QueryCachingPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
-Encina.Caching.QueryCachingPipelineBehavior<TRequest, TResponse>.QueryCachingPipelineBehavior(Encina.Caching.ICacheProvider! cacheProvider, Encina.Caching.ICacheKeyGenerator! keyGenerator, Microsoft.Extensions.Options.IOptions<Encina.Caching.CachingOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Caching.QueryCachingPipelineBehavior<TRequest, TResponse>!>! logger, System.TimeProvider? timeProvider = null) -> void
+Encina.Caching.QueryCachingPipelineBehavior<TRequest, TResponse>.QueryCachingPipelineBehavior(Encina.Caching.ICacheProvider! cacheProvider, Encina.Caching.ICacheKeyGenerator! keyGenerator, Microsoft.Extensions.Options.IOptions<Encina.Caching.CachingOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Caching.QueryCachingPipelineBehavior<TRequest, TResponse>!>! logger, System.TimeProvider? timeProvider = null, Encina.MultiTenancyMarker? multiTenancy = null) -> void
 Encina.Caching.ServiceCollectionExtensions
 static Encina.Caching.ServiceCollectionExtensions.AddCacheConfiguration<TRequest>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Caching.CacheConfiguration<TRequest>!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Caching.ServiceCollectionExtensions.AddCacheKeyGenerator<TGenerator>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

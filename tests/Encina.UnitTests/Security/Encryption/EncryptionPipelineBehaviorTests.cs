@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using Encina.Security.Encryption;
 using Encina.Security.Encryption.Abstractions;
 using Encina.Security.Encryption.Algorithms;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -28,7 +29,7 @@ public sealed class EncryptionPipelineBehaviorTests : IDisposable
         _options = new EncryptionOptions();
         var optionsWrapper = Options.Create(_options);
         _sut = new EncryptionPipelineBehavior<TestCommand, Unit>(_orchestrator, optionsWrapper, _logger);
-        _context = RequestContext.CreateForTest(userId: "user-1");
+        _context = TestRequestContext.For(TestIdentity.User("user-1"));
 
         EncryptedPropertyCache.ClearCache();
     }

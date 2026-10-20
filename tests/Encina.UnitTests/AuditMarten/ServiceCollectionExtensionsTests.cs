@@ -30,7 +30,7 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddLogging();
         services.AddEncinaAuditMarten();
 
-        var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IAuditStore));
+        var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IOperationAuditStore));
         descriptor.ShouldNotBeNull();
     }
 
@@ -46,7 +46,7 @@ public sealed class ServiceCollectionExtensionsTests
         });
 
         var sp = services.BuildServiceProvider();
-        var options = sp.GetService<IOptions<MartenAuditOptions>>();
+        var options = sp.GetService<IOptions<MartenOperationAuditOptions>>();
         options.ShouldNotBeNull();
         options.Value.EnableAutoPurge.ShouldBeTrue();
         options.Value.PurgeIntervalHours.ShouldBe(12);

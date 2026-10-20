@@ -22,8 +22,8 @@ public class PropertyTestBaseTests : PropertyTestBase
         var errorArb = EncinaArbitraries.EncinaError();
         var contextArb = EncinaArbitraries.RequestContext();
 
-        var errorSamples = Gen.Sample(errorArb.Generator, 10, 10).ToList();
-        var contextSamples = Gen.Sample(contextArb.Generator, 10, 10).ToList();
+        var errorSamples = Gen.Sample(errorArb.Generator, numberOfSamples: 10, size: 10).ToList();
+        var contextSamples = Gen.Sample(contextArb.Generator, numberOfSamples: 10, size: 10).ToList();
 
         // Assert
         errorSamples.ShouldNotBeEmpty();

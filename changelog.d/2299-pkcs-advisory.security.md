@@ -1,0 +1,1 @@
+- Pin `System.Security.Cryptography.Pkcs` to 10.0.13 and bump `System.Security.Cryptography.Xml` to 10.0.13, clearing NuGet advisories GHSA-2fmv-rv2c-59x7 and GHSA-846f-f764-76mx so restore succeeds with audit on (#2299).

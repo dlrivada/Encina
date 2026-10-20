@@ -14,6 +14,7 @@ const Encina.EncinaErrorCodes.NotificationInvokeException = "encina.notification
 const Encina.EncinaErrorCodes.NotificationMissingHandle = "encina.notification.missing_handle" -> string!
 const Encina.EncinaErrorCodes.NotificationNull = "encina.notification.null" -> string!
 const Encina.EncinaErrorCodes.PipelineException = "encina.pipeline.exception" -> string!
+const Encina.EncinaErrorCodes.PostCommitProcessorCancelled = "encina.postcommitprocessor.cancelled" -> string!
 const Encina.EncinaErrorCodes.PostProcessorCancelled = "encina.postprocessor.cancelled" -> string!
 const Encina.EncinaErrorCodes.PostProcessorException = "encina.postprocessor.exception" -> string!
 const Encina.EncinaErrorCodes.PreProcessorCancelled = "encina.preprocessor.cancelled" -> string!
@@ -37,10 +38,11 @@ Encina.ICommandHandler<TCommand, TResponse>
 Encina.ICommandHandler<TCommand>
 Encina.ICommandPipelineBehavior<TCommand, TResponse>
 Encina.ICommandPipelineBehavior<TCommand>
+Encina.IDecoratedServiceFactory
+Encina.IDecoratedServiceFactory.Decorated.get -> Microsoft.Extensions.DependencyInjection.ServiceDescriptor!
 Encina.IFunctionalFailureDetector
 Encina.IFunctionalFailureDetector.TryExtractFailure(object? response, out string! reason, out object? capturedFailure) -> bool
 Encina.IFunctionalFailureDetector.TryGetErrorCode(object? capturedFailure) -> string?
-Encina.IFunctionalFailureDetector.TryGetErrorMessage(object? capturedFailure) -> string?
 Encina.IEncina
 Encina.IEncina.Publish<TNotification>(TNotification notification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.IEncina.Send<TResponse>(Encina.IRequest<TResponse>! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
@@ -61,22 +63,22 @@ Encina.IQueryPipelineBehavior<TQuery, TResponse>
 Encina.IQueryPipelineBehavior<TQuery>
 Encina.IRequest<TResponse>
 Encina.IRequestContext
+Encina.IRequestContext.CausationId.get -> string?
 Encina.IRequestContext.CorrelationId.get -> string!
+Encina.IRequestContext.Identity.get -> Encina.RequestIdentity!
 Encina.IRequestContext.IdempotencyKey.get -> string?
 Encina.IRequestContext.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
 Encina.IRequestContext.TenantId.get -> string?
 Encina.IRequestContext.Timestamp.get -> System.DateTimeOffset
-Encina.IRequestContext.UserId.get -> string?
 Encina.IRequestContext.WithIdempotencyKey(string? idempotencyKey) -> Encina.IRequestContext!
 Encina.IRequestContext.WithMetadata(string! key, object? value) -> Encina.IRequestContext!
 Encina.IRequestContext.WithTenantId(string? tenantId) -> Encina.IRequestContext!
-Encina.IRequestContext.WithUserId(string? userId) -> Encina.IRequestContext!
 Encina.IRequestHandler<TRequest, TResponse>
 Encina.IRequestHandler<TRequest, TResponse>.Handle(TRequest request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TResponse>>!
 Encina.IRequestPostProcessor<TRequest, TResponse>
-Encina.IRequestPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, LanguageExt.Either<Encina.EncinaError, TResponse> response, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.IRequestPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, TResponse response, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.IRequestPreProcessor<TRequest>
-Encina.IRequestPreProcessor<TRequest>.Process(TRequest request, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.IRequestPreProcessor<TRequest>.Process(TRequest request, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.IStreamPipelineBehavior<TRequest, TItem>
 Encina.IStreamPipelineBehavior<TRequest, TItem>.Handle(TRequest request, Encina.IRequestContext! context, Encina.StreamHandlerCallback<TItem>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<LanguageExt.Either<Encina.EncinaError, TItem>>!
 Encina.IStreamRequest<TItem>
@@ -102,8 +104,10 @@ Encina.QueryMetricsPipelineBehavior<TQuery, TResponse>
 Encina.QueryMetricsPipelineBehavior<TQuery, TResponse>.Handle(TQuery request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.QueryMetricsPipelineBehavior<TQuery, TResponse>.QueryMetricsPipelineBehavior(Encina.IEncinaMetrics! metrics, Encina.IFunctionalFailureDetector! failureDetector) -> void
 Encina.RequestContext
+Encina.RequestContext.CausationId.get -> string?
 Encina.RequestContext.CorrelationId.get -> string!
 Encina.RequestContext.CorrelationId.init -> void
+Encina.RequestContext.Identity.get -> Encina.RequestIdentity!
 Encina.RequestContext.IdempotencyKey.get -> string?
 Encina.RequestContext.IdempotencyKey.init -> void
 Encina.RequestContext.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
@@ -112,12 +116,9 @@ Encina.RequestContext.TenantId.get -> string?
 Encina.RequestContext.TenantId.init -> void
 Encina.RequestContext.Timestamp.get -> System.DateTimeOffset
 Encina.RequestContext.Timestamp.init -> void
-Encina.RequestContext.UserId.get -> string?
-Encina.RequestContext.UserId.init -> void
 Encina.RequestContext.WithIdempotencyKey(string? idempotencyKey) -> Encina.IRequestContext!
 Encina.RequestContext.WithMetadata(string! key, object? value) -> Encina.IRequestContext!
 Encina.RequestContext.WithTenantId(string? tenantId) -> Encina.IRequestContext!
-Encina.RequestContext.WithUserId(string? userId) -> Encina.IRequestContext!
 Encina.RequestHandlerCallback<TResponse>
 Encina.ServiceCollectionExtensions
 Encina.Encina
@@ -139,15 +140,83 @@ Encina.EncinaConfiguration.RegisterServicesFromAssembly(System.Reflection.Assemb
 Encina.EncinaConfiguration.RegisterServicesFromAssemblyContaining<T>() -> Encina.EncinaConfiguration!
 Encina.EncinaConfiguration.EncinaConfiguration() -> void
 Encina.EncinaConfiguration.WithHandlerLifetime(Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddPipelineBehavior(System.Type! pipelineBehaviorType, Encina.PipelineStage stage, int order = 0) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddPipelineBehavior<TBehavior>(Encina.PipelineStage stage, int order = 0) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPreProcessor(System.Type! processorType, Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPreProcessor<TProcessor>(Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPostProcessor(System.Type! processorType, Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPostProcessor<TProcessor>(Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestErrorProcessor(System.Type! processorType) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestErrorProcessor(System.Type! processorType, Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestErrorProcessor<TProcessor>() -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestErrorProcessor<TProcessor>(Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPostCommitProcessor(System.Type! processorType) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPostCommitProcessor(System.Type! processorType, Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPostCommitProcessor<TProcessor>() -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPostCommitProcessor<TProcessor>(Encina.PipelineStage stage, int order = -100) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddStreamPipelineBehavior(System.Type! streamBehaviorType) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddStreamPipelineBehavior(System.Type! streamBehaviorType, Encina.PipelineStage stage, int order = 0) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddStreamPipelineBehavior<TBehavior>() -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddStreamPipelineBehavior<TBehavior>(Encina.PipelineStage stage, int order = 0) -> Encina.EncinaConfiguration!
 static Encina.EncinaError.implicit operator Encina.EncinaError(string! message) -> Encina.EncinaError
 static Encina.EncinaError.implicit operator Encina.EncinaError(System.Exception! exception) -> Encina.EncinaError
 static Encina.EncinaError.New(string! message) -> Encina.EncinaError
 static Encina.EncinaError.New(string! message, System.Exception? exception) -> Encina.EncinaError
 static Encina.EncinaError.New(System.Exception! exception) -> Encina.EncinaError
 static Encina.EncinaError.New(System.Exception! exception, string! message) -> Encina.EncinaError
-static Encina.RequestContext.Create() -> Encina.IRequestContext!
-static Encina.RequestContext.Create(string! correlationId) -> Encina.IRequestContext!
-static Encina.RequestContext.CreateForTest(string? userId = null, string? tenantId = null, string? idempotencyKey = null, string? correlationId = null) -> Encina.IRequestContext!
+static Encina.RequestContext.Create(System.TimeProvider? timeProvider = null) -> Encina.IRequestContext!
+static Encina.RequestContext.CreateAnonymousAt(System.DateTimeOffset timestamp, string! correlationId, string? tenantId = null, string? idempotencyKey = null) -> Encina.IRequestContext!
+static Encina.RequestContext.CreateForTest(string? tenantId = null, string? idempotencyKey = null, string? correlationId = null, System.TimeProvider? timeProvider = null) -> Encina.IRequestContext!
+Encina.IdentityKind
+Encina.IdentityKind.Anonymous = 0 -> Encina.IdentityKind
+Encina.IdentityKind.User = 1 -> Encina.IdentityKind
+Encina.IdentityKind.Service = 2 -> Encina.IdentityKind
+Encina.RequestIdentity
+const Encina.RequestIdentity.ServiceSubjectPrefix = "service:" -> string!
+static Encina.RequestIdentity.Anonymous.get -> Encina.RequestIdentity!
+Encina.RequestIdentity.Kind.get -> Encina.IdentityKind
+Encina.RequestIdentity.UserId.get -> string?
+Encina.RequestIdentity.IsAuthenticated.get -> bool
+Encina.RequestIdentity.Principal.get -> System.Security.Claims.ClaimsPrincipal?
+Encina.RequestIdentity.Roles.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.RequestIdentity.Permissions.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.RequestIdentity.HasClaim(string! type, string? value = null) -> bool
+Encina.RequestIdentity.ToPersisted(string? tenantId, string! correlationId, string? causationId) -> Encina.PersistedRequestIdentity!
+override Encina.RequestIdentity.ToString() -> string!
+Encina.PersistedRequestIdentity
+Encina.PersistedRequestIdentity.Kind.get -> Encina.IdentityKind
+Encina.PersistedRequestIdentity.Kind.init -> void
+Encina.PersistedRequestIdentity.ActorId.get -> string?
+Encina.PersistedRequestIdentity.ActorId.init -> void
+Encina.PersistedRequestIdentity.TenantId.get -> string?
+Encina.PersistedRequestIdentity.TenantId.init -> void
+Encina.PersistedRequestIdentity.CorrelationId.get -> string!
+Encina.PersistedRequestIdentity.CorrelationId.init -> void
+Encina.PersistedRequestIdentity.CausationId.get -> string?
+Encina.PersistedRequestIdentity.CausationId.init -> void
+Encina.PersistedRequestIdentity.PersistedRequestIdentity(Encina.IdentityKind Kind, string? ActorId, string? TenantId, string! CorrelationId, string? CausationId) -> void
+override Encina.PersistedRequestIdentity.ToString() -> string!
+Encina.RequestContextIdentityExtensions
+Encina.RequestContextIdentityExtensions.extension(Encina.IRequestContext!)
+Encina.RequestContextIdentityExtensions.extension(Encina.IRequestContext!).UserId.get -> string?
+Encina.RequestIdentityOptions
+Encina.RequestIdentityOptions.RequestIdentityOptions() -> void
+const Encina.RequestIdentityOptions.ObjectIdentifierClaimType = "http://schemas.microsoft.com/identity/claims/objectidentifier" -> string!
+const Encina.RequestIdentityOptions.TenantIdentifierClaimType = "http://schemas.microsoft.com/identity/claims/tenantid" -> string!
+Encina.RequestIdentityOptions.UserIdClaimTypes.get -> System.Collections.Generic.IList<string!>!
+Encina.RequestIdentityOptions.RoleClaimTypes.get -> System.Collections.Generic.IList<string!>!
+Encina.RequestIdentityOptions.IncludeIdentityRoleClaimType.get -> bool
+Encina.RequestIdentityOptions.IncludeIdentityRoleClaimType.set -> void
+Encina.RequestIdentityOptions.PermissionClaimTypes.get -> System.Collections.Generic.IList<string!>!
+Encina.RequestIdentityOptions.PermissionClaimSeparator.get -> char?
+Encina.RequestIdentityOptions.PermissionClaimSeparator.set -> void
+Encina.RequestIdentityOptions.TenantIdClaimTypes.get -> System.Collections.Generic.IList<string!>!
+Encina.RequestIdentityErrorCodes
+const Encina.RequestIdentityErrorCodes.ScopeConflict = "encina.identity.scope_conflict" -> string!
+Encina.RequestIdentityErrors
+static Encina.RequestIdentityErrors.ScopeConflict(Encina.IdentityKind ambientKind, Encina.IdentityKind requestedKind) -> Encina.EncinaError
+Encina.RequestIdentityServiceCollectionExtensions
+static Encina.RequestIdentityServiceCollectionExtensions.AddEncinaRequestIdentity(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.RequestIdentityOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.ServiceCollectionExtensions.AddApplicationMessaging(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params System.Reflection.Assembly![]! assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.ServiceCollectionExtensions.AddApplicationMessaging(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.EncinaConfiguration!>? configure, params System.Reflection.Assembly![]! assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.ServiceCollectionExtensions.AddEncina(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params System.Reflection.Assembly![]! assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -213,11 +282,18 @@ Encina.Modules.ModuleServiceCollectionExtensions
 static Encina.Modules.ModuleServiceCollectionExtensions.AddEncinaModules(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Encina.Modules.ModuleConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Modules.ModuleServiceCollectionExtensions.AddEncinaModules(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Modules.ModuleConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 const Encina.EncinaErrorCodes.RateLimitExceeded = "encina.ratelimit.exceeded" -> string!
+const Encina.EncinaErrorCodes.AuthorizationPrefix = "encina.authorization." -> string!
+const Encina.EncinaErrorCodes.AuthorizationClaimMissing = "encina.authorization.claim_missing" -> string!
+const Encina.EncinaErrorCodes.AuthorizationInsufficientRoles = "encina.authorization.insufficient_roles" -> string!
+const Encina.EncinaErrorCodes.AuthorizationNotOwner = "encina.authorization.not_owner" -> string!
+const Encina.EncinaErrorCodes.AuthorizationPermissionDenied = "encina.authorization.permission_denied" -> string!
 const Encina.EncinaErrorCodes.AuthorizationUnauthorized = "encina.authorization.unauthorized" -> string!
+const Encina.EncinaErrorCodes.AuthorizationUnauthenticated = "encina.authorization.unauthenticated" -> string!
 const Encina.EncinaErrorCodes.AuthorizationForbidden = "encina.authorization.forbidden" -> string!
 const Encina.EncinaErrorCodes.AuthorizationPolicyFailed = "encina.authorization.policy_failed" -> string!
 const Encina.EncinaErrorCodes.AuthorizationResourceDenied = "encina.authorization.resource_denied" -> string!
 static Encina.EncinaErrors.Forbidden(string? policy = null, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? details = null) -> Encina.EncinaError
+static Encina.EncinaErrors.Unauthenticated(System.Collections.Generic.IReadOnlyDictionary<string!, object?>? details = null) -> Encina.EncinaError
 static Encina.EncinaErrors.Unauthorized(System.Collections.Generic.IReadOnlyDictionary<string!, object?>? details = null) -> Encina.EncinaError
 Encina.Modules.IModuleHandlerRegistry
 Encina.Modules.IModuleHandlerRegistry.BelongsToModule(System.Type! handlerType, string! moduleName) -> bool
@@ -318,6 +394,60 @@ Encina.Modules.Isolation.ModuleSchemaRegistry.GetRegisteredModules() -> System.C
 Encina.Modules.Isolation.ModuleSchemaRegistry.GetSharedSchemas() -> System.Collections.Generic.IReadOnlySet<string!>!
 Encina.Modules.Isolation.ModuleSchemaRegistry.IsModuleRegistered(string! moduleName) -> bool
 Encina.Modules.Isolation.ModuleSchemaRegistry.ModuleSchemaRegistry() -> void
+Encina.PipelineStage
+Encina.PipelineStage.Observability = 100 -> Encina.PipelineStage
+Encina.PipelineStage.Admission = 200 -> Encina.PipelineStage
+Encina.PipelineStage.Audit = 300 -> Encina.PipelineStage
+Encina.PipelineStage.Authentication = 400 -> Encina.PipelineStage
+Encina.PipelineStage.Authorization = 500 -> Encina.PipelineStage
+Encina.PipelineStage.Compliance = 600 -> Encina.PipelineStage
+Encina.PipelineStage.Presentation = 700 -> Encina.PipelineStage
+Encina.PipelineStage.InputPreparation = 800 -> Encina.PipelineStage
+Encina.PipelineStage.Validation = 900 -> Encina.PipelineStage
+Encina.PipelineStage.Caching = 1000 -> Encina.PipelineStage
+Encina.PipelineStage.Resilience = 1100 -> Encina.PipelineStage
+Encina.PipelineStage.DataRouting = 1200 -> Encina.PipelineStage
+Encina.PipelineStage.Transaction = 1300 -> Encina.PipelineStage
+Encina.PipelineStage.Idempotency = 1400 -> Encina.PipelineStage
+Encina.PipelineStage.Application = 1500 -> Encina.PipelineStage
+Encina.PipelineStage.HandlerPreparation = 1600 -> Encina.PipelineStage
+Encina.PipelineStageAttribute
+Encina.PipelineStageAttribute.Order.get -> int
+Encina.PipelineStageAttribute.Order.init -> void
+Encina.PipelineStageAttribute.PipelineStageAttribute(Encina.PipelineStage stage) -> void
+Encina.PipelineStageAttribute.Stage.get -> Encina.PipelineStage
+Encina.EncinaBuiltInPipelineStepsAttribute
+Encina.EncinaBuiltInPipelineStepsAttribute.EncinaBuiltInPipelineStepsAttribute() -> void
+Encina.PipelineStepKind
+Encina.PipelineStepKind.Behavior = 0 -> Encina.PipelineStepKind
+Encina.PipelineStepKind.ModuleBehavior = 1 -> Encina.PipelineStepKind
+Encina.PipelineStepKind.PreProcessor = 2 -> Encina.PipelineStepKind
+Encina.PipelineStepKind.PostProcessor = 3 -> Encina.PipelineStepKind
+Encina.PipelineStepKind.ErrorProcessor = 4 -> Encina.PipelineStepKind
+Encina.PipelineStepKind.PostCommitProcessor = 5 -> Encina.PipelineStepKind
+Encina.PipelineStepSource
+Encina.PipelineStepSource.Attribute = 0 -> Encina.PipelineStepSource
+Encina.PipelineStepSource.Registration = 1 -> Encina.PipelineStepSource
+Encina.PipelineStepSource.Default = 2 -> Encina.PipelineStepSource
+Encina.PipelineStepDescription
+Encina.PipelineStepDescription.Kind.get -> Encina.PipelineStepKind
+Encina.PipelineStepDescription.Kind.init -> void
+Encina.PipelineStepDescription.Order.get -> int
+Encina.PipelineStepDescription.Order.init -> void
+Encina.PipelineStepDescription.PipelineStepDescription(System.Type! StepType, Encina.PipelineStepKind Kind, Encina.PipelineStage Stage, int Order, Encina.PipelineStepSource Source) -> void
+Encina.PipelineStepDescription.Source.get -> Encina.PipelineStepSource
+Encina.PipelineStepDescription.Source.init -> void
+Encina.PipelineStepDescription.Stage.get -> Encina.PipelineStage
+Encina.PipelineStepDescription.Stage.init -> void
+Encina.PipelineStepDescription.StepType.get -> System.Type!
+Encina.PipelineStepDescription.StepType.init -> void
+Encina.IEncinaPipelineInspector
+Encina.IEncinaPipelineInspector.DescribeAsync<TRequest, TResponse>(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Encina.PipelineStepDescription!>!>
+Encina.IEncinaPipelineInspector.DescribeStreamAsync<TRequest, TItem>(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Encina.PipelineStepDescription!>!>
+Encina.IRequestErrorProcessor<TRequest, TResponse>
+Encina.IRequestErrorProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, Encina.EncinaError failure, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Encina.IRequestPostCommitProcessor<TRequest, TResponse>
+Encina.IRequestPostCommitProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, TResponse response, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Modules.Isolation.ModuleSchemaRegistry.ModuleSchemaRegistry(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> void
 Encina.Modules.Isolation.ModuleSchemaRegistry.ValidateSqlAccess(string! moduleName, string! sql) -> Encina.Modules.Isolation.SchemaAccessValidationResult
 Encina.Modules.Isolation.PermissionScript
@@ -1963,7 +2093,7 @@ Encina.IRequestContextAccessor.RequestContext.set -> void
 Encina.RequestContextAccessor
 Encina.RequestContextAccessor.RequestContext.get -> Encina.IRequestContext?
 Encina.RequestContextAccessor.RequestContext.set -> void
-Encina.RequestContextAccessor.RequestContextAccessor() -> void
+Encina.RequestContextAccessor.RequestContextAccessor(Microsoft.Extensions.Logging.ILogger<Encina.RequestContextAccessor!>? logger = null) -> void
 Encina.RequestContextDispatchExtensions
 static Encina.RequestContextDispatchExtensions.IsNestedDispatch(this Encina.IRequestContext! context) -> bool
 Encina.Diagnostics.ExceptionLoggingExtensions
@@ -2001,3 +2131,76 @@ static Encina.Validation.EndpointValidator.ValidateHost(string? host, string! pr
 static Encina.Validation.EndpointValidator.ValidateUri(System.Uri? uri, string! propertyName, Encina.Validation.EndpointPolicy! policy) -> string?
 static Encina.Validation.EndpointValidator.ValidateUrl(string? url, string! propertyName, Encina.Validation.EndpointPolicy! policy) -> string?
 static readonly Encina.Diagnostics.EventIdRanges.CdcMySql -> (int Min, int Max)
+static readonly Encina.Diagnostics.EventIdRanges.MessagingRecoverability -> (int Min, int Max)
+Encina.IdentityScopeOptions
+Encina.IdentityScopeOptions.AllowOverInbound.get -> bool
+Encina.IdentityScopeOptions.AllowOverInbound.init -> void
+Encina.IdentityScopeOptions.IdentityScopeOptions(string? TenantId = null, bool AllowOverInbound = false) -> void
+Encina.IdentityScopeOptions.TenantId.get -> string?
+Encina.IdentityScopeOptions.TenantId.init -> void
+Encina.InboundRequestInfo
+Encina.InboundRequestInfo.CorrelationId.get -> string?
+Encina.InboundRequestInfo.CorrelationId.init -> void
+Encina.InboundRequestInfo.DataRegion.get -> string?
+Encina.InboundRequestInfo.DataRegion.init -> void
+Encina.InboundRequestInfo.IdempotencyKey.get -> string?
+Encina.InboundRequestInfo.IdempotencyKey.init -> void
+Encina.InboundRequestInfo.InboundRequestInfo(System.Security.Claims.ClaimsPrincipal? Principal, string? CorrelationId = null, string? TenantHeaderValue = null, string? IdempotencyKey = null, string? IpAddress = null, string? UserAgent = null, string? DataRegion = null) -> void
+Encina.InboundRequestInfo.IpAddress.get -> string?
+Encina.InboundRequestInfo.IpAddress.init -> void
+Encina.InboundRequestInfo.Principal.get -> System.Security.Claims.ClaimsPrincipal?
+Encina.InboundRequestInfo.Principal.init -> void
+Encina.InboundRequestInfo.TenantHeaderValue.get -> string?
+Encina.InboundRequestInfo.TenantHeaderValue.init -> void
+Encina.InboundRequestInfo.UserAgent.get -> string?
+Encina.InboundRequestInfo.UserAgent.init -> void
+const Encina.InboundRequestInfo.MaxDataRegionLength = 16 -> int
+const Encina.InboundRequestInfo.MaxIdLength = 128 -> int
+const Encina.InboundRequestInfo.MaxIdempotencyKeyLength = 255 -> int
+const Encina.InboundRequestInfo.MaxUserAgentLength = 512 -> int
+override Encina.InboundRequestInfo.ToString() -> string!
+static Encina.InboundRequestInfo.ForCircuit(System.Security.Claims.ClaimsPrincipal? principal, string! correlationId) -> Encina.InboundRequestInfo!
+Encina.IRequestContextScopeFactory
+Encina.IRequestContextScopeFactory.RunAsPrincipalAsync<T>(System.Security.Claims.ClaimsPrincipal! principal, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!>! work, Encina.IdentityScopeOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!
+Encina.IRequestContextScopeFactory.RunAsServiceAsync<T>(string! serviceId, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!>! work, Encina.IdentityScopeOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!
+Encina.IRequestContextScopeFactory.RunInboundAsync<T>(Encina.InboundRequestInfo! request, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!>! work, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!
+Encina.IRequestContextScopeFactory.RunRestoredAsync<T>(Encina.PersistedRequestIdentity! persisted, Encina.PersistedIdentitySource source, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!>! work, string? configuredTenantId = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!
+Encina.IServiceIdentityCatalog
+Encina.IServiceIdentityCatalog.TryGet(string! name, out Encina.ServiceIdentityDefinition! definition) -> bool
+Encina.PersistedIdentitySource
+Encina.PersistedIdentitySource.External = 2 -> Encina.PersistedIdentitySource
+Encina.PersistedIdentitySource.Internal = 1 -> Encina.PersistedIdentitySource
+Encina.RequestContextScopeFactoryExtensions
+static Encina.RequestContextScopeFactoryExtensions.RunAsPrincipalAsync(this Encina.IRequestContextScopeFactory! factory, System.Security.Claims.ClaimsPrincipal! principal, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! work, Encina.IdentityScopeOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+static Encina.RequestContextScopeFactoryExtensions.RunAsServiceAsync(this Encina.IRequestContextScopeFactory! factory, string! serviceId, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! work, Encina.IdentityScopeOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+static Encina.RequestContextScopeFactoryExtensions.RunInboundAsync(this Encina.IRequestContextScopeFactory! factory, Encina.InboundRequestInfo! request, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! work, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+static Encina.RequestContextScopeFactoryExtensions.RunRestoredAsync(this Encina.IRequestContextScopeFactory! factory, Encina.PersistedRequestIdentity! persisted, Encina.PersistedIdentitySource source, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! work, string? configuredTenantId = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+const Encina.RequestIdentityErrorCodes.InvalidPersistedIdentity = "encina.identity.invalid_persisted_identity" -> string!
+const Encina.RequestIdentityErrorCodes.ReservedServiceIdentity = "encina.identity.reserved_service_identity" -> string!
+const Encina.RequestIdentityErrorCodes.TenantConflict = "encina.identity.tenant_conflict" -> string!
+const Encina.RequestIdentityErrorCodes.UnknownServiceIdentity = "encina.identity.unknown_service_identity" -> string!
+const Encina.RequestIdentityErrorCodes.UnsupportedAccessor = "encina.identity.unsupported_accessor" -> string!
+static Encina.RequestIdentityErrors.InvalidPersistedIdentity(string! reason) -> Encina.EncinaError
+static Encina.RequestIdentityErrors.ReservedServiceIdentity(string! serviceName) -> Encina.EncinaError
+static Encina.RequestIdentityErrors.TenantConflict(Encina.IdentityKind ambientKind, Encina.IdentityKind requestedKind) -> Encina.EncinaError
+static Encina.RequestIdentityErrors.UnknownServiceIdentity(string! serviceName) -> Encina.EncinaError
+static Encina.RequestIdentityErrors.UnsupportedAccessor() -> Encina.EncinaError
+Encina.RequestIdentityOptions.PerTokenClaimTypes.get -> System.Collections.Generic.IList<string!>!
+static Encina.RequestIdentityOptions.DefaultPerTokenClaimTypes.get -> System.Collections.Generic.IReadOnlySet<string!>!
+static Encina.RequestIdentityServiceCollectionExtensions.AddEncinaServiceIdentity(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Encina.ServiceIdentityBuilder!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.ServiceIdentityBuilder
+Encina.ServiceIdentityBuilder.ServiceIdentityBuilder() -> void
+Encina.ServiceIdentityBuilder.WithClaim(string! type, string! value) -> Encina.ServiceIdentityBuilder!
+Encina.ServiceIdentityBuilder.WithPermissions(params string![]! permissions) -> Encina.ServiceIdentityBuilder!
+Encina.ServiceIdentityBuilder.WithRoles(params string![]! roles) -> Encina.ServiceIdentityBuilder!
+Encina.ServiceIdentityDefinition
+Encina.ServiceIdentityDefinition.Claims.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string!, string!>>!
+Encina.ServiceIdentityDefinition.Name.get -> string!
+Encina.ServiceIdentityDefinition.Permissions.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.ServiceIdentityDefinition.Roles.get -> System.Collections.Generic.IReadOnlySet<string!>!
+override Encina.ServiceIdentityDefinition.ToString() -> string!
+Encina.MultiTenancyMarker
+Encina.MultiTenancyMarker.MultiTenancyMarker() -> void
+Encina.Diagnostics.ActivityStatusDescriptions
+static Encina.Diagnostics.ActivityStatusDescriptions.ForError(Encina.EncinaError error) -> string!
+static Encina.Diagnostics.ActivityStatusDescriptions.ForException(System.Exception! exception) -> string!

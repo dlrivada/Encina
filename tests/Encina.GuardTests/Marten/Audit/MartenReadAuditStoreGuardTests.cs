@@ -12,7 +12,7 @@ public class MartenReadAuditStoreGuardTests
 {
     private static readonly IDocumentSession Session = Substitute.For<IDocumentSession>();
     private static readonly ITemporalKeyProvider KeyProvider = Substitute.For<ITemporalKeyProvider>();
-    private static readonly IOptions<MartenAuditOptions> AuditOptions = Microsoft.Extensions.Options.Options.Create(new MartenAuditOptions());
+    private static readonly IOptions<MartenOperationAuditOptions> AuditOptions = Microsoft.Extensions.Options.Options.Create(new MartenOperationAuditOptions());
     private static readonly ILogger<MartenReadAuditStore> Logger = NullLogger<MartenReadAuditStore>.Instance;
 
     private static AuditEventEncryptor CreateEncryptor()

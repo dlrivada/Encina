@@ -1,4 +1,5 @@
 using Encina.Dapper.MySQL.Sagas;
+using Encina.IntegrationTests.Infrastructure.Sagas;
 using Encina.Messaging.Sagas;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
@@ -30,6 +31,14 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Fact]
+    public Task RunAsync_WhenStepFailsAndCompensationsSucceed_PersistsCompensated() =>
+        SagaRunnerOutcomeScenarios.AssertStepFailureEndsCompensatedAsync(_store, new SagaStateFactory());
+
+    [Fact]
+    public Task RunAsync_WhenStepFailsAndCompensationThrows_PersistsFailed() =>
+        SagaRunnerOutcomeScenarios.AssertCompensationFailureEndsFailedAsync(_store, new SagaStateFactory());
 
     [Fact]
     public async Task AddAsync_ValidSaga_ShouldPersist()

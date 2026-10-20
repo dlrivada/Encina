@@ -36,10 +36,15 @@ The method accepts an optional `Action<ABACOptions>` delegate. When omitted, all
 | `IPolicyInformationPoint` | `DefaultPolicyInformationPoint` | Singleton |
 | `IAttributeProvider` | `DefaultAttributeProvider` | Scoped |
 | `ObligationExecutor` | Self | Scoped |
-| `ABACPipelineBehavior<TRequest, TResponse>` | Self | Transient |
+| `ABACPipelineBehavior<TRequest, TResponse>` | Self (added with `TryAddEnumerable`) | Transient |
 | `EELCompiler` | Self | Singleton |
+| Request identity model | `AddEncinaRequestIdentity()`; the PEP reads the caller from `IRequestContext.Identity` | See the identity registration |
+| `IABACDecisionRecorder` | `AuditStoreABACDecisionRecorder` | Singleton |
+| `IABACDecisionAuditReader` | `ABACDecisionAuditReader` | Scoped |
+| `ABACDecisionAuditHealthState` | Self | Singleton |
+| `TimeProvider` | `TimeProvider.System` | Singleton |
 
-All registrations use `TryAdd`, meaning you can register custom implementations **before** calling `AddEncinaABAC()` and they will not be overwritten.
+All registrations use `TryAdd`, meaning you can register custom implementations **before** calling `AddEncinaABAC()` and they will not be overwritten. `AddEncinaABAC()` also registers an options validator and two startup checks (`ABACEnforcementModeStartupCheck`, `ABACDecisionAuditStartupCheck`); see [DecisionAudit Options](#decisionaudit-options).
 
 **Conditional registrations:**
 
@@ -58,7 +63,7 @@ All registrations use `TryAdd`, meaning you can register custom implementations 
 |----------|------|---------|-------------|
 | `EnforcementMode` | `ABACEnforcementMode` | `Block` | Controls how Deny decisions are enforced; errors deny in every mode. See [ABACEnforcementMode](#abacenforcementmode). |
 | `IncludeAdvice` | `bool` | `true` | When `true`, advice expressions from policies are included in evaluation results and executed on a best-effort basis. |
-| `AddHealthCheck` | `bool` | `false` | When `true`, registers an `ABACHealthCheck` that verifies at least one policy or policy set is loaded. Returns `Degraded` if the PAP is empty. |
+| `AddHealthCheck` | `bool` | `false` | When `true`, registers an `ABACHealthCheck` that verifies at least one policy or policy set is loaded. Returns `Degraded` if the PAP is empty. When the decision audit is enabled it also reports the audit; see [Health](decision-audit.md#health). |
 | `ValidateExpressionsAtStartup` | `bool` | `false` | When `true`, scans assemblies in `ExpressionScanAssemblies` for `RequireConditionAttribute` and compiles all EEL expressions at startup. Throws `InvalidOperationException` on failure. |
 | `ExpressionScanAssemblies` | `List<Assembly>` | `[]` | Assemblies to scan for `RequireConditionAttribute` when `ValidateExpressionsAtStartup` is `true`. If the list is empty, a debug log is emitted and no validation occurs. |
 | `CustomFunctions` | `List<(string FunctionId, IXACMLFunction Function)>` | `[]` | Custom XACML functions registered into `IFunctionRegistry` at startup, in addition to the standard XACML 3.0 built-in functions. |
@@ -66,6 +71,33 @@ All registrations use `TryAdd`, meaning you can register custom implementations 
 | `PolicyCaching` | `PolicyCachingOptions` | See below | Configuration for the caching decorator. Only applicable when `UsePersistentPAP = true`. |
 | `SeedPolicySets` | `List<PolicySet>` | `[]` | Policy sets to seed into the PAP at application startup via `ABACPolicySeedingHostedService`. Duplicates are logged as warnings and skipped. |
 | `SeedPolicies` | `List<Policy>` | `[]` | Standalone policies to seed into the PAP at startup. Duplicates are logged as warnings and skipped. |
+| `DecisionAudit` | `ABACDecisionAuditOptions` | See [DecisionAudit Options](#decisionaudit-options) | Configuration of the decision audit trail. Off by default. |
+
+## DecisionAudit Options
+
+`ABACOptions.DecisionAudit` (`ABACDecisionAuditOptions`, namespace `Encina.Security.ABAC.DecisionAudit`) configures the decision audit trail described in [Decision audit](decision-audit.md). `AddEncinaABAC()` always registers `IABACDecisionRecorder` (`AuditStoreABACDecisionRecorder`, singleton) and `IABACDecisionAuditReader` (scoped); they stay idle until `Enabled` is set. It also registers the options validator, `TimeProvider` (`TryAdd`, `TimeProvider.System`) and the hosted `ABACDecisionAuditStartupCheck`. It never registers an `IOperationAuditStore`: with the audit enabled the application must register one, or the host start fails (see [Startup check](decision-audit.md#startup-check)).
+
+`ABACOptions.AuditDecisions(Action<ABACDecisionAuditOptions>? configure = null)` sets `Enabled` to `true`, runs the action (which may set it back to `false`) and returns the `ABACOptions`.
+
+```csharp
+services.AddEncinaSecurity(); // before AddEncinaABAC: see Registration order in decision-audit.md
+services.AddEncinaABAC(o => o.AuditDecisions(a => a.Outcomes = ABACDecisionAuditOutcomes.Denied));
+```
+
+The validator rejects, at start, a `WriteTimeout` of zero or less or above `int.MaxValue` milliseconds, `MaxTraceEntries` below 1, a `HealthFailureWindow` of zero or less, `Outcomes` with bits outside `ABACDecisionAuditOutcomes.All` and an undefined `FailureMode`. It also rejects `DecisionAudit.Enabled = true` together with `EnforcementMode = Disabled` (the disabled enforcement point bypasses evaluation and would record nothing), so the host fails to start with an `OptionsValidationException`. Registration order is explained in [Registration order](decision-audit.md#registration-order).
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Enabled` | `bool` | `false` | Whether the PEP records the decisions it enforces. |
+| `Outcomes` | `ABACDecisionAuditOutcomes` | `All` | Which enforced outcomes are recorded (`Granted`, `Denied`, `NotEnforced`). Errors and unauthenticated callers are always recorded. |
+| `FailureMode` | `ABACDecisionAuditFailureMode` | `FailClosed` | What happens to a request that would proceed when its record cannot be written: `FailClosed` denies it, `BestEffort` lets it proceed and logs. |
+| `IncludeEvaluationTrace` | `bool` | `true` | Whether records carry the evaluation trace. |
+| `MaxTraceEntries` | `int` | `64` | Maximum trace nodes per record; must be at least 1 (validated at start). |
+| `ResourceIdAttributeName` | `string` | `resourceId` | Resource attribute read as the resource id when the request does not implement `IABACResourceIdentity`. |
+| `RecordedAttributeValues` | `HashSet<string>` | empty | Names of the attributes whose values are recorded. Values are personal data, so none are recorded by default. |
+| `WriteTimeout` | `TimeSpan` | 5 seconds | Bound of one record write, raced even against a store that ignores its token; must be greater than zero and at most `int.MaxValue` milliseconds (validated at start). A failed write holds the request for at most twice this value. |
+| `HealthFailureWindow` | `TimeSpan` | 5 minutes | How long a failed audit write keeps `ABACHealthCheck` Unhealthy under `FailClosed`; must be greater than zero (validated at start). Used only when `AddHealthCheck` is `true`. See [Health](decision-audit.md#health). |
+| `AllowCrossTenantQueries` | `bool` | `false` | Lets the reader run without a tenant in a multi-tenant application (operator tooling); each such query is logged with EventId 9090. |
 
 ## ABACEnforcementMode
 
@@ -74,7 +106,7 @@ The `ABACEnforcementMode` enum controls the Policy Enforcement Point (PEP) behav
 | Value | Behavior |
 |-------|----------|
 | `Block` | **Production mode.** Deny decisions block request execution and return an `EncinaError`. Obligations are enforced. This is the default. |
-| `Warn` | **Observation mode.** Definite verdicts (a Deny, a required policy that is NotApplicable, Deny or not found, a condition that is `false`) are logged as warnings and requests proceed. Errors still deny when they decide the verdict: `abac.missing_context` (always: no security context, an unauthenticated one or an empty user id is denied in every mode before any attribute is collected), `abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`. When a definite denial and an error occur together among the required policies, the definite denial is the verdict and `Warn` lets the request through (see [effects](../xacml/effects.md)). Useful for validating policies before enabling enforcement. |
+| `Warn` | **Observation mode.** Definite verdicts (a Deny, a required policy that is NotApplicable, Deny or not found, a condition that is `false`) are logged as warnings and requests proceed. Errors still deny when they decide the verdict: `encina.authorization.unauthenticated` (always: an anonymous caller is denied in every mode except `Disabled`, before any attribute is collected), `abac.indeterminate`, `abac.evaluation_failed`, `encina.authorization.abac_obligation_failed`. When a definite denial and an error occur together among the required policies, the definite denial is the verdict and `Warn` lets the request through (see [effects](../xacml/effects.md)). Useful for validating policies before enabling enforcement. |
 | `Disabled` | **Bypass mode.** ABAC evaluation is completely skipped. No policies are evaluated, no obligations are executed. Useful during development or for feature-flagging ABAC. |
 
 **Gradual rollout strategy:** Start with `Warn` to observe decisions in production logs, validate that policies behave as expected, then switch to `Block`.

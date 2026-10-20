@@ -36,10 +36,16 @@ has_children: true
 | [024](024-remove-sqlite-provider-pre-1.0.md) | Remove SQLite Provider Pre-1.0 |
 | [025](025-performance-measurement-infrastructure.md) | Performance Measurement Infrastructure |
 | [027](027-marten-as-the-event-sourcing-provider.md) | Marten Is the Event-Sourcing Provider; EventStoreDB Deprecated |
-| [028](028-domain-events-versus-integration-events.md) | Domain Events vs Integration Events (Outbox only) |
+| [028](028-domain-events-versus-integration-events.md) | Domain Events vs Integration Events |
 | [029](029-recoverability-error-classification.md) | Recoverability Error Classification |
 | [030](030-encryption-at-the-serializer-level.md) | Encryption at the Serializer Level (AES-256-GCM) |
 | [031](031-retention-erasure-port.md) | Retention Enforcement Erases Through Its Own Category-Scoped Port |
+| [034](034-crypto-shredding-through-the-stj-contract.md) | Crypto-Shredding Runs Through the System.Text.Json Contract |
+| [036](036-three-audit-stores.md) | Three Purpose-Named Audit Stores: Operation, Entity Change and Read Access |
+| [046](046-persistent-dead-letter-queue.md) | Persistent Dead Letter Queue: Oldest-First Contract, Idempotent Capture, Tenant Column |
+| [047](047-abac-decision-audit.md) | ABAC Decisions Are Audited Write-Ahead at the Enforcement Point, Fail-Closed |
+| [048](048-inbox-record-vs-business-transaction.md) | The Inbox Record and the Business Transaction: Enlisted and Independent Writes |
+| [050](050-modules-may-require-modules.md) | A Module May Require Other Modules When It Needs Them for Its Guarantees |
 
 ## Reserved numbers
 
@@ -50,4 +56,14 @@ An ADR takes the next number that is neither used nor reserved. A plan or spike 
 | 026 | [otlp-exporter-implementation-plan-1043.md](../../plans/otlp-exporter-implementation-plan-1043.md) (#1043) | OTLP exporter opt-in decision | Reserved, ADR not written |
 | 032 | [retention-floor-implementation-plan-1187.md](../../plans/retention-floor-implementation-plan-1187.md) (#1187) | Retention floor and anchored periods | Reserved, ADR not written |
 | 033 | [blocked-data-state-implementation-plan-1189.md](../../plans/blocked-data-state-implementation-plan-1189.md) (#1189) | Composable row filters and blocked data state | Reserved, ADR not written |
-| 034 | [crypto-shredding-nested-implementation-plan-1698.md](../../plans/crypto-shredding-nested-implementation-plan-1698.md) (#1698) | Crypto-shredding through the System.Text.Json contract | Reserved, ADR not written |
+| 035 | [security-context-population-implementation-plan-1705.md](../../plans/security-context-population-implementation-plan-1705.md) (#1705) | One request identity model | Reserved, ADR not written |
+| 037 | [outbox-atomicity-ado-implementation-plan-718.md](../../plans/outbox-atomicity-ado-implementation-plan-718.md) (#718) | Transactional outbox | Reserved, ADR not written |
+| 038 | [pre-release-checklist-implementation-plan-104.md](../../plans/pre-release-checklist-implementation-plan-104.md) (#104) | Release readiness gate | Reserved, ADR not written |
+| 039 | [break-the-glass-implementation-plan-1244.md](../../plans/break-the-glass-implementation-plan-1244.md) (#1244) | Break-the-glass emergency access | Reserved, ADR not written |
+| 040 | [enisa-single-entry-point-implementation-plan-812.md](../../plans/enisa-single-entry-point-implementation-plan-812.md) (#812) | Incident reporting adapters on the breach stream | Reserved, ADR not written |
+| 041 | [aiact-record-keeping-implementation-plan-842.md](../../plans/aiact-record-keeping-implementation-plan-842.md) (#842) | AI Act record-keeping log | Reserved, ADR not written |
+| 042 | [data-subject-representation-implementation-plan-1197.md](../../plans/data-subject-representation-implementation-plan-1197.md) (#1197) | Data-subject representation shape | Reserved, ADR not written |
+| 043 | [processor-row-claiming-implementation-plan-1251.md](../../plans/processor-row-claiming-implementation-plan-1251.md) (#1251) | Processor row claiming | Reserved, ADR not written |
+| 044 | [aiact-marten-event-sourcing-implementation-plan-847.md](../../plans/aiact-marten-event-sourcing-implementation-plan-847.md) (#847) | Deterministic natural-key stream identity for compliance aggregates | Reserved, ADR not written |
+| 045 | [special-category-conditions-implementation-plan-1196.md](../../plans/special-category-conditions-implementation-plan-1196.md) (#1196) | Legal grounds: Art. 6 basis and Art. 9(2) condition as one model | Reserved, ADR not written |
+| 049 | [pipeline-execution-order-implementation-plan-2184.md](../../plans/pipeline-execution-order-implementation-plan-2184.md) (#2184) | Pipeline behavior execution-order contract (named stages) | Reserved, ADR not written |

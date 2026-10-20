@@ -4,7 +4,14 @@ namespace Encina.Security.ABAC;
 /// Factory methods for ABAC-related <see cref="EncinaError"/> instances.
 /// </summary>
 /// <remarks>
-/// Error codes follow the convention <c>abac.{category}</c>.
+/// Error codes follow the convention <c>abac.{category}</c>, except the invalid decision audit query
+/// (<see cref="InvalidDecisionAuditQueryCode"/>, a <c>validation.*</c> code answered with HTTP 400) and the definite authorization
+/// denials (<see cref="AccessDeniedCode"/>, <see cref="ConditionNotMetCode"/>,
+/// <see cref="ObligationFailedCode"/> and <see cref="RequiredPolicyNotFoundCode"/>) and the tenant denials of the
+/// decision audit reader (<see cref="DecisionAuditTenantRequiredCode"/> and
+/// <see cref="DecisionAuditTenantMismatchCode"/>): they use the
+/// <c>encina.authorization.abac_{reason}</c> codes so every host adapter answers them with
+/// HTTP 403 through the shared <c>encina.authorization.*</c> prefix rule.
 /// All errors include structured metadata for observability.
 /// </remarks>
 public static class ABACErrors
@@ -15,17 +22,28 @@ public static class ABACErrors
 
     // ── Error Code Constants ────────────────────────────────────────
 
-    /// <summary>Error code when policy evaluation resulted in Deny.</summary>
-    public const string AccessDeniedCode = "abac.access_denied";
+    /// <summary>Error code when policy evaluation resulted in Deny (an authorization denial, HTTP 403).</summary>
+    public const string AccessDeniedCode = "encina.authorization.abac_access_denied";
 
     /// <summary>Error code when policy evaluation resulted in Indeterminate (error during evaluation).</summary>
     public const string IndeterminateCode = "abac.indeterminate";
 
-    /// <summary>Error code when the referenced policy does not exist.</summary>
-    public const string PolicyNotFoundCode = "abac.policy_not_found";
+    /// <summary>
+    /// Error code when an administrative or lookup operation references a policy that does not exist
+    /// (a missing resource, not an authorization denial; the <c>.not_found</c> suffix makes the host
+    /// adapters answer HTTP 404). A request denied because a required policy
+    /// is missing uses <see cref="RequiredPolicyNotFoundCode"/> instead.
+    /// </summary>
+    public const string PolicyNotFoundCode = "abac.policy.not_found";
 
-    /// <summary>Error code when the referenced policy set does not exist.</summary>
-    public const string PolicySetNotFoundCode = "abac.policy_set_not_found";
+    /// <summary>
+    /// Error code when a request is denied because a policy it requires is missing from the policy
+    /// store (a fail-closed authorization denial, HTTP 403).
+    /// </summary>
+    public const string RequiredPolicyNotFoundCode = "encina.authorization.abac_policy_not_found";
+
+    /// <summary>Error code when the referenced policy set does not exist (HTTP 404 in the host adapters).</summary>
+    public const string PolicySetNotFoundCode = "abac.policy_set.not_found";
 
     /// <summary>Error code when policy evaluation threw an exception.</summary>
     public const string EvaluationFailedCode = "abac.evaluation_failed";
@@ -51,11 +69,8 @@ public static class ABACErrors
     /// <summary>Error code when the combining algorithm produced Indeterminate.</summary>
     public const string CombiningFailedCode = "abac.combining_failed";
 
-    /// <summary>Error code when the security context is not available.</summary>
-    public const string MissingContextCode = "abac.missing_context";
-
     /// <summary>Error code when a mandatory obligation handler failed (access must be denied per XACML spec).</summary>
-    public const string ObligationFailedCode = "abac.obligation_failed";
+    public const string ObligationFailedCode = "encina.authorization.abac_obligation_failed";
 
     /// <summary>Error code when a referenced function is not in the registry.</summary>
     public const string FunctionNotFoundCode = "abac.function_not_found";
@@ -82,16 +97,55 @@ public static class ABACErrors
     public const string CacheProviderNotRegisteredCode = "abac.cache_provider_not_registered";
 
     /// <summary>Error code when a <see cref="RequireConditionAttribute"/> expression evaluated to <c>false</c>.</summary>
-    public const string ConditionNotMetCode = "abac.condition_not_met";
+    public const string ConditionNotMetCode = "encina.authorization.abac_condition_not_met";
 
     /// <summary>Error code when an obligation or advice handler threw an exception instead of returning a result.</summary>
     public const string ObligationHandlerExceptionCode = "abac.obligation_handler_exception";
 
-    /// <summary>Error code when a policy change is refused because no principal can be resolved to attribute it to.</summary>
+    /// <summary>Error code when a policy change is refused because the request context has no authenticated caller to attribute it to.</summary>
     public const string PolicyChangePrincipalRequiredCode = "abac.policy_change_principal_required";
 
     /// <summary>Error code when the audit record of a policy change could not be written, so the change was not applied.</summary>
     public const string PolicyChangeAuditFailedCode = "abac.policy_change_audit_failed";
+
+    /// <summary>
+    /// Error code when the decision audit record of a request that would proceed could not be written,
+    /// so the request is denied (fail closed). A server-side failure, not an authorization denial.
+    /// </summary>
+    public const string DecisionAuditFailedCode = "abac.decision_audit_failed";
+
+    /// <summary>
+    /// Error code when a decision audit query has invalid arguments (page size, date range): a client
+    /// input error, so it uses the <c>validation.</c> family that every host adapter answers with HTTP 400.
+    /// </summary>
+    public const string InvalidDecisionAuditQueryCode = "validation.abac_decision_audit_query_invalid";
+
+    /// <summary>Error code when the decision audit reader or export finds no <c>IOperationAuditStore</c> registered.</summary>
+    public const string DecisionAuditStoreUnavailableCode = "abac.decision_audit_store_unavailable";
+
+    /// <summary>
+    /// Error code when a stored decision audit entry cannot be read back (corrupt metadata or a schema
+    /// the reader does not know): a server-side data problem, so it stays in the <c>abac.*</c> family.
+    /// </summary>
+    public const string DecisionAuditRecordUnreadableCode = "abac.decision_audit_record_unreadable";
+
+    /// <summary>
+    /// Error code when a decision audit export failed after it had already written lines to the
+    /// destination: the output is a partial file and must be discarded.
+    /// </summary>
+    public const string DecisionAuditExportIncompleteCode = "abac.decision_audit_export_incomplete";
+
+    /// <summary>
+    /// Error code when the decision audit reader is asked for data while multi-tenancy is enabled and the
+    /// request carries no tenant (an authorization denial, HTTP 403).
+    /// </summary>
+    public const string DecisionAuditTenantRequiredCode = "encina.authorization.abac_audit_tenant_required";
+
+    /// <summary>
+    /// Error code when the decision audit reader is asked for the data of a tenant other than the
+    /// tenant of the request (an authorization denial, HTTP 403).
+    /// </summary>
+    public const string DecisionAuditTenantMismatchCode = "encina.authorization.abac_audit_tenant_mismatch";
 
     // ── Factory Methods ─────────────────────────────────────────────
 
@@ -154,14 +208,14 @@ public static class ABACErrors
     /// </summary>
     /// <param name="requestType">The request type that requires the policy.</param>
     /// <param name="policyName">The required policy name, recorded in the error details only.</param>
-    /// <returns>An error with code <see cref="PolicyNotFoundCode"/> and a fixed message.</returns>
+    /// <returns>An error with code <see cref="RequiredPolicyNotFoundCode"/> and a fixed message.</returns>
     public static EncinaError RequiredPolicyNotFound(Type requestType, string policyName)
     {
         ArgumentNullException.ThrowIfNull(requestType);
         ArgumentNullException.ThrowIfNull(policyName);
 
         return EncinaErrors.Create(
-            code: PolicyNotFoundCode,
+            code: RequiredPolicyNotFoundCode,
             message: "A policy required by the request was not found in the policy store. Access denied.",
             details: new Dictionary<string, object?>
             {
@@ -366,21 +420,31 @@ public static class ABACErrors
             });
 
     /// <summary>
-    /// Creates an error when the security context, or the user it should carry, is not available
-    /// for ABAC evaluation. The Policy Enforcement Point returns it in every enforcement mode.
+    /// Creates the error the Policy Enforcement Point returns when the request has no authenticated
+    /// caller (<see cref="IRequestContext.Identity"/> is anonymous). It is returned in every
+    /// enforcement mode, before any attribute is collected.
     /// </summary>
     /// <param name="requestType">The request type that required ABAC evaluation.</param>
-    /// <returns>An error indicating the security context is missing.</returns>
-    public static EncinaError MissingContext(Type requestType) =>
-        EncinaErrors.Create(
-            code: MissingContextCode,
-            message: $"Authenticated security context with a user is not available for ABAC evaluation of '{requestType.Name}'. Access denied.",
+    /// <returns>
+    /// An error with the shared code <see cref="EncinaErrorCodes.AuthorizationUnauthenticated"/> and
+    /// the detail <c>gate = abac</c>, so every host answers it as unauthenticated. The message is fixed
+    /// and carries no caller data.
+    /// </returns>
+    public static EncinaError UnauthenticatedCaller(Type requestType)
+    {
+        ArgumentNullException.ThrowIfNull(requestType);
+
+        return EncinaErrors.Create(
+            code: EncinaErrorCodes.AuthorizationUnauthenticated,
+            message: "ABAC evaluation requires an authenticated caller. Access denied.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyRequestType] = requestType.FullName,
                 [MetadataKeyStage] = MetadataStageAbac,
-                ["requirement"] = "abac_context"
+                ["gate"] = "abac",
+                ["requirement"] = "authenticated"
             });
+    }
 
     /// <summary>
     /// Creates an error when a mandatory obligation handler failed.
@@ -420,12 +484,12 @@ public static class ABACErrors
     /// Creates an error when function evaluation threw an exception.
     /// </summary>
     /// <param name="functionId">The identifier of the function that failed.</param>
-    /// <param name="exception">The exception that occurred during function evaluation.</param>
-    /// <returns>An error indicating function evaluation failure.</returns>
+    /// <param name="exception">The exception that occurred during function evaluation; its message is never recorded.</param>
+    /// <returns>An error indicating function evaluation failure, with a fixed message and the exception type in the details.</returns>
     public static EncinaError FunctionError(string functionId, Exception exception) =>
         EncinaErrors.Create(
             code: FunctionErrorCode,
-            message: $"Function '{functionId}' evaluation failed: {exception.Message}",
+            message: $"Function '{functionId}' evaluation failed.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyStage] = MetadataStageAbac,
@@ -532,14 +596,15 @@ public static class ABACErrors
             });
 
     /// <summary>
-    /// Creates an error when a policy change is refused because the request context carries no
-    /// principal to attribute the change to. The message is fixed and carries no caller data.
+    /// Creates an error when a policy change is refused because the request context has no
+    /// authenticated caller (a user or a declared service identity) to attribute the change to.
+    /// The message is fixed and carries no caller data.
     /// </summary>
-    /// <returns>An error indicating that a policy change needs an authenticated principal.</returns>
+    /// <returns>An error indicating that a policy change needs an authenticated caller.</returns>
     public static EncinaError PolicyChangePrincipalRequired() =>
         EncinaErrors.Create(
             code: PolicyChangePrincipalRequiredCode,
-            message: "A policy change requires a resolvable principal; none is available in the current request context.",
+            message: "A policy change requires an authenticated caller; the current request context has none.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyStage] = MetadataStageAbac
@@ -560,5 +625,136 @@ public static class ABACErrors
             {
                 [MetadataKeyStage] = MetadataStageAbac,
                 ["cause"] = cause
+            });
+
+    /// <summary>
+    /// Creates the error the Policy Enforcement Point returns when the decision audit record of a
+    /// request that would have proceeded could not be written (fail closed). The message is fixed;
+    /// only the request type and the store's error code (or exception type) are recorded.
+    /// </summary>
+    /// <param name="requestType">The request type whose decision could not be recorded.</param>
+    /// <param name="storeErrorCode">The error code or exception type name of the store failure, when known; never a message.</param>
+    /// <returns>An error with code <see cref="DecisionAuditFailedCode"/>.</returns>
+    public static EncinaError DecisionAuditFailed(Type requestType, string? storeErrorCode)
+    {
+        ArgumentNullException.ThrowIfNull(requestType);
+
+        return EncinaErrors.Create(
+            code: DecisionAuditFailedCode,
+            message: "The ABAC decision could not be recorded in the audit trail. Access denied.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyRequestType] = requestType.FullName,
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["cause"] = storeErrorCode
+            });
+    }
+
+    /// <summary>
+    /// Creates an error when a decision audit query has invalid arguments.
+    /// </summary>
+    /// <param name="reason">A fixed description of the invalid argument (for example <c>"pageSize"</c>); never caller data.</param>
+    /// <returns>An error with code <see cref="InvalidDecisionAuditQueryCode"/>.</returns>
+    public static EncinaError InvalidDecisionAuditQuery(string reason)
+    {
+        ArgumentNullException.ThrowIfNull(reason);
+
+        return EncinaErrors.Create(
+            code: InvalidDecisionAuditQueryCode,
+            message: "The decision audit query is invalid.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["reason"] = reason
+            });
+    }
+
+    /// <summary>
+    /// Creates an error when the decision audit recorder, reader or export needs an
+    /// <c>IOperationAuditStore</c> and none is registered. The same cause and code serve the write
+    /// and the read path, so the message names neither alone.
+    /// </summary>
+    /// <returns>An error with code <see cref="DecisionAuditStoreUnavailableCode"/> and a fixed message.</returns>
+    public static EncinaError DecisionAuditStoreUnavailable() =>
+        EncinaErrors.Create(
+            code: DecisionAuditStoreUnavailableCode,
+            message: "No operation audit store is registered, so the decision audit trail cannot be written or read.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["requirement"] = "IOperationAuditStore"
+            });
+
+    /// <summary>
+    /// Creates the error the decision audit reader returns when a stored entry cannot be read back.
+    /// The message is fixed; neither the entry's content nor the parser's message is recorded.
+    /// </summary>
+    /// <param name="cause">The exception type name of the read failure; never a message.</param>
+    /// <returns>An error with code <see cref="DecisionAuditRecordUnreadableCode"/>.</returns>
+    public static EncinaError DecisionAuditRecordUnreadable(string cause)
+    {
+        ArgumentNullException.ThrowIfNull(cause);
+
+        return EncinaErrors.Create(
+            code: DecisionAuditRecordUnreadableCode,
+            message: "A stored decision audit entry could not be read.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["cause"] = cause
+            });
+    }
+
+    /// <summary>
+    /// Creates the error a decision audit export returns when a page failed after earlier pages were
+    /// already written: the destination holds a partial JSON Lines file that must be discarded. The
+    /// message is fixed; the details carry the number of lines written and the code of the failure.
+    /// </summary>
+    /// <param name="linesWritten">The number of lines already written to the destination.</param>
+    /// <param name="causeCode">The error code of the page that failed; never a message.</param>
+    /// <returns>An error with code <see cref="DecisionAuditExportIncompleteCode"/>.</returns>
+    public static EncinaError DecisionAuditExportIncomplete(int linesWritten, string causeCode)
+    {
+        ArgumentNullException.ThrowIfNull(causeCode);
+
+        return EncinaErrors.Create(
+            code: DecisionAuditExportIncompleteCode,
+            message: "The decision audit export failed after part of it was written; discard the output.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["linesWritten"] = linesWritten,
+                ["cause"] = causeCode
+            });
+    }
+
+    /// <summary>
+    /// Creates the denial the decision audit reader returns when multi-tenancy is enabled and the
+    /// request carries no tenant.
+    /// </summary>
+    /// <returns>An error with code <see cref="DecisionAuditTenantRequiredCode"/> and a fixed message.</returns>
+    public static EncinaError DecisionAuditTenantRequired() =>
+        EncinaErrors.Create(
+            code: DecisionAuditTenantRequiredCode,
+            message: "Reading the decision audit trail requires a tenant. Access denied.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["requirement"] = "tenant"
+            });
+
+    /// <summary>
+    /// Creates the denial the decision audit reader returns when the query names a tenant other than
+    /// the tenant of the request.
+    /// </summary>
+    /// <returns>An error with code <see cref="DecisionAuditTenantMismatchCode"/> and a fixed message; neither tenant is recorded.</returns>
+    public static EncinaError DecisionAuditTenantMismatch() =>
+        EncinaErrors.Create(
+            code: DecisionAuditTenantMismatchCode,
+            message: "The decision audit query names a different tenant than the request. Access denied.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["requirement"] = "same-tenant"
             });
 }

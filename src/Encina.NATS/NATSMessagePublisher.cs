@@ -12,12 +12,31 @@ namespace Encina.NATS;
 /// <summary>
 /// NATS-based implementation of the message publisher.
 /// </summary>
-public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposable
+/// <remarks>
+/// The publisher does not own the injected <see cref="INatsConnection"/>; the DI container owns
+/// and disposes it, so ending a scope that resolved the publisher leaves the connection usable.
+/// </remarks>
+public sealed class NATSMessagePublisher : INATSMessagePublisher
 {
     private readonly INatsConnection _connection;
     private readonly INatsJSContext? _jetStream;
     private readonly ILogger<NATSMessagePublisher> _logger;
     private readonly EncinaNATSOptions _options;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="NATSMessagePublisher"/> class without JetStream.
+    /// This is the constructor the container uses when no JetStream context is registered.
+    /// </summary>
+    /// <param name="connection">The NATS connection.</param>
+    /// <param name="logger">The logger instance.</param>
+    /// <param name="options">The configuration options.</param>
+    public NATSMessagePublisher(
+        INatsConnection connection,
+        ILogger<NATSMessagePublisher> logger,
+        IOptions<EncinaNATSOptions> options)
+        : this(connection, null, logger, options)
+    {
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NATSMessagePublisher"/> class.
@@ -42,10 +61,20 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
         _options = options.Value;
     }
 
+    internal const string MessageIdHeader = "Nats-Msg-Id";
+
+    // Nats-Msg-Id is also the JetStream de-duplication key; duplicates are dropped only inside the stream's
+    // Duplicates window (2 minutes by default), so this is not a permanent idempotency guarantee.
+    private static NatsHeaders CreateHeaders(string? messageId) => new()
+    {
+        [MessageIdHeader] = string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId
+    };
+
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
         TMessage message,
         string? subject = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -62,6 +91,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
             await _connection.PublishAsync(
                 effectiveSubject,
                 data,
+                headers: CreateHeaders(messageId),
                 cancellationToken: cancellationToken).ConfigureAwait(false);
 
             Log.SuccessfullyPublishedMessage(_logger, effectiveSubject);
@@ -145,6 +175,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
     public async ValueTask<Either<EncinaError, NATSPublishAck>> JetStreamPublishAsync<TMessage>(
         TMessage message,
         string? subject = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -169,6 +200,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
             var ack = await _jetStream.PublishAsync(
                 effectiveSubject,
                 data,
+                headers: CreateHeaders(messageId),
                 cancellationToken: cancellationToken).ConfigureAwait(false);
 
             Log.SuccessfullyPublishedToJetStream(_logger, ack.Stream ?? string.Empty, ack.Seq);
@@ -186,11 +218,5 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
                     ex,
                     $"Failed to publish message of type {typeof(TMessage).Name} to JetStream."));
         }
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
-    {
-        await _connection.DisposeAsync().ConfigureAwait(false);
     }
 }

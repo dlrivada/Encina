@@ -1,4 +1,5 @@
 using Encina.Messaging.Inbox;
+using Encina.Testing.Identity;
 using LanguageExt;
 using NSubstitute;
 using Shouldly;
@@ -45,7 +46,7 @@ public sealed class InboxPipelineBehaviorContractTests
         var ctx = Substitute.For<IRequestContext>();
         ctx.CorrelationId.Returns("corr-1");
         ctx.IdempotencyKey.Returns(idempotencyKey);
-        ctx.UserId.Returns("user-1");
+        ctx.Identity.Returns(TestIdentity.User("user-1"));
         ctx.TenantId.Returns((string?)null);
         ctx.Timestamp.Returns(DateTimeOffset.UtcNow);
         return ctx;

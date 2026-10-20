@@ -1,6 +1,7 @@
 using Encina.Marten.GDPR.Abstractions;
 using Encina.Marten.GDPR.Diagnostics;
-using Encina.Security.Encryption.Abstractions;
+
+using Marten;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -9,18 +10,14 @@ using Microsoft.Extensions.Logging;
 namespace Encina.Marten.GDPR.Health;
 
 /// <summary>
-/// Health check that verifies the crypto-shredding subsystem is operational by validating
-/// that required services are resolvable and the key store is accessible.
+/// Health check that verifies crypto-shredding is installed and its key provider resolves.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This health check performs the following verifications:
-/// <list type="number">
-/// <item><description>Resolves <see cref="IFieldEncryptor"/> from the DI container (from <c>AddEncinaEncryption</c>).</description></item>
-/// <item><description>Resolves <see cref="ISubjectKeyProvider"/> from the DI container.</description></item>
-/// <item><description>Checks that the <see cref="CryptoShreddedPropertyCache"/> has discovered event types
-/// (Degraded if empty, which may indicate auto-registration has not run).</description></item>
-/// </list>
+/// Unhealthy when the store serializer is not a <see cref="CryptoShredderSerializer"/>, when the installation check
+/// fails (the contract modifier was replaced or bypassed, or a nested canary is not encrypted), or when
+/// <see cref="ISubjectKeyProvider"/> cannot be resolved in a scope. The data reports the key provider type, the
+/// number of crypto contracts built and the number of types rejected at runtime; never a subject id.
 /// </para>
 /// <para>
 /// Enable via <see cref="CryptoShreddingOptions.AddHealthCheck"/>:
@@ -66,55 +63,7 @@ public sealed class CryptoShreddingHealthCheck : IHealthCheck
     {
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var scopedProvider = scope.ServiceProvider;
-
-            // 1. Verify IFieldEncryptor is resolvable (from AddEncinaEncryption)
-            var fieldEncryptor = scopedProvider.GetService<IFieldEncryptor>();
-
-            if (fieldEncryptor is null)
-            {
-                return Task.FromResult(HealthCheckResult.Unhealthy(
-                    "Missing prerequisite: IFieldEncryptor is not registered. "
-                    + "Ensure AddEncinaEncryption() is called before AddEncinaMartenGdpr()."));
-            }
-
-            // 2. Verify ISubjectKeyProvider is resolvable
-            var subjectKeyProvider = scopedProvider.GetService<ISubjectKeyProvider>();
-
-            if (subjectKeyProvider is null)
-            {
-                return Task.FromResult(HealthCheckResult.Unhealthy(
-                    "Missing service: ISubjectKeyProvider is not registered."));
-            }
-
-            // 3. Check if property cache has discovered types
-            if (!CryptoShreddedPropertyCache.HasAnyRegisteredTypes)
-            {
-                var data = new Dictionary<string, object>
-                {
-                    ["keyProviderType"] = subjectKeyProvider.GetType().Name
-                };
-
-                return Task.FromResult(HealthCheckResult.Degraded(
-                    "Crypto-shredding property cache is empty. No event types with [CryptoShredded] "
-                    + "properties have been discovered. This may be normal if no events have been "
-                    + "serialized yet, or it could indicate that auto-registration was not configured.",
-                    data: data));
-            }
-
-            // All checks passed
-            var healthData = new Dictionary<string, object>
-            {
-                ["keyProviderType"] = subjectKeyProvider.GetType().Name,
-                ["cachedTypeCount"] = CryptoShreddedPropertyCache.CachedTypeCount
-            };
-
-            _logger.HealthCheckCompleted("Healthy", CryptoShreddedPropertyCache.CachedTypeCount);
-
-            return Task.FromResult(HealthCheckResult.Healthy(
-                "Crypto-shredding subsystem is healthy. Key provider and property cache are operational.",
-                healthData));
+            return Task.FromResult(Check());
         }
         catch (Exception ex)
         {
@@ -122,5 +71,39 @@ public sealed class CryptoShreddingHealthCheck : IHealthCheck
             return Task.FromResult(HealthCheckResult.Unhealthy(
                 $"Crypto-shredding health check failed with exception: {ex.GetType().Name}"));
         }
+    }
+
+    private HealthCheckResult Check()
+    {
+        var store = _serviceProvider.GetService<IDocumentStore>();
+        if (store?.Options.Serializer() is not CryptoShredderSerializer serializer)
+        {
+            return HealthCheckResult.Unhealthy("The Marten store serializer is not the crypto-shredding serializer.");
+        }
+
+        try
+        {
+            serializer.VerifyContractModifierInstalled();
+        }
+        catch (CryptoShreddingConfigurationException ex)
+        {
+            return HealthCheckResult.Unhealthy($"Crypto-shredding installation check failed: {ex.Problem}.");
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        if (scope.ServiceProvider.GetService<ISubjectKeyProvider>() is not { } keyProvider)
+        {
+            return HealthCheckResult.Unhealthy("Missing service: ISubjectKeyProvider is not registered.");
+        }
+
+        var data = new Dictionary<string, object>
+        {
+            ["keyProviderType"] = keyProvider.GetType().Name,
+            ["cryptoContractCount"] = serializer.Registry.CryptoContractCount,
+            ["misconfiguredTypeCount"] = serializer.Registry.MisconfiguredTypeCount
+        };
+
+        _logger.HealthCheckCompleted("Healthy", serializer.Registry.CryptoContractCount, serializer.Registry.MisconfiguredTypeCount);
+        return HealthCheckResult.Healthy("Crypto-shredding is installed and its key provider resolves.", data);
     }
 }

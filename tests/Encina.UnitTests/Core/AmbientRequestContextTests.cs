@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Encina.Testing;
+using Encina.Testing.Identity;
+using Encina.UnitTests.Core.Identity;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Core;
@@ -140,8 +142,14 @@ public sealed class AmbientRequestContextTests
         return services.BuildServiceProvider();
     }
 
-    private static IRequestContext UserContext(string user, string? tenant = null)
-        => RequestContext.CreateForTest(userId: user, tenantId: tenant, correlationId: $"corr-{user}");
+    // Contexts told apart by correlation id and tenant. They are anonymous on purpose: these tests are
+    // about which context a dispatch is seeded with, and the setter accepts only an anonymous context
+    // where none is readable (identities are bound through the scope factory; see the identity tests).
+    private static IRequestContext LabelledContext(string label, string? tenant = null)
+        => RequestContext.CreateForTest(tenantId: tenant, correlationId: $"corr-{label}");
+
+    private static IRequestContext AnonymousAmbient()
+        => RequestContext.CreateForTest(tenantId: "ambient-tenant", correlationId: "corr-ambient");
 
     // ── Registration ───────────────────────────────────────────────────
 
@@ -165,7 +173,7 @@ public sealed class AmbientRequestContextTests
         await using var provider = BuildProvider();
         var encina = provider.GetRequiredService<IEncina>();
         var accessor = provider.GetRequiredService<IRequestContextAccessor>();
-        var ambient = UserContext("ambient-user", "ambient-tenant");
+        var ambient = LabelledContext("ambient-user", "ambient-tenant");
         accessor.RequestContext = ambient;
 
         var result = await encina.Send(new Probe("ambient"));
@@ -181,7 +189,7 @@ public sealed class AmbientRequestContextTests
         await using var provider = BuildProvider();
         var encina = provider.GetRequiredService<IEncina>();
         var accessor = provider.GetRequiredService<IRequestContextAccessor>();
-        accessor.RequestContext = null;
+        accessor.RequestContext.ShouldBeNull();
         using var activity = new Activity("request-context-test").Start();
 
         var result = await encina.Send(new Probe("fresh"));
@@ -200,8 +208,10 @@ public sealed class AmbientRequestContextTests
         await using var provider = BuildProvider();
         var encina = provider.GetRequiredService<IEncina>();
         var accessor = provider.GetRequiredService<IRequestContextAccessor>();
-        var ambient = UserContext("ambient-user");
-        var explicitContext = UserContext("job-user", "job-tenant");
+        // An explicit context wins over the ambient one; an anonymous explicit context never changes
+        // the identity, so it is accepted silently (identity changes: ExplicitContextConflictTests).
+        var ambient = AnonymousAmbient();
+        var explicitContext = LabelledContext("job-user", "job-tenant");
         accessor.RequestContext = ambient;
 
         var result = await encina.Send(new Probe("explicit"), explicitContext);
@@ -221,7 +231,7 @@ public sealed class AmbientRequestContextTests
         var results = await Task.WhenAll(Enumerable.Range(0, 64).Select(async i =>
         {
             await Task.Yield();
-            var context = UserContext($"user-{i}", $"tenant-{i}");
+            var context = LabelledContext($"user-{i}", $"tenant-{i}");
             var result = await encina.Send(new Probe($"p{i}"), context);
             return (Expected: context, Observation: result.ShouldBeSuccess());
         }));
@@ -242,7 +252,7 @@ public sealed class AmbientRequestContextTests
 
         var results = await Task.WhenAll(Enumerable.Range(0, 64).Select(i => Task.Run(async () =>
         {
-            var context = UserContext($"ambient-{i}");
+            var context = LabelledContext($"ambient-{i}");
             accessor.RequestContext = context;
             await Task.Yield();
             var result = await encina.Send(new Probe($"a{i}"));
@@ -260,16 +270,26 @@ public sealed class AmbientRequestContextTests
     {
         await using var provider = BuildProvider();
         var encina = provider.GetRequiredService<IEncina>();
-        var parent = RequestContext.CreateForTest(userId: "parent-user", tenantId: "parent-tenant", idempotencyKey: "parent-key", correlationId: "corr-parent");
+        var accessor = provider.GetRequiredService<IRequestContextAccessor>();
+        var principal = TestIdentity.Principal("parent-user", claims: [new System.Security.Claims.Claim("tenant_id", "parent-tenant")]);
+        IRequestContext? parent = null;
 
-        var result = await encina.Send(new Outer(), parent);
+        // The parent identity is bound through the scope factory; the entry point then adds its
+        // idempotency key through the identity-preserving setter.
+        var scoped = await provider.GetRequiredService<IRequestContextScopeFactory>().RunAsPrincipalAsync(principal, async (context, ct) =>
+        {
+            accessor.RequestContext = context.WithIdempotencyKey("parent-key");
+            parent = accessor.RequestContext;
+            return await encina.Send(new Outer(), ct);
+        });
 
-        var (outer, inner) = result.ShouldBeSuccess();
+        var (outer, inner) = scoped.ShouldBeSuccess();
+        parent!.CorrelationId.ShouldNotBeNullOrWhiteSpace();
         outer.ShouldBeSameAs(parent);
         inner.ShouldNotBeSameAs(parent);
-        inner.UserId.ShouldBe("parent-user");
+        inner.Issued().UserId.ShouldBe("parent-user");
         inner.TenantId.ShouldBe("parent-tenant");
-        inner.CorrelationId.ShouldBe("corr-parent");
+        inner.CorrelationId.ShouldBe(parent.CorrelationId);
         inner.IdempotencyKey.ShouldBeNull();
         inner.IsNestedDispatch().ShouldBeTrue();
     }
@@ -279,7 +299,7 @@ public sealed class AmbientRequestContextTests
     {
         await using var provider = BuildProvider();
         var encina = provider.GetRequiredService<IEncina>();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = null;
+        provider.GetRequiredService<IRequestContextAccessor>().RequestContext.ShouldBeNull();
 
         var result = await encina.Send(new Outer());
 
@@ -307,7 +327,7 @@ public sealed class AmbientRequestContextTests
         await using var provider = BuildProvider();
         var encina = provider.GetRequiredService<IEncina>();
         var observations = provider.GetRequiredService<NotificationObservations>();
-        var ambient = UserContext("ambient-user");
+        var ambient = LabelledContext("ambient-user");
         provider.GetRequiredService<IRequestContextAccessor>().RequestContext = ambient;
 
         var result = await encina.Publish(new Ping("ambient"));
@@ -323,8 +343,8 @@ public sealed class AmbientRequestContextTests
         var encina = provider.GetRequiredService<IEncina>();
         var observations = provider.GetRequiredService<NotificationObservations>();
         var accessor = provider.GetRequiredService<IRequestContextAccessor>();
-        var ambient = UserContext("ambient-user");
-        var explicitContext = UserContext("webhook-user");
+        var ambient = AnonymousAmbient();
+        var explicitContext = LabelledContext("webhook-user");
         accessor.RequestContext = ambient;
 
         var result = await encina.Publish(new Ping("explicit"), explicitContext);
@@ -341,7 +361,7 @@ public sealed class AmbientRequestContextTests
         var encina = provider.GetRequiredService<IEncina>();
         var observations = provider.GetRequiredService<NotificationObservations>();
         var accessor = provider.GetRequiredService<IRequestContextAccessor>();
-        accessor.RequestContext = null;
+        accessor.RequestContext.ShouldBeNull();
 
         var result = await encina.Publish(new Ping("fresh"));
 
@@ -370,7 +390,7 @@ public sealed class AmbientRequestContextTests
         await using var provider = BuildProvider();
         var encina = provider.GetRequiredService<IEncina>();
         var contexts = provider.GetRequiredService<StreamContexts>();
-        var ambient = UserContext("ambient-user");
+        var ambient = LabelledContext("ambient-user");
         provider.GetRequiredService<IRequestContextAccessor>().RequestContext = ambient;
 
         var items = await CollectAsync(encina.Stream(new Numbers(3)));
@@ -387,8 +407,8 @@ public sealed class AmbientRequestContextTests
         var encina = provider.GetRequiredService<IEncina>();
         var contexts = provider.GetRequiredService<StreamContexts>();
         var accessor = provider.GetRequiredService<IRequestContextAccessor>();
-        var ambient = UserContext("ambient-user");
-        var explicitContext = UserContext("export-job");
+        var ambient = AnonymousAmbient();
+        var explicitContext = LabelledContext("export-job");
         accessor.RequestContext = ambient;
 
         var items = new List<(int Value, IRequestContext? Ambient)>();
@@ -414,7 +434,7 @@ public sealed class AmbientRequestContextTests
 
         var results = await Task.WhenAll(Enumerable.Range(0, 16).Select(async i =>
         {
-            var context = UserContext($"stream-{i}");
+            var context = LabelledContext($"stream-{i}");
             var items = await CollectAsync(encina.Stream(new Numbers(3), context));
             return (Expected: context, Items: items);
         }));

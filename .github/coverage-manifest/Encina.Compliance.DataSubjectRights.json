@@ -1,7 +1,7 @@
 {
   "package": "Encina.Compliance.DataSubjectRights",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 62,
+  "totalFiles": 63,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -35,7 +35,13 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "The file is an interface with no executable lines; its behaviour is covered through DefaultDSRService tests."
+      }
     },
     "Abstractions/IExportFormatWriter.cs": {
       "defaultTests": [
@@ -59,7 +65,19 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 86,
+        "property": 43,
+        "integration": 43
+      },
+      "justifications": {
+        "unit": "Every transition and Apply branch is deterministic and testable in isolation.",
+        "guard": "Guard tests throw out of each command's guards, so 89 of 103 lines are reached and the remaining 14 success-path lines stay with the unit flag.",
+        "property": "Property tests replay Submit and Deny only, which reaches 45 of 103 lines; the guards and handlers of the other commands are example tested.",
+        "integration": "Integration tests persist and replay Submit and Deny through Marten, which reaches 45 of 103 lines; the other commands are not stored there."
+      }
     },
     "Attributes/PersonalDataAttribute.cs": {
       "defaultTests": [
@@ -82,7 +100,13 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO — defaults verification"
+      "reason": "Configuration POCO — defaults verification",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "The options are plain properties with defaults and each one is asserted."
+      }
     },
     "DataSubjectRightsOptionsValidator.cs": {
       "defaultTests": [
@@ -107,12 +131,30 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "contract": 73,
+        "property": 61,
+        "integration": 65
+      },
+      "justifications": {
+        "unit": "Counters, tags and activity helpers are pure and driven by listener-based tests.",
+        "contract": "Contract tests run the lifecycle commands on missing requests and the deny gate, which reaches 69 of 94 lines; the activity starters and outcome helpers used only by the handler operations stay unreached.",
+        "property": "Property tests run the deny path only, which reaches 58 of 94 lines; the other counters and activity starters are driven by handler operations they do not call.",
+        "integration": "Integration tests run aggregate persistence and the service deny, which reaches 62 of 94 lines; the handler-operation counters and activities need locators and executors outside the Marten fixture."
+      }
     },
     "Diagnostics/DSRLogMessages.cs": {
       "defaultTests": [],
       "defaultRule": "*LogMessages.cs",
-      "reason": "Source-generated [LoggerMessage] delegates"
+      "reason": "Source-generated [LoggerMessage] delegates",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "The file holds source-generated logger delegates that Cobertura reports without executable lines; the deny messages are asserted through the telemetry test."
+      }
     },
     "DSRAutoRegistrationDescriptor.cs": {
       "defaultTests": [
@@ -143,7 +185,13 @@
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "Every factory is a pure function asserted for its code and message."
+      }
     },
     "DSRMartenExtensions.cs": {
       "defaultTests": [
@@ -159,7 +207,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 9,
+        "integration": 72
+      },
+      "justifications": {
+        "unit": "Unit tests drive the failure paths and assert the activity status carries only the error code (measured 100.00%).",
+        "guard": "Guard tests reach only the constructor argument checks (measured 9.85%).",
+        "integration": "The integration tests run the erasure against real stores (measured 72.73%)."
+      }
     },
     "Erasure/HardDeleteErasureStrategy.cs": {
       "defaultTests": [
@@ -175,7 +233,13 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 71
+      },
+      "justifications": {
+        "unit": "Unit tests build and read every event, which reaches 32 of 45 lines; the 13 remaining lines are compiler-generated record members (equality, ToString, Deconstruct) that are not worth direct tests."
+      }
     },
     "Export/CsvExportFormatWriter.cs": {
       "defaultTests": [
@@ -191,7 +255,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 20
+      },
+      "justifications": {
+        "unit": "Unit tests drive the failure paths and assert the activity status carries only the error code (measured 100.00%).",
+        "guard": "Guard tests reach only the constructor argument checks (measured 20.55%)."
+      }
     },
     "Export/JsonExportFormatWriter.cs": {
       "defaultTests": [
@@ -215,7 +287,15 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "unit": 100,
+        "guard": 9
+      },
+      "justifications": {
+        "unit": "Every check branch, including the overdue check reported as skipped and Degraded for a missing tenant, is driven with mocked services, which reaches 85 of 85 lines.",
+        "guard": "Guard tests reach only the constructor null checks (8 of 85 lines); the check bodies take no caller arguments to guard and are unit tested."
+      }
     },
     "Locators/CompositePersonalDataLocator.cs": {
       "defaultTests": [
@@ -249,13 +329,35 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Model/DSRRequest.cs": {
+    "Model/DSRRejectionReason.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "The enum declaration has no executable lines; its values are exercised through the extension, aggregate and service tests."
+      }
+    },
+    "Model/DSRRejectionReasonExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Both extension properties are pure and every enum member is a test case.",
+        "guard": "The extension takes no reference-type argument, so there is no null guard to test."
+      }
     },
     "Model/DSRRequestStatus.cs": {
       "defaultTests": [
@@ -398,7 +500,17 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 100,
+        "guard": 10,
+        "contract": 76
+      },
+      "justifications": {
+        "unit": "Every enforcement mode, subject extraction path, store-error fail-open (asserting the activity status carries only the error code) and the tenant-required fail-closed branch is unit tested, which reaches 142 of 142 lines.",
+        "guard": "Guard tests reach only the constructor and Handle null checks (15 of 142 lines); the pipeline bodies take no further arguments to guard and are unit tested.",
+        "contract": "Contract tests run the behavior for blocked, warned, allowed and tenant-required requests, which reaches 108 of 142 lines; the remaining 34 lines are the subject-id extraction conversions for non-string and strongly typed ids and the missing-subject branches, which the unit flag covers."
+      }
     },
     "Projections/DSRRequestProjection.cs": {
       "defaultTests": [
@@ -406,7 +518,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "integration": 44
+      },
+      "justifications": {
+        "unit": "Each Apply handler is a pure function of the event and the read model.",
+        "integration": "Integration tests run Create and the denied handler through the inline projection, which reaches 21 of 47 lines; the other Apply handlers are unit tested."
+      }
     },
     "Projections/DSRRequestReadModel.cs": {
       "defaultTests": [
@@ -414,7 +534,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "integration": 83
+      },
+      "justifications": {
+        "unit": "The read model is plain properties set by the projection tests.",
+        "integration": "Integration tests store and read the read model, which reaches 20 of 24 lines; the remaining 4 lines are helper members they do not call."
+      }
     },
     "Requests/AccessRequest.cs": {
       "defaultTests": [
@@ -470,7 +598,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "Registration, option wiring, the standalone request context accessor and the tenancy-aware ValidateOnBuild test cover all 36 lines.",
+        "guard": "Guard tests call the extension with null arguments and the registration paths, which reaches 36 of 36 lines."
+      }
     },
     "Services/DefaultDSRService.cs": {
       "defaultTests": [
@@ -478,7 +614,21 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 97,
+        "guard": 7,
+        "contract": 52,
+        "property": 38,
+        "integration": 61
+      },
+      "justifications": {
+        "unit": "Every lifecycle command, query, tenant-scope rule (ambient filter, not-found for another tenant, cache keys, RequireTenantContext auto-detect and logged opt-out, SubmitRequest tenant handling) and handler failure path is unit tested, which reaches 595 of 600 lines; only defensive branches remain.",
+        "guard": "Guard tests reach only the constructor null checks and the null-request checks of the handler operations (46 of 600 lines); the service validates no other argument itself, so the remaining 554 lines are behaviour covered by the unit flag, not argument guards.",
+        "contract": "Contract tests drive the tenant isolation contract (fail-closed without a tenant, not-found for another tenant on all six lifecycle commands, owner lifecycle, submit tenant handling) plus the request-store contract, which reaches 317 of 600 lines; the remaining 283 lines are the Access, Rectification, Erasure and Portability handlers and their diagnostics, which depend on locator, executor and exporter behaviour that the IDSRService contract does not specify.",
+        "property": "Property tests prove that for any two tenants nothing of one is visible, cacheable or mutable by the other (queries, by-id, cache keys, all six lifecycle commands), which reaches 228 of 600 lines; the remaining 372 lines are the success paths of the lifecycle commands, submit, and the Access, Rectification, Erasure, Portability and Objection handlers, which have no cross-tenant invariant to state as a property.",
+        "integration": "Integration tests drive submit, all six lifecycle commands, the four tenant-scoped queries, restriction handling and the cache keys of two tenants against Marten, which reaches 371 of 600 lines; the remaining 229 lines are the Access, Rectification, Erasure and Portability handlers, which need personal data locators, executors and exporters that the Marten fixture does not provide."
+      }
     },
     "SubjectIdConversion.cs": {
       "defaultTests": [

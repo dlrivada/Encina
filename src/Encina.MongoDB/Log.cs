@@ -170,12 +170,12 @@ internal static partial class Log
     [LoggerMessage(EventId = 3152, Level = LogLevel.Debug, Message = "Created audit log indexes")]
     public static partial void CreatedAuditLogIndexes(ILogger logger);
 
-    // AuditStoreMongoDB (Security Audit): EventIds 3153-3161
-    [LoggerMessage(EventId = 3153, Level = LogLevel.Debug, Message = "Added security audit entry {EntryId} for {EntityType}:{EntityId}")]
-    public static partial void AddedSecurityAuditEntry(ILogger logger, Guid entryId, string entityType, string? entityId);
+    // OperationAuditStoreMongoDB (Operation Audit): EventIds 3153-3161
+    [LoggerMessage(EventId = 3153, Level = LogLevel.Debug, Message = "Added operation audit entry {EntryId} for {EntityType}:{EntityId}")]
+    public static partial void AddedOperationAuditEntry(ILogger logger, Guid entryId, string entityType, string? entityId);
 
-    [LoggerMessage(EventId = 3154, Level = LogLevel.Debug, Message = "Created security audit indexes")]
-    public static partial void CreatedSecurityAuditIndexes(ILogger logger);
+    [LoggerMessage(EventId = 3154, Level = LogLevel.Debug, Message = "Created operation audit indexes")]
+    public static partial void CreatedOperationAuditIndexes(ILogger logger);
 
     [LoggerMessage(EventId = 3155, Level = LogLevel.Error, Message = "Failed to record audit entry {EntryId}")]
     public static partial void FailedToRecordAuditEntry(ILogger logger, Exception exception, Guid entryId);
@@ -197,5 +197,12 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 3161, Level = LogLevel.Error, Message = "Failed to purge audit entries older than {OlderThanUtc}")]
     public static partial void FailedToPurgeAuditEntries(ILogger logger, Exception exception, DateTime olderThanUtc);
+
+    // DeadLetterStoreMongoDB: EventIds 3165-3166 (3163-3164 are reserved by #718)
+    [LoggerMessage(EventId = 3165, Level = LogLevel.Debug, Message = "Added dead letter message {MessageId} from {SourcePattern}")]
+    public static partial void AddedDeadLetterMessage(ILogger logger, Guid messageId, string sourcePattern);
+
+    [LoggerMessage(EventId = 3166, Level = LogLevel.Debug, Message = "Created dead letter indexes")]
+    public static partial void CreatedDeadLetterIndexes(ILogger logger);
 
 }

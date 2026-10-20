@@ -133,7 +133,17 @@
         "property"
       ],
       "defaultRule": "*Validator.cs",
-      "reason": "Validation logic with invariants"
+      "reason": "Validation logic with invariants",
+      "targets": {
+        "unit": 95,
+        "guard": 15,
+        "property": 0
+      },
+      "justifications": {
+        "unit": "Unit tests drive every branch (no system id, unregistered system, registered system, classifier error) through the real validator with substituted collaborators (measured 97.6%); the remaining lines are compiler-generated async state-machine paths.",
+        "guard": "Guard tests cover the constructor null checks and the null request check of ValidateAsync (measured about 20%); the rest of the file is branching logic that unit tests own.",
+        "property": "No property test exists for the validator and the unregistered-system rule is a fixed-shape result covered by unit tests; measured 0%."
+      }
     },
     "DefaultAIActDocumentation.cs": {
       "defaultTests": [

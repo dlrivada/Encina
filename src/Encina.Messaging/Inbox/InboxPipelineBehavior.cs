@@ -59,6 +59,15 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
             return await nextStep().ConfigureAwait(false);
         }
 
+        return await ProcessIdempotentAsync(request, context, nextStep, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> ProcessIdempotentAsync(
+        TRequest request,
+        IRequestContext context,
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
+    {
         // Validate message ID — return early if validation fails
         var validationError = _orchestrator.ValidateMessageId(
             context.IdempotencyKey,
@@ -80,6 +89,7 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
         };
 
         return await _orchestrator.ProcessAsync<TResponse>(
+            request,
             context.IdempotencyKey!,
             typeof(TRequest).AssemblyQualifiedName ?? typeof(TRequest).FullName ?? typeof(TRequest).Name,
             context.CorrelationId,

@@ -11,18 +11,40 @@ internal static class EncinaDiagnostics
 
     internal static Activity? SendStarted(Type requestType, Type responseType, string requestKind)
     {
+        var activity = StartActivity("Encina.Send", requestType);
+        activity?.SetTag(ActivityTagNames.ResponseType, responseType.FullName)
+            .SetTag(ActivityTagNames.RequestKind, requestKind);
+        return activity;
+    }
+
+    /// <summary>
+    /// Starts a dispatch activity tagged with the request type and the identity kind of the
+    /// dispatch in flight (<c>encina.identity.kind</c>; never the user id), or returns
+    /// <see langword="null"/> when nobody listens.
+    /// </summary>
+    private static Activity? StartActivity(string name, Type requestType)
+    {
         if (!ActivitySource.HasListeners())
         {
             return null;
         }
 
-        var activity = ActivitySource.StartActivity("Encina.Send", ActivityKind.Internal);
-        activity?.SetTag(ActivityTagNames.RequestType, requestType.FullName);
-        activity?.SetTag(ActivityTagNames.RequestName, requestType.Name);
-        activity?.SetTag(ActivityTagNames.ResponseType, responseType.FullName);
-        activity?.SetTag(ActivityTagNames.RequestKind, requestKind);
-        return activity;
+        return ActivitySource.StartActivity(name, ActivityKind.Internal)
+            ?.SetTag(ActivityTagNames.RequestType, requestType.FullName)
+            .SetTag(ActivityTagNames.RequestName, requestType.Name)
+            .SetTag(ActivityTagNames.IdentityKind, ToTagValue(AmbientRequestContext.DispatchIdentityKind));
     }
+
+    /// <summary>
+    /// The value of the <c>encina.identity.kind</c> tag: the kind only, never the user id.
+    /// </summary>
+    // crap-exempt: single-question switch — the tag value of each identity kind.
+    internal static string ToTagValue(IdentityKind kind) => kind switch
+    {
+        IdentityKind.User => "user",
+        IdentityKind.Service => "service",
+        _ => "anonymous"
+    };
 
     internal static void SendCompleted(Activity? activity, bool isSuccess, string? errorCode = null)
     {
@@ -44,16 +66,9 @@ internal static class EncinaDiagnostics
 
     internal static Activity? StartStreamActivity(Type requestType, Type itemType)
     {
-        if (!ActivitySource.HasListeners())
-        {
-            return null;
-        }
-
-        var activity = ActivitySource.StartActivity("Encina.Stream", ActivityKind.Internal);
-        activity?.SetTag(ActivityTagNames.RequestType, requestType.FullName);
-        activity?.SetTag(ActivityTagNames.RequestName, requestType.Name);
-        activity?.SetTag(ActivityTagNames.ItemType, itemType.FullName);
-        activity?.SetTag(ActivityTagNames.ItemName, itemType.Name);
+        var activity = StartActivity("Encina.Stream", requestType);
+        activity?.SetTag(ActivityTagNames.ItemType, itemType.FullName)
+            .SetTag(ActivityTagNames.ItemName, itemType.Name);
         return activity;
     }
 

@@ -46,7 +46,6 @@ internal static class MartenAuditActivitySource
     internal const string TagQueryType = "audit.marten.query_type";
     internal const string TagResultCount = "audit.marten.result_count";
     internal const string TagDestroyedCount = "audit.marten.destroyed_count";
-    internal const string TagErrorMessage = "audit.marten.error_message";
 
     // ── Activity starters ────────────────────────────────────────────────
 
@@ -138,23 +137,6 @@ internal static class MartenAuditActivitySource
         }
 
         activity.SetStatus(ActivityStatusCode.Ok);
-        activity.Dispose();
-    }
-
-    /// <summary>Marks an activity as failed.</summary>
-    internal static void Failed(Activity? activity, string? errorMessage)
-    {
-        if (activity is null)
-        {
-            return;
-        }
-
-        if (!string.IsNullOrWhiteSpace(errorMessage))
-        {
-            activity.SetTag(TagErrorMessage, errorMessage);
-        }
-
-        activity.SetStatus(ActivityStatusCode.Error, errorMessage);
         activity.Dispose();
     }
 }

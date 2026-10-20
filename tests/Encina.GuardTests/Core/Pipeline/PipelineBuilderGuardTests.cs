@@ -1,4 +1,5 @@
 using LanguageExt;
+using Microsoft.Extensions.Logging.Abstractions;
 using static LanguageExt.Prelude;
 
 namespace Encina.GuardTests.Core.Pipeline;
@@ -12,6 +13,7 @@ public class PipelineBuilderGuardTests
     private readonly TestCommand _validRequest = new();
     private readonly IRequestHandler<TestCommand, string> _validHandler = Substitute.For<IRequestHandler<TestCommand, string>>();
     private readonly IRequestContext _validContext = RequestContext.Create();
+    private static readonly PipelineOrderResolver Resolver = new(new PipelineStageRegistry(), NullLogger<PipelineOrderResolver>.Instance);
 
     #region Constructor null guards
 
@@ -25,7 +27,7 @@ public class PipelineBuilderGuardTests
         TestCommand request = null!;
 
         // Act & Assert
-        var act = () => new PipelineBuilder<TestCommand, string>(request, _validHandler, _validContext, CancellationToken.None);
+        var act = () => new PipelineBuilder<TestCommand, string>(request, _validHandler, _validContext, Resolver, CancellationToken.None);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("request");
     }
 
@@ -39,7 +41,7 @@ public class PipelineBuilderGuardTests
         IRequestHandler<TestCommand, string> handler = null!;
 
         // Act & Assert
-        var act = () => new PipelineBuilder<TestCommand, string>(_validRequest, handler, _validContext, CancellationToken.None);
+        var act = () => new PipelineBuilder<TestCommand, string>(_validRequest, handler, _validContext, Resolver, CancellationToken.None);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
@@ -53,8 +55,22 @@ public class PipelineBuilderGuardTests
         IRequestContext context = null!;
 
         // Act & Assert
-        var act = () => new PipelineBuilder<TestCommand, string>(_validRequest, _validHandler, context, CancellationToken.None);
+        var act = () => new PipelineBuilder<TestCommand, string>(_validRequest, _validHandler, context, Resolver, CancellationToken.None);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("context");
+    }
+
+    /// <summary>
+    /// Verifies that the constructor throws ArgumentNullException when resolver is null.
+    /// </summary>
+    [Fact]
+    public void Constructor_NullResolver_ThrowsArgumentNullException()
+    {
+        // Arrange
+        PipelineOrderResolver resolver = null!;
+
+        // Act & Assert
+        var act = () => new PipelineBuilder<TestCommand, string>(_validRequest, _validHandler, _validContext, resolver, CancellationToken.None);
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("resolver");
     }
 
     /// <summary>
@@ -64,7 +80,7 @@ public class PipelineBuilderGuardTests
     public void Constructor_AllValidParameters_DoesNotThrow()
     {
         // Act & Assert
-        var act = () => new PipelineBuilder<TestCommand, string>(_validRequest, _validHandler, _validContext, CancellationToken.None);
+        var act = () => new PipelineBuilder<TestCommand, string>(_validRequest, _validHandler, _validContext, Resolver, CancellationToken.None);
         Should.NotThrow(act);
     }
 
@@ -79,7 +95,7 @@ public class PipelineBuilderGuardTests
     public void Build_NullServiceProvider_ThrowsArgumentNullException()
     {
         // Arrange
-        var builder = new PipelineBuilder<TestCommand, string>(_validRequest, _validHandler, _validContext, CancellationToken.None);
+        var builder = new PipelineBuilder<TestCommand, string>(_validRequest, _validHandler, _validContext, Resolver, CancellationToken.None);
         IServiceProvider serviceProvider = null!;
 
         // Act & Assert
@@ -96,7 +112,7 @@ public class PipelineBuilderGuardTests
         // Arrange
         var services = new ServiceCollection();
         var serviceProvider = services.BuildServiceProvider();
-        var builder = new PipelineBuilder<TestCommand, string>(_validRequest, _validHandler, _validContext, CancellationToken.None);
+        var builder = new PipelineBuilder<TestCommand, string>(_validRequest, _validHandler, _validContext, Resolver, CancellationToken.None);
 
         // Act
         var callback = builder.Build(serviceProvider);
@@ -118,7 +134,7 @@ public class PipelineBuilderGuardTests
 
         var services = new ServiceCollection();
         var serviceProvider = services.BuildServiceProvider();
-        var builder = new PipelineBuilder<TestCommand, string>(_validRequest, handler, _validContext, CancellationToken.None);
+        var builder = new PipelineBuilder<TestCommand, string>(_validRequest, handler, _validContext, Resolver, CancellationToken.None);
 
         // Act
         var callback = builder.Build(serviceProvider);
@@ -145,7 +161,7 @@ public class PipelineBuilderGuardTests
 
         var services = new ServiceCollection();
         var serviceProvider = services.BuildServiceProvider();
-        var builder = new PipelineBuilder<TestCommand, string>(_validRequest, handler, _validContext, cts.Token);
+        var builder = new PipelineBuilder<TestCommand, string>(_validRequest, handler, _validContext, Resolver, cts.Token);
 
         // Act
         var callback = builder.Build(serviceProvider);

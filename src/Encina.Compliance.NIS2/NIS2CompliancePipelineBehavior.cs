@@ -36,7 +36,7 @@ namespace Encina.Compliance.NIS2;
 /// for the same <typeparamref name="TRequest"/>/<typeparamref name="TResponse"/> pair.
 /// </para>
 /// <para>
-/// <b>Audit trail:</b> When <see cref="IAuditStore"/> is registered, compliance check decisions
+/// <b>Audit trail:</b> When <see cref="IOperationAuditStore"/> is registered, compliance check decisions
 /// are recorded as fire-and-forget audit entries. Audit failures never block the request pipeline.
 /// </para>
 /// <para>
@@ -390,7 +390,7 @@ public sealed class NIS2CompliancePipelineBehavior<TRequest, TResponse> : IPipel
         NIS2Diagnostics.PipelineDuration.Record(elapsedMs, tags);
     }
 
-    private AuditEntry BuildAuditEntry(
+    private OperationAuditEntry BuildAuditEntry(
         IRequestContext context,
         string requestTypeName,
         List<string> checksPerformed,
@@ -398,7 +398,7 @@ public sealed class NIS2CompliancePipelineBehavior<TRequest, TResponse> : IPipel
         string actionTaken)
     {
         var now = DateTimeOffset.UtcNow;
-        return new AuditEntry
+        return new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = context.CorrelationId ?? Guid.NewGuid().ToString("N"),
@@ -438,7 +438,7 @@ public sealed class NIS2CompliancePipelineBehavior<TRequest, TResponse> : IPipel
     {
         try
         {
-            var auditStore = _serviceProvider.GetService<IAuditStore>();
+            var auditStore = _serviceProvider.GetService<IOperationAuditStore>();
             if (auditStore is null)
             {
                 return;

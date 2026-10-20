@@ -37,9 +37,16 @@
     },
     "FailureSimulationExtensions.cs": {
       "defaultTests": [
-        "unit",
         "guard"
       ],
+      "targets": {
+        "unit": 0,
+        "guard": 8
+      },
+      "justifications": {
+        "unit": "The extensions need a running Aspire host, so unit tests cannot reach them without one.",
+        "guard": "Guard tests pass null to each extension method to cover its ThrowIfNull checks, which are the only testable surface."
+      },
       "reason": "Extension methods on DistributedApplication with 8+ ThrowIfNull guards — guards testable without real Aspire host by passing null. Integration tests deferred."
     }
   }

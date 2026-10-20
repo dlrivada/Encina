@@ -1,3 +1,4 @@
+using Encina.EntityFrameworkCore.DeadLetter;
 using Encina.EntityFrameworkCore.Inbox;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.EntityFrameworkCore.Sagas;
@@ -22,11 +23,15 @@ public sealed class TestEFDbContext : DbContext
     public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
     public DbSet<SagaState> SagaStates => Set<SagaState>();
     public DbSet<ScheduledMessage> ScheduledMessages => Set<ScheduledMessage>();
+    public DbSet<DeadLetterMessage> DeadLetterMessages => Set<DeadLetterMessage>();
     public DbSet<TestRepositoryEntity> TestRepositoryEntities => Set<TestRepositoryEntity>();
     public DbSet<TestImmutableOrder> Orders => Set<TestImmutableOrder>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Dead letter configuration: binary collation on the filter columns, per provider
+        modelBuilder.ApplyConfiguration(new DeadLetterMessageConfiguration(FilterColumnCollation()));
+
         // Outbox configuration
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
@@ -106,6 +111,13 @@ public sealed class TestEFDbContext : DbContext
             entity.Ignore(e => e.RowVersion);
         });
     }
+
+    private string? FilterColumnCollation() => Database.ProviderName switch
+    {
+        { } name when name.Contains("SqlServer", StringComparison.Ordinal) => DeadLetterMessageConfiguration.SqlServerBinaryCollation,
+        { } name when name.Contains("MySql", StringComparison.Ordinal) => DeadLetterMessageConfiguration.MySqlBinaryCollation,
+        _ => null
+    };
 }
 
 /// <summary>

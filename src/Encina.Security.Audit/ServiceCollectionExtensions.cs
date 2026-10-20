@@ -13,34 +13,43 @@ public static class ServiceCollectionExtensions
     /// Adds Encina audit trail services to the specified <see cref="IServiceCollection"/>.
     /// </summary>
     /// <param name="services">The service collection to configure.</param>
-    /// <param name="configure">Optional action to configure <see cref="AuditOptions"/>.</param>
+    /// <param name="configure">Optional action to configure <see cref="OperationAuditOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <remarks>
     /// <para>
     /// This method registers the following services:
     /// <list type="bullet">
-    /// <item><see cref="AuditOptions"/> - Configured via the provided action</item>
-    /// <item><see cref="IAuditEntryFactory"/> → <see cref="DefaultAuditEntryFactory"/> (Scoped)</item>
-    /// <item><see cref="IPiiMasker"/> → <see cref="NullPiiMasker"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IAuditStore"/> → <see cref="InMemoryAuditStore"/> (Singleton, using TryAdd)</item>
+    /// <item><see cref="OperationAuditOptions"/> - Configured via the provided action</item>
+    /// <item><see cref="IOperationAuditEntryFactory"/> → <see cref="DefaultOperationAuditEntryFactory"/> (Scoped)</item>
+    /// <item><see cref="IOperationAuditStore"/> → <see cref="InMemoryOperationAuditStore"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="AuditPipelineBehavior{TRequest, TResponse}"/> (Scoped, open generic)</item>
-    /// <item><see cref="AuditRetentionService"/> (Hosted service, only when <see cref="AuditOptions.EnableAutoPurge"/> is true)</item>
+    /// <item>A startup validator (Hosted service) that stops the host when no <see cref="IPiiMasker"/> is registered</item>
+    /// <item><see cref="OperationAuditRetentionService"/> (Hosted service, only when <see cref="OperationAuditOptions.EnableAutoPurge"/> is true)</item>
     /// </list>
     /// </para>
     /// <para>
+    /// <b>PII masker required:</b>
+    /// the audit module has no default <see cref="IPiiMasker"/>. Register one (<see cref="DefaultSensitiveDataRedactor"/>,
+    /// or <c>AddEncinaPII()</c> from <c>Encina.Security.PII</c>), in any order relative to this method, or the
+    /// host fails at startup with a message that names the fix. The only opt-out is
+    /// <see cref="OperationAuditOptions.AllowUnmaskedPayloads"/>, which registers <see cref="NullPiiMasker"/>
+    /// when no masker is present and logs a warning at every start.
+    /// </para>
+    /// <para>
     /// <b>Default registrations:</b>
-    /// <see cref="IPiiMasker"/> and <see cref="IAuditStore"/> are registered using <c>TryAdd</c>,
-    /// allowing you to register custom implementations before calling this method.
+    /// <see cref="IOperationAuditStore"/> is registered using <c>TryAdd</c>,
+    /// allowing you to register a custom implementation before calling this method.
     /// </para>
     /// <para>
     /// <b>Production considerations:</b>
-    /// For production use, register a persistent <see cref="IAuditStore"/> implementation
+    /// For production use, register a persistent <see cref="IOperationAuditStore"/> implementation
     /// (e.g., SQL Server, PostgreSQL) before calling this method.
     /// </para>
     /// </remarks>
     /// <example>
     /// <code>
-    /// // Basic setup with defaults
+    /// // Basic setup: a masker is required
+    /// services.AddSingleton&lt;IPiiMasker, DefaultSensitiveDataRedactor&gt;();
     /// services.AddEncinaAudit();
     ///
     /// // With custom options
@@ -55,18 +64,21 @@ public static class ServiceCollectionExtensions
     /// });
     ///
     /// // With custom store (register before AddEncinaAudit)
-    /// services.AddSingleton&lt;IAuditStore, SqlServerAuditStore&gt;();
+    /// services.AddSingleton&lt;IOperationAuditStore, SqlServerAuditStore&gt;();
     /// services.AddEncinaAudit();
     ///
-    /// // With custom PII masker
+    /// // With a custom PII masker
     /// services.AddSingleton&lt;IPiiMasker, CustomPiiMasker&gt;();
     /// services.AddEncinaAudit();
+    ///
+    /// // Explicit opt-out: no masking, a warning at every startup
+    /// services.AddEncinaAudit(options => options.AllowUnmaskedPayloads = true);
     /// </code>
     /// </example>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is null.</exception>
     public static IServiceCollection AddEncinaAudit(
         this IServiceCollection services,
-        Action<AuditOptions>? configure = null)
+        Action<OperationAuditOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -77,25 +89,32 @@ public static class ServiceCollectionExtensions
         }
         else
         {
-            services.Configure<AuditOptions>(_ => { });
+            services.Configure<OperationAuditOptions>(_ => { });
         }
 
         // Register default implementations (TryAdd allows override)
-        services.TryAddSingleton<IPiiMasker, NullPiiMasker>();
-        services.TryAddSingleton<IAuditStore, InMemoryAuditStore>();
+        services.TryAddSingleton<IOperationAuditStore, InMemoryOperationAuditStore>();
 
         // Register factory and behavior
-        services.AddScoped<IAuditEntryFactory, DefaultAuditEntryFactory>();
+        services.AddScoped<IOperationAuditEntryFactory, DefaultOperationAuditEntryFactory>();
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(AuditPipelineBehavior<,>));
 
-        // Register auto-purge service if enabled
-        // Note: We need to evaluate the options to check if EnableAutoPurge is true
-        var optionsInstance = new AuditOptions();
+        // The audit module requires a PII masker. There is no default one: the startup validator stops the host
+        // when none is registered. The only opt-out is explicit and logged at every start.
+        // Note: We need to evaluate the options to check EnableAutoPurge and AllowUnmaskedPayloads
+        var optionsInstance = new OperationAuditOptions();
         configure?.Invoke(optionsInstance);
+
+        if (optionsInstance.AllowUnmaskedPayloads)
+        {
+            services.TryAddSingleton<IPiiMasker, NullPiiMasker>();
+        }
+
+        services.AddHostedService<OperationAuditMaskingStartupValidator>();
 
         if (optionsInstance.EnableAutoPurge)
         {
-            services.AddHostedService<AuditRetentionService>();
+            services.AddHostedService<OperationAuditRetentionService>();
         }
 
         return services;

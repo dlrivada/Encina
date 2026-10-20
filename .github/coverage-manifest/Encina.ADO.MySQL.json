@@ -28,21 +28,39 @@
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL — needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database",
+      "targets": {
+        "integration": 0
+      },
+      "justifications": {
+        "integration": "No integration test exists yet for the entity-change audit store (measured 0%); this change only extends its ORDER BY with the id tiebreaker and its unit tests mock the connection. Integration tests are tracked by issue #2450."
+      }
     },
-    "Auditing/AuditStoreADO.cs": {
+    "Auditing/OperationAuditStoreADO.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL — needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database",
+      "targets": {
+        "integration": 80
+      },
+      "justifications": {
+        "integration": "The shipped-script integration tests on a real MySQL database run every query path (measured 88.48%); the uncovered lines are the catch blocks that turn a database failure into an error for each method and the Task.Run fallbacks of the ExecuteReader/ExecuteNonQuery/ExecuteScalar/ReadAsync helpers, which run only for non-native command types."
+      }
     },
     "Auditing/ReadAuditStoreADO.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL — needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database",
+      "targets": {
+        "integration": 87
+      },
+      "justifications": {
+        "integration": "The integration tests on a real MySQL database run every read audit query path, every filter and the stable-order paging (measured 88.37%); the uncovered lines are the catch blocks that turn a database failure into an error for each method and the Task.Run fallbacks of the ExecuteReader/ExecuteNonQuery/ExecuteScalar/ReadAsync helpers, which run only for non-native command types."
+      }
     },
     "BulkOperations/BulkOperationsMySQL.cs": {
       "defaultTests": [
@@ -104,10 +122,16 @@
     },
     "Inbox/InboxStoreADO.cs": {
       "defaultTests": [
-        "integration"
+        "integration",
+        "guard"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL — needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database",
+      "targets": { "integration": 92, "guard": 7 },
+      "justifications": {
+        "integration": "Real-database retry contract tests drive the store through the orchestrator; the uncovered lines are provider error branches.",
+        "guard": "Only the argument checks are guard-reachable."
+      }
     },
     "Modules/ModuleAwareConnectionFactory.cs": {
       "defaultTests": [
@@ -183,7 +207,15 @@
       "reason": "Store that creates DB connections internally — needs real database",
       "override": [
         "integration"
-      ]
+      ],
+      "targets": {
+        "guard": 5,
+        "integration": 70
+      },
+      "justifications": {
+        "guard": "Guard tests only assert argument checks; the remaining lines are driven by unit and integration tests.",
+        "integration": "The registry integration tests exercise every method against a real database (measured 78-85%)."
+      }
     },
     "ReadWriteSeparation/IReadWriteConnectionFactory.cs": {
       "defaultTests": [
@@ -296,13 +328,75 @@
       "defaultRule": "*StoreADO.cs",
       "reason": "ADO.NET store with raw SQL — needs real database"
     },
+    "DeadLetter/DeadLetterMessage.cs": {
+      "defaultTests": [
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Dead letter message container with no logic of its own",
+      "targets": {
+        "unit": 0,
+        "guard": 75,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "The message is an auto-property container with no logic of its own, so a unit test would only restate its properties.",
+        "guard": "The guard suite covers the argument checks of the message, and the plain property accessors have no guard surface.",
+        "integration": "Every integration run persists and reads back messages on a real database, which exercises the full property mapping."
+      }
+    },
+    "DeadLetter/DeadLetterMessageFactory.cs": {
+      "defaultTests": [
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Dead letter message factory with a single object initializer",
+      "targets": {
+        "unit": 0,
+        "guard": 90,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "The factory is a single object initializer that the guard theory and every integration test already exercise, so a unit test would add no distinct path.",
+        "guard": "The guard theory covers the argument validation of the factory, which is its only branch surface.",
+        "integration": "Every integration test creates dead letter messages through the factory against a real database."
+      }
+    },
+    "DeadLetter/DeadLetterStoreADO.cs": {
+      "defaultTests": [
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*StoreADO.cs",
+      "reason": "ADO.NET dead letter store with raw SQL — needs real database",
+      "targets": {
+        "unit": 0,
+        "guard": 8,
+        "integration": 92
+      },
+      "justifications": {
+        "unit": "Raw SQL and driver calls would only assert a mock in a unit test, so every statement runs in the shared integration contract on a real database instead.",
+        "guard": "Constructor and argument checks are the only guard-reachable surface of the store.",
+        "integration": "The shared contract, the duplicate race and the end-to-end run execute every statement on a real database, and only driver-failure branches remain uncovered."
+      }
+    },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 60,
+        "guard": 50
+      },
+      "justifications": {
+        "unit": "The registration tests resolve the dead letter and the read/write separation paths (enabled with and without replicas, and disabled) with ValidateOnBuild and ValidateScopes, but the file also registers features that are covered by their own tests, so only part of it is exercised here.",
+        "guard": "The null-argument checks are covered by the guard tests, while the remaining registrations belong to other features."
+      }
     },
     "Sharding/FunctionalShardedRepositoryADO.cs": {
       "defaultTests": [
@@ -440,11 +534,18 @@
     },
     "Tenancy/TenancyServiceCollectionExtensions.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 90,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "The registration unit tests reach nearly every branch of the tenancy extension, including the wiring of the dead letter tenant column.",
+        "guard": "This file has no separate guard surface, because its only argument checks are reached by the unit registration tests."
+      }
     },
     "Tenancy/TenantAwareFunctionalRepositoryADO.cs": {
       "defaultTests": [

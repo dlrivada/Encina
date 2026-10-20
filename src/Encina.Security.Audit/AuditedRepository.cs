@@ -250,7 +250,8 @@ public sealed class AuditedRepository<TEntity, TId> : IRepository<TEntity, TId>
 
     private bool ShouldAudit()
     {
-        if (_options.ExcludeSystemAccess && _requestContext.UserId is null)
+        // Only a declared service identity is system access; an anonymous or unknown caller is audited.
+        if (_options.ExcludeSystemAccess && _requestContext.Identity?.Kind == IdentityKind.Service)
         {
             return false;
         }
@@ -303,7 +304,7 @@ public sealed class AuditedRepository<TEntity, TId> : IRepository<TEntity, TId>
             ReadAuditLog.ReadAccessFailed(_logger, entityTypeName, methodName, ex.ForLogging());
             ReadAuditMeter.LogFailuresTotal.Add(1,
                 new KeyValuePair<string, object?>(ReadAuditMeter.TagEntityType, entityTypeName));
-            ReadAuditActivitySource.Failed(activity, ex.Message);
+            ReadAuditActivitySource.Failed(activity, ActivityStatusDescriptions.ForException(ex));
         }
     }
 }

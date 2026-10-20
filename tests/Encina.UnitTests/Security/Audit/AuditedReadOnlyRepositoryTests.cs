@@ -3,6 +3,8 @@
 using System.Linq.Expressions;
 using Encina.DomainModeling;
 using Encina.Security.Audit;
+using Encina.Testing.Identity;
+using Encina.UnitTests.OpenTelemetry;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -19,6 +21,7 @@ namespace Encina.UnitTests.Security.Audit;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Feature", "Audit")]
+[Collection("ActivityListenerIsolation")]
 public sealed class AuditedReadOnlyRepositoryTests
 {
     // ── Constructor guards ──────────────────────────────────────────────
@@ -438,11 +441,12 @@ public sealed class AuditedReadOnlyRepositoryTests
     // ── Sampling / exclusion logic ──────────────────────────────────────
 
     [Fact]
-    public async Task ExcludeSystemAccess_NoUserId_DoesNotAudit()
+    public async Task ExcludeSystemAccess_AnonymousIdentity_StillAudits()
     {
+        // Only a declared service identity is system access: an anonymous read is audited (fail closed).
         var h = new Harness(samplingRate: 1.0);
         h.Options.ExcludeSystemAccess = true;
-        h.RequestContext.UserId.Returns((string?)null);
+        h.RequestContext.Identity.Returns(TestIdentity.Anonymous);
 
         h.Inner.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(new List<ReadOnlyAuditedTestEntity>().AsReadOnly());
@@ -450,7 +454,8 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         await sut.GetAllAsync();
 
-        h.LoggedEntries.ShouldBeEmpty();
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].UserId.ShouldBeNull();
     }
 
     [Fact]
@@ -458,7 +463,7 @@ public sealed class AuditedReadOnlyRepositoryTests
     {
         var h = new Harness(samplingRate: 1.0);
         h.Options.ExcludeSystemAccess = true;
-        h.RequestContext.UserId.Returns("user-99");
+        h.RequestContext.Identity.Returns(TestIdentity.User("user-99"));
 
         h.Inner.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(new List<ReadOnlyAuditedTestEntity>().AsReadOnly());
@@ -468,6 +473,29 @@ public sealed class AuditedReadOnlyRepositoryTests
 
         h.LoggedEntries.Count.ShouldBe(1);
         h.LoggedEntries[0].UserId.ShouldBe("user-99");
+    }
+
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(false, 1)]
+    public async Task ExcludeSystemAccess_ADeclaredServiceScope_IsSystemAccess(bool excludeSystemAccess, int expectedEntries)
+    {
+        // The service identity comes from a declared test service opened with RunAsServiceAsync.
+        var host = new global::Encina.UnitTests.Core.Identity.ScopeTestHost();
+        var h = new Harness(samplingRate: 1.0);
+        h.Options.ExcludeSystemAccess = excludeSystemAccess;
+        h.Inner.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<ReadOnlyAuditedTestEntity>().AsReadOnly());
+
+        var outcome = await host.Factory.RunAsServiceAsync(global::Encina.UnitTests.Core.Identity.ScopeTestHost.Job, async (context, ct) =>
+        {
+            context.Identity.Kind.ShouldBe(IdentityKind.Service);
+            h.RequestContext.Identity.Returns(context.Identity);
+            await h.Create().GetAllAsync(ct);
+        });
+
+        outcome.IsRight.ShouldBeTrue();
+        h.LoggedEntries.Count.ShouldBe(expectedEntries);
     }
 
     [Fact]
@@ -500,6 +528,23 @@ public sealed class AuditedReadOnlyRepositoryTests
 
         var items = await sut.GetAllAsync();
         items.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task AuditStoreThrows_ActivityStatusCarriesOnlyTheExceptionType()
+    {
+        using var capture = new ActivityStatusCapture();
+        var secret = "SECRET-" + Guid.NewGuid().ToString("N");
+        var h = new Harness(samplingRate: 1.0);
+        h.Store
+            .LogReadAsync(Arg.Any<ReadAuditEntry>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, Unit>>>(_ => throw new InvalidOperationException(secret));
+        h.Inner.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<ReadOnlyAuditedTestEntity> { new() { Id = Guid.NewGuid() } }.AsReadOnly());
+
+        await h.Create().GetAllAsync();
+
+        capture.ShouldHaveErrorStatus(nameof(InvalidOperationException), secret);
     }
 
     // ── Purpose handling ────────────────────────────────────────────────
@@ -541,7 +586,7 @@ public sealed class AuditedReadOnlyRepositoryTests
     public async Task AuditEntry_IncludesRequestContextFields()
     {
         var h = new Harness(samplingRate: 1.0);
-        h.RequestContext.UserId.Returns("alice");
+        h.RequestContext.Identity.Returns(TestIdentity.User("alice"));
         h.RequestContext.TenantId.Returns("acme");
         h.RequestContext.CorrelationId.Returns("trace-abc");
 
@@ -581,7 +626,7 @@ public sealed class AuditedReadOnlyRepositoryTests
 
         public Harness(double? samplingRate = null)
         {
-            RequestContext.UserId.Returns("test-user");
+            RequestContext.Identity.Returns(TestIdentity.User("test-user"));
             RequestContext.TenantId.Returns("tenant-1");
             RequestContext.CorrelationId.Returns("corr-id");
 

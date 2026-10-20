@@ -21,7 +21,7 @@ namespace Encina.Security.ABAC;
 /// NotApplicable do not pass (a policy that is required but does not apply cannot authorize);
 /// Indeterminate denies the request in every enforcement mode. A name that is neither a top-level
 /// policy set nor a standalone policy denies the request with
-/// <see cref="ABACErrors.PolicyNotFoundCode"/>. When a policy set and a policy share the name, the
+/// <see cref="ABACErrors.RequiredPolicyNotFoundCode"/>. When a policy set and a policy share the name, the
 /// policy set is evaluated.
 /// </para>
 /// <para>

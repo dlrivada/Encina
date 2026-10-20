@@ -9,6 +9,7 @@ using Encina.DomainModeling.Auditing;
 using Encina.EntityFrameworkCore.Auditing;
 using Encina.EntityFrameworkCore.BulkOperations;
 using Encina.EntityFrameworkCore.Caching;
+using Encina.EntityFrameworkCore.DeadLetter;
 using Encina.EntityFrameworkCore.DomainEvents;
 using Encina.EntityFrameworkCore.Health;
 using Encina.EntityFrameworkCore.Inbox;
@@ -136,6 +137,13 @@ public static class ServiceCollectionExtensions
         var config = new MessagingConfiguration();
         configure(config);
 
+        // The inbox writes its attempt records on an isolated context created from the injected one's
+        // options (ADR-048): fail at registration when the context type cannot be created that way.
+        if (config.UseInbox)
+        {
+            InboxStoreEF.ValidateContextType(typeof(TDbContext));
+        }
+
         // Register TimeProvider for consistent timestamps across all EF Core components
         services.TryAddSingleton(TimeProvider.System);
 
@@ -177,6 +185,8 @@ public static class ServiceCollectionExtensions
             config.UseSagas, config.SagaOptions,
             config.UseScheduling, config.SchedulingOptions);
 
+        services.AddDeadLetterQueueServices<DeadLetterStoreEF, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions);
+
         RegisterTenancy<TDbContext>(services, config);
         RegisterModuleIsolation(services, config);
         RegisterReadWriteSeparation<TDbContext>(services, config);
@@ -184,7 +194,7 @@ public static class ServiceCollectionExtensions
         RegisterAuditingInterceptor(services, config);
         RegisterAuditLogStore(services, config);
         RegisterSoftDeleteInterceptor(services, config);
-        RegisterSecurityAuditStore(services, config);
+        RegisterOperationAuditStore(services, config);
         RegisterReadAuditStore(services, config);
         RegisterAnonymization(services, config);
         RegisterABACPolicyStore(services, config);
@@ -404,15 +414,18 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers the security audit trail store when
-    /// <see cref="MessagingConfiguration.UseSecurityAuditStore"/> is enabled.
+    /// Registers the operation audit trail store when
+    /// <see cref="MessagingConfiguration.UseOperationAuditStore"/> is enabled.
     /// </summary>
-    private static void RegisterSecurityAuditStore(IServiceCollection services, MessagingConfiguration config)
+    private static void RegisterOperationAuditStore(IServiceCollection services, MessagingConfiguration config)
     {
-        if (!config.UseSecurityAuditStore) return;
+        if (!config.UseOperationAuditStore) return;
 
-        // Register security audit trail store (Encina.Security.Audit)
-        services.AddScoped<IAuditStore, AuditStoreEF>();
+        // Same rule as the ADO, Dapper and MongoDB providers: the in-memory default from
+        // Encina.Security.Audit is removed so the database store wins in any registration order,
+        // and a store the application registered itself is never overridden (#1269).
+        OperationAuditStoreRegistration.RemoveInMemoryDefault(services);
+        services.TryAddScoped<IOperationAuditStore, OperationAuditStoreEF>();
     }
 
     /// <summary>

@@ -11,7 +11,13 @@ The orchestrator itself does not edit `src/` or `tests/` (the `guard-orchestrato
 
 ## 1. Before writing
 
-1. Read the issue with its comments before writing the brief: `gh issue view <n> --repo dlrivada/Encina --comments`. Audit and decision comments add acceptance items that "Closes #<n>" silently drops (PR #1598 missed a SPEC-003 audit comment's scanning test and cost a review round); carry every one into the brief's Acceptance list.
+1. Read the issue with its comments before writing the brief: `gh issue view <n> --repo dlrivada/Encina --comments`. Audit and decision comments add acceptance items that "Closes #<n>" silently drops (PR #1598 missed a SPEC-003 audit comment's scanning test and cost a review round); carry every one into the brief's Acceptance list. Check the labels and the decision register in the same read (#2470). **Never write a brief while the issue has an unverified decision register or an open Dilemma.**
+
+   - **Register.** Every implicit choice of the issue (and its plan) is in the decision register that the `decision-extractor` agent produces and the orchestrator places: in the plan's Design Choices (each choice with `Class:`, `Settled by:` for Settled/Trivial, `Verified:`), or, for an issue without a plan, in an issue comment headed "Decision register". Classes: **Trivial** follows a cited convention; **Settled** is the only option that complies, with a verifiable citation (an `AGENTS.md` section or rule, a SPEC id, an ADR number, a law article, a link to an earlier maintainer decision, or named comparable products); **Dilemma** has two or more valid options, each better in a concrete named scenario. A Settled or Trivial entry without a citation is invalid. The brief is written only after `adversarial-reviewer` has tried to break every Settled and Trivial entry and the register records "Verified: adversarial-reviewer <yyyy-MM-dd>" (a credible scenario where another option wins turns the entry into a Dilemma). Settled entries are not asked: the brief's Decisions list them with their citation, and the daily report lists each one in one line so the maintainer can veto it (a vetoed entry becomes a Dilemma; work continues meanwhile). Zero Dilemmas is valid.
+   - **Dilemmas.** An issue labelled `needs-decision` has an open Dilemma (the label exists only for that). Only the maintainer answers a Dilemma, never an agent and never the orchestrator. The orchestrator asks the maintainer and records the answer in the repository. For a `[FEATURE]`, the answer goes in the plan's last section, `## Maintainer Decisions`: one dated entry per Dilemma, and `check-plan.ps1` must pass without `-Draft`. For any other issue, the answer goes in the brief's Decisions now, and the worker copies it into the closing PR's knowledge record as a `kind: decision` item with the date (a register kept as an issue comment is copied there too). The orchestrator also posts a short comment on the issue: for a feature it links to the plan's section; for any other issue it states the decision and says where it will be recorded (the brief now, the knowledge record of the closing PR), and links nothing that does not exist yet. Then it removes the label (`gh issue edit <n> --repo dlrivada/Encina --remove-label needs-decision`), and only then writes the brief.
+
+   **Template check (maintainer decision of 2026-10-07, #1980).** An issue whose body does not follow its template (title prefix to `.github/ISSUE_TEMPLATE/<template>`, level-2 headers verbatim and in order) is first rewritten to the template, content preserved and re-checked against today's code, before the brief is written, even months after it was opened. The PreToolUse hook `.claude/hooks/check-target-issue-template.ps1` enforces it: it denies the spawn of `issue-worker` or `docs-writer` when the issue named by the `Issue #<n>` that opens the brief's first line lacks the headers, so the brief must start with `Issue #<n>`.
+
 2. Create the worktree: `git worktree add D:\Proyectos\Encina\.claude\worktrees\<name> -b <branch> <base>`.
 3. Choose the agent: `docs-writer` when the issue is documentation (pages under `docs/`, package READMEs, `CONTRIBUTING.md`); `issue-worker` for everything else, including code changes that also need documentation (the issue-worker spawns `docs-writer` for that part).
 4. Choose the model. Workers run on Sonnet. Pass `model: opus` to the Agent call only when the brief states why in one line: the root cause is unknown, or the task is design-heavy. Keep the brief small (this fixed part plus a closed variable part), so the worker finishes within its turn limit: a resume re-reads the whole context it had already paid for.
@@ -48,8 +54,11 @@ Rules:
 - Verify: <commands from §3 for this kind of change, with <wt> filled in>. Paste the actual output in the report.
 - CRAP (mandatory when the diff touches src/): "CRAP <= 10" as a sentence is not enough (PR #1420 failed 16
   touched methods, untested ones that a mechanical sync-to-async change re-touched). Run the tests that cover
-  the changed files with --collect "XPlat Code Coverage" --results-directory <wt>\artifacts\coverage (every
-  flag that exercises them: unit, guard, contract, property, integration), create the folder and write the diff to a file with
+  the changed files, one project per flag: dotnet test <wt>\tests\Encina.<Flag>Tests --collect "XPlat Code Coverage"
+  --results-directory <wt>\artifacts\coverage\<Flag>Tests (naming the project matters: without it every test
+  project writes to one folder and is counted as one flag; every flag that exercises them, one folder per flag: UnitTests, GuardTests, ContractTests, PropertyTests,
+  IntegrationTests; coverage-report.cs classifies its inputs by these names, so one set of runs feeds both
+  this gate and the per-file table below), create the folder and write the diff to a file with
   New-Item -ItemType Directory -Force <wt>\artifacts\crap-gate | Out-Null (a fresh worktree has no
   git-ignored folders and the redirect does not create them), then
   git -C <wt> diff -U0 origin/main...HEAD > <wt>\artifacts\crap-gate\diff.patch, list the inputs with
@@ -59,6 +68,15 @@ Rules:
   (the input is a diff FILE, not diff text; flags and design: docs/engineering/crap-gate-design.md), paste the
   script output in the report (it prints only the violations: an empty table means no touched method is over
   the threshold), and make every touched method CRAP <= 10 by lowering its complexity or adding tests.
+- Obligations (AGENTS.md §9, #1762): every new file, and every file a PR touches, under src/ gets per-flag
+  "targets" and one-sentence "justifications" in its package manifest's per-file entry (demanding and
+  realistic; a 0 only with a reason); mechanical-fixer writes them (you decide the numbers). Measure the
+  per-flag coverage of those files with the per-flag runs of the CRAP step above, then run
+  Set-Location <wt>; dotnet run --file <wt>/.github/scripts/coverage-report.cs -- --input <wt>\artifacts\coverage --output <wt>\artifacts\coverage-report
+  and paste the "Per-file targets" table of <wt>\artifacts\coverage-report\encina-coverage-report.md (measured
+  against target), and run
+  Set-Location <wt>; dotnet run --file <wt>/.github/scripts/coverage-report.cs -- --check-justifications
+  (exit 0). A flag with no data for a file reads "no data" and counts as below any target above 0.
 - Self-review before reporting: an issue-worker whose diff touches production code (src/, .github/scripts/,
   .claude/hooks/) spawns adversarial-reviewer on git -C <wt> diff origin/main...HEAD with this brief's
   acceptance criteria; a docs-writer spawns docs-reviewer on its pages. Fix blockers and majors; list the rest.

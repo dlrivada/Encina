@@ -4,11 +4,13 @@
 
 ## Justification
 
-Load tests are not implemented for the crypto-shredding feature because the performance characteristics are dominated by CPU-bound cryptographic operations rather than concurrency patterns.
+A load test is not implemented yet; it is tracked by #1769. Until it lands, concurrency is covered by the unit test below.
 
-### 1. Stateless Serializer Design
+### 1. Per-Call Frames, Not a Stateless Decorator
 
-The `CryptoShredderSerializer` is a stateless decorator over Marten's `ISerializer`. Each serialization call is independent — there is no shared mutable state, no connection pooling, and no resource contention points that would benefit from load testing. Thread safety is guaranteed by the stateless design.
+Since #1698 the `CryptoShredderSerializer` installs a System.Text.Json contract modifier and is no longer stateless. Each serializer call pushes a `CryptoShreddingFrame` that holds its key caches, a lazily created DI scope and the owners waiting for decryption. Write frames are `[ThreadStatic]`, read frames and the locator's subject filter are `AsyncLocal`, buffer-writer output is staged in a `[ThreadStatic]` buffer, and the type classification caches are static `ConcurrentDictionary` instances. Frames are never shared across calls, so a key erased by Art. 17 is never served from a cache.
+
+The isolation of these frames under concurrency is covered by `tests/Encina.UnitTests/Marten/GDPR/Nested/CryptoShreddingCallScopeAndDomainOwnerTests.cs` (`ParallelReadsAndWrites_NeverBleedKeysOrFramesAcrossCalls`): 32 parallel tasks write and asynchronously read nested documents of 4 subjects through one serializer and assert that every call reads back its own value and that no frame is left on the thread or the async flow. The NBomber load test with sustained parallel writers and readers is #1769.
 
 ### 2. Cryptographic Performance Is Already Benchmarked
 
@@ -44,9 +46,11 @@ This would be more valuable as a system-level benchmark rather than an isolated 
 
 ## Related Files
 
-- `src/Encina.Marten.GDPR/Serialization/CryptoShredderSerializer.cs` — Stateless serializer decorator
+- `src/Encina.Marten.GDPR/Serialization/CryptoShredderSerializer.cs` — Serializer wrapper with the contract modifier
+- `src/Encina.Marten.GDPR/Serialization/CryptoShreddingCallScope.cs` — Per-call frames ([ThreadStatic] write, AsyncLocal read)
+- `tests/Encina.UnitTests/Marten/GDPR/Nested/CryptoShreddingCallScopeAndDomainOwnerTests.cs` — Parallel frame-isolation test
 - `src/Encina.Marten.GDPR/KeyStore/InMemorySubjectKeyProvider.cs` — ConcurrentDictionary-based key store
 - `tests/Encina.BenchmarkTests/Encina.Marten.GDPR.Benchmarks/` — Micro-benchmarks
 
-## Date: 2026-03-05
-## Issue: #322
+## Date: 2026-10-05
+## Issue: #322, #1698 (load test: #1769)

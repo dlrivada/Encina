@@ -203,7 +203,7 @@ public class PagedResultTests
 
         // Assert
         result.PageNumber.ShouldBe(1);
-        result.PageSize.ShouldBe(AuditQuery.DefaultPageSize);
+        result.PageSize.ShouldBe(OperationAuditQuery.DefaultPageSize);
     }
 
     [Fact]
@@ -264,7 +264,7 @@ public class PagedResultTests
         var now = DateTimeOffset.UtcNow;
         var auditEntries = new[]
         {
-            new AuditEntry
+            new OperationAuditEntry
             {
                 Id = Guid.NewGuid(),
                 Action = "Create",
@@ -276,7 +276,7 @@ public class PagedResultTests
                 CompletedAtUtc = now,
                 Metadata = new Dictionary<string, object?>()
             },
-            new AuditEntry
+            new OperationAuditEntry
             {
                 Id = Guid.NewGuid(),
                 Action = "Update",
@@ -291,7 +291,7 @@ public class PagedResultTests
         };
 
         // Act
-        var result = PagedResult<AuditEntry>.Create(auditEntries, 50, 1, 10);
+        var result = PagedResult<OperationAuditEntry>.Create(auditEntries, 50, 1, 10);
 
         // Assert
         result.Items.Count.ShouldBe(2);

@@ -310,7 +310,6 @@ public sealed class InboxTestHelper : IDisposable
                 messageId,
                 errorMessage,
                 _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(5));
-            await _store.IncrementRetryCountAsync(messageId);
         });
     }
 

@@ -93,12 +93,12 @@ public static class ReshardingActivitySource
     /// <param name="activity">The activity to complete (may be <c>null</c>).</param>
     /// <param name="succeeded">Whether the operation succeeded.</param>
     /// <param name="durationMs">The duration in milliseconds, if available.</param>
-    /// <param name="errorMessage">The error message, if the operation failed.</param>
+    /// <param name="errorCode">The error code, if the operation failed. Only the code is recorded: the error message can carry personal data (#2134).</param>
     public static void Complete(
         Activity? activity,
         bool succeeded,
         double? durationMs = null,
-        string? errorMessage = null)
+        string? errorCode = null)
     {
         if (activity is null)
         {
@@ -110,14 +110,14 @@ public static class ReshardingActivitySource
             activity.SetTag("resharding.duration_ms", durationMs.Value);
         }
 
-        if (!string.IsNullOrWhiteSpace(errorMessage))
+        if (!string.IsNullOrWhiteSpace(errorCode))
         {
-            activity.SetTag("resharding.error", errorMessage);
+            activity.SetTag("resharding.error", errorCode);
         }
 
         activity.SetStatus(
             succeeded ? ActivityStatusCode.Ok : ActivityStatusCode.Error,
-            errorMessage);
+            errorCode);
 
         activity.Dispose();
     }

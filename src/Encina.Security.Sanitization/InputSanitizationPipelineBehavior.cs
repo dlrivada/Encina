@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using Encina.Diagnostics;
 using Encina.Security.Sanitization.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -164,13 +165,13 @@ internal sealed class InputSanitizationPipelineBehavior<TRequest, TResponse> : I
     /// </summary>
     private void RecordFailure<T>(Activity? activity, long startedAt, string requestTypeName, Either<EncinaError, T> failed)
     {
-        var (errorMessage, errorCode) = failed.Match(
-            Right: _ => (string.Empty, string.Empty),
-            Left: e => (e.Message, e.GetCode().IfNone("encina.unknown")));
+        var errorCode = failed.Match(
+            Right: _ => string.Empty,
+            Left: ActivityStatusDescriptions.ForError);
 
         if (_options.EnableTracing)
         {
-            SanitizationDiagnostics.RecordFailure(activity, "sanitize", errorMessage);
+            SanitizationDiagnostics.RecordFailure(activity, "sanitize", errorCode);
         }
 
         if (_options.EnableMetrics)

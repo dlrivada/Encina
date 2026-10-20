@@ -53,7 +53,7 @@ public sealed class EncinaMongoDbOptionsTests
     {
         var options = new EncinaMongoDbOptions();
 
-        options.UseSecurityAuditStore.ShouldBeFalse();
+        options.UseOperationAuditStore.ShouldBeFalse();
         options.UseReadAuditStore.ShouldBeFalse();
         options.UseAnonymization.ShouldBeFalse();
         options.UseRetention.ShouldBeFalse();
@@ -77,7 +77,7 @@ public sealed class EncinaMongoDbOptionsTests
     {
         var options = new EncinaMongoDbOptions
         {
-            UseSecurityAuditStore = true,
+            UseOperationAuditStore = true,
             UseReadAuditStore = true,
             UseAnonymization = true,
             UseRetention = true,
@@ -88,7 +88,7 @@ public sealed class EncinaMongoDbOptionsTests
             UseModuleIsolation = true
         };
 
-        options.UseSecurityAuditStore.ShouldBeTrue();
+        options.UseOperationAuditStore.ShouldBeTrue();
         options.UseReadAuditStore.ShouldBeTrue();
         options.UseAnonymization.ShouldBeTrue();
         options.UseRetention.ShouldBeTrue();

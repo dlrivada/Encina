@@ -7,15 +7,15 @@ namespace Encina.Security.Audit;
 /// </summary>
 internal static partial class Log
 {
-    // AuditRetentionService: EventIds 5002-5010
+    // OperationAuditRetentionService: EventIds 5002-5010 (the audit pipeline behavior uses 5000-5001)
     [LoggerMessage(EventId = 5002, Level = LogLevel.Information, Message = "Audit retention service started. Purge interval: {IntervalHours} hours, Retention: {RetentionDays} days")]
-    public static partial void AuditRetentionServiceStarted(ILogger logger, int intervalHours, int retentionDays);
+    public static partial void OperationAuditRetentionServiceStarted(ILogger logger, int intervalHours, int retentionDays);
 
     [LoggerMessage(EventId = 5003, Level = LogLevel.Information, Message = "Audit retention service stopped")]
-    public static partial void AuditRetentionServiceStopped(ILogger logger);
+    public static partial void OperationAuditRetentionServiceStopped(ILogger logger);
 
     [LoggerMessage(EventId = 5004, Level = LogLevel.Debug, Message = "Audit retention service is disabled (EnableAutoPurge = false)")]
-    public static partial void AuditRetentionServiceDisabled(ILogger logger);
+    public static partial void OperationAuditRetentionServiceDisabled(ILogger logger);
 
     [LoggerMessage(EventId = 5005, Level = LogLevel.Debug, Message = "Starting audit purge for entries older than {CutoffDate:u}")]
     public static partial void AuditRetentionPurgeStarted(ILogger logger, DateTime cutoffDate);
@@ -34,6 +34,10 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 5010, Level = LogLevel.Error, Message = "Unexpected error during audit purge")]
     public static partial void AuditRetentionPurgeError(ILogger logger, Exception exception);
+
+    // OperationAuditMaskingStartupValidator: EventId 5011
+    [LoggerMessage(EventId = 5011, Level = LogLevel.Warning, Message = "The audit module runs without a PII masker (OperationAuditOptions.AllowUnmaskedPayloads = true): request payloads and payload hashes are built from unmasked data")]
+    public static partial void AuditRunsWithoutPiiMasker(ILogger logger);
 
     // Read audit log messages have been migrated to Encina.Security.Audit.Diagnostics.ReadAuditLog
     // with proper EventId range 1700-1799 (consistent with Encina EventId allocation).

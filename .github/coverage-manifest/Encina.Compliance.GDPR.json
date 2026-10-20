@@ -100,7 +100,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests call every diagnostics method directly and check the emitted activity tags and log events.",
+        "guard": "Guard tests only assert argument checks; this class has no guarded public surface, so the lines are driven by unit tests."
+      }
     },
     "Export/CsvRoPAExporter.cs": {
       "defaultTests": [

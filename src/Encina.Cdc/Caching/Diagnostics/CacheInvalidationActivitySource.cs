@@ -83,15 +83,15 @@ internal static class CacheInvalidationActivitySource
     /// Marks an invalidation activity as failed.
     /// </summary>
     /// <param name="activity">The invalidation activity to mark as failed.</param>
-    /// <param name="errorMessage">The error message.</param>
-    internal static void InvalidationFailed(Activity? activity, string? errorMessage)
+    /// <param name="errorCode">The error code. Only the code is recorded: the error message can carry personal data (#2134).</param>
+    internal static void InvalidationFailed(Activity? activity, string errorCode)
     {
         if (activity is null)
         {
             return;
         }
 
-        activity.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity.SetStatus(ActivityStatusCode.Error, errorCode);
         activity.Dispose();
     }
 
@@ -136,15 +136,15 @@ internal static class CacheInvalidationActivitySource
     /// </summary>
     /// <param name="activity">The broadcast activity to complete.</param>
     /// <param name="isSuccess">Whether the broadcast succeeded.</param>
-    /// <param name="errorMessage">Optional error message if the broadcast failed.</param>
-    internal static void CompleteBroadcast(Activity? activity, bool isSuccess, string? errorMessage = null)
+    /// <param name="errorCode">Optional error code if the broadcast failed. Only the code is recorded: the error message can carry personal data (#2134).</param>
+    internal static void CompleteBroadcast(Activity? activity, bool isSuccess, string? errorCode = null)
     {
         if (activity is null)
         {
             return;
         }
 
-        activity.SetStatus(isSuccess ? ActivityStatusCode.Ok : ActivityStatusCode.Error, errorMessage);
+        activity.SetStatus(isSuccess ? ActivityStatusCode.Ok : ActivityStatusCode.Error, errorCode);
         activity.Dispose();
     }
 }

@@ -1,6 +1,7 @@
 using Encina.Security.AntiTampering;
 using Encina.Security.AntiTampering.Abstractions;
 using Encina.Security.AntiTampering.Pipeline;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
@@ -35,7 +36,7 @@ public sealed class HMACValidationPipelineBehaviorNoHttpContextTests
         var options = Options.Create(new AntiTamperingOptions());
         var timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<HMACValidationPipelineBehavior<SpikeSignedCommand, Unit>>>();
-        var context = RequestContext.CreateForTest(userId: "user-1");
+        var context = TestRequestContext.For(TestIdentity.User("user-1"));
 
         var sut = new HMACValidationPipelineBehavior<SpikeSignedCommand, Unit>(
             requestSigner, nonceStore, httpContextAccessor, options, timeProvider, logger);

@@ -59,7 +59,9 @@ public sealed class DataSubjectRightsExceptionMessageLeakTests
             Substitute.For<IDataPortabilityExporter>(),
             Substitute.For<IProcessingActivityRegistry>(),
             Substitute.For<ICacheProvider>(),
+            Microsoft.Extensions.Options.Options.Create(new DataSubjectRightsOptions()),
             new FakeTimeProvider(),
+            new RequestContextAccessor(),
             NullLogger<DefaultDSRService>.Instance);
 
         using var capture = CreateCapture();

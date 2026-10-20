@@ -6,8 +6,8 @@ namespace Encina.Security.Audit;
 /// <remarks>
 /// <para>
 /// <see cref="ReadAuditEntry"/> captures information about who accessed sensitive data, when,
-/// and for what purpose. Unlike <see cref="AuditEntry"/> which tracks CUD (Create, Update, Delete)
-/// operations at the CQRS pipeline level, <see cref="ReadAuditEntry"/> tracks read operations
+/// and for what purpose. Unlike <see cref="OperationAuditEntry"/> which tracks operations
+/// (commands, audited queries, secret access and policy changes) at the CQRS pipeline level, <see cref="ReadAuditEntry"/> tracks read operations
 /// at the data access (repository) level.
 /// </para>
 /// <para>
@@ -20,7 +20,7 @@ namespace Encina.Security.Audit;
 /// </list>
 /// </para>
 /// <para>
-/// Key differences from <see cref="AuditEntry"/>:
+/// Key differences from <see cref="OperationAuditEntry"/>:
 /// <list type="bullet">
 /// <item>No request/response payload fields — reads don't modify data</item>
 /// <item>No payload hash — tamper detection is irrelevant for reads</item>
@@ -84,7 +84,7 @@ public sealed record ReadAuditEntry
     /// </summary>
     /// <remarks>
     /// <c>null</c> for system-initiated or background access.
-    /// Propagated from <see cref="IRequestContext.UserId"/>.
+    /// Propagated from <see cref="RequestIdentity.UserId"/>.
     /// Critical for answering "who accessed this data?" queries required by GDPR Art. 15.
     /// </remarks>
     public string? UserId { get; init; }

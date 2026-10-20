@@ -12,7 +12,11 @@ namespace Encina.MQTT;
 /// <summary>
 /// MQTT-based implementation of the message publisher.
 /// </summary>
-public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposable
+/// <remarks>
+/// The publisher does not own the injected <see cref="IMqttClient"/>; the DI container owns
+/// and disposes it, so ending a scope that resolved the publisher leaves the client connected.
+/// </remarks>
+public sealed class MQTTMessagePublisher : IMQTTMessagePublisher
 {
     private readonly IMqttClient _client;
     private readonly ILogger<MQTTMessagePublisher> _logger;
@@ -38,6 +42,8 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposab
         _options = options.Value;
     }
 
+    internal const string MessageIdProperty = "MessageId";
+
     /// <inheritdoc />
     public bool IsConnected => _client.IsConnected;
 
@@ -47,6 +53,7 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposab
         string? topic = null,
         MqttQualityOfService? qos = null,
         bool retain = false,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class
     {
@@ -74,6 +81,9 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposab
                 .WithPayload(payload)
                 .WithQualityOfServiceLevel(mqttQos)
                 .WithRetainFlag(retain)
+                .WithUserProperty(
+                    MessageIdProperty,
+                    System.Text.Encoding.UTF8.GetBytes(string.IsNullOrEmpty(messageId) ? Guid.NewGuid().ToString() : messageId))
                 .Build();
 
             await _client.PublishAsync(mqttMessage, cancellationToken).ConfigureAwait(false);
@@ -160,17 +170,6 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposab
         var subscription = new MqttPatternSubscription<TMessage>((MqttClient)_client, topicFilter, handler, _logger);
 
         return subscription;
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
-    {
-        if (_client.IsConnected)
-        {
-            await _client.DisconnectAsync().ConfigureAwait(false);
-        }
-
-        _client.Dispose();
     }
 }
 

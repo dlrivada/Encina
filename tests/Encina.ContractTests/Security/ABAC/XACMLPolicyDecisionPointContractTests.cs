@@ -41,13 +41,19 @@ public sealed class XACMLPolicyDecisionPointContractTests
 
     private static PolicyEvaluationContext MakeContext(bool includeAdvice = true) => new()
     {
-        SubjectAttributes = AttributeBag.Of(
-            new AttributeValue { DataType = XACMLDataTypes.String, Value = "admin" }),
-        ResourceAttributes = AttributeBag.Of(
-            new AttributeValue { DataType = XACMLDataTypes.String, Value = "document" }),
-        ActionAttributes = AttributeBag.Of(
-            new AttributeValue { DataType = XACMLDataTypes.String, Value = "read" }),
-        EnvironmentAttributes = AttributeBag.Empty,
+        SubjectAttributes = new Dictionary<string, AttributeBag>
+        {
+            ["role"] = AttributeBag.Of(new AttributeValue { DataType = XACMLDataTypes.String, Value = "admin" })
+        },
+        ResourceAttributes = new Dictionary<string, AttributeBag>
+        {
+            ["type"] = AttributeBag.Of(new AttributeValue { DataType = XACMLDataTypes.String, Value = "document" })
+        },
+        ActionAttributes = new Dictionary<string, AttributeBag>
+        {
+            ["name"] = AttributeBag.Of(new AttributeValue { DataType = XACMLDataTypes.String, Value = "read" })
+        },
+        EnvironmentAttributes = new Dictionary<string, AttributeBag>(),
         RequestType = typeof(object),
         IncludeAdvice = includeAdvice
     };

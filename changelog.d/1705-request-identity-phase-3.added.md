@@ -1,0 +1,2 @@
+- `HttpContext.CreateInboundRequestInfo()` builds the `InboundRequestInfo` of a request; a server-sent event endpoint passes it to `RunInboundAsync` around one event or one dispatch (#1705).
+- `EncinaErrorCodes.AuthorizationUnauthenticated` (`encina.authorization.unauthenticated`), treated as a permanent error by the error classifier (#1705).

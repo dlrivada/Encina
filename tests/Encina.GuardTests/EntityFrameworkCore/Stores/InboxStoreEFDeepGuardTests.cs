@@ -73,20 +73,6 @@ public sealed class InboxStoreEFDeepGuardTests
     }
 
     [Fact]
-    public async Task IncrementRetryCountAsync_NonExistentMessageId_ReturnsRightWithNoSideEffects()
-    {
-        // Arrange - exercises: null check (line 114), TryAsync (line 116),
-        // query (lines 118-119), null check (line 121)
-        var store = CreateStore();
-
-        // Act
-        var result = await store.IncrementRetryCountAsync("non-existent-id");
-
-        // Assert
-        result.IsRight.ShouldBeTrue();
-    }
-
-    [Fact]
     public async Task GetMessageAsync_NonExistentMessageId_ReturnsNoneOption()
     {
         // Arrange - exercises: null check (line 37), TryAsync (line 39),
@@ -169,6 +155,8 @@ public sealed class InboxStoreEFDeepGuardTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
+        (await store.SaveChangesAsync()).IsRight.ShouldBeTrue(); // the processed mark is enlisted in the caller's unit of work
+        dbContext.ChangeTracker.Clear();
         var updated = await dbContext.Set<InboxMessage>().FirstAsync(m => m.MessageId == "process-msg");
         updated.Response.ShouldBe("{\"result\":\"ok\"}");
         updated.ProcessedAtUtc.ShouldBe(new DateTime(2026, 3, 15, 10, 0, 0, DateTimeKind.Utc));
@@ -199,35 +187,11 @@ public sealed class InboxStoreEFDeepGuardTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
+        dbContext.ChangeTracker.Clear(); // the inbox store writes through its own context
         var updated = await dbContext.Set<InboxMessage>().FirstAsync(m => m.MessageId == "fail-msg");
         updated.ErrorMessage.ShouldBe("Connection timeout");
         updated.RetryCount.ShouldBe(3);
         updated.NextRetryAtUtc.ShouldBe(nextRetry);
-    }
-
-    [Fact]
-    public async Task IncrementRetryCount_ExistingMessage_IncrementsCount()
-    {
-        // Arrange - Exercises query + finding message + incrementing RetryCount
-        var store = CreateStoreWithDb(out var dbContext);
-        var message = new InboxMessage
-        {
-            MessageId = "retry-msg",
-            RequestType = "TestCommand",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(7),
-            RetryCount = 0
-        };
-        await dbContext.Set<InboxMessage>().AddAsync(message);
-        await dbContext.SaveChangesAsync();
-
-        // Act
-        var result = await store.IncrementRetryCountAsync("retry-msg");
-
-        // Assert
-        result.IsRight.ShouldBeTrue();
-        var updated = await dbContext.Set<InboxMessage>().FirstAsync(m => m.MessageId == "retry-msg");
-        updated.RetryCount.ShouldBe(1);
     }
 
     #endregion

@@ -693,7 +693,7 @@ public static class HealthCheckBuilderExtensions
     /// <remarks>
     /// <para>
     /// This health check verifies that the audit store is accessible by performing
-    /// a lightweight query. Requires <see cref="IAuditStore"/> to be registered.
+    /// a lightweight query. Requires <see cref="IOperationAuditStore"/> to be registered.
     /// </para>
     /// </remarks>
     /// <example>
@@ -705,7 +705,7 @@ public static class HealthCheckBuilderExtensions
     /// </example>
     public static IHealthChecksBuilder AddEncinaAudit(
         this IHealthChecksBuilder builder,
-        string name = AuditStoreHealthCheck.DefaultName,
+        string name = OperationAuditStoreHealthCheck.DefaultName,
         IEnumerable<string>? tags = null,
         AspNetHealthStatus? failureStatus = null)
     {
@@ -717,9 +717,9 @@ public static class HealthCheckBuilderExtensions
             name,
             sp =>
             {
-                var store = sp.GetRequiredService<IAuditStore>();
+                var store = sp.GetRequiredService<IOperationAuditStore>();
                 return new EncinaHealthCheckAdapter(
-                    new AuditStoreHealthCheck(store));
+                    new OperationAuditStoreHealthCheck(store));
             },
             failureStatus,
             allTags));

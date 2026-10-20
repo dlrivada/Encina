@@ -13,11 +13,13 @@ public interface IAzureServiceBusMessagePublisher
     /// <typeparam name="TMessage">The type of the message.</typeparam>
     /// <param name="message">The message to send.</param>
     /// <param name="queueName">The queue name. If null, uses the default queue.</param>
+    /// <param name="messageId">The broker message id (for example the outbox message id) so consumers can deduplicate; a new id is generated only when null or empty.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Either a EncinaError or Unit on success.</returns>
     ValueTask<Either<EncinaError, Unit>> SendToQueueAsync<TMessage>(
         TMessage message,
         string? queueName = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class;
 
@@ -27,11 +29,13 @@ public interface IAzureServiceBusMessagePublisher
     /// <typeparam name="TMessage">The type of the message.</typeparam>
     /// <param name="message">The message to publish.</param>
     /// <param name="topicName">The topic name. If null, uses the default topic.</param>
+    /// <param name="messageId">The broker message id (for example the outbox message id) so consumers can deduplicate; a new id is generated only when null or empty.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Either a EncinaError or Unit on success.</returns>
     ValueTask<Either<EncinaError, Unit>> PublishToTopicAsync<TMessage>(
         TMessage message,
         string? topicName = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class;
 
@@ -42,12 +46,14 @@ public interface IAzureServiceBusMessagePublisher
     /// <param name="message">The message to schedule.</param>
     /// <param name="scheduledEnqueueTime">The time to deliver the message.</param>
     /// <param name="queueName">The queue name. If null, uses the default queue.</param>
+    /// <param name="messageId">The broker message id (for example the outbox message id) so consumers can deduplicate; a new id is generated only when null or empty.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Either a EncinaError or the sequence number.</returns>
     ValueTask<Either<EncinaError, long>> ScheduleAsync<TMessage>(
         TMessage message,
         DateTimeOffset scheduledEnqueueTime,
         string? queueName = null,
+        string? messageId = null,
         CancellationToken cancellationToken = default)
         where TMessage : class;
 

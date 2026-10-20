@@ -39,11 +39,11 @@ Should attestation be implemented as a direct integration with a specific backen
 
 2. **Regulatory evolution**: EU AI Act implementing acts are still being finalized. Prescribing a specific attestation backend today risks non-compliance if the acceptable methods list changes in future delegated acts.
 
-3. **Existing framework pattern**: Encina already abstracts pluggable concerns via provider interfaces — `ICacheProvider` ([ADR-003](003-caching-strategy.md)), `IAuditStore` (audit trail), `ISubjectKeyProvider` (crypto-shredding, see [ADR-020](020-temporal-crypto-shredding-audit-store.md)). Consumers integrate these without coupling to a specific implementation.
+3. **Existing framework pattern**: Encina already abstracts pluggable concerns via provider interfaces — `ICacheProvider` ([ADR-003](003-caching-strategy.md)), `IOperationAuditStore` (audit trail), `ISubjectKeyProvider` (crypto-shredding, see [ADR-020](020-temporal-crypto-shredding-audit-store.md)). Consumers integrate these without coupling to a specific implementation.
 
 4. **Testability**: Integration with external transparency logs is not suitable for unit or contract tests. Any design must support a deterministic, in-process implementation for the test tier.
 
-5. **Separation from `IAuditStore`**: `IAuditStore` records *what happened* (audit trail). `IAuditAttestationProvider` proves *that the record has not been tampered with* (integrity proof). These are distinct concerns — a record can be audited without being attested, and an attestation receipt is meaningful only in conjunction with the original record.
+5. **Separation from `IOperationAuditStore`**: `IOperationAuditStore` records *what happened* (audit trail). `IAuditAttestationProvider` proves *that the record has not been tampered with* (integrity proof). These are distinct concerns — a record can be audited without being attested, and an attestation receipt is meaningful only in conjunction with the original record.
 
 ## Decision
 
@@ -80,7 +80,7 @@ The following were evaluated and deferred:
 
 - **RFC 3161 TSA provider**: Deferred to a future issue. The HTTP provider can proxy a TSA endpoint; a first-class TSA provider would add ASN.1 parsing and certificate chain validation — out of scope for this iteration.
 - **Blockchain provider**: Deferred. Cost and throughput characteristics are not suitable for high-frequency audit events. A future provider could batch receipts and submit a Merkle root.
-- **`IAuditStore` integration**: Attesting on every `IAuditStore.AppendAsync` call is not automatic. Consumers opt in via the `[AttestDecision]` attribute or explicit `IAuditAttestationProvider` injection. This keeps the audit trail path unconditionally fast.
+- **`IOperationAuditStore` integration**: Attesting on every `IOperationAuditStore.AppendAsync` call is not automatic. Consumers opt in via the `[AttestDecision]` attribute or explicit `IAuditAttestationProvider` injection. This keeps the audit trail path unconditionally fast.
 
 ### DI Registration
 
@@ -107,12 +107,12 @@ Implement `AttestAsync` as a direct call to `https://rekor.sigstore.dev/api/v1/l
 - Breaks air-gapped deployments unconditionally
 - The Rekor API returns a `logIndex` — a meaningful proof only if the verifier also trusts the Sigstore root of trust. This is an acceptable assumption for open-source projects but not for regulated enterprise contexts where the trust anchor must be configurable.
 
-### B. Extend `IAuditStore` with an `AttestAsync` Overload
+### B. Extend `IOperationAuditStore` with an `AttestAsync` Overload
 
-Add `AttestAsync(AuditEntry entry)` directly to `IAuditStore`.
+Add `AttestAsync(OperationAuditEntry entry)` directly to `IOperationAuditStore`.
 
 **Rejected because:**
-- `IAuditStore` is already implemented by 13 database providers. Adding attestation would require each to implement or stub attestation logic.
+- `IOperationAuditStore` is already implemented by 13 database providers. Adding attestation would require each to implement or stub attestation logic.
 - Audit storage and attestation have different failure semantics: a storage write failure should surface immediately; an attestation failure may be acceptable to log-and-continue depending on the compliance posture.
 - Violates the single-responsibility principle at the interface level.
 

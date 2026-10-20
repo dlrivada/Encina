@@ -1,4 +1,6 @@
 using Encina.EntityFrameworkCore.Sagas;
+using Encina.IntegrationTests.Infrastructure.Sagas;
+using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
@@ -28,6 +30,32 @@ public sealed class SagaStoreEFMySqlTests : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         await _fixture.ClearAllDataAsync();
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenStepFailsAndCompensationsSucceed_PersistsCompensated()
+    {
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        var store = new SagaStoreEF(context);
+
+        await SagaRunnerOutcomeScenarios.AssertStepFailureEndsCompensatedAsync(
+            store, new SagaStateFactory(), async () => (await store.SaveChangesAsync()).ShouldBeRight());
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenStepFailsAndCompensationThrows_PersistsFailed()
+    {
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        var store = new SagaStoreEF(context);
+
+        await SagaRunnerOutcomeScenarios.AssertCompensationFailureEndsFailedAsync(
+            store, new SagaStateFactory(), async () => (await store.SaveChangesAsync()).ShouldBeRight());
     }
 
     [Fact]

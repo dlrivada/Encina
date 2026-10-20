@@ -8,8 +8,8 @@ namespace Encina.Security.Audit;
 /// <remarks>
 /// <para>
 /// Tracks read access to sensitive entities marked with <c>IReadAuditable</c>.
-/// This is separate from <see cref="IAuditStore"/> which handles CUD (Create, Update, Delete)
-/// operations at the CQRS pipeline level.
+/// This is separate from <see cref="IOperationAuditStore"/> which records operations
+/// (commands, audited queries, secret access and policy changes) at the CQRS pipeline level.
 /// </para>
 /// <para>
 /// Implementations must be thread-safe for concurrent audit recording.

@@ -16,6 +16,17 @@ public class DataSubjectRightsOptionsTests
     }
 
     [Fact]
+    public void EnableOmnibusArticle12RefusalGrounds_DefaultsToFalse_AndIsSettable()
+    {
+        var options = new DataSubjectRightsOptions();
+
+        options.EnableOmnibusArticle12RefusalGrounds.ShouldBeFalse();
+
+        options.EnableOmnibusArticle12RefusalGrounds = true;
+        options.EnableOmnibusArticle12RefusalGrounds.ShouldBeTrue();
+    }
+
+    [Fact]
     public void AllEnforcementModes_ShouldBeSettable()
     {
         var options = new DataSubjectRightsOptions

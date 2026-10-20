@@ -27,7 +27,7 @@ public class PersistentPAPGuardTests
         var logger = NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
 
         // Act
-        var act = () => new PersistentPolicyAdministrationPoint(null!, logger);
+        var act = () => new PersistentPolicyAdministrationPoint(null!, logger, Substitute.For<IRequestContextAccessor>());
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -41,11 +41,26 @@ public class PersistentPAPGuardTests
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
 
         // Act
-        var act = () => new PersistentPolicyAdministrationPoint(scopeFactory, null!);
+        var act = () => new PersistentPolicyAdministrationPoint(scopeFactory, null!, Substitute.For<IRequestContextAccessor>());
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("logger");
+    }
+
+    [Fact]
+    public void PersistentPAP_Constructor_NullRequestContextAccessor_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        var logger = NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
+
+        // Act
+        var act = () => new PersistentPolicyAdministrationPoint(scopeFactory, logger, null!);
+
+        // Assert
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("requestContextAccessor");
     }
 
     #endregion
@@ -512,7 +527,7 @@ public class PersistentPAPGuardTests
         // Guard tests fail before any scope is opened, so a substitute factory needs no disposable provider.
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         var logger = NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
-        return new PersistentPolicyAdministrationPoint(scopeFactory, logger);
+        return new PersistentPolicyAdministrationPoint(scopeFactory, logger, Substitute.For<IRequestContextAccessor>());
     }
 
     private static PolicySet CreateMinimalPolicySet() => new()

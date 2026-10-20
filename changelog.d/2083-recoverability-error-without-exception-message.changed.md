@@ -1,0 +1,1 @@
+- The recoverability pipeline no longer puts a handler exception's message in the EncinaError it builds (the error carries the exception type name and still references the exception); a custom IErrorClassifier that matches on error.Message for a thrown exception must read the exception it is given instead (#2083).

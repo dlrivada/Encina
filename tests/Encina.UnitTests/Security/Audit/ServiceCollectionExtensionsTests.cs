@@ -1,6 +1,7 @@
 using Encina.Security.Audit;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Shouldly;
 
@@ -18,19 +19,21 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddLogging();
 
+        services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
+
         // Act
         services.AddEncinaAudit();
         var provider = services.BuildServiceProvider();
 
         // Assert
         provider.GetService<IPiiMasker>().ShouldNotBeNull();
-        provider.GetService<IAuditStore>().ShouldNotBeNull();
-        provider.GetService<IAuditEntryFactory>().ShouldNotBeNull();
-        provider.GetService<IOptions<AuditOptions>>().ShouldNotBeNull();
+        provider.GetService<IOperationAuditStore>().ShouldNotBeNull();
+        provider.GetService<IOperationAuditEntryFactory>().ShouldNotBeNull();
+        provider.GetService<IOptions<OperationAuditOptions>>().ShouldNotBeNull();
     }
 
     [Fact]
-    public void AddEncinaAudit_ShouldRegisterNullPiiMaskerByDefault()
+    public void AddEncinaAudit_ShouldNotRegisterAPiiMaskerByDefault()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -40,9 +43,78 @@ public class ServiceCollectionExtensionsTests
         services.AddEncinaAudit();
         var provider = services.BuildServiceProvider();
 
+        // Assert - the audit module requires a masker, it never defaults to a pass-through one
+        provider.GetService<IPiiMasker>().ShouldBeNull();
+    }
+
+    [Fact]
+    public void AddEncinaAudit_WithAllowUnmaskedPayloads_ShouldRegisterNullPiiMasker()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddEncinaAudit(options => options.AllowUnmaskedPayloads = true);
+        var provider = services.BuildServiceProvider();
+
         // Assert
-        var masker = provider.GetRequiredService<IPiiMasker>();
-        masker.ShouldBeOfType<NullPiiMasker>();
+        provider.GetRequiredService<IPiiMasker>().ShouldBeOfType<NullPiiMasker>();
+    }
+
+    [Fact]
+    public void AddEncinaAudit_WithAllowUnmaskedPayloads_ShouldKeepTheApplicationMasker()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IPiiMasker, CustomPiiMasker>();
+
+        // Act
+        services.AddEncinaAudit(options => options.AllowUnmaskedPayloads = true);
+        var provider = services.BuildServiceProvider();
+
+        // Assert
+        provider.GetRequiredService<IPiiMasker>().ShouldBeOfType<CustomPiiMasker>();
+    }
+
+    [Fact]
+    public void AddEncinaAudit_WithoutAMasker_ShouldFailValidateOnBuild()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaAudit();
+
+        // Act
+        var act = () => services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+
+        // Assert
+        Should.Throw<AggregateException>(act).Message.ShouldContain(nameof(IPiiMasker));
+    }
+
+    [Fact]
+    public void AddEncinaAudit_WithAMasker_ShouldPassValidateOnBuild()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
+        services.AddEncinaAudit();
+
+        // Act
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+
+        // Assert
+        provider.GetServices<IHostedService>().OfType<IHostedLifecycleService>().ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -57,8 +129,8 @@ public class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var store = provider.GetRequiredService<IAuditStore>();
-        store.ShouldBeOfType<InMemoryAuditStore>();
+        var store = provider.GetRequiredService<IOperationAuditStore>();
+        store.ShouldBeOfType<InMemoryOperationAuditStore>();
     }
 
     [Fact]
@@ -67,14 +139,15 @@ public class ServiceCollectionExtensionsTests
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
 
         // Act
         services.AddEncinaAudit();
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var factory = provider.GetRequiredService<IAuditEntryFactory>();
-        factory.ShouldBeOfType<DefaultAuditEntryFactory>();
+        var factory = provider.GetRequiredService<IOperationAuditEntryFactory>();
+        factory.ShouldBeOfType<DefaultOperationAuditEntryFactory>();
     }
 
     [Fact]
@@ -94,7 +167,7 @@ public class ServiceCollectionExtensionsTests
         });
 
         var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IOptions<AuditOptions>>().Value;
+        var options = provider.GetRequiredService<IOptions<OperationAuditOptions>>().Value;
 
         // Assert
         options.AuditAllCommands.ShouldBeFalse();
@@ -113,7 +186,7 @@ public class ServiceCollectionExtensionsTests
         // Act
         services.AddEncinaAudit();
         var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IOptions<AuditOptions>>().Value;
+        var options = provider.GetRequiredService<IOptions<OperationAuditOptions>>().Value;
 
         // Assert
         options.AuditAllCommands.ShouldBeTrue();
@@ -145,14 +218,14 @@ public class ServiceCollectionExtensionsTests
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton<IAuditStore, CustomAuditStore>();
+        services.AddSingleton<IOperationAuditStore, CustomAuditStore>();
 
         // Act
         services.AddEncinaAudit();
         var provider = services.BuildServiceProvider();
 
         // Assert - Custom store should be used (TryAdd doesn't override)
-        var store = provider.GetRequiredService<IAuditStore>();
+        var store = provider.GetRequiredService<IOperationAuditStore>();
         store.ShouldBeOfType<CustomAuditStore>();
     }
 
@@ -212,7 +285,7 @@ public class ServiceCollectionExtensionsTests
         services.AddEncinaAudit();
 
         // Assert
-        var descriptor = services.First(d => d.ServiceType == typeof(IAuditEntryFactory));
+        var descriptor = services.First(d => d.ServiceType == typeof(IOperationAuditEntryFactory));
         descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
@@ -224,7 +297,7 @@ public class ServiceCollectionExtensionsTests
         services.AddLogging();
 
         // Act
-        services.AddEncinaAudit();
+        services.AddEncinaAudit(options => options.AllowUnmaskedPayloads = true);
 
         // Assert
         var descriptor = services.First(d => d.ServiceType == typeof(IPiiMasker));
@@ -242,7 +315,7 @@ public class ServiceCollectionExtensionsTests
         services.AddEncinaAudit();
 
         // Assert
-        var descriptor = services.First(d => d.ServiceType == typeof(IAuditStore));
+        var descriptor = services.First(d => d.ServiceType == typeof(IOperationAuditStore));
         descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 
@@ -263,7 +336,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
-            d.ImplementationType == typeof(AuditRetentionService));
+            d.ImplementationType == typeof(OperationAuditRetentionService));
         descriptor.ShouldNotBeNull();
     }
 
@@ -282,7 +355,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
-            d.ImplementationType == typeof(AuditRetentionService));
+            d.ImplementationType == typeof(OperationAuditRetentionService));
         descriptor.ShouldBeNull();
     }
 
@@ -298,7 +371,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
-            d.ImplementationType == typeof(AuditRetentionService));
+            d.ImplementationType == typeof(OperationAuditRetentionService));
         descriptor.ShouldBeNull();
     }
 
@@ -310,29 +383,29 @@ public class ServiceCollectionExtensionsTests
         public object MaskForAudit(object request) => request;
     }
 
-    private sealed class CustomAuditStore : IAuditStore
+    private sealed class CustomAuditStore : IOperationAuditStore
     {
-        private static readonly IReadOnlyList<AuditEntry> EmptyEntries = System.Array.Empty<AuditEntry>();
+        private static readonly IReadOnlyList<OperationAuditEntry> EmptyEntries = System.Array.Empty<OperationAuditEntry>();
 
         public ValueTask<Either<EncinaError, Unit>> RecordAsync(
-            AuditEntry entry, CancellationToken cancellationToken = default)
+            OperationAuditEntry entry, CancellationToken cancellationToken = default)
             => new(Prelude.Right<EncinaError, Unit>(Unit.Default));
 
-        public ValueTask<Either<EncinaError, IReadOnlyList<AuditEntry>>> GetByEntityAsync(
+        public ValueTask<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>> GetByEntityAsync(
             string entityType, string? entityId, CancellationToken cancellationToken = default)
-            => new(Prelude.Right<EncinaError, IReadOnlyList<AuditEntry>>(EmptyEntries));
+            => new(Prelude.Right<EncinaError, IReadOnlyList<OperationAuditEntry>>(EmptyEntries));
 
-        public ValueTask<Either<EncinaError, IReadOnlyList<AuditEntry>>> GetByUserAsync(
+        public ValueTask<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>> GetByUserAsync(
             string userId, DateTime? fromUtc, DateTime? toUtc, CancellationToken cancellationToken = default)
-            => new(Prelude.Right<EncinaError, IReadOnlyList<AuditEntry>>(EmptyEntries));
+            => new(Prelude.Right<EncinaError, IReadOnlyList<OperationAuditEntry>>(EmptyEntries));
 
-        public ValueTask<Either<EncinaError, IReadOnlyList<AuditEntry>>> GetByCorrelationIdAsync(
+        public ValueTask<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>> GetByCorrelationIdAsync(
             string correlationId, CancellationToken cancellationToken = default)
-            => new(Prelude.Right<EncinaError, IReadOnlyList<AuditEntry>>(EmptyEntries));
+            => new(Prelude.Right<EncinaError, IReadOnlyList<OperationAuditEntry>>(EmptyEntries));
 
-        public ValueTask<Either<EncinaError, PagedResult<AuditEntry>>> QueryAsync(
-            AuditQuery query, CancellationToken cancellationToken = default)
-            => new(Prelude.Right<EncinaError, PagedResult<AuditEntry>>(PagedResult<AuditEntry>.Empty()));
+        public ValueTask<Either<EncinaError, PagedResult<OperationAuditEntry>>> QueryAsync(
+            OperationAuditQuery query, CancellationToken cancellationToken = default)
+            => new(Prelude.Right<EncinaError, PagedResult<OperationAuditEntry>>(PagedResult<OperationAuditEntry>.Empty()));
 
         public ValueTask<Either<EncinaError, int>> PurgeEntriesAsync(
             DateTime olderThanUtc, CancellationToken cancellationToken = default)

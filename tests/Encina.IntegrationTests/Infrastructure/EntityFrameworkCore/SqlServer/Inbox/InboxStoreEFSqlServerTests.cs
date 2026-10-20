@@ -31,6 +31,76 @@ public sealed class InboxStoreEFSqlServerTests : IAsyncLifetime
         await _fixture.ClearAllDataAsync();
     }
 
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(3, true)]
+    [InlineData(3, false)]
+    public async Task Pipeline_ThrowingHandler_PersistsRetryCountAndRunsMaxRetriesTimes(int maxRetries, bool transactional)
+    {
+        await EnsureSchemaAsync();
+        await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertThrowingHandlerRunsMaxRetriesTimesAsync(
+            Harness(), maxRetries, transactional);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Pipeline_HandlerLeft_IsCachedEvenWhenTheTransactionRollsBack(bool transactional)
+    {
+        await EnsureSchemaAsync();
+        await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertHandlerLeftIsCachedAfterRollbackAsync(
+            Harness(), transactional);
+    }
+
+    [Fact]
+    public async Task Pipeline_SuccessfulHandler_IsCachedAndCommitted()
+    {
+        await EnsureSchemaAsync();
+        await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertSuccessIsCachedAsync(
+            Harness(), transactional: true);
+    }
+
+    [Fact]
+    public async Task Pipeline_FailedBusinessCommit_LeavesMessageUnprocessed()
+    {
+        await EnsureSchemaAsync();
+        await global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.AssertFailedBusinessCommitLeavesMessageUnprocessedAsync(
+            Harness());
+    }
+
+    private global::Encina.IntegrationTests.Messaging.InboxPipelineScenario.Harness Harness() =>
+        global::Encina.IntegrationTests.Messaging.InboxPipelineHarnesses.EfSqlServer<TestEFDbContext>(_fixture);
+
+    private async Task EnsureSchemaAsync()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task Orchestrator_HandlerAlwaysThrows_RunsHandlerMaxRetriesTimesThenRejects(int maxRetries)
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        var store = new InboxStoreEF(context);
+
+        await global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerRunsMaxRetriesTimesAsync(
+            store, new InboxMessageFactory(), maxRetries, () => context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task Orchestrator_HandlerLeft_IsCachedAndNotRerun()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        var store = new InboxStoreEF(context);
+
+        await global::Encina.IntegrationTests.Messaging.InboxRetryScenario.AssertHandlerLeftIsCachedAsync(
+            store, new InboxMessageFactory(), () => context.SaveChangesAsync());
+    }
+
     [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()
     {

@@ -81,11 +81,11 @@ public sealed partial class HybridCacheProvider : ICacheProvider
 
         if (factoryCalled)
         {
-            LogCacheMiss(_logger, key);
+            LogCacheMiss(_logger, CacheKeyRedactor.Redact(key));
             return default;
         }
 
-        LogCacheHit(_logger, key);
+        LogCacheHit(_logger, CacheKeyRedactor.Redact(key));
         return result;
     }
 
@@ -102,7 +102,7 @@ public sealed partial class HybridCacheProvider : ICacheProvider
         };
 
         await _cache.SetAsync(key, value, entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
-        LogCacheSet(_logger, key, entryOptions.Expiration ?? _options.DefaultExpiration);
+        LogCacheSet(_logger, CacheKeyRedactor.Redact(key), entryOptions.Expiration ?? _options.DefaultExpiration);
     }
 
     /// <inheritdoc/>
@@ -128,7 +128,7 @@ public sealed partial class HybridCacheProvider : ICacheProvider
             }
         }
 
-        LogCacheRemove(_logger, key);
+        LogCacheRemove(_logger, CacheKeyRedactor.Redact(key));
     }
 
     /// <inheritdoc/>
@@ -157,7 +157,7 @@ public sealed partial class HybridCacheProvider : ICacheProvider
             removedCount++;
         }
 
-        LogCacheRemovePattern(_logger, pattern, removedCount);
+        LogCacheRemovePattern(_logger, CacheKeyRedactor.Redact(pattern), removedCount);
     }
 
     /// <summary>
@@ -304,7 +304,7 @@ public sealed partial class HybridCacheProvider : ICacheProvider
 
         await _cache.SetAsync(key, value, entryOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
 
-        LogCacheSetSliding(_logger, key, slidingExpiration, absoluteExpiration);
+        LogCacheSetSliding(_logger, CacheKeyRedactor.Redact(key), slidingExpiration, absoluteExpiration);
     }
 
     /// <inheritdoc/>

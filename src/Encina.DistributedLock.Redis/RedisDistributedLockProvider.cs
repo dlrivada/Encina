@@ -1,3 +1,5 @@
+using Encina.Diagnostics;
+
 namespace Encina.DistributedLock.Redis;
 
 /// <summary>
@@ -59,25 +61,26 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
         var lockValue = Guid.NewGuid().ToString();
         var deadline = _timeProvider.GetUtcNow().UtcDateTime.Add(wait);
 
-        while (_timeProvider.GetUtcNow().UtcDateTime < deadline)
+        // Always attempt at least once, so a zero wait still takes a free lock. The retry delay
+        // runs on the injected TimeProvider (as the deadline does), so a test clock drives the
+        // whole wait (#531).
+        while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var acquired = await Database.StringSetAsync(
-                lockKey,
-                lockValue,
-                expiry,
-                When.NotExists).ConfigureAwait(false);
-
-            if (acquired)
+            var handle = await TrySetLockAsync(lockKey, lockValue, resource, expiry).ConfigureAwait(false);
+            if (handle is not null)
             {
-                var now = _timeProvider.GetUtcNow().UtcDateTime;
-                LogLockAcquired(_logger, resource, lockValue);
-                var context = new LockHandleContext(Database, lockKey, lockValue, resource, now, now.Add(expiry), _logger, _timeProvider);
-                return new LockHandle(context);
+                return handle;
             }
 
-            await Task.Delay(retry, cancellationToken).ConfigureAwait(false);
+            var remaining = deadline - _timeProvider.GetUtcNow().UtcDateTime;
+            if (remaining <= TimeSpan.Zero)
+            {
+                break;
+            }
+
+            await Task.Delay(NextDelay(retry, remaining), _timeProvider, cancellationToken).ConfigureAwait(false);
         }
 
         LogLockFailed(_logger, resource);
@@ -101,22 +104,41 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var acquired = await Database.StringSetAsync(
-                lockKey,
-                lockValue,
-                expiry,
-                When.NotExists).ConfigureAwait(false);
-
-            if (acquired)
+            var handle = await TrySetLockAsync(lockKey, lockValue, resource, expiry).ConfigureAwait(false);
+            if (handle is not null)
             {
-                var now = _timeProvider.GetUtcNow().UtcDateTime;
-                LogLockAcquired(_logger, resource, lockValue);
-                var context = new LockHandleContext(Database, lockKey, lockValue, resource, now, now.Add(expiry), _logger, _timeProvider);
-                return new LockHandle(context);
+                return handle;
             }
 
-            await Task.Delay(retryInterval, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(retryInterval, _timeProvider, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// The wait before the next attempt: the retry interval, cut to the time left before the deadline,
+    /// and never under one millisecond, because a zero delay completes at once and would spin the loop
+    /// without ever letting a test clock advance.
+    /// </summary>
+    private static TimeSpan NextDelay(TimeSpan retry, TimeSpan remaining)
+        => TimeSpan.FromMilliseconds(Math.Max(1, Math.Min(retry.TotalMilliseconds, remaining.TotalMilliseconds)));
+
+    private async Task<LockHandle?> TrySetLockAsync(string lockKey, string lockValue, string resource, TimeSpan expiry)
+    {
+        var acquired = await Database.StringSetAsync(
+            lockKey,
+            lockValue,
+            expiry,
+            When.NotExists).ConfigureAwait(false);
+
+        if (!acquired)
+        {
+            return null;
+        }
+
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        LogLockAcquired(_logger, resource, lockValue);
+        var context = new LockHandleContext(Database, lockKey, lockValue, resource, now, now.Add(expiry), _logger, _timeProvider);
+        return new LockHandle(context);
     }
 
     /// <inheritdoc/>
@@ -178,6 +200,12 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
         Level = LogLevel.Debug,
         Message = "Failed to acquire lock on resource: {Resource}")]
     private static partial void LogLockFailed(ILogger logger, string resource);
+
+    [LoggerMessage(
+        EventId = 3754,
+        Level = LogLevel.Warning,
+        Message = "Failed to release lock on resource: {Resource} ({ExceptionType}); the key expires with its TTL")]
+    private static partial void LogLockReleaseFailed(ILogger logger, string resource, string exceptionType, Exception exception);
 
     /// <summary>
     /// Context information for a lock handle.
@@ -270,9 +298,11 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
 
                 LogLockReleased(_context.Logger, Resource, LockId);
             }
-            catch
+            catch (Exception ex)
             {
-                // Log but don't throw - the lock will expire anyway
+                // Do not throw from DisposeAsync: the key expires with its TTL anyway. Log only the
+                // exception type and stack trace (ForLogging), never its message.
+                LogLockReleaseFailed(_context.Logger, Resource, ex.GetType().Name, ex.ForLogging());
             }
         }
     }

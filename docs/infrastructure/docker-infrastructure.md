@@ -20,7 +20,7 @@ docker compose --profile full up -d
 | Profile | Services | Use Case |
 |---------|----------|----------|
 | `core` | PostgreSQL, Redis, RabbitMQ | Minimal development setup |
-| `databases` | SQL Server, PostgreSQL, MySQL, Oracle, MongoDB | Database provider testing |
+| `databases` | SQL Server, PostgreSQL, MySQL, MongoDB | Database provider testing |
 | `messaging` | RabbitMQ, Kafka, NATS, Mosquitto | Message transport testing |
 | `caching` | Redis, Garnet, Valkey, Dragonfly, KeyDB | Cache provider testing |
 | `cloud` | LocalStack, Azurite | AWS/Azure emulation |
@@ -49,7 +49,6 @@ docker compose --profile cloud up -d
 | **SQL Server** | `mcr.microsoft.com/mssql/server:2022-latest` | 1433 | `Encina.ADO.SqlServer`, `Encina.Dapper.SqlServer` | `databases`, `full` |
 | **PostgreSQL** | `postgres:16-alpine` | 5432 | `Encina.ADO.PostgreSQL`, `Encina.Dapper.PostgreSQL`, `Encina.Marten` | `databases`, `core`, `full` |
 | **MySQL** | `mysql:8.0` | 3306 | `Encina.ADO.MySQL`, `Encina.Dapper.MySQL` | `databases`, `full` |
-| **Oracle XE** | `container-registry.oracle.com/database/express:21.3.0-xe` | 1521 | `Encina.ADO.Oracle`, `Encina.Dapper.Oracle` | `databases`, `full` |
 | **MongoDB** | `mongo:7` | 27017 | `Encina.MongoDB` | `databases`, `full` |
 
 > **Note**: Marten (event sourcing) uses PostgreSQL as its backend.
@@ -110,7 +109,6 @@ All services use development-only default credentials. Override with environment
 | SQL Server | `sa` | `YourStrong@Passw0rd` | `SQL_PASSWORD` |
 | PostgreSQL | `encina` | `YourStrong@Passw0rd` | `POSTGRES_PASSWORD` |
 | MySQL | `encina` | `YourStrong@Passw0rd` | `MYSQL_PASSWORD` |
-| Oracle | `system` | `YourStrong@Passw0rd` | `ORACLE_PASSWORD` |
 | MongoDB | `encina` | `YourStrong@Passw0rd` | `MONGO_PASSWORD` |
 | RabbitMQ | `guest` | `guest` | `RABBITMQ_PASSWORD` |
 | Vault (dev) | - | `encina-dev-token` | `VAULT_TOKEN` |
@@ -126,9 +124,6 @@ All services use development-only default credentials. Override with environment
 
 // MySQL
 "Server=localhost;Port=3306;Database=encina;User=encina;Password=YourStrong@Passw0rd"
-
-// Oracle
-"Data Source=localhost:1521/XE;User Id=system;Password=YourStrong@Passw0rd"
 
 // MongoDB
 "mongodb://encina:YourStrong@Passw0rd@localhost:27017"
@@ -166,16 +161,16 @@ Encina options that validate their endpoints reject these local addresses unless
 
 ## Provider Coverage Matrix
 
+Oracle ([ADR-009](../architecture/adr/009-remove-oracle-provider-pre-1.0.md)) and SQLite ([ADR-024](../architecture/adr/024-remove-sqlite-provider-pre-1.0.md)) were removed, so they have no container and no package.
+
 | Encina Provider | Container | Port | Status |
 |-----------------|-----------|------|--------|
 | `Encina.ADO.SqlServer` | sqlserver | 1433 | ✅ |
 | `Encina.ADO.PostgreSQL` | postgres | 5432 | ✅ |
 | `Encina.ADO.MySQL` | mysql | 3306 | ✅ |
-| `Encina.ADO.Oracle` | oracle | 1521 | ✅ |
 | `Encina.Dapper.SqlServer` | sqlserver | 1433 | ✅ |
 | `Encina.Dapper.PostgreSQL` | postgres | 5432 | ✅ |
 | `Encina.Dapper.MySQL` | mysql | 3306 | ✅ |
-| `Encina.Dapper.Oracle` | oracle | 1521 | ✅ |
 | `Encina.EntityFrameworkCore` | (any SQL) | varies | ✅ |
 | `Encina.MongoDB` | mongodb | 27017 | ✅ |
 | `Encina.Marten` | postgres | 5432 | ✅ |
@@ -258,18 +253,6 @@ lsof -i :5432
 
 **Solution**: Stop local service or modify ports in `docker-compose.yml`.
 
-### Oracle Startup Issues
-
-Oracle XE has a large image (~2 GB) and slow startup (~60 seconds):
-
-```bash
-# Pre-pull the image
-docker pull container-registry.oracle.com/database/express:21.3.0-xe
-
-# Check startup progress
-docker logs -f encina-oracle
-```
-
 ### Container Won't Start
 
 ```bash
@@ -283,7 +266,7 @@ docker compose --profile full up -d
 
 ### Insufficient Memory
 
-Some services (SQL Server, Oracle) require significant memory:
+SQL Server requires significant memory:
 
 ```bash
 # Check Docker Desktop memory allocation

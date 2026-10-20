@@ -56,23 +56,26 @@ public sealed partial class InMemoryDistributedLockProvider : IDistributedLockPr
         var lockValue = Guid.NewGuid().ToString();
         var deadline = _timeProvider.GetUtcNow().Add(wait);
 
-        while (_timeProvider.GetUtcNow() < deadline)
+        // Always attempt at least once, so a zero wait still takes a free lock. The retry delay
+        // runs on the injected TimeProvider (as the deadline does): mixing a TimeProvider
+        // deadline with a real-time delay made a frozen test clock loop forever (#531).
+        while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Clean up expired locks
-            CleanupExpiredLocks();
-
-            var now = _timeProvider.GetUtcNow();
-            var entry = new LockEntry(lockValue, now.Add(expiry));
-
-            if (_locks.TryAdd(lockKey, entry))
+            var handle = TryAddLock(lockKey, lockValue, resource, expiry);
+            if (handle is not null)
             {
-                LogLockAcquired(_logger, resource, lockValue);
-                return new LockHandle(this, lockKey, lockValue, resource, now.DateTime, entry.ExpiresAtUtc.DateTime, _logger, _timeProvider);
+                return handle;
             }
 
-            await Task.Delay(retry, cancellationToken).ConfigureAwait(false);
+            var remaining = deadline - _timeProvider.GetUtcNow();
+            if (remaining <= TimeSpan.Zero)
+            {
+                break;
+            }
+
+            await Task.Delay(NextDelay(retry, remaining), _timeProvider, cancellationToken).ConfigureAwait(false);
         }
 
         LogLockFailed(_logger, resource);
@@ -96,20 +99,39 @@ public sealed partial class InMemoryDistributedLockProvider : IDistributedLockPr
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Clean up expired locks
-            CleanupExpiredLocks();
-
-            var now = _timeProvider.GetUtcNow();
-            var entry = new LockEntry(lockValue, now.Add(expiry));
-
-            if (_locks.TryAdd(lockKey, entry))
+            var handle = TryAddLock(lockKey, lockValue, resource, expiry);
+            if (handle is not null)
             {
-                LogLockAcquired(_logger, resource, lockValue);
-                return new LockHandle(this, lockKey, lockValue, resource, now.DateTime, entry.ExpiresAtUtc.DateTime, _logger, _timeProvider);
+                return handle;
             }
 
-            await Task.Delay(retryInterval, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(retryInterval, _timeProvider, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// The wait before the next attempt: the retry interval, cut to the time left before the deadline,
+    /// and never under one millisecond, because a zero delay completes at once and would spin the loop
+    /// without ever letting a test clock advance.
+    /// </summary>
+    private static TimeSpan NextDelay(TimeSpan retry, TimeSpan remaining)
+        => TimeSpan.FromMilliseconds(Math.Max(1, Math.Min(retry.TotalMilliseconds, remaining.TotalMilliseconds)));
+
+    private LockHandle? TryAddLock(string lockKey, string lockValue, string resource, TimeSpan expiry)
+    {
+        // Clean up expired locks
+        CleanupExpiredLocks();
+
+        var now = _timeProvider.GetUtcNow();
+        var entry = new LockEntry(lockValue, now.Add(expiry));
+
+        if (!_locks.TryAdd(lockKey, entry))
+        {
+            return null;
+        }
+
+        LogLockAcquired(_logger, resource, lockValue);
+        return new LockHandle(this, lockKey, lockValue, resource, now.UtcDateTime, entry.ExpiresAtUtc.UtcDateTime, _logger, _timeProvider);
     }
 
     /// <inheritdoc/>
@@ -164,16 +186,23 @@ public sealed partial class InMemoryDistributedLockProvider : IDistributedLockPr
         {
             if (kvp.Value.ExpiresAtUtc <= now)
             {
-                _locks.TryRemove(kvp.Key, out _);
+                // Compare-and-remove: removing by key alone could delete a lock another caller
+                // acquired after this expired entry was enumerated.
+                _locks.TryRemove(kvp);
             }
         }
     }
 
     internal bool TryReleaseLock(string lockKey, string lockValue)
     {
-        if (_locks.TryGetValue(lockKey, out var entry) && entry.LockValue == lockValue)
+        // Compare-and-remove, so a release never deletes a newer owner's entry; it reads again when
+        // the owner's own concurrent extension replaced the entry between the read and the remove.
+        while (_locks.TryGetValue(lockKey, out var entry) && entry.LockValue == lockValue)
         {
-            return _locks.TryRemove(lockKey, out _);
+            if (_locks.TryRemove(new KeyValuePair<string, LockEntry>(lockKey, entry)))
+            {
+                return true;
+            }
         }
 
         return false;

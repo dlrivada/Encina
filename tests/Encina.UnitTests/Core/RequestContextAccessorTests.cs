@@ -1,4 +1,6 @@
 using Encina.Testing;
+using Encina.Testing.Identity;
+using Encina.UnitTests.Core.Identity;
 using Shouldly;
 using Xunit;
 
@@ -33,7 +35,7 @@ public class RequestContextAccessorTests
     }
 
     [Fact]
-    public void RequestContext_CanBeCleared()
+    public void RequestContext_CannotBeCleared_TheSetterThrowsAndKeepsTheContext()
     {
         // Arrange
         var accessor = new RequestContextAccessor();
@@ -41,10 +43,10 @@ public class RequestContextAccessorTests
         accessor.RequestContext = context;
 
         // Act
-        accessor.RequestContext = null;
+        Should.Throw<InvalidOperationException>(() => accessor.RequestContext = null);
 
         // Assert
-        accessor.RequestContext.ShouldBeNull();
+        accessor.RequestContext.ShouldBe(context);
     }
 
     [Fact]
@@ -83,23 +85,29 @@ public class RequestContextAccessorTests
     [Fact]
     public async Task RequestContext_FlowsAcrossAwaitPoints()
     {
-        // Arrange
+        // Arrange: the identity is bound through the scope factory
+        var host = new Identity.ScopeTestHost();
         var accessor = new RequestContextAccessor();
-        var context = RequestContext.CreateForTest(userId: "user-123");
+        IRequestContext? context = null;
+        IRequestContext? afterFirstAwait = null;
+        IRequestContext? afterSecondAwait = null;
 
         // Act
-        accessor.RequestContext = context;
+        await host.InUserScope("user-123", async scoped =>
+        {
+            context = scoped;
+            await Task.Delay(10);
+            afterFirstAwait = accessor.RequestContext;
 
-        await Task.Delay(10);
-        var afterFirstAwait = accessor.RequestContext;
-
-        await Task.Delay(10);
-        var afterSecondAwait = accessor.RequestContext;
+            await Task.Delay(10);
+            afterSecondAwait = accessor.RequestContext;
+            return 0;
+        });
 
         // Assert
         afterFirstAwait.ShouldBe(context);
         afterSecondAwait.ShouldBe(context);
-        afterSecondAwait?.UserId.ShouldNotBeNull();
+        afterSecondAwait.Issued().UserId.ShouldBe("user-123");
     }
 
     [Fact]
@@ -122,9 +130,9 @@ public class RequestContextAccessorTests
     [Fact]
     public async Task RequestContext_NestedAsyncCalls_MaintainContext()
     {
-        // Arrange
+        // Arrange: the identity is bound through the scope factory
+        var host = new Identity.ScopeTestHost();
         var accessor = new RequestContextAccessor();
-        var context = RequestContext.CreateForTest(userId: "outer-user");
 
         async Task<string?> InnerAsyncMethod()
         {
@@ -132,12 +140,12 @@ public class RequestContextAccessorTests
             return accessor.RequestContext?.UserId;
         }
 
-        async Task<string?> OuterAsyncMethod()
-        {
-            accessor.RequestContext = context;
-            await Task.Delay(10);
-            return await InnerAsyncMethod();
-        }
+        Task<string?> OuterAsyncMethod() =>
+            host.InUserScope("outer-user", async _ =>
+            {
+                await Task.Delay(10);
+                return await InnerAsyncMethod();
+            });
 
         // Act
         var result = await OuterAsyncMethod();

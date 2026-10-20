@@ -790,7 +790,7 @@ Avoid duplicating information that is already correctly represented.
 
 A review of the 2026-09-22 and 2026-09-23 sessions (about 20 PRs and 40 issues run by an orchestrator with one `issue-worker` per issue) changed the agent system as follows. Details live in `.claude/agents/README.md` and the agent definitions.
 
-1. **Model choice.** Workers run on Sonnet. The orchestrator switches a worker to Opus only when its brief states why: an unknown root cause or a design-heavy task. Most briefs are closed, and Sonnet executes them at a fraction of the cost.
+1. **Model choice.** Workers run on Sonnet (at medium effort, see the note of 2026-10-17 below). The orchestrator switches a worker to Opus only when its brief states why: an unknown root cause or a design-heavy task. Most briefs are closed, and Sonnet executes them at a fraction of the cost.
 2. **Self-review before hand-off.** A worker whose change touches production code runs `adversarial-reviewer` on its own diff and fixes blockers and majors before it reports, so findings are fixed before the PR opens rather than through a review, fix, re-push and CI loop. The orchestrator still runs the PR-level review when CodeRabbit is rate limited.
 3. **Main-checkout guard.** Workers wrote into the main checkout three times, through relative paths in `[IO.File]` calls that .NET resolves against the process directory. The `block-main-checkout-writes` hook now denies, for the writing agents, the file-tool writes, the shell writes it recognises and the working-tree git commands whose target it can resolve to the main checkout rather than a worktree. A target held in a variable it cannot resolve is allowed, with a warning when the command runs from the main checkout; writes by other programs are not seen. The list of recognised writes is in `.claude/agents/README.md`.
 4. **Edit tool only for source files.** A PowerShell `-replace` corrupted six files in #1159. Workers now edit repo source files (the extension list in `issue-worker.md`, including `.txt` PublicAPI files, `.sql`, `.ps1`, `.xml` and `.editorconfig`) only with the Edit and Write tools. The same hook blocks `Set-Content`, `Add-Content`, `Out-File`, `Tee-Object`, `[IO.File]` and redirection writes to such files when their target resolves inside the project, and a `-replace` or `.Replace(` rewrite into a variable target when the command names a repository source path.
@@ -810,10 +810,25 @@ A review of the 2026-09-22 and 2026-09-23 sessions (about 20 PRs and 40 issues r
 
 The maintainer approved these defaults to keep the cost of the agent system low and measurable:
 
-- Workers (`issue-worker`, `docs-writer`) run on Sonnet; Opus only when the brief carries a one-line justification (an unknown root cause, a design-heavy task). `adversarial-reviewer` runs on Sonnet too, and the orchestrator passes Opus only for security, personal-data or design-changing PRs. `mechanical-fixer` and `pr-watcher` run on Haiku.
+- Workers (`issue-worker`, `docs-writer`) run on Sonnet; Opus only when the brief carries a one-line justification (an unknown root cause, a design-heavy task). `adversarial-reviewer` runs on Sonnet too, and the orchestrator passes Opus only for security, personal-data or design-changing PRs. `mechanical-fixer` and `pr-watcher` run on Haiku. Each model now has a stated effort; see the routing note below.
 - The local model (llama-server, which the orchestrator starts at the beginning of a session) takes drafts, classification and summaries through the `local-ai-task` skill, but only where it is reliable (standing rule 4 below).
 - Briefs stay small: the fixed part of the `worker-brief` skill plus a closed variable part, so a worker finishes within its turn limit; a resume re-reads the whole context it had already paid for.
 - Every worker run appends a line to `artifacts/agent-usage/ledger.csv` in its worktree (`timestampUtc,agent,task,model,subagentTokens,notes`), so the effect of these choices shows in the numbers.
+
+**Model and effort routing (2026-10-17, [#2482](https://github.com/dlrivada/Encina/issues/2482)).** The maintainer fixed the effort of every agent next to its model:
+
+- Haiku at low effort for polling, board updates and already-decided edits.
+- Sonnet at medium effort for workers and ordinary reviewers.
+- Sonnet at high effort only where reasoning is the job.
+- Opus stays an orchestrator override with a stated reason.
+
+| Agent | Model | Effort |
+| --- | --- | --- |
+| `pr-watcher`, `mechanical-fixer`, `site-steward`, `local-ai-standin` | Haiku | low |
+| `issue-worker`, `docs-writer`, `ci-diagnoser`, `docs-reviewer`, `issue-archivist`, `pr-reviewer`, `test-auditor`, `remediation-drafter` | Sonnet | medium |
+| `adversarial-reviewer`, `issue-auditor`, `audit-verifier` | Sonnet | high |
+
+The orchestrator may raise the model or the effort for one spawn through the per-spawn `effort` parameter (Claude Code 2.1.292 or later). The agent definitions set the default with the frontmatter key `effort` (`low`, `medium`, `high`, `xhigh` or `max`), and the environment variable `CLAUDE_CODE_EFFORT_LEVEL` overrides both.
 
 ### Standing rules from the maintainer (2026-09 and 2026-10)
 

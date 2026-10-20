@@ -54,60 +54,48 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
     }
 
     /// <inheritdoc />
-    public async Task Process(
+    public async ValueTask<Either<EncinaError, Unit>> Process(
         TRequest request,
         IRequestContext context,
-        Either<EncinaError, TResponse> response,
+        TResponse response,
         CancellationToken cancellationToken)
     {
         // Only process if request has notifications
         if (request is not IHasNotifications hasNotifications)
-            return;
+            return Unit.Default;
 
         var notifications = hasNotifications.GetNotifications().ToList();
         if (notifications.Count == 0)
-            return;
+            return Unit.Default;
 
-        // Only store notifications from successful requests
-        await response.Match(
-            Right: async _ =>
-            {
-                Log.StoringNotificationsInOutbox(_logger, notifications.Count, typeof(TRequest).Name, context.CorrelationId);
+        // Post-processors run only for successful requests, so these notifications are always stored.
+        Log.StoringNotificationsInOutbox(_logger, notifications.Count, typeof(TRequest).Name, context.CorrelationId);
 
-                foreach (var notification in notifications)
-                {
-                    var notificationType = notification.GetType().AssemblyQualifiedName
-                        ?? notification.GetType().FullName
-                        ?? notification.GetType().Name;
+        foreach (var notification in notifications)
+        {
+            var notificationType = notification.GetType().AssemblyQualifiedName
+                ?? notification.GetType().FullName
+                ?? notification.GetType().Name;
 
-                    // Serialize using the notification's runtime type (not the declared
-                    // INotification interface) so that all of its properties are captured and
-                    // EncryptingMessageSerializer can read the [EncryptedMessage] attribute off the
-                    // concrete type; serializer failures propagate unwrapped.
-                    var content = _messageSerializer.SerializeAsRuntimeType(notification);
+            // Serialize using the notification's runtime type (not the declared
+            // INotification interface) so that all of its properties are captured and
+            // EncryptingMessageSerializer can read the [EncryptedMessage] attribute off the
+            // concrete type; serializer failures propagate unwrapped.
+            var content = _messageSerializer.SerializeAsRuntimeType(notification);
 
-                    var outboxMessage = _messageFactory.Create(
-                        Guid.NewGuid(),
-                        notificationType,
-                        content,
-                        _timeProvider.GetUtcNow().UtcDateTime);
+            var outboxMessage = _messageFactory.Create(
+                Guid.NewGuid(),
+                notificationType,
+                content,
+                _timeProvider.GetUtcNow().UtcDateTime);
 
-                    await _outboxStore.AddAsync(outboxMessage, cancellationToken).ConfigureAwait(false);
-                }
+            await _outboxStore.AddAsync(outboxMessage, cancellationToken).ConfigureAwait(false);
+        }
 
-                await _outboxStore.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await _outboxStore.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-                Log.StoredNotificationsInOutbox(_logger, notifications.Count, context.CorrelationId);
-            },
-            Left: error =>
-            {
-                // Only the error code is logged: EncinaError.Message may carry personal data
-                // (e.g. a data-subject id from compliance modules).
-                Log.SkippingOutboxStorageDueToError(
-                    _logger, notifications.Count, error.GetCode().IfNone("encina.unknown"), context.CorrelationId);
-
-                return Task.CompletedTask;
-            });
+        Log.StoredNotificationsInOutbox(_logger, notifications.Count, context.CorrelationId);
+        return Unit.Default;
     }
 }
 
@@ -138,10 +126,4 @@ internal static partial class Log
         Level = LogLevel.Debug,
         Message = "Stored {Count} notifications in outbox (correlation: {CorrelationId})")]
     public static partial void StoredNotificationsInOutbox(ILogger logger, int count, string correlationId);
-
-    [LoggerMessage(
-        EventId = 2844,
-        Level = LogLevel.Debug,
-        Message = "Skipping outbox storage for {Count} notifications due to error code {ErrorCode} (correlation: {CorrelationId})")]
-    public static partial void SkippingOutboxStorageDueToError(ILogger logger, int count, string errorCode, string correlationId);
 }

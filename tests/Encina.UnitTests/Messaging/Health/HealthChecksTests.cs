@@ -354,7 +354,7 @@ public sealed class HealthChecksTests
         var store = Substitute.For<IDeadLetterStore>();
         store.GetCountAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, int>(0));
-        store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
 
         var healthCheck = new DeadLetterHealthCheck(store);
@@ -373,7 +373,7 @@ public sealed class HealthChecksTests
         var store = Substitute.For<IDeadLetterStore>();
         store.GetCountAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, int>(50));
-        store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
 
         var options = new DeadLetterHealthCheckOptions
@@ -398,7 +398,7 @@ public sealed class HealthChecksTests
         var store = Substitute.For<IDeadLetterStore>();
         store.GetCountAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, int>(100));
-        store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
 
         var options = new DeadLetterHealthCheckOptions
@@ -425,7 +425,7 @@ public sealed class HealthChecksTests
             .Returns(Right<EncinaError, int>(5)); // Below warning threshold
 
         var oldMessage = Substitute.For<IDeadLetterMessage>();
-        store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(new[] { oldMessage })); // Has old messages
 
         var options = new DeadLetterHealthCheckOptions
@@ -441,6 +441,85 @@ public sealed class HealthChecksTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
+    }
+
+    [Fact]
+    public async Task DeadLetterHealthCheck_WhenCountFails_ReturnsUnhealthyWithErrorCodeOnly()
+    {
+        // Arrange
+        var store = Substitute.For<IDeadLetterStore>();
+        store.GetCountAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, int>(EncinaErrors.Create("deadletter.count_failed", "secret detail")));
+
+        var healthCheck = new DeadLetterHealthCheck(store);
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Data["error_code"].ShouldBe("deadletter.count_failed");
+        result.Description.ShouldNotBeNull();
+        result.Description!.ShouldContain("deadletter.count_failed");
+        result.Description!.ShouldNotContain("secret detail");
+        result.Data.Values.OfType<string>().ShouldNotContain(v => v.Contains("secret detail"));
+    }
+
+    [Fact]
+    public async Task DeadLetterHealthCheck_WhenOldMessagesQueryFails_ReturnsUnhealthyWithErrorCodeOnly()
+    {
+        // Arrange
+        var store = Substitute.For<IDeadLetterStore>();
+        store.GetCountAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(0));
+        store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IEnumerable<IDeadLetterMessage>>(
+                EncinaErrors.Create("deadletter.query_failed", "secret detail")));
+
+        var healthCheck = new DeadLetterHealthCheck(store);
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Data["error_code"].ShouldBe("deadletter.query_failed");
+        result.Description!.ShouldNotContain("secret detail");
+    }
+
+    [Fact]
+    public async Task DeadLetterHealthCheck_WhenErrorHasNoCode_ReportsUnknownCode()
+    {
+        // Arrange
+        var store = Substitute.For<IDeadLetterStore>();
+        store.GetCountAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, int>(EncinaError.New("secret detail")));
+        var healthCheck = new DeadLetterHealthCheck(store);
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Data["error_code"].ShouldBe("encina.unknown");
+        result.Description!.ShouldNotContain("secret detail");
+    }
+
+    [Fact]
+    public async Task DeadLetterHealthCheck_WhenOldMessageCheckDisabled_DoesNotQueryMessages()
+    {
+        // Arrange
+        var store = Substitute.For<IDeadLetterStore>();
+        store.GetCountAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(0));
+        var healthCheck = new DeadLetterHealthCheck(store, new DeadLetterHealthCheckOptions { OldMessageThreshold = null });
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        await store.DidNotReceiveWithAnyArgs().GetMessagesAsync(default!, default, default, default, default);
     }
 
     #endregion

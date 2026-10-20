@@ -1,10 +1,15 @@
+using Encina.Messaging.DeadLetter;
 using Encina.TestInfrastructure.Fixtures;
 using MySqlConnector;
 using Xunit;
+using AdoDeadLetterFactory = Encina.ADO.MySQL.DeadLetter.DeadLetterMessageFactory;
+using AdoDeadLetterStore = Encina.ADO.MySQL.DeadLetter.DeadLetterStoreADO;
 using AdoOutboxMessage = Encina.ADO.MySQL.Outbox.OutboxMessage;
 using AdoOutboxStore = Encina.ADO.MySQL.Outbox.OutboxStoreADO;
 using AdoSagaState = Encina.ADO.MySQL.Sagas.SagaState;
 using AdoSagaStore = Encina.ADO.MySQL.Sagas.SagaStoreADO;
+using DapperDeadLetterFactory = Encina.Dapper.MySQL.DeadLetter.DeadLetterMessageFactory;
+using DapperDeadLetterStore = Encina.Dapper.MySQL.DeadLetter.DeadLetterStoreDapper;
 using DapperOutboxMessage = Encina.Dapper.MySQL.Outbox.OutboxMessage;
 using DapperOutboxStore = Encina.Dapper.MySQL.Outbox.OutboxStoreDapper;
 
@@ -141,6 +146,122 @@ public sealed class MySqlSchemaScriptsIntegrationTests : IAsyncLifetime
         retrieved.IfSome(s => Assert.Equal("Running", s.Status));
     }
 
+    /// <summary>
+    /// <c>029_CreateDeadLetterMessagesTable.sql</c> creates the table with its six indexes, and the unique
+    /// source key rejects a second capture of the same source message (#583).
+    /// </summary>
+    [Theory]
+    [InlineData("Encina.ADO.MySQL")]
+    [InlineData("Encina.Dapper.MySQL")]
+    public async Task DeadLetterScript_CreatesTheSixIndexes_AndTheStoreRoundTripsOnTheTable(string packageName)
+    {
+        using var connection = (MySqlConnection)_fixture.CreateConnection();
+        await UseDatabaseAsync(connection);
+        var scriptPath = Directory.GetFiles(FindScriptsFolder(packageName), "029_*.sql").Single();
+        await using (var create = new MySqlCommand(await File.ReadAllTextAsync(scriptPath), connection))
+        {
+            await create.ExecuteNonQueryAsync();
+        }
+
+        var indexes = new List<string>();
+        await using (var query = new MySqlCommand(
+            "SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = 'DeadLetterMessages';",
+            connection))
+        {
+            query.Parameters.AddWithValue("@schema", DatabaseName);
+            await using var reader = await query.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                indexes.Add(reader.GetString(0));
+            }
+        }
+
+        string[] expected =
+        [
+            "UX_DeadLetterMessages_Source",
+            "IX_DeadLetterMessages_DeadLetteredAt",
+            "IX_DeadLetterMessages_Pending",
+            "IX_DeadLetterMessages_ExpiresAt",
+            "IX_DeadLetterMessages_CorrelationId",
+            "IX_DeadLetterMessages_Tenant"
+        ];
+        foreach (var name in expected)
+        {
+            Assert.Contains(name, indexes);
+        }
+
+        var data = new DeadLetterData(
+            Id: Guid.NewGuid(),
+            RequestType: "T",
+            RequestContent: "{}",
+            ErrorCode: "e",
+            SourcePattern: "Outbox",
+            SourceMessageId: "script-1",
+            TotalRetryAttempts: 1,
+            FirstFailedAtUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            DeadLetteredAtUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            ExpiresAtUtc: null);
+        var duplicate = data with { Id = Guid.NewGuid() };
+
+        var dapper = packageName.Contains("Dapper", StringComparison.Ordinal);
+        IDeadLetterStore store = dapper
+            ? new DapperDeadLetterStore(connection)
+            : new AdoDeadLetterStore(connection);
+        IDeadLetterMessageFactory factory = dapper
+            ? new DapperDeadLetterFactory()
+            : new AdoDeadLetterFactory();
+
+        Assert.True((await store.AddAsync(factory.Create(data))).ShouldBeRight());
+        Assert.False((await store.AddAsync(factory.Create(duplicate))).ShouldBeRight());
+        Assert.Equal(1, (await store.GetCountAsync()).ShouldBeRight());
+    }
+
+    /// <summary>
+    /// <c>011_CreateProcessingActivitiesTable.sql</c> installs under utf8mb4 (#1302) and both MySQL
+    /// registries (ADO.NET and Dapper share the table) round-trip an activity through it, including
+    /// a request type whose assembly-qualified name is long and the unique key on it.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProcessingActivityRegistry_RoundTripsActivity_OnScriptCreatedTable(bool dapper)
+    {
+        await RunScriptsAsync("Encina.ADO.MySQL");
+
+        var builder = new MySqlConnectionStringBuilder(_fixture.ConnectionString) { Database = DatabaseName };
+        var connectionString = builder.ConnectionString;
+        global::Encina.Compliance.GDPR.IProcessingActivityRegistry registry = dapper
+            ? new global::Encina.Dapper.MySQL.ProcessingActivity.ProcessingActivityRegistryDapper(connectionString)
+            : new global::Encina.ADO.MySQL.ProcessingActivity.ProcessingActivityRegistryADO(connectionString);
+
+        var requestType = typeof(Dictionary<string, int>);
+        Assert.InRange(requestType.AssemblyQualifiedName!.Length, 150, 512);
+        var now = DateTimeOffset.UtcNow;
+        var activity = new global::Encina.Compliance.GDPR.ProcessingActivity
+        {
+            Id = Guid.NewGuid(),
+            Name = "Issue 1302 activity",
+            Purpose = "Round trip on the script-created table",
+            LawfulBasis = global::Encina.Compliance.GDPR.LawfulBasis.Contract,
+            CategoriesOfDataSubjects = ["Customers"],
+            CategoriesOfPersonalData = ["Name"],
+            Recipients = ["Processor"],
+            RetentionPeriod = TimeSpan.FromDays(30),
+            SecurityMeasures = "Encryption at rest",
+            RequestType = requestType,
+            CreatedAtUtc = now,
+            LastUpdatedAtUtc = now
+        };
+
+        (await registry.RegisterActivityAsync(activity)).ShouldBeRight();
+        var found = (await registry.GetActivityByRequestTypeAsync(requestType)).ShouldBeRight();
+        Assert.True(found.IsSome);
+        found.IfSome(a => Assert.Equal(activity.Name, a.Name));
+        var duplicate = await registry.RegisterActivityAsync(activity with { Id = Guid.NewGuid() });
+        var duplicateError = duplicate.LeftToSeq().Single();
+        Assert.Equal(global::Encina.Compliance.GDPR.GDPRErrors.ProcessingActivityDuplicateCode, duplicateError.GetCode().IfNone(string.Empty));
+    }
+
     private async Task RunScriptsAsync(string packageName)
     {
         var scriptsFolder = FindScriptsFolder(packageName);
@@ -158,15 +279,11 @@ public sealed class MySqlSchemaScriptsIntegrationTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Scripts 000-005 are the ones issue #1261 rewrote to use the package's own SQL dialect.
-    /// Scripts 009 and above belong to unrelated compliance modules; one of them
-    /// (ProcessingActivities, #1011_CreateProcessingActivitiesTable.sql on MySQL) has a
-    /// pre-existing "key too long" defect unrelated to this issue's dialect fix, tracked
-    /// separately, so this test does not execute it.
+    /// Every script of the package, in file-name order. Includes the compliance scripts
+    /// (009 and above), which once held a "key too long" defect under utf8mb4 (#1302).
     /// </summary>
     private static IEnumerable<string> GetInScopeScriptFiles(string scriptsFolder) =>
         Directory.GetFiles(scriptsFolder, "*.sql")
-            .Where(f => int.TryParse(Path.GetFileName(f).AsSpan(0, 3), out var prefix) && prefix <= 5)
             .OrderBy(f => f, StringComparer.Ordinal);
 
     private static async Task UseDatabaseAsync(MySqlConnection connection)

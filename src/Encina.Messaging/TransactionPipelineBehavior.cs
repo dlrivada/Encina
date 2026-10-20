@@ -41,16 +41,22 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
     where TRequest : IRequest<TResponse>
 {
     private readonly IDbConnection _connection;
+    private readonly IDbTransactionAccessor _transactionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
     /// <param name="connection">The database connection to use for transactions.</param>
+    /// <param name="transactionAccessor">
+    /// Optional accessor through which stores sharing <paramref name="connection"/> find the open transaction
+    /// and enlist in it.
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
-    public TransactionPipelineBehavior(IDbConnection connection)
+    public TransactionPipelineBehavior(IDbConnection connection, IDbTransactionAccessor? transactionAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
+        _transactionAccessor = transactionAccessor ?? new DbTransactionAccessor();
     }
 
     /// <inheritdoc />
@@ -64,23 +70,10 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(nextStep);
 
-        var dbConnection = _connection as DbConnection;
+        await OpenIfClosedAsync(cancellationToken).ConfigureAwait(false);
+        var transaction = await BeginAsync(cancellationToken).ConfigureAwait(false);
 
-        if (_connection.State != ConnectionState.Open)
-        {
-            if (dbConnection is not null)
-            {
-                await dbConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                _connection.Open();
-            }
-        }
-
-        var transaction = dbConnection is not null
-            ? await dbConnection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false)
-            : _connection.BeginTransaction();
+        _transactionAccessor.Current = transaction;
 
         try
         {
@@ -104,6 +97,8 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         }
         finally
         {
+            _transactionAccessor.Current = null;
+
             if (transaction is DbTransaction dbTransaction)
             {
                 await dbTransaction.DisposeAsync().ConfigureAwait(false);
@@ -114,6 +109,28 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
             }
         }
     }
+
+    private async Task OpenIfClosedAsync(CancellationToken cancellationToken)
+    {
+        if (_connection.State == ConnectionState.Open)
+        {
+            return;
+        }
+
+        if (_connection is DbConnection dbConnection)
+        {
+            await dbConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            _connection.Open();
+        }
+    }
+
+    private async Task<IDbTransaction> BeginAsync(CancellationToken cancellationToken) =>
+        _connection is DbConnection dbConnection
+            ? await dbConnection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false)
+            : _connection.BeginTransaction();
 
     private static Task CommitAsync(IDbTransaction transaction, CancellationToken cancellationToken)
     {

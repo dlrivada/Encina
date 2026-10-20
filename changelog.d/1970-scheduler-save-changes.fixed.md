@@ -1,0 +1,1 @@
+- The scheduler now saves each cycle's outcomes (processed, failed with retry time, recurring rescheduled), so on EF Core a due scheduled message is no longer executed again on every cycle; a failed save fails the cycle and is logged by error code (#1970).

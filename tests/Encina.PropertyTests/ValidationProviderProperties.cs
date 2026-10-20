@@ -109,7 +109,7 @@ public sealed class ValidationProviderProperties : PropertyTestBase, IDisposable
 
     private static IRequestContext CreateContext()
     {
-        return RequestContext.Create(Guid.NewGuid().ToString());
+        return RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), Guid.NewGuid().ToString());
     }
 
     private IEnumerable<IValidationProvider> AllProviders()

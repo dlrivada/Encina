@@ -35,10 +35,16 @@ services.AddEncina(config => {
 
 ## Alternatives Considered
 
-Describe any alternative solutions or features you've considered, with trade-offs for each:
+List every implicit choice of this feature (defaults, error semantics, storage, public names, behaviour on missing context, dependencies, ordering, retention) and classify each one:
 
-1. **Alternative A**: Description. Pros/cons.
-2. **Alternative B**: Description. Pros/cons.
+- **Trivial**: follows a cited convention.
+- **Settled**: the only option that complies, with a verifiable citation (an `AGENTS.md` section or rule, a SPEC id, an ADR number, a law article, a link to an earlier maintainer decision, or named comparable products). Write the choice and its citation; do not present it as an open option.
+- **Dilemma**: two or more valid options, each better in a concrete named scenario. Write each option with its pros and cons and the scenario where it wins. Only an issue with a Dilemma carries the `needs-decision` label.
+
+Zero Dilemmas is valid: write "No open design choices" and keep the settled choices with their citation.
+
+1. **Choice A** (Trivial / Settled / Dilemma): Citation, or the options with pros/cons.
+2. **Choice B** (Trivial / Settled / Dilemma): Citation, or the options with pros/cons.
 
 ## Affected Packages
 
@@ -108,7 +114,7 @@ Example of 10 database providers matrix:
 | 9 | **Idempotency** (`InboxPipelineBehavior`, dedup) | | |
 | 10 | **Multi-Tenancy** (`TenantId`, `ITenantContext`) | | |
 | 11 | **Module Isolation** (`ModuleId`, `IModuleContext`) | | |
-| 12 | **Audit Trail** (`IAuditStore`, audit events) | | |
+| 12 | **Audit Trail** (`IOperationAuditStore`, audit events) | | |
 
 ### Observability Details (if applicable)
 

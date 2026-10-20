@@ -31,30 +31,26 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="ISubjectKeyProvider"/> → <see cref="InMemorySubjectKeyProvider"/> or
     /// <see cref="PostgreSqlSubjectKeyProvider"/> (based on <see cref="CryptoShreddingOptions.UsePostgreSqlKeyStore"/>)</item>
     /// <item><see cref="IForgottenSubjectHandler"/> → <see cref="DefaultForgottenSubjectHandler"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IDataErasureStrategy"/> → <see cref="CryptoShredErasureStrategy"/> (Scoped, using TryAdd)</item>
+    /// <item><see cref="IDataErasureStrategy"/> → an internal router: locations of the Marten locator go to
+    /// <see cref="CryptoShredErasureStrategy"/>, every other location to the strategy registered before this call</item>
     /// <item><see cref="IPersonalDataLocator"/> → <see cref="MartenEventPersonalDataLocator"/> (Scoped, additive)</item>
-    /// <item><see cref="IConfigureOptions{StoreOptions}"/> → <see cref="ConfigureMartenCryptoShredding"/> (serializer wrapping)</item>
+    /// <item><see cref="IConfigureOptions{StoreOptions}"/> → the configurator that wraps Marten's System.Text.Json
+    /// serializer and turns off the async daemon's <c>SkipSerializationErrors</c></item>
+    /// <item>The startup validation hosted service (it logs the opt-out when <see cref="CryptoShreddingOptions.ValidateOnStartup"/> is <c>false</c>)</item>
     /// </list>
     /// </para>
     /// <para>
-    /// <b>Prerequisites:</b> This package requires <c>AddEncinaEncryption()</c> to be called first
-    /// for <c>IFieldEncryptor</c> and <c>IKeyProvider</c> availability. The health check will
-    /// report Unhealthy if encryption services are not registered.
-    /// </para>
-    /// <para>
-    /// <b>Default registrations:</b>
-    /// All service registrations use <c>TryAdd</c> where appropriate, allowing you to register
-    /// custom implementations before calling this method.
+    /// <b>Registration order.</b> Register a custom <see cref="IDataErasureStrategy"/> <b>before</b> this call: it
+    /// becomes the router's inner strategy and receives only locations of other locators. A strategy registered
+    /// after this call bypasses crypto-shredding, and the startup validation stops the host. If the application
+    /// registers its own <see cref="IPersonalDataLocator"/>, resolve a <see cref="CompositePersonalDataLocator"/>
+    /// that includes the Marten locator, otherwise the startup validation stops the host. Call Marten's
+    /// <c>UseTypeInfoResolver(context)</c> before this call.
     /// </para>
     /// </remarks>
     /// <example>
     /// <code>
-    /// // Basic setup (InMemory key store, auto-registration enabled)
-    /// services.AddEncinaEncryption();
-    /// services.AddEncinaMartenGdpr();
-    ///
-    /// // Production setup with PostgreSQL key store
-    /// services.AddEncinaEncryption();
+    /// // Production setup with the PostgreSQL key store
     /// services.AddEncinaMartenGdpr(options =>
     /// {
     ///     options.UsePostgreSqlKeyStore = true;
@@ -62,61 +58,42 @@ public static class ServiceCollectionExtensions
     ///     options.AssembliesToScan.Add(typeof(Program).Assembly);
     /// });
     ///
-    /// // With custom forgotten subject handler (register before AddEncinaMartenGdpr)
+    /// // With a custom forgotten subject handler (register before AddEncinaMartenGdpr)
     /// services.AddSingleton&lt;IForgottenSubjectHandler, CustomForgottenSubjectHandler&gt;();
     /// services.AddEncinaMartenGdpr();
     /// </code>
     /// </example>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is null.</exception>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     public static IServiceCollection AddEncinaMartenGdpr(
         this IServiceCollection services,
         Action<CryptoShreddingOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // Configure and validate options
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-        else
-        {
-            services.Configure<CryptoShreddingOptions>(_ => { });
-        }
-
+        // Captured here: inside a private helper the calling assembly would be this package.
+        var callingAssembly = Assembly.GetCallingAssembly();
+        services.Configure(configure ?? (_ => { }));
         services.TryAddSingleton<IValidateOptions<CryptoShreddingOptions>, CryptoShreddingOptionsValidator>();
 
         // Ensure TimeProvider is available (generic host registers it, but standalone DI may not)
         services.TryAddSingleton(TimeProvider.System);
 
-        // Instantiate options to inspect flags for conditional registrations
+        // The flags decide which services are registered, so they are read from a local instance.
         var optionsInstance = new CryptoShreddingOptions();
         configure?.Invoke(optionsInstance);
 
-        // Register key provider based on configuration
-        if (optionsInstance.UsePostgreSqlKeyStore)
-        {
-            services.TryAddScoped<ISubjectKeyProvider, PostgreSqlSubjectKeyProvider>();
-        }
-        else
-        {
-            services.TryAddSingleton<ISubjectKeyProvider, InMemorySubjectKeyProvider>();
-        }
-
-        // Register forgotten subject handler (TryAdd allows override)
+        RegisterKeyProvider(services, optionsInstance.UsePostgreSqlKeyStore);
         services.TryAddSingleton<IForgottenSubjectHandler, DefaultForgottenSubjectHandler>();
+        RegisterErasureRouter(services);
 
-        // Register crypto-shred erasure strategy (TryAdd — only if no other strategy is registered)
-        services.TryAddScoped<IDataErasureStrategy, CryptoShredErasureStrategy>();
-
-        // Register personal data locator as additive (CompositePersonalDataLocator aggregates all)
+        // Additive: the Marten locator takes part in data subject requests through a composite; the startup
+        // validation fails when another locator is resolved without it.
         services.AddScoped<IPersonalDataLocator, MartenEventPersonalDataLocator>();
 
-        // Configure Marten to wrap the serializer with CryptoShredderSerializer
         services.AddSingleton<IConfigureOptions<StoreOptions>, ConfigureMartenCryptoShredding>();
         services.AddEncinaMartenStoreOptionsBridge();
 
-        // Conditional: health check
         if (optionsInstance.AddHealthCheck)
         {
             services.AddHealthChecks()
@@ -125,17 +102,69 @@ public static class ServiceCollectionExtensions
                     tags: CryptoShreddingHealthCheck.Tags);
         }
 
-        // Conditional: auto-registration
-        if (optionsInstance.AutoRegisterFromAttributes)
-        {
-            var assembliesToScan = optionsInstance.AssembliesToScan.Count > 0
-                ? optionsInstance.AssembliesToScan
-                : [Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly()];
+        RegisterStartupValidation(services, optionsInstance.AssembliesToScan, callingAssembly);
+        return services;
+    }
 
-            services.AddSingleton(new CryptoShreddingAutoRegistrationDescriptor(assembliesToScan));
-            services.AddHostedService<CryptoShreddingAutoRegistrationHostedService>();
+    private static void RegisterKeyProvider(IServiceCollection services, bool usePostgreSqlKeyStore)
+    {
+        if (usePostgreSqlKeyStore)
+        {
+            services.TryAddScoped<ISubjectKeyProvider, PostgreSqlSubjectKeyProvider>();
+        }
+        else
+        {
+            services.TryAddSingleton<ISubjectKeyProvider, InMemorySubjectKeyProvider>();
+        }
+    }
+
+    private static void RegisterStartupValidation(IServiceCollection services, List<Assembly> configured, Assembly callingAssembly)
+    {
+        IReadOnlyList<Assembly> assembliesToScan = configured.Count > 0
+            ? configured
+            : [Assembly.GetEntryAssembly() ?? callingAssembly];
+        services.TryAddSingleton(new CryptoShreddingValidationDescriptor(assembliesToScan));
+        services.AddHostedService<CryptoShreddingStartupValidationHostedService>();
+    }
+
+    /// <summary>
+    /// Registers the routing erasure strategy as the <see cref="IDataErasureStrategy"/>; a strategy registered before
+    /// is kept as its inner strategy under an internal service key.
+    /// </summary>
+    private static void RegisterErasureRouter(IServiceCollection services)
+    {
+        services.TryAddScoped<CryptoShredErasureStrategy>();
+
+        var existing = services
+            .Where(d => d.ServiceType == typeof(IDataErasureStrategy) && !d.IsKeyedService)
+            .ToList();
+        if (existing.Any(d => d.ImplementationType == typeof(CryptoShredRoutingErasureStrategy)))
+        {
+            return;
         }
 
-        return services;
+        foreach (var descriptor in existing)
+        {
+            services.Remove(descriptor);
+            services.Add(AsInnerStrategy(descriptor));
+        }
+
+        services.AddScoped<IDataErasureStrategy, CryptoShredRoutingErasureStrategy>();
+    }
+
+    private static ServiceDescriptor AsInnerStrategy(ServiceDescriptor descriptor)
+    {
+        const string key = CryptoShredRoutingErasureStrategy.InnerStrategyKey;
+        if (descriptor.ImplementationInstance is { } instance)
+        {
+            return new ServiceDescriptor(typeof(IDataErasureStrategy), key, instance);
+        }
+
+        if (descriptor.ImplementationFactory is { } factory)
+        {
+            return new ServiceDescriptor(typeof(IDataErasureStrategy), key, (sp, _) => factory(sp), descriptor.Lifetime);
+        }
+
+        return new ServiceDescriptor(typeof(IDataErasureStrategy), key, descriptor.ImplementationType!, descriptor.Lifetime);
     }
 }

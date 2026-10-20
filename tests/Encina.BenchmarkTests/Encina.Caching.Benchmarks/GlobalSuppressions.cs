@@ -7,5 +7,4 @@ using System.Diagnostics.CodeAnalysis;
 
 [assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.Caching.Benchmarks.BenchmarkRequestContext.WithIdempotencyKey(System.String)~Encina.IRequestContext")]
 [assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.Caching.Benchmarks.BenchmarkRequestContext.WithTenantId(System.String)~Encina.IRequestContext")]
-[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.Caching.Benchmarks.BenchmarkRequestContext.WithUserId(System.String)~Encina.IRequestContext")]
 [assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Caching.Benchmarks")]

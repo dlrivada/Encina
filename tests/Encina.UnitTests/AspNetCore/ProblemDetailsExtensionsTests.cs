@@ -1,5 +1,6 @@
 using Encina.AspNetCore;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Encina.UnitTests.AspNetCore;
 
@@ -44,21 +45,58 @@ public sealed class ProblemDetailsExtensionsTests
     [Fact]
     public void ToProblemDetails_Unauthenticated_Returns401()
     {
-        var error = EncinaErrors.Create("authorization.unauthenticated", "Not authenticated");
+        var error = EncinaErrors.Create(EncinaErrorCodes.AuthorizationUnauthenticated, "Not authenticated");
         var context = CreateHttpContext();
 
         var result = error.ToProblemDetails(context);
-        result.ShouldNotBeNull();
+        result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status401Unauthorized);
+    }
+
+    [Theory]
+    [InlineData(EncinaErrorCodes.AuthorizationUnauthorized)]
+    [InlineData(EncinaErrorCodes.AuthorizationForbidden)]
+    [InlineData(EncinaErrorCodes.AuthorizationPolicyFailed)]
+    [InlineData(EncinaErrorCodes.AuthorizationResourceDenied)]
+    [InlineData(EncinaErrorCodes.AuthorizationInsufficientRoles)]
+    [InlineData(EncinaErrorCodes.AuthorizationPermissionDenied)]
+    [InlineData(EncinaErrorCodes.AuthorizationClaimMissing)]
+    [InlineData(EncinaErrorCodes.AuthorizationNotOwner)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.AccessDeniedCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.ConditionNotMetCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.ObligationFailedCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.RequiredPolicyNotFoundCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantRequiredCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantMismatchCode)]
+    [InlineData("encina.authorization.some_future_denial")]
+    public void ToProblemDetails_AuthorizationDenial_Returns403(string code)
+    {
+        var error = EncinaErrors.Create(code, "Forbidden");
+        var context = CreateHttpContext();
+
+        var result = error.ToProblemDetails(context);
+        result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status403Forbidden);
     }
 
     [Fact]
-    public void ToProblemDetails_AuthorizationForbidden_Returns403()
+    public void ToProblemDetails_InvalidDecisionAuditQuery_Returns400()
     {
-        var error = EncinaErrors.Create("authorization.insufficient_permissions", "Forbidden");
+        var error = global::Encina.Security.ABAC.ABACErrors.InvalidDecisionAuditQuery("pageSize");
         var context = CreateHttpContext();
 
         var result = error.ToProblemDetails(context);
-        result.ShouldNotBeNull();
+        result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status400BadRequest);
+    }
+
+    [Theory]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode)]
+    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode)]
+    public void ToProblemDetails_AbacAdministrativeNotFound_Returns404(string code)
+    {
+        var error = EncinaErrors.Create(code, "Not found");
+        var context = CreateHttpContext();
+
+        var result = error.ToProblemDetails(context);
+        result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status404NotFound);
     }
 
     [Fact]

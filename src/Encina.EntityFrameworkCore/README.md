@@ -754,6 +754,26 @@ var stuckMessages = await dbContext.ScheduledMessages
     .ToListAsync();
 ```
 
+### Persistent Dead Letter Queue
+
+Enable the queue with `config.UseDeadLetterQueue = true` in `AddEncinaEntityFrameworkCore<TDbContext>`, then apply `DeadLetterMessageConfiguration` and create a migration. The constructor argument is required: it is the collation of the six filter-key columns, so that the unique source key and the filters compare case-sensitively on every provider.
+
+```csharp
+using Encina.EntityFrameworkCore.DeadLetter;
+
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    // SQL Server
+    modelBuilder.ApplyConfiguration(
+        new DeadLetterMessageConfiguration(DeadLetterMessageConfiguration.SqlServerBinaryCollation));
+
+    // MySQL: new DeadLetterMessageConfiguration(DeadLetterMessageConfiguration.MySqlBinaryCollation)
+    // PostgreSQL: new DeadLetterMessageConfiguration(null)
+}
+```
+
+`DeadLetterStoreEF` uses the scoped `DbContext`, so `SaveChangesAsync` also saves other tracked changes; capture from a new scope in a failure path. Guide: [How to enable the persistent dead letter queue](../../docs/features/dead-letter-queue.md).
+
 ### Monitoring Stuck Sagas
 
 ```csharp

@@ -251,6 +251,16 @@ config.UseScheduling = true;
 config.SchedulingOptions.EnableRecurringMessages = true;
 ```
 
+### Dead Letter Queue
+
+```csharp
+config.UseDeadLetterQueue = true;
+config.DeadLetterOptions.RetentionPeriod = TimeSpan.FromDays(14);
+config.DeadLetterOptions.CleanupInterval = TimeSpan.FromHours(1);
+```
+
+The collection name is `Collections.DeadLetterMessages` (default `dead_letter_messages`). Capture is idempotent through the unique index `UX_DeadLetterMessages_Source` on `SourcePattern` and `SourceMessageId`. Expired documents are deleted by the cleanup loop, not by a TTL index. Guide: [How to enable the persistent dead letter queue](../../docs/features/dead-letter-queue.md).
+
 ## Database Schema
 
 ### Collections
@@ -261,6 +271,7 @@ config.SchedulingOptions.EnableRecurringMessages = true;
 | `InboxMessages` | Processed messages for idempotency |
 | `SagaStates` | Saga orchestration state |
 | `ScheduledMessages` | Delayed/recurring commands |
+| `dead_letter_messages` | Messages that failed for good, with replay state (when `UseDeadLetterQueue` is on) |
 
 ### Indexes
 

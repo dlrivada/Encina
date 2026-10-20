@@ -13,27 +13,47 @@
 #     writes artifacts/knowledge/stages/.rerun-archivist, letting audit-stage-guard.ps1 allow a re-spawn of
 #     issue-archivist to fix the record even though every stage is already committed).
 #
-# Otherwise it copies the collected records, audit results, remediation drafts, stage artifacts and ledger
-# lines into the main artifacts/knowledge, appends artifacts/knowledge/progress.csv, appends any role-tagged
-# lesson (stages/lessons.md 'Applied: role:<agent>' line) to .claude/agents/lessons/<agent>.md (#1345), removes
-# the wia-<n> worktree AND its audit/<n> branch, and deletes current-audit.json.
+# Otherwise (#1735) it PUBLISHES the audit first: in a temporary worktree it creates the branch
+# knowledge/audit-<n> from origin/main, copies the record to docs/knowledge/issues/<n>.md (replacing a record
+# already there), the audit result to docs/knowledge/audits/issue-<n>.md (generated from the verification
+# stage when the pipeline wrote none) and the stage files to docs/knowledge/audits/<n>/stages/, validates the
+# whole docs/knowledge tree with knowledge-records.cs --check, commits "docs(knowledge): SPEC-003 audit of #<n>",
+# pushes and opens a pull request with "Refs #1345" (Publish-AuditKnowledge in _audit-lib.ps1). When publishing fails, NOTHING else
+# happens: the audit worktree, the audit/<n> branch and its open-audit state file stay, and the script can be re-run.
+#
+# Only after the pull request exists it copies the collected records, audit results, remediation drafts, stage
+# artifacts and ledger lines into the main artifacts/knowledge (still git-ignored), appends
+# artifacts/knowledge/progress.csv, appends any role-tagged lesson (stages/lessons.md 'Applied: role:<agent>'
+# line) to .claude/agents/lessons/<agent>.md (#1345), removes the wia-<n> worktree AND its audit/<n> branch,
+# and deletes the audit's state file artifacts/knowledge/open-audits/<n>.json.
+#
+# #2234: several audits may be open at once and close in any order. -Issue <n> names the audit to close
+# (optional from its wia-<n> worktree or with one open audit; Resolve-OpenAudit, _audit-lib.ps1). Closing touches
+# only that audit: its worktree, branch and state file, one progress.csv row (the queue reads progress.csv as a
+# set, so the order of the rows does not matter) and its own lessons; the other open audits keep running.
+#
+# -NoPublish: runs every check, builds and commits the publication branch locally, prints the push and
+# 'gh pr create' commands it would run, and stops. It does not push, open a pull request or close the audit
+# (the audit worktree, branch and state file stay).
 
-param()
+param([switch]$NoPublish, [int]$Issue)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_audit-lib.ps1')
 
 $mainRoot = Get-MainRoot $PSScriptRoot
 $knowledgeRoot = Get-KnowledgeRoot $mainRoot
-$currentAuditPath = Get-CurrentAuditPath $mainRoot
-$audit = Get-CurrentAudit $mainRoot
-if ($null -eq $audit) { Write-Error 'audit-done: no open audit (artifacts/knowledge/current-audit.json not found).'; exit 1 }
+try { $audit = Resolve-OpenAudit $mainRoot $Issue $PSScriptRoot }
+catch { Write-Error "audit-done: $($_.Exception.Message)"; exit 1 }
 
 $n = [string]$audit.issue
 $wt = [string]$audit.worktree
 $branch = [string]$audit.branch
 $stagesDir = Get-StagesDir $wt
-$pipeline = Get-Pipeline (Join-Path $wt 'tools\ai\audit')
+$pipeline = Get-AuditPipeline $audit
+$isDelta = Test-DeltaAudit $audit
+$deltaSet = if ($isDelta) { [string]$audit.set } else { '' }
+$deltaFolder = if ($isDelta) { [string]$pipeline.delta.folder } else { '' }
 
 $reasons = [System.Collections.Generic.List[string]]::new()
 
@@ -72,8 +92,13 @@ if ($lessonsReason) { $reasons.Add($lessonsReason) }
 $recordsDir = Join-Path $wt 'artifacts\knowledge\issues'
 $knowledgeScript = Join-Path $wt '.github\scripts\knowledge-records.cs'
 $rerunArchivistMarker = Join-Path $stagesDir '.rerun-archivist'
-if (Test-Path -LiteralPath $knowledgeScript) {
-    $checkOutput = & dotnet run --file $knowledgeScript -- --check --dir $recordsDir 2>&1
+if ($isDelta) {
+    # #1763: a delta audit writes no knowledge record (the original record stays as published); the full
+    # docs/knowledge check runs on the publication checkout.
+}
+elseif (Test-Path -LiteralPath $knowledgeScript) {
+    # --skip-audit-links: the audit result is not in docs/knowledge yet; the full check runs on the publication checkout.
+    $checkOutput = & dotnet run --file $knowledgeScript -- --check --dir $recordsDir --skip-audit-links 2>&1
     if ($LASTEXITCODE -ne 0) {
         $checkText = ($checkOutput -join "`n")
         $reasons.Add("knowledge-records --check failed:`n$checkText")
@@ -100,6 +125,21 @@ if ($reasons.Count -gt 0) {
     exit 1
 }
 
+$remediationDrafts = @((Join-Path $knowledgeRoot 'remediation'), (Join-Path $wt 'artifacts\knowledge\remediation'), (Join-Path $wt 'artifacts\issues'))
+$publish = Publish-AuditKnowledge -Issue ([int]$n) -MainRoot $mainRoot -AuditWorktree $wt -StagesDir $stagesDir -Pipeline $pipeline `
+    -DraftDirs $remediationDrafts -OpenedCsv (Join-Path $knowledgeRoot 'remediation\opened.csv') -NoPublish:$NoPublish `
+    -DeltaFolder $deltaFolder -DeltaSet $deltaSet
+if (-not $publish.Ok) {
+    Write-Error "audit-done: publishing the audit of #$n failed; the audit worktree, branch $branch and open-audits/$n.json are kept, nothing else was changed:`n$($publish.Message)"
+    exit 1
+}
+if ($NoPublish) {
+    "audit-done -NoPublish: publication branch $($publish.Branch) prepared locally; the audit of #$n stays open. Commands that would run:"
+    $publish.Planned | ForEach-Object { "  $_" }
+    exit 0
+}
+"audit-done: published $($publish.Branch): $($publish.PrUrl)"
+
 foreach ($sub in 'issues', 'audits', 'remediation') { New-Item -ItemType Directory -Force (Join-Path $knowledgeRoot $sub) | Out-Null }
 $src = Join-Path $wt 'artifacts\knowledge'
 Get-ChildItem (Join-Path $src 'issues') -File -ErrorAction SilentlyContinue | Copy-Item -Destination (Join-Path $knowledgeRoot 'issues') -Force
@@ -114,7 +154,8 @@ if ($strayDrafts.Count -gt 0) {
     $strayDrafts | Copy-Item -Destination (Join-Path $knowledgeRoot 'remediation') -Force
 }
 
-$stagesDest = Join-Path $knowledgeRoot "stages\$n"
+# A delta audit archives next to, never over, the original audit's stages (stages\<n>-<delta folder>).
+$stagesDest = if ($isDelta) { Join-Path $knowledgeRoot "stages\$n-$deltaFolder" } else { Join-Path $knowledgeRoot "stages\$n" }
 New-Item -ItemType Directory -Force $stagesDest | Out-Null
 Copy-Item (Join-Path $stagesDir '*') -Destination $stagesDest -Recurse -Force
 
@@ -145,8 +186,15 @@ if (Test-Path -LiteralPath $lessonsFile) {
 $ledger = Join-Path $wt 'artifacts\agent-usage\ledger.csv'
 if (Test-Path -LiteralPath $ledger) { Get-Content -LiteralPath $ledger | Select-Object -Skip 1 | Add-Content (Join-Path $knowledgeRoot 'agent-ledger.csv') }
 
-$remCount = @(Get-ChildItem (Join-Path $knowledgeRoot 'remediation') -Filter "$n-*.md" -ErrorAction SilentlyContinue).Count
-Add-Content (Join-Path $knowledgeRoot 'progress.csv') "$n,done,,,,$remCount,`"`""
+$remPrefix = if ($isDelta) { "$n-$deltaFolder" } else { "$n" }
+$remCount = @(Get-ChildItem (Join-Path $knowledgeRoot 'remediation') -Filter "$remPrefix-*.md" -ErrorAction SilentlyContinue).Count
+if ($isDelta) {
+    # The delta set has its own progress file; progress.csv (the original audits) is never touched.
+    Add-Content (Get-DeltaProgressPath $knowledgeRoot $deltaSet) "$n,done,$remCount,$($publish.PrUrl)"
+}
+else {
+    Add-Content (Join-Path $knowledgeRoot 'progress.csv') "$n,done,,,,$remCount,`"`""
+}
 
 $rmOut = & git -C $mainRoot worktree remove $wt --force 2>&1
 if ($LASTEXITCODE -ne 0) { Write-Error "audit-done: git worktree remove $wt failed: $rmOut"; exit 1 }
@@ -154,6 +202,8 @@ if ($branch) {
     $brOut = & git -C $mainRoot branch -D $branch 2>&1
     if ($LASTEXITCODE -ne 0) { Write-Error "audit-done: git branch -D $branch failed: $brOut"; exit 1 }
 }
-Remove-Item -LiteralPath $currentAuditPath -Force
+$stateLock = Enter-OpenAuditsLock $mainRoot
+try { Remove-OpenAudit $mainRoot ([int]$n) }
+finally { Exit-OpenAuditsLock $stateLock }
 
-"audit-done: closed audit for #$n (remediation drafts: $remCount; role lessons applied: $appliedRoles; stages archived to artifacts\knowledge\stages\$n; branch $branch removed)"
+"audit-done: closed audit for #$n (remediation drafts: $remCount; role lessons applied: $appliedRoles; stages archived to artifacts\knowledge\stages\$n; branch $branch removed; pull request: $($publish.PrUrl))"

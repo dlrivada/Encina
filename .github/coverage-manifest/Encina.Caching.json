@@ -1,7 +1,7 @@
 {
   "package": "Encina.Caching",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 29,
+  "totalFiles": 30,
   "targets": {
     "contract": 10,
     "guard": 20,
@@ -46,7 +46,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Every line of CacheConfiguration key generation is exercised, including the escaped tenant and user segments.",
+        "guard": "GenerateKey has no ArgumentNullException guards; the request is nullable by design, so there is no guard surface in this file."
+      }
     },
     "Attributes/CacheAttribute.cs": {
       "defaultTests": [
@@ -79,7 +87,15 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 100,
+        "guard": 28
+      },
+      "justifications": {
+        "unit": "Every line is exercised by the unit tests, including the redacted log paths of the invalidation flow.",
+        "guard": "Constructor and Handle null guards are the only guard surface."
+      }
     },
     "Behaviors/DistributedIdempotencyPipelineBehavior.cs": {
       "defaultTests": [
@@ -97,7 +113,30 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 98,
+        "guard": 20,
+        "contract": 0
+      },
+      "justifications": {
+        "unit": "Security-relevant bypasses (VaryByUser, missing tenant under multi-tenancy, identity race), key isolation, sliding expiration and cache-error paths are unit tested; the only uncovered line is the rethrow inside the cache-store catch when ThrowOnCacheErrors is set (measured 99%).",
+        "guard": "The guard surface is the constructor's four required-parameter null checks and the request, context and nextStep checks in Handle; every other path is behavior, not argument validation, so guard tests reach only those lines.",
+        "contract": "The behavior implements no Encina-owned abstract contract beyond IPipelineBehavior, whose contract is asserted on the core dispatcher; its observable rules (bypass, per-user isolation, identity race) are behavioral and covered by unit tests, so no contract target applies."
+      }
+    },
+    "Behaviors/IdentityPinnedRequestContext.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal key-generation view of a request context pinned to one identity (#1931); no public surface",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "Every member is read by the custom key generator test of QueryCachingVaryByUserTests (measured 100%)."
+      }
     },
     "Configuration/CachingOptions.cs": {
       "defaultTests": [
@@ -119,13 +158,50 @@
       "defaultRule": "*HealthCheck.cs",
       "reason": "Health check with mockeable service dependencies"
     },
+    "KeyGeneration/CacheKeyRedactor.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Static redaction helper used by every cache log site",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Five-line pure function; every branch is a unit test case.",
+        "guard": "The key parameter is nullable by design and the helper returns an empty string, so there is no null-guard throw to cover; the null and empty cases are unit tested."
+      }
+    },
+    "KeyGeneration/CacheUserIdentity.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal static helper with no public parameters (no guard surface); every branch is exercised by the unit tests of DefaultCacheKeyGenerator, CacheConfiguration and QueryCachingPipelineBehavior",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "Two members, both driven by the VaryByUser behavior and key generator tests (measured 100%)."
+      }
+    },
     "KeyGeneration/DefaultCacheKeyGenerator.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 11
+      },
+      "justifications": {
+        "unit": "Measured 95%; the uncovered lines are unreachable defensive null branches.",
+        "guard": "Guard tests assert every ArgumentNullException of the constructor and of each public method (the guard statements are the only lines a guard test can reach, because the call throws before the rest runs); the remaining lines are covered by the unit flag. Measured 11%."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -149,7 +225,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 98,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Hit, miss, oversize, store, invalidation and shard invalidation paths are unit tested; the remaining lines are trivial.",
+        "guard": "No guard test exists for this executor today; its null guards are asserted in its unit tests."
+      }
     },
     "Sharding/CachedShardTopologyProvider.cs": {
       "defaultTests": [

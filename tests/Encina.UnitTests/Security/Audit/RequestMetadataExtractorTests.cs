@@ -17,7 +17,7 @@ public class RequestMetadataExtractorTests
 
     static RequestMetadataExtractorTests()
     {
-        var assembly = typeof(AuditEntry).Assembly;
+        var assembly = typeof(OperationAuditEntry).Assembly;
         ExtractorType = assembly.GetType("Encina.Security.Audit.RequestMetadataExtractor")!;
 
         ExtractFromTypeNameMethod = ExtractorType.GetMethod(

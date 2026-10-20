@@ -12,20 +12,20 @@ namespace Encina.GuardTests.Security.Audit;
 public class HealthCheckGuardTests
 {
     [Fact]
-    public void AuditStoreHealthCheck_Constructor_NullAuditStore_ThrowsArgumentNullException()
+    public void OperationAuditStoreHealthCheck_Constructor_NullAuditStore_ThrowsArgumentNullException()
     {
-        var act = () => new AuditStoreHealthCheck(null!);
+        var act = () => new OperationAuditStoreHealthCheck(null!);
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("auditStore");
     }
 
     [Fact]
-    public void AuditStoreHealthCheck_Constructor_ValidStore_DoesNotThrow()
+    public void OperationAuditStoreHealthCheck_Constructor_ValidStore_DoesNotThrow()
     {
-        var store = Substitute.For<IAuditStore>();
+        var store = Substitute.For<IOperationAuditStore>();
 
-        var act = () => new AuditStoreHealthCheck(store);
+        var act = () => new OperationAuditStoreHealthCheck(store);
 
         Should.NotThrow(act);
     }

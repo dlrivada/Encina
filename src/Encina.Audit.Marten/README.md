@@ -1,6 +1,6 @@
 # Encina.Audit.Marten
 
-Event-sourced `IAuditStore` implementation using Marten (PostgreSQL) with temporal crypto-shredding for compliance-grade audit trails.
+Event-sourced `IOperationAuditStore` implementation using Marten (PostgreSQL) with temporal crypto-shredding for compliance-grade audit trails.
 
 ## Why This Package?
 
@@ -21,13 +21,17 @@ services.AddMarten(options =>
     options.Connection("Host=localhost;Database=myapp;...");
 });
 
-// 2. Add core audit pipeline
+// 2. Register a PII masker (required: the host fails at startup without one),
+//    or call AddEncinaPII() from Encina.Security.PII instead
+services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
+
+// 3. Add core audit pipeline
 services.AddEncinaAudit(options =>
 {
     options.AuditAllCommands = true;
 });
 
-// 3. Add Marten event-sourced audit store (replaces InMemory)
+// 4. Add Marten event-sourced audit store (replaces InMemory)
 services.AddEncinaAuditMarten(options =>
 {
     options.TemporalGranularity = TemporalKeyGranularity.Monthly;
@@ -73,5 +77,5 @@ Load test: **508K entries/sec** (8 workers, P50: 8.7 us, P99: 0.24 ms).
 
 - `Encina.Marten` — event store infrastructure
 - `Encina.Marten.GDPR` — crypto-shredding patterns
-- `Encina.Security.Audit` — `IAuditStore`, `IReadAuditStore`
+- `Encina.Security.Audit` — `IOperationAuditStore`, `IReadAuditStore`
 - `Encina.Security.Encryption` — AES-256-GCM

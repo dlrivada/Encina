@@ -30,6 +30,26 @@ public sealed class MaskingPropertyTests
         return result is not null;
     }
 
+    [Property(MaxTest = 100)]
+    public bool MaskByPattern_InvalidPattern_AlwaysMasksTheWholeValue(NonEmptyString value)
+    {
+        var masker = CreateMasker();
+
+        var result = masker.Mask(value.Get, "[unclosed(group");
+
+        return result == new string('*', value.Get.Length);
+    }
+
+    [Property(MaxTest = 100)]
+    public bool MaskByPattern_AnyPattern_PreservesLength(NonEmptyString value, NonEmptyString pattern)
+    {
+        var masker = CreateMasker();
+
+        // Whatever the pattern is (valid, invalid or slow), the result keeps the value length:
+        // matches become mask characters and failures mask the whole value.
+        return masker.Mask(value.Get, pattern.Get).Length == value.Get.Length;
+    }
+
     #endregion
 
     #region Hash Mode Invariants

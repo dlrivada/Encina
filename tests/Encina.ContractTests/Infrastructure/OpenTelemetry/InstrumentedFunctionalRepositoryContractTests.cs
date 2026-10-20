@@ -1,6 +1,5 @@
 using Encina.DomainModeling;
 using Encina.OpenTelemetry.Repository;
-using Encina.Testing;
 using LanguageExt;
 using Shouldly;
 

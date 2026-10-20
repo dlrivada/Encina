@@ -49,6 +49,56 @@ public sealed class DeadLetterFilter
     public DateTime? DeadLetteredBeforeUtc { get; set; }
 
     /// <summary>
+    /// Gets or sets the tenant to filter by.
+    /// </summary>
+    /// <remarks>
+    /// A store returns every tenant unless this names one (the store contract is explicit).
+    /// <see cref="IDeadLetterManager"/> fills it from the ambient tenant when it is null.
+    /// </remarks>
+    public string? TenantId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the source message identifier to filter by.
+    /// </summary>
+    public string? SourceMessageId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum expiry instant (inclusive): matches messages whose
+    /// <c>ExpiresAtUtc</c> is set and <c>ExpiresAtUtc &lt;= ExpiresAtOrBeforeUtc</c>.
+    /// </summary>
+    public DateTime? ExpiresAtOrBeforeUtc { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether <see cref="IDeadLetterManager"/> skips the ambient tenant default
+    /// and works across every tenant (operator tooling).
+    /// </summary>
+    /// <remarks>
+    /// Read by <see cref="IDeadLetterManager"/> only; stores ignore it and filter solely by <see cref="TenantId"/>.
+    /// When multi-tenancy is in use and no tenant is resolved, this is the only way to read, replay or delete
+    /// without naming <see cref="TenantId"/>; every use is logged (the manager otherwise denies with
+    /// <see cref="DeadLetterErrorCodes.TenantRequired"/>).
+    /// </remarks>
+    public bool AllTenants { get; init; }
+
+    /// <summary>
+    /// Returns a copy of this filter with another tenant and replay state; the caller's instance is never changed.
+    /// </summary>
+    internal DeadLetterFilter CopyWith(string? tenantId, bool? excludeReplayed) => new()
+    {
+        SourcePattern = SourcePattern,
+        RequestType = RequestType,
+        ErrorCode = ErrorCode,
+        CorrelationId = CorrelationId,
+        ExcludeReplayed = excludeReplayed,
+        DeadLetteredAfterUtc = DeadLetteredAfterUtc,
+        DeadLetteredBeforeUtc = DeadLetteredBeforeUtc,
+        TenantId = tenantId,
+        SourceMessageId = SourceMessageId,
+        ExpiresAtOrBeforeUtc = ExpiresAtOrBeforeUtc,
+        AllTenants = AllTenants
+    };
+
+    /// <summary>
     /// Creates an empty filter (returns all messages).
     /// </summary>
     public static DeadLetterFilter All => new();

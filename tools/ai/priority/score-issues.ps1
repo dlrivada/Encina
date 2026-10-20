@@ -6,20 +6,38 @@
 #
 #   -All                Full recompute: refreshes artifacts/priority/issues.json via
 #                        collect-issues.ps1 (unless -NoCollect), scores every 'ranked' issue, and
-#                        replaces scores.json/board.json.
+#                        replaces scores.json/board.json. Before replacing, the previous scores.json
+#                        is copied to scores.<yyyyMMddTHHmmssZ>.json (#2233).
 #   -Issue <n>           Single-issue mode for a newly opened issue: fetches issue <n> with gh,
 #                        scores it alone, and merges/re-ranks it into the existing scores.json
 #                        (which must already exist from a previous -All run).
 #
 # Other switches:
 #   -Resume              Skip re-scoring an issue whose body hash matches its previous scores.json
-#                         entry; carry the previous scores forward instead.
+#                         entry; carry the previous scores forward instead. Also reuses a valid
+#                         cached artifacts/priority/model-out/<n>.json produced for the same model
+#                         input and rubric (sidecar <n>.meta.json holds the hashes; outputs from
+#                         before #2233 are matched against the saved model-in/<n>.md), so only
+#                         issues without a valid cached judgement reach the model.
+#   -DryRun              With -All: read-only. Prints how many ranked issues -Resume would reuse
+#                         (from scores.json, from model-out) and how many it would score; writes
+#                         nothing and calls no model. Implies -NoCollect.
 #   -Limit <k>            Score only the first k ranked issues (collection order) — for samples.
+#                         Writes scores.sample.json / board.sample.json and never touches
+#                         scores.json / board.json (#2233); -Resume still reads scores.json.
 #   -NoCollect            Skip the collect-issues.ps1 refresh in -All mode; reuse the cached
 #                         issues.json (for tests and repeated sample runs against the same data).
 #
+# Urgent (#2483): an issue carrying the GitHub label 'urgent' (SPEC-004 REQ-010: broken CI on main,
+# audit blocker, defect blocking other fronts) gets total = computed total + 100, so it ranks above
+# every non-urgent issue in the single Priority list. The entry keeps 'baseTotal' (the computed
+# value), 'urgent' (bool) and the flag 'urgent'. Urgency is recomputed from the issue's labels on
+# every run of the issue being scored, -Resume included (-Issue refreshes only that issue; -All the rest). The label 'priority-critical' is a star rating, not urgency.
+# Freshness: the ranking (scores.json generatedAtUtc) must be less than 24 h old when a front is
+# picked; if older, run -All -Resume first (only new or changed issues reach the model).
+#
 # Usage:
-#   pwsh -NoProfile -File tools/ai/priority/score-issues.ps1 -All [-Limit 15] [-Resume] [-NoCollect]
+#   pwsh -NoProfile -File tools/ai/priority/score-issues.ps1 -All [-Limit 15] [-Resume] [-NoCollect] [-DryRun]
 #   pwsh -NoProfile -File tools/ai/priority/score-issues.ps1 -Issue 1552
 
 [CmdletBinding(DefaultParameterSetName = 'All')]
@@ -38,6 +56,9 @@ param(
 
     [Parameter(ParameterSetName = 'All')]
     [switch]$NoCollect,
+
+    [Parameter(ParameterSetName = 'All')]
+    [switch]$DryRun,
 
     [string]$Repo = 'dlrivada/Encina',
     [string]$Root = (git rev-parse --show-toplevel),
@@ -66,23 +87,109 @@ function Get-PriorityOverrides {
     return @()
 }
 
+function Get-JudgeInputText {
+    <# The exact text the model sees for one issue; its hash identifies the cached judgement. #>
+    param([Parameter(Mandatory)]$IssueRecord)
+    $bodyExcerpt = [string]$IssueRecord.body
+    if ($bodyExcerpt.Length -gt 4000) { $bodyExcerpt = $bodyExcerpt.Substring(0, 4000) }
+    $labels = ($IssueRecord.labels -join ', ')
+    $milestone = if ($IssueRecord.milestone) { $IssueRecord.milestone } else { '(none)' }
+    return "Title: $($IssueRecord.title)`nLabels: $labels`nMilestone: $milestone`n`nBody (first 4000 chars):`n$bodyExcerpt"
+}
+
+function Get-RubricHash {
+    param([Parameter(Mandatory)][string]$Path)
+    if (-not (Test-Path $Path)) { return '' }
+    return Get-BodyHash -Body (Get-Content $Path -Raw)
+}
+
+function Get-RubricChangedUtc {
+    <# Last commit time of the rubric (file time when git has no history for it). #>
+    param([Parameter(Mandatory)][string]$Path)
+    try {
+        $iso = git -C (Split-Path -Parent $Path) log -1 --format=%cI -- $Path 2>$null
+        if ($LASTEXITCODE -eq 0 -and $iso) { return ([datetimeoffset]::Parse([string]$iso)).UtcDateTime }
+    }
+    catch { }
+    return (Get-Item $Path).LastWriteTimeUtc
+}
+
+function Get-CachedModelJudgement {
+    <#
+        .SYNOPSIS
+        Returns the parsed model judgement already on disk for an issue, or $null when it must be
+        re-scored (#2233). A cached model-out/<n>.json is reusable only when it is valid JSON for
+        the scoring schema AND it was produced for the same input:
+          - with a sidecar model-out/<n>.meta.json: its inputHash must equal the hash of the
+            current model input text and its rubricHash the current rubric hash;
+          - without a sidecar (outputs of runs before #2233): the saved model-in/<n>.md must equal
+            the current input text byte for byte, and the output file must be newer than the last
+            change of the rubric. (issues.json carries no updatedAt, and the saved input is a
+            stronger proof than a timestamp.)
+    #>
+    param(
+        [Parameter(Mandatory)]$IssueRecord,
+        [Parameter(Mandatory)][string]$ModelOutDir,
+        [Parameter(Mandatory)][string]$ModelInDir,
+        [string]$RubricHash,
+        $RubricChangedUtc
+    )
+    $n = $IssueRecord.number
+    $outFile = Join-Path $ModelOutDir "$n.json"
+    if (-not (Test-Path $outFile)) { return $null }
+    try {
+        $parsed = ConvertFrom-PriorityModelJson -Text (Get-Content $outFile -Raw)
+        if (-not (Test-PriorityModelScores -Parsed $parsed)) { return $null }
+        $inputText = Get-JudgeInputText -IssueRecord $IssueRecord
+        $metaFile = Join-Path $ModelOutDir "$n.meta.json"
+        if (Test-Path $metaFile) {
+            $meta = Get-Content $metaFile -Raw | ConvertFrom-Json
+            if ([string]$meta.inputHash -ne (Get-BodyHash -Body $inputText)) { return $null }
+            if ([string]$meta.rubricHash -ne $RubricHash) { return $null }
+            return $parsed
+        }
+        $inFile = Join-Path $ModelInDir "$n.md"
+        if (-not (Test-Path $inFile)) { return $null }
+        # Set-Content -Encoding utf8 appends a line terminator; compare without it.
+        $saved = (Get-Content $inFile -Raw).TrimEnd("`r", "`n")
+        if ($saved -ne $inputText.TrimEnd("`r", "`n")) { return $null }
+        if ($null -ne $RubricChangedUtc -and (Get-Item $outFile).LastWriteTimeUtc -lt [datetime]$RubricChangedUtc) { return $null }
+        return $parsed
+    }
+    catch { return $null }
+}
+
+function Invoke-PriorityModelCall {
+    <# The one place that calls the local model; a seam so tests can stub it. #>
+    param([string]$Task, [string]$InputFile, [string]$OutFile, [string]$LedgerFile)
+    $log = & dotnet run $localAiScript -- --task $Task --brief $RubricFile --input $InputFile --out $OutFile --ledger $LedgerFile --max-tokens 1024 2>&1
+    return @{ ExitCode = $LASTEXITCODE; Log = $log }
+}
+
 function Invoke-JudgedScores {
     <#
         .SYNOPSIS
         One local-model call for importance/regulatory/transversality/method/effort, retried once
         on invalid JSON. Returns @{ Parsed = <object-or-$null>; Error = <string-or-$null> }.
+        With -UseModelCache a valid cached judgement for the same input and rubric is returned
+        without any model call (#2233).
     #>
-    param([Parameter(Mandatory)]$IssueRecord)
+    param([Parameter(Mandatory)]$IssueRecord, [switch]$UseModelCache)
 
-    $bodyExcerpt = [string]$IssueRecord.body
-    if ($bodyExcerpt.Length -gt 4000) { $bodyExcerpt = $bodyExcerpt.Substring(0, 4000) }
-    $labels = ($IssueRecord.labels -join ', ')
-    $milestone = if ($IssueRecord.milestone) { $IssueRecord.milestone } else { '(none)' }
-    $inputText = "Title: $($IssueRecord.title)`nLabels: $labels`nMilestone: $milestone`n`nBody (first 4000 chars):`n$bodyExcerpt"
+    if ($UseModelCache) {
+        $cached = Get-CachedModelJudgement -IssueRecord $IssueRecord -ModelOutDir $modelOutDir -ModelInDir $modelInDir -RubricHash (Get-RubricHash -Path $RubricFile) -RubricChangedUtc (Get-RubricChangedUtc -Path $RubricFile)
+        if ($cached) { return @{ Parsed = $cached; Error = $null; FromCache = $true } }
+    }
+
+    $inputText = Get-JudgeInputText -IssueRecord $IssueRecord
     $inputFile = Join-Path $modelInDir "$($IssueRecord.number).md"
     Set-Content -Path $inputFile -Value $inputText -Encoding utf8
 
     $outFile = Join-Path $modelOutDir "$($IssueRecord.number).json"
+    $metaFile = Join-Path $modelOutDir "$($IssueRecord.number).meta.json"
+    # The saved input is rewritten above; drop the old output and sidecar with it so a failed or
+    # aborted call can never leave an old judgement paired with the new input.
+    Remove-Item $metaFile, $outFile -Force -ErrorAction SilentlyContinue
     $ledgerFile = Join-Path $Root 'artifacts/local-ai/ledger.csv'
     $lastError = $null
     for ($attempt = 1; $attempt -le 2; $attempt++) {
@@ -91,19 +198,24 @@ function Invoke-JudgedScores {
         # exactly like an invalid reply — retried once, then the issue is marked unscored with the
         # error while the batch continues to the next issue.
         try {
-            $log = & dotnet run $localAiScript -- --task "priority-$($IssueRecord.number)" --brief $RubricFile --input $inputFile --out $outFile --ledger $ledgerFile --max-tokens 1024 2>&1
-            if ($LASTEXITCODE -in 3, 4) {
-                $stopCode = $LASTEXITCODE
+            $call = Invoke-PriorityModelCall -Task "priority-$($IssueRecord.number)" -InputFile $inputFile -OutFile $outFile -LedgerFile $ledgerFile
+            $log = $call.Log
+            if ($call.ExitCode -in 3, 4) {
+                $stopCode = $call.ExitCode
                 [Console]::Error.WriteLine("local model switched off and the stand-in is unavailable or refused (exit $stopCode`: $($log -join ' ')); stopping the whole run (#1593)")
                 exit $stopCode
             }
-            if ($LASTEXITCODE -ne 0) {
-                $lastError = "local-ai-ask.cs exited $LASTEXITCODE`: $log"
+            if ($call.ExitCode -ne 0) {
+                $lastError = "local-ai-ask.cs exited $($call.ExitCode)`: $log"
                 continue
             }
             $raw = Get-Content $outFile -Raw
             $parsed = ConvertFrom-PriorityModelJson -Text $raw
             if (Test-PriorityModelScores -Parsed $parsed) {
+                [ordered]@{
+                    inputHash  = Get-BodyHash -Body $inputText
+                    rubricHash = Get-RubricHash -Path $RubricFile
+                } | ConvertTo-Json | Set-Content -Path $metaFile -Encoding utf8
                 return @{ Parsed = $parsed; Error = $null }
             }
             $lastError = "invalid or incomplete JSON from the model (attempt $attempt): $($raw.Substring(0, [Math]::Min(200, $raw.Length)))"
@@ -137,10 +249,15 @@ function New-ScoredEntry {
     param(
         [Parameter(Mandatory)]$IssueRecord,
         [array]$Overrides,
-        $PreviousJudged
+        $PreviousJudged,
+        [switch]$UseModelCache
     )
     $flags = @()
     if (-not $IssueRecord.milestone) { $flags += 'needs-milestone' }
+    # Urgency is recomputed from the fresh labels on every run, -Resume included (#2483).
+    $urgentBonus = Get-PriorityUrgentBonus -Labels $IssueRecord.labels
+    $isUrgent = $urgentBonus -gt 0
+    if ($isUrgent) { $flags += 'urgent' }
 
     $effortCk = Get-PriorityEffortCheckboxScore -Body $IssueRecord.body
 
@@ -154,7 +271,7 @@ function New-ScoredEntry {
 
     $judged = $null
     if ($needsModel) {
-        $judged = Invoke-JudgedScores -IssueRecord $IssueRecord
+        $judged = Invoke-JudgedScores -IssueRecord $IssueRecord -UseModelCache:$UseModelCache
         if ($null -eq $judged.Parsed) {
             return [ordered]@{
                 number   = $IssueRecord.number
@@ -265,13 +382,16 @@ function New-ScoredEntry {
         $source[[string]$o.criterion] = 'override'
     }
 
+    $baseTotal = Get-PriorityTotal -Scores $scores
     return [ordered]@{
         number       = $IssueRecord.number
         title        = $IssueRecord.title
         milestone    = $IssueRecord.milestone
         createdAtUtc = $IssueRecord.createdAt
         flags        = $flags
-        total        = Get-PriorityTotal -Scores $scores
+        urgent       = $isUrgent
+        baseTotal    = $baseTotal
+        total        = [Math]::Round($baseTotal + $urgentBonus, 1)
         scores       = $scores
         why          = $why
         source       = $source
@@ -309,16 +429,24 @@ function Get-TopCriteria([hashtable]$Scores, [int]$Take = 2) {
 # -Resume logic (#1560) without a gh call, a collect-issues.ps1 refresh, or a local-model call.
 if ($MyInvocation.InvocationName -eq '.') { return }
 
+if ($DryRun) { $NoCollect = [switch]::new($true) }
+$sampleRun = ($PSCmdlet.ParameterSetName -eq 'All') -and ($Limit -gt 0)
 if (-not $IssuesFile) { $IssuesFile = Join-Path $Root 'artifacts/priority/issues.json' }
-if (-not $ScoresFile) { $ScoresFile = Join-Path $Root 'artifacts/priority/scores.json' }
-if (-not $BoardFile) { $BoardFile = Join-Path $Root 'artifacts/priority/board.json' }
+$canonicalScores = Join-Path $Root 'artifacts/priority/scores.json'
+# A sample run (-Limit) writes *.sample.json and never touches scores.json / board.json (#2233);
+# -Resume still reads the real scores.json as its source of previous judgements.
+$previousScoresFile = if ($ScoresFile) { $ScoresFile } else { $canonicalScores }
+if (-not $ScoresFile) { $ScoresFile = if ($sampleRun) { Join-Path $Root 'artifacts/priority/scores.sample.json' } else { $canonicalScores } }
+if (-not $BoardFile) { $BoardFile = Join-Path $Root $(if ($sampleRun) { 'artifacts/priority/board.sample.json' } else { 'artifacts/priority/board.json' }) }
 if (-not $OverridesFile) { $OverridesFile = Join-Path $PSScriptRoot 'overrides.json' }
 if (-not $RubricFile) { $RubricFile = Join-Path $PSScriptRoot 'rubric.md' }
 $localAiScript = Join-Path $Root 'tools/ai/local-ai-ask.cs'
 $modelOutDir = Join-Path $Root 'artifacts/priority/model-out'
 $modelInDir = Join-Path $Root 'artifacts/priority/model-in'
-New-Item -ItemType Directory -Force -Path $modelOutDir | Out-Null
-New-Item -ItemType Directory -Force -Path $modelInDir | Out-Null
+if (-not $DryRun) {
+    New-Item -ItemType Directory -Force -Path $modelOutDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $modelInDir | Out-Null
+}
 
 $overrides = Get-PriorityOverrides
 
@@ -331,8 +459,8 @@ if ($PSCmdlet.ParameterSetName -eq 'All') {
     $allIssues = @($data.issues)
 
     $previous = @{}
-    if ($Resume -and (Test-Path $ScoresFile)) {
-        $prevData = Get-Content $ScoresFile -Raw | ConvertFrom-Json
+    if ($Resume -and (Test-Path $previousScoresFile)) {
+        $prevData = Get-Content $previousScoresFile -Raw | ConvertFrom-Json
         foreach ($r in @($prevData.ranked)) { $previous[[int]$r.number] = $r }
     }
 
@@ -353,6 +481,20 @@ if ($PSCmdlet.ParameterSetName -eq 'All') {
 
     if ($Limit -gt 0) { $rankedCandidates = @($rankedCandidates | Select-Object -First $Limit) }
 
+    if ($DryRun) {
+        $rubricHash = Get-RubricHash -Path $RubricFile
+        $rubricChanged = Get-RubricChangedUtc -Path $RubricFile
+        $fromScores = 0; $fromCache = 0; $toScore = 0
+        foreach ($i in $rankedCandidates) {
+            $num = [int]$i.number
+            if ($previous.ContainsKey($num) -and $previous[$num].bodyHash -eq (Get-BodyHash -Body $i.body) -and -not $previous[$num].unscored) { $fromScores++ }
+            elseif ($Resume -and (Get-CachedModelJudgement -IssueRecord $i -ModelOutDir $modelOutDir -ModelInDir $modelInDir -RubricHash $rubricHash -RubricChangedUtc $rubricChanged)) { $fromCache++ }
+            else { $toScore++ }
+        }
+        Write-Output "dry run (no writes, no model calls): $($rankedCandidates.Count) ranked candidates; reuse from scores.json: $fromScores; reuse from cached model-out: $fromCache; would score with the model: $toScore"
+        return
+    }
+
     foreach ($i in $rankedCandidates) {
         $num = [int]$i.number
         $hash = Get-BodyHash -Body $i.body
@@ -365,7 +507,7 @@ if ($PSCmdlet.ParameterSetName -eq 'All') {
         # deterministic-score helper throwing on an unexpected value, disk I/O, ...) so one bad
         # issue never aborts the rest of the -All batch.
         try {
-            $entry = New-ScoredEntry -IssueRecord $i -Overrides $overrides -PreviousJudged $previousJudged
+            $entry = New-ScoredEntry -IssueRecord $i -Overrides $overrides -PreviousJudged $previousJudged -UseModelCache:$Resume
         }
         catch {
             $entry = [ordered]@{
@@ -402,6 +544,12 @@ if ($PSCmdlet.ParameterSetName -eq 'All') {
     }
     $outDir = Split-Path -Parent $ScoresFile
     if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Force -Path $outDir | Out-Null }
+    if (-not $sampleRun -and (Test-Path $ScoresFile)) {
+        $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
+        $backup = Join-Path $outDir "scores.$stamp.json"
+        Copy-Item -Path $ScoresFile -Destination $backup
+        Write-Output "previous $(Split-Path -Leaf $ScoresFile) backed up to $backup"
+    }
     $scoresOut | ConvertTo-Json -Depth 8 | Set-Content -Path $ScoresFile -Encoding utf8
 
     $boardOut = [ordered]@{

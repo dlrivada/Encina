@@ -31,7 +31,7 @@ namespace Encina.Security.ABAC;
 ///         new AttributeAssignment
 ///         {
 ///             AttributeId = "reason",
-///             Value = new AttributeValue { DataType = "string", Value = "Sensitive resource accessed" }
+///             Value = new AttributeValue { DataType = XACMLDataTypes.String, Value = "Sensitive resource accessed" }
 ///         }
 ///     ]
 /// };

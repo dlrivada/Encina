@@ -1,5 +1,21 @@
+using Encina.Caching;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DataSubjectRights.Abstractions;
+using Encina.Compliance.DataSubjectRights.Aggregates;
+using Encina.Compliance.DataSubjectRights.Projections;
+using Encina.Compliance.DataSubjectRights.Services;
+using Encina.Compliance.GDPR;
+using Encina.Marten;
+using Encina.Marten.Projections;
+
+using LanguageExt;
+
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+
+using NSubstitute;
+
+using static LanguageExt.Prelude;
 
 namespace Encina.ContractTests.Compliance.DataSubjectRights;
 
@@ -110,9 +126,37 @@ public abstract class DSRServiceContractTestsBase
     {
         var service = CreateService();
 
-        var result = await service.DenyRequestAsync(Guid.NewGuid(), "Reason");
+        var result = await service.DenyRequestAsync(Guid.NewGuid(), DSRRejectionReason.Other, "Reason");
 
         result.IsLeft.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Contract: DenyRequestAsync requires an explanation next to the reason code (Article 12(4)).
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Contract_DenyRequestAsync_BlankExplanation_ShouldReturnInvalidRequest(string explanation)
+    {
+        var service = CreateService();
+
+        var result = await service.DenyRequestAsync(Guid.NewGuid(), DSRRejectionReason.Excessive, explanation);
+
+        result.LeftAsEnumerable().Single().GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.InvalidRequestCode);
+    }
+
+    /// <summary>
+    /// Contract: with default options the draft-law ground is refused (SPEC-002 REQ-024, AC-024).
+    /// </summary>
+    [Fact]
+    public async Task Contract_DenyRequestAsync_DraftLawGroundByDefault_ShouldReturnNotEnabled()
+    {
+        var service = CreateService();
+
+        var result = await service.DenyRequestAsync(Guid.NewGuid(), DSRRejectionReason.AbusiveIntent, "Reason");
+
+        result.LeftAsEnumerable().Single().GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.RejectionReasonNotEnabledCode);
     }
 
     #endregion
@@ -134,4 +178,37 @@ public abstract class DSRServiceContractTestsBase
     }
 
     #endregion
+}
+
+/// <summary>
+/// Runs the <see cref="IDSRService"/> contract against the real <see cref="DefaultDSRService"/>
+/// with default options (current law).
+/// </summary>
+public sealed class DefaultDSRServiceContractTests : DSRServiceContractTestsBase
+{
+    protected override IDSRService CreateService()
+    {
+        var repository = Substitute.For<IAggregateRepository<DSRRequestAggregate>>();
+        repository.LoadAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Left<EncinaError, DSRRequestAggregate>(EncinaErrors.Create("test.not_found", "not found"))));
+        repository.CreateAsync(Arg.Any<DSRRequestAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Right<EncinaError, Unit>(unit)));
+
+        var readModels = Substitute.For<IReadModelRepository<DSRRequestReadModel>>();
+        readModels.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Left<EncinaError, DSRRequestReadModel>(EncinaErrors.Create("test.not_found", "not found"))));
+
+        return new DefaultDSRService(
+            repository,
+            readModels,
+            Substitute.For<IPersonalDataLocator>(),
+            Substitute.For<IDataErasureExecutor>(),
+            Substitute.For<IDataPortabilityExporter>(),
+            Substitute.For<IProcessingActivityRegistry>(),
+            Substitute.For<ICacheProvider>(),
+            Options.Create(new DataSubjectRightsOptions()),
+            TimeProvider.System,
+            new RequestContextAccessor(),
+            NullLogger<DefaultDSRService>.Instance);
+    }
 }

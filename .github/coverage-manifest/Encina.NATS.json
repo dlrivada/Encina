@@ -50,7 +50,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 15,
+        "integration": 30
+      },
+      "justifications": {
+        "unit": "Unit tests drive every publish, request and JetStream path with a substitute connection, so nearly every line is reachable.",
+        "guard": "Guard tests cover only the argument checks at the top of each method, which are a small share of the lines.",
+        "integration": "The JetStream deduplication integration test drives the JetStream publish path against a NATS Testcontainers instance with JetStream enabled; core publish and request/reply are covered by unit tests."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -58,7 +68,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 85,
+        "guard": 55
+      },
+      "justifications": {
+        "unit": "Unit tests build the provider for each option combination, leaving only the connection factory lambdas that need a real broker.",
+        "guard": "Guard tests cover the null-argument checks and the registration of the publisher and options."
+      }
     }
   }
 }

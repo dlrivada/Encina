@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
+using Encina.Messaging;
 using Encina.Modules.Isolation;
 
 namespace Encina.Dapper.MySQL.Modules;
@@ -22,7 +23,7 @@ namespace Encina.Dapper.MySQL.Modules;
 /// module isolation is enabled.
 /// </para>
 /// </remarks>
-public sealed class SchemaValidatingConnection : DbConnection
+public sealed class SchemaValidatingConnection : DbConnection, IWrappedDbConnection
 {
     private readonly DbConnection _innerConnection;
     private readonly IModuleExecutionContext _moduleContext;
@@ -133,4 +134,7 @@ public sealed class SchemaValidatingConnection : DbConnection
     /// Gets the underlying connection (for advanced scenarios).
     /// </summary>
     internal DbConnection InnerConnection => _innerConnection;
+
+    /// <inheritdoc />
+    IDbConnection IWrappedDbConnection.InnerConnection => _innerConnection;
 }

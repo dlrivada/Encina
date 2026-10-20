@@ -1,7 +1,9 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly - NSubstitute .Returns() pattern for ValueTask
 using Encina.Security.ABAC;
 using LanguageExt;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -10,26 +12,171 @@ using static LanguageExt.Prelude;
 namespace Encina.UnitTests.Security.ABAC;
 
 /// <summary>
-/// Tests for <see cref="ABACPolicySeedingHostedService"/>.
+/// Tests for <see cref="ABACPolicySeedingHostedService"/>. Seeding runs under the built-in service
+/// identity through the real scope factory (#1705 Phase 4).
 /// </summary>
-public sealed class ABACPolicySeedingHostedServiceTests
+public sealed class ABACPolicySeedingHostedServiceTests : IDisposable
 {
     private readonly IPolicyAdministrationPoint _pap = Substitute.For<IPolicyAdministrationPoint>();
+    private readonly ServiceProvider _provider;
+    private readonly IInternalRequestContextScopeFactory _scopes;
+
+    public ABACPolicySeedingHostedServiceTests()
+    {
+        _provider = ScopeProvider(declareSeedingIdentity: true);
+        _scopes = _provider.GetRequiredService<IInternalRequestContextScopeFactory>();
+    }
+
+    public void Dispose() => _provider.Dispose();
+
+    private static ServiceProvider ScopeProvider(bool declareSeedingIdentity)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaRequestIdentity();
+        if (declareSeedingIdentity)
+        {
+            services.AddBuiltInServiceIdentity(ABACPolicySeedingHostedService.ServiceIdentityName);
+        }
+
+        return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+    }
 
     [Fact]
     public void Constructor_WithNullPap_ThrowsArgumentNullException()
     {
         Should.Throw<ArgumentNullException>(() => new ABACPolicySeedingHostedService(
             null!,
+            _scopes,
             Options.Create(new ABACOptions()),
             NullLogger<ABACPolicySeedingHostedService>.Instance));
+    }
+
+    [Fact]
+    public void Constructor_WithNullScopeFactory_ThrowsArgumentNullException()
+    {
+        Should.Throw<ArgumentNullException>(() => new ABACPolicySeedingHostedService(
+            _pap,
+            null!,
+            Options.Create(new ABACOptions()),
+            NullLogger<ABACPolicySeedingHostedService>.Instance)).ParamName.ShouldBe("scopes");
+    }
+
+    [Fact]
+    public async Task StartAsync_SeedsUnderTheBuiltInServiceIdentity()
+    {
+        var policy = CreatePolicy("identity-p");
+        var options = Options.Create(new ABACOptions());
+        options.Value.SeedPolicies.Add(policy);
+        RequestIdentity? seenIdentity = null;
+        var accessor = _provider.GetRequiredService<IRequestContextAccessor>();
+        _pap.AddPolicyAsync(policy, null, Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            seenIdentity = accessor.RequestContext?.Identity;
+            return new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit));
+        });
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+
+        await sut.StartAsync(CancellationToken.None);
+
+        seenIdentity.ShouldNotBeNull();
+        seenIdentity.Kind.ShouldBe(IdentityKind.Service);
+        seenIdentity.UserId.ShouldBe("service:encina.abac.policy-seeding");
+        (accessor.RequestContext?.Identity ?? RequestIdentity.Anonymous).IsAuthenticated
+            .ShouldBeFalse("the service identity ends with the seeding scope");
+    }
+
+    [Fact]
+    public async Task StartAsync_LogsTheSummaryWithCountsAsEventId9096AndNoAdHocInformation()
+    {
+        var seeded = CreatePolicySet("summary-ps");
+        var duplicate = CreatePolicy("summary-dup");
+        var fresh = CreatePolicy("summary-p");
+        var options = Options.Create(new ABACOptions());
+        options.Value.SeedPolicySets.Add(seeded);
+        options.Value.SeedPolicies.Add(duplicate);
+        options.Value.SeedPolicies.Add(fresh);
+        _pap.AddPolicySetAsync(seeded, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
+        _pap.AddPolicyAsync(duplicate, null, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(ABACErrors.DuplicatePolicy("summary-dup"))));
+        _pap.AddPolicyAsync(fresh, null, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
+        var logger = new FakeLogger<ABACPolicySeedingHostedService>();
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, logger);
+
+        await sut.StartAsync(CancellationToken.None);
+
+        var records = logger.Collector.GetSnapshot();
+        var summary = records.Single(r => r.Id.Id == 9096);
+        summary.Level.ShouldBe(Microsoft.Extensions.Logging.LogLevel.Information);
+        summary.GetStructuredStateValue("SeededPolicySets").ShouldBe("1");
+        summary.GetStructuredStateValue("TotalPolicySets").ShouldBe("1");
+        summary.GetStructuredStateValue("SeededPolicies").ShouldBe("1");
+        summary.GetStructuredStateValue("TotalPolicies").ShouldBe("2");
+        records.Where(r => r.Level == Microsoft.Extensions.Logging.LogLevel.Information)
+            .ShouldAllBe(r => r.Id.Id == 9096, "the summary replaces the ad hoc Information logs");
+    }
+
+    [Fact]
+    public async Task StartAsync_ScopeRefusedForCancellation_ThrowsOperationCanceledException()
+    {
+        var options = Options.Create(new ABACOptions());
+        options.Value.SeedPolicies.Add(CreatePolicy("cancelled-p"));
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+
+        var ex = await Should.ThrowAsync<OperationCanceledException>(() => sut.StartAsync(cts.Token));
+
+        ex.ShouldNotBeOfType<InvalidOperationException>();
+        await _pap.DidNotReceive().AddPolicyAsync(Arg.Any<Policy>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task StartAsync_ScopeRefusedForAnyOtherReason_ThrowsInvalidOperationExceptionWithTheCodeOnly()
+    {
+        using var provider = ScopeProvider(declareSeedingIdentity: false);
+        var options = Options.Create(new ABACOptions());
+        options.Value.SeedPolicies.Add(CreatePolicy("undeclared-p"));
+        var sut = new ABACPolicySeedingHostedService(
+            _pap,
+            provider.GetRequiredService<IInternalRequestContextScopeFactory>(),
+            options,
+            NullLogger<ABACPolicySeedingHostedService>.Instance);
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
+
+        ex.Message.ShouldContain(RequestIdentityErrorCodes.UnknownServiceIdentity);
+        ex.Message.ShouldNotContain("AddEncinaServiceIdentity", Case.Sensitive, "the error message never reaches the exception");
+        await _pap.DidNotReceive().AddPolicyAsync(Arg.Any<Policy>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task StartAsync_InsideAUserScope_IsRefusedWithTheCode()
+    {
+        // A built-in identity never opens over a user's request.
+        var options = Options.Create(new ABACOptions());
+        options.Value.SeedPolicies.Add(CreatePolicy("over-user-p"));
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+        var factory = _provider.GetRequiredService<IRequestContextScopeFactory>();
+
+        var outcome = await factory.RunAsPrincipalAsync(
+            global::Encina.Testing.Identity.TestIdentity.Principal("alice"),
+            async (_, ct) =>
+            {
+                var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(ct));
+                return Right<EncinaError, string>(ex.Message);
+            });
+
+        outcome.Match(Right: message => message, Left: _ => "<left>").ShouldContain(RequestIdentityErrorCodes.ScopeConflict);
     }
 
     [Fact]
     public async Task StartAsync_WithNoSeedData_DoesNotCallPap()
     {
         var options = Options.Create(new ABACOptions());
-        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
 
         await sut.StartAsync(CancellationToken.None);
 
@@ -47,7 +194,7 @@ public sealed class ABACPolicySeedingHostedServiceTests
         _pap.AddPolicySetAsync(policySet, Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
 
-        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
         await sut.StartAsync(CancellationToken.None);
 
         await _pap.Received(1).AddPolicySetAsync(policySet, Arg.Any<CancellationToken>());
@@ -63,7 +210,7 @@ public sealed class ABACPolicySeedingHostedServiceTests
         _pap.AddPolicyAsync(policy, null, Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
 
-        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
         await sut.StartAsync(CancellationToken.None);
 
         await _pap.Received(1).AddPolicyAsync(policy, null, Arg.Any<CancellationToken>());
@@ -83,7 +230,7 @@ public sealed class ABACPolicySeedingHostedServiceTests
         _pap.AddPolicySetAsync(policySet2, Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
 
-        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
         await sut.StartAsync(CancellationToken.None);
 
         // Both should have been attempted
@@ -104,7 +251,7 @@ public sealed class ABACPolicySeedingHostedServiceTests
             .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
         var logger = new CapturingLogger();
 
-        var sut = new ABACPolicySeedingHostedService(_pap, options, logger);
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, logger);
 
         await sut.StartAsync(CancellationToken.None);
 
@@ -123,7 +270,7 @@ public sealed class ABACPolicySeedingHostedServiceTests
             .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(ABACErrors.DuplicatePolicySet("dup-ps"))));
         var logger = new CapturingLogger();
 
-        var sut = new ABACPolicySeedingHostedService(_pap, options, logger);
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, logger);
 
         await sut.StartAsync(CancellationToken.None);
 
@@ -141,7 +288,7 @@ public sealed class ABACPolicySeedingHostedServiceTests
         _pap.AddPolicyAsync(policy, null, Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(ABACErrors.DuplicatePolicySet("cross-p"))));
 
-        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
 
         var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
         ex.Message.ShouldContain(ABACErrors.DuplicatePolicySetCode);
@@ -156,7 +303,7 @@ public sealed class ABACPolicySeedingHostedServiceTests
         _pap.AddPolicyAsync(policy, null, Arg.Any<CancellationToken>())
             .Returns<ValueTask<Either<EncinaError, Unit>>>(_ => throw new OperationCanceledException());
 
-        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
 
         var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
         ex.Message.ShouldContain("oce-p");
@@ -189,7 +336,7 @@ public sealed class ABACPolicySeedingHostedServiceTests
             .Returns(new ValueTask<Either<EncinaError, Unit>>(
                 Left<EncinaError, Unit>(ABACErrors.PolicyChangeAuditFailed("audit.down"))));
 
-        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
 
         var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
         ex.Message.ShouldContain("audited-p");
@@ -206,7 +353,7 @@ public sealed class ABACPolicySeedingHostedServiceTests
             .Returns(new ValueTask<Either<EncinaError, Unit>>(
                 Left<EncinaError, Unit>(EncinaErrors.Create("store.unavailable", "secret detail"))));
 
-        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
 
         var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
         ex.Message.ShouldContain("store-ps");
@@ -223,7 +370,7 @@ public sealed class ABACPolicySeedingHostedServiceTests
         _pap.AddPolicyAsync(policy, null, Arg.Any<CancellationToken>())
             .Returns<ValueTask<Either<EncinaError, Unit>>>(_ => throw new TimeoutException("secret detail"));
 
-        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
 
         var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
         ex.Message.ShouldContain("throws-p");
@@ -245,7 +392,7 @@ public sealed class ABACPolicySeedingHostedServiceTests
                 throw new OperationCanceledException(cts.Token);
             });
 
-        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
 
         await Should.ThrowAsync<OperationCanceledException>(() => sut.StartAsync(cts.Token));
     }
@@ -254,7 +401,7 @@ public sealed class ABACPolicySeedingHostedServiceTests
     public async Task StopAsync_ReturnsCompletedTask()
     {
         var options = Options.Create(new ABACOptions());
-        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
 
         await sut.StopAsync(CancellationToken.None); // Should not throw
     }
@@ -273,7 +420,7 @@ public sealed class ABACPolicySeedingHostedServiceTests
         _pap.AddPolicyAsync(Arg.Any<Policy>(), null, Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
 
-        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+        var sut = new ABACPolicySeedingHostedService(_pap, _scopes, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
         await sut.StartAsync(CancellationToken.None);
 
         await _pap.Received(1).AddPolicySetAsync(policySet, Arg.Any<CancellationToken>());

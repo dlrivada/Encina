@@ -132,7 +132,8 @@ internal static class PIIDiagnostics
 
         activity.SetTag(TagOutcome, "failure");
         activity.SetTag(TagErrorType, exception.GetType().Name);
-        activity.SetStatus(ActivityStatusCode.Error, exception.Message);
+        // Exception type only: the message can carry personal data.
+        activity.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
     }
 
     /// <summary>

@@ -2,6 +2,8 @@ using System.Reflection;
 using Encina.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Encina;
 
@@ -55,8 +57,15 @@ public static class ServiceCollectionExtensions
         var resolvedAssemblies = configuration.Assemblies.ToArray();
 
         services.TryAddScoped<IEncina, Encina>();
-        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+        services.AddEncinaRequestIdentity();
         services.TryAddSingleton<IEncinaMetrics, EncinaMetrics>();
+        var stageRegistry = GetOrAddStageRegistry(services);
+        services.TryAddSingleton(new PipelineRegistrationSnapshot(services));
+        services.TryAddSingleton(static provider => new PipelineOrderResolver(
+            provider.GetRequiredService<PipelineStageRegistry>(),
+            provider.GetService<ILogger<PipelineOrderResolver>>() ?? NullLogger<PipelineOrderResolver>.Instance,
+            provider.GetRequiredService<PipelineRegistrationSnapshot>()));
+        services.TryAddSingleton<IEncinaPipelineInspector, EncinaPipelineInspector>();
         services.TryAddSingleton<IFunctionalFailureDetector>(NullFunctionalFailureDetector.Instance);
 
         // Register null module handler registry for when modules are not used
@@ -79,6 +88,8 @@ public static class ServiceCollectionExtensions
             RegisterPipelineBehaviors(services, registrations.PipelineRegistrations);
             RegisterRequestPreProcessors(services, registrations.RequestPreProcessorRegistrations);
             RegisterRequestPostProcessors(services, registrations.RequestPostProcessorRegistrations);
+            RegisterRequestErrorProcessors(services, registrations.RequestErrorProcessorRegistrations);
+            RegisterRequestPostCommitProcessors(services, registrations.RequestPostCommitProcessorRegistrations);
             RegisterStreamHandlers(services, registrations.StreamHandlerRegistrations, configuration.HandlerLifetime);
             RegisterStreamPipelineBehaviors(services, registrations.StreamPipelineRegistrations);
         }
@@ -86,8 +97,36 @@ public static class ServiceCollectionExtensions
         configuration.RegisterConfiguredPipelineBehaviors(services);
         configuration.RegisterConfiguredRequestPreProcessors(services);
         configuration.RegisterConfiguredRequestPostProcessors(services);
+        configuration.RegisterConfiguredRequestErrorProcessors(services);
+        configuration.RegisterConfiguredRequestPostCommitProcessors(services);
+        configuration.RegisterConfiguredStreamPipelineBehaviors(services);
+        configuration.ApplyStageDeclarations(stageRegistry);
 
         return services;
+    }
+
+    /// <summary>
+    /// Returns the single <see cref="PipelineStageRegistry"/> of the collection, adding it on the first call, so every
+    /// <c>AddEncina</c> call records its stage declarations in the same registry the resolver reads.
+    /// </summary>
+    private static PipelineStageRegistry GetOrAddStageRegistry(IServiceCollection services)
+    {
+        var existing = services.FirstOrDefault(static descriptor => descriptor.ServiceType == typeof(PipelineStageRegistry));
+        if (existing?.ImplementationInstance is PipelineStageRegistry registered)
+        {
+            return registered;
+        }
+
+        if (existing is not null)
+        {
+            // Stage declarations written into a registry the resolver never reads would be lost silently
+            throw new InvalidOperationException(
+                "PipelineStageRegistry must be registered as a single instance; AddEncina registers it. Remove the other registration.");
+        }
+
+        var created = new PipelineStageRegistry();
+        services.TryAddSingleton(created);
+        return created;
     }
 
     /// <summary>
@@ -140,6 +179,28 @@ public static class ServiceCollectionExtensions
     /// Registers post-processors discovered during scanning.
     /// </summary>
     private static void RegisterRequestPostProcessors(IServiceCollection services, IEnumerable<TypeRegistration> registrations)
+    {
+        foreach (var registration in registrations)
+        {
+            TryAddEnumerableByImplementationType(services, registration.ServiceType, registration.ImplementationType);
+        }
+    }
+
+    /// <summary>
+    /// Registers error processors discovered during scanning.
+    /// </summary>
+    private static void RegisterRequestErrorProcessors(IServiceCollection services, IEnumerable<TypeRegistration> registrations)
+    {
+        foreach (var registration in registrations)
+        {
+            TryAddEnumerableByImplementationType(services, registration.ServiceType, registration.ImplementationType);
+        }
+    }
+
+    /// <summary>
+    /// Registers post-commit processors discovered during scanning.
+    /// </summary>
+    private static void RegisterRequestPostCommitProcessors(IServiceCollection services, IEnumerable<TypeRegistration> registrations)
     {
         foreach (var registration in registrations)
         {

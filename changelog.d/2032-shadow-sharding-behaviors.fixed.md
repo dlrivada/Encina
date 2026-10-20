@@ -1,0 +1,1 @@
+- Shadow sharding now takes effect: `ShadowWritePipelineBehavior` and `ShadowReadPipelineBehavior` are registered as `IPipelineBehavior<,>`, the service type the pipeline resolves, so dual-write and shadow read comparison run when shadow sharding is enabled instead of being silently inert (#2032).

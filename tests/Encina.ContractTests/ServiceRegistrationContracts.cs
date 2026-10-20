@@ -49,7 +49,7 @@ public sealed class ServiceRegistrationContracts
     }
 
     [Fact]
-    public void CommandPipelineConfigurationRegistersSpecializedDescriptor()
+    public void CommandPipelineConfigurationRegistersOnlyThePipelineDescriptor()
     {
         var services = new ServiceCollection();
 
@@ -63,14 +63,12 @@ public sealed class ServiceRegistrationContracts
             && ImplementationMatches(d, typeof(SampleCommandPipelineBehavior<,>))
             && d.Lifetime == ServiceLifetime.Scoped);
 
-        services.ShouldContain(d =>
-            d.ServiceType == typeof(ICommandPipelineBehavior<,>)
-            && ImplementationMatches(d, typeof(SampleCommandPipelineBehavior<,>))
-            && d.Lifetime == ServiceLifetime.Scoped);
+        // The builder resolves only IPipelineBehavior<,>: a specialized descriptor would never be used (#2184)
+        services.ShouldNotContain(d => d.ServiceType == typeof(ICommandPipelineBehavior<,>));
     }
 
     [Fact]
-    public void QueryPipelineConfigurationRegistersSpecializedDescriptor()
+    public void QueryPipelineConfigurationRegistersOnlyThePipelineDescriptor()
     {
         var services = new ServiceCollection();
 
@@ -84,10 +82,7 @@ public sealed class ServiceRegistrationContracts
             && ImplementationMatches(d, typeof(SampleQueryPipelineBehavior<,>))
             && d.Lifetime == ServiceLifetime.Scoped);
 
-        services.ShouldContain(d =>
-            d.ServiceType == typeof(IQueryPipelineBehavior<,>)
-            && ImplementationMatches(d, typeof(SampleQueryPipelineBehavior<,>))
-            && d.Lifetime == ServiceLifetime.Scoped);
+        services.ShouldNotContain(d => d.ServiceType == typeof(IQueryPipelineBehavior<,>));
     }
 
     [Fact]
@@ -200,17 +195,17 @@ public sealed class ServiceRegistrationContracts
 
     private sealed class SampleRequestPreProcessor<TRequest> : IRequestPreProcessor<TRequest>
     {
-        public Task Process(TRequest request, IRequestContext context, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(TRequest request, IRequestContext context, CancellationToken cancellationToken)
         {
-            return Task.CompletedTask;
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
         }
     }
 
     private sealed class SampleRequestPostProcessor<TRequest, TResponse> : IRequestPostProcessor<TRequest, TResponse>
     {
-        public Task Process(TRequest request, IRequestContext context, Either<EncinaError, TResponse> response, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(TRequest request, IRequestContext context, TResponse response, CancellationToken cancellationToken)
         {
-            return Task.CompletedTask;
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
         }
     }
 
@@ -224,7 +219,5 @@ public sealed class ServiceRegistrationContracts
         }
 
         public string? TryGetErrorCode(object? capturedFailure) => null;
-
-        public string? TryGetErrorMessage(object? capturedFailure) => null;
     }
 }

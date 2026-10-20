@@ -32,7 +32,7 @@ public sealed class AuditEventEncryptorTests
             TimeProvider.System,
             NullLogger<InMemoryTemporalKeyProvider>.Instance);
 
-        var options = Options.Create(new MartenAuditOptions
+        var options = Options.Create(new MartenOperationAuditOptions
         {
             TemporalGranularity = TemporalKeyGranularity.Monthly
         });
@@ -81,7 +81,7 @@ public sealed class AuditEventEncryptorTests
     public async Task EncryptAuditEntryAsync_NullPiiFields_SetsEncryptedFieldsToNull()
     {
         // Arrange
-        var entry = new AuditEntry
+        var entry = new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = "corr-1",
@@ -148,7 +148,7 @@ public sealed class AuditEventEncryptorTests
             .Returns(new ValueTask<Either<EncinaError, TemporalKeyInfo>>(failureResult));
 #pragma warning restore CA2012
 
-        var options = Options.Create(new MartenAuditOptions());
+        var options = Options.Create(new MartenOperationAuditOptions());
         var sut = new AuditEventEncryptor(
             failingProvider,
             options,
@@ -167,7 +167,7 @@ public sealed class AuditEventEncryptorTests
     public async Task EncryptAuditEntryAsync_WithMetadata_EncryptsMetadataAsJson()
     {
         // Arrange
-        var entry = new AuditEntry
+        var entry = new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = "corr-1",
@@ -196,7 +196,7 @@ public sealed class AuditEventEncryptorTests
         });
     }
 
-    private static AuditEntry CreateAuditEntry() => new()
+    private static OperationAuditEntry CreateAuditEntry() => new()
     {
         Id = Guid.NewGuid(),
         CorrelationId = "test-correlation-id",

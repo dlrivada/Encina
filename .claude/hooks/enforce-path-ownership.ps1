@@ -41,6 +41,12 @@
 #                 fabricate a stage's outcome. A successful write records its author in the sidecar
 #                 artifacts/knowledge/stages/.authors.json, which audit-commit-stage.ps1 checks before
 #                 committing.
+#                 Several audits may be open at once (#2234; artifacts/knowledge/open-audits/<n>.json, read
+#                 through _open-audits.ps1). Ownership is then per audit too: inside an open audit's worktree
+#                 (stage artifacts, knowledge record, coverage scratch) and for its drafts, a stage agent writes
+#                 only into the audit its spawn prompt names (the one wia-<n> of the first user message of its own
+#                 transcript), so the agent of audit A cannot write, and therefore cannot get committed, audit B's
+#                 files. A transcript that cannot be read denies the write while more than one audit is open.
 #                 test-auditor and audit-verifier also share one more allowance (#1523): both may write under
 #                 artifacts/audit/coverage/** — ephemeral `dotnet test --collect "XPlat Code Coverage"` output,
 #                 git-ignored scratch, never a stage artifact — because test-auditor.md's own Method (step 1)
@@ -56,6 +62,8 @@
 #                 drafts the site-health skill prepares); everything else in the repository is denied, because
 #                 the agent is read-only on the repository (it never fixes a broken workflow itself: a failing
 #                 publisher goes to ci-diagnoser).
+#   decision-extractor (#2470) writes ONLY artifacts/decisions/<issue>.md (its decision register);
+#                 everything else in the repository is denied, the agent is read-only.
 #   pr-reviewer   (#1447) writes ONLY under artifacts/pr-review/** (its own review of one published PR);
 #                 everything else in the repository is denied, because the agent is read-only on the
 #                 repository (it never posts to GitHub itself: the orchestrator posts its report as a PR
@@ -69,7 +77,9 @@
 #
 # The rule applies to the agent named by -Agent; when the hook input names a different agent_type (a nested
 # agent that inherited the hook), the call is allowed, since that agent has its own hooks. Paths outside the
-# project are allowed.
+# project are allowed, except that the six audit-stage agents may not write under ~/.claude/projects (their own
+# transcripts, which the #2234 binding reads), nor to an unresolvable or \\?\, \\.\, UNC path (#2244). Known limit:
+# a shell write whose target is built with a variable cannot be resolved by Get-ShellWrites and is not checked.
 #
 # Both the file tools AND shell writes are covered (#1345 review): a Set-Content, Add-Content, Out-File,
 # redirection, [IO.File]/[IO.StreamWriter] call, Copy-Item/Move-Item or their Bash equivalents (cp, mv, touch,
@@ -106,8 +116,10 @@
 # tools/ai/audit/audit-stage.ps1 -RepairAuthors from the main checkout") instead of being silently swallowed
 # and masking the real cause, as it did before #1374.
 #
-# Exit code 2 blocks the call and shows stderr to Claude; any failure of the hook itself allows the call
-# (except the authorship-sidecar write above, which denies on its own failure instead — see #1374).
+# Exit code 2 blocks the call and shows stderr to Claude; any other failure of the hook itself allows the call,
+# except two that deny instead: the authorship-sidecar write above (#1374), and open-audit state that cannot be
+# loaded (_open-audits.ps1 missing, open-audits/ unlistable or a state file unreadable, #2234), which denies every
+# write under a wia-<n> worktree, every stage artifact and every remediation draft.
 
 param([string]$Agent)
 
@@ -118,7 +130,8 @@ try {
     . (Join-Path $PSScriptRoot '_repo-paths.ps1')
     . (Join-Path $PSScriptRoot '_write-targets.ps1')
 
-    $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    . (Join-Path $PSScriptRoot '_read-payload.ps1')
+    $payload = Read-HookStdin | ConvertFrom-Json
     $tool = [string]$payload.tool_name
     if ($tool -notin 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell') { exit 0 }
 
@@ -178,7 +191,7 @@ try {
                         if ($null -ne $parsed) { $authors = $parsed }
                     }
                     catch {
-                        [Console]::Error.WriteLine("Blocked: 'artifacts/knowledge/stages/.authors.json' is not valid JSON ($($_.Exception.Message)); run 'pwsh -NoProfile -File tools/ai/audit/audit-stage.ps1 -RepairAuthors' from the main checkout to repair it, then have $Agent re-write the '$Stage' stage artifact (#1374).")
+                        [Console]::Error.WriteLine("Blocked: 'artifacts/knowledge/stages/.authors.json' is not valid JSON ($($_.Exception.Message)); run 'pwsh -NoProfile -File tools/ai/audit/audit-stage.ps1 -RepairAuthors -Issue <n>' from the main checkout to repair it, then have $Agent re-write the '$Stage' stage artifact (#1374).")
                         return $false
                     }
                 }
@@ -207,35 +220,119 @@ try {
         }
     }
 
-    # #1572: the issue number of the open SPEC-003 audit (artifacts/knowledge/current-audit.json of the MAIN
-    # checkout), read once per hook run; $null when no audit is open, 'unreadable' when the file exists but has
-    # no readable issue number (the draft rule then fails closed, AGENTS.md §3).
-    $script:OpenAuditIssue = $null
-    $script:OpenAuditIssueRead = $false
-    function Get-OpenAuditIssue {
-        if (-not $script:OpenAuditIssueRead) {
-            $script:OpenAuditIssueRead = $true
-            $currentAuditPath = Join-Path $layout.MainRoot 'artifacts\knowledge\current-audit.json'
-            if (Test-Path -LiteralPath $currentAuditPath) {
-                $script:OpenAuditIssue = 'unreadable'
-                try {
-                    $issueValue = [string](Get-Content -LiteralPath $currentAuditPath -Raw | ConvertFrom-Json).issue
-                    if ($issueValue -match '^\d+$') { $script:OpenAuditIssue = $issueValue }
-                }
-                catch { $script:OpenAuditIssue = 'unreadable' }
+    # #1572, #2234: the open SPEC-003 audits of the MAIN checkout (artifacts/knowledge/open-audits/<n>.json, plus a
+    # pre-#2234 current-audit.json the scripts have not converted yet; _open-audits.ps1), read once per hook run.
+    # A state file that exists but cannot be read makes every rule that needs the open audits fail closed
+    # (AGENTS.md section 3).
+    # PR #2243 review: a failure to load the helper or to enumerate open-audits/ must not reach the hook's global
+    # catch (which allows the call): it is recorded as one more unreadable entry, so every audit path (stage
+    # artifacts, drafts, and anything under a wia-<n> worktree) is denied below, as audit-stage-guard.ps1 denies
+    # the spawn (fail closed). Writes outside the audit paths are not affected.
+    $script:OpenAuditsLoadError = $null
+    try { . (Join-Path $PSScriptRoot '_open-audits.ps1') }
+    catch { $script:OpenAuditsLoadError = "the helper _open-audits.ps1 cannot be loaded ($($_.Exception.Message))" }
+    $script:OpenAudits = $null
+    function Get-OpenAuditState {
+        if ($null -eq $script:OpenAudits) {
+            if ($null -eq $script:OpenAuditsLoadError) {
+                try { $script:OpenAudits = Get-HookOpenAudits $layout.MainRoot }
+                catch { $script:OpenAuditsLoadError = "artifacts/knowledge/open-audits/ cannot be read ($($_.Exception.Message))" }
+            }
+            if ($null -ne $script:OpenAuditsLoadError) {
+                $script:OpenAudits = [pscustomobject]@{ Audits = @(); Unreadable = @($script:OpenAuditsLoadError) }
             }
         }
-        return $script:OpenAuditIssue
+        return $script:OpenAudits
+    }
+
+    # #1763: the pipeline file that assigns the stage artifacts of the tree at $Root. A delta audit (its state file
+    # has `mode = 'delta'`) runs tools/ai/audit/pipeline-delta.json in ITS OWN worktree, so its stage files
+    # (docs.md, tests.md, remediation.md, verification.md) belong to the agents that file assigns; any other tree
+    # keeps pipeline.json. An unreadable state file: $null, and the caller denies the stage write (fail closed).
+    function Get-StagePipelineFileName([string]$Root) {
+        $state = Get-OpenAuditState
+        if ($state.Unreadable.Count -gt 0) { return $null }
+        $audit = Get-HookAuditByWorktree $state.Audits $Root
+        if ($null -ne $audit -and $null -ne $audit.PSObject.Properties['mode'] -and [string]$audit.mode -eq 'delta') { return 'pipeline-delta.json' }
+        return 'pipeline.json'
+    }
+
+    # #2234: with several audits open, an audit-stage agent writes only into the audit it was spawned for. The
+    # audit is the one wia-<n> its spawn prompt names (Get-SpawnPromptWiaNumbers reads the first user message of
+    # the agent's own transcript; audit-stage-guard.ps1 allowed that spawn only for exactly one open wia-<n>). An
+    # agent whose prompt names another audit, or whose transcript cannot be read while more than one audit is
+    # open, is denied (fail closed); with a single open audit there is no other audit to confuse it with.
+    $script:SpawnWia = $null
+    $script:SpawnWiaRead = $false
+    function Test-AuditBinding([string]$Issue, [string]$Relative) {
+        if (-not $script:SpawnWiaRead) { $script:SpawnWiaRead = $true; $script:SpawnWia = Get-SpawnPromptWiaNumbers $payload }
+        $state = Get-OpenAuditState
+        if ($null -eq $script:SpawnWia) {
+            if (@($state.Audits).Count -le 1) { return $true }
+            [Console]::Error.WriteLine("Blocked: '$Relative' belongs to the open SPEC-003 audit #$Issue, but $Agent's own transcript (its spawn prompt) cannot be read, so it cannot be told which of the $(@($state.Audits).Count) open audits it was spawned for (#2234, fail closed).")
+            return $false
+        }
+        if ($script:SpawnWia.Count -eq 1 -and $script:SpawnWia[0] -eq $Issue) { return $true }
+        $named = if ($script:SpawnWia.Count -gt 0) { 'wia-' + ($script:SpawnWia -join ', wia-') } else { 'no audit worktree' }
+        [Console]::Error.WriteLine("Blocked: '$Relative' belongs to the open SPEC-003 audit #$Issue (wia-$Issue), but this $Agent was spawned for $named; a stage agent writes only into its own audit (#2234).")
+        return $false
+    }
+
+    # The open audit whose worktree is $Root, when this caller is an audit-stage agent writing there; Test-PathOwnership
+    # checks the binding for it. $null when $Root is no open audit's worktree.
+    function Get-BoundAudit([string]$Root) {
+        $state = Get-OpenAuditState
+        if ($state.Unreadable.Count -gt 0) { return $null }
+        return (Get-HookAuditByWorktree $state.Audits $Root)
     }
 
     # Checks one resolved absolute path against every ownership rule. Returns $true (allowed) or $false
     # (blocked; the reason is already on stderr). A path outside the project is always allowed.
     function Test-PathOwnership([string]$Full) {
+        # #2244: the transcript folder (~/.claude/projects/**) is outside the project, so the "outside the project"
+        # allow would let an audit-stage agent rewrite its own transcript, the first user message
+        # Get-SpawnPromptWiaNumbers trusts for the #2234 per-audit binding. Denied to the six audit-stage agents,
+        # before that allow; no other caller changes.
+        if ($Agent -in 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier', 'docs-reviewer', 'remediation-drafter') {
+            # Fail closed on a path that cannot be resolved (Get-FullPath returns $null past 400 characters) and on
+            # the \\?\, \\.\ and UNC forms, which GetFullPath leaves unchanged and so would evade the prefix test.
+            if ([string]::IsNullOrWhiteSpace($Full) -or $Full.StartsWith('\\') -or $Full.StartsWith('//')) {
+                [Console]::Error.WriteLine("Blocked: $Agent may not write to a path that cannot be resolved or that uses a \\?\, \\.\ or UNC form ('$Full'), because it could reach the Claude Code transcript folder that the per-audit binding reads (#2244, #2234, fail closed).")
+                return $false
+            }
+            $homeDir = [Environment]::GetFolderPath('UserProfile')
+            if (-not [string]::IsNullOrWhiteSpace($homeDir)) {
+                $transcriptRoot = ([System.IO.Path]::GetFullPath((Join-Path (Join-Path $homeDir '.claude') 'projects'))).TrimEnd('\', '/')
+                try { $fullNorm = ([System.IO.Path]::GetFullPath($Full)).TrimEnd('\', '/') }
+                catch {
+                    [Console]::Error.WriteLine("Blocked: $Agent may not write to '$Full', which cannot be normalised ($($_.Exception.Message)); it could reach the Claude Code transcript folder (#2244, #2234, fail closed).")
+                    return $false
+                }
+                if ($fullNorm.Equals($transcriptRoot, [StringComparison]::OrdinalIgnoreCase) -or
+                    $fullNorm.StartsWith($transcriptRoot + '\', [StringComparison]::OrdinalIgnoreCase) -or
+                    $fullNorm.StartsWith($transcriptRoot + '/', [StringComparison]::OrdinalIgnoreCase)) {
+                    [Console]::Error.WriteLine("Blocked: '$Full' is under the Claude Code transcript folder (~/.claude/projects), which holds this $Agent's own spawn prompt; an audit-stage agent may not write there, because the per-audit binding reads that prompt (#2244, #2234).")
+                    return $false
+                }
+            }
+        }
+
         $location = Get-RepoLocation $Full $layout
         if ($null -eq $location) { return $true }
 
         $relative = $location.Relative
         $category = Get-PathCategory $relative
+
+        # #2234, PR #2243 review: while the open-audit state cannot be read (a state file, the open-audits/ folder or
+        # the helper itself), nobody can tell which audit a wia-<n> worktree belongs to or who owns its files: every
+        # write under an audit worktree is denied, for every caller (fail closed).
+        if ($location.InWorktree -and (Split-Path -Leaf $location.Root) -match '^wia-\d+$') {
+            $wiaState = Get-OpenAuditState
+            if ($wiaState.Unreadable.Count -gt 0) {
+                [Console]::Error.WriteLine("Blocked: '$relative' is in the audit worktree $(Split-Path -Leaf $location.Root), but the open-audit state cannot be read ($($wiaState.Unreadable -join '; ')), so its owner cannot be decided; repair it first (#2234, fail closed).")
+                return $false
+            }
+        }
 
         # #1345 review: the authorship sidecar has exactly one legitimate writer — this hook's own Set-Content
         # call below, invoked directly by the hook process, never through a Write/Edit/shell tool call. Denied
@@ -273,7 +370,12 @@ try {
         # 'artifacts/knowledge/stages/code.md' and must not evade this check by casing alone.
         $stageArtifactMatch = [regex]::Match($relative, '^artifacts/knowledge/stages/(?<file>[^/]+)$', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
         if ($stageArtifactMatch.Success) {
-            $pipelinePath = Join-Path $location.Root 'tools\ai\audit\pipeline.json'
+            $pipelineFileName = Get-StagePipelineFileName $location.Root
+            if ($null -eq $pipelineFileName) {
+                [Console]::Error.WriteLine("Blocked: '$relative' is under artifacts/knowledge/stages/, but an open-audit state file under artifacts/knowledge/ (open-audits/<n>.json or current-audit.json) cannot be read, so it cannot be decided whether this tree's audit is a delta audit (pipeline-delta.json) or a full one (pipeline.json); repair it first (#1763, #2234, fail closed).")
+                return $false
+            }
+            $pipelinePath = Join-Path $location.Root ('tools\ai\audit\' + $pipelineFileName)
             # #1572 review: a missing or unreadable pipeline.json must not fall through to the default allow --
             # nobody may write a stage artifact whose owner cannot be decided (fail closed, AGENTS.md §3).
             $pipeline = $null
@@ -293,6 +395,9 @@ try {
                     [Console]::Error.WriteLine("Blocked: '$relative' is the '$($stageDef.stage)' stage artifact, owned by $expectedAgent (tools/ai/audit/pipeline.json); $callerLabel may not write it (#1345: a stage artifact is written only by the agent the pipeline assigns to that stage — this closes the gap that let a coordinator fabricate a stage's outcome).")
                     return $false
                 }
+                # #2234: the assigned agent of the right stage, but of WHICH audit: only the one it was spawned for.
+                $boundAudit = Get-BoundAudit $location.Root
+                if ($null -ne $boundAudit -and -not (Test-AuditBinding ([string]$boundAudit.issue) $relative)) { return $false }
                 # Allowed: record authorship in the sidecar so audit-commit-stage.ps1 can refuse to commit a
                 # stage whose last recorded writer does not match the agent pipeline.json assigns to it.
                 # #1374: this hook runs twice concurrently for the same tool call (see header comment), so the
@@ -307,28 +412,29 @@ try {
             # covered by this gap-closing check; the rules below (and the default allow for the orchestrator) apply.
         }
 
-        # #1572: the open audit's remediation drafts (the MAIN checkout's artifacts/knowledge/remediation/<n>-*.md,
-        # <n> the issue in artifacts/knowledge/current-audit.json) belong to remediation-drafter alone, for the
+        # #1572: an open audit's remediation drafts (the MAIN checkout's artifacts/knowledge/remediation/<n>-*.md,
+        # <n> any open audit, #2234) belong to remediation-drafter alone (of that audit), for the
         # same reason a stage artifact belongs to its agent: no other caller, the orchestrator included, may write
         # or rewrite a draft the verifier will judge. The script's own _input-<n>-*/_manifest-<n>.json files start
         # with '_' and are not drafts; another audit's drafts are not covered. The dry-run sandbox's drafts and
         # stage-file preview (_dryrun-<n>/<n>-*.md, _dryrun-<n>/remediation.md, #1540) follow the same rule, so a
-        # dry run can be completed by the drafter too. An unreadable current-audit.json fails closed: nobody may
+        # dry run can be completed by the drafter too. An unreadable open-audit state file fails closed: nobody may
         # write any draft until it is repaired.
         if (-not $location.InWorktree -and $relative -match '(?i)^artifacts/knowledge/remediation/(?:_dryrun-(?<n>\d+)/(?:\d+-[^/]+\.md|remediation\.md)|(?<n>\d+)-[^/]+\.md)$') {
             $draftIssue = $Matches['n']
-            $openIssue = Get-OpenAuditIssue
-            if ($openIssue -eq 'unreadable') {
-                [Console]::Error.WriteLine("Blocked: '$relative' looks like a SPEC-003 remediation draft, but artifacts/knowledge/current-audit.json exists and has no readable issue number, so its owner cannot be decided; repair current-audit.json first (#1572, fail closed).")
+            $state = Get-OpenAuditState
+            if ($state.Unreadable.Count -gt 0) {
+                [Console]::Error.WriteLine("Blocked: '$relative' looks like a SPEC-003 remediation draft, but the open-audit state cannot be read ($($state.Unreadable -join ', ') under artifacts/knowledge/), so its owner cannot be decided; repair it first (#1572, #2234, fail closed).")
                 return $false
             }
-            if ($draftIssue -eq $openIssue) {
+            if ($null -ne (Get-HookAuditByIssue $state.Audits $draftIssue)) {
                 if ($Agent -ne 'remediation-drafter') {
                     $callerLabel = if ([string]::IsNullOrWhiteSpace($Agent)) { 'the orchestrator (main session)' } else { $Agent }
                     [Console]::Error.WriteLine("Blocked: '$relative' is a remediation draft of the open SPEC-003 audit (#$draftIssue), owned by remediation-drafter (#1572); $callerLabel may not write it. Re-spawn remediation-drafter with the correction instead.")
                     return $false
                 }
-                return $true
+                # #2234: the drafter of audit A may not write audit B's drafts.
+                return (Test-AuditBinding $draftIssue $relative)
             }
         }
 
@@ -361,11 +467,14 @@ try {
             # test-auditor/audit-verifier only, their shared coverage-scratch prefix (#1523); anything else
             # under artifacts/knowledge/stages/ that names no pipeline stage (e.g. lessons.md) or that lies
             # outside artifacts/knowledge/ entirely is denied for these single-owner roles.
+            # #2234: inside an open audit's worktree, only into the audit this agent was spawned for.
+            $ownAudit = Get-BoundAudit $location.Root
             if ($relative -match '^artifacts/knowledge/issues/[^/]+\.md$') {
                 if ($Agent -ne 'issue-archivist') {
                     [Console]::Error.WriteLine("Blocked: the knowledge record ('$relative') belongs to issue-archivist, not $Agent (#1345 single-owner roles).")
                     return $false
                 }
+                if ($null -ne $ownAudit) { return (Test-AuditBinding ([string]$ownAudit.issue) $relative) }
                 return $true
             }
             # #1523: test-auditor writes `dotnet test` coverage results here (test-auditor.md Method step 1);
@@ -373,6 +482,7 @@ try {
             # tests.md's numbers independently (Method step 5). Git-ignored scratch, not a stage artifact — no
             # other agent, including the other three single-owner roles above, gains anything from this prefix.
             if ($Agent -in 'test-auditor', 'audit-verifier' -and $relative -match '^artifacts/audit/coverage/') {
+                if ($null -ne $ownAudit) { return (Test-AuditBinding ([string]$ownAudit.issue) $relative) }
                 return $true
             }
             [Console]::Error.WriteLine("Blocked: $Agent writes only its own SPEC-003 audit-stage artifact under artifacts/knowledge/stages/, for issue-archivist the knowledge record under artifacts/knowledge/issues/, for test-auditor/audit-verifier coverage scratch under artifacts/audit/coverage/, and for remediation-drafter the open audit's drafts under the main checkout's artifacts/knowledge/remediation/<n>-*.md (#1345, #1523, #1572); '$relative' is not one of them. This is a single-owner audit-stage role: report anything else to the orchestrator instead of editing it.")
@@ -387,6 +497,12 @@ try {
         elseif ($Agent -eq 'local-ai-standin') {
             if ($relative -notmatch '^artifacts/local-ai/out/') {
                 [Console]::Error.WriteLine("Blocked: local-ai-standin writes only the output file under artifacts/local-ai/out/** that its brief names (#1593); '$relative' is not under it. It is a drafting stand-in for the local model: report anything else to the caller instead of editing it.")
+                return $false
+            }
+        }
+        elseif ($Agent -eq 'decision-extractor') {
+            if ($relative -notmatch '^artifacts/decisions/[^/]+\.md$') {
+                [Console]::Error.WriteLine("Blocked: decision-extractor writes only its register file artifacts/decisions/<issue>.md (#2470); '$relative' is not one. It is read-only on the rest of the repository: report anything else to the orchestrator instead of editing it.")
                 return $false
             }
         }

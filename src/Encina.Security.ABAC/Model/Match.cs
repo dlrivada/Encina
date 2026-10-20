@@ -26,11 +26,11 @@ namespace Encina.Security.ABAC;
 ///     {
 ///         Category = AttributeCategory.Subject,
 ///         AttributeId = "department",
-///         DataType = "string"
+///         DataType = XACMLDataTypes.String
 ///     },
 ///     AttributeValue = new AttributeValue
 ///     {
-///         DataType = "string",
+///         DataType = XACMLDataTypes.String,
 ///         Value = "Finance"
 ///     }
 /// };

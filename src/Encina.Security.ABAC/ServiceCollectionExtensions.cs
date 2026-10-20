@@ -1,6 +1,7 @@
 using Encina.Caching;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.CombiningAlgorithms;
+using Encina.Security.ABAC.DecisionAudit;
 using Encina.Security.ABAC.EEL;
 using Encina.Security.ABAC.Evaluation;
 using Encina.Security.ABAC.Health;
@@ -10,7 +11,9 @@ using Encina.Security.ABAC.Providers;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Security.ABAC;
 
@@ -42,7 +45,12 @@ public static class ServiceCollectionExtensions
     /// <item><description><see cref="IPolicyInformationPoint"/> → <see cref="DefaultPolicyInformationPoint"/> (Singleton)</description></item>
     /// <item><description><see cref="IAttributeProvider"/> → <see cref="DefaultAttributeProvider"/> (Scoped)</description></item>
     /// <item><description><see cref="ObligationExecutor"/> (Scoped)</description></item>
-    /// <item><description><see cref="ABACPipelineBehavior{TRequest, TResponse}"/> (Transient)</description></item>
+    /// <item><description><see cref="ABACPipelineBehavior{TRequest, TResponse}"/> (Transient, added with <c>TryAddEnumerable</c>)</description></item>
+    /// <item><description>The request identity model (<see cref="RequestIdentityServiceCollectionExtensions.AddEncinaRequestIdentity"/>): the PEP reads the caller from <see cref="IRequestContext.Identity"/></description></item>
+    /// <item><description>A startup check that logs Warning 9085 once when the final options set <see cref="ABACEnforcementMode.Disabled"/></description></item>
+    /// <item><description><see cref="ABACDecisionAuditHealthState"/> (Singleton): the outcome of the last decision audit write, read by <see cref="Health.ABACHealthCheck"/></description></item>
+    /// <item><description><see cref="IABACDecisionRecorder"/> → <see cref="AuditStoreABACDecisionRecorder"/> (Singleton) and <see cref="IABACDecisionAuditReader"/> (Scoped): both resolve the application's <c>IOperationAuditStore</c> per call and stay idle until <see cref="ABACDecisionAuditOptions.Enabled"/> is set</description></item>
+    /// <item><description>An options validator that checks the decision audit bounds when the application starts</description></item>
     /// </list>
     /// <para>
     /// <b>Default registrations:</b>
@@ -56,14 +64,25 @@ public static class ServiceCollectionExtensions
     /// <see cref="PersistentPolicyAdministrationPoint"/> is registered instead of the default
     /// <see cref="InMemoryPolicyAdministrationPoint"/>. This requires an <see cref="IPolicyStore"/>
     /// to be registered by a database provider package. Policy changes are attributed to the
-    /// principal of the request context and refused without one; when an <c>IAuditStore</c> is
+    /// authenticated caller of the request context (<see cref="IRequestContext.Identity"/>: a user,
+    /// or a declared service identity) and refused without one; when an <c>IOperationAuditStore</c> is
     /// registered (scoped or not), each change is audited fail closed in its own DI scope.
+    /// </para>
+    /// <para>
+    /// <b>Decision audit:</b>
+    /// The recorder, the reader, the options validator and a startup check are always registered; they
+    /// stay idle until <see cref="ABACOptions.DecisionAudit"/> is enabled (for example with
+    /// <see cref="ABACOptions.AuditDecisions"/>). This method never registers an
+    /// <c>IOperationAuditStore</c>: the application or a provider package does. With the audit enabled and
+    /// no store the host fails at start. Call <c>AddEncinaSecurity</c> before this method so the security
+    /// behavior runs before the ABAC one; the execution-order contract is tracked in #2184.
     /// </para>
     /// <para>
     /// <b>Policy seeding:</b>
     /// When <see cref="ABACOptions.SeedPolicySets"/> or <see cref="ABACOptions.SeedPolicies"/>
     /// contain entries, an <see cref="ABACPolicySeedingHostedService"/> is registered to seed
-    /// them into the PAP at application startup.
+    /// them into the PAP at application startup, under the built-in service identity
+    /// <c>service:encina.abac.policy-seeding</c>, which this method declares.
     /// </para>
     /// </remarks>
     /// <example>
@@ -107,10 +126,29 @@ public static class ServiceCollectionExtensions
         var optionsInstance = new ABACOptions();
         configure?.Invoke(optionsInstance);
 
-        // Register the ambient request context accessor so the persistent PAP can resolve the
-        // current actor for audit entries even when the host only wires Encina.Security.ABAC,
-        // without the core mediator's AddEncina() (TryAdd is idempotent when both are called).
-        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+        // The request identity model (ambient accessor, scope factory, service identity catalog):
+        // the persistent PAP reads the actor from it and policy seeding runs under a built-in
+        // service identity, even when the host wires only Encina.Security.ABAC (idempotent).
+        services.AddEncinaRequestIdentity();
+
+        // Warning 9085 once at startup when the final options disable enforcement.
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ABACEnforcementModeStartupCheck>());
+
+        // ── Decision audit (always registered, idle until DecisionAudit.Enabled) ──
+        // The Policy Enforcement Point needs both for every closed request type; the gate is the
+        // resolved IOptions<ABACOptions>, never the temporary options instance above.
+        // Nothing here takes IOperationAuditStore at construction: the recorder resolves it per
+        // write in its own scope and the reader per call, so an application without a store builds.
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IABACDecisionRecorder, AuditStoreABACDecisionRecorder>();
+        services.TryAddSingleton<ABACDecisionAuditHealthState>();
+        services.TryAddScoped<IABACDecisionAuditReader, ABACDecisionAuditReader>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ABACOptions>, ABACOptionsValidator>());
+        services.AddOptions<ABACOptions>().ValidateOnStart();
+
+        // Checks the audit prerequisites at host start: a no-op while DecisionAudit.Enabled is false,
+        // a Critical log and a failed start when it is on without an IOperationAuditStore.
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ABACDecisionAuditStartupCheck>());
 
         // ── Function registry (Singleton) ──────────────────────────
         // Register with factory so custom functions from options are loaded
@@ -139,7 +177,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ObligationExecutor>();
 
         // ── Pipeline Behavior (Transient) ──────────────────────────
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(ABACPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(ABACPipelineBehavior<,>)));
 
         // ── EEL Compiler (Singleton — IDisposable, disposed by container) ──
         services.TryAddSingleton<EELCompiler>();
@@ -167,6 +205,8 @@ public static class ServiceCollectionExtensions
     {
         if (optionsInstance.SeedPolicySets.Count > 0 || optionsInstance.SeedPolicies.Count > 0)
         {
+            // Seeding runs under this built-in service identity (declaration is idempotent).
+            services.AddBuiltInServiceIdentity(ABACPolicySeedingHostedService.ServiceIdentityName);
             services.AddHostedService<ABACPolicySeedingHostedService>();
         }
 
@@ -247,11 +287,11 @@ public static class ServiceCollectionExtensions
         }
 
         // The PAP takes the scope factory: it opens one scope per operation and resolves the
-        // IPolicyStore (wrapped by ResolvePolicyStore) from it, and the IAuditStore from a second scope.
+        // IPolicyStore (wrapped by ResolvePolicyStore) from it, and the IOperationAuditStore from a second scope.
         return new PersistentPolicyAdministrationPoint(
             sp.GetRequiredService<IServiceScopeFactory>(),
             sp.GetRequiredService<ILogger<PersistentPolicyAdministrationPoint>>(),
-            sp.GetService<IRequestContextAccessor>(),
+            sp.GetRequiredService<IRequestContextAccessor>(),
             sp.GetService<TimeProvider>(),
             ResolvePolicyStore);
     }

@@ -1,0 +1,15 @@
+Verdict: PASS
+## Verified claims
+Worktree `D:\Proyectos\Encina\.claude\worktrees\wia-9`, branch `audit/9`, HEAD `9926cb99`; `65826302` is an ancestor of HEAD (`git merge-base --is-ancestor`, exit 0). Delta mode (`rules-2026-10`, rules (a) and (b) only), narrow re-run after one correction.
+
+- Scope of change: `git diff --stat 5781c44b HEAD` (the previously verified HEAD) touches only `artifacts/knowledge/stages/` (`.authors.json`, `docs.md`, `verification.md`); the working tree is clean. `git diff --unified=0` of `docs.md` shows a single changed line, line 5. So the earlier measured and source-checked claims (ADR-024 chart cells, front matter count of 8 of 33 ADRs, 649 hits in 79 files, duplicates, Test-Path table, draft headers, per-path deletions in `tests.md`) are carried forward unchanged.
+- Correction (docs, `docs.md:5`): the sentence now reads "the project was deleted by the test consolidation commit `65826302`, 2026-01-16; ADR-024 removed only `src/Encina.Dapper.Sqlite`". Re-run `git log --diff-filter=D --format="%h %ad %s" --date=short -- tests/Encina.Dapper.Sqlite.ContractTests` returns only `65826302 2026-01-16 refactor: Consolidate tests and update documentation`. `22494a97` (ADR-024) deleted only the `src` package and touched 0 paths under `tests/Encina.Dapper.Sqlite.*` (verified last pass). Holds.
+- No remaining false attribution in the named artifacts: `Select-String` over `docs.md`, `tests.md` and `remediation.md` for `ADR-024|22494a97` and for `deleted by ADR|ADR-024 deleted|removed by ADR-024|ADR-024 removed` finds only `docs.md:5` (the corrected, true sentence), `tests.md:15` (`src\Encina.Dapper.Sqlite` deleted by `22494a97`, true), `tests.md:34` and `:45` (ADR-024 records the datetime incompatibility; the lesson explaining the earlier error), and the docs table rows about the ADR page itself. `remediation.md` mentions ADR-024 only in the two draft file names.
+- Drafts: 2 files in `D:\Proyectos\Encina\artifacts\knowledge\remediation\9-delta-2026-10-*.md` (counted by command, unchanged since the last pass). Grepping both for `ADR-024|deleted|65826302|22494a97` finds ADR-024 only as the subject page (titles, the chart, front matter); neither draft attributes any deletion to ADR-024. Their headers equal the `technical_debt.md` headers (compared by command last pass; the drafts are unchanged), both titles are `[DEBT]`, and the milestone is empty.
+
+## Corrections
+(none)
+
+## Lessons for the pipeline
+- When a wrong attribution ("deleted by <ADR>") is corrected in one stage, grep every stage file and the drafts for the ADR number and the subject path in the same pass, with `git diff --unified=0` to confirm only the named line changed. The fix held in all three stage files and both drafts this time.
+- Non-blocking observation for the orchestrator: `artifacts/knowledge/delta-scope.md` (not a pipeline stage; it was generated before the stages) still says at line 31 that the test file "was deleted when ADR-024 removed the SQLite provider". That is the source of the original misattribution and is not corrected there; it lives outside the audited artifacts and does not block this verdict.

@@ -1,5 +1,6 @@
 using Encina.FluentValidation;
 using Encina.Testing.FsCheck;
+using Encina.Testing.Identity;
 using Encina.Testing.Shouldly;
 using Encina.Validation;
 using FluentValidation;
@@ -64,7 +65,7 @@ public sealed class ValidationInvariantProperties : PropertyTestBase
 
     private static IRequestContext CreateContext()
     {
-        return RequestContext.Create(Guid.NewGuid().ToString());
+        return RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), Guid.NewGuid().ToString());
     }
 
     /// <summary>

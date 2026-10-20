@@ -80,6 +80,12 @@ public static class EncinaErrorCodes
     /// <summary>Request post-processor canceled execution.</summary>
     public const string PostProcessorCancelled = "encina.postprocessor.cancelled";
 
+    /// <summary>
+    /// Request post-commit processor canceled execution after the transaction committed, so the request's data
+    /// was already persisted (unlike <see cref="PostProcessorCancelled"/>, which is raised before any commit).
+    /// </summary>
+    public const string PostCommitProcessorCancelled = "encina.postcommitprocessor.cancelled";
+
     /// <summary>Request post-processor threw an exception.</summary>
     public const string PostProcessorException = "encina.postprocessor.exception";
 
@@ -88,8 +94,20 @@ public static class EncinaErrorCodes
 
     // ── Authorization ──────────────────────────────────────────────
 
-    /// <summary>User is not authenticated when authentication is required.</summary>
+    /// <summary>
+    /// Prefix shared by every <c>encina.authorization.*</c> code. Host adapters map an unknown code
+    /// with this prefix to a denial (403) instead of an internal error.
+    /// </summary>
+    public const string AuthorizationPrefix = "encina.authorization.";
+
+    /// <summary>The caller is not allowed to perform the operation (a denial, not a missing identity).</summary>
     public const string AuthorizationUnauthorized = "encina.authorization.unauthorized";
+
+    /// <summary>
+    /// The request needs authorization and its request identity is not authenticated (anonymous,
+    /// including a token that the claim map turned into the anonymous identity).
+    /// </summary>
+    public const string AuthorizationUnauthenticated = "encina.authorization.unauthenticated";
 
     /// <summary>Authenticated user does not have sufficient permissions.</summary>
     public const string AuthorizationForbidden = "encina.authorization.forbidden";
@@ -99,4 +117,16 @@ public static class EncinaErrorCodes
 
     /// <summary>Resource-based authorization denied access to the requested resource.</summary>
     public const string AuthorizationResourceDenied = "encina.authorization.resource_denied";
+
+    /// <summary>An authenticated user lacks the required role(s) (a denial, 403).</summary>
+    public const string AuthorizationInsufficientRoles = "encina.authorization.insufficient_roles";
+
+    /// <summary>An authenticated user lacks the required permission(s) (a denial, 403).</summary>
+    public const string AuthorizationPermissionDenied = "encina.authorization.permission_denied";
+
+    /// <summary>An authenticated user lacks a required claim or its claim has the wrong value (a denial, 403).</summary>
+    public const string AuthorizationClaimMissing = "encina.authorization.claim_missing";
+
+    /// <summary>An authenticated user is not the owner of the requested resource (a denial, 403).</summary>
+    public const string AuthorizationNotOwner = "encina.authorization.not_owner";
 }

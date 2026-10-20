@@ -27,6 +27,11 @@ public static class EncinaArbitraryProvider
     public static Arbitrary<IRequestContext> RequestContext => EncinaArbitraries.RequestContext();
 
     /// <summary>
+    /// Provides an arbitrary for <see cref="global::Encina.RequestIdentity"/> (anonymous and user identities only).
+    /// </summary>
+    public static Arbitrary<RequestIdentity> RequestIdentity => EncinaArbitraries.RequestIdentity();
+
+    /// <summary>
     /// Provides an arbitrary for <see cref="IOutboxMessage"/>.
     /// </summary>
     public static Arbitrary<IOutboxMessage> OutboxMessage => EncinaArbitraries.OutboxMessage();

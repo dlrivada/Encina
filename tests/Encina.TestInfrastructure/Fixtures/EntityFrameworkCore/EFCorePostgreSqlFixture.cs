@@ -8,7 +8,9 @@ namespace Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 /// </summary>
 public sealed class EFCorePostgreSqlFixture : IEFCoreFixture
 {
-    private readonly PostgreSqlFixture _postgreSqlFixture = new();
+    // The EF model creates the DeadLetterMessages table itself, with the unique source key and indexes of
+    // DeadLetterMessageConfiguration; the base schema must not create it first.
+    private readonly PostgreSqlFixture _postgreSqlFixture = new(includeDeadLetterSchema: false);
 
     /// <inheritdoc />
     public bool IsAvailable => _postgreSqlFixture.IsAvailable;

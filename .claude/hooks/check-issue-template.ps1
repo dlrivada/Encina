@@ -28,8 +28,21 @@
 # here; see docs/knowledge/issues/1410.md).
 #
 # Only the arguments of the `gh issue create` statement itself are read, never the rest of the command line.
-# Allowed without checks: issues on another repository (-R/--repo), --web, --template, calls without a body,
-# and titles or bodies that come from a variable or a subexpression without visible headers. Headers inside
+# Allowed without the body checks: issues on another repository (-R/--repo), --web, --template, calls without a
+# body, and titles or bodies that come from a variable or a subexpression without visible headers.
+#
+# #1926: before any of those body skips, every `gh issue create` on this repository (except --web/--template)
+# must also carry an existing, open --milestone (the last one counts; list cached 12 hours, a failed lookup
+# denies), the template's default label and one priority label (an [EPIC] needs none); labels compare
+# case-insensitively. A variable title is judged on the milestone only
+# (its prefix is unknown, so the label checks are skipped and the message says so).
+#
+# #2470 (decision register): the needs-decision label marks a Dilemma, a choice with two or more valid options
+# that only the maintainer can make. An issue created (`gh issue create`) or edited (`gh issue edit
+# --add-label`) with that label must contain a Dilemma entry marker in its body (a line starting with "Dilemma", or a "Class: Dilemma" field; negated text does not count; the Dilemma entries of the
+# decision register; the decision-extractor agent produces them). For an edit without --body/--body-file the
+# existing body is read with `gh api` (ENCINA_ISSUE_GH overrides gh in tests); when it cannot be read the call
+# is denied. A variable label, title or body cannot be read and is not judged. Headers inside
 # fenced code blocks do not count. Exit code 2 blocks the call and shows stderr to Claude; any failure of the
 # hook itself allows the call.
 
@@ -38,57 +51,23 @@ $ErrorActionPreference = 'Stop'
 try {
     . (Join-Path $PSScriptRoot '_command-text.ps1')
 
-    $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    . (Join-Path $PSScriptRoot '_read-payload.ps1')
+    $payload = Read-HookStdin | ConvertFrom-Json
     $command = [string]$payload.tool_input.command
     if ([string]::IsNullOrWhiteSpace($command) -or $command -notmatch '\bgh\b') { exit 0 }
 
     $cwd = if ($payload.cwd) { [string]$payload.cwd } else { (Get-Location).Path }
     $statements = Split-CommandStatements -Text $command -Bash:($payload.tool_name -eq 'Bash')
 
-    # The repository root: walked up from $StartDir looking for .github/ISSUE_TEMPLATE, falling back to
-    # $env:CLAUDE_PROJECT_DIR. Shared by the template lookup and the #1410 local-draft evidence check below,
-    # so both agree on the same root (and the same set of candidate ledger/remediation locations).
-    function Get-RepoRoot([string]$StartDir) {
-        $root = $StartDir
-        while ($root -and -not (Test-Path -LiteralPath (Join-Path $root '.github/ISSUE_TEMPLATE'))) {
-            $parent = Split-Path -Parent $root
-            if (-not $parent -or $parent -eq $root) { $root = $null; break }
-            $root = $parent
-        }
-        if (-not $root -and $env:CLAUDE_PROJECT_DIR) { $root = $env:CLAUDE_PROJECT_DIR }
-        return $root
-    }
-
-    function Get-Templates([string]$Root) {
-        $templates = @{}
-        if (-not $Root) { return $templates }
-        $dir = Join-Path $Root '.github/ISSUE_TEMPLATE'
-        if (-not (Test-Path -LiteralPath $dir)) { return $templates }
-        foreach ($file in Get-ChildItem -LiteralPath $dir -Filter '*.md') {
-            $lines = Get-Content -LiteralPath $file.FullName
-            $titleLine = $lines | Where-Object { $_ -match '^title:\s*"(\[[A-Z]+\])' } | Select-Object -First 1
-            if (-not $titleLine) { continue }
-            $prefix = [regex]::Match($titleLine, '\[[A-Z]+\]').Value
-            $templates[$prefix] = @{ File = $file.Name; Headers = @($lines | Where-Object { $_ -cmatch '^## \S' } | ForEach-Object { $_.Trim() }) }
-        }
-        return $templates
-    }
-
-    function Get-Headers([string]$Body) {
-        $headers = [System.Collections.Generic.List[string]]::new()
-        $fence = $null
-        foreach ($line in ($Body -split "`r?`n")) {
-            if ($fence) {
-                if ($line -match "^\s{0,3}$([regex]::Escape($fence.Char)){$($fence.Length),}\s*$") { $fence = $null }
-                continue
-            }
-            # CommonMark: a backtick fence's info string cannot contain a backtick (that line is inline code).
-            $open = [regex]::Match($line, '^\s{0,3}(?<f>`{3,}|~{3,})(?<info>.*)$')
-            if ($open.Success -and $open.Groups['f'].Value[0] -eq '`' -and $open.Groups['info'].Value.Contains('`')) { $open = [System.Text.RegularExpressions.Match]::Empty }
-            if ($open.Success) { $fence = @{ Char = [string]$open.Groups['f'].Value[0]; Length = $open.Groups['f'].Value.Length }; continue }
-            if ($line -cmatch '^## \S') { $headers.Add($line.Trim()) }
-        }
-        return , $headers
+    # Get-RepoRoot, Get-Templates and Get-Headers live in _issue-templates.ps1 (shared with the #1980 spawn
+    # gate). Get-RepoRoot is also used by the #1410 local-draft evidence check below, so both agree on the same
+    # root (and the same set of candidate ledger/remediation locations).
+    # A missing or broken helper denies (it must not fall into the outer catch, which allows): without it no
+    # `gh issue create` could be checked at all.
+    try { . (Join-Path $PSScriptRoot '_issue-templates.ps1') }
+    catch {
+        [Console]::Error.WriteLine("Blocked: check-issue-template.ps1 could not load its shared helper _issue-templates.ps1 ($($_.Exception.Message)), so this gh command cannot be checked. Restore the file.")
+        exit 2
     }
 
     # #1410 local-draft evidence -----------------------------------------------------------------------------
@@ -251,13 +230,170 @@ try {
         return (Test-RemediationDraftMatch $Body $TitleText $Root $since)
     }
 
+    # #1926 issue hygiene: an issue is opened complete or not at all (maintainer rule of 2026-10-06). A
+    # `gh issue create` needs an existing milestone, the template's default label and one priority label
+    # (an [EPIC] needs no priority). Project membership is not checked here (the active token cannot write
+    # projects); no workflow writes to the project: the caller adds the issue (open-issue skill step 4,
+    # open-remediation.ps1) and tools/ai/issues/check-project-membership.ps1 finds the ones still missing.
+    $PriorityLabels = @('p0-mandatory', 'p1-recommended', 'p2-post-1.0')
+
+    # Milestone titles of the repository: a cache file (ENCINA_MILESTONES_CACHE, default
+    # <root>/artifacts/issue-hygiene/milestones.txt) younger than 12 hours, otherwise a `gh api` lookup that
+    # refreshes it. Returns $null when the lookup fails, so the caller denies instead of allowing.
+    # Every milestone, open and closed, as `<state><TAB><title>` lines (a line without a tab is an open title).
+    function Get-MilestoneLines([string]$Root) {
+        $cache = if ($env:ENCINA_MILESTONES_CACHE) { $env:ENCINA_MILESTONES_CACHE } elseif ($Root) { Join-Path $Root 'artifacts/issue-hygiene/milestones.txt' } else { $null }
+        if ($cache -and (Test-Path -LiteralPath $cache) -and ((Get-Item -LiteralPath $cache).LastWriteTimeUtc -gt (Get-Date).ToUniversalTime().AddHours(-12))) {
+            $cached = @(Get-Content -LiteralPath $cache -Encoding utf8 | Where-Object { $_.Trim() })
+            if ($cached.Count -gt 0) { return $cached }
+        }
+        $gh = if ($env:ENCINA_ISSUE_GH) { $env:ENCINA_ISSUE_GH } else { 'gh' }
+        $saved = [Console]::OutputEncoding
+        try {
+            [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+            $lines = @(& $gh api 'repos/dlrivada/Encina/milestones?state=all&per_page=100' --paginate --jq '.[] | .state + "\t" + .title' 2>$null | ForEach-Object { "$_".TrimEnd() } | Where-Object { $_ })
+            if ($LASTEXITCODE -ne 0 -or $lines.Count -eq 0) { return $null }
+        }
+        catch { return $null }
+        finally { [Console]::OutputEncoding = $saved }
+        if ($cache) {
+            try {
+                New-Item -ItemType Directory -Force (Split-Path -Parent $cache) | Out-Null
+                [IO.File]::WriteAllLines($cache, [string[]]$lines, [Text.UTF8Encoding]::new($false))
+            }
+            catch { }
+        }
+        return $lines
+    }
+
+    # Returns the list of missing metadata items for one `gh issue create` statement (empty when complete).
+    # A dynamic (variable) milestone or label value cannot be read, so it counts as present. With a variable
+    # title ($TitleKnown false) the prefix is unknown: the default-label, needs-decision and priority checks
+    # are skipped (an [EPIC] title is exempt from the priority and a variable title may be one); the milestone
+    # is still checked. Labels compare case-insensitively like GitHub; the last --milestone wins like gh.
+    function Get-MissingMetadata($Options, [bool]$TitleKnown, [string]$Prefix, [string]$DefaultLabel, [string]$Root) {
+        $missing = [System.Collections.Generic.List[string]]::new()
+
+        # No @() around Get-OptionValues: it already returns the array wrapped (`, @(...)`), and @() would nest it.
+        $milestone = Get-OptionValues $Options @('-m', '--milestone')
+        if ($milestone.Count -eq 0) { $missing.Add('--milestone "<existing milestone title>"') }
+        elseif (-not $milestone[-1].Dynamic) {
+            $wanted = [string]$milestone[-1].Value
+            $lines = Get-MilestoneLines $Root
+            if ($null -eq $lines) { $missing.Add("milestone '$wanted' could not be verified (the milestone lookup failed: run gh auth status, or seed artifacts/issue-hygiene/milestones.txt)") }
+            else {
+                $state = $null
+                foreach ($line in $lines) {
+                    $parts = $line -split "`t", 2
+                    $t = if ($parts.Count -eq 2) { $parts[1] } else { $parts[0] }
+                    if ($t -ceq $wanted) { $state = if ($parts.Count -eq 2) { $parts[0] } else { 'open' }; break }
+                }
+                if ($null -eq $state) { $missing.Add("milestone '$wanted' is not an existing milestone title (gh api repos/dlrivada/Encina/milestones; a milestone created in the last 12 hours needs artifacts/issue-hygiene/milestones.txt deleted to refresh the cache)") }
+                elseif ($state -ne 'open') { $missing.Add("milestone '$wanted' is closed; pick an open milestone") }
+            }
+        }
+
+        $labelValues = Get-OptionValues $Options @('-l', '--label')
+        if ($TitleKnown -and -not ($labelValues | Where-Object { $_.Dynamic })) {
+            $labels = @($labelValues | ForEach-Object { $_.Value -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+            if ($DefaultLabel -and $labels -inotcontains $DefaultLabel) { $missing.Add("--label $DefaultLabel (the default label of the $Prefix template)") }
+            # #2470: needs-decision is no longer mandatory for a [FEATURE] or [SPIKE] (the 2026-10-06 rule produced
+            # 105 labels with 0 real dilemmas). It is allowed only when the body names a Dilemma (see
+            # Test-HasNeedsDecision and Test-HasDilemma), so it marks only choices the maintainer must make.
+            if ($Prefix -ne '[EPIC]' -and -not ($labels | Where-Object { $PriorityLabels -icontains $_ })) { $missing.Add("one priority label: --label $($PriorityLabels -join ' | ')") }
+        }
+        return , $missing
+    }
+
     $LocalDraftMessage = "Blocked: gh issue create's --body-file must show it was drafted by the free local model, or by the local-ai-standin agent while the local model is switched off (CLAUDE.md, Model routing; AGENTS.md Sec.2/local-ai-task skill) -- one of: a first line '<!-- local-draft: <path> -->' where <path> exists and a local-ai/ledger.csv or local-ai/standin-ledger.csv row from the last 24 hours names it as outFile; the body file itself being such a recent ledger outFile; or a first line '<!-- local-draft: none, reason: <text> -->' opt-out with a non-empty reason (logged to artifacts/local-ai/opt-outs.log). See the local-ai-task skill."
 
     # Options of `gh issue create` that take a value, so their values are never parsed as options.
     $issueValueOptions = @('-t', '--title', '-b', '--body', '-F', '--body-file', '-R', '--repo', '-l', '--label', '-m', '--milestone', '-a', '--assignee', '-p', '--project', '-T', '--template', '--recover')
 
+    # #2470: needs-decision marks a Dilemma. $LabelOptions are the option values that carry labels; true when
+    # one of the static values names needs-decision (a variable value cannot be read and is skipped, but a
+    # literal needs-decision next to it is still judged).
+    function Test-HasNeedsDecision($LabelOptions) {
+        $labels = @($LabelOptions | Where-Object { -not $_.Dynamic } | ForEach-Object { $_.Value -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        return ($labels -icontains 'needs-decision')
+    }
+
+    # A Dilemma entry marker: a line that starts with "Dilemma" (optionally after a list bullet, heading or bold,
+    # e.g. "Dilemma D1: ...", "### Dilemma 1") or a "Class: Dilemma" field. Negated text ("No Dilemma", "no
+    # Dilemma here") and "Dilemma: none" do not match.
+    function Test-HasDilemma([string]$Body) {
+        if ($Body -match '(?im)^\s*(?:[-*+>]\s+|#{1,6}\s+)*\**\s*class\s*\**\s*:\s*\**\s*dilemma\b') { return $true }
+        return ($Body -match '(?im)^\s*(?:[-*+>]\s+|#{1,6}\s+)*\**\s*dilemma\b(?!\s*:?\s*(?:none|n/?a|no)\b)')
+    }
+
+    $DilemmaMessage = "Blocked: an issue labelled needs-decision must contain a Dilemma entry marker in its body: a line starting with 'Dilemma' (for example 'Dilemma D1: ...') or a 'Class: Dilemma' field; the word inside a sentence, 'No Dilemma' or 'Dilemma: none' do not count (#2470). The label marks a choice with two or more valid options, each better in a concrete named scenario, that only the maintainer can make; a settled or trivial choice carries its citation instead and no label. Run the decision-extractor agent on the issue (.claude/agents/decision-extractor.md), keep only the Dilemma entries in the body (a 'Dilemma D<n>' entry with the options and the scenario in which each wins) and retry; when no Dilemma exists, drop the needs-decision label."
+
+    # Options of `gh issue edit` that take a value.
+    $editValueOptions = @('-t', '--title', '-b', '--body', '-F', '--body-file', '-R', '--repo', '--add-label', '--remove-label', '-m', '--milestone', '--add-assignee', '--remove-assignee', '--add-project', '--remove-project')
+
     foreach ($tokens in $statements) {
         $cwd = Update-WorkingDirectory $tokens $cwd
+
+        # #2470: `gh issue edit <n> --add-label needs-decision` is judged on the body the issue will have: the
+        # --body/--body-file of this call, otherwise the existing body read from GitHub.
+        $editAt = Find-Invocation $tokens 'gh' @('issue', 'edit')
+        if ($editAt -ge 0) {
+            $eOptions = Get-CommandOptions $tokens $editAt $editValueOptions
+            $eRepo = Get-OptionValues $eOptions @('-R', '--repo')
+            if ($eRepo.Count -gt 0 -and ($eRepo[0].Dynamic -or $eRepo[0].Value -ne 'dlrivada/Encina')) { continue }
+            if (-not (Test-HasNeedsDecision (Get-OptionValues $eOptions @('--add-label')))) { continue }
+
+            $eBody = $null
+            $eBodyFile = Get-OptionValues $eOptions @('-F', '--body-file')
+            $eBodyInline = Get-OptionValues $eOptions @('-b', '--body')
+            if ($eBodyFile.Count -gt 0) {
+                if ($eBodyFile[0].Dynamic -or $eBodyFile[0].Value -eq '-') { continue }
+                $ePath = Resolve-CommandPath $eBodyFile[0].Value $cwd
+                try {
+                    if (-not $ePath) { throw [IO.FileNotFoundException]::new('body file') }
+                    $eBody = [IO.File]::ReadAllText($ePath)
+                }
+                catch {
+                    [Console]::Error.WriteLine("Blocked: the --body-file '$($eBodyFile[0].Value)' cannot be read to check the needs-decision label (#2470: it needs a Dilemma entry in the body). Create the file in an earlier call, or pass the body inline.")
+                    exit 2
+                }
+            }
+            elseif ($eBodyInline.Count -gt 0) {
+                if ($eBodyInline[0].Dynamic) { continue }
+                $eBody = $eBodyInline[0].Value
+            }
+            else {
+                $number = $null
+                for ($k = $editAt; $k -lt $tokens.Count; $k++) {
+                    if (-not $tokens[$k].Dynamic -and $tokens[$k].Value -match '^(?:.*/issues/)?(\d+)$') { $number = $Matches[1]; break }
+                    if ($tokens[$k].Value.StartsWith('-') -and $editValueOptions -ccontains $tokens[$k].Value) { $k++ }
+                }
+                if (-not $number) {
+                    [Console]::Error.WriteLine("Blocked: the issue number of this gh issue edit is a variable, so the body cannot be read to check the needs-decision label (#2470: it needs a Dilemma entry in the body). Type the issue number literally, or pass the body in the same call with --body or --body-file.")
+                    exit 2
+                }
+                $gh =if ($env:ENCINA_ISSUE_GH) { $env:ENCINA_ISSUE_GH } else { 'gh' }
+                $saved = [Console]::OutputEncoding
+                try {
+                    [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+                    $existing = @(& $gh api "repos/dlrivada/Encina/issues/$number" --jq .body 2>$null)
+                    if ($LASTEXITCODE -ne 0) { $existing = $null }
+                }
+                catch { $existing = $null }
+                finally { [Console]::OutputEncoding = $saved }
+                if ($null -eq $existing) {
+                    [Console]::Error.WriteLine("Blocked: the body of issue #$number could not be read to check the needs-decision label (#2470: it needs a 'Dilemma' in the body). Retry, or pass the body in the same call with --body-file.")
+                    exit 2
+                }
+                $eBody = $existing -join "`n"
+            }
+            if (-not (Test-HasDilemma $eBody)) {
+                [Console]::Error.WriteLine($DilemmaMessage)
+                exit 2
+            }
+            continue
+        }
+
         $at = Find-Invocation $tokens 'gh' @('issue', 'create')
         if ($at -lt 0) { continue }
 
@@ -267,10 +403,53 @@ try {
         if (Test-OptionPresent $options @('-w', '--web', '-T', '--template')) { continue }
 
         $title = Get-OptionValues $options @('-t', '--title')
-        if ($title.Count -eq 0 -or $title[0].Dynamic) { continue }
-        $titleText = $title[0].Value
+        if ($title.Count -eq 0) { continue }
 
         $root = Get-RepoRoot $cwd
+
+        # #1926: the metadata check needs no body, so it runs before any skip below (a variable title or body
+        # file, `--body-file -`, no body). A variable title is judged on milestone and priority only.
+        $metaPrefix = ''; $metaDefaultLabel = ''
+        if (-not $title[0].Dynamic) {
+            $metaPrefix = [regex]::Match($title[0].Value, '^\[[A-Z]+\]').Value
+            $metaTemplates = Get-Templates $root
+            if ($metaPrefix -and $metaTemplates.ContainsKey($metaPrefix)) { $metaDefaultLabel = $metaTemplates[$metaPrefix].DefaultLabel }
+        }
+        $missingMeta = Get-MissingMetadata $options (-not $title[0].Dynamic) $metaPrefix $metaDefaultLabel $root
+        if ($missingMeta.Count -gt 0) {
+            $dynamicNote = if ($title[0].Dynamic) { ' The title is a variable, so the default-label and priority checks were not judged; type the title literally to have them checked.' } else { '' }
+            [Console]::Error.WriteLine("Blocked: an issue is opened complete or not at all (#1926). Missing: $($missingMeta -join ' | '). Add them to the gh issue create call; the open-issue skill has the full checklist (project add, parent, blocked-by follow the create).$dynamicNote")
+            exit 2
+        }
+
+        if ($title[0].Dynamic) {
+            # #2470: a variable title does not hide the needs-decision check when the body is readable.
+            if (Test-HasNeedsDecision (Get-OptionValues $options @('-l', '--label'))) {
+                $dBody = $null
+                $dFile = Get-OptionValues $options @('-F', '--body-file')
+                $dInline = Get-OptionValues $options @('-b', '--body')
+                if ($dFile.Count -gt 0) {
+                    if (-not $dFile[0].Dynamic -and $dFile[0].Value -ne '-') {
+                        $dPath = Resolve-CommandPath $dFile[0].Value $cwd
+                        try {
+                            if (-not $dPath) { throw [IO.FileNotFoundException]::new('body file') }
+                            $dBody = [IO.File]::ReadAllText($dPath)
+                        }
+                        catch {
+                            [Console]::Error.WriteLine("Blocked: the --body-file '$($dFile[0].Value)' cannot be read to check the needs-decision label (#2470: it needs a Dilemma entry in the body).")
+                            exit 2
+                        }
+                    }
+                }
+                elseif ($dInline.Count -gt 0 -and -not $dInline[0].Dynamic) { $dBody = $dInline[0].Value }
+                if ($null -ne $dBody -and -not (Test-HasDilemma $dBody)) {
+                    [Console]::Error.WriteLine($DilemmaMessage)
+                    exit 2
+                }
+            }
+            continue
+        }
+        $titleText = $title[0].Value
 
         $body = $null
         $bodyFile = Get-OptionValues $options @('-F', '--body-file')
@@ -278,7 +457,13 @@ try {
         if ($bodyFile.Count -gt 0) {
             if ($bodyFile[0].Dynamic -or $bodyFile[0].Value -eq '-') { continue }
             $path = Resolve-CommandPath $bodyFile[0].Value $cwd
-            if (-not $path) { continue }
+            if (-not $path) {
+                if (Test-HasNeedsDecision (Get-OptionValues $options @('-l', '--label'))) {
+                    [Console]::Error.WriteLine("Blocked: the --body-file '$($bodyFile[0].Value)' cannot be read to check the needs-decision label (#2470: it needs a Dilemma entry in the body). Create the file in an earlier call.")
+                    exit 2
+                }
+                continue
+            }
             $body = [IO.File]::ReadAllText($path)
             if (-not (Test-LocalDraftCompliance $path $body $titleText $root)) {
                 [Console]::Error.WriteLine($LocalDraftMessage)
@@ -290,6 +475,12 @@ try {
             if ($bodyInline[0].Dynamic -and (Get-Headers $body).Count -eq 0) { continue }
         }
         else { continue }
+
+        # #2470: needs-decision only with a Dilemma in the body.
+        if ((Test-HasNeedsDecision (Get-OptionValues $options @('-l', '--label'))) -and -not (Test-HasDilemma $body)) {
+            [Console]::Error.WriteLine($DilemmaMessage)
+            exit 2
+        }
 
         $templates = Get-Templates $root
         if ($templates.Count -eq 0) { continue }

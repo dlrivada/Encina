@@ -212,6 +212,20 @@ CREATE TABLE OutboxMessages (
 
 See [.github/scripts/](./Scripts/) folder for complete schema definitions.
 
+## Dead Letter Queue
+
+Enable the persistent dead letter queue with `UseDeadLetterQueue` and run `Scripts/029_CreateDeadLetterMessagesTable.sql`:
+
+```csharp
+services.AddEncinaDapper(connectionString, config =>
+{
+    config.UseDeadLetterQueue = true;
+    config.DeadLetterOptions.RetentionPeriod = TimeSpan.FromDays(14);
+});
+```
+
+`DeadLetterStoreDapper` needs a connection that derives from `DbConnection` (`NpgsqlConnection` does). Identifiers are quoted PascalCase (`"DeadLetterMessages"`), timestamps are `TIMESTAMPTZ`, and PostgreSQL compares strings case-sensitively, so no collation is needed. Guide: [How to enable the persistent dead letter queue](../../docs/features/dead-letter-queue.md).
+
 ## Advanced Configuration
 
 ### Custom Table Names

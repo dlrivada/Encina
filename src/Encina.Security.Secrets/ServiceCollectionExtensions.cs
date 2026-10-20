@@ -314,47 +314,57 @@ public static class ServiceCollectionExtensions
     {
         var options = sp.GetRequiredService<IOptions<SecretsOptions>>().Value;
 
-        // Layer 0: Resilience (innermost decorator, closest to provider)
-        if (options.EnableResilience)
-        {
-            reader = new ResilientSecretReaderDecorator(
+        reader = WrapWithResilience(sp, reader, options);
+        reader = WrapWithCaching(sp, reader, options);
+        return WrapWithAuditing(sp, reader, options);
+    }
+
+    // Layer 0: Resilience (innermost decorator, closest to provider)
+    private static ISecretReader WrapWithResilience(IServiceProvider sp, ISecretReader reader, SecretsOptions options) =>
+        options.EnableResilience
+            ? new ResilientSecretReaderDecorator(
                 reader,
                 sp.GetRequiredService<ResiliencePipeline>(),
                 options.Resilience,
                 sp.GetRequiredService<ILogger<ResilientSecretReaderDecorator>>(),
-                sp.GetService<SecretsMetrics>());
-        }
+                sp.GetService<SecretsMetrics>())
+            : reader;
 
-        // Layer 1: Caching (wraps resilience — cache hits bypass retries, stale fallback on error)
-        if (options.EnableCaching)
-        {
-            reader = new CachingSecretReaderDecorator(
+    // Layer 1: Caching (wraps resilience — cache hits bypass retries, stale fallback on error)
+    private static ISecretReader WrapWithCaching(IServiceProvider sp, ISecretReader reader, SecretsOptions options) =>
+        options.EnableCaching
+            ? new CachingSecretReaderDecorator(
                 reader,
                 sp.GetRequiredService<ICacheProvider>(),
                 options.Caching,
                 options,
                 sp.GetRequiredService<ILogger<CachingSecretReaderDecorator>>(),
-                sp.GetService<SecretsMetrics>());
-        }
+                sp.GetService<SecretsMetrics>())
+            : reader;
 
-        // Layer 2: Auditing (outer decorator, wraps caching)
-        if (options.EnableAccessAuditing)
+    // Layer 2: Auditing (outer decorator, wraps caching)
+    private static ISecretReader WrapWithAuditing(IServiceProvider sp, ISecretReader reader, SecretsOptions options)
+    {
+        if (!options.EnableAccessAuditing)
         {
-            var auditStore = sp.GetService<IAuditStore>();
-            var requestContextAccessor = sp.GetService<IRequestContextAccessor>();
-
-            if (auditStore is not null && requestContextAccessor is not null)
-            {
-                reader = new AuditedSecretReaderDecorator(
-                    reader,
-                    auditStore,
-                    requestContextAccessor,
-                    options,
-                    sp.GetRequiredService<ILogger<AuditedSecretReaderDecorator>>());
-            }
+            return reader;
         }
 
-        return reader;
+        // The reader is a singleton and database audit stores are scoped, so the store is never
+        // resolved here: the decorator takes the scope factory and resolves it once per audit write.
+        // IServiceProviderIsService answers "is it registered" without creating the service.
+        var registration = sp.GetService<IServiceProviderIsService>();
+        var requestContextAccessor = sp.GetService<IRequestContextAccessor>();
+
+        return registration?.IsService(typeof(IOperationAuditStore)) == true && requestContextAccessor is not null
+            ? new AuditedSecretReaderDecorator(
+                reader,
+                sp.GetRequiredService<IServiceScopeFactory>(),
+                requestContextAccessor,
+                options,
+                sp.GetRequiredService<ILogger<AuditedSecretReaderDecorator>>(),
+                sp.GetService<TimeProvider>())
+            : reader;
     }
 
     /// <summary>

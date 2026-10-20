@@ -32,8 +32,8 @@ public enum ABACEnforcementMode
     /// </para>
     /// <para>
     /// Warn relaxes only definite verdicts: a Deny, a required policy that returns Deny or
-    /// NotApplicable or is not found (<c>abac.policy_not_found</c>), and a required condition that
-    /// evaluates to <c>false</c> (<c>abac.condition_not_met</c>). These are logged and the request
+    /// NotApplicable or is not found (<c>encina.authorization.abac_policy_not_found</c>), and a required condition that
+    /// evaluates to <c>false</c> (<c>encina.authorization.abac_condition_not_met</c>). These are logged and the request
     /// proceeds.
     /// </para>
     /// <para>
@@ -41,7 +41,7 @@ public enum ABACEnforcementMode
     /// request should be allowed: an Indeterminate result (<c>abac.indeterminate</c>: a condition
     /// that does not compile or throws, a policy store failure, a PDP error), an exception from the
     /// attribute provider or the PDP (<c>abac.evaluation_failed</c>), and a mandatory obligation
-    /// that cannot be fulfilled (<c>abac.obligation_failed</c>).
+    /// that cannot be fulfilled (<c>encina.authorization.abac_obligation_failed</c>).
     /// </para>
     /// </remarks>
     Warn,

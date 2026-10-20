@@ -78,6 +78,34 @@ public sealed class AzureServiceBusGuardTests
     }
 
     [Fact]
+    public async Task SendToQueueAsync_NullQueueName_FallsBackToTheConfiguredDefaultQueue()
+    {
+        var client = Substitute.For<ServiceBusClient>();
+        client.CreateSender(Arg.Any<string>()).Returns(Substitute.For<ServiceBusSender>());
+        var sut = new AzureServiceBusMessagePublisher(client,
+            NullLogger<AzureServiceBusMessagePublisher>.Instance,
+            Options.Create(new EncinaAzureServiceBusOptions { DefaultQueueName = "default-q" }));
+
+        await sut.SendToQueueAsync(new object(), queueName: null, messageId: null);
+
+        client.Received(1).CreateSender("default-q");
+    }
+
+    [Fact]
+    public async Task PublishToTopicAsync_NullTopicName_FallsBackToTheConfiguredDefaultTopic()
+    {
+        var client = Substitute.For<ServiceBusClient>();
+        client.CreateSender(Arg.Any<string>()).Returns(Substitute.For<ServiceBusSender>());
+        var sut = new AzureServiceBusMessagePublisher(client,
+            NullLogger<AzureServiceBusMessagePublisher>.Instance,
+            Options.Create(new EncinaAzureServiceBusOptions { DefaultTopicName = "default-t" }));
+
+        await sut.PublishToTopicAsync(new object(), topicName: null, messageId: null);
+
+        client.Received(1).CreateSender("default-t");
+    }
+
+    [Fact]
     public async Task PublishToTopicAsync_NullMessage_Throws()
     {
         await using var client = CreateMockClient();

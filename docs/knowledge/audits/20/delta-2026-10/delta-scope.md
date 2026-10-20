@@ -1,0 +1,158 @@
+# Delta scope of issue #20 (set rules-2026-10)
+
+Reused from the original audit; do not re-derive it. Rules in this delta: see tools/ai/audit/pipeline-delta.json.
+
+**Scope source:** the published record and the published audit result (docs/knowledge/audits/issue-20.md) only: the original audit has no published stage files.
+
+## Knowledge record (docs/knowledge/issues/20.md)
+
+```yaml
+schema: 1
+nav_exclude: true
+issue: 20
+title: "[REFACTOR] Consolidate duplicated code in Dapper/ADO providers"
+closed: 2025-12-24
+state_reason: completed
+outcome: delivered
+type: refactor
+area: messaging
+review: verified
+packages:
+  - Encina.Messaging
+  - Encina.Dapper.SqlServer
+  - Encina.Dapper.PostgreSQL
+  - Encina.Dapper.MySQL
+  - Encina.ADO.SqlServer
+  - Encina.ADO.PostgreSQL
+  - Encina.ADO.MySQL
+prs:
+linked_prs:
+knowledge:
+  - kind: decision
+    statement: "Log.cs and TransactionPipelineBehavior.cs, duplicated across the Dapper and ADO provider packages (including the since-removed Oracle and SQLite providers), were centralized into Encina.Messaging as MessagingLog.cs and TransactionPipelineBehavior.cs, with MessagingServiceCollectionExtensions as the DI helper; 20 duplicated files (10 Log.cs and 10 TransactionPipelineBehavior.cs) were deleted."
+    current: yes
+    sources:
+      - "quote: \"Created centralized MessagingLog.cs and TransactionPipelineBehavior.cs in Encina.Messaging\" (closing comment, https://github.com/dlrivada/Encina/issues/20#issuecomment-3689517233, 2025-12-24)"
+      - "quote: \"Remove 20 duplicated files (Log.cs and TransactionPipelineBehavior.cs)\" (commit 760e27c, https://github.com/dlrivada/Encina/commit/760e27c04d6d444974c2125c72d87047a7256049, 2025-12-24)"
+    destinations:
+      - kind: executable-rule
+        status: done
+        target: "src/Encina.Messaging/TransactionPipelineBehavior.cs"
+  - kind: decision
+    statement: "A SonarCloud suppression for csharpsquid:S2077 (SQL injection) was added for the Dapper and ADO store files, justified by SqlIdentifierValidator.ValidateTableName() validating table names and every data value being parameterized; SqlIdentifierValidator still exists and is used across about 90 files in the Dapper and ADO packages, but the suppression is scoped to whole packages instead of single files."
+    current: yes
+    sources:
+      - "quote: \"config: suppress S2077 SQL injection false positives in store files\" (commit e1c68db, https://github.com/dlrivada/Encina/commit/e1c68db, 2025-12-24)"
+    destinations:
+      - kind: executable-rule
+        status: done
+        target: ".github/workflows/sonarcloud.yml"
+      - kind: backlog
+        status: planned
+        target: "#1341"
+  - kind: rejected-alternative
+    statement: "Consolidating the SQL scripts and Store implementations across providers was rejected as intentional duplication because of dialect-specific requirements (TOP vs LIMIT, GETUTCDATE vs NOW, backticks vs brackets), and full consolidation of ServiceCollectionExtensions was scoped down: providers kept their own file, which shrank to a call into the shared helper."
+    current: yes
+    sources:
+      - "paraphrase: issue #20 body lists SQL scripts, Store implementations and entity classes as lower-priority intentional duplication (https://github.com/dlrivada/Encina/issues/20, 2025-12-24)"
+      - "paraphrase: the commit diff shows ServiceCollectionExtensions.cs shrinking in every provider, not disappearing (https://github.com/dlrivada/Encina/commit/760e27c04d6d444974c2125c72d87047a7256049, 2025-12-24)"
+    destinations:
+      - kind: adr
+        status: planned
+        target: "#1336"
+  - kind: rule
+    statement: "Shared behavioral logic (logging, transaction pipeline) belongs in Encina.Messaging; provider-specific SQL dialects and entity mappings stay in their own packages."
+    current: yes
+    sources:
+      - "paraphrase: the issue's Proposed Structure keeps stores, entities and scripts in the provider packages (https://github.com/dlrivada/Encina/issues/20, 2025-12-24)"
+    destinations:
+      - kind: docs
+        status: planned
+        target: "#1336"
+  - kind: gotcha
+    statement: "A centralization refactor that moves a class does not move its logging, tracing and DI-test obligations with it: the shared TransactionPipelineBehavior has no logging and no tracing relative to its EF Core sibling, and no ValidateOnBuild DI test covers its IDbConnection dependency for the Dapper and ADO providers."
+    current: yes
+    sources:
+      - "paraphrase: the SPEC-003 audit of #20 compared the moved behavior with the EF Core one and searched the Dapper and ADO tests for a DI proof (https://github.com/dlrivada/Encina/issues/1342, 2026-09-25)"
+    destinations:
+      - kind: backlog
+        status: planned
+        target: "#1342"
+  - kind: gotcha
+    statement: "The closing comment's 'duplication reduced from ~11% to 1.7%' cannot be re-measured (no archived SonarCloud report), and commit 760e27c itself claims a more modest '~11% to ~8%'; a percentage in a closing comment is not evidence unless the report is attached or archived (the second occurrence after #12)."
+    current: yes
+    sources:
+      - "quote: \"Code duplication reduced from ~11% to 1.7%\" (https://github.com/dlrivada/Encina/issues/20#issuecomment-3689517233, 2025-12-24)"
+      - "quote: \"Reduces code duplication from ~11% to ~8% (SonarCloud CPD)\" (https://github.com/dlrivada/Encina/commit/760e27c04d6d444974c2125c72d87047a7256049, 2025-12-24)"
+    destinations:
+      - kind: backlog
+        status: planned
+        target: "#1335"
+  - kind: gotcha
+    statement: "Commit 19f2402 (S6444 ReDoS regex timeouts in Encina.Caching.Hybrid, Encina.Caching.Memory, Encina.GuardClauses and Encina.SignalR) rode along in the same closing comment but is unrelated to the issue's scope: it touched no Dapper or ADO package."
+    current: no
+    sources:
+      - "paraphrase: git show --stat of the commit lists only caching, GuardClauses, SignalR files and sonarcloud.yml (https://github.com/dlrivada/Encina/commit/19f2402, 2025-12-24)"
+    destinations:
+      - kind: none
+        status: done
+remediation:
+  - 1340
+  - 1341
+  - 1342
+audit:
+  checklist: 1
+  date: 2026-09-25
+  verdict: findings-tracked
+  record: "docs/knowledge/audits/issue-20.md"
+```
+
+## Where the knowledge lives (record)
+
+- The shared-logic and provider-specific split is in `src/Encina.Messaging/`; `AGENTS.md` section 3 ("Provider coherence") states only the general principle, and the specific split is to be documented by #1336 (open).
+- The S2077 suppression lives in `.github/workflows/sonarcloud.yml`, scoped per package (#1341, open).
+- The accepted store duplication has no ADR yet (#1336, open).
+
+## Audit result (docs/knowledge/audits/issue-20.md)
+
+# SPEC-003 audit — issue #20 ("[REFACTOR] Consolidate duplicated code in Dapper/ADO providers")
+
+Scope: `src/Encina.Messaging/TransactionPipelineBehavior.cs`, `src/Encina.Messaging/MessagingLog.cs`,
+`.github/workflows/sonarcloud.yml` (S2077/S1523 entries), `src/Encina.Messaging/SqlIdentifierValidator.cs`
+and its 91 call sites in `src/Encina.Dapper.*` and `src/Encina.ADO.*`, plus the guard/unit/contract tests
+for `TransactionPipelineBehavior`. Oracle and SQLite providers touched by commit 760e27c were later removed
+under ADR-009/ADR-024 and are not audited (removed-code path).
+
+| AUD item | Result | Evidence |
+|---|---|---|
+| Rollback on Left honored | **Pass** | `TransactionPipelineBehavior.cs:89-91` — `result.Match(Right: Commit, Left: Rollback)`; also rolls back on `OperationCanceledException` (:95-98) and any `Exception` (:100-104). |
+| Errors not swallowed | **Pass** | `EncinaErrors.FromException("transaction.failed", ex)` returned as `Left` (line 103); exception is rethrown for `OperationCanceledException` (line 98) so cancellation is not reported as success. |
+| `TimeProvider` for time-dependent behavior | **N/A** | The behavior reads no wall-clock time; nothing to inject. |
+| `EncinaError.Message` never reaches logs/tags | **Pass (for this file)** | `TransactionPipelineBehavior.cs` calls no logging and passes only the exception object to `FromException`, never a message string, to the caller. `MessagingLog`'s own outbox call sites (`OutboxBatchProcessor.cs:189,213`) pass error codes/exception type names, not `.Message`. The sibling EF Core file's leak (`TransactionPipelineBehavior.cs:120` in `Encina.EntityFrameworkCore`) is a different file, already tracked by open issue #1328 — not this issue's scope. |
+| Async DB calls with `CancellationToken` | **Pass** | `dbConnection.OpenAsync(cancellationToken)` and `BeginTransactionAsync(cancellationToken)` used when the connection is a `DbConnection` (lines 73, 82); commit/rollback deliberately use `CancellationToken.None` per the class's own XML remarks, so cleanup isn't canceled — correct per #1036's fix (already in history, `git log` shows commit `7bf3f259`). |
+| Registration completeness (DI test with `ValidateOnBuild`) | **Fail** | No `ValidateOnBuild`/`ValidateScopes` test found under `tests/**/*Dapper*/**/*.cs` or `tests/**/*ADO*/**/*.cs` for `TransactionPipelineBehavior`'s `IDbConnection` dependency. See remediation draft `20-transactionpipelinebehavior-missing-logging-tracing-di-test.md`. |
+| Structured logging (cross-cutting #3) | **Fail** | `MessagingLog.cs:203-231` declares `TransactionStarted`/`TransactionCommitted`/`TransactionRolledBack` (EventIds 2834-2836) with zero call sites in `src/Encina.Messaging`. The behavior has no `ILogger` dependency at all. |
+| OpenTelemetry (cross-cutting #2) | **Fail** | No `ActivitySource`/`Activity` usage anywhere in `TransactionPipelineBehavior.cs`; no linked issue defers it. |
+| EventId range compliance | **Pass** | EventIds 2818-2836 and 2958-2962 in `MessagingLog.cs` all fall inside `EventIdRanges.Messaging = (2800, 2999)` (`src/Encina/Diagnostics/EventIdRanges.cs`). |
+| PublicAPI tracked | **Pass (spot check)** | Commit 760e27c updated `PublicAPI.Unshipped.txt` in all 10 then-existing provider packages (listed in `git show --stat`); `TransactionPipelineBehavior<TRequest,TResponse>` and `MessagingLog` are present in `src/Encina.Messaging/PublicAPI.Shipped.txt` today (shipped, consistent with the class being in production since Dec 2025). |
+| XML docs | **Pass** | `TransactionPipelineBehavior.cs` has full `<summary>`/`<remarks>`/`<example>` docs (lines 7-39); `MessagingLog.cs` methods each have `<summary>` (and `<remarks>` where a message-leak risk needed explaining, e.g. lines 170-174, 240-243, 264-267). |
+| Fail-closed defaults | **N/A** | Not a compliance/security gate; nothing to fail closed. |
+| Secrets in options | **N/A** | No options class in scope. |
+| 10-provider matrix | **Pass** | The shared behavior is consumed identically by all 6 currently-shipped Dapper/ADO providers (SqlServer, PostgreSQL, MySQL × 2); EF Core and MongoDB use their own transaction mechanisms by design (documented provider coherence pattern). |
+| Docs/README accuracy | **N/A** | No package README section specifically documents `TransactionPipelineBehavior`'s internals; general usage is covered by the class's own XML `<example>`. Not flagged as a gap since this is an internal pipeline behavior, not a user-facing README topic. |
+| S2077 suppression justification | **Partial** | `SqlIdentifierValidator` is genuinely used across 91 files and the sampled store files (Dapper/ADO SqlServer) build SQL only from validated or constant identifiers — no live exploit found. But the suppression's `resourceKey` in `sonarcloud.yml:69-72,135-136` is package-wide, not file-scoped, so it is broader than its own justification and would silently cover a future unvalidated file. See remediation draft `20-s2077-suppression-too-broad.md`. |
+| S6444 regex timeout (commit 19f2402) | **N/A to issue #20** | Confirmed unrelated to Dapper/ADO providers; it touched `Encina.Caching.Hybrid`, `Encina.Caching.Memory`, `Encina.GuardClauses`, `Encina.SignalR`. Audited separately would be out of scope for this issue's audit unit. |
+| Test type coverage (manifest) | **Pass, with a debt gap** | `Encina.Messaging` manifest requires unit(70)/guard(20)/contract(15)/property(15). `TransactionPipelineBehavior` has: unit tests (`tests/Encina.UnitTests/Messaging/Behaviors/TransactionPipelineBehaviorTests.cs`, full guard + commit/rollback/dispose matrix), contract tests (`tests/Encina.ContractTests/Messaging/TransactionPipelineBehaviorContractTests.cs`), and guard tests — but the guard tests are duplicated six times across per-provider folders instead of relying on the one shared unit test, with inconsistent depth (3 files test all 4 guards, 3 test only 1). No coverage run was executed (all applicable flags already have passing tests per file inventory); the duplication itself is the finding. See remediation draft `20-redundant-transactionpipelinebehavior-guard-tests.md`. |
+| Multi-tenancy / module isolation / audit trail / idempotency / distributed locks / transactions (remaining cross-cutting functions) | **N/A** | `TransactionPipelineBehavior` IS the transactions cross-cutting integration point (function #8) for Dapper/ADO — satisfied by design. The other functions (tenancy, module isolation, audit, idempotency, locks) do not apply to a generic transaction wrapper; they apply to the requests it wraps, which are audited by their own issues. |
+
+## Specialist passes
+
+- **adversarial-reviewer** (foreground, Sonnet): ran against the scope above with the issue's goal and today's CLAUDE.md standards. Findings consolidated into this table and into the three remediation drafts; its finding about the EF Core leak was cross-checked against open issues and found to be already tracked by #1328 (excluded from new drafts).
+- **docs-reviewer**: skipped — this is an internal pipeline behavior with no dedicated docs page or README section describing it; XML docs were reviewed directly above (Pass).
+- **Second reviewer pass focused on tests**: not run as a separate spawn — the scope is small (two files plus their tests) and the single adversarial-reviewer pass already covered guard/unit/contract test quality and found the duplication documented above; a second pass was judged to have low marginal value for this issue's size.
+
+## Verdict
+
+Outcome: **delivered**, with three real gaps introduced by the consolidation itself (missing logging/tracing on the moved class, an over-broad CI suppression, and undeleted duplicate test files) and one already-tracked, out-of-scope leak in a sibling package (#1328). No blocker found in the code this issue actually delivered.
+
+

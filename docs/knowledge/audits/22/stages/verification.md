@@ -1,0 +1,13 @@
+Verdict: PASS
+## Verified claims
+- archivist: the corrected closing time holds. `gh issue view 22 --json state,createdAt,closedAt` gives created 2025-12-24T11:31:36Z, closed 11:52:23Z, which is about 21 minutes, as `stages/archivist.md` now says. #22 is CLOSED. I re-ran `gh issue view 37` and it is CLOSED with the identical title. The other archivist claims were verified on the previous pass and the stage text did not change in them: 2b50a1ec touched only `.claude/CLAUDE.md`, `ROADMAP.md` and `docs/history/2025-12.md`; 957093c2 delivered the eight `src/Encina.Marten/Versioning/` files; `src/Encina.EventStoreDB` does not exist. The knowledge record `issues/22.md` is unchanged (`outcome: duplicate`, `duplicate_of: 37`, `current: no`, destination `none`, empty `remediation:`). `git merge-base --is-ancestor 957093c2 HEAD` in wia-22 exits 0.
+- tests: `## Findings` is now exactly `- none`. The informational gaps (EventUpcasterBase 0%, the two low guard rates) sit in their own section, `## Informational (not findings)`, and are handed to #37's audit. The per-file figures are identical to the ones I measured on the previous pass with my own `verify-unit` and `verify-guard` coverage runs (unit 68 passed; ConfigureMartenEventVersioning 100%, EventUpcasterRegistry 98.2%, EventVersioningOptions 100%, LambdaEventUpcaster 100%, EventUpcasterBase 0%; guard 25 passed; EventUpcasterRegistry 50.9%, LambdaEventUpcaster 50%, the rest 0%). Because the figures did not change and the code under test did not change, I did not re-run the coverage.
+- code and docs: no change since the previous pass. Both state "- none" and rest on the empty diff, which was confirmed.
+- remediation: `stages/remediation.md` says there are no findings and no drafts. No `22-*` file exists in `artifacts\knowledge\remediation\` in the worktree or in the main checkout. A Grep for numbered "N. **Severity**" paragraphs across `stages/*.md` finds 0. This matches code (0), tests (0), docs (0) and the archivist, so every finding (none) is accounted for. The stage's lesson about the "- none" plus trailing prose parse is consistent with what tests.md now contains.
+- cross-stage count: findings 0 in code, 0 in tests, 0 in docs; drafts 0; remediation lines 0.
+
+## Corrections
+
+
+## Lessons for the pipeline
+- Both corrections from the previous FAIL (a draft built from a "- none" Findings section plus trailing prose, and a duration written from memory) were fixed by re-running only the named stages. The re-verification could stay narrow: recompute the duration from the timestamps, list the draft directory in both the worktree and the main checkout, and count the numbered findings with a command.

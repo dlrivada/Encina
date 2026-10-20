@@ -294,6 +294,29 @@ public sealed class ServiceCollectionExtensionsReadWriteTests
         replicaSelector.ShouldBeNull();
     }
 
+    [Fact]
+    public void AddEncinaDapper_CalledTwice_RegistersTheBehaviorAndTheHealthCheckOnce()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        Action<MessagingConfiguration> configure = config =>
+        {
+            config.UseReadWriteSeparation = true;
+            config.ReadWriteSeparationOptions.WriteConnectionString = WriteConnectionString;
+        };
+
+        // Act
+        services.AddEncinaDapper(_ => new Microsoft.Data.SqlClient.SqlConnection("Server=localhost;"), configure);
+        services.AddEncinaDapper(_ => new Microsoft.Data.SqlClient.SqlConnection("Server=localhost;"), configure);
+
+        // Assert
+        services.Count(d => d.ServiceType == typeof(IPipelineBehavior<,>)
+                && d.ImplementationType == typeof(ReadWriteRoutingPipelineBehavior<,>)).ShouldBe(1);
+        services.Count(d => d.ServiceType == typeof(IEncinaHealthCheck)
+                && d.ImplementationType == typeof(ReadWriteSeparationHealthCheck)).ShouldBe(1);
+        services.Count(d => d.ServiceType == typeof(IReadWriteConnectionFactory)).ShouldBe(1);
+    }
+
     /// <summary>
     /// Test command for pipeline behavior resolution.
     /// </summary>

@@ -62,7 +62,24 @@
           },
           {
             "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-target-issue-template.ps1\"",
+            "timeout": 30
+          },
+          {
+            "type": "command",
             "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/no-background-specialists.ps1\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/board-event-reminder.ps1\"",
             "timeout": 15
           }
         ]

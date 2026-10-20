@@ -1,7 +1,7 @@
 {
   "package": "Encina",
-  "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 296,
+  "generated": "2026-10-06T08:27:25Z",
+  "totalFiles": 328,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -66,7 +66,13 @@
     "Abstractions/IPipelineBehavior.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interfaces have no implementation to test",
+      "targets": { "unit": 0, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "XML documentation change only; no executable lines.",
+        "guard": "XML documentation change only; no executable lines.",
+        "contract": "XML documentation change only; no executable lines."
+      }
     },
     "Abstractions/IRequest.cs": {
       "defaultTests": [],
@@ -79,7 +85,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 0, "guard": 0 },
+      "justifications": {
+        "unit": "Interface with no coverable lines; its implementation RequestContext carries the targets.",
+        "guard": "Interface with no coverable lines; its implementation RequestContext carries the targets."
+      }
     },
     "Abstractions/IRequestContextAccessor.cs": {
       "defaultTests": [],
@@ -94,15 +105,49 @@
       "defaultRule": "*Handler.cs",
       "reason": "Handler with mockeable dependencies"
     },
+    "Abstractions/IRequestErrorProcessor.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test",
+      "targets": { "unit": 0, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "Interface declaration only, no executable lines; the pipeline builder does not invoke it until a later phase of #2184, and the interface shape is asserted by ProcessorContracts.",
+        "guard": "Interface declaration only, no executable lines; the pipeline builder does not invoke it until a later phase of #2184, and the interface shape is asserted by ProcessorContracts.",
+        "contract": "Interface declaration only, no executable lines; the pipeline builder does not invoke it until a later phase of #2184, and the interface shape is asserted by ProcessorContracts."
+      }
+    },
+    "Abstractions/IRequestPostCommitProcessor.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test",
+      "targets": { "unit": 0, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "Interface declaration only, no executable lines; the pipeline builder does not invoke it until a later phase of #2184, and the interface shape is asserted by ProcessorContracts.",
+        "guard": "Interface declaration only, no executable lines; the pipeline builder does not invoke it until a later phase of #2184, and the interface shape is asserted by ProcessorContracts.",
+        "contract": "Interface declaration only, no executable lines; the pipeline builder does not invoke it until a later phase of #2184, and the interface shape is asserted by ProcessorContracts."
+      }
+    },
     "Abstractions/IRequestPostProcessor.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interfaces have no implementation to test",
+      "targets": { "unit": 0, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "Interface declaration only, no executable lines; its semantics are exercised through ProcessorSemanticsTests and ProcessorContracts.",
+        "guard": "Interface declaration only, no executable lines; its semantics are exercised through ProcessorSemanticsTests and ProcessorContracts.",
+        "contract": "Interface declaration only, no executable lines; its semantics are exercised through ProcessorSemanticsTests and ProcessorContracts."
+      }
     },
     "Abstractions/IRequestPreProcessor.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interfaces have no implementation to test",
+      "targets": { "unit": 0, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "Interface declaration only, no executable lines; its semantics are exercised through ProcessorSemanticsTests and ProcessorContracts.",
+        "guard": "Interface declaration only, no executable lines; its semantics are exercised through ProcessorSemanticsTests and ProcessorContracts.",
+        "contract": "Interface declaration only, no executable lines; its semantics are exercised through ProcessorSemanticsTests and ProcessorContracts."
+      }
     },
     "Abstractions/IStreamPipelineBehavior.cs": {
       "defaultTests": [
@@ -111,7 +156,13 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 0, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "XML documentation change only; no executable lines.",
+        "guard": "XML documentation change only; no executable lines.",
+        "contract": "XML documentation change only; no executable lines."
+      }
     },
     "Abstractions/IStreamRequest.cs": {
       "defaultTests": [],
@@ -125,6 +176,17 @@
       ],
       "defaultRule": "*Handler.cs",
       "reason": "Handler with mockeable dependencies"
+    },
+    "Abstractions/MultiTenancyMarker.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Stateless marker type",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "A stateless marker type with no coverable lines; its registration is tested in Encina.Tenancy."
+      }
     },
     "Abstractions/RequestHandlerDelegate.cs": {
       "defaultTests": [
@@ -148,7 +210,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 90, "guard": 0 },
+      "justifications": {
+        "unit": "Security-critical explicit-context rule order and setter rule; unit tests drive every rule (measured 94%).",
+        "guard": "Internal static helper with no public argument guards; the null checks live in RequestContext.CopyOf and the dispatcher, so no guard test reaches this file."
+      }
+    },
+    "Core/ChainFacts.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Flags enum without executable code"
     },
     "Core/Encina.cs": {
       "defaultTests": [
@@ -156,7 +228,13 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 98, "guard": 44, "contract": 71 },
+      "justifications": {
+        "unit": "Send, publish and the request wrapper that resolves the order resolver are exercised by EncinaTests and StagedPipelineExecutionTests (measured 98%).",
+        "guard": "Guard tests exercise the argument validation of Send and Publish (measured 44%); the dispatch paths are covered by unit tests.",
+        "contract": "Contract tests dispatch requests through the wrapper (measured 71%); error and notification branches are covered by unit tests."
+      }
     },
     "Core/Encina.Stream.cs": {
       "defaultTests": [
@@ -168,10 +246,21 @@
     },
     "Core/EncinaConfiguration.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
+      "reason": "Registration-time configuration of discovery, behaviors, processors and pipeline stage declarations",
+      "targets": { "unit": 97, "guard": 71 },
+      "justifications": {
+        "unit": "Every stage-aware and stage-less overload, the interface checks, the declaration copy into the registry and the registrations are executed by PipelineStageConfigurationTests and AddEncinaServiceGraphTests (measured 97.0%); the three unreached lines are the abstract-type throw in AddStep (executed by the guard run), the null-candidate return of IsAssignableFromGeneric and its non-interface branch, which no caller in this file can reach because every call passes a generic interface and a non-null type.",
+        "guard": "PipelineStageConfigurationGuardTests and EncinaConfigurationGuardTests execute the null, abstract and wrong-interface checks of every overload (measured 71.0%); the remaining lines are the declaration, copy and registration code that only the unit run exercises."
+      }
+    },
+    "Core/IDecoratedServiceFactory.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
     },
     "Core/RequestContext.cs": {
       "defaultTests": [
@@ -179,7 +268,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 60 },
+      "justifications": {
+        "unit": "Security-critical identity liveness getter, copies and factories; unit tests drive every member (measured 100%).",
+        "guard": "The public factories and With* methods carry argument guards that the guard run exercises (measured 65%)."
+      }
     },
     "Core/RequestContextAccessor.cs": {
       "defaultTests": [
@@ -187,7 +281,12 @@
         "guard"
       ],
       "defaultRule": "*Accessor.cs",
-      "reason": "AsyncLocal-backed ambient IRequestContextAccessor implementation"
+      "reason": "AsyncLocal-backed ambient IRequestContextAccessor implementation",
+      "targets": { "unit": 95, "guard": 5 },
+      "justifications": {
+        "unit": "Holder chain, fact inheritance, issuer-aware reads and End are pure logic driven by the accessor lifetime tests (measured 98%).",
+        "guard": "Only Push and End carry null guards; the rest of the file is holder logic outside guard reach (measured 9%)."
+      }
     },
     "Core/RequestContextDispatchExtensions.cs": {
       "defaultTests": [
@@ -197,13 +296,24 @@
       "defaultRule": "*.cs",
       "reason": "Extension that tells a nested-dispatch context from an entry-point one"
     },
+    "Core/RequestOrigin.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Internal enum without executable code"
+    },
     "Core/ServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 96, "guard": 86, "contract": 92 },
+      "justifications": {
+        "unit": "AddEncina registration, the stage registry, snapshot, resolver and inspector registration, the scanned error and post-commit processors and the graph checks are exercised by AddEncinaServiceGraphTests and PipelineStageConfigurationTests (measured 96.9%); the registry-without-instance guard is covered by a unit test and a guard test.",
+        "guard": "Guard tests run AddEncina with its argument validation, the registration paths and the registry-without-instance guard (measured 86.5%).",
+        "contract": "Contract tests build providers through AddEncina and Send through the registered pipeline (measured 92.7%, previously described as 92%)."
+      }
     },
     "Core/StreamDispatcher.cs": {
       "defaultTests": [
@@ -211,7 +321,13 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 0, "contract": 76 },
+      "justifications": {
+        "unit": "Stream dispatch, the missing-handler path and the staged stream behaviors are exercised by StagedPipelineExecutionTests (measured 100%).",
+        "guard": "Guard tests never dispatch a stream; the stream entry point is validated in unit tests.",
+        "contract": "Contract tests stream a request through the handler wrapper (measured 76%); the missing-handler path is covered by unit tests."
+      }
     },
     "Database/ConnectionPoolStats.cs": {
       "defaultTests": [
@@ -251,6 +367,22 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "Diagnostics/ActivityStatusDescriptions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Public static helper; tested directly",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "Unit tests call every public status description directly and check each returned text.",
+        "guard": "Guard tests cover the argument checks of the helper; the remaining lines are driven by unit tests."
+      }
+    },
     "Diagnostics/ActivityTagNames.cs": {
       "defaultTests": [
         "unit",
@@ -279,7 +411,13 @@
         "unit"
       ],
       "defaultRule": "*EventIdRanges.cs",
-      "reason": "Constants with uniqueness invariants"
+      "reason": "Constants with uniqueness invariants",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "The EventId allocation architecture tests read every registered range (measured 100%)."
+      }
     },
     "Diagnostics/IEncinaMetrics.cs": {
       "defaultTests": [],
@@ -287,6 +425,14 @@
       "reason": "Interfaces have no implementation to test"
     },
     "Diagnostics/RedactedException.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "Diagnostics/RequestIdentityLog.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -316,7 +462,13 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 98, "guard": 92, "contract": 98 },
+      "justifications": {
+        "unit": "Handler, behavior and processor discovery and every scanner exclusion are exercised by the scanner unit tests and AddEncinaServiceGraphTests (measured 98.7%); the one unreached line is the ReflectionTypeLoadException fallback of GetLoadableTypes, which needs an assembly that cannot load all its types.",
+        "guard": "Guard tests execute the scan guard clause and the scan of the assembly (measured 92.3%); the lines that route handlers and notifications are covered by the unit and contract runs.",
+        "contract": "Contract tests assert the scanner discovers every pipeline behavior (measured 98.7%); the one unreached line is the ReflectionTypeLoadException fallback of GetLoadableTypes, which needs an assembly that cannot load all its types."
+      }
     },
     "Dispatchers/Strategies/INotificationDispatchStrategy.cs": {
       "defaultTests": [
@@ -363,19 +515,323 @@
         "unit"
       ],
       "defaultRule": "*ErrorCodes.cs",
-      "reason": "Error code constants"
+      "reason": "Error code constants",
+      "targets": { "unit": 0, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "The file holds only const strings, so it has no coverable lines.",
+        "guard": "The file holds only const strings, so it has no coverable lines.",
+        "contract": "The file holds only const strings, so it has no coverable lines."
+      }
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
       "defaultRule": "GlobalSuppressions.cs",
       "reason": "Only [SuppressMessage] attributes"
     },
+    "Identity/AnonymousMarker.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Internal enum without executable code"
+    },
+    "Identity/ClaimsRequestIdentityFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "*Factory.cs default; security-critical claim mapping (property test informational)"
+    },
+    "Identity/IdentityIssuer.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Scope issuer token: one-time binding and liveness (unit), null holder guard (guard)",
+      "targets": { "unit": 100, "guard": 15 },
+      "justifications": {
+        "unit": "Two members (IsLive, Bind), fully driven by binding and liveness tests.",
+        "guard": "Only the null-holder guard of Bind is guard-reachable (measured 20%)."
+      }
+    },
+    "Identity/IdentityKind.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Enum without executable code"
+    },
+    "Identity/IdentityScopeOptions.cs": {
+      "defaultTests": [
+        "unit",
+        "contract"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "Positional record without guards (guard not applicable); used by the scope factory contract",
+      "targets": { "unit": 100, "contract": 100 },
+      "justifications": {
+        "unit": "Positional record constructed by every scope test.",
+        "contract": "The scope factory contract constructs it with a tenant and the inbound opt-in."
+      }
+    },
+    "Identity/IInternalRequestContextScopeFactory.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Identity/InboundRequestInfo.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Inbound scope input record: ForCircuit guard and ToString (unit, guard); used by the scope factory contract",
+      "targets": { "unit": 100, "guard": 25, "contract": 60 },
+      "justifications": {
+        "unit": "Record, ForCircuit and ToString are driven by the inbound tests.",
+        "guard": "Only the ForCircuit correlation-id guard is guard-reachable (measured 27%).",
+        "contract": "The contract builds it for RunInboundAsync; ForCircuit and ToString are not part of the factory contract (measured 64%)."
+      }
+    },
+    "Identity/InboundRequestNormalizer.cs": {
+      "defaultTests": [
+        "unit",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Normalization of client-controlled inbound members, reached through RunInboundAsync (unit bounds tests, contract)",
+      "targets": { "unit": 90, "contract": 60 },
+      "justifications": {
+        "unit": "Every bound (ids 128, idempotency key 255, user agent 512, data region 16, IP parsing) has a unit test (measured 95%).",
+        "contract": "RunInboundAsync in the contract normalizes a principal-only request, which reaches the common paths (measured 63%)."
+      }
+    },
+    "Identity/IRequestContextScopeFactory.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Identity/IRequestIdentityFactory.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Identity/IServiceIdentityCatalog.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Identity/PersistedIdentitySource.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Enum without executable code"
+    },
+    "Identity/PersistedRequestIdentity.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Entity.cs",
+      "reason": "Positional record without guards; produced by RequestIdentity.ToPersisted"
+    },
+    "Identity/RequestContextAccessorRequirement.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Startup validator requiring the default accessor (unit via Host.StartAsync, guard)",
+      "targets": { "unit": 100, "guard": 25 },
+      "justifications": {
+        "unit": "Validated through Host.StartAsync with a custom accessor and through every AddEncina host.",
+        "guard": "Only the constructor null guard is guard-reachable (measured 29%)."
+      }
+    },
+    "Identity/RequestContextIdentityExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "UserId projection over IRequestContext.Identity"
+    },
+    "Identity/RequestContextScopeFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Security-critical scope factory: refusals, frame, logs (unit), argument guards (guard), invalidate-on-completion and no-work-on-Left contract",
+      "targets": { "unit": 95, "guard": 20, "contract": 80 },
+      "justifications": {
+        "unit": "Security-critical: every refusal, the frame, the logs 166-175 and the tenant rules have unit tests (measured 100%).",
+        "guard": "Constructor and member null guards only (measured 22%).",
+        "contract": "The contract drives every member, refusals and invalidation (measured 87%)."
+      }
+    },
+    "Identity/RequestContextScopeFactory.Restore.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "RunRestoredAsync validation and Internal/External rules (unit), guards, restored-identity contract",
+      "targets": { "unit": 95, "guard": 0, "contract": 70 },
+      "justifications": {
+        "unit": "Every validation branch and the Internal/External rules have unit tests (measured 100%).",
+        "guard": "The two null guards sit in the member body shared with the main file's guard run; the measured share is 3%, so no target is set.",
+        "contract": "The contract restores a user and refuses a reserved subject (measured 78%)."
+      }
+    },
+    "Identity/RequestContextScopeFactoryExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "Task-returning overloads of the scope factory (unit, guard, contract)",
+      "targets": { "unit": 100, "guard": 40, "contract": 40 },
+      "justifications": {
+        "unit": "All four overloads and the Unit adapter are driven by unit tests.",
+        "guard": "Factory and work null guards of every overload (measured 43%).",
+        "contract": "The contract uses the service overload with a refusal (measured 43%)."
+      }
+    },
+    "Identity/RequestIdentity.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Entity.cs",
+      "reason": "Identity value type: invariant and user-id rule (unit), argument guards (guard)",
+      "targets": { "unit": 95, "guard": 45 },
+      "justifications": {
+        "unit": "Identity value type: user-id rule, ForService, principal copies and IsSameAs are pure logic (measured 98%).",
+        "guard": "Guard tests reach ForUser, ForService, HasClaim and ToPersisted guards plus the constructor path they run (measured 54%)."
+      }
+    },
+    "Identity/RequestIdentityErrorCodes.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*ErrorCodes.cs",
+      "reason": "Error code constants"
+    },
+    "Identity/RequestIdentityErrors.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Errors.cs",
+      "reason": "Static error factory methods"
+    },
+    "Identity/RequestIdentityOptions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "*Options.cs default"
+    },
+    "Identity/RequestIdentityOptionsValidator.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*Validator.cs",
+      "reason": "*Validator.cs default; generated claim-type lists in property tests"
+    },
+    "Identity/RequestIdentityServiceCollectionExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "*Extensions.cs default; DI tests with ValidateOnBuild and ValidateScopes",
+      "targets": { "unit": 90, "guard": 30 },
+      "justifications": {
+        "unit": "Registration of the identity model, the validated option maps and the scope factory aliases is driven by the DI registration tests with ValidateOnBuild and ValidateScopes.",
+        "guard": "The null services guard and the invalid name guard of the public AddEncinaServiceIdentity are the only argument guards; the internal built-in overload is reached through unit tests."
+      }
+    },
+    "Identity/ServiceIdentityBuilder.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Builder.cs",
+      "reason": "Declaration builder: entries and blank-entry guards",
+      "targets": { "unit": 100, "guard": 30 },
+      "justifications": {
+        "unit": "Builder entries, blank-entry checks and Build are fully driven.",
+        "guard": "Null and blank entry guards (measured 35%)."
+      }
+    },
+    "Identity/ServiceIdentityCatalog.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Frozen catalog lookup (unit) and null guards (guard)",
+      "targets": { "unit": 100, "guard": 60 },
+      "justifications": {
+        "unit": "Lookup and construction are fully driven.",
+        "guard": "Constructor and TryGet null guards (measured 67%)."
+      }
+    },
+    "Identity/ServiceIdentityCatalogOptions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "*Options.cs default; idempotent declarations and conflicts",
+      "targets": { "unit": 100, "guard": 30 },
+      "justifications": {
+        "unit": "Declare (new, identical repeat, conflict) is fully driven.",
+        "guard": "Only the Declare null guard is guard-reachable (measured 36%)."
+      }
+    },
+    "Identity/ServiceIdentityCatalogOptionsValidator.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*Validator.cs",
+      "reason": "*Validator.cs default; generated declarations (name pattern, built-in prefix, wildcards) in property tests",
+      "targets": { "unit": 100, "guard": 20, "property": 75 },
+      "justifications": {
+        "unit": "Every rule (pattern, prefix, wildcard, conflicts, forbidden claim types) has a unit test.",
+        "guard": "Constructor and Validate null guards (measured 25%).",
+        "property": "Generated declarations drive the name, prefix and wildcard rules; the forbidden-claim rule is unit-only (measured 83%)."
+      }
+    },
+    "Identity/ServiceIdentityDefinition.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Immutable declaration built by ServiceIdentityBuilder; equivalence for idempotent declarations (unit); no public guards",
+      "targets": { "unit": 100 },
+      "justifications": {
+        "unit": "Construction, ToString and IsEquivalentTo are fully driven."
+      }
+    },
     "Modules/Diagnostics/ModuleActivitySource.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 80
+      },
+      "justifications": {
+        "unit": "Span start and complete methods are driven by the unit tests (measured 85.71%)."
+      }
     },
     "Modules/Diagnostics/ModuleLog.cs": {
       "defaultTests": [
@@ -417,7 +873,13 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 0, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "XML documentation change only; no executable lines.",
+        "guard": "XML documentation change only; no executable lines.",
+        "contract": "XML documentation change only; no executable lines."
+      }
     },
     "Modules/IModuleRegistry.cs": {
       "defaultTests": [],
@@ -518,7 +980,13 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 29, "contract": 0 },
+      "justifications": {
+        "unit": "Running the wrapped behavior, skipping for another module and the step identity are exercised by ModuleBehaviorAdapterStepTests and PipelineOrderResolverTests.",
+        "guard": "Guard tests cover the three constructor null guards (measured 29%); Handle has no argument validation and is covered by unit tests.",
+        "contract": "Contract tests register no module behaviors, so the adapter never runs there; its behavior is asserted in unit tests."
+      }
     },
     "Modules/ModuleBehaviorServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -589,7 +1057,13 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 85, "guard": 60, "contract": 65 },
+      "justifications": {
+        "unit": "Activity start, tagging and completion of the command pipeline are driven by the unit tests (measured 90.62%).",
+        "guard": "Guard tests reach the argument checks of the behavior (measured 67.19%).",
+        "contract": "The contract tests dispatch commands through the behavior (measured 68.75%)."
+      }
     },
     "Pipeline/Behaviors/CommandMetricsPipelineBehavior.cs": {
       "defaultTests": [
@@ -607,7 +1081,13 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 85, "guard": 60, "contract": 65 },
+      "justifications": {
+        "unit": "Activity start, tagging and completion of the query pipeline are driven by the unit tests (measured 90.62%).",
+        "guard": "Guard tests reach the argument checks of the behavior (measured 67.19%).",
+        "contract": "The contract tests dispatch queries through the behavior (measured 68.75%)."
+      }
     },
     "Pipeline/Behaviors/QueryMetricsPipelineBehavior.cs": {
       "defaultTests": [
@@ -642,13 +1122,258 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "Pipeline/Ordering/IEncinaPipelineInspector.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test",
+      "targets": { "unit": 0, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "Interface declaration only, no executable lines; EncinaPipelineInspector implements it.",
+        "guard": "Interface declaration only, no executable lines; EncinaPipelineInspector implements it.",
+        "contract": "Interface declaration only, no executable lines; EncinaPipelineInspector implements it."
+      }
+    },
+    "Pipeline/Ordering/EncinaPipelineInspector.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default implementation of the pipeline inspector: resolves steps in a scope and maps the resolver order to descriptions",
+      "targets": { "unit": 100, "guard": 13 },
+      "justifications": {
+        "unit": "Describe, DescribeStream, the empty-pipeline return, the asynchronous scope disposal and the constructor guards are executed by PipelineStageConfigurationTests (measured 100%, no unreachable lines).",
+        "guard": "Guard tests execute only the constructor null checks (measured 13.04% on the async inspector, 3 of 23 coverable lines); the other 20 lines need a resolved pipeline and are executed by the unit run."
+      }
+    },
+    "Pipeline/Ordering/EncinaBuiltInPipelineStepsAttribute.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Attribute.cs",
+      "reason": "no executable logic: an assembly marker attribute read by PipelineOrderValidator.IsBuiltIn, exercised by PipelineOrderValidatorTests",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "An assembly marker attribute with no executable lines; PipelineOrderValidatorTests read it through PipelineOrderValidator.IsBuiltIn."
+      }
+    },
+    "Pipeline/Ordering/PipelineStage.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Enum: no executable lines",
+      "targets": { "unit": 0, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "Enum declaration only, no executable lines; member values are asserted by PipelineStageContractTests.",
+        "guard": "Enum declaration only, no executable lines; member values are asserted by PipelineStageContractTests.",
+        "contract": "Enum declaration only, no executable lines; member values are asserted by PipelineStageContractTests."
+      }
+    },
+    "Pipeline/Ordering/PipelineStageAttribute.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Attribute.cs",
+      "reason": "Attribute value holder with pipeline stage metadata",
+      "targets": { "unit": 95, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "The constructor and both properties are executed by PipelineStageContractTests (measured 100%).",
+        "guard": "The only parameter is an enum, so there is no null check to guard.",
+        "contract": "The attribute is a plain value holder; its usage rules are asserted in unit tests."
+      }
+    },
+    "Pipeline/Ordering/PipelineStepDescription.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Record describing one pipeline step",
+      "targets": { "unit": 95, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "The record constructor, equality and with-expressions are executed by PipelineStageContractTests (measured 100%).",
+        "guard": "The record accepts any Type value and has no argument validation to guard in this phase.",
+        "contract": "A sealed record without behavior has no contract beyond its shape, asserted in unit tests."
+      }
+    },
     "Pipeline/PipelineBuilder.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": { "unit": 100, "guard": 68, "contract": 70 },
+      "justifications": {
+        "unit": "Every step-resolution, ordering, fast-path and cancellation branch is exercised by StagedPipelineExecutionTests, ProcessorSemanticsTests and EncinaTests (measured 100%).",
+        "guard": "Guard tests execute the constructor guards, Build and the handler-cancellation path without behaviors (measured 68%); processor wrapping is covered by unit tests.",
+        "contract": "Contract tests dispatch through the registered behaviors and processors (PipelineStageRegistrationContracts and ServiceRegistrationContracts), covering the empty pipeline, the error and post-commit processor steps and the step-resolution path (measured 70.5%); the cancellation branches of the handler and behavior executors are covered by unit tests."
+      }
+    },
+    "Pipeline/Ordering/IPipelineStepIdentity.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Step identity contract and attribute lookup helper",
+      "targets": { "unit": 100, "guard": 0, "contract": 100 },
+      "justifications": {
+        "unit": "The attribute lookup helper is executed by every resolver test (measured 100%).",
+        "guard": "The only member is a lookup helper whose parameter is a Type that callers never pass as null; there is nothing to guard.",
+        "contract": "Contract tests dispatch through the builders, which call the lookup helper (measured 100%)."
+      }
+    },
+    "Pipeline/Ordering/PipelineOrderResolver.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Cached per-pipeline step order resolver",
+      "targets": { "unit": 99, "guard": 47, "contract": 88 },
+      "justifications": {
+        "unit": "Order key, precedence, collapsing, caching, the concurrent first build, validation before caching and Warm are exercised by PipelineOrderResolverTests and PipelineOrderEnforcementTests (measured 99%); the one uncovered line is the early return of the double check inside the registration lock (line 143), reachable only by a race between two first builds.",
+        "guard": "Guard tests cover the constructor, Resolve and Warm null guards plus the empty pipeline; ordering logic is covered by unit tests (measured 47%).",
+        "contract": "Contract tests dispatch through the real AddEncina registrations and the hosted service, covering resolve, cache, Warm and validation (measured 88%); the uncovered lines are the Logger and Rules accessors, the post-commit/error processor default positions and kind ranks, the wrapped-identity branch and the cache-mismatch paths, which need processors or module adapters that contract tests do not register and unit tests cover."
+      }
+    },
+    "Pipeline/Ordering/PipelineStageRegistry.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Registration-time stage override store",
+      "targets": { "unit": 100, "guard": 100, "contract": 84 },
+      "justifications": {
+        "unit": "Set, TryGet, Seal, Conflicts, the rejection after the first pipeline and the open-generic key are executed by PipelineOrderResolverTests and PipelineOrderValidatorTests (measured 100%).",
+        "guard": "Set, Seal, the conflict recording and the null guards are executed by PipelineOrderingGuardTests (measured 100%).",
+        "contract": "Contract tests build the registry through AddEncina and drive it through the resolver and the hosted service (measured 84%); the rest is covered by unit and guard tests."
+      }
+    },
+    "Pipeline/Ordering/PipelineOrderValidator.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Fail-closed rules R1-R7 of the pipeline order",
+      "targets": { "unit": 100, "guard": 18, "contract": 91, "property": 81 },
+      "justifications": {
+        "unit": "Every rule R1, R3, R4, R5, R6 and R7 has a passing and a failing case in PipelineOrderValidatorTests (measured 100%).",
+        "guard": "Guard tests cover the null guards of Validate, ValidateRegistrations, IsBuiltIn and NameOf; the rule logic is covered by unit tests (measured 18%).",
+        "contract": "PipelineOrderValidationContracts fails every rule and checks the built-in assembly list against src (measured 92%); the uncovered lines are the post-commit loop over transaction behaviors (lines 296-314 of the file), covered by unit and property tests.",
+        "property": "PipelineOrderValidationProperties checks R1, R5 and R7 over random positions (measured 81%); R3, R4 and R6 take no random input and are covered by unit tests."
+      }
+    },
+    "Pipeline/Ordering/PipelineRegistrationSnapshot.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Read-only view of the service collection for the pipeline order validation",
+      "targets": { "unit": 100, "guard": 9, "contract": 97 },
+      "justifications": {
+        "unit": "Closed handlers, dead registrations, exact, open-generic, constrained, instance and factory descriptors are exercised by PipelineOrderValidationHostedServiceTests (measured 100%).",
+        "guard": "Guard tests cover the constructor and GetRegistrations null guards; the scanning logic is covered by unit tests (measured 10%).",
+        "contract": "Contract tests build the snapshot through AddEncina and read handlers, behaviors, processors and dead registrations (measured 98%); the one uncovered line is the non-generic implementation of an open service type (line 112), reachable only with a hand-made descriptor and covered by unit tests."
+      }
+    },
+    "Pipeline/Ordering/PipelineOrderValidationHostedService.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Startup validation of every closed pipeline",
+      "targets": { "unit": 100, "guard": 12, "contract": 93 },
+      "justifications": {
+        "unit": "StartAsync is exercised for valid and invalid request and stream pipelines, factory-registered steps, a throwing factory, open-generic handlers and cancellation (measured 100%).",
+        "guard": "Guard tests cover the constructor null guards; StartAsync is covered by unit tests (measured 12%).",
+        "contract": "Contract tests start the service over the real AddEncina registrations for valid, invalid, stream, open-generic, R4 and throwing-factory pipelines (measured 93%); the uncovered lines are the disposal of a transient factory result (lines 135-141), covered by unit tests with transient factories."
+      }
+    },
+    "Pipeline/Ordering/PipelineStepCandidate.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Resolved step instance offered to the order resolver",
+      "targets": { "unit": 95, "guard": 0, "contract": 85 },
+      "justifications": {
+        "unit": "Candidate creation for plain, module and processor steps is executed by PipelineOrderResolverTests (measured 100%).",
+        "guard": "The factory only receives instances the builders resolved from DI and cannot be given a meaningful null; there is nothing to guard.",
+        "contract": "Contract tests dispatch through the builders, which create a candidate per step (measured 100%)."
+      }
+    },
+    "Pipeline/Steps/ErrorProcessorStep.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Error processor adapted into a pipeline step",
+      "targets": { "unit": 100, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "Observing only a Left, returning the original error and a cancelled observer are exercised by StagedPipelineExecutionTests (measured 100%).",
+        "guard": "The step is internal, built only by the pipeline builders from DI-resolved processors; guard tests have no public entry to call.",
+        "contract": "Contract tests register no processors, so the step never runs there; its behavior is asserted in unit tests."
+      }
+    },
+    "Pipeline/Steps/PostCommitProcessorStep.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Post-commit processor adapted into a pipeline step",
+      "targets": { "unit": 100, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "Running after the commit, never after a rollback, a Left failing the request and the cancellation mapping are exercised by StagedPipelineExecutionTests (measured 100%).",
+        "guard": "The step is internal, built only by the pipeline builders from DI-resolved processors; guard tests have no public entry to call.",
+        "contract": "Contract tests register no processors, so the step never runs there; its behavior is asserted in unit tests."
+      }
+    },
+    "Pipeline/Steps/PostProcessorStep.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Post-processor adapted into a pipeline step",
+      "targets": { "unit": 100, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "Run on Right only, Left failing the request and the cancellation mapping are exercised by ProcessorSemanticsTests and StagedPipelineExecutionTests (measured 100%).",
+        "guard": "The step is internal, built only by the pipeline builders from DI-resolved processors; guard tests have no public entry to call.",
+        "contract": "Contract tests register no processors, so the step never runs there; its behavior is asserted in unit tests."
+      }
+    },
+    "Pipeline/Steps/PreProcessorStep.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Pre-processor adapted into a pipeline step",
+      "targets": { "unit": 100, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "Abort on Left, continue on Right and the cancellation mapping are exercised by ProcessorSemanticsTests and StagedPipelineExecutionTests (measured 100%).",
+        "guard": "The step is internal, built only by the pipeline builders from DI-resolved processors; guard tests have no public entry to call.",
+        "contract": "Contract tests register no processors, so the step never runs there; its behavior is asserted in unit tests."
+      }
     },
     "Pipeline/StreamPipelineBuilder.cs": {
       "defaultTests": [
@@ -656,7 +1381,13 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": { "unit": 100, "guard": 51, "contract": 65 },
+      "justifications": {
+        "unit": "Stage ordering, the no-behavior fast path and behavior wrapping are exercised by StagedPipelineExecutionTests (measured 100%).",
+        "guard": "Guard tests cover the constructor guards and Build without behaviors (measured 51%); behavior wrapping is covered by unit tests.",
+        "contract": "Contract tests stream through the handler path (measured 65%); behavior wrapping is covered by unit tests."
+      }
     },
     "Results/EitherHelpers.cs": {
       "defaultTests": [
@@ -671,7 +1402,13 @@
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods",
+      "targets": {
+        "unit": 75
+      },
+      "justifications": {
+        "unit": "Static error factory methods tested for major paths (measured 79%)."
+      }
     },
     "Results/NullFunctionalFailureDetector.cs": {
       "defaultTests": [
@@ -679,7 +1416,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 85,
+        "guard": 42,
+        "contract": 42
+      },
+      "justifications": {
+        "unit": "Constants-only null object exercised by the pipeline behavior tests (measured 85.71%).",
+        "guard": "Constants-only null object exercised by the pipeline behavior tests (measured 42.86%).",
+        "contract": "Constants-only null object exercised by the pipeline behavior tests (measured 42.86%)."
+      }
     },
     "Sharding/Aggregation/AggregationCombiner.cs": {
       "defaultTests": [
@@ -835,7 +1582,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 70, "guard": 0 },
+      "justifications": {
+        "unit": "Routing and the instrumentation of each shard lookup are driven by the unit tests (measured 81.08%).",
+        "guard": "Guard tests do not reach the internal decorator; its constructor guards are unit tested."
+      }
     },
     "Sharding/Diagnostics/ShardedDatabasePoolMetrics.cs": {
       "defaultTests": [
@@ -856,7 +1608,13 @@
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "reason": "Activity/span wrapper — verify creation and tags",
+      "targets": {
+        "unit": 50
+      },
+      "justifications": {
+        "unit": "Target 50% set for #2134; unit tests cover span creation and tags, and the rest is the no-listener fast path."
+      }
     },
     "Sharding/Diagnostics/ShardingDiagnosticsServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -1884,7 +2642,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 80, "guard": 4 },
+      "justifications": {
+        "unit": "Unit tests drive AddShadowSharding through AddEncinaSharding and directly, covering router decoration, both pipeline behavior registrations and the missing-topology error (measured 83.7%); only router-descriptor resolution branches stay uncovered.",
+        "guard": "Guard tests cover only the two null-argument checks of the single internal method, about 4.7% of its coverable lines; the rest is registration logic exercised by unit tests."
+      }
     },
     "Sharding/Shadow/ShadowShardRouterDecorator.cs": {
       "defaultTests": [

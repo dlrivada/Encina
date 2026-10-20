@@ -35,7 +35,7 @@ namespace Encina.Security.Audit;
 /// services.AddSingleton&lt;IPiiMasker, DefaultSensitiveDataRedactor&gt;();
 ///
 /// // Usage
-/// var redactor = new DefaultSensitiveDataRedactor(Options.Create(new AuditOptions()));
+/// var redactor = new DefaultSensitiveDataRedactor(Options.Create(new OperationAuditOptions()));
 /// var request = new CreateUserCommand { Email = "user@example.com", Password = "secret123" };
 /// var masked = redactor.MaskForAudit(request);
 /// // masked.Password == "[REDACTED]"
@@ -94,7 +94,7 @@ public sealed class DefaultSensitiveDataRedactor : IPiiMasker
     /// </summary>
     /// <param name="options">The audit options containing global sensitive field configuration.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="options"/> is <c>null</c>.</exception>
-    public DefaultSensitiveDataRedactor(IOptions<AuditOptions> options)
+    public DefaultSensitiveDataRedactor(IOptions<OperationAuditOptions> options)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -139,35 +139,17 @@ public sealed class DefaultSensitiveDataRedactor : IPiiMasker
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        try
-        {
-            // Build the effective set of sensitive patterns
-            var effectivePatterns = additionalSensitiveFields is null
-                ? _sensitivePatterns
-                : BuildEffectivePatterns(additionalSensitiveFields);
+        // Fail closed: a serialization or deserialization failure propagates, the unmasked request is never returned.
+        var effectivePatterns = additionalSensitiveFields is null
+            ? _sensitivePatterns
+            : BuildEffectivePatterns(additionalSensitiveFields);
 
-            // Serialize to JSON
-            var json = JsonSerializer.Serialize(request, _jsonOptions);
-            var node = JsonNode.Parse(json);
+        var json = JsonSerializer.Serialize(request, _jsonOptions);
+        var node = JsonNode.Parse(json) ?? throw MaskingIncomplete();
 
-            if (node is null)
-            {
-                return request;
-            }
+        RedactNode(node, effectivePatterns);
 
-            // Redact sensitive fields
-            RedactNode(node, effectivePatterns);
-
-            // Deserialize back
-            var redacted = node.Deserialize<T>(_jsonOptions);
-            return redacted ?? request;
-        }
-        catch (JsonException)
-        {
-            // If serialization/deserialization fails, return original
-            // This ensures we don't break the pipeline for non-serializable types
-            return request;
-        }
+        return node.Deserialize<T>(_jsonOptions) ?? throw MaskingIncomplete();
     }
 
     /// <inheritdoc />
@@ -191,36 +173,19 @@ public sealed class DefaultSensitiveDataRedactor : IPiiMasker
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        try
-        {
-            var type = request.GetType();
+        // Fail closed: a serialization or deserialization failure propagates, the unmasked request is never returned.
+        var type = request.GetType();
 
-            // Build the effective set of sensitive patterns
-            var effectivePatterns = additionalSensitiveFields is null
-                ? _sensitivePatterns
-                : BuildEffectivePatterns(additionalSensitiveFields);
+        var effectivePatterns = additionalSensitiveFields is null
+            ? _sensitivePatterns
+            : BuildEffectivePatterns(additionalSensitiveFields);
 
-            // Serialize to JSON
-            var json = JsonSerializer.Serialize(request, type, _jsonOptions);
-            var node = JsonNode.Parse(json);
+        var json = JsonSerializer.Serialize(request, type, _jsonOptions);
+        var node = JsonNode.Parse(json) ?? throw MaskingIncomplete();
 
-            if (node is null)
-            {
-                return request;
-            }
+        RedactNode(node, effectivePatterns);
 
-            // Redact sensitive fields
-            RedactNode(node, effectivePatterns);
-
-            // Deserialize back
-            var redacted = node.Deserialize(type, _jsonOptions);
-            return redacted ?? request;
-        }
-        catch (JsonException)
-        {
-            // If serialization/deserialization fails, return original
-            return request;
-        }
+        return node.Deserialize(type, _jsonOptions) ?? throw MaskingIncomplete();
     }
 
     /// <summary>
@@ -228,7 +193,10 @@ public sealed class DefaultSensitiveDataRedactor : IPiiMasker
     /// </summary>
     /// <param name="json">The JSON string to redact.</param>
     /// <param name="additionalSensitiveFields">Additional field names to redact.</param>
-    /// <returns>The redacted JSON string, or the original if parsing fails.</returns>
+    /// <returns>The redacted JSON string; an empty or whitespace input is returned unchanged.</returns>
+    /// <exception cref="JsonException">
+    /// Thrown when <paramref name="json"/> cannot be parsed. Fail closed: the unredacted text is never returned.
+    /// </exception>
     public string RedactJsonString(string json, IEnumerable<string>? additionalSensitiveFields = null)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -236,26 +204,23 @@ public sealed class DefaultSensitiveDataRedactor : IPiiMasker
             return json;
         }
 
-        try
-        {
-            var effectivePatterns = additionalSensitiveFields is null
-                ? _sensitivePatterns
-                : BuildEffectivePatterns(additionalSensitiveFields);
+        var effectivePatterns = additionalSensitiveFields is null
+            ? _sensitivePatterns
+            : BuildEffectivePatterns(additionalSensitiveFields);
 
-            var node = JsonNode.Parse(json);
-            if (node is null)
-            {
-                return json;
-            }
-
-            RedactNode(node, effectivePatterns);
-            return node.ToJsonString(_jsonOptions);
-        }
-        catch (JsonException)
+        var node = JsonNode.Parse(json);
+        if (node is null)
         {
+            // The JSON literal null holds no field to redact.
             return json;
         }
+
+        RedactNode(node, effectivePatterns);
+        return node.ToJsonString(_jsonOptions);
     }
+
+    private static InvalidOperationException MaskingIncomplete() =>
+        new("The request could not be masked: its JSON form has no value to redact.");
 
     private HashSet<string> BuildEffectivePatterns(IEnumerable<string> additionalFields)
     {

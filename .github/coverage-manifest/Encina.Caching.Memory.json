@@ -18,7 +18,15 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": {
+        "unit": 95,
+        "guard": 20
+      },
+      "justifications": {
+        "unit": "Measured 98%; the only uncovered lines are two defensive branches.",
+        "guard": "Guard tests assert every ArgumentNullException of the constructor and of each public method (the guard statements are the only lines a guard test can reach, because the call throws before the rest runs); the remaining lines are covered by the unit flag."
+      }
     },
     "MemoryDistributedLockProvider.cs": {
       "defaultTests": [
@@ -26,7 +34,15 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": {
+        "unit": 95,
+        "guard": 17
+      },
+      "justifications": {
+        "unit": "Measured 98.7%: the unit tests drive acquire, retry, deadline, zero wait, expiry, extend and release on a FakeTimeProvider; the one uncovered line is the retry of a compare-and-remove that lost to a concurrent extension, which a single-threaded test cannot reach.",
+        "guard": "Measured 17.1%: the guard tests assert the ArgumentNullException of both constructors and of each public method; every other line runs only past those guards and belongs to the unit flag."
+      }
     },
     "MemoryPubSubProvider.cs": {
       "defaultTests": [
@@ -34,7 +50,15 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": {
+        "unit": 100,
+        "guard": 15
+      },
+      "justifications": {
+        "unit": "Measured 100%: publish, subscribe, pattern subscribe and unsubscribe are unit tested.",
+        "guard": "Guard tests assert every ArgumentNullException of the constructor and of each public method (measured 15.8%; the guard statements are the only lines a guard test can reach, because the call throws before the rest runs); the remaining lines are covered by the unit flag."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [

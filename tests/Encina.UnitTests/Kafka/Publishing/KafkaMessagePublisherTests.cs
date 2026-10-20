@@ -207,8 +207,8 @@ public sealed class KafkaMessagePublisherTests
         var publisher = CreatePublisher();
         var messages = new[]
         {
-            (new TestMessage { Id = 1, Content = "Test1" }, (string?)null),
-            (new TestMessage { Id = 2, Content = "Test2" }, (string?)"key-2")
+            (new TestMessage { Id = 1, Content = "Test1" }, (string?)null, (string?)null),
+            (new TestMessage { Id = 2, Content = "Test2" }, (string?)"key-2", (string?)null)
         };
 
         // Act
@@ -226,9 +226,9 @@ public sealed class KafkaMessagePublisherTests
         var publisher = CreatePublisher();
         var messages = new[]
         {
-            (new TestMessage { Id = 1, Content = "Test1" }, (string?)null),
-            (new TestMessage { Id = 2, Content = "Test2" }, (string?)"key-2"),
-            (new TestMessage { Id = 3, Content = "Test3" }, (string?)"key-3")
+            (new TestMessage { Id = 1, Content = "Test1" }, (string?)null, (string?)null),
+            (new TestMessage { Id = 2, Content = "Test2" }, (string?)"key-2", (string?)null),
+            (new TestMessage { Id = 3, Content = "Test3" }, (string?)"key-3", (string?)null)
         };
 
         // Act
@@ -247,7 +247,7 @@ public sealed class KafkaMessagePublisherTests
         var publisher = CreatePublisher();
         var messages = new[]
         {
-            (new TestMessage { Id = 1, Content = "Test1" }, (string?)null)
+            (new TestMessage { Id = 1, Content = "Test1" }, (string?)null, (string?)null)
         };
 
         // Act
@@ -344,24 +344,6 @@ public sealed class KafkaMessagePublisherTests
 
         // Assert
         result.ShouldBeErrorWithCode("KAFKA_PRODUCE_HEADERS_FAILED");
-    }
-
-    #endregion
-
-    #region Dispose Tests
-
-    [Fact]
-    public void Dispose_ShouldFlushAndDisposeProducer()
-    {
-        // Arrange
-        var publisher = CreatePublisher();
-
-        // Act
-        publisher.Dispose();
-
-        // Assert
-        _producer.Received(1).Flush(Arg.Any<TimeSpan>());
-        _producer.Received(1).Dispose();
     }
 
     #endregion

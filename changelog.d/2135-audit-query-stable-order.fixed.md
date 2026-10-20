@@ -1,0 +1,1 @@
+- Operation audit, read audit and entity-change audit store queries now order by timestamp and then by the entry id on every provider (ADO.NET, Dapper, EF Core, MongoDB, Marten and in-memory), so paged reads and exports no longer repeat or drop entries that share a timestamp (#2135).

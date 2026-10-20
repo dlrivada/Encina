@@ -25,8 +25,13 @@
 # (the patch comes from stdin or a path that cannot be resolved).
 #
 # Not seen: writes by programs that the analysis does not know (dotnet, scripts other than the `dotnet run` /
-# `pwsh -File` case below), Remove-Item / rm (deletions), Rename-Item, and redirections attached to a word
-# (x>f).
+# `pwsh -File` case below), Remove-Item / rm (deletions), and redirections attached to a word (x>f).
+# Rename-Item / ren / rni is a write to the renamed path (the old folder plus -NewName, content unknown).
+#
+# Literal and Append (#1854): a write whose content is a quoted or here-string literal in the command
+# (-Value / -InputObject, a lone literal piped in, `'literal' > file`) carries it in Literal; every other
+# write has Literal = $null. Tokens carry Literal (exactly one quoted segment, no variable, escape or
+# unquoted text) and PipeSource (the statement a single `|` pipes in); see _command-text.ps1.
 #
 # Sanctioned scripts (#1368, #1380): Test-ScriptIsSanctioned/$SanctionedScriptPatterns below give the pipeline's
 # own scripts (the hook test suite, tools/ai/audit/*, tools/ai/*, .github/scripts/*.cs) a narrow allowlist
@@ -277,12 +282,37 @@ function Get-ShellWrites {
     $git = [System.Collections.Generic.List[object]]::new()
     $mentions = [System.Collections.Generic.List[object]]::new()
     $scripts = [System.Collections.Generic.List[object]]::new()
+    $executables = [System.Collections.Generic.List[string]]::new()
     $stack = [System.Collections.Generic.Stack[object]]::new()
     $current = $Cwd
 
-    function Add-Write([bool]$Content, $Target, [string]$Base, [string]$What, [bool]$IsBash, [bool]$Directory = $false) {
+    # Literal: the exact text the statement writes when it is a quoted or here-string literal in the command
+    # (no variable, subexpression or other command feeding it), else $null. Append: the write keeps the old text.
+    function Add-Write([bool]$Content, $Target, [string]$Base, [string]$What, [bool]$IsBash, [bool]$Directory = $false, $Literal = $null, [bool]$Append = $false) {
         if ($null -eq $Target) { return }
-        $writes.Add([pscustomobject]@{ Content = $Content; Target = $Target; Base = $Base; Full = (Resolve-TargetPath $Target $Base $IsBash); What = $What; Directory = $Directory })
+        $writes.Add([pscustomobject]@{ Content = $Content; Target = $Target; Base = $Base; Full = (Resolve-TargetPath $Target $Base $IsBash); What = $What; Directory = $Directory; Literal = $Literal; Append = $Append })
+    }
+
+    # The literal text of a value token (Literal marks one quoted segment), or $null.
+    function Get-LiteralText($Token) {
+        if ($null -ne $Token -and $Token.Literal) { return [string]$Token.Value }
+        return $null
+    }
+
+    # The literal fed through a pipe: the statement is `'literal' | <cmd>`, the source a lone quoted literal that
+    # starts its own pipeline. Anything else feeding the pipe (another command, a script block) gives $null.
+    function Get-PipedLiteral($Tokens) {
+        $source = $Tokens[0].PipeSource
+        if ($null -eq $source -or $source.Count -ne 1) { return $null }
+        if ($source[0].Literal -and $null -eq $source[0].PipeSource) { return [string]$source[0].Value }
+        return $null
+    }
+
+    # The text a Set-Content / Add-Content / Out-File / Tee-Object / New-Item statement writes when it is a
+    # literal: the explicit value token when there is one (a non-literal one is not a literal), else the piped literal.
+    function Get-WrittenLiteral($Tokens, $ValueToken) {
+        if ($null -ne $ValueToken) { return (Get-LiteralText $ValueToken) }
+        return (Get-PipedLiteral $Tokens)
     }
 
     foreach ($tokens in (Split-CommandStatements -Text $Command -Bash:$Bash)) {
@@ -293,12 +323,26 @@ function Get-ShellWrites {
 
         # PowerShell call operator (`& '<file>.ps1'`) / dot-source (`. '<file>.ps1'`): the operator is the
         # statement's first token and Resolve-Executable skips it, so $k lands on the script token (#1345).
-        if (-not $Bash -and $k -gt 0 -and $k -lt $tokens.Count -and -not $tokens[0].Quoted -and -not $tokens[$k].Dynamic -and $tokens[$k].Value -match '\.ps1$') {
+        if (-not $Bash -and $k -gt 0 -and $k -lt $tokens.Count -and -not $tokens[0].Quoted -and ($tokens[$k].Dynamic -or $tokens[$k].Value -match '\.ps1$')) {
             $opKind = if ($tokens[0].Value -eq '&') { 'call operator' } elseif ($tokens[0].Value -eq '.') { 'dot-source' } else { $null }
             if ($null -ne $opKind) {
-                $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $tokens[$k] $current $Bash); Raw = $tokens[$k].Value; Kind = $opKind; Base = $current })
+                # A script path that depends on a variable is launched too: it resolves when the hook knows every
+                # variable in it ($env:X, $HOME), and stays unresolved (Full = $null) otherwise (#1854).
+                $scriptFull = Resolve-TargetPath $tokens[$k] $current $Bash
+                if ($null -eq $scriptFull -or $scriptFull -match '\.ps1$') {
+                    $scripts.Add([pscustomobject]@{ Full = $scriptFull; Raw = $tokens[$k].Value; Kind = $opKind; Base = $current; Dynamic = [bool]$tokens[$k].Dynamic })
+                }
             }
         }
+        # The program each statement runs, for a caller that allows only statements it knows (#1854): 'script' is
+        # a call-operator or dot-source launch of a .ps1, 'variable' a lone variable (its value is only output),
+        # 'unknown-program' a program the hook cannot name (dynamic, a subexpression, a method call).
+        $executables.Add($(
+                if ($k -lt 0) { 'unknown-program' }
+                elseif ($tokens[$k].Quoted -and -not ($k -gt 0 -and $tokens[0].Value -in '&', '.')) { 'variable' }
+                elseif ($k -gt 0 -and -not $tokens[0].Quoted -and $tokens[0].Value -in '&', '.' -and $tokens[$k].Value -match '\.ps1$') { 'script' }
+                elseif ($tokens[$k].Dynamic -or $tokens[$k].Subexpression) { if (-not $tokens[$k].Quoted -and $tokens[$k].Value -match '^\$[\w:?]+$' -and $tokens.Count -eq $k + 1) { 'variable' } else { 'unknown-program' } }
+                else { $name }))
 
         foreach ($t in $tokens) {
             if ((-not $t.Quoted -and $t.Value.StartsWith('-')) -or $t.Value.Length -lt 2) { continue }
@@ -328,10 +372,13 @@ function Get-ShellWrites {
 
         $pathAliases = @('-path', '-literalpath', '-lp', '-pspath')
         if (-not $Bash -and $name -in 'set-content', 'add-content', 'ac') {
-            Add-Write $true (Get-BoundArgument $tokens ($k + 1) @($pathAliases, @('-value')) 0) $current $name $Bash
+            $valueToken = Get-BoundArgument $tokens ($k + 1) @($pathAliases, @('-value')) 1
+            Add-Write $true (Get-BoundArgument $tokens ($k + 1) @($pathAliases, @('-value')) 0) $current $name $Bash $false (Get-WrittenLiteral $tokens $valueToken) ($name -in 'add-content', 'ac')
         }
         elseif (-not $Bash -and $name -in 'out-file', 'tee-object', 'tee') {
-            Add-Write $true (Get-BoundArgument $tokens ($k + 1) @(, (@('-filepath') + $pathAliases)) 0) $current $name $Bash
+            $valueToken = Get-NamedArgument $tokens ($k + 1) @('-inputobject')
+            $append = Test-NamedArgument $tokens ($k + 1) @('-append', '-appen', '-appe', '-app', '-ap')
+            Add-Write $true (Get-BoundArgument $tokens ($k + 1) @(, (@('-filepath') + $pathAliases)) 0) $current $name $Bash $false (Get-WrittenLiteral $tokens $valueToken) $append
         }
         elseif (-not $Bash -and $name -in 'new-item', 'ni') {
             $target = Get-BoundArgument $tokens ($k + 1) @(, $pathAliases) 0
@@ -340,7 +387,31 @@ function Get-ShellWrites {
                 $dir = if ($null -eq $target) { New-CommandToken '.' $false $false } else { $target }
                 $target = New-CommandToken ([IO.Path]::Combine($dir.Value, $leaf.Value)) $false ($dir.Dynamic -or $leaf.Dynamic) ($dir.Subexpression -or $leaf.Subexpression)
             }
-            Add-Write (Test-NamedArgument $tokens ($k + 1) @('-value')) $target $current $name $Bash
+            $valueToken = Get-NamedArgument $tokens ($k + 1) @('-value')
+            # -Value is the file content only for a file: for a link type it is the link target.
+            # (any abbreviation of -ItemType counts, down to two letters, and -Type)
+            $itemType = $null
+            for ($q = $k + 1; $q -lt $tokens.Count -and $null -eq $itemType; $q++) {
+                $named = [regex]::Match($tokens[$q].Value, '^-(?<n>[A-Za-z]+)(?::(?<v>.*))?$')
+                if ($tokens[$q].Quoted -or -not $named.Success) { continue }
+                $parameter = $named.Groups['n'].Value.ToLowerInvariant()
+                if (($parameter.Length -ge 2 -and 'itemtype'.StartsWith($parameter)) -or $parameter -eq 'type') {
+                    $itemType = if ($named.Groups['v'].Success) { New-CommandToken $named.Groups['v'].Value $false $false } elseif ($q + 1 -lt $tokens.Count) { $tokens[$q + 1] } else { New-CommandToken '?' $false $true }
+                }
+            }
+            $literal = if ($null -ne $itemType -and -not (-not $itemType.Dynamic -and $itemType.Value -in 'File', 'Directory')) { $null } else { Get-LiteralText $valueToken }
+            Add-Write (Test-NamedArgument $tokens ($k + 1) @('-value')) $target $current $name $Bash $false $literal $false
+        }
+        elseif (-not $Bash -and $name -in 'rename-item', 'ren', 'rni') {
+            # The new path is the old path's folder plus -NewName; its content is a file the hook cannot see.
+            $old = Get-BoundArgument $tokens ($k + 1) @($pathAliases, @('-newname')) 0
+            $new = Get-BoundArgument $tokens ($k + 1) @($pathAliases, @('-newname')) 1
+            if ($null -ne $old -and $null -ne $new) {
+                $folder = [IO.Path]::GetDirectoryName($old.Value)
+                if ($null -eq $folder) { $folder = '' }
+                $renamed = New-CommandToken ([IO.Path]::Combine($folder, $new.Value)) $false ($old.Dynamic -or $new.Dynamic) ($old.Subexpression -or $new.Subexpression)
+                Add-Write $false $renamed $current $name $Bash
+            }
         }
         elseif (-not $Bash -and $name -in 'copy-item', 'move-item', 'cpi', 'mi', 'copy', 'move', 'cp', 'mv') {
             Add-Write $false (Get-BoundArgument $tokens ($k + 1) @($pathAliases, @('-destination')) 1) $current $name $Bash
@@ -442,11 +513,17 @@ function Get-ShellWrites {
                     if ($index + 1 -lt $tokens.Count) { $tokens[$index + 1] } else { $null }
                 }
                 if ($null -ne $target -and -not $target.Value.StartsWith('&') -and $target.Value -notin '$null', '/dev/null', 'nul') {
-                    Add-Write $true $target $current 'redirection' $Bash
+                    # A literal only for `'literal' > file`: the lone quoted token starts the statement, the
+                    # redirect is the success stream (no 2> or *>) and nothing else is on the statement.
+                    $redirectIndex = $tokens.IndexOf($t)
+                    $statementLength = if ($value) { 2 } else { 3 }
+                    $literal = $null
+                    if (-not $Bash -and $redirectIndex -eq 1 -and $tokens.Count -eq $statementLength -and $null -eq $tokens[0].PipeSource -and $redirect.Groups[1].Value -in '', '1') { $literal = Get-LiteralText $tokens[0] }
+                    Add-Write $true $target $current 'redirection' $Bash $false $literal ($t.Value -match '^(\d|\*)?>>')
                 }
             }
         }
     }
 
-    return [pscustomobject]@{ Writes = $writes; Git = $git; Mentions = $mentions; Scripts = $scripts; FinalDirectory = $current }
+    return [pscustomobject]@{ Writes = $writes; Git = $git; Mentions = $mentions; Scripts = $scripts; Executables = $executables; FinalDirectory = $current }
 }

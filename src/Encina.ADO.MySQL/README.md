@@ -266,6 +266,20 @@ Encina.ADO vs Dapper vs Entity Framework Core (1,000 outbox messages):
 - Minimal allocations
 - Zero reflection
 
+## Dead Letter Queue
+
+Enable the persistent dead letter queue with `UseDeadLetterQueue` (`AddEncinaADOMySQLWithTenancy` honours it too) and run `Scripts/029_CreateDeadLetterMessagesTable.sql`:
+
+```csharp
+services.AddEncinaADO(connectionString, config =>
+{
+    config.UseDeadLetterQueue = true;
+    config.DeadLetterOptions.RetentionPeriod = TimeSpan.FromDays(14);
+});
+```
+
+`DeadLetterStoreADO` needs a connection that derives from `DbConnection` (`MySqlConnection` does). The six filter-key columns use the binary collation `utf8mb4_bin`, so comparisons are case-sensitive. Guide: [How to enable the persistent dead letter queue](../../docs/features/dead-letter-queue.md).
+
 ## ADO.NET Implementation Details
 
 ### Raw SQL Execution Pattern

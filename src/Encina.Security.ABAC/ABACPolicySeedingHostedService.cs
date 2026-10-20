@@ -1,4 +1,3 @@
-using Encina.Security.ABAC.Administration;
 using LanguageExt;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -19,26 +18,45 @@ namespace Encina.Security.ABAC;
 /// <see cref="InvalidOperationException"/>.
 /// </para>
 /// <para>
+/// Seeding runs under the built-in service identity <see cref="ServiceIdentityName"/>, opened
+/// through the internal scope API (core EventId 166 logs the opening), so the persistent PAP
+/// records <c>service:encina.abac.policy-seeding</c> as the actor of every seeded change. When the
+/// scope cannot be opened, a cancelled start surfaces as <see cref="OperationCanceledException"/>
+/// and any other refusal as <see cref="InvalidOperationException"/> carrying the error code only.
+/// EventId 9096 logs the summary (seeded and total counts).
+/// </para>
+/// <para>
 /// The service is automatically registered when either seed list contains entries
-/// in the <see cref="ServiceCollectionExtensions.AddEncinaABAC"/> method.
+/// in the <see cref="ServiceCollectionExtensions.AddEncinaABAC"/> method, together with the
+/// declaration of its built-in service identity.
 /// </para>
 /// </remarks>
 internal sealed partial class ABACPolicySeedingHostedService : IHostedService
 {
+    /// <summary>
+    /// The built-in service identity that policy seeding runs under (subject
+    /// <c>service:encina.abac.policy-seeding</c>). Only Encina packages can open it.
+    /// </summary>
+    internal const string ServiceIdentityName = "encina.abac.policy-seeding";
+
     private readonly IPolicyAdministrationPoint _pap;
+    private readonly IInternalRequestContextScopeFactory _scopes;
     private readonly ABACOptions _options;
     private readonly ILogger<ABACPolicySeedingHostedService> _logger;
 
     public ABACPolicySeedingHostedService(
         IPolicyAdministrationPoint pap,
+        IInternalRequestContextScopeFactory scopes,
         IOptions<ABACOptions> options,
         ILogger<ABACPolicySeedingHostedService> logger)
     {
         ArgumentNullException.ThrowIfNull(pap);
+        ArgumentNullException.ThrowIfNull(scopes);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
         _pap = pap;
+        _scopes = scopes;
         _options = options.Value;
         _logger = logger;
     }
@@ -54,26 +72,41 @@ internal sealed partial class ABACPolicySeedingHostedService : IHostedService
             return;
         }
 
-        _logger.LogInformation(
-            "Seeding ABAC policies: {PolicySetCount} policy set(s), {PolicyCount} standalone policy(ies)",
-            policySets.Count,
-            policies.Count);
+        var outcome = await _scopes.RunAsBuiltInAsync(
+            ServiceIdentityName,
+            (_, token) => SeedAllAsync(policySets, policies, token),
+            cancellationToken).ConfigureAwait(false);
 
-        // Startup seeding has no request principal: it runs inside an explicit system-actor
-        // scope, logged here, so the persistent PAP records the system actor instead of
-        // refusing the change (and never attributes it silently).
-        LogSystemActorScopeOpened(_logger);
-        using var systemActor = PolicyChangeActorScope.BeginSystemActor();
+        var summary = outcome.Match(Right: seeded => seeded, Left: ToStartupFailure);
 
+        LogSeedingCompleted(_logger, summary.PolicySets, policySets.Count, summary.Policies, policies.Count);
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private async Task<Either<EncinaError, SeedingSummary>> SeedAllAsync(
+        IEnumerable<PolicySet> policySets,
+        IEnumerable<Policy> policies,
+        CancellationToken cancellationToken)
+    {
         var seededSets = await SeedPolicySetsAsync(policySets, cancellationToken).ConfigureAwait(false);
         var seededPolicies = await SeedPoliciesAsync(policies, cancellationToken).ConfigureAwait(false);
 
-        _logger.LogInformation(
-            "ABAC policy seeding completed: {SeededSets}/{TotalSets} policy set(s), {SeededPolicies}/{TotalPolicies} standalone policy(ies)",
-            seededSets,
-            policySets.Count,
-            seededPolicies,
-            policies.Count);
+        return new SeedingSummary(seededSets, seededPolicies);
+    }
+
+    // The scope was refused (decision N7 of #1705): a cancelled start is a cancellation, not a
+    // misconfiguration; any other refusal fails startup with the error code only, never the message.
+    private static SeedingSummary ToStartupFailure(EncinaError error)
+    {
+        var code = error.GetCode().IfNone("encina.unknown");
+        if (string.Equals(code, EncinaErrorCodes.RequestCancelled, StringComparison.Ordinal))
+        {
+            throw new OperationCanceledException("ABAC policy seeding was cancelled before it started.");
+        }
+
+        throw new InvalidOperationException(
+            $"ABAC policy seeding could not open its service identity scope (error code '{code}'); the application cannot start without its seeded policies.");
     }
 
     private async ValueTask<int> SeedPolicySetsAsync(IEnumerable<PolicySet> policySets, CancellationToken cancellationToken)
@@ -167,11 +200,17 @@ internal sealed partial class ABACPolicySeedingHostedService : IHostedService
             $"ABAC seeding failed for {kind} '{id}' with error code '{errorCode}'; the application cannot start with a partial policy set.");
     }
 
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
+    // EventId 9096 (see EventIdRanges.SecurityABAC): the seeding summary. Counts only.
     [LoggerMessage(
         EventId = 9096,
         Level = LogLevel.Information,
-        Message = "System actor scope opened for ABAC policy seeding; policy changes are recorded as made by the system actor")]
-    private static partial void LogSystemActorScopeOpened(ILogger logger);
+        Message = "ABAC policy seeding completed under the built-in service identity: {SeededPolicySets}/{TotalPolicySets} policy set(s), {SeededPolicies}/{TotalPolicies} standalone policy(ies)")]
+    private static partial void LogSeedingCompleted(
+        ILogger logger,
+        int seededPolicySets,
+        int totalPolicySets,
+        int seededPolicies,
+        int totalPolicies);
+
+    private readonly record struct SeedingSummary(int PolicySets, int Policies);
 }

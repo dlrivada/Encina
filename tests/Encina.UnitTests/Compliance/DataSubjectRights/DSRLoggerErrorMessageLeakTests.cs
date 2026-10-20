@@ -305,7 +305,7 @@ public sealed class DSRLoggerErrorMessageLeakTests
 
         var result = await sut.LocateAllDataAsync("subject-1");
 
-        result.IsRight.ShouldBeTrue();
+        result.IsLeft.ShouldBeTrue();
         var logs = logger.Collector.GetSnapshot();
         logs.ShouldContain(r => r.Message.Contains("dsr.store_error"));
         logs.ShouldAllBe(r => !r.Message.Contains(SentinelMessage));
@@ -328,7 +328,9 @@ public sealed class DSRLoggerErrorMessageLeakTests
             Substitute.For<IDataPortabilityExporter>(),
             registry ?? Substitute.For<IProcessingActivityRegistry>(),
             Substitute.For<ICacheProvider>(),
+            Microsoft.Extensions.Options.Options.Create(new DataSubjectRightsOptions()),
             new FakeTimeProvider(),
+            new RequestContextAccessor(),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<DefaultDSRService>.Instance,
             encina);
     }

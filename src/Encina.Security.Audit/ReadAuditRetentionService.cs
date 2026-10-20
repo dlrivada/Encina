@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Encina.Diagnostics;
 using Encina.Security.Audit.Diagnostics;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -47,7 +48,7 @@ namespace Encina.Security.Audit;
 /// </example>
 public sealed class ReadAuditRetentionService : BackgroundService
 {
-    private readonly IReadAuditStore _readAuditStore;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ReadAuditOptions _options;
     private readonly ILogger<ReadAuditRetentionService> _logger;
     private readonly TimeProvider _timeProvider;
@@ -55,22 +56,25 @@ public sealed class ReadAuditRetentionService : BackgroundService
     /// <summary>
     /// Initializes a new instance of the <see cref="ReadAuditRetentionService"/> class.
     /// </summary>
-    /// <param name="readAuditStore">The read audit store to purge entries from.</param>
+    /// <param name="scopeFactory">
+    /// The scope factory used to resolve the <see cref="IReadAuditStore"/> once per purge run,
+    /// because database stores are scoped and this service is a singleton.
+    /// </param>
     /// <param name="options">The read audit options containing retention configuration.</param>
     /// <param name="logger">The logger for recording purge operations.</param>
     /// <param name="timeProvider">Optional time provider for testability. Defaults to system time.</param>
     /// <exception cref="ArgumentNullException">Thrown when any required parameter is null.</exception>
     public ReadAuditRetentionService(
-        IReadAuditStore readAuditStore,
+        IServiceScopeFactory scopeFactory,
         IOptions<ReadAuditOptions> options,
         ILogger<ReadAuditRetentionService> logger,
         TimeProvider? timeProvider = null)
     {
-        ArgumentNullException.ThrowIfNull(readAuditStore);
+        ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _readAuditStore = readAuditStore;
+        _scopeFactory = scopeFactory;
         _options = options.Value;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
@@ -117,7 +121,10 @@ public sealed class ReadAuditRetentionService : BackgroundService
 
             ReadAuditLog.PurgeStarted(_logger, cutoffDate);
 
-            var result = await _readAuditStore.PurgeEntriesAsync(cutoffDate, cancellationToken).ConfigureAwait(false);
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var readAuditStore = scope.ServiceProvider.GetRequiredService<IReadAuditStore>();
+
+            var result = await readAuditStore.PurgeEntriesAsync(cutoffDate, cancellationToken).ConfigureAwait(false);
 
             stopwatch.Stop();
             ReadAuditMeter.PurgeDuration.Record(stopwatch.Elapsed.TotalMilliseconds);
@@ -139,7 +146,7 @@ public sealed class ReadAuditRetentionService : BackgroundService
                 },
                 Left: error =>
                 {
-                    var errorCode = error.GetCode().IfNone("encina.unknown");
+                    var errorCode = ActivityStatusDescriptions.ForError(error);
                     ReadAuditLog.PurgeFailed(_logger, errorCode);
                     ReadAuditActivitySource.Failed(activity, errorCode);
                 });
@@ -152,7 +159,7 @@ public sealed class ReadAuditRetentionService : BackgroundService
         catch (Exception ex)
         {
             ReadAuditLog.PurgeError(_logger, ex.ForLogging());
-            ReadAuditActivitySource.Failed(activity, ex.Message);
+            ReadAuditActivitySource.Failed(activity, ActivityStatusDescriptions.ForException(ex));
         }
     }
 }

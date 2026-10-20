@@ -25,7 +25,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IFieldEncryptor"/> → <c>AesGcmFieldEncryptor</c> (Singleton, using TryAdd)</item>
     /// <item><see cref="IKeyProvider"/> → <see cref="InMemoryKeyProvider"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IEncryptionOrchestrator"/> → <c>EncryptionOrchestrator</c> (Scoped, using TryAdd)</item>
-    /// <item><see cref="EncryptionPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="EncryptionPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>
@@ -75,7 +75,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IEncryptionOrchestrator, EncryptionOrchestrator>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(EncryptionPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(EncryptionPipelineBehavior<,>)));
 
         // Register health check if enabled
         var optionsInstance = new EncryptionOptions();

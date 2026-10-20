@@ -100,8 +100,6 @@ public sealed class ServiceCollectionExtensionsTests
             o.CorrelationIdHeader = "X-Custom-Correlation";
             o.TenantIdHeader = "X-Custom-Tenant";
             o.IdempotencyKeyHeader = "X-Custom-Idempotency";
-            o.UserIdClaimType = "sub";
-            o.TenantIdClaimType = "tid";
         });
         using var provider = BuildValidatedProvider(services);
 
@@ -109,8 +107,14 @@ public sealed class ServiceCollectionExtensionsTests
         options.CorrelationIdHeader.ShouldBe("X-Custom-Correlation");
         options.TenantIdHeader.ShouldBe("X-Custom-Tenant");
         options.IdempotencyKeyHeader.ShouldBe("X-Custom-Idempotency");
-        options.UserIdClaimType.ShouldBe("sub");
-        options.TenantIdClaimType.ShouldBe("tid");
+    }
+
+    [Fact]
+    public void AddEncinaAspNetCore_RejectsNullArguments()
+    {
+        Should.Throw<ArgumentNullException>(() => ((IServiceCollection)null!).AddEncinaAspNetCore(_ => { }));
+        Should.Throw<ArgumentNullException>(() => new ServiceCollection().AddEncinaAspNetCore(null!));
+        Should.Throw<ArgumentNullException>(() => ((IServiceCollection)null!).AddEncinaAuthorization());
     }
 
     [Fact]
@@ -171,17 +175,17 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddEncinaAuthorization_WhenCalled_RegistersHttpContextAccessor()
+    public void AddEncinaAuthorization_WhenCalled_ResolvesTheResourceAuthorizer_OnTheRequestIdentityAccessor()
     {
         var services = new ServiceCollection();
-        services.AddLogging();
         services.AddRouting();
 
         services.AddEncinaAuthorization();
         using var provider = BuildValidatedProvider(services);
+        using var scope = provider.CreateScope();
 
-        var http = provider.GetService<IHttpContextAccessor>();
-        http.ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<IResourceAuthorizer>().ShouldNotBeNull();
+        provider.GetRequiredService<IRequestContextAccessor>().ShouldBeOfType<RequestContextAccessor>();
     }
 
     [Fact]

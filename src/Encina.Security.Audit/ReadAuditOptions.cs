@@ -8,7 +8,7 @@ namespace Encina.Security.Audit;
 /// These options control which entities are audited for read access and how
 /// the audit trail is managed. Read auditing operates at the repository level
 /// via the <c>AuditedRepository</c> decorator, separate from the CQRS-level
-/// auditing controlled by <see cref="AuditOptions"/>.
+/// auditing controlled by <see cref="OperationAuditOptions"/>.
 /// </para>
 /// <para>
 /// <b>Compliance Considerations:</b>
@@ -61,8 +61,9 @@ public sealed class ReadAuditOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Default is <c>false</c>. When <c>true</c>, read operations without a
-    /// <c>UserId</c> in the request context are not audited.
+    /// Default is <c>false</c>. When <c>true</c>, read operations whose request identity is a
+    /// <see cref="IdentityKind.Service"/> are not audited. Anonymous and user reads are always
+    /// audited: a missing identity is never treated as system access.
     /// </para>
     /// <para>
     /// Useful for reducing noise from background jobs, health checks, and
@@ -106,7 +107,7 @@ public sealed class ReadAuditOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Default is 365 days (1 year). Shorter than CUD audit retention because
+    /// Default is 365 days (1 year). Shorter than the operation audit retention because
     /// read audit volumes are typically much higher.
     /// </para>
     /// <para>

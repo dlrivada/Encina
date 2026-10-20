@@ -1,0 +1,110 @@
+using Encina.Audit.Marten.Diagnostics;
+using Encina.Diagnostics;
+using Encina.Security.Audit;
+
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace Encina.Audit.Marten;
+
+/// <summary>
+/// Background service that periodically crypto-shreds audit entries older than the
+/// configured retention period by destroying their temporal encryption keys.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This service is only registered when <see cref="MartenOperationAuditOptions.EnableAutoPurge"/> is <c>true</c>.
+/// It runs at intervals defined by <see cref="MartenOperationAuditOptions.PurgeIntervalHours"/>.
+/// </para>
+/// <para>
+/// Unlike database-backed audit stores that DELETE old rows, this service destroys temporal
+/// encryption keys via <see cref="IOperationAuditStore.PurgeEntriesAsync"/>. The encrypted events
+/// remain in the immutable Marten event store, but their PII fields become permanently
+/// unreadable — achieving GDPR data minimization without breaking SOX/NIS2 integrity.
+/// </para>
+/// </remarks>
+internal sealed class MartenOperationAuditRetentionService : BackgroundService
+{
+    private readonly IServiceProvider _serviceProvider;
+    private readonly MartenOperationAuditOptions _options;
+    private readonly TimeProvider _timeProvider;
+    private readonly ILogger<MartenOperationAuditRetentionService> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MartenOperationAuditRetentionService"/> class.
+    /// </summary>
+    public MartenOperationAuditRetentionService(
+        IServiceProvider serviceProvider,
+        IOptions<MartenOperationAuditOptions> options,
+        TimeProvider timeProvider,
+        ILogger<MartenOperationAuditRetentionService> logger)
+    {
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _serviceProvider = serviceProvider;
+        _options = options.Value;
+        _timeProvider = timeProvider;
+        _logger = logger;
+    }
+
+    /// <inheritdoc />
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var retentionDays = (int)_options.RetentionPeriod.TotalDays;
+
+        MartenAuditLog.RetentionServiceStarted(
+            _logger,
+            _options.PurgeIntervalHours,
+            retentionDays);
+
+        using var timer = new PeriodicTimer(TimeSpan.FromHours(_options.PurgeIntervalHours));
+
+        while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
+        {
+            await ExecutePurgeCycleAsync(stoppingToken).ConfigureAwait(false);
+        }
+
+        MartenAuditLog.RetentionServiceStopped(_logger);
+    }
+
+    private async Task ExecutePurgeCycleAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var cutoffUtc = _timeProvider.GetUtcNow().UtcDateTime - _options.RetentionPeriod;
+
+            using var scope = _serviceProvider.CreateScope();
+            var auditStore = scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
+
+            var result = await auditStore.PurgeEntriesAsync(cutoffUtc, cancellationToken)
+                .ConfigureAwait(false);
+
+            result.Match(
+                Right: destroyedCount =>
+                {
+                    MartenAuditLog.RetentionCycleCompleted(_logger, destroyedCount);
+                },
+                Left: error =>
+                {
+                    MartenAuditLog.RecordFailed(
+                        _logger,
+                        Guid.Empty,
+                        error.GetCode().IfNone("encina.unknown"),
+                        null);
+                });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Normal shutdown — do not log as error
+        }
+        catch (Exception ex)
+        {
+            MartenAuditLog.RetentionCycleFailed(_logger, ex.ForLogging());
+        }
+    }
+}

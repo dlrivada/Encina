@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Encina.Testing.Fakes;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
@@ -22,8 +23,10 @@ public abstract class EncinaExplicitContextContract
     /// <summary>Creates the implementation under test, answering <see cref="ContractPing"/> with its text upper-cased and streaming 1, 2, 3.</summary>
     protected abstract IEncina CreateSut();
 
+    // An anonymous explicit context: every implementation accepts it. An authenticated one must be
+    // issued by an identity scope (#1705 Phase 2); the Encina-specific tests below cover that rule.
     private static IRequestContext JobContext()
-        => RequestContext.CreateForTest(userId: "job-user", tenantId: "job-tenant", correlationId: "job-correlation");
+        => RequestContext.CreateForTest(tenantId: "job-tenant", correlationId: "job-correlation");
 
     [Fact]
     public async Task Send_WithExplicitContext_ReturnsTheSameOutcomeAsTheAmbientOverload()
@@ -95,7 +98,8 @@ public abstract class EncinaExplicitContextContract
     {
         var sut = CreateSut();
         var accessor = new RequestContextAccessor();
-        var callerContext = RequestContext.CreateForTest(userId: "caller");
+        // An anonymous caller: over an ambient user a different explicit identity is refused (#1705).
+        var callerContext = RequestContext.CreateForTest(correlationId: "caller");
         accessor.RequestContext = callerContext;
 
         await sut.Send(new ContractPing("a"), JobContext());
@@ -186,14 +190,41 @@ public sealed class EncinaMediatorExplicitContextContractTests : EncinaExplicitC
     }
 
     [Fact]
-    public async Task Send_WithExplicitContext_ThePipelineReceivesThatContext()
+    public async Task Send_WithTheContextOfAnIdentityScope_ThePipelineReceivesThatContext()
     {
         var sut = CreateSut();
-        var context = RequestContext.CreateForTest(userId: "explicit-user", tenantId: "explicit-tenant");
+        var provider = _provider!;
+        var scopes = provider.GetRequiredService<IRequestContextScopeFactory>();
+        IRequestContext? scoped = null;
 
-        await sut.Send(new ContractPing("x"), context);
+        var outcome = await scopes.RunAsPrincipalAsync(
+            TestIdentity.Principal("explicit-user"),
+            async (context, ct) =>
+            {
+                scoped = context;
+                return await sut.Send(new ContractPing("x"), context, ct);
+            },
+            new IdentityScopeOptions(TenantId: "explicit-tenant"));
 
-        _provider!.GetRequiredService<ContextRecorder>().Seen.ShouldBeSameAs(context);
+        outcome.ShouldBeSuccess().ShouldBe("X");
+        var seen = provider.GetRequiredService<ContextRecorder>().Seen;
+        seen.ShouldBeSameAs(scoped);
+        seen.ShouldNotBeNull();
+        ((RequestContext)seen).IssuedIdentity.UserId.ShouldBe("explicit-user");
+        seen.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
+        seen.TenantId.ShouldBe("explicit-tenant");
+    }
+
+    [Fact]
+    public async Task Send_WithABuiltAuthenticatedContext_OutsideAScope_IsRefused_WithoutRunningThePipeline()
+    {
+        var sut = CreateSut();
+
+        var result = await sut.Send(new ContractPing("x"), TestRequestContext.For(TestIdentity.User("explicit-user")));
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.ScopeConflict));
+        _provider!.GetRequiredService<ContextRecorder>().Seen.ShouldBeNull();
     }
 }
 
@@ -212,7 +243,7 @@ public sealed class FakeEncinaExplicitContextContractTests : EncinaExplicitConte
     public async Task ExplicitOverloads_AreRecordedLikeTheAmbientOnes()
     {
         var fake = (FakeEncina)CreateSut();
-        var context = RequestContext.CreateForTest(userId: "u");
+        var context = TestRequestContext.For(TestIdentity.User("u"));
 
         await fake.Send(new ContractPing("a"), context);
         await fake.Publish(new ContractNotification(), context);

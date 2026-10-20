@@ -88,4 +88,16 @@ internal static partial class PIILogMessages
         Level = LogLevel.Error,
         Message = "PII Hash mode requested for PIIType={PIIType} but there is no usable HashKey (missing or blank) and AllowUnkeyedHash does not apply; the value was redacted instead")]
     internal static partial void HashWithoutKeyRedacted(ILogger logger, string piiType);
+
+    [LoggerMessage(
+        EventId = 8021,
+        Level = LogLevel.Warning,
+        Message = "PII regex masking failed (invalid pattern, invalid timeout or match timeout; pattern length {PatternLength}); the whole value was masked instead")]
+    internal static partial void PatternMaskingFailed(ILogger logger, Exception exception, int patternLength);
+
+    [LoggerMessage(
+        EventId = 8022,
+        Level = LogLevel.Warning,
+        Message = "PII masking for audit failed for {TypeName}; no unmasked payload is returned")]
+    internal static partial void AuditMaskingFailed(ILogger logger, Exception exception, string typeName);
 }

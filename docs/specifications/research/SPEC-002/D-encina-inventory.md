@@ -56,8 +56,8 @@ AIAct, Attestation, DataSubjectRights and GDPR have **zero integration-test file
 
 | Package | Purpose | Main abstractions | Regulation claims | README | Manifest | Tests (U/IT/G/C/P) |
 |---|---|---|---|---|---|---|
-| `Encina.Security.Audit` | `IAuditStore`/`IReadAuditStore` abstractions, PII masking on audit entries, in-memory implementations | `IAuditStore`, `IReadAuditStore`, `IAuditEntryFactory`, `IPiiMasker`, `IReadAuditContext` | Generic audit trail; referenced by GDPR/NIS2/SOX use cases in ROADMAP | **No README** | Yes | 29/21/14/4/2 |
-| `Encina.Audit.Marten` | Event-sourced `IAuditStore` on Marten/PostgreSQL with **temporal crypto-shredding** | (implements `IAuditStore`) | Positions itself for "GDPR retention, SOX + NIS2 + GDPR simultaneously"; no article-level table | Yes | Yes | 15 unit / 12 guard (AuditMarten folder) |
+| `Encina.Security.Audit` | `IOperationAuditStore`/`IReadAuditStore` abstractions, PII masking on audit entries, in-memory implementations | `IOperationAuditStore`, `IReadAuditStore`, `IOperationAuditEntryFactory`, `IPiiMasker`, `IReadAuditContext` | Generic audit trail; referenced by GDPR/NIS2/SOX use cases in ROADMAP | **No README** | Yes | 29/21/14/4/2 |
+| `Encina.Audit.Marten` | Event-sourced `IOperationAuditStore` on Marten/PostgreSQL with **temporal crypto-shredding** | (implements `IOperationAuditStore`) | Positions itself for "GDPR retention, SOX + NIS2 + GDPR simultaneously"; no article-level table | Yes | Yes | 15 unit / 12 guard (AuditMarten folder) |
 | `Encina.Marten.GDPR` | Crypto-shredding for Marten event-sourced systems: per-subject PII encryption, key deletion | (crypto-shredding helpers, not a store per se) | GDPR Art. 17 ("Right to be Forgotten") | Yes | Yes | 10 (Marten/GDPR folder, unit only found) |
 
 ### 1.4 Security packages (`src/Encina.Security.*`)

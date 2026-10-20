@@ -59,7 +59,13 @@ Re-check every claim against its source; do not trust a prior stage's wording.
 4. **Remediation duplicates.** For every draft in `artifacts\knowledge\remediation\<n>-*.md`: re-run the open-issue
    duplicate search yourself (`gh issue list --repo dlrivada/Encina --state open --search "<keywords>"`) — never
    trust the remediation stage's own first-pass search — and a draft that duplicates an open issue is a
-   correction (name the existing issue number). Also check, per draft: the title's prefix ([BUG]/[TEST]/[DEBT])
+   correction (name the existing issue number). Several audits may run at once (#2234): also compare every draft
+   with the drafts of the concurrent audits, `artifacts\knowledge\remediation\<m>-*.md` for each `<m>` in the
+   manifest's `concurrentAudits` (`artifacts\knowledge\remediation\_manifest-<n>.json`); a draft that covers the same
+   defect as one of theirs (same files and symbols) is a correction against the remediation stage, naming the other
+   draft and, when `opened.csv` lists it, its issue — except when the other draft is not opened yet and belongs to
+   an audit with a HIGHER issue number than this one: the lower-numbered audit goes first (as in queue order), so
+   this audit keeps its draft and the other audit records the duplicate once this one's issue exists. Also check, per draft: the title's prefix ([BUG]/[TEST]/[DEBT])
    matches the finding's kind (a code defect is [BUG], missing tests or a coverage gap is [TEST], everything else
    including documentation drift is [DEBT]); the draft's headers are exactly the ones of the template that prefix
    implies (bug_report.md / test_implementation.md / technical_debt.md), verbatim and in order, with checkboxes
@@ -69,6 +75,10 @@ Re-check every claim against its source; do not trust a prior stage's wording.
    exactly once in `stages/remediation.md`, either as a draft, a "duplicate of #m" line, or an explicit skip
    reason — a finding with none of the three is itself a correction against the remediation stage.
 5. **Coverage measured, not assumed.** Confirm `tests.md` reports an actual measured percentage per applicable flag, not an estimate. Re-run the same `--collect "XPlat Code Coverage"` command tests.md's flag used, with `--results-directory <wt>\artifacts\audit\coverage\verify-<flag>` (your own subdirectory, never test-auditor's), and compare the result against the reported number yourself; a mismatch is a correction against the `tests` stage.
+
+6. **Rules (a) and (b) (from audit #30 on; #1763).** Verify the docs-rule and obligations-rule findings like any other claim, by re-checking them against the files: a rule-(a) finding in `docs.md` (page not visual or scannable, a `csharp` sample that does not match `src/`, a hand-typed figure, wrong placement, a feature missing from the tutorials and learning paths) must be reproducible on the page it names; a rule-(b) finding in `tests.md` (a scoped file with no per-flag targets, an unjustified target, a target clearly below what is demanding and realistic, a 0 without justification) must match the real `.github/coverage-manifest/{Package}.json` entry, and the proposed target and justification must be consistent with the measured coverage. Also check the other direction: a scoped file that has no per-flag targets, or a page that is a wall of text, and that the stage reported nothing about, is a correction against that stage.
+
+**Delta mode.** When your prompt says `delta: rules-2026-10, verify only rules (a) and (b)`, the pipeline is `tools/ai/audit/pipeline-delta.json`: verify only `docs.md`, `tests.md` and `remediation.md` (steps 1-4 and 6 over those artifacts; step 5 only when you need a measured value to judge a rule-(b) target). There are no `archivist.md` or `code.md` in that audit.
 
 ## Output
 

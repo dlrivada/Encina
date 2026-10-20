@@ -1,6 +1,7 @@
 using Encina.Caching;
 using Encina.DomainModeling;
 using Encina.IdGeneration.Diagnostics;
+using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
@@ -57,7 +58,7 @@ public static class ServiceCollectionExtensions
         // Register messaging enricher behavior if enabled
         if (options.EnableMessagingEnrichers)
         {
-            services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(MessagingEnricherPipelineBehavior<,>));
+            services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(MessagingEnricherPipelineBehavior<,>)));
         }
 
         // Register database pool metrics initialization as a hosted service.
@@ -148,7 +149,8 @@ public static class ServiceCollectionExtensions
         DecorateService<IInboxStore>(services, inner => new InstrumentedInboxStore(inner));
         DecorateService<ISagaStore>(services, inner => new InstrumentedSagaStore(inner));
         DecorateService<IScheduledMessageStore>(services, inner => new InstrumentedScheduledMessageStore(inner));
-        DecorateService<IAuditStore>(services, inner => new InstrumentedAuditStore(inner));
+        DecorateService<IDeadLetterStore>(services, inner => new InstrumentedDeadLetterStore(inner));
+        DecorateService<IOperationAuditStore>(services, inner => new InstrumentedOperationAuditStore(inner));
         DecorateService<ICacheProvider>(services, inner => new InstrumentedCacheProvider(inner));
 
         return services;
@@ -203,6 +205,7 @@ public static class ServiceCollectionExtensions
             tracing.AddSource("Encina.Messaging.Inbox");
             tracing.AddSource("Encina.Messaging.Saga");
             tracing.AddSource("Encina.Messaging.Scheduling");
+            tracing.AddSource("Encina.Messaging.DeadLetter");
         });
 
         builder.WithMetrics(metrics =>
@@ -223,7 +226,8 @@ public static class ServiceCollectionExtensions
         Func<TService, TService> decoratorFactory)
         where TService : class
     {
-        var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(TService));
+        // A keyed registration is a different service and is left untouched.
+        var descriptor = services.FirstOrDefault(d => !d.IsKeyedService && d.ServiceType == typeof(TService));
         if (descriptor is null)
         {
             return;
@@ -231,19 +235,27 @@ public static class ServiceCollectionExtensions
 
         services.Remove(descriptor);
 
-        services.Add(ServiceDescriptor.Describe(
-            typeof(TService),
-            sp =>
-            {
-                var inner = ResolveFromDescriptor<TService>(sp, descriptor);
-                return decoratorFactory(inner);
-            },
-            descriptor.Lifetime));
+        // The factory is an instance method of a marker object so registration code (for example a
+        // database provider replacing the in-memory audit default) can look through the wrapper.
+        var decorating = new DecoratingFactory<TService>(descriptor, decoratorFactory);
+        services.Add(ServiceDescriptor.Describe(typeof(TService), decorating.Create, descriptor.Lifetime));
+    }
+
+    private sealed class DecoratingFactory<TService>(
+        ServiceDescriptor decorated,
+        Func<TService, TService> decoratorFactory) : IDecoratedServiceFactory
+        where TService : class
+    {
+        public ServiceDescriptor Decorated { get; } = decorated;
+
+        public object Create(IServiceProvider sp) =>
+            decoratorFactory(ResolveFromDescriptor<TService>(sp, Decorated));
     }
 
     private static T ResolveFromDescriptor<T>(IServiceProvider sp, ServiceDescriptor descriptor)
         where T : class
     {
+        // DecorateService never selects a keyed descriptor, whose implementation getters would throw.
         if (descriptor.ImplementationInstance is T instance)
         {
             return instance;
@@ -257,12 +269,6 @@ public static class ServiceCollectionExtensions
         if (descriptor.ImplementationType is not null)
         {
             return (T)ActivatorUtilities.CreateInstance(sp, descriptor.ImplementationType);
-        }
-
-        if (descriptor.IsKeyedService)
-        {
-            throw new InvalidOperationException(
-                $"Cannot decorate keyed service {typeof(T).Name}.");
         }
 
         throw new InvalidOperationException(

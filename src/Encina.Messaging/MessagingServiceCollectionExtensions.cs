@@ -57,13 +57,17 @@ public static class MessagingServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(config);
 
+        // Pipeline behaviors run in registration order, first registered outermost: the transaction behavior
+        // must be registered before the inbox behavior so the inbox runs inside the business transaction and
+        // can enlist its processed mark in it (ADR-048).
+        RegisterTransactions(services, config.UseTransactions);
+
         services.AddOutboxInboxSagaSchedulingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
             config.UseOutbox, config.OutboxOptions,
             config.UseInbox, config.InboxOptions,
             config.UseSagas, config.SagaOptions,
             config.UseScheduling, config.SchedulingOptions);
 
-        RegisterTransactions(services, config.UseTransactions);
         RegisterRoutingSlips(services, config);
         RegisterRecoverability(services, config);
         RegisterContentRouter(services, config);
@@ -238,6 +242,10 @@ public static class MessagingServiceCollectionExtensions
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
 
+        // The business transaction the ADO.NET/Dapper TransactionPipelineBehavior opens, visible to stores
+        // sharing the scoped connection (inbox enlisting, ADR-048).
+        services.TryAddScoped<IDbTransactionAccessor, DbTransactionAccessor>();
+
         RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, useOutbox, outboxOptions);
         RegisterInbox<TInboxStore, TInboxFactory>(services, useInbox, inboxOptions);
         RegisterSagas<TSagaStore, TSagaFactory>(services, useSagas, sagaOptions);
@@ -379,6 +387,10 @@ public static class MessagingServiceCollectionExtensions
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
 
+        // The business transaction the TransactionPipelineBehavior opens, visible to stores sharing the
+        // scoped connection (inbox enlisting, ADR-048).
+        services.TryAddScoped<IDbTransactionAccessor, DbTransactionAccessor>();
+
         RegisterTransactions(services, config.UseTransactions);
         RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, config.UseOutbox, config.OutboxOptions);
         RegisterInbox<TInboxStore, TInboxFactory>(services, config.UseInbox, config.InboxOptions);
@@ -387,6 +399,74 @@ public static class MessagingServiceCollectionExtensions
         RegisterContentRouter(services, config);
         RegisterScatterGather(services, config);
         RegisterSoftDeleteServices(services, config);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the Dead Letter Queue pattern's store, factory, orchestrator, manager, source capture
+    /// (<see cref="DeadLetterSourceCapture"/>), health check and cleanup processor when
+    /// <paramref name="useDeadLetterQueue"/> is enabled; registers nothing otherwise.
+    /// </summary>
+    /// <typeparam name="TStore">The dead letter store implementation type.</typeparam>
+    /// <typeparam name="TFactory">The dead letter message factory implementation type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="useDeadLetterQueue">Whether to register the Dead Letter Queue pattern.</param>
+    /// <param name="options">The Dead Letter Queue options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Called by every provider registration (ADO.NET, Dapper, EF Core, MongoDB) with the flag and
+    /// options of its configuration, and by <c>AddEncinaDeadLetterQueue</c>. The options, the store and the
+    /// factory use <c>TryAdd</c>: the first registration wins, so a store registered by the application first
+    /// (or the testing fake) is kept, a provider registered first is not replaced by a later call with other
+    /// types, and the options of a later call are ignored (configure the queue in the first call).
+    /// </para>
+    /// <para>
+    /// Every dependency the orchestrator, manager, health check and cleanup processor resolve is
+    /// registered here: <see cref="DeadLetterOptions"/>, <see cref="DeadLetterHealthCheckOptions"/>,
+    /// <see cref="TimeProvider"/>, <see cref="IRequestContextAccessor"/> and <see cref="IMessageSerializer"/>.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddDeadLetterQueueServices<TStore, TFactory>(
+        this IServiceCollection services,
+        bool useDeadLetterQueue,
+        DeadLetterOptions options)
+        where TStore : class, IDeadLetterStore
+        where TFactory : class, IDeadLetterMessageFactory
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
+
+        if (!useDeadLetterQueue) return services;
+
+        // First registration wins, like the store: a later call (for example AddEncinaDeadLetterQueue after a
+        // provider registered with UseDeadLetterQueue) never swaps the options under a store it kept.
+        services.TryAddSingleton(options);
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
+        // DeadLetterOrchestrator and DeadLetterManager serialize the request payload through
+        // IMessageSerializer (so encryption applies to dead-lettered content).
+        services.TryAddDefaultMessageSerializer();
+
+        services.TryAddScoped<IDeadLetterStore, TStore>();
+        services.TryAddScoped<IDeadLetterMessageFactory, TFactory>();
+        services.TryAddScoped<DeadLetterOrchestrator>();
+        services.TryAddScoped<IDeadLetterManager, DeadLetterManager>();
+
+        // The built-in sources (recoverability, outbox, inbox, scheduling, sagas) take it as an optional
+        // dependency and capture their terminal failures through it, each behind its IntegrateWith* flag.
+        services.TryAddSingleton<DeadLetterSourceCapture>();
+
+        // TryAddEnumerable so the health check coexists with other IEncinaHealthCheck registrations in any order.
+        services.TryAddSingleton(new DeadLetterHealthCheckOptions());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IEncinaHealthCheck, DeadLetterHealthCheck>());
+
+        if (options.EnableAutomaticCleanup && options.RetentionPeriod.HasValue)
+        {
+            services.AddHostedService<DeadLetterCleanupProcessor>();
+        }
 
         return services;
     }

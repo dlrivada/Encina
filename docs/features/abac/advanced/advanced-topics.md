@@ -252,9 +252,9 @@ var isHighValueVar = new VariableDefinition
             {
                 Category = AttributeCategory.Resource,
                 AttributeId = "amount",
-                DataType = "integer"
+                DataType = XACMLDataTypes.Integer
             },
-            new AttributeValue { DataType = "integer", Value = 10000 }
+            new AttributeValue { DataType = XACMLDataTypes.Integer, Value = 10000 }
         ]
     }
 };

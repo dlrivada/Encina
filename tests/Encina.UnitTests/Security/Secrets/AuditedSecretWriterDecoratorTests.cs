@@ -4,7 +4,9 @@ using Encina.Security.Audit;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Auditing;
+using Encina.Testing.Identity;
 using LanguageExt;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shouldly;
@@ -14,7 +16,8 @@ namespace Encina.UnitTests.Security.Secrets;
 public sealed class AuditedSecretWriterDecoratorTests
 {
     private readonly ISecretWriter _innerWriter;
-    private readonly IAuditStore _auditStore;
+    private readonly IOperationAuditStore _auditStore;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IRequestContext _requestContext;
     private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly ILogger<AuditedSecretWriterDecorator> _logger;
@@ -22,17 +25,21 @@ public sealed class AuditedSecretWriterDecoratorTests
     public AuditedSecretWriterDecoratorTests()
     {
         _innerWriter = Substitute.For<ISecretWriter>();
-        _auditStore = Substitute.For<IAuditStore>();
+        _auditStore = Substitute.For<IOperationAuditStore>();
+        _scopeFactory = new ServiceCollection()
+            .AddSingleton(_auditStore)
+            .BuildServiceProvider()
+            .GetRequiredService<IServiceScopeFactory>();
         _requestContext = Substitute.For<IRequestContext>();
         _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
         _logger = Substitute.For<ILogger<AuditedSecretWriterDecorator>>();
 
         _requestContext.CorrelationId.Returns(Guid.NewGuid().ToString());
-        _requestContext.UserId.Returns("test-user");
+        _requestContext.Identity.Returns(TestIdentity.User("test-user"));
         _requestContext.TenantId.Returns("test-tenant");
         _requestContextAccessor.RequestContext.Returns(_requestContext);
 
-        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default));
     }
 
@@ -43,21 +50,21 @@ public sealed class AuditedSecretWriterDecoratorTests
     {
         var options = CreateOptions(true);
 
-        var act = () => new AuditedSecretWriterDecorator(null!, _auditStore, _requestContextAccessor, options, _logger);
+        var act = () => new AuditedSecretWriterDecorator(null!, _scopeFactory, _requestContextAccessor, options, _logger);
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("inner");
     }
 
     [Fact]
-    public void Constructor_NullAuditStore_ThrowsArgumentNullException()
+    public void Constructor_NullScopeFactory_ThrowsArgumentNullException()
     {
         var options = CreateOptions(true);
 
         var act = () => new AuditedSecretWriterDecorator(_innerWriter, null!, _requestContextAccessor, options, _logger);
 
         Should.Throw<ArgumentNullException>(act)
-            .ParamName.ShouldBe("auditStore");
+            .ParamName.ShouldBe("scopeFactory");
     }
 
     [Fact]
@@ -65,7 +72,7 @@ public sealed class AuditedSecretWriterDecoratorTests
     {
         var options = CreateOptions(true);
 
-        var act = () => new AuditedSecretWriterDecorator(_innerWriter, _auditStore, null!, options, _logger);
+        var act = () => new AuditedSecretWriterDecorator(_innerWriter, _scopeFactory, null!, options, _logger);
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("requestContextAccessor");
@@ -74,7 +81,7 @@ public sealed class AuditedSecretWriterDecoratorTests
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
-        var act = () => new AuditedSecretWriterDecorator(_innerWriter, _auditStore, _requestContextAccessor, null!, _logger);
+        var act = () => new AuditedSecretWriterDecorator(_innerWriter, _scopeFactory, _requestContextAccessor, null!, _logger);
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("options");
@@ -85,7 +92,7 @@ public sealed class AuditedSecretWriterDecoratorTests
     {
         var options = CreateOptions(true);
 
-        var act = () => new AuditedSecretWriterDecorator(_innerWriter, _auditStore, _requestContextAccessor, options, null!);
+        var act = () => new AuditedSecretWriterDecorator(_innerWriter, _scopeFactory, _requestContextAccessor, options, null!);
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("logger");
@@ -105,7 +112,7 @@ public sealed class AuditedSecretWriterDecoratorTests
         var result = await decorator.SetSecretAsync("key", "value");
 
         result.IsRight.ShouldBeTrue();
-        await _auditStore.DidNotReceive().RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
+        await _auditStore.DidNotReceive().RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -122,7 +129,7 @@ public sealed class AuditedSecretWriterDecoratorTests
         await decorator.SetSecretAsync("db-password", "new-secret");
 
         await _auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e =>
+            Arg.Is<OperationAuditEntry>(e =>
                 e.Action == "SecretWrite" &&
                 e.EntityType == "Secret" &&
                 e.EntityId == "db-password" &&
@@ -154,7 +161,7 @@ public sealed class AuditedSecretWriterDecoratorTests
 
         result.IsLeft.ShouldBeTrue();
         await _auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e =>
+            Arg.Is<OperationAuditEntry>(e =>
                 e.Outcome == AuditOutcome.Failure &&
                 e.EntityId == "key"),
             Arg.Any<CancellationToken>());
@@ -170,7 +177,7 @@ public sealed class AuditedSecretWriterDecoratorTests
         await decorator.SetSecretAsync("key", "value");
 
         await _auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e =>
+            Arg.Is<OperationAuditEntry>(e =>
                 e.UserId == "test-user" &&
                 e.TenantId == "test-tenant"),
             Arg.Any<CancellationToken>());
@@ -187,7 +194,7 @@ public sealed class AuditedSecretWriterDecoratorTests
         _innerWriter.SetSecretAsync("key", "value", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default));
 
-        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(
                 SecretsErrors.AuditFailed("key")));
 
@@ -203,7 +210,7 @@ public sealed class AuditedSecretWriterDecoratorTests
         _innerWriter.SetSecretAsync("key", "value", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default));
 
-        _auditStore.When(x => x.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>()))
+        _auditStore.When(x => x.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>()))
             .Do(_ => throw new InvalidOperationException("audit store crashed"));
 
         var result = await decorator.SetSecretAsync("key", "value");
@@ -216,7 +223,7 @@ public sealed class AuditedSecretWriterDecoratorTests
     #region Helpers
 
     private AuditedSecretWriterDecorator CreateDecorator(bool enableAuditing) =>
-        new(_innerWriter, _auditStore, _requestContextAccessor,
+        new(_innerWriter, _scopeFactory, _requestContextAccessor,
             CreateOptions(enableAuditing), _logger);
 
     private static SecretsOptions CreateOptions(bool enableAuditing) =>

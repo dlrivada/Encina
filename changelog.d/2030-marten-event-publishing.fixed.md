@@ -1,0 +1,1 @@
+- Encina.Marten: `AddEncinaMarten` now registers `EventPublishingPipelineBehavior`, so the domain events of event-sourced aggregates are published after a successful command when `EncinaMartenOptions.AutoPublishDomainEvents` is true (the default); a failed publication fails the command (#2030).

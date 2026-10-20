@@ -1,10 +1,18 @@
+using Encina.Caching;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DataSubjectRights.Abstractions;
+using Encina.Compliance.DataSubjectRights.Aggregates;
 using Encina.Compliance.DataSubjectRights.Health;
+using Encina.Compliance.DataSubjectRights.Projections;
+using Encina.Compliance.GDPR;
+using Encina.Marten;
+using Encina.Marten.Projections;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+
+using NSubstitute;
 
 namespace Encina.UnitTests.Compliance.DataSubjectRights;
 
@@ -41,6 +49,59 @@ public class ServiceCollectionExtensionsTests
         services.ShouldContain(s => s.ServiceType == typeof(IDSRService));
         services.ShouldContain(s => s.ServiceType == typeof(IDataErasureExecutor));
         services.ShouldContain(s => s.ServiceType == typeof(IDataPortabilityExporter));
+    }
+
+    [Fact]
+    public void AddEncinaDataSubjectRights_BuildsWithValidationAndResolvesDsrServiceWithOptions()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(Substitute.For<IAggregateRepository<DSRRequestAggregate>>());
+        services.AddSingleton(Substitute.For<IReadModelRepository<DSRRequestReadModel>>());
+        services.AddSingleton(Substitute.For<IPersonalDataLocator>());
+        services.AddSingleton(Substitute.For<IProcessingActivityRegistry>());
+        services.AddSingleton(Substitute.For<ICacheProvider>());
+
+        services.AddEncinaDataSubjectRights(options => options.EnableOmnibusArticle12RefusalGrounds = true);
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+        using var scope = provider.CreateScope();
+
+        scope.ServiceProvider.GetRequiredService<IDSRService>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<IOptions<DataSubjectRightsOptions>>().Value
+            .EnableOmnibusArticle12RefusalGrounds.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task AddEncinaDataSubjectRights_WithTenancyRegistered_ServiceFailsClosedWithoutAmbientTenant()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(Substitute.For<IAggregateRepository<DSRRequestAggregate>>());
+        services.AddSingleton(Substitute.For<IReadModelRepository<DSRRequestReadModel>>());
+        services.AddSingleton(Substitute.For<IPersonalDataLocator>());
+        services.AddSingleton(Substitute.For<IProcessingActivityRegistry>());
+        services.AddSingleton(Substitute.For<ICacheProvider>());
+        services.AddSingleton(Substitute.For<global::Encina.Tenancy.ITenantProvider>());
+
+        services.AddEncinaDataSubjectRights();
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+        using var scope = provider.CreateScope();
+
+        scope.ServiceProvider.GetService<IRequestContextAccessor>().ShouldNotBeNull();
+        var result = await scope.ServiceProvider.GetRequiredService<IDSRService>().GetPendingRequestsAsync();
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.TenantRequiredCode));
     }
 
     [Fact]

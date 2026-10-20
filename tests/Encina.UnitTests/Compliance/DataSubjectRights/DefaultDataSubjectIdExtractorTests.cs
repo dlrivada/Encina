@@ -1,4 +1,5 @@
 using Encina.Compliance.DataSubjectRights;
+using Encina.Testing.Identity;
 
 using NSubstitute;
 
@@ -51,7 +52,7 @@ public class DefaultDataSubjectIdExtractorTests
     {
         var request = new RequestWithNoId("John");
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("context-user-789");
+        context.Identity.Returns(TestIdentity.User("context-user-789"));
 
         var result = _sut.ExtractSubjectId(request, context);
 
@@ -75,7 +76,7 @@ public class DefaultDataSubjectIdExtractorTests
         // The configured property does not exist: neither the SubjectId property nor the caller is used.
         var request = new RequestWithBadProperty("subject-111");
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("caller");
+        context.Identity.Returns(TestIdentity.User("caller"));
 
         var ex = Should.Throw<InvalidOperationException>(() => _sut.ExtractSubjectId(request, context));
 
@@ -87,7 +88,7 @@ public class DefaultDataSubjectIdExtractorTests
     {
         var request = new RequestWithNoId("John");
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns((string?)null);
+        context.Identity.Returns(TestIdentity.Anonymous);
 
         var result = _sut.ExtractSubjectId(request, context);
 

@@ -22,21 +22,22 @@ public sealed class TargetEvaluatorTests
     }
 
     private static PolicyEvaluationContext MakeContext(
-        AttributeBag? subject = null,
-        AttributeBag? resource = null,
-        AttributeBag? environment = null,
-        AttributeBag? action = null) =>
+        IReadOnlyDictionary<string, AttributeBag>? subject = null,
+        IReadOnlyDictionary<string, AttributeBag>? resource = null,
+        IReadOnlyDictionary<string, AttributeBag>? environment = null,
+        IReadOnlyDictionary<string, AttributeBag>? action = null) =>
         new()
         {
-            SubjectAttributes = subject ?? AttributeBag.Empty,
-            ResourceAttributes = resource ?? AttributeBag.Empty,
-            EnvironmentAttributes = environment ?? AttributeBag.Empty,
-            ActionAttributes = action ?? AttributeBag.Empty,
+            SubjectAttributes = subject ?? new Dictionary<string, AttributeBag>(),
+            ResourceAttributes = resource ?? new Dictionary<string, AttributeBag>(),
+            EnvironmentAttributes = environment ?? new Dictionary<string, AttributeBag>(),
+            ActionAttributes = action ?? new Dictionary<string, AttributeBag>(),
             RequestType = typeof(object)
         };
 
-    private static AttributeBag SingleBag(string dataType, object? value) =>
-        AttributeBag.Of(new AttributeValue { DataType = dataType, Value = value });
+    /// <summary>One attribute with a single value, keyed by its attribute identifier.</summary>
+    private static Dictionary<string, AttributeBag> Single(string attributeId, string dataType, object? value) =>
+        new() { [attributeId] = AttributeBag.Of(new AttributeValue { DataType = dataType, Value = value }) };
 
     private static Match MakeMatch(
         string functionId,
@@ -109,7 +110,7 @@ public sealed class TargetEvaluatorTests
                 }
             ]
         };
-        var ctx = MakeContext(subject: SingleBag(XACMLDataTypes.String, "admin"));
+        var ctx = MakeContext(subject: Single("role", XACMLDataTypes.String, "admin"));
 
         var result = _sut.EvaluateTarget(target, ctx);
 
@@ -140,7 +141,7 @@ public sealed class TargetEvaluatorTests
                 }
             ]
         };
-        var ctx = MakeContext(subject: SingleBag(XACMLDataTypes.String, "viewer"));
+        var ctx = MakeContext(subject: Single("role", XACMLDataTypes.String, "viewer"));
 
         var result = _sut.EvaluateTarget(target, ctx);
 
@@ -184,7 +185,7 @@ public sealed class TargetEvaluatorTests
                 }
             ]
         };
-        var ctx = MakeContext(subject: SingleBag(XACMLDataTypes.String, "admin"));
+        var ctx = MakeContext(subject: Single("role", XACMLDataTypes.String, "admin"));
 
         var result = _sut.EvaluateTarget(target, ctx);
 
@@ -224,7 +225,7 @@ public sealed class TargetEvaluatorTests
                 }
             ]
         };
-        var ctx = MakeContext(subject: SingleBag(XACMLDataTypes.String, "viewer"));
+        var ctx = MakeContext(subject: Single("role", XACMLDataTypes.String, "viewer"));
 
         var result = _sut.EvaluateTarget(target, ctx);
 
@@ -264,7 +265,7 @@ public sealed class TargetEvaluatorTests
                 }
             ]
         };
-        var ctx = MakeContext(subject: SingleBag(XACMLDataTypes.String, "viewer"));
+        var ctx = MakeContext(subject: Single("role", XACMLDataTypes.String, "viewer"));
 
         var result = _sut.EvaluateTarget(target, ctx);
 
@@ -320,8 +321,8 @@ public sealed class TargetEvaluatorTests
             ]
         };
         var ctx = MakeContext(
-            subject: SingleBag(XACMLDataTypes.String, "admin"),
-            action: SingleBag(XACMLDataTypes.String, "read"));
+            subject: Single("role", XACMLDataTypes.String, "admin"),
+            action: Single("name", XACMLDataTypes.String, "read"));
 
         var result = _sut.EvaluateTarget(target, ctx);
 
@@ -356,8 +357,8 @@ public sealed class TargetEvaluatorTests
             ]
         };
         var ctx = MakeContext(
-            subject: SingleBag(XACMLDataTypes.String, "admin"),
-            action: SingleBag(XACMLDataTypes.String, "read"));
+            subject: Single("role", XACMLDataTypes.String, "admin"),
+            action: Single("name", XACMLDataTypes.String, "read"));
 
         var result = _sut.EvaluateTarget(target, ctx);
 
@@ -432,8 +433,8 @@ public sealed class TargetEvaluatorTests
             ]
         };
         var ctx = MakeContext(
-            subject: SingleBag(XACMLDataTypes.String, "admin"),
-            action: SingleBag(XACMLDataTypes.String, "read"));
+            subject: Single("role", XACMLDataTypes.String, "admin"),
+            action: Single("name", XACMLDataTypes.String, "read"));
 
         var result = _sut.EvaluateTarget(target, ctx);
 
@@ -480,8 +481,8 @@ public sealed class TargetEvaluatorTests
             ]
         };
         var ctx = MakeContext(
-            subject: SingleBag(XACMLDataTypes.String, "admin"),
-            action: SingleBag(XACMLDataTypes.String, "read"));
+            subject: Single("role", XACMLDataTypes.String, "admin"),
+            action: Single("name", XACMLDataTypes.String, "read"));
 
         var result = _sut.EvaluateTarget(target, ctx);
 
@@ -580,7 +581,7 @@ public sealed class TargetEvaluatorTests
                 }
             ]
         };
-        var ctx = MakeContext(subject: SingleBag(XACMLDataTypes.String, "admin"));
+        var ctx = MakeContext(subject: Single("role", XACMLDataTypes.String, "admin"));
 
         var result = _sut.EvaluateTarget(target, ctx);
 
@@ -618,7 +619,7 @@ public sealed class TargetEvaluatorTests
         var bag = AttributeBag.Of(
             new AttributeValue { DataType = XACMLDataTypes.String, Value = "viewer" },
             new AttributeValue { DataType = XACMLDataTypes.String, Value = "admin" });
-        var ctx = MakeContext(subject: bag);
+        var ctx = MakeContext(subject: new Dictionary<string, AttributeBag> { ["roles"] = bag });
 
         var result = _sut.EvaluateTarget(target, ctx);
 
@@ -652,7 +653,7 @@ public sealed class TargetEvaluatorTests
         var bag = AttributeBag.Of(
             new AttributeValue { DataType = XACMLDataTypes.String, Value = "viewer" },
             new AttributeValue { DataType = XACMLDataTypes.String, Value = "editor" });
-        var ctx = MakeContext(subject: bag);
+        var ctx = MakeContext(subject: new Dictionary<string, AttributeBag> { ["roles"] = bag });
 
         var result = _sut.EvaluateTarget(target, ctx);
 
@@ -698,7 +699,7 @@ public sealed class TargetEvaluatorTests
                 }
             ]
         };
-        var ctx = MakeContext(action: SingleBag(XACMLDataTypes.String, "read"));
+        var ctx = MakeContext(action: Single("name", XACMLDataTypes.String, "read"));
 
         var result = _sut.EvaluateTarget(target, ctx);
 
@@ -741,7 +742,7 @@ public sealed class TargetEvaluatorTests
                 }
             ]
         };
-        var ctx = MakeContext(action: SingleBag(XACMLDataTypes.String, "read"));
+        var ctx = MakeContext(action: Single("name", XACMLDataTypes.String, "read"));
 
         var result = _sut.EvaluateTarget(target, ctx);
 
@@ -778,7 +779,7 @@ public sealed class TargetEvaluatorTests
                 }
             ]
         };
-        var ctx = MakeContext(resource: SingleBag(XACMLDataTypes.Integer, 5000));
+        var ctx = MakeContext(resource: Single("amount", XACMLDataTypes.Integer, 5000));
 
         var result = _sut.EvaluateTarget(target, ctx);
 

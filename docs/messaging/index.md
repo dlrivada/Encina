@@ -29,7 +29,7 @@ See [Messaging Transports](transports.md) for the decision flowchart and detaile
 |---------|---------|---------|
 | [Sagas](sagas.md) | Distributed transactions with compensation | `Encina.Messaging` |
 | Outbox | Reliable event publishing (at-least-once) | `Encina.Messaging` |
-| Inbox | Idempotent message processing | `Encina.Messaging` |
+| [Inbox](inbox.md) | Idempotent message processing | `Encina.Messaging` |
 | Scheduled Messages | Delayed/recurring execution | `Encina.Messaging` |
 
 ## Persistence Providers
@@ -67,4 +67,4 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>();
 - [Messaging Transports](transports.md) - Choose the right transport for your use case
 - [Saga Patterns](sagas.md) - Learn about Orchestration vs Choreography
 - Outbox Pattern - Reliable event publishing *(documentation coming soon)*
-- Inbox Pattern - Idempotent message processing *(documentation coming soon)*
+- [Inbox Pattern](inbox.md) - Idempotent message processing

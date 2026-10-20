@@ -203,7 +203,9 @@ public sealed class EventWithMetadata
     public required string EventTypeName { get; init; }
 
     /// <summary>
-    /// Gets the deserialized event data.
+    /// Gets the deserialized event data. Metadata readers never decrypt: when crypto-shredding is installed,
+    /// its protected fields hold their stored token (<c>cs2:...</c>), not the plaintext; do not store such an
+    /// event again, and read business data through the event stream instead.
     /// </summary>
     public required object Data { get; init; }
 

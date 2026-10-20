@@ -19,7 +19,7 @@ namespace Encina.Compliance.BreachNotification.Detection;
 /// <para>
 /// Property resolution looks for well-known property names (case-insensitive):
 /// <list type="bullet">
-/// <item><description><c>UserId</c> — falls back to <see cref="IRequestContext.UserId"/> if not found on request.</description></item>
+/// <item><description><c>UserId</c> — falls back to <see cref="RequestIdentity.UserId"/> if not found on request.</description></item>
 /// <item><description><c>IpAddress</c> — IP address associated with the request.</description></item>
 /// <item><description><c>EntityType</c> or <c>AffectedEntityType</c> — type of the affected entity.</description></item>
 /// <item><description><c>EntityId</c>, <c>AffectedEntityId</c>, or <c>Id</c> — identifier of the affected entity.</description></item>

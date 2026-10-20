@@ -6,7 +6,7 @@ namespace Encina.Audit.Marten;
 /// <remarks>
 /// <para>
 /// Temporal keys are partitioned by time period. Each period has its own encryption key.
-/// When <c>MartenAuditStore</c> purges audit entries via crypto-shredding, it destroys
+/// When <c>MartenOperationAuditStore</c> purges audit entries via crypto-shredding, it destroys
 /// the temporal keys for the affected periods, rendering all PII in those periods permanently
 /// unreadable while preserving the immutable event stream.
 /// </para>

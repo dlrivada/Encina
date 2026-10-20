@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Encina.AspNetCore;
 
 namespace Encina.UnitTests.AspNetCore;
@@ -13,8 +12,7 @@ public sealed class EncinaAspNetCoreOptionsTests
         options.CorrelationIdHeader.ShouldBe("X-Correlation-ID");
         options.TenantIdHeader.ShouldBe("X-Tenant-ID");
         options.IdempotencyKeyHeader.ShouldBe("X-Idempotency-Key");
-        options.UserIdClaimType.ShouldBe(ClaimTypes.NameIdentifier);
-        options.TenantIdClaimType.ShouldBe("tenant_id");
+        options.DataRegionHeaderName.ShouldBe("X-Data-Region");
         options.IncludeRequestPathInProblemDetails.ShouldBeFalse();
         options.IncludeExceptionDetails.ShouldBeFalse();
     }
@@ -27,8 +25,7 @@ public sealed class EncinaAspNetCoreOptionsTests
             CorrelationIdHeader = "X-Custom-Correlation",
             TenantIdHeader = "X-Custom-Tenant",
             IdempotencyKeyHeader = "X-Custom-Idempotency",
-            UserIdClaimType = "sub",
-            TenantIdClaimType = "tid",
+            DataRegionHeaderName = "X-Custom-Region",
             IncludeRequestPathInProblemDetails = true,
             IncludeExceptionDetails = true
         };
@@ -36,8 +33,7 @@ public sealed class EncinaAspNetCoreOptionsTests
         options.CorrelationIdHeader.ShouldBe("X-Custom-Correlation");
         options.TenantIdHeader.ShouldBe("X-Custom-Tenant");
         options.IdempotencyKeyHeader.ShouldBe("X-Custom-Idempotency");
-        options.UserIdClaimType.ShouldBe("sub");
-        options.TenantIdClaimType.ShouldBe("tid");
+        options.DataRegionHeaderName.ShouldBe("X-Custom-Region");
         options.IncludeRequestPathInProblemDetails.ShouldBeTrue();
         options.IncludeExceptionDetails.ShouldBeTrue();
     }

@@ -60,7 +60,7 @@ public class CdcAuditHandler : INotificationHandler<CdcChangeNotification>
         CancellationToken cancellationToken)
     {
         // Log the change for audit
-        await _auditService.LogChangeAsync(new AuditEntry
+        await _auditService.LogChangeAsync(new OperationAuditEntry
         {
             Table = notification.TableName,
             Operation = notification.Operation.ToString(),

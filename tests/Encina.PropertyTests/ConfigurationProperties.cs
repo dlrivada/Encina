@@ -356,6 +356,10 @@ public sealed class ConfigurationProperties
         var services = new ServiceCollection();
         services.AddSingleton<CallRecorder>();
         services.AddScoped<IRequestHandler<TrackedRequest, int>, RecordingRequestHandler>();
+        services.AddSingleton<PipelineStageRegistry>();
+        services.AddSingleton(static sp => new PipelineOrderResolver(
+            sp.GetRequiredService<PipelineStageRegistry>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<PipelineOrderResolver>.Instance));
 
         foreach (var candidate in pipeline)
         {
@@ -401,17 +405,26 @@ public sealed class ConfigurationProperties
         IReadOnlyList<(Type Type, string Label)> postProcessors,
         HandlerExecution execution)
     {
+        // Processors are steps placed by the stage contract, never by DI order: all of them default to
+        // (Application, -100), so they sit outside the undeclared behaviors (Application, 0) and are
+        // ordered by FullName. Pre-processors run on the way in in that order; post-processors wrap the
+        // inner pipeline, so they run on the way out in the reverse of that order.
         var events = new List<string>();
-        events.AddRange(preProcessors.Select(c => $"pre:{c.Label}"));
+        events.AddRange(OrderByStepName(preProcessors, typeof(TrackedRequest)).Select(c => $"pre:{c.Label}"));
         events.AddRange(pipeline.Select(c => $"behavior:{c.Label}:enter"));
         events.Add("handler");
         events.AddRange(pipeline.Reverse().Select(c => $"behavior:{c.Label}:exit"));
         if (execution == HandlerExecution.Success)
         {
-            events.AddRange(postProcessors.Select(c => $"post:{c.Label}"));
+            events.AddRange(OrderByStepName(postProcessors, typeof(TrackedRequest), typeof(int)).Reverse().Select(c => $"post:{c.Label}"));
         }
         return events;
     }
+
+    private static IEnumerable<(Type Type, string Label)> OrderByStepName(
+        IReadOnlyList<(Type Type, string Label)> processors,
+        params Type[] arguments)
+        => processors.OrderBy(c => CloseGeneric(c.Type, arguments).FullName, StringComparer.Ordinal);
 
     private sealed record TrackedRequest(int Value, HandlerExecution Execution) : IRequest<int>;
 
@@ -525,10 +538,10 @@ public sealed class ConfigurationProperties
 
         protected abstract string Label { get; }
 
-        public Task Process(TRequest request, IRequestContext context, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(TRequest request, IRequestContext context, CancellationToken cancellationToken)
         {
             _recorder.Add($"pre:{Label}");
-            return Task.CompletedTask;
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
         }
     }
 
@@ -553,13 +566,10 @@ public sealed class ConfigurationProperties
 
         protected abstract string Label { get; }
 
-        public Task Process(TRequest request, IRequestContext context, Either<EncinaError, TResponse> response, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, Unit>> Process(TRequest request, IRequestContext context, TResponse response, CancellationToken cancellationToken)
         {
-            if (response.IsRight)
-            {
-                _recorder.Add($"post:{Label}");
-            }
-            return Task.CompletedTask;
+            _recorder.Add($"post:{Label}");
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
         }
     }
 

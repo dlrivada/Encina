@@ -22,7 +22,7 @@ public class GenExtensionsTests
         var gen = ArbMap.Default.GeneratorFor<int>().ToEither();
 
         // Act
-        var samples = Gen.Sample(gen, 10, 100).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 100, size: 10).ToList();
 
         // Assert
         samples.Any(e => e.IsLeft).ShouldBeTrue("Should generate at least one Left");
@@ -36,7 +36,7 @@ public class GenExtensionsTests
         var gen = ArbMap.Default.GeneratorFor<int>().ToSuccess();
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(e => e.IsRight);
@@ -49,7 +49,7 @@ public class GenExtensionsTests
         var gen = EncinaArbitraries.EncinaError().Generator.ToFailure<string>();
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(e => e.IsLeft);
@@ -66,7 +66,7 @@ public class GenExtensionsTests
         var gen = GenExtensions.NonEmptyString().OrNull(0.5);
 
         // Act
-        var samples = Gen.Sample(gen, 10, 100).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 100, size: 10).ToList();
 
         // Assert
         samples.Any(s => s == null).ShouldBeTrue("Should generate at least one null");
@@ -80,7 +80,7 @@ public class GenExtensionsTests
         var gen = GenExtensions.NonEmptyString().OrNull(0.0);
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(s => s != null);
@@ -93,7 +93,7 @@ public class GenExtensionsTests
         var gen = ArbMap.Default.GeneratorFor<int>().OrNullValue(0.5);
 
         // Act
-        var samples = Gen.Sample(gen, 10, 500).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 500, size: 10).ToList();
 
         // Assert
         samples.Any(s => s == null).ShouldBeTrue("Should generate at least one null in 500 samples");
@@ -111,7 +111,7 @@ public class GenExtensionsTests
         var gen = GenExtensions.NonEmptyString();
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(s => !string.IsNullOrEmpty(s));
@@ -124,7 +124,7 @@ public class GenExtensionsTests
         var gen = GenExtensions.AlphaNumericString(5, 10);
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(s => s.Length >= 5 && s.Length <= 10);
@@ -138,7 +138,7 @@ public class GenExtensionsTests
         var gen = GenExtensions.EmailAddress();
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(s => s.Contains('@'));
@@ -156,7 +156,7 @@ public class GenExtensionsTests
         var gen = GenExtensions.JsonObject(3);
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(s => s.StartsWith('{'));
@@ -170,7 +170,7 @@ public class GenExtensionsTests
         var gen = GenExtensions.JsonObject(0);
 
         // Act
-        var samples = Gen.Sample(gen, 10, 20).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 20, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(s => s == "{}");
@@ -187,7 +187,7 @@ public class GenExtensionsTests
         var gen = GenExtensions.UtcDateTime(30);
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         var now = DateTime.UtcNow;
@@ -202,7 +202,7 @@ public class GenExtensionsTests
         var now = DateTime.UtcNow; // Capture before sampling to avoid race condition
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(d => d < now);
@@ -216,7 +216,7 @@ public class GenExtensionsTests
         var now = DateTime.UtcNow; // Capture before sampling to avoid race condition
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(d => d > now);
@@ -233,7 +233,7 @@ public class GenExtensionsTests
         var gen = GenExtensions.CronExpression();
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(s => s.Split(' ').Length == 5);
@@ -250,7 +250,7 @@ public class GenExtensionsTests
         var gen = ArbMap.Default.GeneratorFor<int>().ListOf(2, 5);
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(list => list.Count >= 2 && list.Count <= 5);
@@ -263,7 +263,7 @@ public class GenExtensionsTests
         var gen = ArbMap.Default.GeneratorFor<int>().NonEmptyListOf(5);
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(list => list.Count >= 1);
@@ -280,7 +280,7 @@ public class GenExtensionsTests
         var gen = GenExtensions.PositiveDecimal(0.01m, 100m);
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(d => d >= 0.01m && d <= 100m);

@@ -77,14 +77,18 @@ public sealed class ConditionEvaluator(IFunctionRegistry functionRegistry)
         attrValue.Value;
 
     /// <summary>
-    /// Evaluates an <see cref="AttributeDesignator"/> by resolving the attribute bag
-    /// from the evaluation context.
+    /// Evaluates an <see cref="AttributeDesignator"/> by resolving the bag of the attribute it
+    /// names (category, attribute identifier and data type) from the evaluation context.
     /// </summary>
+    /// <remarks>
+    /// <see cref="AttributeDesignator.MustBePresent"/> applies to that attribute only: an absent
+    /// attribute is an error when it must be present and an empty bag otherwise.
+    /// </remarks>
     private static Either<EncinaError, object?> EvaluateAttributeDesignator(
         AttributeDesignator designator,
         PolicyEvaluationContext context)
     {
-        var bag = ResolveCategoryBag(designator.Category, context);
+        var bag = AttributeDesignatorResolver.Resolve(designator, context);
 
         if (bag.IsEmpty)
         {
@@ -163,20 +167,4 @@ public sealed class ConditionEvaluator(IFunctionRegistry functionRegistry)
             return ABACErrors.FunctionError(apply.FunctionId, ex);
         }
     }
-
-    /// <summary>
-    /// Resolves the <see cref="AttributeBag"/> for the given <see cref="AttributeCategory"/>
-    /// from the evaluation context.
-    /// </summary>
-    private static AttributeBag ResolveCategoryBag(
-        AttributeCategory category,
-        PolicyEvaluationContext context) =>
-        category switch
-        {
-            AttributeCategory.Subject => context.SubjectAttributes,
-            AttributeCategory.Resource => context.ResourceAttributes,
-            AttributeCategory.Environment => context.EnvironmentAttributes,
-            AttributeCategory.Action => context.ActionAttributes,
-            _ => AttributeBag.Empty
-        };
 }

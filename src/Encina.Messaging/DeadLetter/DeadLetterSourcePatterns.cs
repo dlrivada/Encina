@@ -26,7 +26,8 @@ public static class DeadLetterSourcePatterns
     public const string Scheduling = "Scheduling";
 
     /// <summary>
-    /// Message originated from the Saga Pattern when saga was not found.
+    /// Message originated from the Saga Pattern: a saga that ended <c>Failed</c>, or a message whose saga was not
+    /// found and that its handler moved to the dead letter queue.
     /// </summary>
     public const string Saga = "Saga";
 

@@ -39,7 +39,7 @@ public sealed class CryptoShreddingHappyPathGuardTests : IDisposable
         var options = new CryptoShreddingOptions();
 
         options.AnonymizedPlaceholder.ShouldBe("[REDACTED]");
-        options.AutoRegisterFromAttributes.ShouldBeTrue();
+        options.ValidateOnStartup.ShouldBeTrue();
         options.AddHealthCheck.ShouldBeFalse();
         options.PublishEvents.ShouldBeTrue();
         options.KeyRotationDays.ShouldBe(90);
@@ -53,7 +53,7 @@ public sealed class CryptoShreddingHappyPathGuardTests : IDisposable
         var options = new CryptoShreddingOptions
         {
             AnonymizedPlaceholder = "<GONE>",
-            AutoRegisterFromAttributes = false,
+            ValidateOnStartup = false,
             AddHealthCheck = true,
             PublishEvents = false,
             KeyRotationDays = 180,
@@ -62,7 +62,7 @@ public sealed class CryptoShreddingHappyPathGuardTests : IDisposable
         options.AssembliesToScan.Add(typeof(CryptoShreddingHappyPathGuardTests).Assembly);
 
         options.AnonymizedPlaceholder.ShouldBe("<GONE>");
-        options.AutoRegisterFromAttributes.ShouldBeFalse();
+        options.ValidateOnStartup.ShouldBeFalse();
         options.AddHealthCheck.ShouldBeTrue();
         options.PublishEvents.ShouldBeFalse();
         options.KeyRotationDays.ShouldBe(180);
@@ -231,20 +231,6 @@ public sealed class CryptoShreddingHappyPathGuardTests : IDisposable
         evt.NewKeyId.ShouldBe("subject:user-10:v2");
     }
 
-    [Fact]
-    public void PiiEncryptionFailedEvent_PropertiesSet()
-    {
-        var evt = new PiiEncryptionFailedEvent(
-            SubjectId: "user-11",
-            PropertyName: "Email",
-            ErrorMessage: "key not found",
-            OccurredAtUtc: _time.GetUtcNow());
-
-        evt.SubjectId.ShouldBe("user-11");
-        evt.PropertyName.ShouldBe("Email");
-        evt.ErrorMessage.ShouldBe("key not found");
-    }
-
     // ─── Model records ───
 
     [Fact]
@@ -319,23 +305,6 @@ public sealed class CryptoShreddingHappyPathGuardTests : IDisposable
         info.TotalKeyVersions.ShouldBe(1);
         info.Status.ShouldBe(SubjectStatus.Active);
         info.ForgottenAtUtc.ShouldBeNull();
-    }
-
-    [Fact]
-    public void CryptoShreddedFieldMetadata_PropertiesSet()
-    {
-        var metadata = new CryptoShreddedFieldMetadata
-        {
-            DeclaringType = typeof(CryptoShreddingHappyPathGuardTests),
-            PropertyName = "Email",
-            SubjectIdProperty = "UserId",
-            Category = PersonalDataCategory.Contact
-        };
-
-        metadata.PropertyName.ShouldBe("Email");
-        metadata.DeclaringType.ShouldBe(typeof(CryptoShreddingHappyPathGuardTests));
-        metadata.SubjectIdProperty.ShouldBe("UserId");
-        metadata.Category.ShouldBe(PersonalDataCategory.Contact);
     }
 
     // ─── CryptoShreddedAttribute ───
