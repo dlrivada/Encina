@@ -101,12 +101,19 @@ try {
                 return $key.ToLowerInvariant()
             }
 
+            # An allowlist, not a denylist of rebinding forms (Set-Item variable:, Tee-Object -Variable, a .NET
+            # call, ... are endless): every command of the call must be a launcher, a directory change or an
+            # output command, and no .NET method call or dot-sourcing may appear. Anything else leaves the
+            # table empty and the script path unresolved.
             $commands = @($root.FindAll({ param($a) $a -is [System.Management.Automation.Language.CommandAst] }, $true))
-            $lockedNames = 'set-variable', 'new-variable', 'sv', 'nv', 'set', 'clear-variable', 'clv', 'remove-variable', 'rv', 'invoke-expression', 'iex', 'new-psdrive'
+            $allowedNames = 'pwsh', 'powershell', 'pwsh-preview', 'dotnet', 'set-location', 'cd', 'sl', 'chdir', 'push-location', 'pushd', 'pop-location', 'popd', 'write-output', 'write-host', 'echo', 'test-path'
             foreach ($c in $commands) {
+                if ($c.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Dot) { return $table }
+                # A dynamic command name (`& $p`, `& "$wt\x.ps1"`) has no name: it is the launcher.
                 $commandName = [string]$c.GetCommandName()
-                if (($c.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Dot) -or ($commandName -in $lockedNames)) { return $table }
+                if ($commandName -ne '' -and $commandName -notin $allowedNames -and $commandName -notmatch '\.ps1$') { return $table }
             }
+            if (@($root.FindAll({ param($a) $a -is [System.Management.Automation.Language.InvokeMemberExpressionAst] }, $true)).Count -gt 0) { return $table }
 
             $occurrences = @{}
             foreach ($v in @($root.FindAll({ param($a) $a -is [System.Management.Automation.Language.VariableExpressionAst] }, $true))) {

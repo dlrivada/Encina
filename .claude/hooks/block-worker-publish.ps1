@@ -59,12 +59,14 @@ try {
             $j = $k + 1
             $definesAlias = $false
             $definesTarProgram = $false
+            $definesDynamicConfig = $false
             while ($j -lt $tokens.Count -and -not $tokens[$j].Quoted -and $tokens[$j].Value.StartsWith('-')) {
                 $opt = $tokens[$j].Value
                 if ($opt -ceq '-C' -and $j + 1 -lt $tokens.Count) { $j += 2; continue }
                 if ($opt -ceq '-c' -and $j + 1 -lt $tokens.Count) {
                     if (-not $tokens[$j + 1].Dynamic -and $tokens[$j + 1].Value -match '^alias\.') { $definesAlias = $true }
                     if ($tokens[$j + 1].Value -match '^(?i)tar\.') { $definesTarProgram = $true }
+                    if ($tokens[$j + 1].Dynamic -or $tokens[$j + 1].Subexpression) { $definesDynamicConfig = $true }
                     $j += 2
                     continue
                 }
@@ -86,17 +88,26 @@ try {
             $verb = if ($j -lt $tokens.Count) { $tokens[$j].Value } else { $null }
 
             if ($verb -eq 'config') {
+                # Operands of git config: the key and, when setting, the value. -f/--file/--blob take a value.
+                $configOperands = [System.Collections.Generic.List[object]]::new()
+                $configReads = $false
                 for ($m = $j + 1; $m -lt $tokens.Count; $m++) {
-                    if ($tokens[$m].Value.StartsWith('-')) { continue }
-                    if (-not $tokens[$m].Dynamic -and $tokens[$m].Value -match '^alias\.') {
+                    $v = $tokens[$m].Value
+                    if ($v -in '-f', '--file', '--blob') { $m++; continue }
+                    if ($v.StartsWith('-')) { if ($v -match '^(--get|--list|-l$|--unset|--remove-section|--rename-section|--show|--default)') { $configReads = $true }; continue }
+                    $configOperands.Add($tokens[$m])
+                }
+                if ($configOperands.Count -gt 0) {
+                    $key = $configOperands[0]
+                    if (-not $key.Dynamic -and $key.Value -match '^alias\.') {
                         [Console]::Error.WriteLine("Blocked: $who never defines a git alias with 'git config' (see .claude/agents/issue-worker.md, Protocol). An alias could stand in for a blocked subcommand such as 'push'; the orchestrator handles publishing.")
                         exit 2
                     }
-                    if ($tokens[$m].Value -match '^(?i)tar\.') {
+                    # Reading or removing a tar.* key is harmless; setting one (key and value, no read option) is not.
+                    if ($key.Value -match '^(?i)tar\.' -and $configOperands.Count -ge 2 -and -not $configReads) {
                         [Console]::Error.WriteLine("Blocked: $who never sets a git 'tar.*' configuration with 'git config' (see .claude/agents/issue-worker.md, Protocol). 'tar.<format>.command' names a program that 'git archive' runs, so it could run any command; use a built-in archive format.")
                         exit 2
                     }
-                    break
                 }
             }
 
@@ -105,8 +116,19 @@ try {
             # before `--` is read; git accepts any unambiguous prefix of a long option (--rem, --ex), and the
             # quotes around an option do not change what git sees.
             if ($verb -ceq 'archive') {
+                # The environment can inject the same tar.<format>.command configuration as -c does.
+                if ($definesDynamicConfig -or $command -match 'GIT_CONFIG_(COUNT|KEY_|VALUE_|PARAMETERS)') {
+                    [Console]::Error.WriteLine("Blocked: $who never runs 'git archive' next to a git configuration it cannot read (-c with a variable, GIT_CONFIG_* variables): 'tar.<format>.command' names a program that 'git archive' runs (see .claude/agents/issue-worker.md, Protocol).")
+                    exit 2
+                }
                 foreach ($tok in @($tokens | Select-Object -Skip ($j + 1))) {
+                    # A variable, splat or subexpression may hold --remote or --exec (or an unseen --output
+                    # target): the hook cannot read it, so it denies, as it does for a variable subcommand.
                     if ($tok.Value -eq '--') { break }
+                    if ($tok.Dynamic -or $tok.Subexpression) {
+                        [Console]::Error.WriteLine("Blocked: $who never runs 'git archive' with an argument the hook cannot read ('$($tok.Value)'): a variable could hold --remote, --exec or an --output path (see .claude/agents/issue-worker.md, Protocol). Pass the arguments as literals.")
+                        exit 2
+                    }
                     if (-not $tok.Value.StartsWith('--')) { continue }
                     $optionName = $tok.Value.Substring(2)
                     $equals = $optionName.IndexOf('=')

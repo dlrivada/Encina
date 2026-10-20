@@ -576,7 +576,8 @@ function Get-ShellWrites {
                 if ($value.StartsWith('&') -and -not (Test-StreamMerge $value)) { $value = $value.Substring(1) }
                 $target = if ($value -and -not (Test-StreamMerge $value)) { New-CommandToken $value $false $t.Dynamic $t.Subexpression } elseif (Test-StreamMerge $redirect.Groups['t'].Value) { $null } else {
                     $index = $tokens.IndexOf($t)
-                    if ($index + 1 -lt $tokens.Count) { $tokens[$index + 1] } else { $null }
+                    # `2>& 1` (Bash, with a space): the next token is the descriptor, not a file.
+                    if ($index + 1 -lt $tokens.Count -and -not ($redirect.Groups['t'].Value -eq '&' -and (Test-StreamMerge ('&' + $tokens[$index + 1].Value)))) { $tokens[$index + 1] } else { $null }
                 }
                 if ($null -ne $target -and $target.Value -notin '$null', '/dev/null', 'nul') {
                     # A literal only for `'literal' > file`: the lone quoted token starts the statement, the
