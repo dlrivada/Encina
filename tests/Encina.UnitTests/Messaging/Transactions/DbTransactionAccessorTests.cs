@@ -1,5 +1,6 @@
 using System.Data;
 using Encina.Messaging.Transactions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Encina.UnitTests.Messaging.Transactions;
@@ -186,6 +187,36 @@ public sealed class DbTransactionAccessorTests : IAsyncDisposable
         await owner.RollbackAsync();
 
         _accessor.HasActiveTransaction.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Owner_RollbackThrows_LogsEventId2970WithoutTheMessageAndDoesNotThrow()
+    {
+        var logger = new CapturingLogger();
+        await using var accessor = new DbTransactionAccessor(_connection, logger);
+        var owner = Lease(await accessor.BeginOrJoinAsync(null));
+        _connection.Transaction.ThrowOnRollback = true;
+
+        await owner.RollbackAsync();
+
+        logger.Entries.ShouldHaveSingleItem();
+        var entry = logger.Entries[0];
+        entry.EventId.ShouldBe(2970);
+        entry.Level.ShouldBe(LogLevel.Warning);
+        entry.Text.ShouldNotContain("rollback failed");
+    }
+
+    private sealed class CapturingLogger : ILogger<DbTransactionAccessor>
+    {
+        public List<(int EventId, LogLevel Level, string Text)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Entries.Add((eventId.Id, logLevel, formatter(state, exception)));
     }
 
     [Fact]

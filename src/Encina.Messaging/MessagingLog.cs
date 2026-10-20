@@ -306,7 +306,7 @@ public static partial class MessagingLog
         Guid messageId);
 
     // =========================================================================
-    // Shared transaction and transactional outbox (EventIds 2963-2969)
+    // Shared transaction and transactional outbox (EventIds 2963-2970)
     // =========================================================================
 
     /// <summary>Logs when a participant joins the scope's active transaction instead of beginning one.</summary>
@@ -374,4 +374,14 @@ public static partial class MessagingLog
     public static partial void OutboxBehaviorSkipped(
         ILogger logger,
         string requestType);
+
+    /// <summary>Logs when rolling back the shared transaction failed; the failure is swallowed so cleanup never masks the original one.</summary>
+    /// <remarks>The exception is passed through <c>ForLogging()</c>: its type and stack trace, never its message.</remarks>
+    [LoggerMessage(
+        EventId = 2970,
+        Level = LogLevel.Warning,
+        Message = "Rolling back the shared transaction failed; the database discards it on its own")]
+    public static partial void TransactionRollbackFailed(
+        ILogger logger,
+        Exception exception);
 }

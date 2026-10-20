@@ -227,10 +227,11 @@ public sealed class DbTransactionAccessor : IDbTransactionAccessor, IAsyncDispos
             {
                 await _transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 // The transaction is already broken (for example the connection dropped); the database discards
-                // it on its own, and the caller is already on a failure path.
+                // it on its own, and the caller is already on a failure path. Log it, never rethrow.
+                State.RecordRollbackFailed(ex);
             }
             finally
             {

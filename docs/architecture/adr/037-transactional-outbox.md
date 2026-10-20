@@ -93,7 +93,7 @@ Slice 1 (delivered; issue #718 stays open until every family is done): the share
 
 ### Observability
 
-EventIds 2963-2969 (`MessagingLog`, in the registered Messaging range, [ADR-021](021-eventid-uniqueness-enforcement.md)); the activity source `Encina.Messaging.Transactions` for the transaction; the counters `encina.outbox.enqueued` and `encina.transaction.rollback_only`. The unused transaction log methods (EventIds 2834-2836) are now called by the transaction behavior.
+EventIds 2963-2970 (`MessagingLog`, in the registered Messaging range, [ADR-021](021-eventid-uniqueness-enforcement.md)); the activity source `Encina.Messaging.Transactions` for the transaction; the counters `encina.outbox.enqueued` and `encina.transaction.rollback_only`. The unused transaction log methods (EventIds 2834-2836) are now called by the transaction behavior.
 
 ## Alternatives considered
 
@@ -104,7 +104,7 @@ Per choice, in the table above. In short: a narrower provider scope was rejected
 - **Positive**: a committed command leaves exactly one outbox row per notification, and a rolled-back command, a `Left` or a failed outbox write leaves none and fails the request, on the ADO.NET providers. The unit of work, the transaction behavior and the four messaging stores compose in one transaction. The inbox ([ADR-048](048-inbox-record-vs-business-transaction.md)) reads the same transaction.
 - **Negative, limits**:
   - Other ADO.NET components and stores outside the four messaging stores do not enlist ([#1934](https://github.com/dlrivada/Encina/issues/1934)). On SQL Server and MySQL the driver rejects their commands while the transaction is active; PostgreSQL silently joins.
-  - Until its slice lands, Dapper, EF Core and MongoDB keep the non-atomic post-processor path.
+  - Until its slice lands, Dapper, EF Core and MongoDB keep the non-atomic post-processor path: their outbox is written after the business commit, so retrying a request whose outbox write failed repeats a change that was already committed.
   - A joiner's `CommitAsync` returning success does not mean the data is durable; only the owner's commit does.
   - `UnitOfWorkADO` implements only `IAsyncDisposable`, so resolving `IUnitOfWork` inside a request that Encina dispatches fails when the request scope is disposed synchronously. This is a known defect. ([#2556](https://github.com/dlrivada/Encina/issues/2556))
   - The ADO.NET PostgreSQL and MySQL registrations do not support module isolation (`UseModuleIsolation`); SQL Server does. ([#2557](https://github.com/dlrivada/Encina/issues/2557))

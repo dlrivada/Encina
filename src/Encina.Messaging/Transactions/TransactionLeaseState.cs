@@ -97,6 +97,13 @@ internal sealed class TransactionLeaseState
         => MessagingLog.TransactionCommitFailed(_logger, exception.ForLogging(), TransactionErrors.CommitFailedCode);
 
     /// <summary>
+    /// Records that the rollback itself failed; the failure is swallowed so cleanup never masks the original one.
+    /// </summary>
+    /// <param name="exception">The exception raised by the rollback.</param>
+    internal void RecordRollbackFailed(Exception exception)
+        => MessagingLog.TransactionRollbackFailed(_logger, exception.ForLogging());
+
+    /// <summary>
     /// Ends the transaction: later joiner operations fail with <see cref="TransactionErrors.LeaseDisposed"/>.
     /// </summary>
     /// <param name="outcome">One of the <c>Outcome*</c> constants of <see cref="TransactionActivitySource"/>.</param>

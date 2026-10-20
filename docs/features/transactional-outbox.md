@@ -133,13 +133,14 @@ The codes are the constants of `TransactionErrors`. A failed outbox write return
 
 ## Observe it
 
-- Log events 2963 to 2969 of `MessagingLog` (joined, marked rollback-only, commit refused because rollback-only, commit failed, notifications written, write failed, behavior skipped), and 2834 to 2836 for transaction started, committed and rolled back.
+- Log events 2963 to 2970 of `MessagingLog` (joined, marked rollback-only, commit refused because rollback-only, commit failed, notifications written, write failed, behavior skipped, rollback failed), and 2834 to 2836 for transaction started, committed and rolled back.
 - Activity source `Encina.Messaging.Transactions`: one activity per owned transaction, with the tags `encina.transaction.owner`, `encina.transaction.outcome` and `db.system`.
 - Counters `encina.outbox.enqueued` (by outcome, written or failed, and `db.system`) and `encina.transaction.rollback_only`.
 
 ## Limits
 
 - Only the three ADO.NET providers write inside the transaction today (table above).
+- On the Dapper, EF Core and MongoDB paths the outbox is still written after the business commit: retrying a request whose outbox write failed repeats a change that was already committed (until their slices land).
 - Only the four messaging stores (outbox, inbox, saga, scheduled message) and the unit-of-work repositories enlist. Other ADO.NET components that use the scoped connection, such as the audit, anonymization and ABAC stores, read/write separation and shard connections, do not enlist ([#1934](https://github.com/dlrivada/Encina/issues/1934)). On SQL Server and MySQL the driver rejects their commands while the transaction is active; PostgreSQL silently joins them.
 - Resolving `IUnitOfWork` inside a request that Encina dispatches fails when the request scope is disposed: `UnitOfWorkADO` implements only `IAsyncDisposable`, and Encina disposes its request scope synchronously. This is a known defect. ([#2556](https://github.com/dlrivada/Encina/issues/2556))
 - `AddEncinaADO` for PostgreSQL and MySQL does not support `UseModuleIsolation`; the SQL Server one does.
