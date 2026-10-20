@@ -126,10 +126,10 @@
         "guard"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL — needs real database",
-      "targets": { "integration": 92, "guard": 7 },
+      "reason": "ADO.NET store with raw SQL - needs real database",
+      "targets": { "integration": 95, "guard": 7 },
       "justifications": {
-        "integration": "Real-database retry contract tests drive the store through the orchestrator; the uncovered lines are provider error branches.",
+        "integration": "Real-database retry contract tests and the outbox atomicity tests drive the store, including the failure records that survive a rollback (measured 99%); the uncovered lines are provider error branches.",
         "guard": "Only the argument checks are guard-reachable."
       }
     },
@@ -184,10 +184,16 @@
     },
     "Outbox/OutboxStoreADO.cs": {
       "defaultTests": [
-        "integration"
+        "integration",
+        "guard"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL — needs real database"
+      "reason": "ADO.NET store with raw SQL - needs real database",
+      "targets": { "integration": 92, "guard": 7 },
+      "justifications": {
+        "integration": "The store tests and the outbox atomicity tests on a real SQL Server run every query, the enlisted add and the requeue paths (measured 96%); the uncovered lines are provider error branches.",
+        "guard": "Only the argument checks are guard-reachable."
+      }
     },
     "Pagination/CursorPaginationHelper.cs": {
       "defaultTests": [
@@ -300,10 +306,16 @@
     },
     "Sagas/SagaStoreADO.cs": {
       "defaultTests": [
-        "integration"
+        "integration",
+        "guard"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL — needs real database"
+      "reason": "ADO.NET store with raw SQL - needs real database",
+      "targets": { "integration": 92, "guard": 10 },
+      "justifications": {
+        "integration": "The saga store tests on a real SQL Server run every query (measured 97%); the uncovered lines are provider error branches.",
+        "guard": "Only the argument checks are guard-reachable."
+      }
     },
     "Scheduling/ScheduledMessage.cs": {
       "defaultTests": [
@@ -323,10 +335,16 @@
     },
     "Scheduling/ScheduledMessageStoreADO.cs": {
       "defaultTests": [
-        "integration"
+        "integration",
+        "guard"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL — needs real database"
+      "reason": "ADO.NET store with raw SQL - needs real database",
+      "targets": { "integration": 90, "guard": 10 },
+      "justifications": {
+        "integration": "The scheduled message store tests on a real SQL Server run every query (measured 95%); the uncovered lines are provider error branches.",
+        "guard": "Only the argument checks are guard-reachable."
+      }
     },
     "DeadLetter/DeadLetterMessage.cs": {
       "defaultTests": [
@@ -385,17 +403,16 @@
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": {
-        "unit": 53,
-        "guard": 50
-      },
+      "targets": { "unit": 55, "guard": 55, "integration": 40 },
       "justifications": {
-        "unit": "The registration tests resolve the dead letter and the read/write separation paths (enabled with and without replicas, disabled, and registered twice) with ValidateOnBuild and ValidateScopes, but the file also registers features that are covered by their own tests, so only part of it is exercised here.",
-        "guard": "The null-argument checks are covered by the guard tests, while the remaining registrations belong to other features."
+        "unit": "The registration tests resolve the transactional outbox, dead letter and read/write separation paths (enabled, disabled and registered twice) with ValidateOnBuild and ValidateScopes, but the file also registers features covered by their own tests (measured 58%).",
+        "guard": "The null-argument checks are covered by the guard tests, while the remaining registrations belong to other features (measured 61%).",
+        "integration": "The outbox atomicity and dead letter tests build the provider with the real registration against a database (measured 44%); the audit, anonymization and policy stores are registered only when their feature is on."
       }
     },
     "Sharding/FunctionalShardedRepositoryADO.cs": {
@@ -546,17 +563,15 @@
     },
     "Tenancy/TenancyServiceCollectionExtensions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "integration"
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": {
-        "unit": 90,
-        "guard": 0
-      },
+      "targets": { "unit": 90, "integration": 35 },
       "justifications": {
-        "unit": "The registration unit tests reach nearly every branch of the tenancy extension, including the wiring of the dead letter tenant column.",
-        "guard": "This file has no separate guard surface, because its only argument checks are reached by the unit registration tests."
+        "unit": "The registration unit tests reach nearly every branch of the tenancy extension, including the wiring of the dead letter tenant column and the transactional outbox path (measured 100%).",
+        "integration": "The database-per-tenant outbox atomicity test runs the messaging entry and the tenant connection factory (measured 39%); the tenant-aware repository registrations are covered by the repository tests."
       }
     },
     "Tenancy/TenantAwareFunctionalRepositoryADO.cs": {
@@ -595,10 +610,17 @@
     "UnitOfWork/UnitOfWorkADO.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Unit of work over the scope's shared transaction lease",
+      "targets": { "unit": 95, "guard": 40, "integration": 80 },
+      "justifications": {
+        "unit": "Begin, commit, rollback, join, rollback-only and dispose are driven through the accessor with a recording connection (measured 100%).",
+        "guard": "The guard tests cover the constructor and every public method's argument checks (measured 44%); the remaining lines need an active transaction.",
+        "integration": "The unit of work tests and the outbox atomicity tests run it on a real SQL Server (measured 87%); the repository cache and immutable update branches need entity-specific tests."
+      }
     },
     "UnitOfWork/UnitOfWorkRepositoryADO.cs": {
       "defaultTests": [

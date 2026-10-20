@@ -46,6 +46,24 @@ internal static class OutboxActivitySource
     }
 
     /// <summary>
+    /// Starts the activity that spans writing a request's notifications to the outbox inside its transaction.
+    /// </summary>
+    /// <param name="notificationCount">The number of notifications being written.</param>
+    /// <returns>The started activity, or <c>null</c> if no listener is active.</returns>
+    internal static Activity? StartEnqueue(int notificationCount)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity(
+            "encina.outbox.enqueue", ActivityKind.Internal);
+        activity?.SetTag("outbox.notification_count", notificationCount);
+        return activity;
+    }
+
+    /// <summary>
     /// Starts an outbox processing batch activity.
     /// </summary>
     /// <param name="batchSize">The number of messages in the batch.</param>

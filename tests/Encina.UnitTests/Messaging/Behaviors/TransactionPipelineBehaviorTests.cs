@@ -1,442 +1,204 @@
-using System.Data;
-using System.Data.Common;
 using Encina.Messaging;
+using Encina.Messaging.Transactions;
 using Encina.Testing.Identity;
+using Encina.UnitTests.Messaging.Transactions;
 using LanguageExt;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Encina.UnitTests.Messaging.Behaviors;
 
 /// <summary>
-/// Unit tests for TransactionPipelineBehavior.
+/// Unit tests for <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/>: it takes a lease on the scope's
+/// transaction, commits it on success, rolls it back on a failure, an exception or a cancellation, and joins a
+/// transaction another participant owns instead of beginning a second one.
 /// </summary>
-// Primary constructor not used due to mock setup order.
-public sealed class TransactionPipelineBehaviorTests
+public sealed class TransactionPipelineBehaviorTests : IAsyncDisposable
 {
-    private readonly IDbConnection _connection = Substitute.For<IDbConnection>();
-    private readonly IDbTransaction _transaction = Substitute.For<IDbTransaction>();
+    private readonly RecordingTransactionalConnection _connection = new();
+    private readonly DbTransactionAccessor _accessor;
     private readonly TransactionPipelineBehavior<TestRequest, string> _behavior;
 
     public TransactionPipelineBehaviorTests()
     {
-        _connection.BeginTransaction().Returns(_transaction);
-        _connection.State.Returns(ConnectionState.Open);
-        _behavior = new TransactionPipelineBehavior<TestRequest, string>(_connection);
+        _accessor = new DbTransactionAccessor(_connection, NullLogger<DbTransactionAccessor>.Instance);
+        _behavior = new TransactionPipelineBehavior<TestRequest, string>(
+            _accessor, NullLogger<TransactionPipelineBehavior<TestRequest, string>>.Instance);
     }
 
-    #region Constructor Tests
+    public async ValueTask DisposeAsync()
+    {
+        await _accessor.DisposeAsync();
+        await _connection.DisposeAsync();
+    }
+
+    private static RequestHandlerCallback<string> Succeed() =>
+        () => ValueTask.FromResult<Either<EncinaError, string>>("Success");
+
+    private ValueTask<Either<EncinaError, string>> Run(RequestHandlerCallback<string> next, CancellationToken ct = default) =>
+        _behavior.Handle(new TestRequest(Guid.NewGuid()), CreateTestContext(), next, ct);
 
     [Fact]
-    public void Constructor_NullConnection_ThrowsArgumentNullException()
+    public void Constructor_NullArguments_Throw()
     {
-        // Act
-        var act = () => new TransactionPipelineBehavior<TestRequest, string>(null!);
+        var logger = NullLogger<TransactionPipelineBehavior<TestRequest, string>>.Instance;
 
-        // Assert
-        var exception = act.ShouldThrow<ArgumentNullException>();
-        exception.ParamName.ShouldBe("connection");
+        Should.Throw<ArgumentNullException>(() => new TransactionPipelineBehavior<TestRequest, string>(null!, logger))
+            .ParamName.ShouldBe("transactionAccessor");
+        Should.Throw<ArgumentNullException>(() => new TransactionPipelineBehavior<TestRequest, string>(_accessor, null!))
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
-    public async Task Handle_WithAccessor_PublishesTransactionWhileRunningAndClearsItAfterwards()
+    public async Task Handle_Success_CommitsWithTokenNoneAndDisposesTheTransaction()
     {
-        // Arrange
-        var accessor = new DbTransactionAccessor();
-        var behavior = new TransactionPipelineBehavior<TestRequest, string>(_connection, accessor);
-        IDbTransaction? seenByHandler = null;
+        using var cts = new CancellationTokenSource();
 
-        RequestHandlerCallback<string> nextStep = () =>
+        var result = await Run(Succeed(), cts.Token);
+
+        result.IsRight.ShouldBeTrue();
+        _connection.BeginAsyncToken.ShouldBe(cts.Token);
+        _connection.Transaction.CommitAsyncCalls.ShouldBe(1);
+        _connection.Transaction.CommitAsyncToken.ShouldBe(CancellationToken.None);
+        _connection.Transaction.RollbackAsyncCalls.ShouldBe(0);
+        _connection.Transaction.DisposeAsyncCalls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Handle_PublishesTheTransactionWhileRunning_AndClearsItAfterwards()
+    {
+        System.Data.IDbTransaction? seenByHandler = null;
+
+        await Run(() =>
         {
-            seenByHandler = accessor.Current;
+            seenByHandler = _accessor.Current;
             return ValueTask.FromResult<Either<EncinaError, string>>("Success");
-        };
+        });
 
-        // Act
-        await behavior.Handle(new TestRequest(Guid.NewGuid()), CreateTestContext(), nextStep, CancellationToken.None);
-
-        // Assert
-        seenByHandler.ShouldBeSameAs(_transaction);
-        accessor.Current.ShouldBeNull();
+        seenByHandler.ShouldBeSameAs(_connection.Transaction);
+        _accessor.Current.ShouldBeNull();
     }
 
     [Fact]
-    public async Task Handle_PlainConnection_HandlerThrowsOperationCanceled_RollsBackAndRethrows()
+    public async Task Handle_HandlerReturnsError_RollsBackAndReturnsTheError()
     {
-        // Arrange
-        var accessor = new DbTransactionAccessor();
-        var behavior = new TransactionPipelineBehavior<TestRequest, string>(_connection, accessor);
-        RequestHandlerCallback<string> nextStep = () => throw new OperationCanceledException();
-
-        // Act
-        var act = async () => await behavior.Handle(new TestRequest(Guid.NewGuid()), CreateTestContext(), nextStep, CancellationToken.None);
-
-        // Assert
-        await act.ShouldThrowAsync<OperationCanceledException>();
-        _transaction.Received(1).Rollback();
-        _transaction.DidNotReceive().Commit();
-        accessor.Current.ShouldBeNull();
-    }
-
-    [Fact]
-    public async Task Handle_WithAccessor_ClearsTransactionAlsoWhenHandlerThrows()
-    {
-        // Arrange
-        var accessor = new DbTransactionAccessor();
-        var behavior = new TransactionPipelineBehavior<TestRequest, string>(_connection, accessor);
-
-        RequestHandlerCallback<string> nextStep = () => throw new InvalidOperationException("boom");
-
-        // Act
-        var result = await behavior.Handle(new TestRequest(Guid.NewGuid()), CreateTestContext(), nextStep, CancellationToken.None);
-
-        // Assert
-        result.IsLeft.ShouldBeTrue();
-        accessor.Current.ShouldBeNull();
-    }
-
-    #endregion
-
-    #region Handle Tests - Success Path
-
-    [Fact]
-    public async Task Handle_HandlerReturnsSuccess_CommitsTransaction()
-    {
-        // Arrange
-        var request = new TestRequest(Guid.NewGuid());
-        var context = CreateTestContext();
-        var expectedResult = "Success";
-
-        RequestHandlerCallback<string> nextStep = () =>
-            ValueTask.FromResult<Either<EncinaError, string>>(expectedResult);
-
-        // Act
-        var result = await _behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: value => value.ShouldBe(expectedResult),
-            Left: _ => throw new InvalidOperationException("Expected Right"));
-
-        _transaction.Received(1).Commit();
-        _transaction.DidNotReceive().Rollback();
-    }
-
-    [Fact]
-    public async Task Handle_ConnectionClosed_OpensConnection()
-    {
-        // Arrange
-        var closedConnection = Substitute.For<IDbConnection>();
-        closedConnection.State.Returns(ConnectionState.Closed);
-        closedConnection.BeginTransaction().Returns(_transaction);
-
-        var behavior = new TransactionPipelineBehavior<TestRequest, string>(closedConnection);
-        var request = new TestRequest(Guid.NewGuid());
-        var context = CreateTestContext();
-
-        RequestHandlerCallback<string> nextStep = () =>
-            ValueTask.FromResult<Either<EncinaError, string>>("Success");
-
-        // Act
-        await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        closedConnection.Received(1).Open();
-    }
-
-    [Fact]
-    public async Task Handle_ConnectionAlreadyOpen_DoesNotOpenAgain()
-    {
-        // Arrange
-        var request = new TestRequest(Guid.NewGuid());
-        var context = CreateTestContext();
-
-        RequestHandlerCallback<string> nextStep = () =>
-            ValueTask.FromResult<Either<EncinaError, string>>("Success");
-
-        // Act
-        await _behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        _connection.DidNotReceive().Open();
-    }
-
-    #endregion
-
-    #region Handle Tests - Error Path
-
-    [Fact]
-    public async Task Handle_HandlerReturnsError_RollsBackTransaction()
-    {
-        // Arrange
-        var request = new TestRequest(Guid.NewGuid());
-        var context = CreateTestContext();
         var error = EncinaErrors.Create("test.error", "Test error");
 
-        RequestHandlerCallback<string> nextStep = () =>
-            ValueTask.FromResult<Either<EncinaError, string>>(error);
+        var result = await Run(() => ValueTask.FromResult<Either<EncinaError, string>>(error));
 
-        // Act
-        var result = await _behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: err => err.Message.ShouldBe("Test error"));
-
-        _transaction.Received(1).Rollback();
-        _transaction.DidNotReceive().Commit();
+        ((EncinaError)result).GetCode().IfNone(string.Empty).ShouldBe("test.error");
+        _connection.Transaction.RollbackAsyncCalls.ShouldBe(1);
+        _connection.Transaction.RollbackAsyncToken.ShouldBe(CancellationToken.None);
+        _connection.Transaction.CommitAsyncCalls.ShouldBe(0);
+        _connection.Transaction.DisposeAsyncCalls.ShouldBe(1);
     }
 
     [Fact]
-    public async Task Handle_HandlerThrows_RollsBackTransactionAndReturnsLeft()
+    public async Task Handle_HandlerThrows_RollsBackAndReturnsTransactionFailed()
     {
-        // Arrange
-        var request = new TestRequest(Guid.NewGuid());
-        var context = CreateTestContext();
+        RequestHandlerCallback<string> next = () => throw new InvalidOperationException("Handler failed");
 
-        RequestHandlerCallback<string> nextStep = () =>
-            throw new InvalidOperationException("Handler failed");
+        var result = await Run(next);
 
-        // Act
-        var result = await _behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        result.IsLeft.ShouldBeTrue();
-        _transaction.Received(1).Rollback();
-        _transaction.DidNotReceive().Commit();
-    }
-
-    #endregion
-
-    #region Handle Tests - Guard Clauses
-
-    [Fact]
-    public async Task Handle_NullRequest_ThrowsArgumentNullException()
-    {
-        // Arrange
-        var context = CreateTestContext();
-        RequestHandlerCallback<string> nextStep = () =>
-            ValueTask.FromResult<Either<EncinaError, string>>("Success");
-
-        // Act
-        var act = async () => await _behavior.Handle(null!, context, nextStep, CancellationToken.None);
-
-        // Assert
-        var exception = await act.ShouldThrowAsync<ArgumentNullException>();
-        exception.ParamName.ShouldBe("request");
+        ((EncinaError)result).GetCode().IfNone(string.Empty).ShouldBe("transaction.failed");
+        _connection.Transaction.RollbackAsyncCalls.ShouldBe(1);
+        _connection.Transaction.CommitAsyncCalls.ShouldBe(0);
+        _accessor.Current.ShouldBeNull();
     }
 
     [Fact]
-    public async Task Handle_NullContext_ThrowsArgumentNullException()
+    public async Task Handle_HandlerThrowsOperationCanceled_RollsBackAndRethrows()
     {
-        // Arrange
-        var request = new TestRequest(Guid.NewGuid());
-        RequestHandlerCallback<string> nextStep = () =>
-            ValueTask.FromResult<Either<EncinaError, string>>("Success");
-
-        // Act
-        var act = async () => await _behavior.Handle(request, null!, nextStep, CancellationToken.None);
-
-        // Assert
-        var exception = await act.ShouldThrowAsync<ArgumentNullException>();
-        exception.ParamName.ShouldBe("context");
-    }
-
-    [Fact]
-    public async Task Handle_NullNextStep_ThrowsArgumentNullException()
-    {
-        // Arrange
-        var request = new TestRequest(Guid.NewGuid());
-        var context = CreateTestContext();
-
-        // Act
-        var act = async () => await _behavior.Handle(request, context, null!, CancellationToken.None);
-
-        // Assert
-        var exception = await act.ShouldThrowAsync<ArgumentNullException>();
-        exception.ParamName.ShouldBe("nextStep");
-    }
-
-    #endregion
-
-    #region Handle Tests - Transaction Disposal
-
-    [Fact]
-    public async Task Handle_WhenCompleted_DisposesTransaction()
-    {
-        // Arrange
-        var request = new TestRequest(Guid.NewGuid());
-        var context = CreateTestContext();
-
-        RequestHandlerCallback<string> nextStep = () =>
-            ValueTask.FromResult<Either<EncinaError, string>>("Success");
-
-        // Act
-        await _behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        _transaction.Received(1).Dispose();
-    }
-
-    [Fact]
-    public async Task Handle_WhenExceptionThrown_DisposesTransaction()
-    {
-        // Arrange
-        var request = new TestRequest(Guid.NewGuid());
-        var context = CreateTestContext();
-
-        RequestHandlerCallback<string> nextStep = () =>
-            throw new InvalidOperationException("Handler failed");
-
-        // Act
-        var result = await _behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        result.IsLeft.ShouldBeTrue();
-        _transaction.Received(1).Dispose();
-    }
-
-    #endregion
-
-    #region Handle Tests - Async Path (DbConnection)
-
-    [Fact]
-    public async Task Handle_DbConnectionClosed_OpensConnectionAsync()
-    {
-        // Arrange
-        var fakeConnection = new FakeDbConnection();
-        fakeConnection.SetState(ConnectionState.Closed);
-
-        var behavior = new TransactionPipelineBehavior<TestRequest, string>(fakeConnection);
-        var request = new TestRequest(Guid.NewGuid());
-        var context = CreateTestContext();
         using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        RequestHandlerCallback<string> next = () => throw new OperationCanceledException(cts.Token);
+        _connection.SetState(System.Data.ConnectionState.Open);
 
-        RequestHandlerCallback<string> nextStep = () =>
-            ValueTask.FromResult<Either<EncinaError, string>>("Success");
+        var act = async () => await Run(next, cts.Token);
 
-        // Act
-        await behavior.Handle(request, context, nextStep, cts.Token);
-
-        // Assert
-        fakeConnection.OpenAsyncCalls.ShouldBe(1);
-        fakeConnection.OpenCalls.ShouldBe(0);
-        fakeConnection.OpenAsyncToken.ShouldBe(cts.Token);
-    }
-
-    [Fact]
-    public async Task Handle_DbConnection_UsesBeginTransactionAsync_AndCommitAsync()
-    {
-        // Arrange
-        var fakeConnection = new FakeDbConnection();
-        fakeConnection.SetState(ConnectionState.Open);
-
-        var behavior = new TransactionPipelineBehavior<TestRequest, string>(fakeConnection);
-        var request = new TestRequest(Guid.NewGuid());
-        var context = CreateTestContext();
-        using var cts = new CancellationTokenSource();
-
-        RequestHandlerCallback<string> nextStep = () =>
-            ValueTask.FromResult<Either<EncinaError, string>>("Success");
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, cts.Token);
-
-        // Assert
-        result.IsRight.ShouldBeTrue();
-        fakeConnection.BeginTransactionAsyncCalls.ShouldBe(1);
-        fakeConnection.BeginTransactionCalls.ShouldBe(0);
-        fakeConnection.FakeTransaction.CommitAsyncCalls.ShouldBe(1);
-        fakeConnection.FakeTransaction.CommitCalls.ShouldBe(0);
-        fakeConnection.FakeTransaction.RollbackAsyncCalls.ShouldBe(0);
-        fakeConnection.FakeTransaction.DisposeAsyncCalls.ShouldBe(1);
-        fakeConnection.BeginTransactionAsyncToken.ShouldBe(cts.Token);
-        fakeConnection.FakeTransaction.CommitAsyncToken.ShouldBe(CancellationToken.None);
-    }
-
-    [Fact]
-    public async Task Handle_DbConnection_HandlerReturnsError_UsesRollbackAsync()
-    {
-        // Arrange
-        var fakeConnection = new FakeDbConnection();
-        fakeConnection.SetState(ConnectionState.Open);
-
-        var behavior = new TransactionPipelineBehavior<TestRequest, string>(fakeConnection);
-        var request = new TestRequest(Guid.NewGuid());
-        var context = CreateTestContext();
-        var error = EncinaErrors.Create("test.error", "Test error");
-        using var cts = new CancellationTokenSource();
-
-        RequestHandlerCallback<string> nextStep = () =>
-            ValueTask.FromResult<Either<EncinaError, string>>(error);
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, cts.Token);
-
-        // Assert
-        result.IsLeft.ShouldBeTrue();
-        fakeConnection.FakeTransaction.RollbackAsyncCalls.ShouldBe(1);
-        fakeConnection.FakeTransaction.RollbackCalls.ShouldBe(0);
-        fakeConnection.FakeTransaction.CommitAsyncCalls.ShouldBe(0);
-        fakeConnection.FakeTransaction.DisposeAsyncCalls.ShouldBe(1);
-        fakeConnection.FakeTransaction.RollbackAsyncToken.ShouldBe(CancellationToken.None);
-    }
-
-    [Fact]
-    public async Task Handle_DbConnection_HandlerThrows_UsesRollbackAsyncWithoutPropagatingCallerToken()
-    {
-        // Arrange
-        var fakeConnection = new FakeDbConnection();
-        fakeConnection.SetState(ConnectionState.Open);
-
-        var behavior = new TransactionPipelineBehavior<TestRequest, string>(fakeConnection);
-        var request = new TestRequest(Guid.NewGuid());
-        var context = CreateTestContext();
-        using var cts = new CancellationTokenSource();
-
-        RequestHandlerCallback<string> nextStep = () =>
-            throw new InvalidOperationException("Handler failed");
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, cts.Token);
-
-        // Assert
-        result.IsLeft.ShouldBeTrue();
-        fakeConnection.FakeTransaction.RollbackAsyncCalls.ShouldBe(1);
-        fakeConnection.FakeTransaction.DisposeAsyncCalls.ShouldBe(1);
-        fakeConnection.FakeTransaction.RollbackAsyncToken.ShouldBe(CancellationToken.None);
-    }
-
-    [Fact]
-    public async Task Handle_DbConnection_HandlerThrowsOperationCanceled_RollsBackAndRethrows()
-    {
-        // Arrange
-        var fakeConnection = new FakeDbConnection();
-        fakeConnection.SetState(ConnectionState.Open);
-
-        var behavior = new TransactionPipelineBehavior<TestRequest, string>(fakeConnection);
-        var request = new TestRequest(Guid.NewGuid());
-        var context = CreateTestContext();
-        using var cts = new CancellationTokenSource();
-        cts.Cancel();
-
-        RequestHandlerCallback<string> nextStep = () =>
-            throw new OperationCanceledException(cts.Token);
-
-        // Act
-        var act = async () => await behavior.Handle(request, context, nextStep, cts.Token);
-
-        // Assert
         await act.ShouldThrowAsync<OperationCanceledException>();
-        fakeConnection.FakeTransaction.RollbackAsyncCalls.ShouldBe(1);
-        fakeConnection.FakeTransaction.DisposeAsyncCalls.ShouldBe(1);
-        fakeConnection.FakeTransaction.RollbackAsyncToken.ShouldBe(CancellationToken.None);
+        _connection.Transaction.RollbackAsyncCalls.ShouldBe(1);
+        _connection.Transaction.RollbackAsyncToken.ShouldBe(CancellationToken.None);
+        _connection.Transaction.DisposeAsyncCalls.ShouldBe(1);
     }
 
-    #endregion
+    [Fact]
+    public async Task Handle_CommitFails_TheCommitErrorReplacesTheResponse()
+    {
+        _connection.Transaction.ThrowOnCommit = true;
 
-    #region Helpers
+        var result = await Run(Succeed());
+
+        ((EncinaError)result).GetCode().IfNone(string.Empty).ShouldBe(TransactionErrors.CommitFailedCode);
+        _connection.Transaction.RollbackAsyncCalls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Handle_BeginFails_ReturnsTheErrorAndNeverRunsTheHandler()
+    {
+        _connection.ThrowOnBegin = true;
+        var ran = false;
+
+        var result = await Run(() =>
+        {
+            ran = true;
+            return ValueTask.FromResult<Either<EncinaError, string>>("Success");
+        });
+
+        ((EncinaError)result).GetCode().IfNone(string.Empty).ShouldBe(TransactionErrors.BeginFailedCode);
+        ran.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_ConnectionIsNotADbConnection_FailsClosed()
+    {
+        var plain = Substitute.For<System.Data.IDbConnection>();
+        var accessor = new DbTransactionAccessor(plain, NullLogger<DbTransactionAccessor>.Instance);
+        var behavior = new TransactionPipelineBehavior<TestRequest, string>(
+            accessor, NullLogger<TransactionPipelineBehavior<TestRequest, string>>.Instance);
+
+        var result = await behavior.Handle(new TestRequest(Guid.NewGuid()), CreateTestContext(), Succeed(), CancellationToken.None);
+
+        ((EncinaError)result).GetCode().IfNone(string.Empty).ShouldBe(TransactionErrors.NotSupportedCode);
+        plain.DidNotReceive().BeginTransaction();
+    }
+
+    [Fact]
+    public async Task Handle_TransactionAlreadyOwnedByAnotherParticipant_JoinsAndOnlyTheOwnerCommits()
+    {
+        await using var owner = (await _accessor.BeginOrJoinAsync(null)).IfLeft(static _ => throw new InvalidOperationException());
+
+        var result = await Run(Succeed());
+
+        result.IsRight.ShouldBeTrue();
+        _connection.BeginAsyncCalls.ShouldBe(1);
+        _connection.Transaction.CommitAsyncCalls.ShouldBe(0);
+        _accessor.HasActiveTransaction.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_JoinedAndHandlerFails_MarksTheOwnersTransactionRollbackOnly()
+    {
+        await using var owner = (await _accessor.BeginOrJoinAsync(null)).IfLeft(static _ => throw new InvalidOperationException());
+
+        await Run(() => ValueTask.FromResult<Either<EncinaError, string>>(EncinaErrors.Create("test.error", "x")));
+        var committed = await owner.CommitAsync();
+
+        ((EncinaError)committed).GetCode().IfNone(string.Empty).ShouldBe(TransactionErrors.RollbackOnlyCode);
+    }
+
+    [Fact]
+    public async Task Handle_NullArguments_Throw()
+    {
+        var context = CreateTestContext();
+        var request = new TestRequest(Guid.NewGuid());
+
+        (await Should.ThrowAsync<ArgumentNullException>(async () => await _behavior.Handle(null!, context, Succeed(), CancellationToken.None)))
+            .ParamName.ShouldBe("request");
+        (await Should.ThrowAsync<ArgumentNullException>(async () => await _behavior.Handle(request, null!, Succeed(), CancellationToken.None)))
+            .ParamName.ShouldBe("context");
+        (await Should.ThrowAsync<ArgumentNullException>(async () => await _behavior.Handle(request, context, null!, CancellationToken.None)))
+            .ParamName.ShouldBe("nextStep");
+    }
 
     private static IRequestContext CreateTestContext()
     {
@@ -446,109 +208,6 @@ public sealed class TransactionPipelineBehaviorTests
         context.Timestamp.Returns(DateTimeOffset.UtcNow);
         return context;
     }
-
-    private sealed class FakeDbTransaction : DbTransaction
-    {
-        public int CommitCalls { get; private set; }
-        public int CommitAsyncCalls { get; private set; }
-        public int RollbackCalls { get; private set; }
-        public int RollbackAsyncCalls { get; private set; }
-        public int DisposeCalls { get; private set; }
-        public int DisposeAsyncCalls { get; private set; }
-        public CancellationToken CommitAsyncToken { get; private set; }
-        public CancellationToken RollbackAsyncToken { get; private set; }
-
-        public override IsolationLevel IsolationLevel => IsolationLevel.Unspecified;
-        protected override DbConnection? DbConnection => null;
-
-        public override void Commit() => CommitCalls++;
-
-        public override Task CommitAsync(CancellationToken cancellationToken = default)
-        {
-            CommitAsyncCalls++;
-            CommitAsyncToken = cancellationToken;
-            return Task.CompletedTask;
-        }
-
-        public override void Rollback() => RollbackCalls++;
-
-        public override Task RollbackAsync(CancellationToken cancellationToken = default)
-        {
-            RollbackAsyncCalls++;
-            RollbackAsyncToken = cancellationToken;
-            return Task.CompletedTask;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-                DisposeCalls++;
-            base.Dispose(disposing);
-        }
-
-        public override ValueTask DisposeAsync()
-        {
-            DisposeAsyncCalls++;
-            return base.DisposeAsync();
-        }
-    }
-
-    private sealed class FakeDbConnection : DbConnection
-    {
-        private ConnectionState _state = ConnectionState.Closed;
-
-        public int OpenCalls { get; private set; }
-        public int OpenAsyncCalls { get; private set; }
-        public int BeginTransactionCalls { get; private set; }
-        public int BeginTransactionAsyncCalls { get; private set; }
-        public CancellationToken OpenAsyncToken { get; private set; }
-        public CancellationToken BeginTransactionAsyncToken { get; private set; }
-        public FakeDbTransaction FakeTransaction { get; } = new();
-
-        [System.Diagnostics.CodeAnalysis.AllowNull]
-        public override string ConnectionString { get; set; } = string.Empty;
-        public override string Database => string.Empty;
-        public override string DataSource => string.Empty;
-        public override string ServerVersion => string.Empty;
-        public override ConnectionState State => _state;
-
-        public void SetState(ConnectionState state) => _state = state;
-
-        public override void ChangeDatabase(string databaseName) { }
-
-        public override void Close() => _state = ConnectionState.Closed;
-
-        public override void Open()
-        {
-            OpenCalls++;
-            _state = ConnectionState.Open;
-        }
-
-        public override Task OpenAsync(CancellationToken cancellationToken)
-        {
-            OpenAsyncCalls++;
-            OpenAsyncToken = cancellationToken;
-            _state = ConnectionState.Open;
-            return Task.CompletedTask;
-        }
-
-        protected override DbCommand CreateDbCommand() => throw new NotImplementedException();
-
-        protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
-        {
-            BeginTransactionCalls++;
-            return FakeTransaction;
-        }
-
-        protected override ValueTask<DbTransaction> BeginDbTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken)
-        {
-            BeginTransactionAsyncCalls++;
-            BeginTransactionAsyncToken = cancellationToken;
-            return ValueTask.FromResult<DbTransaction>(FakeTransaction);
-        }
-    }
-
-    #endregion
 }
 
 /// <summary>

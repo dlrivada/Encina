@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.Messaging;
 using Encina.Messaging.Inbox;
+using Encina.Messaging.Transactions;
 using LanguageExt;
 using MySqlConnector;
 
@@ -79,8 +80,7 @@ public sealed class InboxStoreADO : IInboxStore
             command.CommandText = sql;
             AddParameter(command, ParamMessageId, messageId);
 
-            if (lease.Connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             using var reader = await ExecuteReaderAsync(command, cancellationToken);
             if (await ReadAsync(reader, cancellationToken))
@@ -119,8 +119,7 @@ public sealed class InboxStoreADO : IInboxStore
             AddParameter(command, ParamNextRetryAtUtc, message.NextRetryAtUtc);
             AddParameter(command, ParamMetadata, (message as InboxMessage)?.Metadata);
 
-            if (lease.Connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "inbox.add_failed").ConfigureAwait(false);
@@ -151,8 +150,7 @@ public sealed class InboxStoreADO : IInboxStore
             AddParameter(command, ParamResponse, response);
             AddParameter(command, "@NowUtc", nowUtc);
 
-            if (lease.Connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "inbox.mark_processed_failed").ConfigureAwait(false);
@@ -183,8 +181,7 @@ public sealed class InboxStoreADO : IInboxStore
             AddParameter(command, ParamResponse, response);
             AddParameter(command, "@NowUtc", nowUtc);
 
-            if (lease.Connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "inbox.cache_handler_error_failed").ConfigureAwait(false);
@@ -216,8 +213,7 @@ public sealed class InboxStoreADO : IInboxStore
             AddParameter(command, ParamErrorMessage, errorMessage);
             AddParameter(command, ParamNextRetryAtUtc, nextRetryAtUtc);
 
-            if (lease.Connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "inbox.mark_failed_failed").ConfigureAwait(false);
@@ -250,8 +246,7 @@ public sealed class InboxStoreADO : IInboxStore
 
             var messages = new List<InboxMessage>();
 
-            if (lease.Connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             using var reader = await ExecuteReaderAsync(command, cancellationToken);
             while (await ReadAsync(reader, cancellationToken))
@@ -283,8 +278,7 @@ public sealed class InboxStoreADO : IInboxStore
             using var command = lease.CreateCommand();
             command.CommandText = sql;
 
-            if (lease.Connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "inbox.remove_expired_failed").ConfigureAwait(false);
@@ -330,12 +324,6 @@ public sealed class InboxStoreADO : IInboxStore
         parameter.ParameterName = name;
         parameter.Value = value ?? DBNull.Value;
         command.Parameters.Add(parameter);
-    }
-
-    private static Task OpenConnectionAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.CompletedTask;
     }
 
     private static async Task<IDataReader> ExecuteReaderAsync(IDbCommand command, CancellationToken cancellationToken)

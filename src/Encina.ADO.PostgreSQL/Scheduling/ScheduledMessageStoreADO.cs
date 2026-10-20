@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.Messaging;
 using Encina.Messaging.Scheduling;
+using Encina.Messaging.Transactions;
 using LanguageExt;
 using Npgsql;
 
@@ -15,6 +16,7 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
     private readonly IDbConnection _connection;
     private readonly string _tableName;
     private readonly TimeProvider _timeProvider;
+    private readonly IDbTransactionAccessor? _transactionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ScheduledMessageStoreADO"/> class.
@@ -22,17 +24,23 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The scheduled messages table name (default: scheduledmessages).</param>
     /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
+    /// <param name="transactionAccessor">
+    /// Optional accessor of the scope's shared transaction; when a transaction is active the store's commands
+    /// join it, otherwise they run in autocommit.
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is null or whitespace.</exception>
     public ScheduledMessageStoreADO(
         IDbConnection connection,
         string tableName = "scheduledmessages",
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IDbTransactionAccessor? transactionAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _transactionAccessor = transactionAccessor;
     }
 
     /// <inheritdoc />
@@ -50,7 +58,8 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
                 (@Id, @RequestType, @Content, @ScheduledAtUtc, @CreatedAtUtc, @ProcessedAtUtc, @LastExecutedAtUtc,
                  @ErrorMessage, @RetryCount, @NextRetryAtUtc, @IsRecurring, @CronExpression)";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@Id", message.Id);
             AddParameter(command, "@RequestType", message.RequestType);
@@ -65,8 +74,7 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
             AddParameter(command, "@IsRecurring", message.IsRecurring);
             AddParameter(command, "@CronExpression", message.CronExpression);
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "scheduling.add_failed").ConfigureAwait(false);
@@ -99,7 +107,8 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
                 ORDER BY scheduledatutc
                 LIMIT @BatchSize";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@BatchSize", batchSize);
             AddParameter(command, "@MaxRetries", maxRetries);
@@ -107,8 +116,7 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
 
             var messages = new List<IScheduledMessage>();
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             using var reader = await ExecuteReaderAsync(command, cancellationToken);
             while (await ReadAsync(reader, cancellationToken))
@@ -136,13 +144,13 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
                     errormessage = NULL
                 WHERE id = @MessageId";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@MessageId", messageId);
             AddParameter(command, "@NowUtc", nowUtc);
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "scheduling.mark_processed_failed").ConfigureAwait(false);
@@ -170,15 +178,15 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
                     lastexecutedatutc = @NowUtc
                 WHERE id = @MessageId";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@MessageId", messageId);
             AddParameter(command, "@ErrorMessage", errorMessage);
             AddParameter(command, "@NextRetryAtUtc", nextRetryAtUtc);
             AddParameter(command, "@NowUtc", nowUtc);
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "scheduling.mark_failed_failed").ConfigureAwait(false);
@@ -206,13 +214,13 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
                     nextretryatutc = NULL
                 WHERE id = @MessageId";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@MessageId", messageId);
             AddParameter(command, "@NextScheduledAtUtc", nextScheduledAtUtc);
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "scheduling.reschedule_failed").ConfigureAwait(false);
@@ -230,12 +238,12 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
                 DELETE FROM {_tableName}
                 WHERE id = @MessageId";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@MessageId", messageId);
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "scheduling.cancel_failed").ConfigureAwait(false);
@@ -283,12 +291,6 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
         parameter.ParameterName = name;
         parameter.Value = value ?? DBNull.Value;
         command.Parameters.Add(parameter);
-    }
-
-    private static Task OpenConnectionAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.CompletedTask;
     }
 
     private static async Task<IDataReader> ExecuteReaderAsync(IDbCommand command, CancellationToken cancellationToken)

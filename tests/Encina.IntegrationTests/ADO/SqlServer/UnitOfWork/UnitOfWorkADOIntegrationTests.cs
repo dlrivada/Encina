@@ -3,9 +3,11 @@ using Dapper;
 using Encina.ADO.SqlServer.Repository;
 using Encina.ADO.SqlServer.UnitOfWork;
 using Encina.DomainModeling;
+using Encina.Messaging.Transactions;
 using Encina.TestInfrastructure.Fixtures;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Xunit;
 
@@ -47,7 +49,7 @@ public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
         services.AddSingleton(_mapping);
         _serviceProvider = services.BuildServiceProvider();
 
-        _unitOfWork = new UnitOfWorkADO(_connection, _serviceProvider);
+        _unitOfWork = new UnitOfWorkADO(new DbTransactionAccessor(_connection, NullLogger<DbTransactionAccessor>.Instance), _serviceProvider);
     }
 
     public async ValueTask DisposeAsync()

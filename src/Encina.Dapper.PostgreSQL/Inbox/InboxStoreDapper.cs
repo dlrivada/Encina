@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using Encina.Messaging;
 using Encina.Messaging.Inbox;
+using Encina.Messaging.Transactions;
 using LanguageExt;
 using static LanguageExt.Prelude;
 

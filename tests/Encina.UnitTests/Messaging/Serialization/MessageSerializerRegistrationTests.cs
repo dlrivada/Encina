@@ -86,8 +86,18 @@ public sealed class MessageSerializerRegistrationTests
 
         // Assert
         AssertSerializer(sp, encryption);
-        sp.GetServices<IRequestPostProcessor<ProbeRequest, string>>()
-            .ShouldContain(p => p is OutboxPostProcessor<ProbeRequest, string>);
+        if (family == ProviderFamily.AdoPostgreSql)
+        {
+            // ADO.NET writes the notifications inside the request's transaction (#718).
+            sp.GetServices<IPipelineBehavior<ProbeRequest, string>>()
+                .ShouldContain(b => b is TransactionalOutboxPipelineBehavior<ProbeRequest, string>);
+        }
+        else
+        {
+            sp.GetServices<IRequestPostProcessor<ProbeRequest, string>>()
+                .ShouldContain(p => p is OutboxPostProcessor<ProbeRequest, string>);
+        }
+
         sp.GetRequiredService<InboxOrchestrator>().ShouldNotBeNull();
         sp.GetRequiredService<SagaOrchestrator>().ShouldNotBeNull();
         sp.GetRequiredService<SchedulerOrchestrator>().ShouldNotBeNull();

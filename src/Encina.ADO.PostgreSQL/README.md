@@ -165,6 +165,10 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 }
 ```
 
+### 6. Transactional Outbox
+
+With `config.UseOutbox = true`, the notifications of a request that implements `IHasNotifications` are written to the outbox inside the request's single database transaction: the business change and its outbox rows commit or roll back together, and a failed outbox write or commit fails the request. The unit of work, the transaction behavior and the outbox, inbox, saga and scheduled-message stores share that transaction through the scoped `IDbTransactionAccessor`. Handlers that run their own commands set `command.Transaction = accessor.Current`; the stores outside those four (audit, anonymization, ABAC) do not enlist (Npgsql runs their commands inside the transaction without error). `AddEncinaADO` for PostgreSQL does not support `UseModuleIsolation`. See [How to write the outbox inside the request's transaction](../../docs/features/transactional-outbox.md) and [ADR-037](../../docs/architecture/adr/037-transactional-outbox.md).
+
 ## Dead Letter Queue
 
 Enable the persistent dead letter queue with `UseDeadLetterQueue` (`AddEncinaADOPostgreSQLWithTenancy` honours it too) and run `Scripts/029_CreateDeadLetterMessagesTable.sql`:

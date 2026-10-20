@@ -304,4 +304,84 @@ public static partial class MessagingLog
     public static partial void OutboxBatchCancelled(
         ILogger logger,
         Guid messageId);
+
+    // =========================================================================
+    // Shared transaction and transactional outbox (EventIds 2963-2970)
+    // =========================================================================
+
+    /// <summary>Logs when a participant joins the scope's active transaction instead of beginning one.</summary>
+    [LoggerMessage(
+        EventId = 2963,
+        Level = LogLevel.Debug,
+        Message = "Participant joined the active transaction (join depth {JoinDepth})")]
+    public static partial void TransactionJoined(
+        ILogger logger,
+        int joinDepth);
+
+    /// <summary>Logs when a joined participant rolled back, so the owner's commit will be refused.</summary>
+    [LoggerMessage(
+        EventId = 2964,
+        Level = LogLevel.Warning,
+        Message = "A participant rolled back the shared transaction; it is now rollback-only")]
+    public static partial void TransactionMarkedRollbackOnly(ILogger logger);
+
+    /// <summary>Logs when the owner's commit was refused because the transaction is rollback-only.</summary>
+    [LoggerMessage(
+        EventId = 2965,
+        Level = LogLevel.Warning,
+        Message = "The shared transaction was rolled back instead of committed because a participant rolled back ({ErrorCode})")]
+    public static partial void TransactionRollbackOnlyCommitRefused(
+        ILogger logger,
+        string errorCode);
+
+    /// <summary>Logs when the commit of the shared transaction failed; the transaction was rolled back.</summary>
+    /// <remarks>The exception is passed through <c>ForLogging()</c>: its type and stack trace, never its message.</remarks>
+    [LoggerMessage(
+        EventId = 2966,
+        Level = LogLevel.Error,
+        Message = "Committing the shared transaction failed ({ErrorCode})")]
+    public static partial void TransactionCommitFailed(
+        ILogger logger,
+        Exception exception,
+        string errorCode);
+
+    /// <summary>Logs the notifications of a request written to the outbox inside its transaction.</summary>
+    [LoggerMessage(
+        EventId = 2967,
+        Level = LogLevel.Debug,
+        Message = "Wrote {NotificationCount} notifications of {RequestType} to the outbox inside its transaction")]
+    public static partial void OutboxNotificationsWritten(
+        ILogger logger,
+        int notificationCount,
+        string requestType);
+
+    /// <summary>Logs when writing a request's notifications to the outbox failed; the request fails and its transaction rolls back.</summary>
+    /// <remarks><paramref name="errorCode"/> is the <see cref="EncinaError"/> code; never its message.</remarks>
+    [LoggerMessage(
+        EventId = 2968,
+        Level = LogLevel.Error,
+        Message = "Writing the notifications of {RequestType} to the outbox failed ({ErrorCode}); the request fails and its transaction rolls back")]
+    public static partial void OutboxWriteFailed(
+        ILogger logger,
+        string requestType,
+        string errorCode);
+
+    /// <summary>Logs when the transactional outbox behavior skipped a request that carries no notifications.</summary>
+    [LoggerMessage(
+        EventId = 2969,
+        Level = LogLevel.Trace,
+        Message = "Transactional outbox skipped {RequestType}: it does not implement IHasNotifications")]
+    public static partial void OutboxBehaviorSkipped(
+        ILogger logger,
+        string requestType);
+
+    /// <summary>Logs when rolling back the shared transaction failed; the failure is swallowed so cleanup never masks the original one.</summary>
+    /// <remarks>The exception is passed through <c>ForLogging()</c>: its type and stack trace, never its message.</remarks>
+    [LoggerMessage(
+        EventId = 2970,
+        Level = LogLevel.Warning,
+        Message = "Rolling back the shared transaction failed; the database discards it on its own")]
+    public static partial void TransactionRollbackFailed(
+        ILogger logger,
+        Exception exception);
 }

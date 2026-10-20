@@ -7,18 +7,21 @@ namespace Encina.Messaging.Outbox;
 
 /// <summary>
 /// Post-processor that intercepts notifications and stores them in the outbox instead of publishing immediately.
-/// This ensures reliable event delivery by persisting events in the same transaction as domain changes.
 /// </summary>
+/// <remarks>
+/// Post-processors run after the whole pipeline, so the business transaction has already ended when this one
+/// writes: the outbox row is NOT atomic with the business change. It is the interim write path of the providers
+/// that have not moved to <see cref="TransactionalOutboxPipelineBehavior{TRequest, TResponse}"/> yet
+/// (Dapper, EF Core and MongoDB, #718); it is removed when the last one does. A failed store write now fails the
+/// request instead of being dropped.
+/// </remarks>
 /// <typeparam name="TRequest">The type of the request.</typeparam>
 /// <typeparam name="TResponse">The type of the response.</typeparam>
 public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProcessor<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
-    private readonly IOutboxStore _outboxStore;
-    private readonly IOutboxMessageFactory _messageFactory;
+    private readonly OutboxWriter _writer;
     private readonly ILogger<OutboxPostProcessor<TRequest, TResponse>> _logger;
-    private readonly TimeProvider _timeProvider;
-    private readonly IMessageSerializer _messageSerializer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxPostProcessor{TRequest, TResponse}"/> class.
@@ -46,11 +49,8 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(messageSerializer);
 
-        _outboxStore = outboxStore;
-        _messageFactory = messageFactory;
         _logger = logger;
-        _messageSerializer = messageSerializer;
-        _timeProvider = timeProvider ?? TimeProvider.System;
+        _writer = new OutboxWriter(outboxStore, messageFactory, messageSerializer, timeProvider ?? TimeProvider.System);
     }
 
     /// <inheritdoc />
@@ -71,43 +71,21 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
         // Post-processors run only for successful requests, so these notifications are always stored.
         Log.StoringNotificationsInOutbox(_logger, notifications.Count, typeof(TRequest).Name, context.CorrelationId);
 
-        foreach (var notification in notifications)
-        {
-            var notificationType = notification.GetType().AssemblyQualifiedName
-                ?? notification.GetType().FullName
-                ?? notification.GetType().Name;
+        var written = await _writer.WriteAsync(notifications, cancellationToken).ConfigureAwait(false);
 
-            // Serialize using the notification's runtime type (not the declared
-            // INotification interface) so that all of its properties are captured and
-            // EncryptingMessageSerializer can read the [EncryptedMessage] attribute off the
-            // concrete type; serializer failures propagate unwrapped.
-            var content = _messageSerializer.SerializeAsRuntimeType(notification);
-
-            var outboxMessage = _messageFactory.Create(
-                Guid.NewGuid(),
-                notificationType,
-                content,
-                _timeProvider.GetUtcNow().UtcDateTime);
-
-            await _outboxStore.AddAsync(outboxMessage, cancellationToken).ConfigureAwait(false);
-        }
-
-        await _outboxStore.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        Log.StoredNotificationsInOutbox(_logger, notifications.Count, context.CorrelationId);
-        return Unit.Default;
+        // A failed store write fails the request; it is never reported as success.
+        return written.Match<Either<EncinaError, Unit>>(
+            Right: _ =>
+            {
+                Log.StoredNotificationsInOutbox(_logger, notifications.Count, context.CorrelationId);
+                return Unit.Default;
+            },
+            Left: error =>
+            {
+                MessagingLog.OutboxWriteFailed(_logger, typeof(TRequest).Name, error.GetCode().IfNone("unknown"));
+                return error;
+            });
     }
-}
-
-/// <summary>
-/// Marker interface for requests that can emit notifications.
-/// </summary>
-public interface IHasNotifications
-{
-    /// <summary>
-    /// Gets the notifications to be published.
-    /// </summary>
-    IEnumerable<INotification> GetNotifications();
 }
 
 /// <summary>

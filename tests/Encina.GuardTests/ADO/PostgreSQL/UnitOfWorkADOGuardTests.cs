@@ -1,5 +1,5 @@
-using System.Data;
 using Encina.ADO.PostgreSQL.UnitOfWork;
+using Encina.Messaging.Transactions;
 using NSubstitute;
 using Shouldly;
 
@@ -11,7 +11,7 @@ namespace Encina.GuardTests.ADO.PostgreSQL;
 public class UnitOfWorkADOGuardTests
 {
     [Fact]
-    public void Constructor_NullConnection_ThrowsArgumentNullException()
+    public void Constructor_NullTransactionAccessor_ThrowsArgumentNullException()
     {
         // Arrange
         var serviceProvider = Substitute.For<IServiceProvider>();
@@ -19,17 +19,17 @@ public class UnitOfWorkADOGuardTests
         // Act & Assert
         var act = () => new UnitOfWorkADO(null!, serviceProvider);
         var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("connection");
+        ex.ParamName.ShouldBe("transactionAccessor");
     }
 
     [Fact]
     public void Constructor_NullServiceProvider_ThrowsArgumentNullException()
     {
         // Arrange
-        var connection = Substitute.For<IDbConnection>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
 
         // Act & Assert
-        var act = () => new UnitOfWorkADO(connection, null!);
+        var act = () => new UnitOfWorkADO(transactionAccessor, null!);
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("serviceProvider");
     }
@@ -38,20 +38,20 @@ public class UnitOfWorkADOGuardTests
     public void Constructor_ValidParameters_DoesNotThrow()
     {
         // Arrange
-        var connection = Substitute.For<IDbConnection>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
 
         // Act & Assert
-        Should.NotThrow(() => new UnitOfWorkADO(connection, serviceProvider));
+        Should.NotThrow(() => new UnitOfWorkADO(transactionAccessor, serviceProvider));
     }
 
     [Fact]
     public void HasActiveTransaction_InitiallyFalse()
     {
         // Arrange
-        var connection = Substitute.For<IDbConnection>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(connection, serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
 
         // Act & Assert
         uow.HasActiveTransaction.ShouldBeFalse();
@@ -61,9 +61,9 @@ public class UnitOfWorkADOGuardTests
     public async Task SaveChangesAsync_WhenDisposed_ThrowsObjectDisposedException()
     {
         // Arrange
-        var connection = Substitute.For<IDbConnection>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(connection, serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
         await uow.DisposeAsync();
 
         // Act & Assert
@@ -75,9 +75,9 @@ public class UnitOfWorkADOGuardTests
     public async Task BeginTransactionAsync_WhenDisposed_ThrowsObjectDisposedException()
     {
         // Arrange
-        var connection = Substitute.For<IDbConnection>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(connection, serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
         await uow.DisposeAsync();
 
         // Act & Assert
@@ -89,9 +89,9 @@ public class UnitOfWorkADOGuardTests
     public async Task CommitAsync_WhenDisposed_ThrowsObjectDisposedException()
     {
         // Arrange
-        var connection = Substitute.For<IDbConnection>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(connection, serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
         await uow.DisposeAsync();
 
         // Act & Assert
@@ -103,9 +103,9 @@ public class UnitOfWorkADOGuardTests
     public async Task CommitAsync_NoActiveTransaction_ReturnsLeft()
     {
         // Arrange
-        var connection = Substitute.For<IDbConnection>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(connection, serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
 
         // Act
         var result = await uow.CommitAsync();
@@ -118,9 +118,9 @@ public class UnitOfWorkADOGuardTests
     public async Task RollbackAsync_WhenDisposed_ThrowsObjectDisposedException()
     {
         // Arrange
-        var connection = Substitute.For<IDbConnection>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(connection, serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
         await uow.DisposeAsync();
 
         // Act & Assert
@@ -132,9 +132,9 @@ public class UnitOfWorkADOGuardTests
     public void Repository_WhenDisposed_ThrowsObjectDisposedException()
     {
         // Arrange
-        var connection = Substitute.For<IDbConnection>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(connection, serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
         uow.DisposeAsync().AsTask().GetAwaiter().GetResult();
 
         // Act & Assert
@@ -146,9 +146,9 @@ public class UnitOfWorkADOGuardTests
     public void UpdateImmutable_NullModified_ThrowsArgumentNullException()
     {
         // Arrange
-        var connection = Substitute.For<IDbConnection>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(connection, serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() => { uow.UpdateImmutable<TestEntity>(null!); });
@@ -158,9 +158,9 @@ public class UnitOfWorkADOGuardTests
     public void UpdateImmutable_ValidEntity_ReturnsLeftNotSupported()
     {
         // Arrange
-        var connection = Substitute.For<IDbConnection>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(connection, serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
 
         // Act
         var result = uow.UpdateImmutable(new TestEntity());
@@ -173,9 +173,9 @@ public class UnitOfWorkADOGuardTests
     public async Task UpdateImmutableAsync_NullModified_ThrowsArgumentNullException()
     {
         // Arrange
-        var connection = Substitute.For<IDbConnection>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(connection, serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
 
         // Act & Assert
         var act = async () => await uow.UpdateImmutableAsync<TestEntity>(null!);
@@ -186,9 +186,9 @@ public class UnitOfWorkADOGuardTests
     public async Task UpdateImmutableAsync_ValidEntity_ReturnsLeftNotSupported()
     {
         // Arrange
-        var connection = Substitute.For<IDbConnection>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(connection, serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
 
         // Act
         var result = await uow.UpdateImmutableAsync(new TestEntity());
@@ -201,9 +201,9 @@ public class UnitOfWorkADOGuardTests
     public async Task DisposeAsync_CalledTwice_DoesNotThrow()
     {
         // Arrange
-        var connection = Substitute.For<IDbConnection>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var uow = new UnitOfWorkADO(connection, serviceProvider);
+        var uow = new UnitOfWorkADO(transactionAccessor, serviceProvider);
 
         // Act & Assert - Double dispose should be safe
         await uow.DisposeAsync();
