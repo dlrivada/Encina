@@ -294,7 +294,18 @@ public static class OutboxAtomicityScenario
     {
         await using var provider = Build(harness, harness.Register, Configure(transactions));
 
-        (await SendFailsAsync(provider, new PlaceOrder(3, 2, Mode.Throw))).ShouldBeTrue();
+        // The transaction behavior turns a handler exception into a Left; without it the outbox behavior
+        // rolls back and rethrows the original exception.
+        if (transactions)
+        {
+            (await SendAsync(provider, new PlaceOrder(3, 2, Mode.Throw))).ShouldBeErrorWithCode("transaction.failed");
+        }
+        else
+        {
+            var thrown = await Should.ThrowAsync<InvalidOperationException>(async () => await SendAsync(provider, new PlaceOrder(3, 2, Mode.Throw)));
+            thrown.Message.ShouldBe("boom");
+        }
+
         (await CountRowsAsync(harness)).ShouldBe((0L, 0L));
     }
 
@@ -333,6 +344,13 @@ public static class OutboxAtomicityScenario
         ActivitySource.AddActivityListener(listener);
 
         await using var provider = Build(harness, harness.Register, Configure(transactions));
+        await using (var probe = provider.CreateAsyncScope())
+        {
+            probe.ServiceProvider.GetServices<IPipelineBehavior<PlaceOrder, int>>()
+                .Any(b => b.GetType().Name.StartsWith("TransactionPipelineBehavior", StringComparison.Ordinal))
+                .ShouldBe(transactions);
+        }
+
         using var root = Source.StartActivity("scenario");
         root.ShouldNotBeNull();
 
