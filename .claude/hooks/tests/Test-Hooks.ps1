@@ -355,6 +355,8 @@ $cases = @(
     @($publish, 'PowerShell', 'git archive --output $x HEAD', 2, 'git archive --output with a variable path is denied (#2009 review)'),
     @($publish, 'PowerShell', 'git -c $k=evil archive HEAD', 2, 'git -c with a variable next to archive is denied (#2009 review)'),
     @($publish, 'PowerShell', '$env:GIT_CONFIG_COUNT = 1; $env:GIT_CONFIG_KEY_0 = ''tar.x.command''; git archive --format x HEAD', 2, 'git archive next to GIT_CONFIG_* is denied (#2009 review)'),
+    @($publish, 'PowerShell', '$env:GIT_CONFIG_GLOBAL = ''C:\x\evil.cfg''; git archive --format x HEAD', 2, 'git archive next to GIT_CONFIG_GLOBAL is denied (#2009 PR review)'),
+    @($publish, 'PowerShell', '$env:GIT_CONFIG_SYSTEM = ''C:\x\evil.cfg''; git archive --format x HEAD', 2, 'git archive next to GIT_CONFIG_SYSTEM is denied (#2009 PR review)'),
     @($publish, 'PowerShell', 'git archive HEAD -- $path', 0, 'git archive pathspecs after -- may be variables (#2009 review)'),
     @($publish, 'PowerShell', 'git config -f .git/config tar.x.command evil', 2, 'git config -f <file> tar.*.command is denied (#2009 review)'),
     @($publish, 'PowerShell', 'git config --file .git/config tar.x.command evil', 2, 'git config --file <file> tar.*.command is denied (#2009 review)'),
@@ -4822,7 +4824,9 @@ The fluent builder chain described in the documentation is fictional. The parame
     Invoke-Probe1854 'adversarial-reviewer' "`$wt = '$s'; pwsh -NoProfile -File `"`$wt\evil.ps1`"" 2 'adversarial-reviewer: a resolved variable path to a script that references src/ and writes files is blocked (#2009)' 'evil\.ps1.* which references src/ or tests/ and writes files'
     Invoke-Probe1854 'pr-reviewer' "`$wt = '$s'; & `"`$wt\evil.ps1`"" 2 'pr-reviewer: the call operator through a resolved variable to a harmful script is blocked (#2009)' 'references src/ or tests/ and writes files'
     Invoke-Probe1854 'adversarial-reviewer' "`$wt = '$s'; pwsh -NoProfile -File `"`$wt\missing.ps1`"" 2 'adversarial-reviewer: a resolved variable path to a missing script is blocked (#2009)' 'which does not exist'
+    Set-Content -LiteralPath (Join-Path $s 'rebind.ps1') -Value "`$global:wt = 'C:\other'`n"
     foreach ($case in @(
+            @("`$wt = '$s'; & '$s\rebind.ps1'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a script called by name that sets $global:wt before the launch'),
             @("`$wt = '$s'; `$wt = 'C:\other'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable assigned twice'),
             @("`$wt = '$s'; `$wt += '\x'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable extended with +='),
             @("`$wt = '$s'; `$wt++; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable incremented'),

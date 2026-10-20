@@ -83,8 +83,9 @@ try {
     # #2009: the literal string variables of a PowerShell command, for a script path such as `"$wt\probe.ps1"`.
     # A variable counts only when the command assigns it exactly once, with `=`, at its top level (not inside an
     # if, loop, try or script block), to a quoted literal without variables, before any other mention of it, and
-    # nothing else can rebind it (no Set-Variable/New-Variable family, dot-sourcing, Invoke-Expression, foreach
-    # or parameter variable, [ref], ++/--, -OutVariable family, multi or member assignment). Returns the table
+    # no rebinding form the hook knows applies (every other command is outside the launcher allowlist below;
+    # also foreach or parameter variable, [ref], ++/--, -OutVariable family, multi or member assignment). The
+    # guard is an allowlist heuristic, not a proof: it cannot see inside a program the command runs. Returns the table
     # (name -> value) and the argument texts of every command in the call (a script path counts only when it is
     # a command argument itself, not text inside a string a wrapper such as `pwsh -Command '...'` runs later).
     # Any parse problem gives an empty table: the script stays unresolved and is denied as before.
@@ -111,7 +112,9 @@ try {
                 if ($c.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Dot) { return $table }
                 # A dynamic command name (`& $p`, `& "$wt\x.ps1"`) has no name: it is the launcher.
                 $commandName = [string]$c.GetCommandName()
-                if ($commandName -ne '' -and $commandName -notin $allowedNames -and $commandName -notmatch '\.ps1$') { return $table }
+                # A script named literally (`& 'C:\x\a.ps1'`) is not exempt: it runs before the launch and could set
+                # `$global:wt`. The launch itself is `& $p` or `& "$wt\x.ps1"` (no static name).
+                if ($commandName -ne '' -and $commandName -notin $allowedNames) { return $table }
             }
             if (@($root.FindAll({ param($a) $a -is [System.Management.Automation.Language.InvokeMemberExpressionAst] }, $true)).Count -gt 0) { return $table }
 

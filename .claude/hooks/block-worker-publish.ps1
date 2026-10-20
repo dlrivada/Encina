@@ -117,7 +117,7 @@ try {
             # quotes around an option do not change what git sees.
             if ($verb -ceq 'archive') {
                 # The environment can inject the same tar.<format>.command configuration as -c does.
-                if ($definesDynamicConfig -or $command -match 'GIT_CONFIG_(COUNT|KEY_|VALUE_|PARAMETERS)') {
+                if ($definesDynamicConfig -or $command -match 'GIT_CONFIG_(COUNT|KEY_|VALUE_|PARAMETERS|GLOBAL|SYSTEM)') {
                     [Console]::Error.WriteLine("Blocked: $who never runs 'git archive' next to a git configuration it cannot read (-c with a variable, GIT_CONFIG_* variables): 'tar.<format>.command' names a program that 'git archive' runs (see .claude/agents/issue-worker.md, Protocol).")
                     exit 2
                 }
