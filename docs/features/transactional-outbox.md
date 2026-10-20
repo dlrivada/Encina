@@ -141,7 +141,7 @@ The codes are the constants of `TransactionErrors`. A failed outbox write return
 
 - Only the three ADO.NET providers write inside the transaction today (table above).
 - Only the four messaging stores (outbox, inbox, saga, scheduled message) and the unit-of-work repositories enlist. Other ADO.NET components that use the scoped connection, such as the audit, anonymization and ABAC stores, read/write separation and shard connections, do not enlist ([#1934](https://github.com/dlrivada/Encina/issues/1934)). On SQL Server and MySQL the driver rejects their commands while the transaction is active; PostgreSQL silently joins them.
-- Resolving `IUnitOfWork` inside a request that Encina dispatches fails when the request scope is disposed: `UnitOfWorkADO` implements only `IAsyncDisposable`, and Encina disposes its request scope synchronously. This is a known defect.
+- Resolving `IUnitOfWork` inside a request that Encina dispatches fails when the request scope is disposed: `UnitOfWorkADO` implements only `IAsyncDisposable`, and Encina disposes its request scope synchronously. This is a known defect. ([#2556](https://github.com/dlrivada/Encina/issues/2556))
 - `AddEncinaADO` for PostgreSQL and MySQL does not support `UseModuleIsolation`; the SQL Server one does.
 
 ## Related

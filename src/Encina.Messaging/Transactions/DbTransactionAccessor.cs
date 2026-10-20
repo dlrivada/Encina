@@ -22,8 +22,8 @@ namespace Encina.Messaging.Transactions;
 /// Everything is asynchronous and token aware (<see cref="DbConnection.OpenAsync(CancellationToken)"/>,
 /// <see cref="DbConnection.BeginTransactionAsync(IsolationLevel, CancellationToken)"/>); a connection that is
 /// not a <see cref="DbConnection"/> gets <see cref="TransactionErrors.NotSupported"/> instead of a synchronous
-/// fallback. Commit and rollback run to completion regardless of the caller's token, so a canceled request still
-/// cleans up. Disposing the accessor (the end of the scope) rolls back a transaction nobody finished.
+/// fallback. Rollback cleanup runs with <see cref="CancellationToken.None"/>, so a canceled request still
+/// cleans up; the owner's commit passes the caller's token to the driver. Disposing the accessor (the end of the scope) rolls back a transaction nobody finished.
 /// </para>
 /// </remarks>
 public sealed class DbTransactionAccessor : IDbTransactionAccessor, IAsyncDisposable, IDisposable

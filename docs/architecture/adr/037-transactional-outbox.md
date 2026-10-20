@@ -69,7 +69,7 @@ sequenceDiagram
 - A joiner that asks for an isolation level different from the active transaction's gets `transaction.isolation_level_mismatch`; `IsolationLevel.Unspecified` joins any level.
 - Disposing an owner lease that was neither committed nor rolled back rolls the transaction back; disposing the accessor at the end of the scope does the same.
 - `HasActiveTransaction` of a unit of work keeps its meaning ("this unit of work holds a lease"). `TransactionAlreadyActive` remains only for a second `BeginTransactionAsync` on the same unit of work.
-- The accessor requires a `DbConnection` and opens and begins asynchronously with the caller's token; there is no synchronous fallback (a non-`DbConnection` gets `transaction.not_supported`). Commit and rollback run with `CancellationToken.None`, so a canceled request still cleans up.
+- The accessor requires a `DbConnection` and opens and begins asynchronously with the caller's token; there is no synchronous fallback (a non-`DbConnection` gets `transaction.not_supported`). The behaviors run commit and rollback with `CancellationToken.None`, so a canceled request still cleans up; the accessor's owner commit passes the token it is given to the driver.
 - The error codes are `transaction.begin_failed`, `transaction.commit_failed`, `transaction.rollback_only`, `transaction.isolation_level_mismatch`, `transaction.lease_disposed` and `transaction.not_supported`. Errors carry the code (and the exception type); `EncinaError.Message` never reaches logs.
 
 ### Behavior flow and ordering
@@ -106,8 +106,8 @@ Per choice, in the table above. In short: a narrower provider scope was rejected
   - Other ADO.NET components and stores outside the four messaging stores do not enlist ([#1934](https://github.com/dlrivada/Encina/issues/1934)). On SQL Server and MySQL the driver rejects their commands while the transaction is active; PostgreSQL silently joins.
   - Until its slice lands, Dapper, EF Core and MongoDB keep the non-atomic post-processor path.
   - A joiner's `CommitAsync` returning success does not mean the data is durable; only the owner's commit does.
-  - `UnitOfWorkADO` implements only `IAsyncDisposable`, so resolving `IUnitOfWork` inside a request that Encina dispatches fails when the request scope is disposed synchronously. This is a known defect.
-  - The ADO.NET PostgreSQL and MySQL registrations do not support module isolation (`UseModuleIsolation`); SQL Server does.
+  - `UnitOfWorkADO` implements only `IAsyncDisposable`, so resolving `IUnitOfWork` inside a request that Encina dispatches fails when the request scope is disposed synchronously. This is a known defect. ([#2556](https://github.com/dlrivada/Encina/issues/2556))
+  - The ADO.NET PostgreSQL and MySQL registrations do not support module isolation (`UseModuleIsolation`); SQL Server does. ([#2557](https://github.com/dlrivada/Encina/issues/2557))
 - Registration completeness is proven by a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes` (`AGENTS.md` section 3).
 
 ## Related

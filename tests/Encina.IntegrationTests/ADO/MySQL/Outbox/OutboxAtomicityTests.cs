@@ -41,6 +41,7 @@ public sealed class OutboxAtomicityTests : OutboxAtomicityTestsBase
                 services.AddScoped<IDbConnection>(_ => fixture.CreateConnection());
                 services.AddEncinaADO(configure);
             },
+            // PostgreSQL/MySQL AddEncinaADO ignore UseModuleIsolation: #2557
             // AddEncinaADO of this provider has no module isolation support (see the follow-up issue), so the
             // scoped connection is decorated the way the inbox module isolation tests do.
             RegisterWithModuleIsolation = (services, configure) =>
