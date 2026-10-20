@@ -52,10 +52,13 @@
 // Text inside HTML comments is ignored.
 //
 // Facts the Actions GITHUB_TOKEN cannot read (open secret-scanning alerts and open Dependabot alerts) come
-// from a GitHub App token in the environment variable RELEASE_GATE_APP_TOKEN (the workflow mints it with
+// from a GitHub App token in the environment variable RELEASE_GATE_APP_TOKEN. So does the branch protection of
+// main (SPEC-000 AC-020), which needs the App permission "Administration: Read-only"; when the token is missing
+// or the call fails with 403/404 the fact carries an error that names this remedy and branch-protection-exact
+// FAILs closed (no attestation exists for it). The workflow mints the token with
 // actions/create-github-app-token from the variable RELEASE_GATE_APP_ID and the secret
-// RELEASE_GATE_APP_PRIVATE_KEY; the App is read-only and installed only on this repository). The tool uses
-// the token only for those two collectors. A missing token or a failing API call records the fact with an
+// RELEASE_GATE_APP_PRIVATE_KEY; the App is read-only and installed only on this repository. The tool uses
+// the token only for these three collectors. A missing token or a failing API call records the fact with an
 // error and the item fails closed. The only fallback is the manual attestation items attest-secret-scanning
 // and attest-dependabot: accepted only when the matching auto fact carries an error, and the evaluation
 // output states that the attestation replaced the fact. Alert data is never committed by hand.
@@ -1544,9 +1547,21 @@ static class Collectors
 
     static async Task<(JsonNode, string)> BranchProtection(CollectCtx c, Fetcher f)
     {
+        const string remedy = "add \"Administration: Read-only\" to the encina-release-gate GitHub App and accept the updated permission on the installation (docs/releases/RELEASE-PROCESS.md, \"Set up the GitHub App\")";
         var endpoint = $"repos/{c.Repo}/branches/main/protection";
-        var p = await f.JsonAsync(endpoint) ?? throw new CollectException("main has no branch protection", Fetcher.GhUrl(endpoint));
-        return (new JsonObject { ["protection"] = p.DeepClone() }, Fetcher.GhUrl(endpoint));
+        if (string.IsNullOrEmpty(c.AppToken)) throw new CollectException($"{Cli.AppTokenVariable} is not set; branch protection needs the App token. To fix: {remedy}", Fetcher.GhUrl(endpoint));
+        JsonNode? p;
+        try { p = await f.JsonAsync(endpoint, c.AppToken); }
+        catch (CollectException ex) { throw new CollectException($"{ex.Message}. To fix: {remedy}", Fetcher.GhUrl(endpoint)); }
+        if (p is null) throw new CollectException($"main has no branch protection. To fix: {remedy}", Fetcher.GhUrl(endpoint));
+        // Only the fields SPEC-000 AC-020 needs are kept.
+        var kept = new JsonObject();
+        foreach (var key in new[] { "enforce_admins", "required_pull_request_reviews", "required_conversation_resolution", "required_linear_history" })
+            kept[key] = p[key] is JsonObject o ? new JsonObject { ["enabled"] = o["enabled"]?.DeepClone(), ["required_approving_review_count"] = o["required_approving_review_count"]?.DeepClone() } : null;
+        kept["required_status_checks"] = p["required_status_checks"] is JsonObject rs
+            ? new JsonObject { ["contexts"] = rs["contexts"]?.DeepClone(), ["checks"] = new JsonArray(J.Objs(rs["checks"]).Select(x => (JsonNode?)new JsonObject { ["context"] = J.Str(x["context"]) }).ToArray()) }
+            : null;
+        return (new JsonObject { ["protection"] = kept }, Fetcher.GhUrl(endpoint));
     }
 
     static async Task<(JsonNode, string)> Release(CollectCtx c, Fetcher f, string tag)
@@ -2194,6 +2209,37 @@ static class SelfTest
             var remote = new FakeRemote((_, _) => Json("[]"));
             var f = OneSync(secretReq, Ctx(remote, null));
             return Expect(f.Error is not null && f.Error.Contains(Cli.AppTokenVariable) && remote.Calls.Count == 0, $"error {f.Error}, calls {remote.Calls.Count}");
+        });
+        var protectionReq = new FactRequest("branch-protection", "branch-protection", new JsonObject());
+        Case("branch protection: read with the App token, keeping only the AC-020 fields", () =>
+        {
+            var remote = new FakeRemote((_, tok) => tok == "app-token"
+                ? Json("{\"url\":\"u\",\"enforce_admins\":{\"enabled\":true,\"url\":\"x\"},\"required_pull_request_reviews\":{\"required_approving_review_count\":0,\"dismiss_stale_reviews\":true},\"required_conversation_resolution\":{\"enabled\":true},\"required_linear_history\":{\"enabled\":true},\"required_status_checks\":{\"strict\":true,\"contexts\":[\"build\",\"ci-result\",\"Analyze\"],\"checks\":[{\"context\":\"build\",\"app_id\":1}]},\"restrictions\":{\"users\":[]}}")
+                : Json("{}", 403));
+            var f = OneSync(protectionReq, Ctx(remote, "app-token"));
+            var p = f.Value?["protection"] as JsonObject;
+            var item = new Item("b", "b", ["#104"], [], "auto", "Release", "branch-protection", new JsonObject { ["contexts"] = new JsonArray("build", "ci-result", "Analyze") }, new Dictionary<string, string> { ["rc"] = "block" }, null, null, null);
+            var run = Engine.Run(new Registry([], [item]), new EvalCtx(new FactsFile(1, "0.14.0", "rc", Sha, "2026-10-20T00:00:00Z", "t", new Dictionary<string, Fact> { ["branch-protection"] = f }), Signoff.Empty, Now), null);
+            return Expect(f.Error is null && p is not null && p["restrictions"] is null && p["url"] is null && p["required_status_checks"]?["strict"] is null && remote.Calls.All(c => c.Token == "app-token") && run.Results[0].Status == "PASS", $"{f.Error} {f.Value?.ToJsonString()} {run.Results[0].Reason}");
+        });
+        Case("branch protection: token missing fails closed and names the remedy, without a call", () =>
+        {
+            var remote = new FakeRemote((_, _) => Json("{}"));
+            var f = OneSync(protectionReq, Ctx(remote, null));
+            return Expect(f.Error is not null && f.Error.Contains("Administration: Read-only") && f.Error.Contains(Cli.AppTokenVariable) && remote.Calls.Count == 0, f.Error ?? "no error");
+        });
+        Case("branch protection: a 403 fails closed, names the remedy and the item FAILs", () =>
+        {
+            var remote = new FakeRemote((_, _) => Json("{}", 403));
+            var f = OneSync(protectionReq, Ctx(remote, "app-token"));
+            var item = new Item("b", "b", ["#104"], [], "auto", "Release", "branch-protection", new JsonObject { ["contexts"] = new JsonArray("build") }, new Dictionary<string, string> { ["rc"] = "block" }, null, null, null);
+            var run = Engine.Run(new Registry([], [item]), new EvalCtx(new FactsFile(1, "0.14.0", "rc", Sha, "2026-10-20T00:00:00Z", "t", new Dictionary<string, Fact> { ["branch-protection"] = f }), Signoff.Empty, Now), null);
+            return Expect(f.Error is not null && f.Error.Contains("HTTP 403") && f.Error.Contains("Set up the GitHub App") && run.Results[0].Status == "FAIL", f.Error ?? "no error");
+        });
+        Case("branch protection: a 404 fails closed and names the remedy", () =>
+        {
+            var f = OneSync(protectionReq, Ctx(new FakeRemote((_, _) => Json("{}", 404)), "app-token"));
+            return Expect(f.Error is not null && f.Error.Contains("HTTP 404") && f.Error.Contains("Administration: Read-only"), f.Error ?? "no error");
         });
         Case("App token failing: three attempts, the fact carries an error, the item fails closed", () =>
         {
