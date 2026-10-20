@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.Messaging;
 using Encina.Messaging.Sagas;
+using Encina.Messaging.Transactions;
 using LanguageExt;
 using Npgsql;
 
@@ -15,6 +16,7 @@ public sealed class SagaStoreADO : ISagaStore
     private readonly IDbConnection _connection;
     private readonly string _tableName;
     private readonly TimeProvider _timeProvider;
+    private readonly IDbTransactionAccessor? _transactionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SagaStoreADO"/> class.
@@ -22,17 +24,23 @@ public sealed class SagaStoreADO : ISagaStore
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The saga state table name (default: sagastates).</param>
     /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
+    /// <param name="transactionAccessor">
+    /// Optional accessor of the scope's shared transaction; when a transaction is active the store's commands
+    /// join it, otherwise they run in autocommit.
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is null or whitespace.</exception>
     public SagaStoreADO(
         IDbConnection connection,
         string tableName = "sagastates",
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IDbTransactionAccessor? transactionAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _transactionAccessor = transactionAccessor;
     }
 
     /// <inheritdoc />
@@ -48,12 +56,12 @@ public sealed class SagaStoreADO : ISagaStore
                 FROM {_tableName}
                 WHERE sagaid = @SagaId";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@SagaId", sagaId);
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             using var reader = await ExecuteReaderAsync(command, cancellationToken);
             if (await ReadAsync(reader, cancellationToken))
@@ -78,7 +86,8 @@ public sealed class SagaStoreADO : ISagaStore
                 VALUES
                 (@SagaId, @SagaType, @Data, @Status, @StartedAtUtc, @LastUpdatedAtUtc, @CompletedAtUtc, @ErrorMessage, @CurrentStep, @TimeoutAtUtc)";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@SagaId", sagaState.SagaId);
             AddParameter(command, "@SagaType", sagaState.SagaType);
@@ -91,8 +100,7 @@ public sealed class SagaStoreADO : ISagaStore
             AddParameter(command, "@CurrentStep", sagaState.CurrentStep);
             AddParameter(command, "@TimeoutAtUtc", sagaState.TimeoutAtUtc);
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "saga.add_failed").ConfigureAwait(false);
@@ -118,7 +126,8 @@ public sealed class SagaStoreADO : ISagaStore
                     timeoutatutc = @TimeoutAtUtc
                 WHERE sagaid = @SagaId";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@SagaId", sagaState.SagaId);
             AddParameter(command, "@SagaType", sagaState.SagaType);
@@ -130,8 +139,7 @@ public sealed class SagaStoreADO : ISagaStore
             AddParameter(command, "@CurrentStep", sagaState.CurrentStep);
             AddParameter(command, "@TimeoutAtUtc", sagaState.TimeoutAtUtc);
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             await ExecuteNonQueryAsync(command, cancellationToken);
         }, "saga.update_failed").ConfigureAwait(false);
@@ -160,7 +168,8 @@ public sealed class SagaStoreADO : ISagaStore
                 ORDER BY lastupdatedatutc
                 LIMIT @BatchSize";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@Running", "Running");
             AddParameter(command, "@Compensating", "Compensating");
@@ -169,8 +178,7 @@ public sealed class SagaStoreADO : ISagaStore
 
             var sagas = new List<ISagaState>();
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             using var reader = await ExecuteReaderAsync(command, cancellationToken);
             while (await ReadAsync(reader, cancellationToken))
@@ -203,7 +211,8 @@ public sealed class SagaStoreADO : ISagaStore
                 ORDER BY timeoutatutc
                 LIMIT @BatchSize";
 
-            using var command = _connection.CreateCommand();
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            using var command = lease.CreateCommand();
             command.CommandText = sql;
             AddParameter(command, "@Running", "Running");
             AddParameter(command, "@Compensating", "Compensating");
@@ -212,8 +221,7 @@ public sealed class SagaStoreADO : ISagaStore
 
             var sagas = new List<ISagaState>();
 
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
+            await lease.EnsureOpenAsync(cancellationToken);
 
             using var reader = await ExecuteReaderAsync(command, cancellationToken);
             while (await ReadAsync(reader, cancellationToken))
@@ -261,12 +269,6 @@ public sealed class SagaStoreADO : ISagaStore
         parameter.ParameterName = name;
         parameter.Value = value ?? DBNull.Value;
         command.Parameters.Add(parameter);
-    }
-
-    private static Task OpenConnectionAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.CompletedTask;
     }
 
     private static async Task<IDataReader> ExecuteReaderAsync(IDbCommand command, CancellationToken cancellationToken)

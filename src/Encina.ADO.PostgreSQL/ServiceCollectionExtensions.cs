@@ -57,7 +57,7 @@ public static class ServiceCollectionExtensions
             SagaStateFactory,
             ScheduledMessageStoreADO,
             ScheduledMessageFactory,
-            OutboxProcessor>(config);
+            OutboxProcessor>(config, Messaging.Outbox.OutboxWritePath.TransactionalBehavior);
 
         services.AddDeadLetterQueueServices<DeadLetterStoreADO, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions);
 
@@ -442,6 +442,9 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddEncinaUnitOfWork(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        // The unit of work takes a lease on the scope's shared transaction, so it needs the accessor.
+        services.AddDbTransactionAccessor();
 
         // Only register if not already registered
         services.TryAddScoped<IUnitOfWork, UnitOfWorkADO>();
