@@ -1,13 +1,16 @@
-using System.Data;
 using Encina.Messaging;
+using Encina.Messaging.Transactions;
 using LanguageExt;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 
 namespace Encina.ContractTests.Messaging;
 
 /// <summary>
-/// Behavioral contract tests for <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/>.
+/// Behavioral contract tests for <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/>: it takes a
+/// lease from the accessor, commits it on success, rolls it back on a failure or an exception, and never begins a
+/// transaction of its own.
 /// </summary>
 [Trait("Category", "Contract")]
 public sealed class TransactionPipelineBehaviorContractTests
@@ -26,64 +29,88 @@ public sealed class TransactionPipelineBehaviorContractTests
     }
 
     [Fact]
-    public async Task Handle_Success_CommitsTransaction()
+    public async Task Handle_Success_CommitsLease()
     {
-        var connection = Substitute.For<IDbConnection>();
-        var transaction = Substitute.For<IDbTransaction>();
-        connection.BeginTransaction().Returns(transaction);
-        connection.State.Returns(ConnectionState.Open);
+        var (behavior, lease) = Create();
 
-        var behavior = new TransactionPipelineBehavior<TestTransactionalCommand, string>(connection);
-        var context = CreateContext();
-
-        RequestHandlerCallback<string> next = () =>
-            new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("ok"));
-
-        var result = await behavior.Handle(new TestTransactionalCommand("v"), context, next, CancellationToken.None);
+        var result = await behavior.Handle(
+            new TestTransactionalCommand("v"), CreateContext(), () => Ok("ok"), CancellationToken.None);
 
         result.IsRight.ShouldBeTrue();
-        transaction.Received(1).Commit();
+        await lease.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+        await lease.DidNotReceive().RollbackAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_Failure_RollsBack()
+    public async Task Handle_Failure_RollsBackLease()
     {
-        var connection = Substitute.For<IDbConnection>();
-        var transaction = Substitute.For<IDbTransaction>();
-        connection.BeginTransaction().Returns(transaction);
-        connection.State.Returns(ConnectionState.Open);
+        var (behavior, lease) = Create();
 
-        var behavior = new TransactionPipelineBehavior<TestTransactionalCommand, string>(connection);
-        var context = CreateContext();
-
-        RequestHandlerCallback<string> next = () =>
-            new ValueTask<Either<EncinaError, string>>(
-                Either<EncinaError, string>.Left(EncinaErrors.Create("TEST", "fail")));
-
-        var result = await behavior.Handle(new TestTransactionalCommand("v"), context, next, CancellationToken.None);
+        var result = await behavior.Handle(
+            new TestTransactionalCommand("v"), CreateContext(), () => Fail(), CancellationToken.None);
 
         result.IsLeft.ShouldBeTrue();
-        transaction.Received(1).Rollback();
+        await lease.Received(1).RollbackAsync(Arg.Any<CancellationToken>());
+        await lease.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_Exception_RollsBack()
+    public async Task Handle_Exception_RollsBackLease()
     {
-        var connection = Substitute.For<IDbConnection>();
-        var transaction = Substitute.For<IDbTransaction>();
-        connection.BeginTransaction().Returns(transaction);
-        connection.State.Returns(ConnectionState.Open);
-
-        var behavior = new TransactionPipelineBehavior<TestTransactionalCommand, string>(connection);
-        var context = CreateContext();
-
+        var (behavior, lease) = Create();
         RequestHandlerCallback<string> next = () => throw new InvalidOperationException("boom");
 
-        var result = await behavior.Handle(new TestTransactionalCommand("v"), context, next, CancellationToken.None);
+        var result = await behavior.Handle(
+            new TestTransactionalCommand("v"), CreateContext(), next, CancellationToken.None);
 
         result.IsLeft.ShouldBeTrue();
-        transaction.Received(1).Rollback();
+        await lease.Received(1).RollbackAsync(Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task Handle_BeginFails_ReturnsTheErrorWithoutRunningTheHandler()
+    {
+        var accessor = Substitute.For<IDbTransactionAccessor>();
+        accessor.BeginOrJoinAsync(Arg.Any<CancellationToken>()).Returns(
+            new ValueTask<Either<EncinaError, ITransactionLease>>(TransactionErrors.NotSupported(typeof(object))));
+        var behavior = new TransactionPipelineBehavior<TestTransactionalCommand, string>(
+            accessor, NullLogger<TransactionPipelineBehavior<TestTransactionalCommand, string>>.Instance);
+        var handlerRan = false;
+        RequestHandlerCallback<string> next = () =>
+        {
+            handlerRan = true;
+            return Ok("ok");
+        };
+
+        var result = await behavior.Handle(
+            new TestTransactionalCommand("v"), CreateContext(), next, CancellationToken.None);
+
+        result.IsLeft.ShouldBeTrue();
+        handlerRan.ShouldBeFalse();
+    }
+
+    private static (TransactionPipelineBehavior<TestTransactionalCommand, string> Behavior, ITransactionLease Lease) Create()
+    {
+        var lease = Substitute.For<ITransactionLease>();
+        lease.IsOwner.Returns(true);
+        lease.CommitAsync(Arg.Any<CancellationToken>()).Returns(
+            new ValueTask<Either<EncinaError, Unit>>(Unit.Default));
+
+        var accessor = Substitute.For<IDbTransactionAccessor>();
+        accessor.BeginOrJoinAsync(Arg.Any<CancellationToken>()).Returns(
+            new ValueTask<Either<EncinaError, ITransactionLease>>(Either<EncinaError, ITransactionLease>.Right(lease)));
+
+        return (
+            new TransactionPipelineBehavior<TestTransactionalCommand, string>(
+                accessor, NullLogger<TransactionPipelineBehavior<TestTransactionalCommand, string>>.Instance),
+            lease);
+    }
+
+    private static ValueTask<Either<EncinaError, string>> Ok(string value)
+        => new(Either<EncinaError, string>.Right(value));
+
+    private static ValueTask<Either<EncinaError, string>> Fail()
+        => new(Either<EncinaError, string>.Left(EncinaErrors.Create("TEST", "fail")));
 
     private static IRequestContext CreateContext()
     {

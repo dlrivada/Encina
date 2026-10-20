@@ -1,89 +1,121 @@
-using System.Data;
 using Encina.Messaging.Outbox;
+using Encina.Messaging.Transactions;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Encina.UnitTests.ADO.SqlServer.Outbox;
 
 /// <summary>
-/// Verifies that requeueing exhausted outbox messages by identifier is all-or-nothing on the ADO.NET
-/// stores that split the identifiers into several statements (SQL Server and MySQL): every chunk runs
-/// in one transaction, which is committed only when every chunk succeeded (#1167 review).
+/// Verifies that requeueing exhausted outbox messages by identifier is all-or-nothing on the ADO.NET stores that
+/// split the identifiers into several statements (SQL Server and MySQL): every chunk runs in one transaction that
+/// is committed only when every chunk succeeded (#1167), and that the requeue joins the transaction of the scope
+/// instead of beginning (and committing) its own (#718).
 /// </summary>
 /// <remarks>
-/// The Dapper stores use the same transaction, but Dapper's asynchronous API requires a real
-/// <see cref="System.Data.Common.DbConnection"/>, so their behaviour is covered by the integration tests.
+/// SQLite in-memory is only a relational stand-in that executes the stores' portable UPDATE statement; no
+/// provider claim is made. The dialect-specific behaviour is covered by the integration tests.
 /// </remarks>
-public sealed class OutboxStoreADORequeueTransactionTests
+public sealed class OutboxStoreADORequeueTransactionTests : IAsyncDisposable
 {
     // One more identifier than a chunk holds, so the requeue needs two statements.
     private const int IdCount = 1001;
 
+    private readonly SqliteConnection _connection = new("DataSource=:memory:");
+    private readonly Guid[] _ids = Enumerable.Range(0, IdCount).Select(_ => Guid.NewGuid()).ToArray();
+
     public static TheoryData<string> Providers => ["ADO.SqlServer", "ADO.MySQL"];
 
+    public async ValueTask DisposeAsync() => await _connection.DisposeAsync();
+
     [Theory]
     [MemberData(nameof(Providers))]
-    public async Task RequeueExhaustedAsync_SecondChunkFails_RollsBackWithoutCommitting(string provider)
+    public async Task RequeueExhaustedAsync_SecondChunkFails_RollsBackTheFirstChunk(string provider)
     {
-        var harness = new Harness(failOnCommand: 2);
-        var store = CreateStore(provider, harness.Connection);
+        await SeedAsync(poisonLastId: true);
+        var store = CreateStore(provider, accessor: null);
 
-        var result = await store.RequeueExhaustedAsync(3, Ids(), CancellationToken.None);
+        var result = await store.RequeueExhaustedAsync(3, _ids, CancellationToken.None);
 
         result.IsLeft.ShouldBeTrue();
-        harness.Transaction.DidNotReceive().Commit();
-        harness.Transaction.Received(1).Dispose();
-        harness.Commands.Count.ShouldBe(2);
-        harness.Commands.ShouldAllBe(c => c.Transaction == harness.Transaction);
+        (await ExhaustedCountAsync()).ShouldBe(IdCount);
     }
 
     [Theory]
     [MemberData(nameof(Providers))]
-    public async Task RequeueExhaustedAsync_EveryChunkSucceeds_CommitsOnce(string provider)
+    public async Task RequeueExhaustedAsync_EveryChunkSucceeds_CommitsAllChunks(string provider)
     {
-        var harness = new Harness(failOnCommand: null);
-        var store = CreateStore(provider, harness.Connection);
+        await SeedAsync(poisonLastId: false);
+        var store = CreateStore(provider, accessor: null);
 
-        var result = await store.RequeueExhaustedAsync(3, Ids(), CancellationToken.None);
+        var result = await store.RequeueExhaustedAsync(3, _ids, CancellationToken.None);
 
         result.Match(Right: count => count, Left: error => throw new InvalidOperationException(error.Message))
-            .ShouldBe(2);
-        harness.Transaction.Received(1).Commit();
-        harness.Commands.Count.ShouldBe(2);
-        harness.Commands.ShouldAllBe(c => c.Transaction == harness.Transaction);
+            .ShouldBe(IdCount);
+        (await ExhaustedCountAsync()).ShouldBe(0);
     }
 
-    private static IOutboxStore CreateStore(string provider, IDbConnection connection) => provider switch
+    [Theory]
+    [MemberData(nameof(Providers))]
+    public async Task RequeueExhaustedAsync_ActiveTransaction_JoinsItAndLeavesTheCommitToItsOwner(string provider)
     {
-        "ADO.SqlServer" => new global::Encina.ADO.SqlServer.Outbox.OutboxStoreADO(connection),
-        "ADO.MySQL" => new global::Encina.ADO.MySQL.Outbox.OutboxStoreADO(connection),
+        await SeedAsync(poisonLastId: false);
+        var accessor = new DbTransactionAccessor(_connection, NullLogger<DbTransactionAccessor>.Instance);
+        var store = CreateStore(provider, accessor);
+        var owner = (await accessor.BeginOrJoinAsync(null)).IfLeft(static _ => throw new InvalidOperationException());
+
+        var result = await store.RequeueExhaustedAsync(3, _ids, CancellationToken.None);
+        result.IsRight.ShouldBeTrue();
+        await owner.RollbackAsync();
+        await owner.DisposeAsync();
+
+        // The store did not commit: the owner's rollback undid the whole requeue.
+        (await ExhaustedCountAsync()).ShouldBe(IdCount);
+    }
+
+    private IOutboxStore CreateStore(string provider, IDbTransactionAccessor? accessor) => provider switch
+    {
+        "ADO.SqlServer" => new global::Encina.ADO.SqlServer.Outbox.OutboxStoreADO(_connection, transactionAccessor: accessor),
+        "ADO.MySQL" => new global::Encina.ADO.MySQL.Outbox.OutboxStoreADO(_connection, transactionAccessor: accessor),
         _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, null)
     };
 
-    private static Guid[] Ids() => Enumerable.Range(0, IdCount).Select(_ => Guid.NewGuid()).ToArray();
-
-    private sealed class Harness
+    private async Task SeedAsync(bool poisonLastId)
     {
-        public Harness(int? failOnCommand)
+        await _connection.OpenAsync();
+        await using (var create = _connection.CreateCommand())
         {
-            Connection.State.Returns(ConnectionState.Open);
-            Connection.BeginTransaction().Returns(Transaction);
-            Connection.CreateCommand().Returns(_ =>
-            {
-                var command = Substitute.For<IDbCommand>();
-                command.Parameters.Returns(Substitute.For<IDataParameterCollection>());
-                command.CreateParameter().Returns(_ => Substitute.For<IDbDataParameter>());
-                Commands.Add(command);
-                var ordinal = Commands.Count;
-                command.ExecuteNonQuery().Returns(_ => ordinal == failOnCommand
-                    ? throw new InvalidOperationException("Lock wait timeout exceeded")
-                    : 1);
-                return command;
-            });
+            create.CommandText = "CREATE TABLE OutboxMessages (Id TEXT PRIMARY KEY, ProcessedAtUtc TEXT NULL, RetryCount INTEGER NOT NULL, NextRetryAtUtc TEXT NULL, ErrorMessage TEXT NULL)";
+            await create.ExecuteNonQueryAsync();
         }
 
-        public IDbConnection Connection { get; } = Substitute.For<IDbConnection>();
+        await using (var transaction = await _connection.BeginTransactionAsync())
+        {
+            foreach (var id in _ids)
+            {
+                await using var insert = _connection.CreateCommand();
+                insert.Transaction = (SqliteTransaction)transaction;
+                insert.CommandText = "INSERT INTO OutboxMessages (Id, RetryCount) VALUES ($id, 3)";
+                insert.Parameters.AddWithValue("$id", id);
+                await insert.ExecuteNonQueryAsync();
+            }
 
-        public IDbTransaction Transaction { get; } = Substitute.For<IDbTransaction>();
+            await transaction.CommitAsync();
+        }
 
-        public List<IDbCommand> Commands { get; } = [];
+        if (poisonLastId)
+        {
+            // The second chunk (the last identifier) fails, like a lock timeout would.
+            await using var trigger = _connection.CreateCommand();
+            trigger.CommandText =
+                $"CREATE TRIGGER poison BEFORE UPDATE ON OutboxMessages WHEN OLD.Id = '{_ids[^1].ToString().ToUpperInvariant()}' BEGIN SELECT RAISE(ABORT, 'lock wait timeout'); END";
+            await trigger.ExecuteNonQueryAsync();
+        }
+    }
+
+    private async Task<long> ExhaustedCountAsync()
+    {
+        await using var count = _connection.CreateCommand();
+        count.CommandText = "SELECT COUNT(*) FROM OutboxMessages WHERE RetryCount >= 3";
+        return (long)(await count.ExecuteScalarAsync())!;
     }
 }

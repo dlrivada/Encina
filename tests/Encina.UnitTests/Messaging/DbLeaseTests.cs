@@ -1,20 +1,29 @@
 using System.Data;
 using Encina.Messaging;
+using Encina.Messaging.Transactions;
+using Encina.UnitTests.Messaging.Transactions;
 
 namespace Encina.UnitTests.Messaging;
 
 /// <summary>
-/// Unit tests for <see cref="DbLease"/> and <see cref="DbTransactionAccessor"/> (ADR-048): enlisted writes join the
-/// active business transaction, independent writes leave it by using a clone of the connection.
+/// Unit tests for <see cref="DbLease"/> (ADR-048): enlisted writes join the active business transaction,
+/// independent writes leave it by using a clone of the connection, and connections open asynchronously only.
 /// </summary>
 public sealed class DbLeaseTests
 {
-    private static (IDbConnection Connection, IDbTransaction Transaction, DbTransactionAccessor Accessor) ActiveTransaction()
+    private static (IDbConnection Connection, IDbTransaction Transaction, IDbTransactionAccessor Accessor) ActiveTransaction()
     {
         var connection = Substitute.For<IDbConnection, ICloneable>();
         var transaction = Substitute.For<IDbTransaction>();
         transaction.Connection.Returns(connection);
-        return (connection, transaction, new DbTransactionAccessor { Current = transaction });
+        return (connection, transaction, AccessorWith(transaction));
+    }
+
+    private static IDbTransactionAccessor AccessorWith(IDbTransaction? transaction)
+    {
+        var accessor = Substitute.For<IDbTransactionAccessor>();
+        accessor.Current.Returns(transaction);
+        return accessor;
     }
 
     [Fact]
@@ -60,7 +69,7 @@ public sealed class DbLeaseTests
     {
         var connection = Substitute.For<IDbConnection, ICloneable>();
 
-        using var lease = await DbLease.IndependentAsync(connection, new DbTransactionAccessor(), CancellationToken.None);
+        using var lease = await DbLease.IndependentAsync(connection, AccessorWith(null), CancellationToken.None);
 
         lease.Connection.ShouldBeSameAs(connection);
         lease.Transaction.ShouldBeNull();
@@ -68,21 +77,23 @@ public sealed class DbLeaseTests
     }
 
     [Fact]
-    public async Task Independent_ActiveTransaction_UsesOpenedCloneAndDisposesIt()
+    public async Task Independent_ActiveTransaction_UsesAsynchronouslyOpenedCloneAndDisposesIt()
     {
         var (connection, _, accessor) = ActiveTransaction();
-        var clone = Substitute.For<IDbConnection>();
+        var clone = new RecordingTransactionalConnection();
         ((ICloneable)connection).Clone().Returns(clone);
+        using var cts = new CancellationTokenSource();
 
-        var lease = await DbLease.IndependentAsync(connection, accessor, CancellationToken.None);
+        var lease = await DbLease.IndependentAsync(connection, accessor, cts.Token);
 
         lease.Connection.ShouldBeSameAs(clone);
         lease.Transaction.ShouldBeNull();
-        clone.Received(1).Open();
+        clone.OpenAsyncCalls.ShouldBe(1);
+        clone.OpenAsyncToken.ShouldBe(cts.Token);
 
         lease.Dispose();
 
-        clone.Received(1).Dispose();
+        clone.WasDisposed.ShouldBeTrue();
         connection.DidNotReceive().Dispose();
     }
 
@@ -92,9 +103,8 @@ public sealed class DbLeaseTests
         var connection = Substitute.For<IDbConnection>();
         var transaction = Substitute.For<IDbTransaction>();
         transaction.Connection.Returns(connection);
-        var accessor = new DbTransactionAccessor { Current = transaction };
 
-        var act = async () => await DbLease.IndependentAsync(connection, accessor, CancellationToken.None);
+        var act = async () => await DbLease.IndependentAsync(connection, AccessorWith(transaction), CancellationToken.None);
 
         await act.ShouldThrowAsync<InvalidOperationException>();
     }
@@ -103,13 +113,26 @@ public sealed class DbLeaseTests
     public async Task Independent_CloneFailsToOpen_DisposesCloneAndRethrows()
     {
         var (connection, _, accessor) = ActiveTransaction();
-        var clone = Substitute.For<IDbConnection>();
-        clone.When(c => c.Open()).Do(_ => throw new InvalidOperationException("cannot open"));
+        var clone = new RecordingTransactionalConnection { ThrowOnOpen = true };
         ((ICloneable)connection).Clone().Returns(clone);
 
         var act = async () => await DbLease.IndependentAsync(connection, accessor, CancellationToken.None);
 
         await act.ShouldThrowAsync<InvalidOperationException>();
+        clone.WasDisposed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Independent_CloneIsNotADbConnection_FailsClosedWithoutSynchronousOpen()
+    {
+        var (connection, _, accessor) = ActiveTransaction();
+        var clone = Substitute.For<IDbConnection>();
+        ((ICloneable)connection).Clone().Returns(clone);
+
+        var act = async () => await DbLease.IndependentAsync(connection, accessor, CancellationToken.None);
+
+        await act.ShouldThrowAsync<InvalidOperationException>();
+        clone.DidNotReceive().Open();
         clone.Received(1).Dispose();
     }
 
@@ -138,14 +161,14 @@ public sealed class DbLeaseTests
         var (inner, _, accessor) = ActiveTransaction();
         var wrapper = Substitute.For<IWrapper>();
         wrapper.InnerConnection.Returns(inner);
-        var clone = Substitute.For<IDbConnection>();
+        var clone = new RecordingTransactionalConnection();
         ((ICloneable)inner).Clone().Returns(clone);
 
         using var lease = await DbLease.IndependentAsync(wrapper, accessor, CancellationToken.None);
 
         lease.Connection.ShouldBeSameAs(clone);
         lease.Transaction.ShouldBeNull();
-        clone.Received(1).Open();
+        clone.OpenAsyncCalls.ShouldBe(1);
     }
 
     [Fact]
@@ -154,13 +177,50 @@ public sealed class DbLeaseTests
         var inner = Substitute.For<IDbConnection>();
         var transaction = Substitute.For<IDbTransaction>();
         transaction.Connection.Returns(inner);
-        var accessor = new DbTransactionAccessor { Current = transaction };
         var wrapper = Substitute.For<IWrapper>();
         wrapper.InnerConnection.Returns(inner);
 
-        var act = async () => await DbLease.IndependentAsync(wrapper, accessor, CancellationToken.None);
+        var act = async () => await DbLease.IndependentAsync(wrapper, AccessorWith(transaction), CancellationToken.None);
 
         await act.ShouldThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task EnsureOpenAsync_ClosedDbConnection_OpensItAsynchronouslyWithTheToken()
+    {
+        var connection = new RecordingTransactionalConnection();
+        using var cts = new CancellationTokenSource();
+        using var lease = DbLease.Enlisted(connection, accessor: null);
+
+        await lease.EnsureOpenAsync(cts.Token);
+
+        connection.OpenAsyncCalls.ShouldBe(1);
+        connection.OpenAsyncToken.ShouldBe(cts.Token);
+    }
+
+    [Fact]
+    public async Task EnsureOpenAsync_AlreadyOpen_DoesNothing()
+    {
+        var connection = new RecordingTransactionalConnection();
+        connection.SetState(ConnectionState.Open);
+        using var lease = DbLease.Enlisted(connection, accessor: null);
+
+        await lease.EnsureOpenAsync(CancellationToken.None);
+
+        connection.OpenAsyncCalls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task EnsureOpenAsync_ClosedConnectionThatIsNotADbConnection_FailsClosed()
+    {
+        var connection = Substitute.For<IDbConnection>();
+        connection.State.Returns(ConnectionState.Closed);
+        using var lease = DbLease.Enlisted(connection, accessor: null);
+
+        var act = async () => await lease.EnsureOpenAsync(CancellationToken.None);
+
+        await act.ShouldThrowAsync<InvalidOperationException>();
+        connection.DidNotReceive().Open();
     }
 
     [Fact]

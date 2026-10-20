@@ -26,7 +26,7 @@ namespace Encina.Messaging.Transactions;
 /// cleans up. Disposing the accessor (the end of the scope) rolls back a transaction nobody finished.
 /// </para>
 /// </remarks>
-public sealed class DbTransactionAccessor : IDbTransactionAccessor, IAsyncDisposable
+public sealed class DbTransactionAccessor : IDbTransactionAccessor, IAsyncDisposable, IDisposable
 {
     private readonly IDbConnection _connection;
     private readonly ILogger<DbTransactionAccessor> _logger;
@@ -75,6 +75,13 @@ public sealed class DbTransactionAccessor : IDbTransactionAccessor, IAsyncDispos
 
     /// <inheritdoc />
     public ValueTask DisposeAsync() => _owner?.DisposeAsync() ?? ValueTask.CompletedTask;
+
+    /// <summary>
+    /// Ends a transaction nobody finished when the scope is disposed synchronously (a scope created with
+    /// <c>CreateScope</c> rather than <c>CreateAsyncScope</c>). Disposing a database transaction that was not
+    /// committed discards it, which is a rollback, so nothing is left open.
+    /// </summary>
+    public void Dispose() => _owner?.DisposeSynchronously();
 
     private static Either<EncinaError, IDbTransactionLease> Join(OwnerLease owner, IsolationLevel? requested)
     {
@@ -199,6 +206,18 @@ public sealed class DbTransactionAccessor : IDbTransactionAccessor, IAsyncDispos
 
             _disposed = true;
             await _transaction.DisposeAsync().ConfigureAwait(false);
+        }
+
+        internal void DisposeSynchronously()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            Complete(_completed ? TransactionActivitySource.OutcomeCommitted : TransactionActivitySource.OutcomeRolledBack);
+            _transaction.Dispose();
         }
 
         // The rollback runs with CancellationToken.None: cleanup must finish even when the caller canceled.

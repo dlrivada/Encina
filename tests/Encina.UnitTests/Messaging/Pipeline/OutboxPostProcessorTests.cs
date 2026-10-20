@@ -282,6 +282,46 @@ public sealed class OutboxPostProcessorTests
 
     #endregion
 
+    #region Process - Store Errors
+
+    [Fact]
+    public async Task Process_WhenAddReturnsLeft_ReturnsTheFirstLeftAndDoesNotSave()
+    {
+        var (processor, store, messageFactory) = CreateProcessor<TestRequestWithNotifications>();
+        messageFactory.Create(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTime>())
+            .Returns(_ => Substitute.For<IOutboxMessage>());
+        store.AddAsync(Arg.Any<IOutboxMessage>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(EncinaErrors.Create("outbox.add_failed", "boom")));
+        var request = new TestRequestWithNotifications { Value = 1 };
+        request.AddNotification(new TestNotification { Message = "a" });
+        request.AddNotification(new TestNotification { Message = "b" });
+
+        var result = await processor.Process(request, CreateContext(), new TestResponse(), CancellationToken.None);
+
+        result.IsLeft.ShouldBeTrue();
+        ((EncinaError)result).GetCode().IfNone(string.Empty).ShouldBe("outbox.add_failed");
+        await store.Received(1).AddAsync(Arg.Any<IOutboxMessage>(), Arg.Any<CancellationToken>());
+        await store.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Process_WhenSaveChangesReturnsLeft_ReturnsIt()
+    {
+        var (processor, store, messageFactory) = CreateProcessor<TestRequestWithNotifications>();
+        messageFactory.Create(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTime>())
+            .Returns(_ => Substitute.For<IOutboxMessage>());
+        store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(EncinaErrors.Create("outbox.save_failed", "boom")));
+        var request = new TestRequestWithNotifications { Value = 1 };
+        request.AddNotification(new TestNotification { Message = "a" });
+
+        var result = await processor.Process(request, CreateContext(), new TestResponse(), CancellationToken.None);
+
+        ((EncinaError)result).GetCode().IfNone(string.Empty).ShouldBe("outbox.save_failed");
+    }
+
+    #endregion
+
     #region Process - Multiple Notifications
 
     [Fact]
@@ -418,6 +458,10 @@ public sealed class OutboxPostProcessorTests
         CreateProcessor<TRequest>(IMessageSerializer? messageSerializer = null) where TRequest : IRequest<TestResponse>
     {
         var store = Substitute.For<IOutboxStore>();
+        store.AddAsync(Arg.Any<IOutboxMessage>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
+        store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
         var messageFactory = Substitute.For<IOutboxMessageFactory>();
         var logger = NullLogger<OutboxPostProcessor<TRequest, TestResponse>>.Instance;
 
