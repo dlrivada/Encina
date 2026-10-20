@@ -65,12 +65,12 @@ jobs:
           # a shard's duration grows with its tested-mutant count, not with
           # its folder.
           #
-          # PENDING MEASUREMENT (#1441 phase 2): the entries below are still
-          # the phase-1 split, sized to about 150 tested mutants at the local
-          # 35.6 s per mutant of spike #1087 and concurrency 2. The CI
-          # calibration runs of phase 2 measure the seconds per mutant on
-          # the runner at concurrency 1; SHARDS and TIMEOUTS are re-sized
-          # from that number, not before.
+          # Sizing rule (#1441): a shard takes about 24 min of setup (restore,
+          # build, Stryker's build and initial test run) plus about 1.2 min
+          # per tested mutant, both measured on CI run 39406760645 at
+          # concurrency 1. A shard holds at most 42 tested mutants, so it is
+          # expected to finish in about 75 min or less. The 66 shards below
+          # follow that rule.
           #
           # A SHARDS entry is one or more Stryker mutate globs separated by
           # ';'. A glob that starts with '!' excludes files. A folder too big
@@ -100,63 +100,158 @@ jobs:
           # except Ignored, CompileError and NoCoverage) from run
           # 36959365309 (2026-10-02), and from run 36304862790 for
           # Modules/Isolation, whose shard lost its runner in 36959365309
-          # (#1682). Shards 16 and 17 are the two files over 150
-          # (SqlServerPermissionScriptGenerator.cs and
-          # PostgreSqlPermissionScriptGenerator.cs); they are the candidates
-          # for a span split once the per-mutant time is measured.
+          # (#1682). 23 of the 92 tested files changed since then; the
+          # counts of shards 0-7 and 48-52 are the drift-heavy ones and carry
+          # a planned weight (measured x growth) instead. Re-measure those
+          # shards on the first run with this layout.
+          #
+          # A file cut into several parts has one include span per part but
+          # the last (the tail). The tail shard carries the whole-file glob
+          # and one '!' exclude per span, so it may list several excludes of
+          # the same file (up to 4); each include span and each exclude has
+          # its twin. The tail may also be the file inside a folder glob
+          # ('dir/*.cs;!F{a..b}...') when it shares the remainder shard.
           SHARDS=(
-            "**/Core/EncinaConfiguration.cs;**/Core/ServiceCollectionExtensions.cs;**/Core/Encina.cs"                                    # 0: 140
-            "**/Core/*.cs;!**/Core/EncinaConfiguration.cs;!**/Core/ServiceCollectionExtensions.cs;!**/Core/Encina.cs"                    # 1: 80
-            "**/Pipeline/Behaviors/*.cs"                                                                                                 # 2: 142
-            "**/Pipeline/*.cs"                                                                                                           # 3: 136
-            "**/Dispatchers/Strategies/*.cs"                                                                                             # 4: 64
-            "**/Validation/*.cs;**/Results/*.cs;**/Sharding/Health/*.cs"                                                                 # 5: 29 + 16 + 57
-            "**/Sharding/Migrations/Strategies/*.cs;**/Sharding/Execution/*.cs"                                                          # 6: 59 + 60
-            "**/Sharding/Routing/GeoShardRouter.cs;**/Sharding/Routing/RangeShardRouter.cs"                                              # 7: 121
-            "**/Sharding/Routing/*.cs;!**/Sharding/Routing/GeoShardRouter.cs;!**/Sharding/Routing/RangeShardRouter.cs"                   # 8: 127
-            "**/Sharding/ReplicaSelection/*.cs"                                                                                          # 9: 151
-            "**/Sharding/Shadow/**/*.cs"                                                                                                 # 10: 115
-            "**/Sharding/Colocation/*.cs;**/Sharding/Diagnostics/*.cs"                                                                   # 11: 58 + 66
-            "**/Sharding/TimeBased/TimeBasedShardRouter.cs;**/Sharding/TimeBased/ShardTierInfo.cs;**/Sharding/TimeBased/TierTransition.cs" # 12: 142
-            "**/Sharding/TimeBased/*.cs;!**/Sharding/TimeBased/TimeBasedShardRouter.cs;!**/Sharding/TimeBased/ShardTierInfo.cs;!**/Sharding/TimeBased/TierTransition.cs" # 13: 139
-            "**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs;**/Sharding/Resharding/Phases/CuttingOverPhase.cs"                 # 14: 89
-            "**/Sharding/Resharding/Phases/*.cs;!**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs;!**/Sharding/Resharding/Phases/CuttingOverPhase.cs" # 15: 113
-            "**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs"                                                                 # 16: 201
-            "**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs"                                                                # 17: 185
-            "**/Modules/Isolation/SqlSchemaExtractor.cs;**/Modules/Isolation/ModuleSchemaRegistry.cs"                                    # 18: 108
-            "**/Modules/Isolation/*.cs;!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs;!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs;!**/Modules/Isolation/SqlSchemaExtractor.cs;!**/Modules/Isolation/ModuleSchemaRegistry.cs" # 19: 58
+            "**/Core/AmbientRequestContext.cs"  # 0: 26 (planned 52: file grew since the measured run)
+            "**/Core/*.cs;!**/Core/AmbientRequestContext.cs;!**/Core/ServiceCollectionExtensions.cs;!**/Core/RequestContext.cs;!**/Core/StreamDispatcher.cs;!**/Core/EncinaConfiguration.cs"  # 1: 42
+            "**/Core/EncinaConfiguration.cs{0..9649}"  # 2: 23 (planned 42: file grew since the measured run)
+            "**/Core/EncinaConfiguration.cs{9649..24070}"  # 3: 23 (planned 42: file grew since the measured run)
+            "**/Core/EncinaConfiguration.cs{24070..26583}"  # 4: 23 (planned 42: file grew since the measured run)
+            "**/Core/RequestContext.cs"  # 5: 25 (planned 45: file grew since the measured run)
+            "**/Core/ServiceCollectionExtensions.cs"  # 6: 37 (planned 48: file grew since the measured run)
+            "**/Core/StreamDispatcher.cs;**/Core/EncinaConfiguration.cs;!**/Core/EncinaConfiguration.cs{0..9649};!**/Core/EncinaConfiguration.cs{9649..24070};!**/Core/EncinaConfiguration.cs{24070..26583};**/Results/*.cs"  # 7: 21 + 16 (planned 40: file grew since the measured run)
+            "**/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs{0..5855}"  # 8: 42
+            "**/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs;!**/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs{0..5855};**/Pipeline/Behaviors/QueryActivityPipelineBehavior.cs;!**/Pipeline/Behaviors/QueryActivityPipelineBehavior.cs{0..5641}"  # 9: 30
+            "**/Pipeline/Behaviors/*.cs;!**/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs;!**/Pipeline/Behaviors/QueryActivityPipelineBehavior.cs"  # 10: 28
+            "**/Pipeline/Behaviors/QueryActivityPipelineBehavior.cs{0..5641}"  # 11: 42
+            "**/Pipeline/EncinaNotificationGuards.cs;**/Pipeline/EncinaBehaviorGuards.cs"  # 12: 41
+            "**/Pipeline/*.cs;!**/Pipeline/EncinaNotificationGuards.cs;!**/Pipeline/EncinaBehaviorGuards.cs;!**/Pipeline/PipelineBuilder.cs"  # 13: 42
+            "**/Pipeline/PipelineBuilder.cs{0..9765}"  # 14: 37
+            "**/Sharding/Diagnostics/InstrumentedShardRouter.cs;**/Pipeline/PipelineBuilder.cs;!**/Pipeline/PipelineBuilder.cs{0..9765}"  # 15: 24 + 16
+            "**/Dispatchers/Strategies/ParallelDispatchStrategy.cs"  # 16: 27
+            "**/Dispatchers/Strategies/*.cs;!**/Dispatchers/Strategies/ParallelDispatchStrategy.cs"  # 17: 37
+            "**/Validation/*.cs"  # 18: 29
+            "**/Sharding/Health/*.cs;!**/Sharding/Health/ShardReplicaHealthCheck.cs;**/Sharding/Shadow/Behaviors/ShadowWritePipelineBehavior.cs"  # 19: 24 + 15
+            "**/Sharding/Health/ShardReplicaHealthCheck.cs"  # 20: 33
+            "**/Sharding/Migrations/Strategies/*.cs;!**/Sharding/Migrations/Strategies/SequentialMigrationStrategy.cs;!**/Sharding/Migrations/Strategies/CanaryFirstStrategy.cs"  # 21: 36
+            "**/Sharding/Migrations/Strategies/SequentialMigrationStrategy.cs;**/Sharding/Migrations/Strategies/CanaryFirstStrategy.cs;**/Sharding/Execution/*.cs;!**/Sharding/Execution/ShardedQueryExecutor.cs{0..10269}"  # 22: 23 + 19
+            "**/Sharding/Execution/ShardedQueryExecutor.cs{0..10269}"  # 23: 41
+            "**/Sharding/Routing/*.cs;!**/Sharding/Routing/HashShardRouter.cs;!**/Sharding/Routing/DirectoryShardRouter.cs;!**/Sharding/Routing/GeoRegion.cs;!**/Sharding/Routing/ShardRange.cs;!**/Sharding/Routing/GeoShardRouter.cs;!**/Sharding/Routing/RangeShardRouter.cs"  # 24: 42
+            "**/Sharding/Routing/DirectoryShardRouter.cs;**/Sharding/Routing/RangeShardRouter.cs;!**/Sharding/Routing/RangeShardRouter.cs{0..5284}"  # 25: 42
+            "**/Sharding/Routing/GeoShardRouter.cs{0..6493}"  # 26: 42
+            "**/Sharding/Routing/GeoShardRouter.cs;!**/Sharding/Routing/GeoShardRouter.cs{0..6493};**/Sharding/Routing/GeoRegion.cs;**/Sharding/Routing/ShardRange.cs"  # 27: 38
+            "**/Sharding/Routing/HashShardRouter.cs"  # 28: 42
+            "**/Sharding/Routing/RangeShardRouter.cs{0..5284}"  # 29: 42
+            "**/Sharding/ReplicaSelection/LeastLatencyShardReplicaSelector.cs;**/Sharding/Resharding/Phases/PlanningPhase.cs"  # 30: 25 + 15
+            "**/Sharding/ReplicaSelection/ReplicaHealthTracker.cs{0..6080}"  # 31: 42
+            "**/Sharding/ReplicaSelection/ReplicaHealthTracker.cs;!**/Sharding/ReplicaSelection/ReplicaHealthTracker.cs{0..6080};**/Sharding/ReplicaSelection/LeastConnectionsShardReplicaSelector.cs"  # 32: 42
+            "**/Sharding/ReplicaSelection/*.cs;!**/Sharding/ReplicaSelection/LeastConnectionsShardReplicaSelector.cs;!**/Sharding/ReplicaSelection/LeastLatencyShardReplicaSelector.cs;!**/Sharding/ReplicaSelection/ReplicaHealthTracker.cs"  # 33: 42
+            "**/Sharding/Shadow/Behaviors/ShadowReadPipelineBehavior.cs"  # 34: 30
+            "**/Sharding/Shadow/**/*.cs;!**/Sharding/Shadow/Behaviors/ShadowReadPipelineBehavior.cs;!**/Sharding/Shadow/ShadowShardingServiceCollectionExtensions.cs;!**/Sharding/Shadow/Behaviors/ShadowWritePipelineBehavior.cs"  # 35: 41
+            "**/Sharding/Shadow/ShadowShardingServiceCollectionExtensions.cs"  # 36: 29
+            "**/Sharding/Colocation/*.cs;!**/Sharding/Colocation/ColocationViolationException.cs"  # 37: 36
+            "**/Sharding/Colocation/ColocationViolationException.cs;**/Modules/Isolation/*.cs;!**/Modules/Isolation/ModuleSchemaRegistry.cs;!**/Modules/Isolation/ModuleSchemaOptions.cs;!**/Modules/Isolation/IModuleSchemaRegistry.cs;!**/Modules/Isolation/ModuleIsolationViolationException.cs;!**/Modules/Isolation/ModuleIsolationOptions.cs;!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs;!**/Modules/Isolation/SqlSchemaExtractor.cs;!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs"  # 38: 22 + 20
+            "**/Sharding/Diagnostics/*.cs;!**/Sharding/Diagnostics/InstrumentedShardRouter.cs"  # 39: 42
+            "**/Sharding/TimeBased/PeriodBoundaryCalculator.cs;**/Sharding/TimeBased/TierTransition.cs"  # 40: 41
+            "**/Sharding/TimeBased/ShardArchiver.cs;**/Sharding/TimeBased/InMemoryTierStore.cs"  # 41: 42
+            "**/Sharding/TimeBased/ShardTierInfo.cs;**/Sharding/TimeBased/TierTransitionScheduler.cs;!**/Sharding/TimeBased/TierTransitionScheduler.cs{0..7233}"  # 42: 35
+            "**/Sharding/TimeBased/TierTransitionScheduler.cs{0..7233}"  # 43: 40
+            "**/Sharding/TimeBased/TimeBasedShardRouter.cs{0..11128}"  # 44: 42
+            "**/Sharding/TimeBased/TimeBasedShardRouter.cs{11128..15744}"  # 45: 42
+            "**/Sharding/TimeBased/*.cs;!**/Sharding/TimeBased/PeriodBoundaryCalculator.cs;!**/Sharding/TimeBased/TierTransition.cs;!**/Sharding/TimeBased/ShardArchiver.cs;!**/Sharding/TimeBased/InMemoryTierStore.cs;!**/Sharding/TimeBased/ShardTierInfo.cs;!**/Sharding/TimeBased/TierTransitionScheduler.cs;!**/Sharding/TimeBased/TimeBasedShardRouter.cs{0..11128};!**/Sharding/TimeBased/TimeBasedShardRouter.cs{11128..15744}"  # 46: 39
+            "**/Sharding/Resharding/Phases/CopyingPhase.cs"  # 47: 28
+            "**/Sharding/Resharding/Phases/CuttingOverPhase.cs"  # 48: 33 (planned 39: file grew since the measured run)
+            "**/Sharding/Resharding/Phases/ReplicatingPhase.cs"  # 49: 30
+            "**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs{0..9966}"  # 50: 33 (planned 42: file grew since the measured run)
+            "**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs;!**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs{0..9966}"  # 51: 23 (planned 29: file grew since the measured run)
+            "**/Sharding/Resharding/Phases/*.cs;!**/Sharding/Resharding/Phases/CuttingOverPhase.cs;!**/Sharding/Resharding/Phases/ReplicatingPhase.cs;!**/Sharding/Resharding/Phases/CopyingPhase.cs;!**/Sharding/Resharding/Phases/PlanningPhase.cs;!**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs"  # 52: 40
+            "**/Modules/Isolation/ModuleIsolationOptions.cs;**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs;!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{0..4694};!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{4694..7573};!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{7573..11333};!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{11333..17393}"  # 53: 36
+            "**/Modules/Isolation/ModuleSchemaRegistry.cs"  # 54: 42
+            "**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{0..4694}"  # 55: 42
+            "**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{4694..7573}"  # 56: 42
+            "**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{7573..11333}"  # 57: 42
+            "**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{11333..17393}"  # 58: 42
+            "**/Modules/Isolation/SqlSchemaExtractor.cs{0..8681};**/Modules/Isolation/ModuleSchemaOptions.cs"  # 59: 42
+            "**/Modules/Isolation/SqlSchemaExtractor.cs;!**/Modules/Isolation/SqlSchemaExtractor.cs{0..8681};**/Modules/Isolation/ModuleIsolationViolationException.cs"  # 60: 41
+            "**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{0..4374}"  # 61: 42
+            "**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{4374..7145}"  # 62: 42
+            "**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{7145..10123}"  # 63: 42
+            "**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{10123..12883}"  # 64: 41
+            "**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs;!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{0..4374};!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{4374..7145};!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{7145..10123};!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{10123..12883};**/Modules/Isolation/IModuleSchemaRegistry.cs"  # 65: 36
           )
           # Per-shard job timeout in minutes, same index as SHARDS.
-          # PROVISIONAL, PENDING MEASUREMENT (#1441 phase 2): no CI run of
-          # the MTP runner has finished yet, so these come from the #1395
-          # formula max(60, ceil(round(minutes) x 1.5)) applied to an
-          # estimate, minutes = 20 (setup: restore, build, Stryker's build
-          # and initial test run) + tested mutants x 35.6 s (spike #1087,
-          # local, concurrency 2). The phase-2 calibration runs measure the
-          # runner's seconds per mutant at concurrency 1, and both arrays are
-          # re-sized from it with the same formula. GitHub caps a job at 360
-          # minutes; 340 is this workflow's ceiling.
+          # PROVISIONAL until the validation run measures the real shard
+          # durations (#1441). TIMEOUT = max(60, ceil(expected x 1.5)) with
+          # expected = 24 + 1.2 x tested mutants (planned weight for the
+          # drift-heavy shards 0-7 and 48-52, hence shard 0 at 130). GitHub
+          # caps a job at 360 minutes; 340 is this workflow's ceiling.
           TIMEOUTS=(
-            155
-            101
-            156
-            152
+            130
+            112
+            112
+            112
+            112
+            117
+            123
+            108
+            112
+            90
             87
-            122
-            137
-            138
-            143
-            165
-            132
-            141
-            156
-            153
+            112
             110
-            131
-            209
-            195
-            126
-            81
+            112
+            103
+            108
+            85
+            103
+            89
+            107
+            96
+            101
+            112
+            110
+            112
+            112
+            112
+            105
+            112
+            112
+            108
+            112
+            112
+            112
+            90
+            110
+            89
+            101
+            112
+            112
+            110
+            112
+            99
+            108
+            112
+            112
+            107
+            87
+            107
+            90
+            112
+            89
+            108
+            101
+            112
+            112
+            112
+            112
+            112
+            112
+            110
+            112
+            112
+            112
+            110
+            101
           )
 
           if [ "${#SHARDS[@]}" -ne "${#TIMEOUTS[@]}" ]; then
@@ -340,6 +435,8 @@ jobs:
     continue-on-error: true
     strategy:
       fail-fast: false
+      # A full run must not take every runner from PR CI (shard 19 + 19 others starved CI queues for 30+ min on 2026-10-20).
+      max-parallel: 8
       matrix:
         include: ${{ fromJSON(needs.select-matrix.outputs.matrix) }}
     steps:

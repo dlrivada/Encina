@@ -20,7 +20,7 @@ Off-the-shelf mutation testing assumes that every commit can re-run the full mut
 - The Microsoft Testing Platform (MTP) runner ignores `test-case-filter` ([stryker-mutator/stryker-net#3757](https://github.com/stryker-mutator/stryker-net/issues/3757)), so a mutant cannot be narrowed to the tests of its folder.
 - A full single-job run, at about 35.6 s per mutant measured in the [#1087 spike](../engineering/stryker-5-mtp-spike-1087.md), exceeds GitHub's 6-hour job limit. The repository is public, so `ubuntu-latest` has 4 vCPU and 16 GB ([GitHub-hosted runners reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)); the cause of the lost runners in [#1682](https://github.com/dlrivada/Encina/issues/1682) and [#1441](https://github.com/dlrivada/Encina/issues/1441) is not proven, and [Runner protection and telemetry](#runner-protection-and-telemetry) describes how the workflow limits the damage and records what the runner was doing.
 
-Encina instead runs **20 parallel shards per weekly run** (indexes 0 to 19), each mutating a slice of `src/Encina/` sized by its number of tested mutants, not by folder (see [Matrix execution](#matrix-execution)). The `aggregate` job merges the shard reports into a single `mutation-report.json` that the downstream publish workflow treats as one normal Stryker run. The formulas below define exactly what the merged dataset means and how to interpret the numbers.
+Encina instead runs **66 shards per weekly run** (indexes 0 to 65), each mutating a slice of `src/Encina/` sized by its number of tested mutants, not by folder (see [Matrix execution](#matrix-execution)). The `aggregate` job merges the shard reports into a single `mutation-report.json` that the downstream publish workflow treats as one normal Stryker run. The formulas below define exactly what the merged dataset means and how to interpret the numbers.
 
 ## The mutation score formula
 
@@ -45,7 +45,7 @@ The formula lives in `.github/scripts/mutation-history.cs` (`MutationCounts.Dete
 
 Stryker's report is per-run. Encina's dashboard is per-file across runs. Two layers of merging produce the final dataset:
 
-1. **Per-run aggregation** (`.github/workflows/mutation-tests.yml`): the weekly workflow fans out into a 20-shard matrix (see [Matrix execution](#matrix-execution)). An `aggregate` job then merges the shard reports into a single `mutation-report.json` by combining their `files` maps mutant by mutant (see [Merging the shard reports](#merging-the-shard-reports)).
+1. **Per-run aggregation** (`.github/workflows/mutation-tests.yml`): the weekly workflow fans out into a 66-shard matrix (see [Matrix execution](#matrix-execution)). An `aggregate` job then merges the shard reports into a single `mutation-report.json` by combining their `files` maps mutant by mutant (see [Merging the shard reports](#merging-the-shard-reports)).
 2. **Cross-run carry-forward** (`mutation-history.cs --merge-from`): `publish-mutations.yml` reads the aggregated report and the previous `latest.json`. Before it builds either `history.json` or the previous `latest.json` used by `--merge-from`, the publisher runs `pages-dashboard-data.ps1 -Mode Read -Domain mutations -OutDir base/mutations` and builds its base files from the `dashboard-data` branch copy. For `history.json` it uses the branch copy when it is present and non-empty; otherwise it uses the larger, by entry count, of the live Pages copy and the copy committed in `docs/mutations/data/`. The previous `latest.json` used by `--merge-from` comes from the branch copy, else from the live Pages copy; the copy committed in `docs/mutations/data/` is **never** used for it, because it holds old shard results that would be merged back in. When the branch carries both base files the live read is skipped; otherwise the publisher runs `pages-dashboard-data.ps1 -Mode Live -Domain mutations -OutDir live/mutations`, which reads the live `latest.json` and `history.json`. A 404 writes nothing, and when neither the branch nor the live site has a `latest.json` (the first run) nothing is merged. Any other failure (HTTP error, timeout, empty or invalid JSON) fails the job, so an outage is never mistaken for a first run or an empty history. For every file in the previous snapshot **not** touched by this run, the per-file counts are carried forward unchanged. Files the new run mutated get fresh data. The overall score is **recomputed** across the merged file set.
 
 With matrix execution every shard gets a fresh measurement every week, so the carry-forward layer mostly handles files outside the shard scopes (or occasional intermittent shard failures). If a shard fails or uploads no report, the previous week's data for its files survives until the next successful run — the dashboard never silently regresses to zero for transient infrastructure issues. The aggregate job names every shard that uploaded no report (see [Guards](#guards)).
@@ -85,17 +85,17 @@ For the canonical view across all packages and history, go to the [mutations das
 
 ## Matrix execution
 
-`.github/workflows/mutation-tests.yml` fans the weekly run out into 20 parallel shards (indexes 0 to 19) via a GitHub Actions matrix. Before [#1028](https://github.com/dlrivada/Encina/issues/1028) the workflow rotated through a list of folders one per week; since then every shard runs every week.
+`.github/workflows/mutation-tests.yml` fans the weekly run out into 66 shards (indexes 0 to 65, at most 8 running at once so a full run does not take every runner from PR CI) via a GitHub Actions matrix. Before [#1028](https://github.com/dlrivada/Encina/issues/1028) the workflow rotated through a list of folders one per week; since then every shard runs every week.
 
 ### Why shards are sized by mutant count
 
-The MTP runner ignores `test-case-filter` ([stryker-net#3757](https://github.com/stryker-mutator/stryker-net/issues/3757)), so every mutant runs the whole `Encina.UnitTests` project. A local smoke on 2026-10-03 found 22,069 tests in that project, and the [#1087 spike](../engineering/stryker-5-mtp-spike-1087.md) measured 35.6 s per mutant on its pilot shard. A shard's duration therefore grows with its number of tested mutants (statuses Killed, Survived or Timeout), not with the folder it mutates. The shards are sized to about 150 tested mutants or fewer; that size, and the `TIMEOUTS` that go with it, are still the phase-1 values and are marked "pending measurement" in the workflow (see [Timeouts](#timeouts)). The per-folder test filter of [#1027](https://github.com/dlrivada/Encina/issues/1027) no longer exists: the `FILTERS` array and the `test-case-filter` patching were removed in [#1441](https://github.com/dlrivada/Encina/issues/1441).
+The MTP runner ignores `test-case-filter` ([stryker-net#3757](https://github.com/stryker-mutator/stryker-net/issues/3757)), so every mutant runs the whole `Encina.UnitTests` project. A local smoke on 2026-10-03 found 22,069 tests in that project, and the [#1087 spike](../engineering/stryker-5-mtp-spike-1087.md) measured 35.6 s per mutant on its pilot shard. A shard's duration therefore grows with its number of tested mutants (statuses Killed, Survived or Timeout), not with the folder it mutates. CI run 39406760645 measured about 24 minutes of setup per shard plus about 1.2 minutes per tested mutant, so the shards hold at most 42 tested mutants (about 75 minutes expected); the `TIMEOUTS` that go with them are provisional until the validation run (see [Timeouts](#timeouts)). The per-folder test filter of [#1027](https://github.com/dlrivada/Encina/issues/1027) no longer exists: the `FILTERS` array and the `test-case-filter` patching were removed in [#1441](https://github.com/dlrivada/Encina/issues/1441).
 
 ### Pipeline shape
 
 | Job | Purpose |
 |-----|---------|
-| `select-matrix` | Emits the shard list as a JSON array (20 entries by default; 1 entry when a dispatch override collapses the matrix). |
+| `select-matrix` | Emits the shard list as a JSON array (66 entries by default; 1 entry when a dispatch override collapses the matrix). |
 | `test-baseline` | Runs once in parallel with the matrix (not per shard) and builds and tests only `tests/Encina.UnitTests`. Diagnostic aid that shows which test fails when every shard's initial test run breaks. |
 | `run-mutation-tests` | Matrix job (`fail-fast: false`, job-level `continue-on-error: true`). Each shard restores and builds only `tests/Encina.UnitTests` (Debug) and uploads `mutation-report-shard-<idx>` and `stryker-logs-shard-<idx>`. A shard failure does **not** fail the workflow. |
 | `aggregate` | Downloads every `mutation-report-shard-*` artifact, applies the [guards](#guards), merges the reports (see [Merging the shard reports](#merging-the-shard-reports)) and uploads the result as a single `mutation-report` artifact (the shape `publish-mutations.yml` expects). |
@@ -106,8 +106,8 @@ The `SHARDS` array in the `select-matrix` job is the source of truth; the commen
 
 - A folder with few mutants shares a shard with others (for example the shard that holds `Validation`, `Results` and `Sharding/Health`).
 - A folder with too many mutants for one shard is split by file: one or more shards name its largest files, and the folder's last shard takes the folder glob minus those files. A file added to the folder later therefore always lands in some shard.
-- A single file with more tested mutants than the target (`SqlServerPermissionScriptGenerator.cs` and `PostgreSqlPermissionScriptGenerator.cs` in `Modules/Isolation`, shards 16 and 17) gets a shard of its own. The workflow can split such a file further with a span suffix (see [Span splits of one file](#span-splits-of-one-file)); no `SHARDS` entry uses one yet, and the two generators are the candidates.
-- The counts come from CI run 36959365309 (2026-10-02), and from run 36304862790 for `Modules/Isolation`, whose shard lost its runner in the first run (#1682).
+- A single file with more than 42 tested mutants (for example `SqlServerPermissionScriptGenerator.cs` and `PostgreSqlPermissionScriptGenerator.cs` in `Modules/Isolation`) is cut into parts with a span suffix (see [Span splits of one file](#span-splits-of-one-file)), one part per shard.
+- The counts come from CI run 36959365309 (2026-10-02), and from run 36304862790 for `Modules/Isolation`, whose shard lost its runner in the first run (#1682). 23 of the 92 tested files changed since then, so the counts of the shards that hold them (0-7 and 48-52) are planned weights, to be re-measured on the first run with this layout.
 
 #### Span splits of one file
 
@@ -122,7 +122,7 @@ Stryker keeps a mutant only when an include span contains it whole and no exclud
 
 ### Timeouts
 
-Each shard's `timeout-minutes` comes from the `TIMEOUTS` array, same index as `SHARDS`. The values are provisional and marked "pending measurement" in the workflow: they apply the [#1395](https://github.com/dlrivada/Encina/issues/1395) formula `max(60, ceil(round(minutes) x 1.5))` to an estimate of 20 minutes of setup plus the shard's tested mutants times 35.6 s, a local figure from the #1087 spike taken at concurrency 2. The phase-2 CI calibration runs of [#1441](https://github.com/dlrivada/Encina/issues/1441) (one small file with telemetry, then `**/Dispatchers/Strategies/*.cs`) measure the runner's seconds per mutant at concurrency 1, and `SHARDS` and `TIMEOUTS` are re-sized from that measurement with the same formula. Read the per-shard values in the workflow; they are not repeated here.
+Each shard's `timeout-minutes` comes from the `TIMEOUTS` array, same index as `SHARDS`. The values are provisional until the validation run of [#1441](https://github.com/dlrivada/Encina/issues/1441) measures the real shard durations: they apply `max(60, ceil(expected x 1.5))`, with `expected` = 24 minutes of setup plus 1.2 minutes per tested mutant (both measured on CI run 39406760645 at concurrency 1). Read the per-shard values in the workflow; they are not repeated here.
 
 ### Dispatch overrides
 
@@ -130,7 +130,7 @@ Operators can override via the `workflow_dispatch` inputs; any of them collapses
 
 | Input | Effect |
 |-------|--------|
-| (default) | Full 20-shard matrix. |
+| (default) | Full 66-shard matrix. |
 | `custom_scope: "<glob>"` | Single shard (index `custom`) mutating the given scope. The value takes the same form as a `SHARDS` entry: one glob, or several separated by `;` with `!` for exclusions, and it must contain at least one include glob. If it equals a `SHARDS` entry, that shard's timeout is reused; otherwise the largest configured timeout applies. |
 | `diff_mode: true` | Single shard with `--since:main` — mutate only files changed vs main. Useful for PR-style validation. |
 | `full_mode: true` | Single shard mutating the entire `**/*.cs` glob. Will exceed the 340-minute per-shard timeout in the current configuration. |
@@ -250,7 +250,7 @@ Why:
 
 - **The VsTest runner kills 0 mutants under xUnit v3** ([#1440](https://github.com/dlrivada/Encina/issues/1440)). CI run 36304862790, the first complete run of the old 17-shard matrix on Stryker 4.14.0, reported 0 killed on every shard. The [#1087 spike](../engineering/stryker-5-mtp-spike-1087.md) reproduced it locally in Stryker 4.14.0 and 5.0.0. Scores the VsTest-based workflow published are not a measure of test quality, because no mutant was activated.
 - **Solution mode breaks the MTP runner's initial run.** The MTP runner ignores `test-projects`, and run from the repository root it starts every test project of the solution, including `Encina.IntegrationTests` and the benchmark executable, so the initial test run fails. In project mode from `tests/Encina.UnitTests`, only that project runs.
-- **`run-stryker.cs` does not pass `--log-to-file` by default.** File logging is trace level and, under MTP, writes a JSON-RPC log per test server that grows about 40 MB for each run of the whole project (58-88 MB for a 4-mutant run, measured locally). A 150-mutant shard would write gigabytes. Pass the flag through for a short diagnostic run: `dotnet run --file .github/scripts/run-stryker.cs -- --log-to-file --mutate:...`.
+- **`run-stryker.cs` does not pass `--log-to-file` by default.** File logging is trace level and, under MTP, writes a JSON-RPC log per test server that grows about 40 MB for each run of the whole project (58-88 MB for a 4-mutant run, measured locally). A 42-mutant shard would write gigabytes. Pass the flag through for a short diagnostic run: `dotnet run --file .github/scripts/run-stryker.cs -- --log-to-file --mutate:...`.
 - **The build configuration stays Debug.** A local comparison on 2026-10-03 (same conditions as the [GC heap cap](#gc-heap-cap) observation) found a Release build not materially faster: 86-97 s against 74-102 s per suite run. The shard builds and `run-stryker.cs` therefore keep the project default.
 
 The MTP runner is in preview: Stryker logs "The Microsoft Test Platform testrunner is currently in preview".

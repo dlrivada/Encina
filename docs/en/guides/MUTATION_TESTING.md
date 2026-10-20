@@ -15,7 +15,7 @@ This complements coverage: coverage tells you *which* lines are tested, mutation
 
 ## Current state
 
-The Mutation Tests workflow runs weekly via GitHub Actions on the `main` branch. It fans out into 20 parallel shards (slices of `src/Encina/` sized by mutant count) and an `aggregate` job merges their reports into a single dataset. Results accumulate per-file across runs into a single dashboard ([accumulation model](../../testing/mutation-measurement-methodology.md#the-accumulation-model)).
+The Mutation Tests workflow runs weekly via GitHub Actions on the `main` branch. It fans out into 66 shards, at most 8 running at once (slices of `src/Encina/` sized by mutant count) and an `aggregate` job merges their reports into a single dataset. Results accumulate per-file across runs into a single dashboard ([accumulation model](../../testing/mutation-measurement-methodology.md#the-accumulation-model)).
 
 The accumulated snapshot below still holds rows from 2026-04-14, produced before the migration to the MTP runner; they are not a measure of test quality, and the first run of the new runner replaces them:
 
@@ -167,7 +167,7 @@ The Mutation Tests workflow (`.github/workflows/mutation-tests.yml`) runs Friday
 
 | Trigger | Mode | Scope |
 |---------|------|-------|
-| `schedule` (weekly) | Matrix | All 20 shards run in parallel; the `aggregate` job merges their reports |
+| `schedule` (weekly) | Matrix | All 66 shards run, at most 8 at a time; the `aggregate` job merges their reports |
 | `workflow_dispatch` (default) | Matrix | Same as schedule |
 | `workflow_dispatch` `custom_scope: "<glob>"` | Custom (1 shard) | Override the scope: one glob, or several separated by `;` with `!` for exclusions (same form as a `SHARDS` entry); matrix collapses to one shard |
 | `workflow_dispatch` `diff_mode: true` | Diff (1 shard) | `--since:main` — only files changed vs main (PR-style) |
