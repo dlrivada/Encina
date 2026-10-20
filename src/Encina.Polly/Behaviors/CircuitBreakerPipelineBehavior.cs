@@ -16,6 +16,7 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
     where TRequest : IRequest<TResponse>
 {
     private readonly ILogger<CircuitBreakerPipelineBehavior<TRequest, TResponse>> _logger;
+    private readonly TimeProvider _timeProvider;
     private static readonly Dictionary<Type, object> _circuitBreakerCache = new();
     private static readonly object _lock = new();
 
@@ -23,9 +24,17 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
     /// Initializes a new instance of the <see cref="CircuitBreakerPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
     /// <param name="logger">Logger instance.</param>
-    public CircuitBreakerPipelineBehavior(ILogger<CircuitBreakerPipelineBehavior<TRequest, TResponse>> logger)
+    /// <param name="timeProvider">
+    /// Time source driving the sampling window and the break duration. Defaults to <see cref="TimeProvider.System"/>.
+    /// Note that the circuit breaker pipeline is cached per request type, so the provider of the first
+    /// behavior instance to handle a request type is the one the cached pipeline keeps using.
+    /// </param>
+    public CircuitBreakerPipelineBehavior(
+        ILogger<CircuitBreakerPipelineBehavior<TRequest, TResponse>> logger,
+        TimeProvider? timeProvider = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -96,7 +105,7 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
     {
         var requestType = typeof(TRequest).Name;
 
-        return new ResiliencePipelineBuilder<Either<EncinaError, TResponse>>()
+        return new ResiliencePipelineBuilder<Either<EncinaError, TResponse>> { TimeProvider = _timeProvider }
             .AddCircuitBreaker(new CircuitBreakerStrategyOptions<Either<EncinaError, TResponse>>
             {
                 FailureRatio = config.FailureRateThreshold,

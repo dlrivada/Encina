@@ -3,6 +3,7 @@ using Encina.Polly;
 using Encina.Testing;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Time.Testing;
 using Polly.CircuitBreaker;
 using static LanguageExt.Prelude;
 
@@ -109,8 +110,10 @@ public class CircuitBreakerPipelineBehaviorTests
         ClearCircuitBreakerCache<TestRequestLowThreshold, string>();
         var request = new TestRequestLowThreshold(); // FailureThreshold = 3, MinimumThroughput = 3
         var context = Substitute.For<IRequestContext>();
+        // Frozen clock: the sampling window and break duration never elapse, whatever the CPU load.
         var behavior = new CircuitBreakerPipelineBehavior<TestRequestLowThreshold, string>(
-            Substitute.For<ILogger<CircuitBreakerPipelineBehavior<TestRequestLowThreshold, string>>>());
+            Substitute.For<ILogger<CircuitBreakerPipelineBehavior<TestRequestLowThreshold, string>>>(),
+            new FakeTimeProvider());
 
         RequestHandlerCallback<string> next = () =>
             ValueTask.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.error", "Failure")));
@@ -119,9 +122,6 @@ public class CircuitBreakerPipelineBehaviorTests
         await behavior.Handle(request, context, next, CancellationToken.None);
         await behavior.Handle(request, context, next, CancellationToken.None);
         await behavior.Handle(request, context, next, CancellationToken.None);
-
-        // Give circuit breaker time to evaluate state
-        await Task.Delay(100);
 
         // Now circuit should be open
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
@@ -143,7 +143,8 @@ public class CircuitBreakerPipelineBehaviorTests
         var request = new TestRequestLowThreshold();
         var context = Substitute.For<IRequestContext>();
         var behavior = new CircuitBreakerPipelineBehavior<TestRequestLowThreshold, string>(
-            Substitute.For<ILogger<CircuitBreakerPipelineBehavior<TestRequestLowThreshold, string>>>());
+            Substitute.For<ILogger<CircuitBreakerPipelineBehavior<TestRequestLowThreshold, string>>>(),
+            new FakeTimeProvider());
 
         RequestHandlerCallback<string> next = () =>
             ValueTask.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.error", "Failure")));
@@ -153,8 +154,6 @@ public class CircuitBreakerPipelineBehaviorTests
         {
             await behavior.Handle(request, context, next, CancellationToken.None);
         }
-
-        await Task.Delay(100);
 
         // Act - Try request when circuit is open
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
