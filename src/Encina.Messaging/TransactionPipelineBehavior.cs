@@ -1,6 +1,6 @@
-using System.Data;
-using System.Data.Common;
+using Encina.Messaging.Transactions;
 using LanguageExt;
+using Microsoft.Extensions.Logging;
 
 namespace Encina.Messaging;
 
@@ -14,16 +14,17 @@ namespace Encina.Messaging;
 /// <para>
 /// This behavior ensures that all database operations within a request are atomic.
 /// The transaction is committed if the handler returns a Right (success) result,
-/// and rolled back if it returns a Left (error) result or throws an exception.
+/// and rolled back if it returns a Left (error) result or throws an exception. A commit that fails (or is
+/// refused because a participant rolled back) replaces the handler's response with its error.
 /// </para>
 /// <para>
-/// The connection is opened automatically if it's not already open.
+/// The behavior takes a lease on the scope's transaction from <see cref="IDbTransactionAccessor"/>: it begins
+/// the transaction (opening the connection if needed) unless one is already active, in which case it joins and
+/// only the owner commits. Stores and the unit of work of the same scope enlist in that one transaction.
 /// </para>
 /// <para>
-/// The caller's <see cref="CancellationToken"/> is propagated to connection open and
-/// transaction begin when token-aware <see cref="DbConnection"/> APIs are available;
-/// otherwise synchronous <see cref="IDbConnection"/> APIs are used. Commit and rollback
-/// run with <see cref="CancellationToken.None"/> so that transaction cleanup is not
+/// The caller's <see cref="CancellationToken"/> is propagated to connection open and transaction begin.
+/// Commit and rollback run with <see cref="CancellationToken.None"/> so that transaction cleanup is not
 /// canceled by the caller token, including rollback in cancellation paths.
 /// </para>
 /// </remarks>
@@ -40,23 +41,31 @@ namespace Encina.Messaging;
 public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
-    private readonly IDbConnection _connection;
+    private static readonly string RequestName = typeof(TRequest).Name;
+
     private readonly IDbTransactionAccessor _transactionAccessor;
+    private readonly ILogger<TransactionPipelineBehavior<TRequest, TResponse>> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
-    /// <param name="connection">The database connection to use for transactions.</param>
     /// <param name="transactionAccessor">
-    /// Optional accessor through which stores sharing <paramref name="connection"/> find the open transaction
-    /// and enlist in it.
+    /// The scope's transaction accessor, through which the behavior begins or joins the transaction that the
+    /// stores and the unit of work of the scope share.
     /// </param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
-    public TransactionPipelineBehavior(IDbConnection connection, IDbTransactionAccessor? transactionAccessor = null)
+    /// <param name="logger">The logger.</param>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="transactionAccessor"/> or <paramref name="logger"/> is null.
+    /// </exception>
+    public TransactionPipelineBehavior(
+        IDbTransactionAccessor transactionAccessor,
+        ILogger<TransactionPipelineBehavior<TRequest, TResponse>> logger)
     {
-        ArgumentNullException.ThrowIfNull(connection);
-        _connection = connection;
-        _transactionAccessor = transactionAccessor ?? new DbTransactionAccessor();
+        ArgumentNullException.ThrowIfNull(transactionAccessor);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _transactionAccessor = transactionAccessor;
+        _logger = logger;
     }
 
     /// <inheritdoc />
@@ -70,87 +79,56 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(nextStep);
 
-        await OpenIfClosedAsync(cancellationToken).ConfigureAwait(false);
-        var transaction = await BeginAsync(cancellationToken).ConfigureAwait(false);
+        var begun = await _transactionAccessor.BeginOrJoinAsync(cancellationToken).ConfigureAwait(false);
+        if (begun.IsLeft)
+        {
+            return (EncinaError)begun;
+        }
 
-        _transactionAccessor.Current = transaction;
+        await using var lease = begun.RequireLease();
+        if (lease.IsOwner)
+        {
+            MessagingLog.TransactionStarted(_logger, RequestName, context.CorrelationId);
+        }
 
         try
         {
             var result = await nextStep().ConfigureAwait(false);
 
-            await result.Match(
-                Right: _ => CommitAsync(transaction, CancellationToken.None),
-                Left: _ => RollbackAsync(transaction, CancellationToken.None)).ConfigureAwait(false);
+            if (result.IsLeft)
+            {
+                await RollbackAsync(lease, context).ConfigureAwait(false);
+                return result;
+            }
+
+            var committed = await lease.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+            if (committed.IsLeft)
+            {
+                return (EncinaError)committed;
+            }
+
+            if (lease.IsOwner)
+            {
+                MessagingLog.TransactionCommitted(_logger, RequestName, context.CorrelationId);
+            }
 
             return result;
         }
         catch (OperationCanceledException)
         {
-            await RollbackAsync(transaction, CancellationToken.None).ConfigureAwait(false);
+            await RollbackAsync(lease, context).ConfigureAwait(false);
             throw;
         }
         catch (Exception ex)
         {
-            await RollbackAsync(transaction, CancellationToken.None).ConfigureAwait(false);
+            await RollbackAsync(lease, context).ConfigureAwait(false);
             return EncinaErrors.FromException("transaction.failed", ex);
         }
-        finally
-        {
-            _transactionAccessor.Current = null;
-
-            if (transaction is DbTransaction dbTransaction)
-            {
-                await dbTransaction.DisposeAsync().ConfigureAwait(false);
-            }
-            else
-            {
-                transaction.Dispose();
-            }
-        }
     }
 
-    private async Task OpenIfClosedAsync(CancellationToken cancellationToken)
+    private async ValueTask RollbackAsync(ITransactionLease lease, IRequestContext context)
     {
-        if (_connection.State == ConnectionState.Open)
-        {
-            return;
-        }
-
-        if (_connection is DbConnection dbConnection)
-        {
-            await dbConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        }
-        else
-        {
-            _connection.Open();
-        }
-    }
-
-    private async Task<IDbTransaction> BeginAsync(CancellationToken cancellationToken) =>
-        _connection is DbConnection dbConnection
-            ? await dbConnection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false)
-            : _connection.BeginTransaction();
-
-    private static Task CommitAsync(IDbTransaction transaction, CancellationToken cancellationToken)
-    {
-        if (transaction is DbTransaction dbTransaction)
-        {
-            return dbTransaction.CommitAsync(cancellationToken);
-        }
-
-        transaction.Commit();
-        return Task.CompletedTask;
-    }
-
-    private static Task RollbackAsync(IDbTransaction transaction, CancellationToken cancellationToken)
-    {
-        if (transaction is DbTransaction dbTransaction)
-        {
-            return dbTransaction.RollbackAsync(cancellationToken);
-        }
-
-        transaction.Rollback();
-        return Task.CompletedTask;
+        await lease.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+        MessagingLog.TransactionRolledBack(_logger, RequestName, context.CorrelationId);
     }
 }

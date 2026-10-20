@@ -1,7 +1,7 @@
 using System.Data;
 using System.Data.Common;
 
-namespace Encina.Messaging;
+namespace Encina.Messaging.Transactions;
 
 /// <summary>
 /// The connection and transaction a store command must use: either the request's shared connection enlisted in
@@ -53,7 +53,8 @@ public sealed class DbLease : IDisposable
     /// <returns>A lease whose commands autocommit outside the business transaction.</returns>
     /// <exception cref="InvalidOperationException">
     /// A business transaction is active and <paramref name="connection"/> cannot be cloned
-    /// (it does not implement <see cref="ICloneable"/>).
+    /// (it does not implement <see cref="ICloneable"/>), or its clone is not a <see cref="DbConnection"/>
+    /// that can be opened asynchronously.
     /// </exception>
     public static async Task<DbLease> IndependentAsync(
         IDbConnection connection,
@@ -79,14 +80,7 @@ public sealed class DbLease : IDisposable
 
         try
         {
-            if (clone is DbConnection dbClone)
-            {
-                await dbClone.OpenAsync(cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                clone.Open();
-            }
+            await OpenAsync(clone, cancellationToken).ConfigureAwait(false);
         }
         catch
         {
@@ -96,6 +90,16 @@ public sealed class DbLease : IDisposable
 
         return new DbLease(clone, transaction: null, ownedConnection: clone);
     }
+
+    /// <summary>
+    /// Opens <see cref="Connection"/> when it is closed, asynchronously.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task that completes when the connection is open.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The connection is closed and is not a <see cref="DbConnection"/>, so it has no asynchronous open.
+    /// </exception>
+    public Task EnsureOpenAsync(CancellationToken cancellationToken) => OpenAsync(Connection, cancellationToken);
 
     /// <summary>
     /// Creates a command on <see cref="Connection"/> assigned to <see cref="Transaction"/>.
@@ -129,6 +133,20 @@ public sealed class DbLease : IDisposable
         }
 
         return null;
+    }
+
+    private static Task OpenAsync(IDbConnection connection, CancellationToken cancellationToken)
+    {
+        if (connection.State == ConnectionState.Open)
+        {
+            return Task.CompletedTask;
+        }
+
+        // No synchronous Open fallback (AGENTS.md section 3): a connection without OpenAsync fails closed.
+        return connection is DbConnection dbConnection
+            ? dbConnection.OpenAsync(cancellationToken)
+            : throw new InvalidOperationException(
+                $"{connection.GetType().Name} is closed and is not a System.Data.Common.DbConnection, so it cannot be opened asynchronously.");
     }
 
     private static IDbConnection Innermost(IDbConnection connection)

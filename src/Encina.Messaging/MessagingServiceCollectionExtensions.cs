@@ -12,6 +12,7 @@ using Encina.Messaging.ScatterGather;
 using Encina.Messaging.Scheduling;
 using Encina.Messaging.Serialization;
 using Encina.Messaging.SoftDelete;
+using Encina.Messaging.Transactions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -53,23 +54,52 @@ public static class MessagingServiceCollectionExtensions
         where TScheduledStore : class, IScheduledMessageStore
         where TScheduledFactory : class, IScheduledMessageFactory
         where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
+        => services.AddMessagingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
+            config, OutboxWritePath.PostProcessor);
+
+    /// <summary>
+    /// <see cref="AddMessagingServices{TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor}(IServiceCollection, MessagingConfiguration)"/>
+    /// with the outbox write path of the calling provider family (interim switch, #718).
+    /// </summary>
+    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+        Justification = "Nine generic parameters are required to support provider-specific implementations for all messaging patterns (Outbox, Inbox, Saga, Scheduling). This is an internal API used by provider packages.")]
+    internal static IServiceCollection AddMessagingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
+        this IServiceCollection services,
+        MessagingConfiguration config,
+        OutboxWritePath outboxWritePath)
+        where TOutboxStore : class, IOutboxStore
+        where TOutboxFactory : class, IOutboxMessageFactory
+        where TInboxStore : class, IInboxStore
+        where TInboxFactory : class, IInboxMessageFactory
+        where TSagaStore : class, ISagaStore
+        where TSagaFactory : class, ISagaStateFactory
+        where TScheduledStore : class, IScheduledMessageStore
+        where TScheduledFactory : class, IScheduledMessageFactory
+        where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(config);
 
-        // Pipeline behaviors run in registration order, first registered outermost: the transaction behavior
-        // must be registered before the inbox behavior so the inbox runs inside the business transaction and
-        // can enlist its processed mark in it (ADR-048).
+        // The scope's shared transaction: the transaction behavior, the unit of work and the stores sharing
+        // the scoped connection take their lease from it. Only the ADO.NET and Dapper paths register it
+        // because it needs an IDbConnection that EF Core and MongoDB containers do not have.
+        services.AddDbTransactionAccessor();
+
+        // Pipeline behaviors run in registration order, first registered outermost. Recoverability runs
+        // outside the transaction, so a retry begins a new transaction instead of re-running inside the failed
+        // one (ADR-050). The transaction behavior is registered before the outbox and inbox behaviors so they
+        // run inside the business transaction and enlist in it (ADR-048).
+        RegisterRecoverability(services, config);
         RegisterTransactions(services, config.UseTransactions);
 
         services.AddOutboxInboxSagaSchedulingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
             config.UseOutbox, config.OutboxOptions,
             config.UseInbox, config.InboxOptions,
             config.UseSagas, config.SagaOptions,
-            config.UseScheduling, config.SchedulingOptions);
+            config.UseScheduling, config.SchedulingOptions,
+            outboxWritePath);
 
         RegisterRoutingSlips(services, config);
-        RegisterRecoverability(services, config);
         RegisterContentRouter(services, config);
         RegisterScatterGather(services, config);
         RegisterSoftDeleteServices(services, config);
@@ -223,6 +253,43 @@ public static class MessagingServiceCollectionExtensions
         where TScheduledStore : class, IScheduledMessageStore
         where TScheduledFactory : class, IScheduledMessageFactory
         where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
+        => services.AddOutboxInboxSagaSchedulingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
+            useOutbox, outboxOptions,
+            useInbox, inboxOptions,
+            useSagas, sagaOptions,
+            useScheduling, schedulingOptions,
+            OutboxWritePath.PostProcessor);
+
+    /// <summary>
+    /// <see cref="AddOutboxInboxSagaSchedulingServices{TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor}(IServiceCollection, bool, OutboxOptions, bool, InboxOptions, bool, SagaOptions, bool, SchedulingOptions)"/>
+    /// with the outbox write path of the calling provider family (interim switch, #718).
+    /// </summary>
+    /// <remarks>
+    /// <see cref="OutboxWritePath.TransactionalBehavior"/> needs an <see cref="Transactions.ITransactionLeaseSource"/>
+    /// in the container; the ADO.NET callers register it before calling.
+    /// </remarks>
+    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+        Justification = "Nine generic parameters are required to support provider-specific implementations for all messaging patterns (Outbox, Inbox, Saga, Scheduling). This is an internal API used by provider packages.")]
+    internal static IServiceCollection AddOutboxInboxSagaSchedulingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
+        this IServiceCollection services,
+        bool useOutbox,
+        OutboxOptions outboxOptions,
+        bool useInbox,
+        InboxOptions inboxOptions,
+        bool useSagas,
+        SagaOptions sagaOptions,
+        bool useScheduling,
+        SchedulingOptions schedulingOptions,
+        OutboxWritePath outboxWritePath)
+        where TOutboxStore : class, IOutboxStore
+        where TOutboxFactory : class, IOutboxMessageFactory
+        where TInboxStore : class, IInboxStore
+        where TInboxFactory : class, IInboxMessageFactory
+        where TSagaStore : class, ISagaStore
+        where TSagaFactory : class, ISagaStateFactory
+        where TScheduledStore : class, IScheduledMessageStore
+        where TScheduledFactory : class, IScheduledMessageFactory
+        where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(outboxOptions);
@@ -242,11 +309,7 @@ public static class MessagingServiceCollectionExtensions
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
 
-        // The business transaction the ADO.NET/Dapper TransactionPipelineBehavior opens, visible to stores
-        // sharing the scoped connection (inbox enlisting, ADR-048).
-        services.TryAddScoped<IDbTransactionAccessor, DbTransactionAccessor>();
-
-        RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, useOutbox, outboxOptions);
+        RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, useOutbox, outboxOptions, outboxWritePath);
         RegisterInbox<TInboxStore, TInboxFactory>(services, useInbox, inboxOptions);
         RegisterSagas<TSagaStore, TSagaFactory>(services, useSagas, sagaOptions);
         RegisterScheduling<TScheduledStore, TScheduledFactory>(services, useScheduling, schedulingOptions);
@@ -255,11 +318,11 @@ public static class MessagingServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers the Outbox pattern's store, factory, orchestrator and background processor when
-    /// <paramref name="useOutbox"/> is enabled.
+    /// Registers the Outbox pattern's store, factory, orchestrator, notification write path and background
+    /// processor when <paramref name="useOutbox"/> is enabled.
     /// </summary>
     private static void RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(
-        IServiceCollection services, bool useOutbox, OutboxOptions outboxOptions)
+        IServiceCollection services, bool useOutbox, OutboxOptions outboxOptions, OutboxWritePath outboxWritePath)
         where TOutboxStore : class, IOutboxStore
         where TOutboxFactory : class, IOutboxMessageFactory
         where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
@@ -270,8 +333,39 @@ public static class MessagingServiceCollectionExtensions
         services.AddScoped<IOutboxStore, TOutboxStore>();
         services.AddScoped<IOutboxMessageFactory, TOutboxFactory>();
         services.AddScoped<OutboxOrchestrator>();
-        services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(OutboxPostProcessor<,>));
+
+        if (outboxWritePath == OutboxWritePath.TransactionalBehavior)
+        {
+            // Writes the notifications inside the request's transaction (#718).
+            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionalOutboxPipelineBehavior<,>));
+        }
+        else
+        {
+            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(OutboxPostProcessor<,>));
+        }
+
         services.AddHostedService<TOutboxProcessor>();
+    }
+
+    /// <summary>
+    /// Registers the scope's shared transaction: <see cref="IDbTransactionAccessor"/> and the neutral
+    /// <see cref="ITransactionLeaseSource"/> resolved from the same instance.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <c>TryAdd</c>, so an application's own registration wins and repeated calls (the messaging entry and
+    /// <c>AddEncinaUnitOfWork</c>) share one accessor. It resolves the scoped <see cref="System.Data.IDbConnection"/>,
+    /// so only the ADO.NET and Dapper registrations call it.
+    /// </remarks>
+    internal static IServiceCollection AddDbTransactionAccessor(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddScoped<IDbTransactionAccessor, DbTransactionAccessor>();
+        services.TryAddScoped<ITransactionLeaseSource>(sp => sp.GetRequiredService<IDbTransactionAccessor>());
+
+        return services;
     }
 
     /// <summary>
@@ -371,6 +465,24 @@ public static class MessagingServiceCollectionExtensions
         where TInboxStore : class, IInboxStore
         where TInboxFactory : class, IInboxMessageFactory
         where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
+        => services.AddMessagingServicesCore<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TOutboxProcessor>(
+            config, OutboxWritePath.PostProcessor);
+
+    /// <summary>
+    /// <see cref="AddMessagingServicesCore{TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TOutboxProcessor}(IServiceCollection, MessagingConfiguration)"/>
+    /// with the outbox write path of the calling provider family (interim switch, #718).
+    /// </summary>
+    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+        Justification = "Five generic parameters are required to support provider-specific implementations for core messaging patterns (Outbox, Inbox). This is an internal API used by provider packages.")]
+    internal static IServiceCollection AddMessagingServicesCore<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TOutboxProcessor>(
+        this IServiceCollection services,
+        MessagingConfiguration config,
+        OutboxWritePath outboxWritePath)
+        where TOutboxStore : class, IOutboxStore
+        where TOutboxFactory : class, IOutboxMessageFactory
+        where TInboxStore : class, IInboxStore
+        where TInboxFactory : class, IInboxMessageFactory
+        where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(config);
@@ -387,15 +499,16 @@ public static class MessagingServiceCollectionExtensions
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
 
-        // The business transaction the TransactionPipelineBehavior opens, visible to stores sharing the
-        // scoped connection (inbox enlisting, ADR-048).
-        services.TryAddScoped<IDbTransactionAccessor, DbTransactionAccessor>();
+        // The scope's shared transaction (the ADO.NET tenancy path has a scoped IDbConnection).
+        services.AddDbTransactionAccessor();
 
+        // Recoverability outermost, then the transaction, then the outbox and inbox behaviors (see
+        // AddMessagingServices).
+        RegisterRecoverability(services, config);
         RegisterTransactions(services, config.UseTransactions);
-        RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, config.UseOutbox, config.OutboxOptions);
+        RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, config.UseOutbox, config.OutboxOptions, outboxWritePath);
         RegisterInbox<TInboxStore, TInboxFactory>(services, config.UseInbox, config.InboxOptions);
         RegisterRoutingSlips(services, config);
-        RegisterRecoverability(services, config);
         RegisterContentRouter(services, config);
         RegisterScatterGather(services, config);
         RegisterSoftDeleteServices(services, config);
