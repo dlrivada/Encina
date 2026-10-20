@@ -281,45 +281,68 @@ public sealed class OutboxStoreADO : IOutboxStore
             using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
             await lease.EnsureOpenAsync(cancellationToken);
 
-            if (messageIds is null)
-            {
-                using var command = lease.CreateCommand();
-                command.CommandText = baseSql;
-                AddParameter(command, "@MaxRetries", maxRetries);
-                return await ExecuteNonQueryAsync(command, cancellationToken);
-            }
-
-            // The identifiers are sent in chunks; one transaction makes the whole requeue all-or-nothing. An
-            // active transaction of the scope is joined (its owner commits); otherwise the store begins its own.
-            await using var ownTransaction = lease.Transaction is null
-                ? await BeginOwnTransactionAsync(lease.Connection, cancellationToken)
-                : null;
-            var transaction = lease.Transaction ?? ownTransaction;
-
-            var requeued = 0;
-            foreach (var chunk in messageIds.Distinct().Chunk(RequeueIdBatchSize))
-            {
-                using var command = lease.Connection.CreateCommand();
-                command.Transaction = transaction;
-                var idParameters = new string[chunk.Length];
-                for (var i = 0; i < chunk.Length; i++)
-                {
-                    idParameters[i] = $"@Id{i}";
-                    AddParameter(command, idParameters[i], chunk[i]);
-                }
-
-                command.CommandText = $"{baseSql} AND Id IN ({string.Join(", ", idParameters)})";
-                AddParameter(command, "@MaxRetries", maxRetries);
-                requeued += await ExecuteNonQueryAsync(command, cancellationToken);
-            }
-
-            if (ownTransaction is not null)
-            {
-                await ownTransaction.CommitAsync(cancellationToken);
-            }
-
-            return requeued;
+            return messageIds is null
+                ? await RequeueAllAsync(lease, baseSql, maxRetries, cancellationToken)
+                : await RequeueByIdsAsync(lease, baseSql, messageIds, maxRetries, cancellationToken);
         }, "outbox.requeue_exhausted_failed").ConfigureAwait(false);
+    }
+
+    private static async Task<int> RequeueAllAsync(DbLease lease, string baseSql, int maxRetries, CancellationToken cancellationToken)
+    {
+        using var command = lease.CreateCommand();
+        command.CommandText = baseSql;
+        AddParameter(command, "@MaxRetries", maxRetries);
+        return await ExecuteNonQueryAsync(command, cancellationToken);
+    }
+
+    // The identifiers are sent in chunks; one transaction makes the whole requeue all-or-nothing. An active
+    // transaction of the scope is joined (its owner commits); otherwise the store begins its own.
+    private static async Task<int> RequeueByIdsAsync(
+        DbLease lease,
+        string baseSql,
+        IReadOnlyCollection<Guid> messageIds,
+        int maxRetries,
+        CancellationToken cancellationToken)
+    {
+        await using var ownTransaction = lease.Transaction is null
+            ? await BeginOwnTransactionAsync(lease.Connection, cancellationToken)
+            : null;
+        var transaction = lease.Transaction ?? ownTransaction;
+
+        var requeued = 0;
+        foreach (var chunk in messageIds.Distinct().Chunk(RequeueIdBatchSize))
+        {
+            requeued += await RequeueChunkAsync(lease.Connection, transaction, baseSql, chunk, maxRetries, cancellationToken);
+        }
+
+        if (ownTransaction is not null)
+        {
+            await ownTransaction.CommitAsync(cancellationToken);
+        }
+
+        return requeued;
+    }
+
+    private static async Task<int> RequeueChunkAsync(
+        IDbConnection connection,
+        IDbTransaction? transaction,
+        string baseSql,
+        Guid[] chunk,
+        int maxRetries,
+        CancellationToken cancellationToken)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        var idParameters = new string[chunk.Length];
+        for (var i = 0; i < chunk.Length; i++)
+        {
+            idParameters[i] = $"@Id{i}";
+            AddParameter(command, idParameters[i], chunk[i]);
+        }
+
+        command.CommandText = $"{baseSql} AND Id IN ({string.Join(", ", idParameters)})";
+        AddParameter(command, "@MaxRetries", maxRetries);
+        return await ExecuteNonQueryAsync(command, cancellationToken);
     }
 
     /// <inheritdoc />

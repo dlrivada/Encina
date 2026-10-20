@@ -150,6 +150,20 @@ public sealed class TransactionLeaseStateTests
         DbSystemName.From(connection).ShouldBe(expected);
     }
 
+    public interface IWrapper : System.Data.IDbConnection, global::Encina.Messaging.IWrappedDbConnection;
+
+    [Fact]
+    public void DbSystemName_DecoratedConnection_LooksThroughTheDecorator()
+    {
+        var wrapper = Substitute.For<IWrapper>();
+        wrapper.InnerConnection.Returns(new Npgsql.NpgsqlConnection());
+        var accessor = Substitute.For<IDbTransactionAccessor>();
+        accessor.Connection.Returns(wrapper);
+
+        DbSystemName.From(accessor).ShouldBe(DbSystemName.PostgreSql);
+        DbSystemName.From(Substitute.For<ITransactionLeaseSource>()).ShouldBe(DbSystemName.Other);
+    }
+
     [Fact]
     public void DbSystemName_NullConnection_IsOther()
     {

@@ -101,18 +101,8 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
                 return result;
             }
 
-            var committed = await lease.CommitAsync(CancellationToken.None).ConfigureAwait(false);
-            if (committed.IsLeft)
-            {
-                return (EncinaError)committed;
-            }
-
-            if (lease.IsOwner)
-            {
-                MessagingLog.TransactionCommitted(_logger, RequestName, context.CorrelationId);
-            }
-
-            return result;
+            var committed = await CommitAsync(lease, context).ConfigureAwait(false);
+            return committed.IsLeft ? (EncinaError)committed : result;
         }
         catch (OperationCanceledException)
         {
@@ -124,6 +114,18 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
             await RollbackAsync(lease, context).ConfigureAwait(false);
             return EncinaErrors.FromException("transaction.failed", ex);
         }
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> CommitAsync(ITransactionLease lease, IRequestContext context)
+    {
+        // The commit is cleanup: it runs to completion even when the caller canceled.
+        var committed = await lease.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+        if (committed.IsRight && lease.IsOwner)
+        {
+            MessagingLog.TransactionCommitted(_logger, RequestName, context.CorrelationId);
+        }
+
+        return committed;
     }
 
     private async ValueTask RollbackAsync(ITransactionLease lease, IRequestContext context)

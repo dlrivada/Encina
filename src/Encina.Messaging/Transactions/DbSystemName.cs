@@ -18,31 +18,27 @@ internal static class DbSystemName
     /// </summary>
     /// <param name="connection">The connection, or <see langword="null"/>.</param>
     /// <returns>The <c>db.system</c> value, or <see cref="Other"/> when the provider is not recognized.</returns>
-    internal static string From(IDbConnection? connection)
+    internal static string From(IDbConnection? connection) => Classify(Innermost(connection)?.GetType().Namespace);
+
+    private static IDbConnection? Innermost(IDbConnection? connection)
     {
         while (connection is IWrappedDbConnection wrapper)
         {
             connection = wrapper.InnerConnection;
         }
 
-        var ns = connection?.GetType().Namespace;
-        if (ns is null)
-        {
-            return Other;
-        }
-
-        if (ns.Contains("SqlClient", StringComparison.Ordinal))
-        {
-            return SqlServer;
-        }
-
-        if (ns.StartsWith("Npgsql", StringComparison.Ordinal))
-        {
-            return PostgreSql;
-        }
-
-        return ns.StartsWith("MySql", StringComparison.Ordinal) ? MySql : Other;
+        return connection;
     }
+
+    // crap-exempt: single-question switch — maps a connection namespace to its db.system value
+    private static string Classify(string? ns) => ns switch
+    {
+        null => Other,
+        _ when ns.Contains("SqlClient", StringComparison.Ordinal) => SqlServer,
+        _ when ns.StartsWith("Npgsql", StringComparison.Ordinal) => PostgreSql,
+        _ when ns.StartsWith("MySql", StringComparison.Ordinal) => MySql,
+        _ => Other
+    };
 
     /// <summary>
     /// Gets the <c>db.system</c> value of a transaction source: its connection's when it is relational,
