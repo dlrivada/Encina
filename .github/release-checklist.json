@@ -1,0 +1,840 @@
+{
+  "schema": 1,
+  "specs": [
+    { "id": "SPEC-000", "path": "docs/specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md", "ids": "all" },
+    { "id": "SPEC-002", "path": "docs/specifications/SPEC-002-eu-regulatory-readiness.md", "ids": "AC-025..AC-030" }
+  ],
+  "items": [
+    {
+      "id": "package-manifest-drift",
+      "title": "The package manifest exists and its drift check is green (#1362 closed)",
+      "source": ["SPEC-000 AC-001", "SPEC-000 AC-002"],
+      "owner": [1362],
+      "kind": "issue-state",
+      "group": "Inventory",
+      "check": { "name": "issue-state", "params": { "issues": [1362], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "single-secrets-package",
+      "title": "Only one of Encina.Secrets.* and Encina.Security.Secrets.* exists under src/",
+      "source": ["SPEC-000 AC-003"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Inventory",
+      "check": { "name": "exclusive-dirs", "params": { "globs": ["src/Encina.Secrets.*", "src/Encina.Security.Secrets.*"] } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "provider-blocks-documented",
+      "title": "Each provider-dependent feature has a Supported providers / Deferred providers block and contract tests cover the supported set",
+      "source": ["SPEC-000 AC-004"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Inventory",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "ci-full-on-sha",
+      "title": "CI Full is green on the release commit: a scheduled or manual run on that SHA with every job success",
+      "source": ["SPEC-000 AC-005", "SPEC-000 AC-006"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "check": { "name": "ci-run", "params": { "workflow": "ci-full.yml", "events": ["schedule", "workflow_dispatch"] } },
+      "profiles": { "minor": "block", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "ci-main-green",
+      "title": "The latest ci.yml run on main succeeded within the last 7 days",
+      "source": ["SPEC-000 AC-005"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "check": { "name": "workflow-latest", "params": { "workflow": "ci.yml", "maxAgeDays": 7 } },
+      "profiles": { "minor": "warn", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "local-release-build",
+      "title": "dotnet build Encina.slnx -c Release exits 0 with zero warnings on the release commit",
+      "source": ["SPEC-000 AC-005"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Build and quality gates",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "warnings-as-errors-enabled",
+      "title": "Directory.Build.props keeps TreatWarningsAsErrors true",
+      "source": ["SPEC-000 AC-005"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "check": { "name": "file-regex", "params": { "path": "Directory.Build.props", "pattern": "<TreatWarningsAsErrors>true</TreatWarningsAsErrors>" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "skip-without-issue",
+      "title": "Every Skip= in tests/ references an issue",
+      "source": ["SPEC-000 AC-006"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "check": { "name": "skip-scan", "params": {} },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "skip-issues-resolved",
+      "title": "#531 and #73 are closed, or re-scoped and left open with the post-1.0 label",
+      "source": ["SPEC-000 AC-006"],
+      "owner": [],
+      "kind": "issue-state",
+      "group": "Build and quality gates",
+      "check": { "name": "issue-state", "params": { "issues": [531, 73], "require": "closed-or-label", "label": "post-1.0" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "coverage-dashboard-fresh",
+      "title": "The coverage dashboard data was published within the release week",
+      "source": ["SPEC-000 AC-007"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "check": { "name": "pages-freshness", "params": { "site": "coverage", "maxAgeDays": 7 } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "coverage-flags-green",
+      "title": "Every package in the published coverage data meets every per-flag target",
+      "source": ["SPEC-000 AC-007"],
+      "owner": [1651],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "check": { "name": "coverage-flags-green", "params": {} },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "mutation-dashboard-fresh",
+      "title": "The mutation dashboard data was published within the release month",
+      "source": ["SPEC-000 AC-008"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "check": { "name": "pages-freshness", "params": { "site": "mutations", "maxAgeDays": 31 } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "mutation-outcome-recorded",
+      "title": "#1087 is closed (the outcome of the Stryker xUnit v3 investigation is recorded)",
+      "source": ["SPEC-000 AC-008"],
+      "owner": [1087],
+      "kind": "issue-state",
+      "group": "Build and quality gates",
+      "check": { "name": "issue-state", "params": { "issues": [1087], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "codeql-run-fresh",
+      "title": "The latest CodeQL run on main succeeded within the release week",
+      "source": ["SPEC-000 AC-009"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "check": { "name": "workflow-latest", "params": { "workflow": "codeql.yml", "maxAgeDays": 7 } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "codeql-high-alerts",
+      "title": "No open CodeQL alert at high or higher",
+      "source": ["SPEC-000 AC-009"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "check": { "name": "code-scanning-alerts", "params": { "minSeverity": "high" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "sonar-high-issues",
+      "title": "No open SonarCloud issue at HIGH or BLOCKER",
+      "source": ["SPEC-000 AC-009"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "check": { "name": "sonar-issues", "params": {} },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "medium-findings-dispositioned",
+      "title": "Every medium finding listed in the evidence report (CodeQL, SonarCloud) has a disposition line in the sign-off file",
+      "source": ["SPEC-000 AC-009"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Build and quality gates",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "architecture-tests-green",
+      "title": "Architecture rules and EventIdUniquenessRule pass in CI Full on the release commit",
+      "source": ["SPEC-000 AC-010"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "check": { "name": "alias", "params": { "item": "ci-full-on-sha" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "bug-gate",
+      "title": "Every open bug (label bug or title starting with [BUG]) is labelled deferred-1.0 with a reason comment, and none is security-classified (the area-security label, or a security tag in the title: no label named security exists)",
+      "source": ["SPEC-000 AC-011"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Defects and security",
+      "check": { "name": "bug-gate", "params": { "deferredLabel": "deferred-1.0", "securityLabel": "area-security" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "ssrf-issue-closed",
+      "title": "#852 (SSRF validation of URL options) is closed",
+      "source": ["SPEC-000 AC-012"],
+      "owner": [852],
+      "kind": "issue-state",
+      "group": "Defects and security",
+      "check": { "name": "issue-state", "params": { "issues": [852], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "ssrf-guard-tests",
+      "title": "A guard or contract test exists for every options class that accepts a URL, endpoint or connection string",
+      "source": ["SPEC-000 AC-012"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Defects and security",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "secret-scanning-no-alerts",
+      "title": "No open secret-scanning alert (read with the GitHub App token)",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Defects and security",
+      "check": { "name": "secret-scanning-alerts", "params": {} },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "attest-secret-scanning",
+      "title": "Attestation: the open secret-scanning alerts were reviewed by hand and there are none (answer only when the automatic fact failed to collect)",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Defects and security",
+      "attests": "secret-scanning-no-alerts",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "dependabot-no-alerts",
+      "title": "No open Dependabot alert at medium or higher (read with the GitHub App token)",
+      "source": ["#104", "SPEC-000 REQ-005"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Defects and security",
+      "check": { "name": "dependabot-alerts", "params": { "minSeverity": "medium" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "attest-dependabot",
+      "title": "Attestation: the open Dependabot alerts were reviewed by hand and none is at medium or higher (answer only when the automatic fact failed to collect)",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Defects and security",
+      "attests": "dependabot-no-alerts",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "dependabot-configured",
+      "title": ".github/dependabot.yml exists",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Defects and security",
+      "check": { "name": "file-exists", "params": { "path": ".github/dependabot.yml" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "workflow-permissions-job-level",
+      "title": "#1947 is closed (workflow permissions are declared per job, never at workflow level)",
+      "source": ["#104", "AGENTS.md section 10"],
+      "owner": [1947],
+      "kind": "issue-state",
+      "group": "Defects and security",
+      "check": { "name": "issue-state", "params": { "issues": [1947], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "warn", "final": "block" }
+    },
+    {
+      "id": "vex-statements",
+      "title": "#1253 is closed (VEX statements)",
+      "source": ["SPEC-002 REQ-058"],
+      "owner": [1253],
+      "kind": "issue-state",
+      "group": "Defects and security",
+      "check": { "name": "issue-state", "params": { "issues": [1253], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "warn", "final": "block" }
+    },
+    {
+      "id": "public-api-unshipped-empty",
+      "title": "Every PublicAPI.Unshipped.txt under src/ is empty after the release commit",
+      "source": ["SPEC-000 AC-013"],
+      "owner": [],
+      "kind": "auto",
+      "group": "API and docs",
+      "check": { "name": "public-api-unshipped-empty", "params": {} },
+      "profiles": { "minor": "skip", "rc": "warn", "final": "block" }
+    },
+    {
+      "id": "docs-workflow-green",
+      "title": "The latest docs.yml run on main succeeded within the release week",
+      "source": ["SPEC-000 AC-014"],
+      "owner": [],
+      "kind": "auto",
+      "group": "API and docs",
+      "check": { "name": "workflow-latest", "params": { "workflow": "docs.yml", "maxAgeDays": 7 } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "docfx-warnings-listed",
+      "title": "#1032 is closed or its remaining DocFX warnings are listed in the evidence report",
+      "source": ["SPEC-000 AC-014"],
+      "owner": [1032],
+      "kind": "manual",
+      "group": "API and docs",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "adoption-docs-published",
+      "title": "#81, #82, #83 and #87 are closed (quickstart, fundamentals, providers overview, example 01)",
+      "source": ["SPEC-000 AC-015"],
+      "owner": [81, 82, 83, 87],
+      "kind": "issue-state",
+      "group": "API and docs",
+      "check": { "name": "issue-state", "params": { "issues": [81, 82, 83, 87], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "fresh-environment-walkthrough",
+      "title": "A fresh-environment walkthrough of the published documentation is recorded in the evidence report",
+      "source": ["SPEC-000 AC-015"],
+      "owner": [],
+      "kind": "manual",
+      "group": "API and docs",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "performance-claims-issues-closed",
+      "title": "#927, #928, #929 and #1090 are closed (performance claims cite a benchmark or are removed)",
+      "source": ["SPEC-000 AC-016"],
+      "owner": [927, 928, 929, 1090],
+      "kind": "issue-state",
+      "group": "API and docs",
+      "check": { "name": "issue-state", "params": { "issues": [927, 928, 929, 1090], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "docref-lint-passes",
+      "title": "The DocRef lint passes (it runs in ci.yml, so this follows the latest ci.yml run on main)",
+      "source": ["SPEC-000 AC-016"],
+      "owner": [],
+      "kind": "auto",
+      "group": "API and docs",
+      "check": { "name": "alias", "params": { "item": "ci-main-green" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "docs-links-checked",
+      "title": "The latest link-check.yml run on main succeeded within 8 days (the scan is daily)",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "API and docs",
+      "check": { "name": "workflow-latest", "params": { "workflow": "link-check.yml", "maxAgeDays": 8 } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "changelog-section",
+      "title": "CHANGELOG.md has a dated section for this version as the top released section, and every earlier minor tag from 0.13.0 has a dated section",
+      "source": ["SPEC-000 AC-017"],
+      "owner": [],
+      "kind": "auto",
+      "group": "API and docs",
+      "check": { "name": "changelog-section", "params": { "fromMinor": "0.13.0" } },
+      "profiles": { "minor": "block", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "release-notes-page",
+      "title": "The release notes page docs/releases/v<version>/README.md exists",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "API and docs",
+      "check": { "name": "file-exists", "params": { "path": "docs/releases/v{version}/README.md" } },
+      "profiles": { "minor": "block", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "milestone-clean",
+      "title": "The release milestone has no open issue outside the allow-list in the sign-off file",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Release",
+      "check": { "name": "milestone-clean", "params": {} },
+      "profiles": { "minor": "block", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "version-no-suffix",
+      "title": "Directory.Build.props has VersionPrefix equal to the release version and a VersionSuffix equal to its prerelease label (empty for a release without one)",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Release",
+      "check": { "name": "version-props", "params": {} },
+      "profiles": { "minor": "block", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "release-pipeline-issues-closed",
+      "title": "#92, #93 and #102 are closed (provenance, signing, package metadata)",
+      "source": ["SPEC-000 AC-018"],
+      "owner": [92, 93, 102],
+      "kind": "issue-state",
+      "group": "Release",
+      "check": { "name": "issue-state", "params": { "issues": [92, 93, 102], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "release-workflow-automated",
+      "title": "#1100 is closed (the CI release workflow packs, signs, attests and publishes)",
+      "source": ["SPEC-000 AC-018"],
+      "owner": [1100],
+      "kind": "issue-state",
+      "group": "Release",
+      "check": { "name": "issue-state", "params": { "issues": [1100], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "nuget-issues-closed",
+      "title": "#100 and #101 are closed (package ID reservation and the publish workflow)",
+      "source": ["SPEC-000 AC-019"],
+      "owner": [100, 101],
+      "kind": "issue-state",
+      "group": "Release",
+      "check": { "name": "issue-state", "params": { "issues": [100, 101], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "nuget-rc-listed",
+      "title": "A 1.0.0-rc.N of the Encina package is listed on nuget.org",
+      "source": ["SPEC-000 AC-019"],
+      "owner": [100, 101],
+      "kind": "auto",
+      "group": "Release",
+      "check": { "name": "nuget-listing", "params": { "packageId": "Encina", "pattern": "^1\\.0\\.0-rc\\.\\d+$" } },
+      "profiles": { "minor": "skip", "rc": "skip", "final": "block" }
+    },
+    {
+      "id": "nuget-version-listed",
+      "title": "This version of the Encina package is listed on nuget.org (true only after publishing: re-run the gate then)",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Release",
+      "check": { "name": "nuget-listing", "params": { "packageId": "Encina", "pattern": "^{version}$" } },
+      "profiles": { "minor": "skip", "rc": "skip", "final": "warn" }
+    },
+    {
+      "id": "nuget-prefix-reserved",
+      "title": "The package ID prefix is reserved on nuget.org (#1231; no public API shows it)",
+      "source": ["SPEC-000 AC-019", "#104"],
+      "owner": [1231],
+      "kind": "manual",
+      "group": "Release",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "global-json-present",
+      "title": "global.json pins the SDK (#1945)",
+      "source": ["SPEC-000 AC-020"],
+      "owner": [1945],
+      "kind": "auto",
+      "group": "Release",
+      "check": { "name": "file-exists", "params": { "path": "global.json" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "branch-protection-exact",
+      "title": "main protection shows enforce_admins true, required_approving_review_count 0, required_conversation_resolution true, required_linear_history true and exactly the contexts build, ci-result and Analyze (needs a token with Administration read; the Actions token has none)",
+      "source": ["SPEC-000 AC-020"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Release",
+      "check": { "name": "branch-protection", "params": { "contexts": ["build", "ci-result", "Analyze"] } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "ci-result-needs-tests",
+      "title": "ci.yml has ci-result needing build and every test-* job, with if: always()",
+      "source": ["SPEC-000 AC-020"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Release",
+      "check": { "name": "ci-result-needs", "params": {} },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "sdk-issue-closed",
+      "title": "#98 is closed",
+      "source": ["SPEC-000 AC-020"],
+      "owner": [98],
+      "kind": "issue-state",
+      "group": "Release",
+      "check": { "name": "issue-state", "params": { "issues": [98], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "community-docs-issues-closed",
+      "title": "#95, #96 and #97 are closed (contributing guide, code of conduct, templates)",
+      "source": ["SPEC-000 AC-021"],
+      "owner": [95, 96, 97],
+      "kind": "issue-state",
+      "group": "Release",
+      "check": { "name": "issue-state", "params": { "issues": [95, 96, 97], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "license-is-mit",
+      "title": "LICENSE is the MIT license",
+      "source": ["#104"],
+      "owner": [102],
+      "kind": "auto",
+      "group": "Release",
+      "check": { "name": "file-regex", "params": { "path": "LICENSE", "pattern": "^MIT License" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "dependency-licences-and-notices",
+      "title": "#1946 is closed (dependency licence compatibility and third-party notices)",
+      "source": ["#104"],
+      "owner": [1946],
+      "kind": "issue-state",
+      "group": "Release",
+      "check": { "name": "issue-state", "params": { "issues": [1946], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "branding-issue-closed",
+      "title": "#103 is closed (logo, icons, banner)",
+      "source": ["#104"],
+      "owner": [103],
+      "kind": "issue-state",
+      "group": "Release",
+      "check": { "name": "issue-state", "params": { "issues": [103], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "warn", "final": "block" }
+    },
+    {
+      "id": "social-preview-set",
+      "title": "The repository social preview image is set",
+      "source": ["#104"],
+      "owner": [103],
+      "kind": "manual",
+      "group": "Release",
+      "profiles": { "minor": "skip", "rc": "skip", "final": "block" }
+    },
+    {
+      "id": "sbom-issue-closed",
+      "title": "#1228 is closed (one SBOM per published package)",
+      "source": ["SPEC-002 AC-027"],
+      "owner": [1228],
+      "kind": "issue-state",
+      "group": "Release",
+      "check": { "name": "issue-state", "params": { "issues": [1228], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "sbom-on-release",
+      "title": "The GitHub Release of this tag carries SBOM assets (true only after the release is created: re-run the gate then; one SBOM per published package needs the package manifest of #1362)",
+      "source": ["SPEC-002 AC-027"],
+      "owner": [1228, 1362],
+      "kind": "auto",
+      "group": "Release",
+      "check": { "name": "release-asset", "params": { "namePattern": "(?i)(sbom|\\.cdx\\.|\\.spdx)", "minCount": 1 } },
+      "profiles": { "minor": "skip", "rc": "warn", "final": "warn" }
+    },
+    {
+      "id": "github-release-exists",
+      "title": "A GitHub Release exists for this tag (true only after the release is created: re-run the gate then)",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Release",
+      "check": { "name": "release-asset", "params": { "namePattern": ".", "minCount": 0 } },
+      "profiles": { "minor": "skip", "rc": "warn", "final": "warn" }
+    },
+    {
+      "id": "announcement-posted",
+      "title": "The release announcement is posted",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Release",
+      "profiles": { "minor": "skip", "rc": "skip", "final": "warn" }
+    },
+    {
+      "id": "evidence-report-committed",
+      "title": "docs/releases/v<version>/evidence.md is committed (generated by --evidence from the committed facts.json)",
+      "source": ["SPEC-000 AC-022"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Evidence",
+      "check": { "name": "file-exists", "params": { "path": "docs/releases/v{version}/evidence.md" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "facts-committed",
+      "title": "docs/releases/v<version>/facts.json is committed (the reproducible input of the evidence report)",
+      "source": ["SPEC-000 AC-022"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Evidence",
+      "check": { "name": "file-exists", "params": { "path": "docs/releases/v{version}/facts.json" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "adversarial-review-attached",
+      "title": "The adversarial review report is attached to the release PR with every finding dispositioned",
+      "source": ["SPEC-000 AC-023"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Evidence",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "maintainer-signoff",
+      "title": "The maintainer's final sign-off for the release",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Evidence",
+      "profiles": { "minor": "skip", "rc": "skip", "final": "block" }
+    },
+    {
+      "id": "compliance-article-specs",
+      "title": "One SPEC per compliance package exists with its article coverage table (Consent has the GDPR and ePrivacy tables) and each package README links it",
+      "source": ["SPEC-000 AC-024"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Regulatory compliance and readiness",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "ai-act-epic-closed",
+      "title": "EPIC #881 and its compliance child issues #836 to #847 are closed",
+      "source": ["SPEC-000 AC-025"],
+      "owner": [881],
+      "kind": "issue-state",
+      "group": "Regulatory compliance and readiness",
+      "check": { "name": "issue-state", "params": { "issues": [881, 836, 837, 838, 839, 840, 841, 842, 843, 844, 845, 846, 847], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "nis2-omnibus-issues-closed",
+      "title": "#822 to #827 and #810 to #816 are closed",
+      "source": ["SPEC-000 AC-026"],
+      "owner": [],
+      "kind": "issue-state",
+      "group": "Regulatory compliance and readiness",
+      "check": { "name": "issue-state", "params": { "issues": [822, 823, 824, 825, 826, 827, 810, 811, 812, 813, 814, 815, 816], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "new-regulations-post-1-0",
+      "title": "#804 to #808 are labelled post-1.0 and left open",
+      "source": ["SPEC-000 AC-026"],
+      "owner": [],
+      "kind": "issue-state",
+      "group": "Regulatory compliance and readiness",
+      "check": { "name": "issue-state", "params": { "issues": [804, 805, 806, 807, 808], "require": "open-with-label", "label": "post-1.0" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "provider-sets-delivered",
+      "title": "#207, #208 and #277 are closed (PostgreSQL and MySQL locks, Memcached)",
+      "source": ["SPEC-000 AC-027"],
+      "owner": [207, 208, 277],
+      "kind": "issue-state",
+      "group": "Regulatory compliance and readiness",
+      "check": { "name": "issue-state", "params": { "issues": [207, 208, 277], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "provider-sets-contract-tests",
+      "title": "Contract tests cover the 8 caches and the 5 locks, and both AGENTS.md section 5 provider tables match src/",
+      "source": ["SPEC-000 AC-027"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Regulatory compliance and readiness",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "gcp-functions-post-1-0",
+      "title": "#205 is labelled post-1.0 and left open",
+      "source": ["SPEC-000 AC-028"],
+      "owner": [205],
+      "kind": "issue-state",
+      "group": "Regulatory compliance and readiness",
+      "check": { "name": "issue-state", "params": { "issues": [205], "require": "open-with-label", "label": "post-1.0" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "agents-gcp-deferral-stated",
+      "title": "AGENTS.md section 5 lists the cloud set as AWS and Azure with GCP deferred",
+      "source": ["SPEC-000 AC-028"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Regulatory compliance and readiness",
+      "check": { "name": "file-regex", "params": { "path": "AGENTS.md", "pattern": "GCP is post-1\\.0" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "spec-002-acs-hold",
+      "title": "SPEC-002 AC-001 to AC-044 hold on the release candidate commit, the PracticeManagement reference scenario is green in CI Full with tenancy on, and the SPEC-002 EPIC is closed",
+      "source": ["SPEC-000 AC-029"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Regulatory compliance and readiness",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "law-map-date",
+      "title": "The SPEC-002 section 3 law map verification date is at most 30 days old (blocks in minor, rc and final; for rc.N later than rc.1 the date counts again)",
+      "source": ["SPEC-002 AC-025", "SPEC-002 REQ-025", "#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Regulatory compliance and readiness",
+      "check": { "name": "spec-verified-date", "params": { "path": "docs/specifications/SPEC-002-eu-regulatory-readiness.md", "maxAgeDays": 30 } },
+      "profiles": { "minor": "block", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "law-map-reverified-through-pr",
+      "title": "The SPEC-002 section 3 law map was re-verified and its verification date updated through a pull request (evidence: that pull request)",
+      "source": ["SPEC-002 AC-025", "SPEC-002 REQ-025", "#104"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Regulatory compliance and readiness",
+      "profiles": { "minor": "block", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "legal-status-and-security-md",
+      "title": "#1229 is closed (SECURITY.md has the five REQ-028 elements and the legal-status statement)",
+      "source": ["SPEC-002 AC-026", "SPEC-002 AC-028"],
+      "owner": [1229],
+      "kind": "issue-state",
+      "group": "Regulatory compliance and readiness",
+      "check": { "name": "issue-state", "params": { "issues": [1229], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "no-telemetry-no-gated-assets-review",
+      "title": "The release review confirms that no package sends data to the maintainer and that no release asset is gated",
+      "source": ["SPEC-002 AC-026"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Regulatory compliance and readiness",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "advisory-process-documented",
+      "title": "#1230 is closed (the advisory process is documented)",
+      "source": ["SPEC-002 AC-029"],
+      "owner": [1230],
+      "kind": "issue-state",
+      "group": "Regulatory compliance and readiness",
+      "check": { "name": "issue-state", "params": { "issues": [1230], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "advisory-process-demonstrated",
+      "title": "Every security fix released after approval has a GHSA with a CVE requested; if none was released, a draft advisory in the repository shows the process works end to end",
+      "source": ["SPEC-002 AC-029"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Regulatory compliance and readiness",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "trusted-publishing-issues-closed",
+      "title": "#92, #93, #100, #101 and #1231 are closed (Trusted Publishing, prefix reservation)",
+      "source": ["SPEC-002 AC-030"],
+      "owner": [92, 93, 100, 101, 1231],
+      "kind": "issue-state",
+      "group": "Regulatory compliance and readiness",
+      "check": { "name": "issue-state", "params": { "issues": [92, 93, 100, 101, 1231], "require": "closed" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "scorecard-workflow-exists",
+      "title": "A Scorecard workflow exists under .github/workflows/",
+      "source": ["SPEC-002 AC-030"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Regulatory compliance and readiness",
+      "check": { "name": "file-exists", "params": { "path": ".github/workflows/scorecard*.yml" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "retired-coverage-threshold",
+      "title": "Project-wide line coverage of at least 85 percent (issue #104 text)",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "retired": {
+        "reason": "Superseded: AGENTS.md section 9 forbids a project-wide coverage percentage. SPEC-000 REQ-007 and AC-007 require every 1.0 package to meet its per-flag manifest targets, which the items coverage-dashboard-fresh and coverage-flags-green check from the published data.",
+        "ref": "AGENTS.md section 9; SPEC-000 REQ-007"
+      }
+    },
+    {
+      "id": "retired-mutation-threshold",
+      "title": "Mutation score of at least 80 percent (issue #104 text)",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "retired": {
+        "reason": "Superseded: SPEC-000 REQ-008 and section 6 rule out a mutation-score threshold as a release blocker while upstream results are unreliable. AC-008 asks for a completed run within the release month, which mutation-dashboard-fresh checks.",
+        "ref": "SPEC-000 REQ-008"
+      }
+    },
+    {
+      "id": "retired-git-secrets",
+      "title": "No secrets in code, checked with git-secrets (issue #104 text)",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Defects and security",
+      "retired": {
+        "reason": "Replaced by GitHub secret scanning with push protection, which is enabled on the repository; its open alerts are checked by secret-scanning-no-alerts.",
+        "ref": "repository security settings; SPEC-000 REQ-009"
+      }
+    },
+    {
+      "id": "retired-branch-protection-reviews",
+      "title": "Branch protection that requires pull request reviews and signed commits (EPIC #893 text)",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Release",
+      "retired": {
+        "reason": "Conflicts with SPEC-000 REQ-020, which requires no approving review (a solo maintainer cannot approve their own pull requests). branch-protection-exact checks REQ-020 exactly as AC-020 words it.",
+        "ref": "SPEC-000 REQ-020"
+      }
+    }
+  ]
+}

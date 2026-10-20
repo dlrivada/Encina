@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "specs": [
+    { "id": "SPEC-000", "path": "spec-excerpt-000.md", "ids": "all" },
+    { "id": "SPEC-002", "path": "spec-excerpt-002.md", "ids": "AC-025..AC-030" }
+  ],
+  "items": [
+    {
+      "id": "ci-full-on-sha",
+      "title": "CI Full is green on the release commit",
+      "source": ["SPEC-000 AC-001"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "check": { "name": "ci-run", "params": { "workflow": "ci-full", "events": ["schedule", "workflow_dispatch"] } },
+      "profiles": { "minor": "block", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "law-map-date",
+      "title": "The law map verification date is at most 30 days old",
+      "source": ["SPEC-002 AC-025"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Regulatory compliance and readiness",
+      "check": { "name": "spec-verified-date", "params": { "path": "spec-excerpt-002.md", "maxAgeDays": 30 } },
+      "profiles": { "minor": "block", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "codeql-high-alerts",
+      "title": "No open CodeQL alert at high or higher",
+      "source": ["SPEC-000 AC-002"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "check": { "name": "code-scanning-alerts", "params": { "minSeverity": "high" } },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "unshipped-empty",
+      "title": "Every PublicAPI.Unshipped.txt is empty",
+      "source": ["SPEC-000 AC-003"],
+      "owner": [],
+      "kind": "auto",
+      "group": "API and docs",
+      "check": { "name": "public-api-unshipped-empty", "params": {} },
+      "profiles": { "minor": "skip", "rc": "warn", "final": "block" }
+    },
+    {
+      "id": "secret-scanning-no-alerts",
+      "title": "No open secret-scanning alert",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Defects and security",
+      "check": { "name": "secret-scanning-alerts", "params": {} },
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "attest-secret-scanning",
+      "title": "Attestation: secret-scanning alerts reviewed by hand (only when the automatic fact failed)",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Defects and security",
+      "attests": "secret-scanning-no-alerts",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "adversarial-review",
+      "title": "The adversarial review report is attached with every finding dispositioned",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "manual",
+      "group": "Evidence",
+      "profiles": { "minor": "skip", "rc": "block", "final": "block" }
+    },
+    {
+      "id": "old-coverage-target",
+      "title": "Project-wide line coverage threshold",
+      "source": ["#104"],
+      "owner": [],
+      "kind": "auto",
+      "group": "Build and quality gates",
+      "retired": { "reason": "Superseded by per-flag targets (fixture reason).", "ref": "AGENTS.md section 9" }
+    }
+  ]
+}
