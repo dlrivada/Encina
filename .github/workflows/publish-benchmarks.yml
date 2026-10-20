@@ -11,7 +11,9 @@ name: Publish Benchmarks Data
 # the site and deploys it.
 #
 # A source run that did not succeed fails this workflow visibly instead of
-# skipping it (#1361). A successful `short` run is still skipped with a notice
+# skipping it (#1361), unless its "Aggregate all benchmark results" job succeeded:
+# then the partial snapshot is published with a warning naming the matrix jobs that
+# did not succeed (#2510; carrying their previous series forward is #1575). A successful `short` run is still skipped with a notice
 # (see "Detect source job type"); the daily dashboard-freshness check flags the
 # dashboard when no `medium` run has published for too long.
 #
@@ -44,15 +46,45 @@ jobs:
       skip: ${{ steps.jobtype.outputs.skip }}
 
     steps:
-      - name: Require a successful source run
+      # A source run that did not conclude `success` normally refuses to publish.
+      # The one exception (#2510): a matrix job failed or was cancelled (for example
+      # one class hit its job timeout) but the "Aggregate all benchmark results" job
+      # of that run succeeded, so latest.json holds every series that did get
+      # measured. That partial snapshot is published with a loud warning and a step
+      # summary naming each matrix job that did not succeed (#1761). Carrying the
+      # previous series forward for the missing classes is #1575; this step does not
+      # reconcile anything. When the aggregate job did not succeed (or does not
+      # exist, e.g. the whole run was cancelled), nothing is published.
+      - name: Require a successful source run (or a successful aggregate)
         if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success'
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
           SOURCE_WORKFLOW: ${{ github.event.workflow_run.name }}
           SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
           SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          AGGREGATE_JOB: Aggregate all benchmark results
         run: |
-          echo "::error title=Source run did not succeed::$SOURCE_WORKFLOW run $SOURCE_RUN_ID concluded $SOURCE_CONCLUSION; nothing was published"
-          exit 1
+          set -euo pipefail
+          JOBS_URL="repos/$REPO/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100&filter=latest"
+          AGGREGATE=$(gh api --paginate "$JOBS_URL" \
+            --jq ".jobs[] | select(.name == env.AGGREGATE_JOB) | (.conclusion // \"unknown\")")
+          if [ "$AGGREGATE" != "success" ]; then
+            echo "::error title=Source run did not succeed::$SOURCE_WORKFLOW run $SOURCE_RUN_ID concluded $SOURCE_CONCLUSION and its '$AGGREGATE_JOB' job is '${AGGREGATE:-missing}'; nothing was published"
+            exit 1
+          fi
+          MISSING=$(gh api --paginate "$JOBS_URL" \
+            --jq ".jobs[] | select(.name != env.AGGREGATE_JOB and ((.conclusion // \"unknown\") | IN(\"success\", \"skipped\") | not)) | \"\(.name) (\(.conclusion // \"unknown\"))\"")
+          COUNT=$(printf '%s\n' "$MISSING" | grep -c . || true)
+          LIST=$(printf '%s\n' "$MISSING" | paste -sd ',' - | sed 's/,/, /g')
+          echo "::warning title=Partial benchmarks publish::$SOURCE_WORKFLOW run $SOURCE_RUN_ID concluded $SOURCE_CONCLUSION but '$AGGREGATE_JOB' succeeded; publishing a partial snapshot. $COUNT job(s) did not succeed and their series are missing until the next complete run (carry-forward is #1575): $LIST"
+          {
+            echo "### Partial benchmarks publish"
+            echo ""
+            echo "Source run $SOURCE_RUN_ID concluded **$SOURCE_CONCLUSION**; the aggregate job succeeded, so its snapshot is published. These $COUNT matrix job(s) did not succeed and their series are missing from this snapshot (#1575 tracks carrying the previous series forward):"
+            echo ""
+            printf '%s\n' "$MISSING" | sed 's/^/- /'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout
         uses: actions/checkout@v7
