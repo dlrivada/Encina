@@ -2,6 +2,7 @@ using System.Reflection;
 using Encina.Polly;
 using Encina.Testing;
 using LanguageExt;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using Polly.CircuitBreaker;
@@ -168,6 +169,32 @@ public class CircuitBreakerPipelineBehaviorTests
                 error.Message.ShouldContain("Service temporarily unavailable");
             }
         );
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Resolve_FromValidatedProvider_ShouldWorkWithAndWithoutRegisteredTimeProvider(bool registerTimeProvider)
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        if (registerTimeProvider)
+        {
+            services.AddSingleton<TimeProvider>(new FakeTimeProvider());
+        }
+        services.AddTransient(typeof(CircuitBreakerPipelineBehavior<,>));
+
+        // Act
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+        var behavior = provider.GetRequiredService<CircuitBreakerPipelineBehavior<TestRequest, string>>();
+
+        // Assert
+        behavior.ShouldNotBeNull();
     }
 
     [Fact]

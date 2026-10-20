@@ -318,6 +318,7 @@ public class BulkheadPipelineBehaviorTests
 
         // Wait on the observable condition (two handlers running), bounded by a generous deadline.
         await limitReached.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        started.ShouldBe(2, "only MaxConcurrency handlers may run while the others are queued");
         gate.SetResult();
 
         await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(30));
