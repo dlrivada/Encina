@@ -1,0 +1,463 @@
+[
+  {
+    "name": "ci-run passes when the latest run on the sha succeeded with every job success",
+    "check": { "name": "ci-run", "params": { "workflow": "ci-full.yml", "events": ["schedule", "workflow_dispatch"] } },
+    "facts": { "ci-run:ci-full.yml": { "value": { "runs": [ { "id": 1, "event": "schedule", "status": "completed", "conclusion": "success", "headSha": "0123456789abcdef0123456789abcdef01234567", "createdAt": "2026-10-19T03:00:00Z", "jobs": [ { "name": "build", "conclusion": "success" }, { "name": "test-unit", "conclusion": "success" } ] } ] } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "ci-run fails when one job is skipped",
+    "check": { "name": "ci-run", "params": { "workflow": "ci-full.yml", "events": ["schedule", "workflow_dispatch"] } },
+    "facts": { "ci-run:ci-full.yml": { "value": { "runs": [ { "id": 1, "event": "schedule", "status": "completed", "conclusion": "success", "headSha": "0123456789abcdef0123456789abcdef01234567", "createdAt": "2026-10-19T03:00:00Z", "jobs": [ { "name": "build", "conclusion": "success" }, { "name": "test-unit", "conclusion": "skipped" } ] } ] } } },
+    "expect": "FAIL",
+    "contains": "not success"
+  },
+  {
+    "name": "ci-run fails when the run is for another sha",
+    "check": { "name": "ci-run", "params": { "workflow": "ci-full.yml", "events": ["schedule", "workflow_dispatch"] } },
+    "facts": { "ci-run:ci-full.yml": { "value": { "runs": [ { "id": 1, "event": "schedule", "status": "completed", "conclusion": "success", "headSha": "ffffffffffffffffffffffffffffffffffffffff", "createdAt": "2026-10-19T03:00:00Z", "jobs": [ { "name": "build", "conclusion": "success" } ] } ] } } },
+    "expect": "FAIL",
+    "contains": "no completed ci-full.yml run"
+  },
+  {
+    "name": "ci-run fails when the run came from a push event",
+    "check": { "name": "ci-run", "params": { "workflow": "ci-full.yml", "events": ["schedule", "workflow_dispatch"] } },
+    "facts": { "ci-run:ci-full.yml": { "value": { "runs": [ { "id": 1, "event": "push", "status": "completed", "conclusion": "success", "headSha": "0123456789abcdef0123456789abcdef01234567", "createdAt": "2026-10-19T03:00:00Z", "jobs": [ { "name": "build", "conclusion": "success" } ] } ] } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "workflow-latest passes for a recent successful run",
+    "check": { "name": "workflow-latest", "params": { "workflow": "docs.yml", "maxAgeDays": 7 } },
+    "facts": { "workflow-latest:docs.yml": { "value": { "run": { "id": 5, "conclusion": "success", "updatedAt": "2026-10-18T00:00:00Z" } } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "workflow-latest fails for an old run",
+    "check": { "name": "workflow-latest", "params": { "workflow": "docs.yml", "maxAgeDays": 7 } },
+    "facts": { "workflow-latest:docs.yml": { "value": { "run": { "id": 5, "conclusion": "success", "updatedAt": "2026-10-01T00:00:00Z" } } } },
+    "expect": "FAIL",
+    "contains": "days ago"
+  },
+  {
+    "name": "workflow-latest fails for a failed run",
+    "check": { "name": "workflow-latest", "params": { "workflow": "docs.yml", "maxAgeDays": 7 } },
+    "facts": { "workflow-latest:docs.yml": { "value": { "run": { "id": 5, "conclusion": "failure", "updatedAt": "2026-10-19T00:00:00Z" } } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "code-scanning-alerts passes with only a medium alert at the high threshold",
+    "check": { "name": "code-scanning-alerts", "params": { "minSeverity": "high" } },
+    "facts": { "code-scanning-alerts": { "value": { "alerts": [ { "number": 1, "severity": "medium" } ] } } },
+    "expect": "PASS",
+    "contains": "no open alerts at high or higher"
+  },
+  {
+    "name": "code-scanning-alerts fails on one open high alert",
+    "check": { "name": "code-scanning-alerts", "params": { "minSeverity": "high" } },
+    "facts": { "code-scanning-alerts": { "value": { "alerts": [ { "number": 2, "severity": "high" } ] } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "dependabot-alerts passes with only a low alert at the medium threshold",
+    "check": { "name": "dependabot-alerts", "params": { "minSeverity": "medium" } },
+    "facts": { "dependabot-alerts": { "value": { "alerts": [ { "number": 1, "severity": "low" } ] } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "dependabot-alerts fails on a medium alert",
+    "check": { "name": "dependabot-alerts", "params": { "minSeverity": "medium" } },
+    "facts": { "dependabot-alerts": { "value": { "alerts": [ { "number": 1, "severity": "medium" } ] } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "secret-scanning-alerts passes with no open alert",
+    "check": { "name": "secret-scanning-alerts", "params": {} },
+    "facts": { "secret-scanning-alerts": { "value": { "alerts": [] } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "secret-scanning-alerts fails with one open alert",
+    "check": { "name": "secret-scanning-alerts", "params": {} },
+    "facts": { "secret-scanning-alerts": { "value": { "alerts": [ { "number": 1, "secretType": "github_pat" } ] } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "sonar-issues passes with no high issue",
+    "check": { "name": "sonar-issues", "params": {} },
+    "facts": { "sonar-issues": { "value": { "high": 0, "medium": 4, "mediumIssues": [] } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "sonar-issues fails with one high issue",
+    "check": { "name": "sonar-issues", "params": {} },
+    "facts": { "sonar-issues": { "value": { "high": 1, "medium": 0, "mediumIssues": [] } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "issue-state passes when every listed issue is closed",
+    "kind": "issue-state",
+    "check": { "name": "issue-state", "params": { "issues": [10, 11], "require": "closed" } },
+    "facts": { "issue:10": { "value": { "state": "closed", "labels": [] } }, "issue:11": { "value": { "state": "closed", "labels": [] } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "issue-state fails when one listed issue is open",
+    "kind": "issue-state",
+    "check": { "name": "issue-state", "params": { "issues": [10, 11], "require": "closed" } },
+    "facts": { "issue:10": { "value": { "state": "closed", "labels": [] } }, "issue:11": { "value": { "state": "open", "labels": [] } } },
+    "expect": "FAIL",
+    "contains": "#11"
+  },
+  {
+    "name": "issue-state open-with-label passes for an open issue carrying the label",
+    "kind": "issue-state",
+    "check": { "name": "issue-state", "params": { "issues": [20], "require": "open-with-label", "label": "post-1.0" } },
+    "facts": { "issue:20": { "value": { "state": "open", "labels": ["post-1.0"] } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "issue-state open-with-label fails for a closed issue",
+    "kind": "issue-state",
+    "check": { "name": "issue-state", "params": { "issues": [20], "require": "open-with-label", "label": "post-1.0" } },
+    "facts": { "issue:20": { "value": { "state": "closed", "labels": ["post-1.0"] } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "bug-gate passes when every open bug is deferred with a reason comment",
+    "check": { "name": "bug-gate", "params": { "deferredLabel": "deferred-1.0", "securityLabel": "area-security" } },
+    "facts": { "open-bugs": { "value": { "issues": [ { "number": 1, "title": "[BUG] x", "comments": 1, "labels": ["bug", "deferred-1.0"] } ] } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "bug-gate passes when there is no open bug (the deferred label need not exist)",
+    "check": { "name": "bug-gate", "params": { "deferredLabel": "deferred-1.0", "securityLabel": "area-security" } },
+    "facts": { "open-bugs": { "value": { "issues": [] } } },
+    "expect": "PASS",
+    "contains": "no open bug"
+  },
+  {
+    "name": "bug-gate fails on a [BUG]-titled issue without the bug label or the deferred label (AC-011 union)",
+    "check": { "name": "bug-gate", "params": { "deferredLabel": "deferred-1.0", "securityLabel": "area-security" } },
+    "facts": { "open-bugs": { "value": { "issues": [ { "number": 2, "title": "[BUG] y", "comments": 3, "labels": ["area-testing"] } ] } } },
+    "expect": "FAIL",
+    "contains": "lacks the deferred-1.0 label"
+  },
+  {
+    "name": "bug-gate fails on a security-classified bug even when it carries the deferred label (AC-011)",
+    "check": { "name": "bug-gate", "params": { "deferredLabel": "deferred-1.0", "securityLabel": "area-security" } },
+    "facts": { "open-bugs": { "value": { "issues": [ { "number": 3, "title": "[BUG] z", "comments": 2, "labels": ["bug", "deferred-1.0", "area-security"] } ] } } },
+    "expect": "FAIL",
+    "contains": "cannot be deferred"
+  },
+  {
+    "name": "bug-gate fails on a bug tagged security in its title",
+    "check": { "name": "bug-gate", "params": { "deferredLabel": "deferred-1.0", "securityLabel": "area-security" } },
+    "facts": { "open-bugs": { "value": { "issues": [ { "number": 4, "title": "[BUG][Security] w", "comments": 2, "labels": ["bug", "deferred-1.0"] } ] } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "bug-gate fails on a deferred bug without a reason comment",
+    "check": { "name": "bug-gate", "params": { "deferredLabel": "deferred-1.0", "securityLabel": "area-security" } },
+    "facts": { "open-bugs": { "value": { "issues": [ { "number": 5, "title": "[BUG] v", "comments": 0, "labels": ["bug", "deferred-1.0"] } ] } } },
+    "expect": "FAIL",
+    "contains": "no reason comment"
+  },
+  {
+    "name": "skip-scan passes when every Skip= references an issue",
+    "check": { "name": "skip-scan", "params": {} },
+    "facts": { "skip-scan": { "value": { "total": 3, "unreferenced": [] } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "skip-scan fails on a Skip= without an issue",
+    "check": { "name": "skip-scan", "params": {} },
+    "facts": { "skip-scan": { "value": { "total": 3, "unreferenced": ["tests/A/B.cs:10"] } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "file-exists passes when the file exists",
+    "check": { "name": "file-exists", "params": { "path": "global.json" } },
+    "facts": { "file:global.json": { "value": { "exists": true } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "file-exists fails when the file is missing",
+    "check": { "name": "file-exists", "params": { "path": "global.json" } },
+    "facts": { "file:global.json": { "value": { "exists": false } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "file-exists substitutes the {version} token in the path",
+    "check": { "name": "file-exists", "params": { "path": "docs/releases/v{version}/README.md" } },
+    "facts": { "file:docs/releases/v0.14.0/README.md": { "value": { "exists": true } } },
+    "expect": "PASS",
+    "contains": "docs/releases/v0.14.0/README.md exists"
+  },
+  {
+    "name": "file-regex passes when the pattern matches",
+    "check": { "name": "file-regex", "params": { "path": "LICENSE", "pattern": "^MIT License" } },
+    "facts": { "file-regex:LICENSE|^MIT License": { "value": { "exists": true, "matched": true } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "file-regex fails when the pattern does not match",
+    "check": { "name": "file-regex", "params": { "path": "LICENSE", "pattern": "^MIT License" } },
+    "facts": { "file-regex:LICENSE|^MIT License": { "value": { "exists": true, "matched": false } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "version-props passes for a release version without a suffix",
+    "check": { "name": "version-props", "params": {} },
+    "facts": { "version-props": { "value": { "prefix": "0.14.0", "suffix": "" } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "version-props passes for a release candidate whose suffix is the prerelease label",
+    "version": "1.0.0-rc.1",
+    "check": { "name": "version-props", "params": {} },
+    "facts": { "version-props": { "value": { "prefix": "1.0.0", "suffix": "rc.1" } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "version-props fails while the dev suffix is still set",
+    "check": { "name": "version-props", "params": {} },
+    "facts": { "version-props": { "value": { "prefix": "0.14.0", "suffix": "dev" } } },
+    "expect": "FAIL",
+    "contains": "VersionSuffix"
+  },
+  {
+    "name": "changelog-section passes when the version is the dated top section and earlier minors are dated",
+    "check": { "name": "changelog-section", "params": { "fromMinor": "0.13.0" } },
+    "facts": {
+      "changelog": { "value": { "sections": [ { "version": "Unreleased", "date": null }, { "version": "0.14.0", "date": "2026-10-20" }, { "version": "0.13.0", "date": "2026-09-22" } ] } },
+      "tags": { "value": { "names": ["v0.13.0", "v0.12.0"] } }
+    },
+    "expect": "PASS"
+  },
+  {
+    "name": "changelog-section fails when the section has no date",
+    "check": { "name": "changelog-section", "params": { "fromMinor": "0.13.0" } },
+    "facts": {
+      "changelog": { "value": { "sections": [ { "version": "Unreleased", "date": null }, { "version": "0.14.0", "date": null } ] } },
+      "tags": { "value": { "names": [] } }
+    },
+    "expect": "FAIL",
+    "contains": "no date"
+  },
+  {
+    "name": "changelog-section fails when an earlier minor tag has no dated section",
+    "check": { "name": "changelog-section", "params": { "fromMinor": "0.13.0" } },
+    "facts": {
+      "changelog": { "value": { "sections": [ { "version": "0.14.0", "date": "2026-10-20" } ] } },
+      "tags": { "value": { "names": ["v0.13.0"] } }
+    },
+    "expect": "FAIL",
+    "contains": "v0.13.0"
+  },
+  {
+    "name": "public-api-unshipped-empty passes when every file is empty",
+    "check": { "name": "public-api-unshipped-empty", "params": {} },
+    "facts": { "unshipped": { "value": { "total": 90, "nonEmpty": [] } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "public-api-unshipped-empty fails on a non-empty file",
+    "check": { "name": "public-api-unshipped-empty", "params": {} },
+    "facts": { "unshipped": { "value": { "total": 90, "nonEmpty": ["src/A/PublicAPI.Unshipped.txt"] } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "pages-freshness passes inside the window",
+    "check": { "name": "pages-freshness", "params": { "site": "coverage", "maxAgeDays": 7 } },
+    "facts": { "pages:coverage": { "value": { "timestamp": "2026-10-18T03:00:00Z" } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "pages-freshness fails outside the window",
+    "check": { "name": "pages-freshness", "params": { "site": "coverage", "maxAgeDays": 7 } },
+    "facts": { "pages:coverage": { "value": { "timestamp": "2026-10-01T03:00:00Z" } } },
+    "expect": "FAIL",
+    "contains": "days old"
+  },
+  {
+    "name": "pages-freshness fails on a timestamp from the future",
+    "check": { "name": "pages-freshness", "params": { "site": "coverage", "maxAgeDays": 7 } },
+    "facts": { "pages:coverage": { "value": { "timestamp": "2026-11-01T03:00:00Z" } } },
+    "expect": "FAIL",
+    "contains": "future"
+  },
+  {
+    "name": "coverage-flags-green passes when no package is below a target",
+    "check": { "name": "coverage-flags-green", "params": {} },
+    "facts": { "coverage-flags": { "value": { "packages": 5, "failing": [] } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "coverage-flags-green fails when a package is below a target",
+    "check": { "name": "coverage-flags-green", "params": {} },
+    "facts": { "coverage-flags": { "value": { "packages": 5, "failing": [ { "package": "Encina.A", "flag": "unit", "coverage": "10", "target": "55" } ] } } },
+    "expect": "FAIL",
+    "contains": "below target"
+  },
+  {
+    "name": "branch-protection passes when every AC-020 field matches exactly",
+    "check": { "name": "branch-protection", "params": { "contexts": ["build", "ci-result", "Analyze"] } },
+    "facts": { "branch-protection": { "value": { "protection": { "enforce_admins": { "enabled": true }, "required_pull_request_reviews": { "required_approving_review_count": 0 }, "required_conversation_resolution": { "enabled": true }, "required_linear_history": { "enabled": true }, "required_status_checks": { "contexts": ["build", "ci-result", "Analyze"], "checks": [ { "context": "build" }, { "context": "ci-result" }, { "context": "Analyze" } ] } } } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "branch-protection fails on an extra required context (AC-020 exact set)",
+    "check": { "name": "branch-protection", "params": { "contexts": ["build", "ci-result", "Analyze"] } },
+    "facts": { "branch-protection": { "value": { "protection": { "enforce_admins": { "enabled": true }, "required_pull_request_reviews": { "required_approving_review_count": 0 }, "required_conversation_resolution": { "enabled": true }, "required_linear_history": { "enabled": true }, "required_status_checks": { "contexts": ["build", "ci-result", "Analyze", "extra"], "checks": [] } } } } },
+    "expect": "FAIL",
+    "contains": "expected exactly"
+  },
+  {
+    "name": "branch-protection fails when the build context is missing",
+    "check": { "name": "branch-protection", "params": { "contexts": ["build", "ci-result", "Analyze"] } },
+    "facts": { "branch-protection": { "value": { "protection": { "enforce_admins": { "enabled": true }, "required_pull_request_reviews": { "required_approving_review_count": 0 }, "required_conversation_resolution": { "enabled": true }, "required_linear_history": { "enabled": true }, "required_status_checks": { "contexts": ["ci-result", "Analyze"], "checks": [] } } } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "branch-protection fails when enforce_admins is off and a review is required",
+    "check": { "name": "branch-protection", "params": { "contexts": ["build", "ci-result", "Analyze"] } },
+    "facts": { "branch-protection": { "value": { "protection": { "enforce_admins": { "enabled": false }, "required_pull_request_reviews": { "required_approving_review_count": 1 }, "required_conversation_resolution": { "enabled": true }, "required_linear_history": { "enabled": true }, "required_status_checks": { "contexts": ["build", "ci-result", "Analyze"], "checks": [] } } } } },
+    "expect": "FAIL",
+    "contains": "enforce_admins"
+  },
+  {
+    "name": "branch-protection fails when only required_conversation_resolution is off",
+    "check": { "name": "branch-protection", "params": { "contexts": ["build", "ci-result", "Analyze"] } },
+    "facts": { "branch-protection": { "value": { "protection": { "enforce_admins": { "enabled": true }, "required_pull_request_reviews": { "required_approving_review_count": 0 }, "required_conversation_resolution": { "enabled": false }, "required_linear_history": { "enabled": true }, "required_status_checks": { "contexts": ["build", "ci-result", "Analyze"], "checks": [] } } } } },
+    "expect": "FAIL",
+    "contains": "required_conversation_resolution"
+  },
+  {
+    "name": "branch-protection fails when only required_linear_history is off",
+    "check": { "name": "branch-protection", "params": { "contexts": ["build", "ci-result", "Analyze"] } },
+    "facts": { "branch-protection": { "value": { "protection": { "enforce_admins": { "enabled": true }, "required_pull_request_reviews": { "required_approving_review_count": 0 }, "required_conversation_resolution": { "enabled": true }, "required_linear_history": { "enabled": false }, "required_status_checks": { "contexts": ["build", "ci-result", "Analyze"], "checks": [] } } } } },
+    "expect": "FAIL",
+    "contains": "required_linear_history"
+  },
+  {
+    "name": "code-scanning-alerts fails on an alert of unknown severity",
+    "check": { "name": "code-scanning-alerts", "params": { "minSeverity": "high" } },
+    "facts": { "code-scanning-alerts": { "value": { "alerts": [ { "number": 3, "severity": "unknown" } ] } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "code-scanning-alerts fails when the alerts list is absent",
+    "check": { "name": "code-scanning-alerts", "params": { "minSeverity": "high" } },
+    "facts": { "code-scanning-alerts": { "value": { } } },
+    "expect": "FAIL",
+    "contains": "no 'alerts' list"
+  },
+  {
+    "name": "fail closed: a fact with neither a value nor an error fails the item",
+    "check": { "name": "secret-scanning-alerts", "params": {} },
+    "facts": { "secret-scanning-alerts": { } },
+    "expect": "FAIL",
+    "contains": "neither a value nor an error"
+  },
+  {
+    "name": "public-api-unshipped-empty fails when the lists are absent",
+    "check": { "name": "public-api-unshipped-empty", "params": {} },
+    "facts": { "unshipped": { "value": { } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "ci-result-needs passes when ci-result needs build and every test job with if: always()",
+    "check": { "name": "ci-result-needs", "params": {} },
+    "facts": { "ci-result-needs": { "value": { "needs": ["changes", "build", "test-unit", "test-guard"], "testJobs": ["test-unit", "test-guard"], "ifAlways": true } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "ci-result-needs fails when a test job is not needed",
+    "check": { "name": "ci-result-needs", "params": {} },
+    "facts": { "ci-result-needs": { "value": { "needs": ["build", "test-unit"], "testJobs": ["test-unit", "test-guard"], "ifAlways": true } } },
+    "expect": "FAIL",
+    "contains": "test-guard"
+  },
+  {
+    "name": "spec-verified-date passes at exactly 30 days",
+    "check": { "name": "spec-verified-date", "params": { "path": "docs/spec.md", "maxAgeDays": 30 } },
+    "facts": { "spec-verified:docs/spec.md": { "value": { "date": "2026-09-20" } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "spec-verified-date fails at 31 days",
+    "check": { "name": "spec-verified-date", "params": { "path": "docs/spec.md", "maxAgeDays": 30 } },
+    "facts": { "spec-verified:docs/spec.md": { "value": { "date": "2026-09-19" } } },
+    "expect": "FAIL",
+    "contains": "31 days"
+  },
+  {
+    "name": "spec-verified-date fails when the line is absent",
+    "check": { "name": "spec-verified-date", "params": { "path": "docs/spec.md", "maxAgeDays": 30 } },
+    "facts": { "spec-verified:docs/spec.md": { "value": { "date": null } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "milestone-clean passes when every open issue is in the sign-off allow-list",
+    "check": { "name": "milestone-clean", "params": {} },
+    "facts": { "milestone:0.14.0": { "value": { "milestone": { "number": 3, "title": "v0.14.0 - Fixture" }, "open": [ { "number": 5, "title": "carried" } ] } } },
+    "signoff": "- allow-open: #5 — carried to the next block\n",
+    "expect": "PASS"
+  },
+  {
+    "name": "milestone-clean fails on an open issue outside the allow-list",
+    "check": { "name": "milestone-clean", "params": {} },
+    "facts": { "milestone:0.14.0": { "value": { "milestone": { "number": 3, "title": "v0.14.0 - Fixture" }, "open": [ { "number": 5, "title": "carried" } ] } } },
+    "expect": "FAIL",
+    "contains": "#5"
+  },
+  {
+    "name": "milestone-clean fails when no milestone matches the version",
+    "check": { "name": "milestone-clean", "params": {} },
+    "facts": { "milestone:0.14.0": { "value": { "milestone": null, "open": [] } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "nuget-listing passes when the version is listed",
+    "check": { "name": "nuget-listing", "params": { "packageId": "Encina", "pattern": "^{version}$" } },
+    "facts": { "nuget:Encina": { "value": { "versions": ["0.13.0", "0.14.0"] } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "nuget-listing fails when the version is not listed",
+    "check": { "name": "nuget-listing", "params": { "packageId": "Encina", "pattern": "^{version}$" } },
+    "facts": { "nuget:Encina": { "value": { "versions": ["0.13.0"] } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "release-asset passes when enough assets match",
+    "check": { "name": "release-asset", "params": { "namePattern": "(?i)sbom", "minCount": 1 } },
+    "facts": { "release:v0.14.0": { "value": { "exists": true, "assets": ["Encina.sbom.json"] } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "release-asset fails when no asset matches",
+    "check": { "name": "release-asset", "params": { "namePattern": "(?i)sbom", "minCount": 1 } },
+    "facts": { "release:v0.14.0": { "value": { "exists": true, "assets": [] } } },
+    "expect": "FAIL"
+  },
+  {
+    "name": "release-asset fails when the release does not exist",
+    "check": { "name": "release-asset", "params": { "namePattern": "(?i)sbom", "minCount": 0 } },
+    "facts": { "release:v0.14.0": { "value": { "exists": false, "assets": [] } } },
+    "expect": "FAIL",
+    "contains": "no GitHub Release"
+  },
+  {
+    "name": "exclusive-dirs passes when only one family exists",
+    "check": { "name": "exclusive-dirs", "params": { "globs": ["src/Encina.Secrets.*", "src/Encina.Security.Secrets.*"] } },
+    "facts": { "dirs:src/Encina.Secrets.*|src/Encina.Security.Secrets.*": { "value": { "counts": { "src/Encina.Secrets.*": 0, "src/Encina.Security.Secrets.*": 2 } } } },
+    "expect": "PASS"
+  },
+  {
+    "name": "exclusive-dirs fails when both families exist",
+    "check": { "name": "exclusive-dirs", "params": { "globs": ["src/Encina.Secrets.*", "src/Encina.Security.Secrets.*"] } },
+    "facts": { "dirs:src/Encina.Secrets.*|src/Encina.Security.Secrets.*": { "value": { "counts": { "src/Encina.Secrets.*": 1, "src/Encina.Security.Secrets.*": 2 } } } },
+    "expect": "FAIL"
+  }
+]

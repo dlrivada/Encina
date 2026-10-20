@@ -1,0 +1,16 @@
+# Fixture for the ci-result-needs collector; it is not a workflow of this repository.
+name: Fixture
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+  build:
+    needs: [changes]
+  test-unit:
+    needs: [changes, build]
+  test-guard:
+    needs: [changes, build]
+  ci-result:
+    name: ci-result
+    needs: [changes, build, test-unit, test-guard]
+    if: always()
+    runs-on: ubuntu-latest

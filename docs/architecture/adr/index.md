@@ -43,6 +43,7 @@ has_children: true
 | [034](034-crypto-shredding-through-the-stj-contract.md) | Crypto-Shredding Runs Through the System.Text.Json Contract |
 | [036](036-three-audit-stores.md) | Three Purpose-Named Audit Stores: Operation, Entity Change and Read Access |
 | [037](037-transactional-outbox.md) | The Outbox Is Written Inside the Request's Transaction, Through One Shared Transaction Lease |
+| [038](038-release-readiness-gate.md) | The Release Readiness Gate: a Registry, Three Profiles and a Fail-Closed Facts Snapshot |
 | [046](046-persistent-dead-letter-queue.md) | Persistent Dead Letter Queue: Oldest-First Contract, Idempotent Capture, Tenant Column |
 | [047](047-abac-decision-audit.md) | ABAC Decisions Are Audited Write-Ahead at the Enforcement Point, Fail-Closed |
 | [048](048-inbox-record-vs-business-transaction.md) | The Inbox Record and the Business Transaction: Enlisted and Independent Writes |
@@ -58,7 +59,6 @@ An ADR takes the next number that is neither used nor reserved. A plan or spike 
 | 032 | [retention-floor-implementation-plan-1187.md](../../plans/retention-floor-implementation-plan-1187.md) (#1187) | Retention floor and anchored periods | Reserved, ADR not written |
 | 033 | [blocked-data-state-implementation-plan-1189.md](../../plans/blocked-data-state-implementation-plan-1189.md) (#1189) | Composable row filters and blocked data state | Reserved, ADR not written |
 | 035 | [security-context-population-implementation-plan-1705.md](../../plans/security-context-population-implementation-plan-1705.md) (#1705) | One request identity model | Reserved, ADR not written |
-| 038 | [pre-release-checklist-implementation-plan-104.md](../../plans/pre-release-checklist-implementation-plan-104.md) (#104) | Release readiness gate | Reserved, ADR not written |
 | 039 | [break-the-glass-implementation-plan-1244.md](../../plans/break-the-glass-implementation-plan-1244.md) (#1244) | Break-the-glass emergency access | Reserved, ADR not written |
 | 040 | [enisa-single-entry-point-implementation-plan-812.md](../../plans/enisa-single-entry-point-implementation-plan-812.md) (#812) | Incident reporting adapters on the breach stream | Reserved, ADR not written |
 | 041 | [aiact-record-keeping-implementation-plan-842.md](../../plans/aiact-record-keeping-implementation-plan-842.md) (#842) | AI Act record-keeping log | Reserved, ADR not written |
