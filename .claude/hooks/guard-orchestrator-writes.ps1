@@ -80,6 +80,122 @@ try {
         exit 2
     }
 
+    # #2009: the literal string variables of a PowerShell command, for a script path such as `"$wt\probe.ps1"`.
+    # A variable counts only when the command assigns it exactly once, with `=`, at its top level (not inside an
+    # if, loop, try or script block), to a quoted literal without variables, before any other mention of it, and
+    # nothing else can rebind it (no Set-Variable/New-Variable family, dot-sourcing, Invoke-Expression, foreach
+    # or parameter variable, [ref], ++/--, -OutVariable family, multi or member assignment). Returns the table
+    # (name -> value) and the argument texts of every command in the call (a script path counts only when it is
+    # a command argument itself, not text inside a string a wrapper such as `pwsh -Command '...'` runs later).
+    # Any parse problem gives an empty table: the script stays unresolved and is denied as before.
+    function Get-LiteralVariableTable([string]$Command) {
+        $table = [pscustomobject]@{ Variables = @{}; Arguments = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal) }
+        try {
+            $parseErrors = $null
+            $root = [System.Management.Automation.Language.Parser]::ParseInput($Command, [ref]$null, [ref]$parseErrors)
+            if ($null -eq $root -or $parseErrors.Count -gt 0) { return $table }
+
+            function Get-VariableKey($VariableAst) {
+                $key = ([string]$VariableAst.VariablePath.UserPath) -replace '^(?i)(script|global|local|private):', ''
+                if ($key.Contains(':') -or $key -eq '') { return $null }
+                return $key.ToLowerInvariant()
+            }
+
+            $commands = @($root.FindAll({ param($a) $a -is [System.Management.Automation.Language.CommandAst] }, $true))
+            $lockedNames = 'set-variable', 'new-variable', 'sv', 'nv', 'set', 'clear-variable', 'clv', 'remove-variable', 'rv', 'invoke-expression', 'iex', 'new-psdrive'
+            foreach ($c in $commands) {
+                $commandName = [string]$c.GetCommandName()
+                if (($c.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Dot) -or ($commandName -in $lockedNames)) { return $table }
+            }
+
+            $occurrences = @{}
+            foreach ($v in @($root.FindAll({ param($a) $a -is [System.Management.Automation.Language.VariableExpressionAst] }, $true))) {
+                $key = Get-VariableKey $v
+                if ($null -eq $key) { continue }
+                if (-not $occurrences.ContainsKey($key)) { $occurrences[$key] = [System.Collections.Generic.List[object]]::new() }
+                $occurrences[$key].Add($v)
+            }
+
+            $tainted = [System.Collections.Generic.HashSet[string]]::new()
+            function Add-Taint($Ast) {
+                if ($null -eq $Ast) { return }
+                foreach ($v in @($Ast.FindAll({ param($a) $a -is [System.Management.Automation.Language.VariableExpressionAst] }, $true))) {
+                    $k = Get-VariableKey $v
+                    if ($null -ne $k) { [void]$tainted.Add($k) }
+                }
+            }
+            $assignments = [System.Collections.Generic.List[object]]::new()
+            foreach ($a in @($root.FindAll({ param($x) $x -is [System.Management.Automation.Language.AssignmentStatementAst] }, $true))) {
+                $left = $a.Left
+                while ($left -is [System.Management.Automation.Language.ConvertExpressionAst]) { $left = $left.Child }
+                if ($left -is [System.Management.Automation.Language.VariableExpressionAst]) {
+                    $key = Get-VariableKey $left
+                    if ($null -eq $key) { continue }
+                    $assignments.Add([pscustomobject]@{ Key = $key; Statement = $a; Variable = $left })
+                }
+                else { Add-Taint $a.Left }
+            }
+            foreach ($f in @($root.FindAll({ param($x) $x -is [System.Management.Automation.Language.ForEachStatementAst] }, $true))) { Add-Taint $f.Variable }
+            foreach ($p in @($root.FindAll({ param($x) $x -is [System.Management.Automation.Language.ParameterAst] }, $true))) { Add-Taint $p.Name }
+            foreach ($u in @($root.FindAll({ param($x) $x -is [System.Management.Automation.Language.UnaryExpressionAst] -and $x.TokenKind -in 'PlusPlus', 'MinusMinus', 'PostfixPlusPlus', 'PostfixMinusMinus' }, $true))) { Add-Taint $u.Child }
+            foreach ($r in @($root.FindAll({ param($x) $x -is [System.Management.Automation.Language.ConvertExpressionAst] -and $x.StaticType -eq [ref] }, $true))) { Add-Taint $r.Child }
+            foreach ($c in $commands) {
+                # -OutVariable / -ErrorVariable / ... bind the variable named by the next argument.
+                for ($i = 0; $i -lt $c.CommandElements.Count; $i++) {
+                    $e = $c.CommandElements[$i]
+                    if ($e -is [System.Management.Automation.Language.CommandParameterAst] -and $e.ParameterName -match '^(ov|ev|wv|iv|pv|outv|errorv|warningv|informationv|pipelinev)') {
+                        if ($null -ne $e.Argument) { Add-Taint $e.Argument; [void]$tainted.Add(([string]$e.Argument.Extent.Text).Trim('''"').ToLowerInvariant()) }
+                        elseif ($i + 1 -lt $c.CommandElements.Count) { [void]$tainted.Add(([string]$c.CommandElements[$i + 1].Extent.Text).Trim('''"').ToLowerInvariant()) }
+                    }
+                }
+            }
+
+            foreach ($group in ($assignments | Group-Object Key)) {
+                if ($group.Count -ne 1 -or $tainted.Contains($group.Name)) { continue }
+                $entry = $group.Group[0]
+                $statement = $entry.Statement
+                if ($statement.Operator -ne [System.Management.Automation.Language.TokenKind]::Equals) { continue }
+                if ($statement.Parent -isnot [System.Management.Automation.Language.NamedBlockAst] -or $statement.Parent.Parent -ne $root) { continue }
+                $expression = if ($statement.Right -is [System.Management.Automation.Language.CommandExpressionAst]) { $statement.Right.Expression } else { $null }
+                if ($expression -isnot [System.Management.Automation.Language.StringConstantExpressionAst] -or [string]::IsNullOrEmpty($expression.Value)) { continue }
+                $first = $occurrences[$group.Name] | Sort-Object { $_.Extent.StartOffset } | Select-Object -First 1
+                if ($first -ne $entry.Variable) { continue }
+                $table.Variables[$group.Name] = [string]$expression.Value
+            }
+
+            foreach ($c in $commands) {
+                foreach ($e in $c.CommandElements) {
+                    [void]$table.Arguments.Add([string]$e.Extent.Text)
+                    if ($e -is [System.Management.Automation.Language.StringConstantExpressionAst] -or $e -is [System.Management.Automation.Language.ExpandableStringExpressionAst]) { [void]$table.Arguments.Add([string]$e.Value) }
+                }
+            }
+        }
+        catch { $table.Variables.Clear() }
+        return $table
+    }
+
+    # The absolute path of a script launched through variables whose value is a known literal, or $null (#2009).
+    function Resolve-LiteralVariablePath($Script, $Table) {
+        if ($Table.Variables.Count -eq 0 -or -not $Table.Arguments.Contains([string]$Script.Raw)) { return $null }
+        $sb = [System.Text.StringBuilder]::new()
+        $last = 0
+        $raw = [string]$Script.Raw
+        foreach ($m in [regex]::Matches($raw, '\$(?:\{(?<n>\w+)\}|(?<n>\w+))(?![\w:])')) {
+            $name = $m.Groups['n'].Value.ToLowerInvariant()
+            if (-not $Table.Variables.ContainsKey($name)) { return $null }
+            [void]$sb.Append($raw, $last, $m.Index - $last)
+            [void]$sb.Append([string]$Table.Variables[$name])
+            $last = $m.Index + $m.Length
+        }
+        if ($last -eq 0) { return $null }
+        [void]$sb.Append($raw, $last, $raw.Length - $last)
+        $expanded = $sb.ToString()
+        $token = New-CommandToken $expanded $false $expanded.Contains('$') $expanded.Contains('$(')
+        $full = Resolve-TargetPath $token $Script.Base $false
+        if ([string]::IsNullOrEmpty($full)) { return $null }
+        return $full
+    }
+
     $cwd = if ($payload.cwd) { [string]$payload.cwd } else { (Get-Location).Path }
     $tool = [string]$payload.tool_name
 
@@ -123,11 +239,24 @@ try {
 
     # `dotnet run <file>.cs` / `pwsh -File <file>.ps1`: read the script's own text, since the analysis above
     # only sees the invoking statement, not what the launched script does (#1181).
+    $variableTable = $null
     foreach ($s in $scan.Scripts) {
+        # #2009: a script path through a variable the command itself assigns once, at its top level, to a literal
+        # (`$wt = 'D:\x'; pwsh -File "$wt\probe.ps1"`) resolves; the resolved script goes through every check
+        # below. Not when the same command writes a file whose target the hook cannot resolve (it may create the
+        # script), and not for Bash. A call through a variable that is not a .ps1 stays an executable, skipped below.
+        if ($null -eq $s.Full -and $tool -eq 'PowerShell' -and @($scan.Writes | Where-Object { $null -eq $_.Full -and -not $_.Directory }).Count -eq 0) {
+            if ($null -eq $variableTable) { $variableTable = Get-LiteralVariableTable $command }
+            $resolved = Resolve-LiteralVariablePath $s $variableTable
+            if ($null -ne $resolved) {
+                if ($s.Dynamic -and $resolved -notmatch '\.ps1$') { continue }
+                $s.Full = $resolved
+            }
+        }
         # A launch through a variable (`& $x`) is usually an executable or a script block, not a script: it is
         # unresolvable only when the same command also writes a file, which could have created the script (#1854).
         if ($null -eq $s.Full -and $s.Dynamic -and @($scan.Writes | Where-Object { $_.Content }).Count -eq 0) { continue }
-        if ($null -eq $s.Full) { Write-Block "runs '$($s.Raw)' ($($s.Kind)), whose script path the hook cannot resolve (tried '$($s.Raw)' against base '$($s.Base)'), so it cannot rule out writes to src/ or tests/; pass its literal path" }
+        if ($null -eq $s.Full) { Write-Block "runs '$($s.Raw)' ($($s.Kind)), whose script path the hook cannot resolve (tried '$($s.Raw)' against base '$($s.Base)'), so it cannot rule out writes to src/ or tests/; pass its literal path, or assign the variable to a literal earlier in the same command (once, at the top level, e.g. `$wt = 'D:\path'; pwsh -File `"`$wt\script.ps1`")" }
         # What this same command writes to the script (a script created or overwritten before it runs). The
         # hook trusts only text it can read in the command: a quoted or here-string literal written by
         # Set-Content/Add-Content/Out-File/Tee-Object/New-Item -Value, a literal piped into them, or

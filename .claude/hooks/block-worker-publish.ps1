@@ -44,7 +44,7 @@ try {
     # Anything not listed here — 'push' above all, but also 'send-pack', 'http-push', an alias standing in
     # for either, or any other subcommand — is blocked. Tags are local; 'push' remains the only publish path.
     $allowedGitSubcommands = @(
-        'add', 'am', 'apply', 'bisect', 'blame', 'branch', 'cat-file', 'check-ignore', 'checkout', 'cherry-pick',
+        'add', 'am', 'apply', 'archive', 'bisect', 'blame', 'branch', 'cat-file', 'check-ignore', 'checkout', 'cherry-pick',
         'clean', 'clone', 'commit', 'config', 'describe', 'diff', 'fetch', 'format-patch', 'grep', 'init', 'log',
         'ls-files', 'ls-remote', 'ls-tree', 'merge', 'merge-base', 'mv', 'notes', 'pull', 'rebase', 'reflog',
         'remote', 'reset', 'restore', 'rev-list', 'rev-parse', 'revert', 'rm', 'shortlog', 'show', 'show-ref',
@@ -58,20 +58,28 @@ try {
         if ($k -ge 0 -and (Get-ExecutableName $tokens[$k].Value) -eq 'git') {
             $j = $k + 1
             $definesAlias = $false
+            $definesTarProgram = $false
             while ($j -lt $tokens.Count -and -not $tokens[$j].Quoted -and $tokens[$j].Value.StartsWith('-')) {
                 $opt = $tokens[$j].Value
                 if ($opt -ceq '-C' -and $j + 1 -lt $tokens.Count) { $j += 2; continue }
                 if ($opt -ceq '-c' -and $j + 1 -lt $tokens.Count) {
                     if (-not $tokens[$j + 1].Dynamic -and $tokens[$j + 1].Value -match '^alias\.') { $definesAlias = $true }
+                    if ($tokens[$j + 1].Value -match '^(?i)tar\.') { $definesTarProgram = $true }
                     $j += 2
                     continue
                 }
+                if ($opt -match '^--config-env(=|$)' -and ($opt -match '^--config-env=(?i)tar\.' -or ($opt -ceq '--config-env' -and $j + 1 -lt $tokens.Count -and $tokens[$j + 1].Value -match '^(?i)tar\.'))) { $definesTarProgram = $true }
                 if ($opt -in '--git-dir', '--work-tree', '--namespace', '--exec-path' -and -not $opt.Contains('=')) { $j += 2; continue }
                 $j++
             }
 
             if ($definesAlias) {
                 [Console]::Error.WriteLine("Blocked: $who never defines a git alias (see .claude/agents/issue-worker.md, Protocol). An alias could stand in for a blocked subcommand such as 'push'; the orchestrator handles publishing.")
+                exit 2
+            }
+
+            if ($definesTarProgram) {
+                [Console]::Error.WriteLine("Blocked: $who never sets a git 'tar.*' configuration (see .claude/agents/issue-worker.md, Protocol). 'tar.<format>.command' names a program that 'git archive' runs, so it could run any command; use a built-in archive format.")
                 exit 2
             }
 
@@ -84,7 +92,29 @@ try {
                         [Console]::Error.WriteLine("Blocked: $who never defines a git alias with 'git config' (see .claude/agents/issue-worker.md, Protocol). An alias could stand in for a blocked subcommand such as 'push'; the orchestrator handles publishing.")
                         exit 2
                     }
+                    if ($tokens[$m].Value -match '^(?i)tar\.') {
+                        [Console]::Error.WriteLine("Blocked: $who never sets a git 'tar.*' configuration with 'git config' (see .claude/agents/issue-worker.md, Protocol). 'tar.<format>.command' names a program that 'git archive' runs, so it could run any command; use a built-in archive format.")
+                        exit 2
+                    }
                     break
+                }
+            }
+
+            # git archive --remote contacts another repository, --exec runs a program there: both leave the
+            # local, read-only use that justifies the verb (#2009). Options may follow the tree-ish, so every token
+            # before `--` is read; git accepts any unambiguous prefix of a long option (--rem, --ex), and the
+            # quotes around an option do not change what git sees.
+            if ($verb -ceq 'archive') {
+                foreach ($tok in @($tokens | Select-Object -Skip ($j + 1))) {
+                    if ($tok.Value -eq '--') { break }
+                    if (-not $tok.Value.StartsWith('--')) { continue }
+                    $optionName = $tok.Value.Substring(2)
+                    $equals = $optionName.IndexOf('=')
+                    if ($equals -ge 0) { $optionName = $optionName.Substring(0, $equals) }
+                    if ($optionName.Length -ge 1 -and ('remote'.StartsWith($optionName, [StringComparison]::Ordinal) -or 'exec'.StartsWith($optionName, [StringComparison]::Ordinal))) {
+                        [Console]::Error.WriteLine("Blocked: $who never runs 'git archive' with --remote or --exec ('$($tok.Value)'): they contact another repository or run a program there (see .claude/agents/issue-worker.md, Protocol). Archive the local tree to stdout or with --output to a scratch path.")
+                        exit 2
+                    }
                 }
             }
 

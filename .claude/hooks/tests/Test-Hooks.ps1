@@ -333,7 +333,25 @@ $cases = @(
     @($publish, 'PowerShell', 'pwsh -NoProfile -Command "git push origin x"', 2, 'git push inside pwsh -Command'),
     @($publish, 'PowerShell', 'powershell -c "git -C x push"', 2, 'git push inside powershell -c'),
     @($publish, 'Bash', "bash -lc 'git push'", 2, 'git push inside bash -lc'),
-    @($publish, 'PowerShell', 'pwsh -Command "git status"', 0, 'git status inside pwsh -Command is allowed')
+    @($publish, 'PowerShell', 'pwsh -Command "git status"', 0, 'git status inside pwsh -Command is allowed'),
+    # #2009 item 4: git archive is a local, read-only verb; --remote, --exec and a tar program stay denied.
+    @($publish, 'PowerShell', 'git archive --format zip HEAD', 0, 'git archive to stdout is allowed (#2009)'),
+    @($publish, 'PowerShell', 'git archive HEAD | Out-Null', 0, 'git archive piped is allowed (#2009)'),
+    @($publish, 'PowerShell', 'git archive --output=a.zip --format=zip HEAD -- src', 0, 'git archive --output=<file> is allowed here (ownership judges the path) (#2009)'),
+    @($publish, 'PowerShell', 'git -C D:\x archive -o a.zip HEAD', 0, 'git -C dir archive -o is allowed here (#2009)'),
+    @($publish, 'PowerShell', 'git archive --remote=origin HEAD', 2, 'git archive --remote= is denied (#2009)'),
+    @($publish, 'PowerShell', 'git archive --remote origin HEAD', 2, 'git archive --remote <url> is denied (#2009)'),
+    @($publish, 'PowerShell', 'git archive HEAD --remote=origin', 2, 'git archive with --remote after the tree-ish is denied (#2009)'),
+    @($publish, 'PowerShell', 'git archive --exec=/bin/x --remote=origin HEAD', 2, 'git archive --exec= is denied (#2009)'),
+    @($publish, 'PowerShell', 'git archive --exec evil HEAD', 2, 'git archive --exec <program> is denied (#2009)'),
+    @($publish, 'PowerShell', 'git archive --rem=origin HEAD', 2, 'git archive --rem= (abbreviated --remote) is denied (#2009)'),
+    @($publish, 'PowerShell', 'git archive --ex=evil HEAD', 2, 'git archive --ex= (abbreviated --exec) is denied (#2009)'),
+    @($publish, 'PowerShell', 'git archive "--remote=origin" HEAD', 2, 'git archive with a quoted --remote is denied (#2009)'),
+    @($publish, 'PowerShell', 'git -c tar.x.command=evil archive --format x HEAD', 2, 'git -c tar.*.command archive is denied (#2009)'),
+    @($publish, 'PowerShell', 'git -c TAR.x.command=evil archive HEAD', 2, 'git -c TAR.* (case-insensitive) is denied (#2009)'),
+    @($publish, 'PowerShell', 'git config tar.x.command evil', 2, 'git config tar.*.command is denied (#2009)'),
+    @($publish, 'PowerShell', 'git push', 2, 'git push is still denied next to archive (#2009)'),
+    @($publish, 'PowerShell', 'git archive HEAD; git push origin x', 2, 'git push after git archive is denied (#2009)')
 )
 
 # -Agent argument, payload agent_type, subagent_type, expected, label
@@ -466,6 +484,17 @@ $writeCases = @(
     @('PowerShell', @{ command = 'Get-Content a.txt >>b.txt' }, $main, 2, '>> attached redirection in the main checkout'),
     @('PowerShell', @{ command = "Get-Content a.txt > '$outside\b.txt'" }, $main, 0, 'redirection outside the project'),
     @('PowerShell', @{ command = 'git status 2>&1; Get-ChildItem > $null' }, $main, 0, '2>&1 and > $null are not writes'),
+    # #2009: only `&<digits>` and `&-` are stream merges; `>&file` / `&>file` write the file.
+    @('PowerShell', @{ command = 'git status >&2; git status 2>&1 >&2; Get-ChildItem *>&1; git status >&-' }, $main, 0, 'stream merges 2>&1, >&2, *>&1 and >&- are not writes (#2009)'),
+    @('PowerShell', @{ command = 'Get-Content a.txt >&b.txt' }, $main, 2, '>&file is a write to file in the main checkout (#2009)'),
+    @('PowerShell', @{ command = 'Get-Content a.txt >& b.txt' }, $main, 2, '>& file (target in the next token) is a write in the main checkout (#2009)'),
+    @('Bash', @{ command = 'echo x &>notes.txt' }, $main, 2, 'Bash &>file is a write in the main checkout (#2009)'),
+    @('Bash', @{ command = 'echo x &> notes.txt' }, $main, 2, 'Bash &> file is a write in the main checkout (#2009)'),
+    @('Bash', @{ command = 'echo x &>/dev/null; echo y >&2' }, $main, 0, 'Bash &>/dev/null and >&2 are not writes (#2009)'),
+    @('PowerShell', @{ command = 'git archive --output=a.zip HEAD' }, $main, 2, 'git archive --output into the main checkout (#2009)'),
+    @('PowerShell', @{ command = 'git archive -o a.zip HEAD' }, $main, 2, 'git archive -o into the main checkout (#2009)'),
+    @('PowerShell', @{ command = 'git archive HEAD | Out-Null' }, $main, 0, 'git archive to stdout is not a write (#2009)'),
+    @('PowerShell', @{ command = "git archive --output '$outside\a.zip' HEAD" }, $main, 0, 'git archive --output outside the project (#2009)'),
     @('PowerShell', @{ command = "Copy-Item '$outside\a.txt' docs\a.txt" }, $main, 2, 'Copy-Item into the main checkout'),
     @('PowerShell', @{ command = "Copy-Item docs\a.txt '$outside\a.txt'" }, $main, 0, 'Copy-Item out of the main checkout'),
     @('PowerShell', @{ command = "Move-Item -Path '$wt\a.txt' -Destination '$main\a.txt'" }, $wt, 2, 'Move-Item -Destination into the main checkout'),
@@ -593,6 +622,10 @@ $writeCases = @(
 
 # tool, command, expected, label (block-prohibited-commands.ps1)
 $commandCases = @(
+    # #2009 item 2: "on system path ... is blocked" is Claude Code's built-in check, not this hook: a regex with
+    # `\.` in a Select-String call passes here, a real prohibited command still does not.
+    @('PowerShell', 'Select-String -Pattern ''\.Compile\('' -InputObject $text', 0, 'Select-String with a regex fragment is not blocked by this hook (#2009 item 2)'),
+    @('PowerShell', 'Select-String -Pattern ''\.Compile\('' -InputObject $text; python x.py', 2, 'a python call next to that Select-String is still blocked (#2009 item 2)'),
     @('PowerShell', 'grep -r foo src', 2, 'grep'),
     @('PowerShell', 'python script.py', 2, 'python'),
     @('PowerShell', 'python3 -c "print(1)"', 2, 'python3'),
@@ -898,6 +931,19 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "Get-Content x.patch | git -C '$wt' apply" }, $main, $null, 2, 'main session: git apply from stdin'),
     @('PowerShell', @{ command = "git -C '$wt' am '$srcPatch'" }, $main, $null, 2, 'main session: git am of a patch that changes src'),
     @('PowerShell', @{ command = "git -C '$wt' rebase origin/main" }, $main, $null, 0, 'main session: git rebase is allowed'),
+    # #2009 item 1: a redirection token is not a pathspec (the orchestrator's `git checkout main 2>$null`).
+    @('PowerShell', @{ command = 'git checkout main 2>$null' }, $wt, $null, 0, 'main session: git checkout <branch> 2>$null (#2009)'),
+    @('PowerShell', @{ command = 'git checkout main 2>&1' }, $wt, $null, 0, 'main session: git checkout <branch> 2>&1 (#2009)'),
+    @('PowerShell', @{ command = 'git checkout main *>&1' }, $wt, $null, 0, 'main session: git checkout <branch> *>&1 (#2009)'),
+    @('PowerShell', @{ command = 'git checkout main > $null' }, $wt, $null, 0, 'main session: git checkout <branch> > $null (#2009)'),
+    @('PowerShell', @{ command = 'git checkout main 2>$null' }, $wt, 'a1b2', 0, 'general-purpose subagent: git checkout <branch> 2>$null (#2009)', 'general-purpose'),
+    @('PowerShell', @{ command = 'git checkout main -- tests\x.cs' }, $wt, $null, 2, 'main session: git checkout <rev> -- tests path is still denied (#2009)'),
+    @('PowerShell', @{ command = 'git checkout main -- tests\x.cs 2>$null' }, $wt, $null, 2, 'main session: a real pathspec next to 2>$null is still denied (#2009)'),
+    @('PowerShell', @{ command = 'git checkout main src\x.cs 2>&1' }, $wt, $null, 2, 'main session: git checkout <rev> <path> 2>&1 is still denied (#2009)'),
+    @('PowerShell', @{ command = 'git diff 2>&1 > src\x.txt' }, $wt, $null, 2, 'main session: 2>&1 followed by a redirect into src is still denied (#2009)'),
+    @('PowerShell', @{ command = 'git diff >&src\x.txt' }, $wt, $null, 2, 'main session: >&file into src is denied (#2009)'),
+    @('Bash', @{ command = 'git diff &>src/x.txt' }, $wt, $null, 2, 'main session: Bash &>file into src is denied (#2009)'),
+    @('PowerShell', @{ command = "git diff main > '$outside\d.diff'" }, $wt, $null, 0, 'main session: a scratch redirect outside the repository (#2009)'),
     @('PowerShell', @{ command = "Invoke-WebRequest https://example.com/x -OutFile '$wt\src\x.cs'" }, $main, $null, 2, 'main session: Invoke-WebRequest -OutFile into src'),
     @('PowerShell', @{ command = "Invoke-RestMethod https://example.com/x -OutFile '$outside\x.json'" }, $main, $null, 0, 'main session: Invoke-RestMethod -OutFile outside'),
     @('PowerShell', @{ command = "Expand-Archive '$outside\a.zip' -DestinationPath '$wt'" }, $main, $null, 2, 'main session: Expand-Archive into a checkout root'),
@@ -1276,6 +1322,40 @@ try {
         # pr-reviewer directly, the same way the stage-agent cases above do.
         @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\src\Encina\X.cs' -Value 'fabricated'", 2, 'shell vector (#1447): pr-reviewer shell write outside artifacts/pr-review is denied'),
         @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\pr-review\1447.md' -Value 'ok'", 0, 'shell vector (#1447): pr-reviewer shell write to its own artifacts/pr-review is allowed'),
+        # #2009 item 1: a redirection token is not a pathspec; real pathspecs and real redirections still count.
+        @('pr-reviewer', 'PowerShell', 'git checkout main 2>&1', 0, 'redirect (#2009): git checkout <branch> 2>&1 is allowed for pr-reviewer'),
+        @('pr-reviewer', 'PowerShell', 'git checkout main 2>$null', 0, 'redirect (#2009): git checkout <branch> 2>$null is allowed for pr-reviewer'),
+        @('pr-reviewer', 'PowerShell', 'git checkout main *>&1', 0, 'redirect (#2009): git checkout <branch> *>&1 is allowed for pr-reviewer'),
+        @('pr-reviewer', 'PowerShell', 'git checkout main >&2', 0, 'redirect (#2009): git checkout <branch> >&2 is allowed for pr-reviewer'),
+        @('pr-reviewer', 'PowerShell', 'git checkout main > $null', 0, 'redirect (#2009): git checkout <branch> > $null is allowed for pr-reviewer'),
+        @('pr-reviewer', 'PowerShell', "git diff main > '$outside\d.diff'", 0, 'redirect (#2009): a scratch redirect of git diff outside the repository is allowed'),
+        @('pr-reviewer', 'PowerShell', "git diff main 2>&1 > '$outside\d.diff'", 0, 'redirect (#2009): 2>&1 plus a scratch redirect outside the repository is allowed'),
+        @('pr-reviewer', 'PowerShell', 'git checkout main src\x.cs', 2, 'redirect (#2009): git checkout <rev> <path> in src is still denied'),
+        @('pr-reviewer', 'PowerShell', 'git checkout main src\x.cs 2>&1', 2, 'redirect (#2009): a real pathspec next to 2>&1 is still denied'),
+        @('pr-reviewer', 'PowerShell', 'git restore src\x.cs 2>$null', 2, 'redirect (#2009): git restore <path> next to 2>$null is still denied'),
+        @('pr-reviewer', 'PowerShell', 'git diff 2>&1 > src\x.txt', 2, 'redirect (#2009): 2>&1 followed by a redirect into the repository is still denied'),
+        @('pr-reviewer', 'PowerShell', 'git diff > src\x.txt', 2, 'redirect (#2009): a redirect into the repository is still denied'),
+        @('pr-reviewer', 'PowerShell', 'git checkout main > src\x.txt', 2, 'redirect (#2009): git checkout <branch> > repo file is denied through the redirect'),
+        @('pr-reviewer', 'PowerShell', 'git diff >&src\x.txt', 2, 'redirect (#2009): >&file is a write to file, denied'),
+        @('pr-reviewer', 'PowerShell', 'git diff >& src\x.txt', 2, 'redirect (#2009): >& file (target in the next token) is denied'),
+        @('pr-reviewer', 'Bash', 'git diff &>src/x.txt', 2, 'redirect (#2009): Bash &>file is a write to file, denied'),
+        @('pr-reviewer', 'Bash', 'git diff &> src/x.txt', 2, 'redirect (#2009): Bash &> file is denied'),
+        @('pr-reviewer', 'Bash', 'git diff &>/dev/null', 0, 'redirect (#2009): Bash &>/dev/null is not a write'),
+        # #2009 item 4: git archive --output is a write to that path.
+        @('pr-reviewer', 'PowerShell', 'git archive --format zip HEAD', 0, 'archive (#2009): git archive to stdout is allowed'),
+        @('pr-reviewer', 'PowerShell', 'git archive HEAD | Out-Null', 0, 'archive (#2009): git archive piped is allowed'),
+        @('pr-reviewer', 'PowerShell', "git archive --output '$outside\a.zip' HEAD", 0, 'archive (#2009): --output outside the repository is allowed'),
+        @('pr-reviewer', 'PowerShell', "git archive --output='$outside\a.zip' HEAD", 0, 'archive (#2009): --output=<outside path> is allowed'),
+        @('pr-reviewer', 'PowerShell', "git archive -o '$outside\a.zip' HEAD", 0, 'archive (#2009): -o <outside path> is allowed'),
+        @('pr-reviewer', 'PowerShell', 'git archive --output src\a.zip HEAD', 2, 'archive (#2009): --output into the repository is denied'),
+        @('pr-reviewer', 'PowerShell', 'git archive --output=src\a.zip HEAD', 2, 'archive (#2009): --output=<repo path> is denied'),
+        @('pr-reviewer', 'PowerShell', 'git archive --out src\a.zip HEAD', 2, 'archive (#2009): --out (abbreviated --output) into the repository is denied'),
+        @('pr-reviewer', 'PowerShell', 'git archive --o=src\a.zip HEAD', 2, 'archive (#2009): --o= into the repository is denied'),
+        @('pr-reviewer', 'PowerShell', 'git archive -o src\a.zip HEAD', 2, 'archive (#2009): -o <repo path> is denied'),
+        @('pr-reviewer', 'PowerShell', 'git archive -osrc\a.zip HEAD', 2, 'archive (#2009): -o<repo path> attached is denied'),
+        @('pr-reviewer', 'PowerShell', 'git archive HEAD -o src\a.zip', 2, 'archive (#2009): -o after the tree-ish is denied'),
+        @('pr-reviewer', 'PowerShell', 'git archive HEAD > src\a.zip', 2, 'archive (#2009): a redirect of archive into the repository is denied'),
+        @('pr-reviewer', 'PowerShell', "git -C '$wt' archive --output docs\a.zip HEAD", 2, 'archive (#2009): git -C <repo> --output into the repository is denied'),
         # #1523: the coverage-scratch allowance is checked through the same Test-PathOwnership path for a shell
         # write as for a Write/Edit tool call, so redirection into artifacts/audit/coverage behaves the same as
         # the direct Write case above (allowed for test-auditor/audit-verifier, denied for anyone else).
@@ -4711,6 +4791,46 @@ The fluent builder chain described in the documentation is fictional. The parame
             @("`$sb={ 1 }; & `$sb", 'a call through a variable holding a script block'))) {
         Invoke-Probe1854 'adversarial-reviewer' $case[0] 0 "adversarial-reviewer: $($case[1]) is allowed (#1854 review)"
     }
+    # ---- #2009 item 3: a script path through a variable that the same command assigns once, at its top level,
+    # to a literal resolves and is judged like a literal path; every other variable path stays unresolved. ----
+    $wordingPattern2009 = 'cannot resolve \(tried .*against base .*assign the variable to a literal earlier in the same command'
+    foreach ($case in @(
+            @("`$wt = '$s'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'pwsh -File through a literal-assigned variable (double-quoted path)'),
+            @("`$wt = '$s'; pwsh -NoProfile -File `$wt\benign.ps1", 'pwsh -File through a literal-assigned variable (bare path)'),
+            @("`$wt = '$s'; pwsh -NoProfile -File `"`${wt}\benign.ps1`"", 'pwsh -File through a braced variable'),
+            @("`$wt = `"$s`"; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a double-quoted literal without variables'),
+            @("[string]`$wt = '$s'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a typed assignment'),
+            @("`$wt = '$s'; & `"`$wt\benign.ps1`"", 'the call operator through a literal-assigned variable'),
+            @("`$p = '$s\benign.ps1'; & `$p", 'a call through a variable holding the script path'),
+            @("`$wt = '$s'; Set-Location `$wt; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a second use of the same variable'))) {
+        Invoke-Probe1854 'adversarial-reviewer' $case[0] 0 "adversarial-reviewer: $($case[1]) is allowed (#2009)"
+        Invoke-Probe1854 'pr-reviewer' $case[0] 0 "pr-reviewer: $($case[1]) is allowed (#2009)"
+    }
+    Invoke-Probe1854 'adversarial-reviewer' "`$wt = '$s'; pwsh -NoProfile -File `"`$wt\evil.ps1`"" 2 'adversarial-reviewer: a resolved variable path to a script that references src/ and writes files is blocked (#2009)' 'evil\.ps1.* which references src/ or tests/ and writes files'
+    Invoke-Probe1854 'pr-reviewer' "`$wt = '$s'; & `"`$wt\evil.ps1`"" 2 'pr-reviewer: the call operator through a resolved variable to a harmful script is blocked (#2009)' 'references src/ or tests/ and writes files'
+    Invoke-Probe1854 'adversarial-reviewer' "`$wt = '$s'; pwsh -NoProfile -File `"`$wt\missing.ps1`"" 2 'adversarial-reviewer: a resolved variable path to a missing script is blocked (#2009)' 'which does not exist'
+    foreach ($case in @(
+            @("`$wt = '$s'; `$wt = 'C:\other'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable assigned twice'),
+            @("`$wt = '$s'; `$wt += '\x'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable extended with +='),
+            @("`$wt = '$s'; `$wt++; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable incremented'),
+            @("pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable from another call'),
+            @("pwsh -NoProfile -File `"`$wt\benign.ps1`"; `$wt = '$s'", 'a variable used before it is assigned'),
+            @("`$wt = '$s'; pwsh -NoProfile -File `"`$wt\`$other.ps1`"", 'a path with a second unresolved variable'),
+            @("`$wt = '$s'; pwsh -NoProfile -File `"`$wt\`$env:NOPE_2009.ps1`"", 'a path with a second variable the hook does not know'),
+            @("if (`$true) { `$wt = '$s' }; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'an assignment inside an if'),
+            @("foreach (`$i in 1) { `$wt = '$s' }; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'an assignment inside a loop'),
+            @("`$run = { `$wt = '$s' }; & `$run; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'an assignment inside a script block'),
+            @("`$wt = '$s'; Set-Variable wt 'C:\other'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable rebound with Set-Variable'),
+            @("`$wt = '$s'; Get-Item . -OutVariable wt; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable rebound with -OutVariable'),
+            @("`$wt = '$s'; foreach (`$wt in 1) { }; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable rebound by a foreach'),
+            @("`$wt = '$s'; . '$s\benign2.ps1'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a dot-sourced script that could rebind the variable'),
+            @("`$wt = Get-Location; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable assigned from a command'),
+            @("`$wt = `"`$env:TEMP`"; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable assigned from an expandable string'),
+            @("`$wt = '$s'; pwsh -NoProfile -Command 'pwsh -NoProfile -File `$wt\benign.ps1'", 'a path inside a single-quoted wrapper string'),
+            @("`$wt = '$s'; Set-Content `$other x; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a write the hook cannot resolve next to the launch'))) {
+        Invoke-Probe1854 'adversarial-reviewer' $case[0] 2 "adversarial-reviewer: $($case[1]) stays unresolved and blocked, naming the workaround (#2009)" $wordingPattern2009
+    }
+    Invoke-Probe1854 'pr-reviewer' "pwsh -NoProfile -File `"`$wt\benign.ps1`"" 2 'pr-reviewer: an unassigned variable path is blocked with the workaround in the message (#2009)' $wordingPattern2009
     Remove-Item -LiteralPath $scratch1854 -Recurse -Force -ErrorAction SilentlyContinue
     # ---- end #1854 block ----
 
