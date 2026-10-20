@@ -39,10 +39,10 @@ public class DefaultAIActComplianceValidatorTests
             _classifier, _registry, _oversightEnforcer, _timeProvider);
     }
 
-    // -- Unregistered systems --
+    // -- No resolvable system id (unchanged behaviour, tracked in #2512) --
 
     [Fact]
-    public async Task ValidateAsync_UnregisteredSystem_ShouldReturnMinimalRisk()
+    public async Task ValidateAsync_NoSystemIdAndNoAttribute_ShouldReturnMinimalRiskWithoutViolations()
     {
         // Arrange
         var request = new SampleNoAttributeRequest();
@@ -58,8 +58,10 @@ public class DefaultAIActComplianceValidatorTests
         compliance.Violations.ShouldBeEmpty();
     }
 
+    // -- Unregistered systems (#2388) --
+
     [Fact]
-    public async Task ValidateAsync_ExplicitSystemId_NotRegistered_ShouldReturnMinimalRisk()
+    public async Task ValidateAsync_ExplicitSystemId_NotRegistered_ShouldReturnHighRiskWithOneViolation()
     {
         // Arrange
         var request = new SampleNoAttributeRequest();
@@ -70,7 +72,76 @@ public class DefaultAIActComplianceValidatorTests
         // Assert
         result.IsRight.ShouldBeTrue();
         var compliance = (AIActComplianceResult)result;
-        compliance.RiskLevel.ShouldBe(AIRiskLevel.MinimalRisk);
+        compliance.SystemId.ShouldBe("unknown-system");
+        compliance.RiskLevel.ShouldBe(AIRiskLevel.HighRisk);
+        compliance.IsProhibited.ShouldBeFalse();
+        compliance.RequiresHumanOversight.ShouldBeTrue();
+        compliance.RequiresTransparency.ShouldBeTrue();
+        compliance.EvaluatedAtUtc.ShouldBe(_timeProvider.GetUtcNow());
+        var violation = compliance.Violations.ShouldHaveSingleItem();
+        violation.ShouldContain("unknown-system");
+        violation.ShouldContain("not registered");
+        violation.ShouldContain("cannot be classified");
+        await _classifier.DidNotReceiveWithAnyArgs().EvaluateComplianceAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_HighRiskAttributeWithoutSystemId_NotRegistered_ShouldUseTypeFullNameAndReturnHighRisk()
+    {
+        // Arrange
+        var fullName = typeof(SampleHighRiskRequest).FullName!;
+
+        // Act
+        var result = await _sut.ValidateAsync(new SampleHighRiskRequest(), (string?)null);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        var compliance = (AIActComplianceResult)result;
+        compliance.SystemId.ShouldBe(fullName);
+        compliance.RiskLevel.ShouldBe(AIRiskLevel.HighRisk);
+        compliance.Violations.ShouldHaveSingleItem().ShouldContain(fullName);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_HighRiskAttributeWithSystemId_NotRegistered_ShouldReturnHighRiskWithAttributeId()
+    {
+        // Act
+        var result = await _sut.ValidateAsync(new SampleHighRiskWithIdRequest(), (string?)null);
+
+        // Assert
+        var compliance = (AIActComplianceResult)result;
+        compliance.SystemId.ShouldBe("cv-screener");
+        compliance.RiskLevel.ShouldBe(AIRiskLevel.HighRisk);
+        compliance.Violations.ShouldHaveSingleItem().ShouldContain("cv-screener");
+    }
+
+    [Fact]
+    public async Task ValidateAsync_RegisteredSystemWithNoViolations_ShouldNotAddUnregisteredViolation()
+    {
+        // Arrange
+        _registry.IsRegistered("known-system").Returns(true);
+        var classified = new AIActComplianceResult
+        {
+            SystemId = "known-system",
+            RiskLevel = AIRiskLevel.LimitedRisk,
+            IsProhibited = false,
+            RequiresHumanOversight = false,
+            RequiresTransparency = false,
+            EvaluatedAtUtc = _timeProvider.GetUtcNow()
+        };
+
+#pragma warning disable CA2012 // NSubstitute internally manages ValueTask lifecycle
+        _classifier.EvaluateComplianceAsync("known-system", Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Right<EncinaError, AIActComplianceResult>(classified)));
+#pragma warning restore CA2012
+
+        // Act
+        var result = await _sut.ValidateAsync(new SampleNoAttributeRequest(), "known-system");
+
+        // Assert
+        var compliance = (AIActComplianceResult)result;
+        compliance.RiskLevel.ShouldBe(AIRiskLevel.LimitedRisk);
+        compliance.Violations.ShouldBeEmpty();
     }
 
     // -- Registered system --

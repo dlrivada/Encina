@@ -176,7 +176,118 @@ public class AIActCompliancePipelineBehaviorTests
             .ParamName.ShouldBe("request");
     }
 
+    // -- Unregistered system with the real validator (#2388) --
+
+    [Fact]
+    public async Task Handle_UnregisteredSystem_BlockMode_ShouldDenyAndNotCallHandler()
+    {
+        // Arrange
+        var behavior = CreateRealValidatorBehavior<SampleHighRiskRequest>(AIActEnforcementMode.Block, registered: false);
+        var handlerCalls = 0;
+
+        // Act
+        var result = await behavior.Handle(
+            new SampleHighRiskRequest(), RequestContext.CreateForTest(), CountingNext(() => handlerCalls++), CancellationToken.None);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        var error = (EncinaError)result;
+        error.GetCode().IfNone(string.Empty).ShouldBe(AIActErrors.ComplianceValidationFailedCode);
+        handlerCalls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Handle_UnregisteredSystem_WarnMode_ShouldCallHandler()
+    {
+        // Arrange
+        var behavior = CreateRealValidatorBehavior<SampleHighRiskRequest>(AIActEnforcementMode.Warn, registered: false);
+        var handlerCalls = 0;
+
+        // Act
+        var result = await behavior.Handle(
+            new SampleHighRiskRequest(), RequestContext.CreateForTest(), CountingNext(() => handlerCalls++), CancellationToken.None);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        handlerCalls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Handle_UnregisteredSystem_DisabledMode_ShouldCallHandlerWithoutValidating()
+    {
+        // Arrange
+        var behavior = CreateRealValidatorBehavior<SampleHighRiskRequest>(AIActEnforcementMode.Disabled, registered: false);
+        var handlerCalls = 0;
+
+        // Act
+        var result = await behavior.Handle(
+            new SampleHighRiskRequest(), RequestContext.CreateForTest(), CountingNext(() => handlerCalls++), CancellationToken.None);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        handlerCalls.ShouldBe(1);
+        _registryForReal.DidNotReceiveWithAnyArgs().IsRegistered(default!);
+    }
+
+    [Fact]
+    public async Task Handle_RegisteredSystem_BlockMode_ShouldGoThroughClassifierAndProceed()
+    {
+        // Arrange
+        var behavior = CreateRealValidatorBehavior<SampleHighRiskWithIdRequest>(AIActEnforcementMode.Block, registered: true);
+        var handlerCalls = 0;
+
+        // Act
+        var result = await behavior.Handle(
+            new SampleHighRiskWithIdRequest(), RequestContext.CreateForTest(), CountingNext(() => handlerCalls++), CancellationToken.None);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        handlerCalls.ShouldBe(1);
+        await _classifierForReal.Received(1).EvaluateComplianceAsync("cv-screener", Arg.Any<CancellationToken>());
+    }
+
     // -- Helpers --
+
+    private readonly IAISystemRegistry _registryForReal = Substitute.For<IAISystemRegistry>();
+    private readonly IAIActClassifier _classifierForReal = Substitute.For<IAIActClassifier>();
+
+    private static RequestHandlerCallback<Unit> CountingNext(Action onCall) =>
+        () =>
+        {
+            onCall();
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+        };
+
+    private AIActCompliancePipelineBehavior<TRequest, Unit> CreateRealValidatorBehavior<TRequest>(
+        AIActEnforcementMode mode, bool registered)
+        where TRequest : IRequest<Unit>
+    {
+        _registryForReal.IsRegistered(Arg.Any<string>()).Returns(registered);
+
+#pragma warning disable CA2012 // NSubstitute internally manages ValueTask lifecycle
+        _classifierForReal.EvaluateComplianceAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(call => ValueTask.FromResult(Right<EncinaError, AIActComplianceResult>(new AIActComplianceResult
+            {
+                SystemId = call.Arg<string>(),
+                RiskLevel = AIRiskLevel.LimitedRisk,
+                IsProhibited = false,
+                RequiresHumanOversight = false,
+                RequiresTransparency = false,
+                EvaluatedAtUtc = DateTimeOffset.UnixEpoch
+            })));
+
+        var enforcer = Substitute.For<IHumanOversightEnforcer>();
+        enforcer.RequiresHumanReviewAsync(Arg.Any<object>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Right<EncinaError, bool>(false)));
+#pragma warning restore CA2012
+
+        var realValidator = new DefaultAIActComplianceValidator(
+            _classifierForReal, _registryForReal, enforcer, TimeProvider.System);
+        var options = new AIActOptions { EnforcementMode = mode };
+        return new AIActCompliancePipelineBehavior<TRequest, Unit>(
+            realValidator, Options.Create(options),
+            new NullLogger<AIActCompliancePipelineBehavior<TRequest, Unit>>());
+    }
 
     private static RequestHandlerCallback<Unit> Next(Unit value) =>
         () => ValueTask.FromResult<Either<EncinaError, Unit>>(value);

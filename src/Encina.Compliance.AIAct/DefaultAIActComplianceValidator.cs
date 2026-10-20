@@ -27,8 +27,17 @@ namespace Encina.Compliance.AIAct;
 /// <item>Assess transparency obligations (Art. 13, Art. 50)</item>
 /// </list>
 /// <para>
-/// When no AI system is associated with the request (no attribute and no system ID),
-/// the validator returns a minimal-risk compliance result with no violations.
+/// When no AI system can be resolved for the request (no system ID and no system-ID-bearing
+/// attribute), the validator returns a minimal-risk compliance result with no violations.
+/// </para>
+/// <para>
+/// When a system ID is resolved but is not registered in <see cref="IAISystemRegistry"/>, the system
+/// cannot be classified and is treated as high risk: the result carries
+/// <see cref="AIRiskLevel.HighRisk"/>, requires human oversight and transparency, is not marked
+/// prohibited, and holds one violation naming the system. The validator itself does not enforce;
+/// the pipeline behavior denies such a request in <see cref="AIActEnforcementMode.Block"/> and logs a
+/// warning in <see cref="AIActEnforcementMode.Warn"/>, which is the explicit staged path for
+/// systems that are not registered yet.
 /// </para>
 /// </remarks>
 public sealed class DefaultAIActComplianceValidator : IAIActComplianceValidator
@@ -71,17 +80,14 @@ public sealed class DefaultAIActComplianceValidator : IAIActComplianceValidator
 
         var resolvedSystemId = ResolveSystemId<TRequest>(systemId);
 
-        if (resolvedSystemId is null || !_registry.IsRegistered(resolvedSystemId))
+        if (resolvedSystemId is null)
         {
-            return new AIActComplianceResult
-            {
-                SystemId = resolvedSystemId ?? typeof(TRequest).FullName ?? typeof(TRequest).Name,
-                RiskLevel = AIRiskLevel.MinimalRisk,
-                IsProhibited = false,
-                RequiresHumanOversight = false,
-                RequiresTransparency = false,
-                EvaluatedAtUtc = _timeProvider.GetUtcNow()
-            };
+            return NoSystemResult<TRequest>();
+        }
+
+        if (!_registry.IsRegistered(resolvedSystemId))
+        {
+            return UnregisteredSystemResult(resolvedSystemId);
         }
 
         var complianceResult = await _classifier.EvaluateComplianceAsync(resolvedSystemId, cancellationToken);
@@ -108,6 +114,27 @@ public sealed class DefaultAIActComplianceValidator : IAIActComplianceValidator
             },
             Left: error => error);
     }
+
+    private AIActComplianceResult NoSystemResult<TRequest>() => new()
+    {
+        SystemId = typeof(TRequest).FullName ?? typeof(TRequest).Name,
+        RiskLevel = AIRiskLevel.MinimalRisk,
+        IsProhibited = false,
+        RequiresHumanOversight = false,
+        RequiresTransparency = false,
+        EvaluatedAtUtc = _timeProvider.GetUtcNow()
+    };
+
+    private AIActComplianceResult UnregisteredSystemResult(string systemId) => new()
+    {
+        SystemId = systemId,
+        RiskLevel = AIRiskLevel.HighRisk,
+        IsProhibited = false,
+        RequiresHumanOversight = true,
+        RequiresTransparency = true,
+        Violations = [$"AI system '{systemId}' is not registered in the AI system registry and cannot be classified; it is treated as high risk."],
+        EvaluatedAtUtc = _timeProvider.GetUtcNow()
+    };
 
     private static string? ResolveSystemId<TRequest>(string? explicitSystemId)
     {
