@@ -134,6 +134,7 @@ The messaging patterns work exactly the same way as with EF Core:
 public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 {
     private readonly IDbConnection _connection;
+    private readonly IDbTransactionAccessor _transactionAccessor;
 
     public async ValueTask<Either<EncinaError, Order>> Handle(
         CreateOrderCommand request,
@@ -143,9 +144,12 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
         var order = new Order { Id = Guid.NewGuid(), ... };
 
         // Insert order using Dapper
-        await _connection.ExecuteAsync(
+        // Join the request's transaction so the order and its outbox rows commit together
+        await _connection.ExecuteAsync(new CommandDefinition(
             "INSERT INTO Orders (Id, CustomerId, Total) VALUES (@Id, @CustomerId, @Total)",
-            order);
+            order,
+            transaction: _transactionAccessor.Current,
+            cancellationToken: cancellationToken));
 
         // Events stored in outbox automatically
         context.AddNotification(new OrderCreatedEvent(order.Id));

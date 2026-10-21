@@ -20,6 +20,9 @@ public sealed class DapperStoreEnlistmentTests : IAsyncDisposable
     // One more identifier than a chunk holds, so the requeue needs two statements.
     private const int IdCount = 1001;
 
+    // Only the first identifier (chunk 1) and the last one (chunk 2) have a row.
+    private const int SeededRows = 2;
+
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
 
     public static TheoryData<string> Providers => ["SqlServer", "MySQL"];
@@ -183,7 +186,7 @@ public sealed class DapperStoreEnlistmentTests : IAsyncDisposable
         var result = await store.RequeueExhaustedAsync(3, ids, CancellationToken.None);
 
         result.IsLeft.ShouldBeTrue();
-        (await CountAsync("OutboxMessages WHERE RetryCount >= 3")).ShouldBe(IdCount);
+        (await CountAsync("OutboxMessages WHERE RetryCount >= 3")).ShouldBe(SeededRows);
     }
 
     [Theory]
@@ -196,7 +199,7 @@ public sealed class DapperStoreEnlistmentTests : IAsyncDisposable
         var result = await store.RequeueExhaustedAsync(3, ids, CancellationToken.None);
 
         result.Match(Right: count => count, Left: error => throw new InvalidOperationException(error.Message))
-            .ShouldBe(IdCount);
+            .ShouldBe(SeededRows);
         (await CountAsync("OutboxMessages WHERE RetryCount >= 3")).ShouldBe(0);
     }
 
@@ -213,7 +216,7 @@ public sealed class DapperStoreEnlistmentTests : IAsyncDisposable
         await owner.RollbackAsync();
         await owner.DisposeAsync();
 
-        (await CountAsync("OutboxMessages WHERE RetryCount >= 3")).ShouldBe(IdCount);
+        (await CountAsync("OutboxMessages WHERE RetryCount >= 3")).ShouldBe(SeededRows);
     }
 
     [Theory]
@@ -230,7 +233,7 @@ public sealed class DapperStoreEnlistmentTests : IAsyncDisposable
         await owner.DisposeAsync();
 
         // The store did not commit: the owner's rollback undid the whole requeue.
-        (await CountAsync("OutboxMessages WHERE RetryCount >= 3")).ShouldBe(IdCount);
+        (await CountAsync("OutboxMessages WHERE RetryCount >= 3")).ShouldBe(SeededRows);
     }
 
     private DbTransactionAccessor NewAccessor() =>
@@ -276,7 +279,7 @@ public sealed class DapperStoreEnlistmentTests : IAsyncDisposable
 
         await using (var transaction = await _connection.BeginTransactionAsync())
         {
-            foreach (var id in ids)
+            foreach (var id in new[] { ids[0], ids[^1] })
             {
                 await using var insert = _connection.CreateCommand();
                 insert.Transaction = (SqliteTransaction)transaction;
