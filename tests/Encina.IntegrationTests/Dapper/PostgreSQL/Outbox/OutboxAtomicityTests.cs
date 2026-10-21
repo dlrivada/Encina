@@ -41,8 +41,8 @@ public sealed class OutboxAtomicityTests : OutboxAtomicityTestsBase
                 services.AddScoped<IDbConnection>(_ => fixture.CreateConnection());
                 services.AddEncinaDapper(configure);
             },
-            // PostgreSQL/MySQL AddEncinaDapper ignore UseModuleIsolation, as AddEncinaADO does: #2557
-            // AddEncinaDapper of this provider has no module isolation support (see the follow-up issue), so the
+            // PostgreSQL/MySQL AddEncinaDapper ignore UseModuleIsolation, as AddEncinaADO does (#2557): #2570
+            // AddEncinaDapper of this provider has no module isolation support (#2570), so the
             // scoped connection is decorated the way the inbox module isolation tests do.
             RegisterWithModuleIsolation = (services, configure) =>
             {
