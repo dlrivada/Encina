@@ -150,11 +150,7 @@ public class AIActPropertyTests
     [Property(MaxTest = 20)]
     public Property Classifier_ProhibitedPractices_AlwaysClassifyAsProhibited()
     {
-        var practicesGen = Gen.Elements(
-                ProhibitedPractice.SocialScoring,
-                ProhibitedPractice.SubliminalManipulation,
-                ProhibitedPractice.PredictivePolicing,
-                ProhibitedPractice.UntargetedFacialScraping)
+        var practicesGen = Gen.Elements(Enum.GetValues<ProhibitedPractice>())
             .ArrayOf()
             .Where(arr => arr.Length > 0);
 
@@ -211,8 +207,8 @@ public class AIActPropertyTests
     [Fact]
     public void ProhibitedPractice_ShouldHaveExpectedCount()
     {
-        Enum.GetValues<ProhibitedPractice>().Length.ShouldBeGreaterThanOrEqualTo(4,
-            "Art. 5 defines multiple prohibited practices");
+        Enum.GetValues<ProhibitedPractice>().Length.ShouldBe(11,
+            "Art. 5(1) as amended by Regulation (EU) 2026/1744 has 10 points, and point (f) is split into workplace and education");
     }
 
     [Fact]

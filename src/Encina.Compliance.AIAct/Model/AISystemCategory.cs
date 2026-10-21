@@ -109,7 +109,9 @@ public enum AISystemCategory
     /// <remarks>
     /// Art. 5(1)(c). AI systems that evaluate or classify natural persons based on their social
     /// behaviour or known/predicted personal or personality characteristics, leading to detrimental
-    /// or unfavourable treatment. Always classified as <see cref="AIRiskLevel.Prohibited"/>.
+    /// or unfavourable treatment. The category does not classify a system by itself: a system is
+    /// prohibited when its registration declares <see cref="ProhibitedPractice.SocialScoring"/>
+    /// or a <see cref="AIRiskLevel.Prohibited"/> risk level.
     /// </remarks>
     SocialScoring = 9,
 
@@ -119,8 +121,10 @@ public enum AISystemCategory
     /// <remarks>
     /// Art. 5(1)(h). AI systems used for real-time remote biometric identification of natural
     /// persons in publicly accessible spaces for the purpose of law enforcement.
-    /// Prohibited except under narrow exceptions (Art. 5(2)). Always classified
-    /// as <see cref="AIRiskLevel.Prohibited"/> unless a specific exemption applies.
+    /// Prohibited except under narrow exceptions (Art. 5(2)). The category does not classify a
+    /// system by itself: a system is prohibited when its registration declares
+    /// <see cref="ProhibitedPractice.RealTimeBiometricPublicSpaces"/> or a
+    /// <see cref="AIRiskLevel.Prohibited"/> risk level.
     /// </remarks>
     RealTimeBiometricPublic = 10,
 

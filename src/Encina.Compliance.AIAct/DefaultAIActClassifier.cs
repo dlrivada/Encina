@@ -11,9 +11,10 @@ namespace Encina.Compliance.AIAct;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Classification uses the system's <see cref="AISystemCategory"/> and registered
+/// Classification uses the registered <see cref="AISystemRegistration.RiskLevel"/> and
 /// <see cref="ProhibitedPractice"/> list to determine the risk level per Article 6.
-/// Systems with prohibited practices are always classified as <see cref="AIRiskLevel.Prohibited"/>.
+/// A system that declares any prohibited practice is classified as <see cref="AIRiskLevel.Prohibited"/>.
+/// The <see cref="AISystemCategory"/> is not consulted.
 /// </para>
 /// </remarks>
 public sealed class DefaultAIActClassifier : IAIActClassifier

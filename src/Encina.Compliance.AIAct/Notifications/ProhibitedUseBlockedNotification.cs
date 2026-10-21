@@ -13,10 +13,9 @@ namespace Encina.Compliance.AIAct.Notifications;
 /// up to EUR 35 million or 7% of total worldwide annual turnover (Art. 99(3)).
 /// </para>
 /// <para>
-/// This notification is published by the <c>AIActCompliancePipelineBehavior</c> when
-/// enforcement mode is <see cref="AIActEnforcementMode.Block"/> or
-/// <see cref="AIActEnforcementMode.Warn"/>. Handlers can use it for incident logging,
-/// security alerting, or compliance reporting.
+/// Nothing in the package publishes this notification yet: <c>AIActCompliancePipelineBehavior</c>
+/// does not publish it when it blocks a request. Once published, handlers can use it for
+/// incident logging, security alerting, or compliance reporting.
 /// </para>
 /// </remarks>
 /// <param name="RequestTypeName">Fully qualified type name of the blocked request.</param>
