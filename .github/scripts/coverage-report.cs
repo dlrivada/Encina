@@ -1188,7 +1188,7 @@ if (fileTargetRows.Count > 0)
     md.AppendLine("|------|:----:|:--------:|:------:|:---:|:----------:|:--------------:|:------:|");
     foreach (var row in OrderByGap(fileTargetRows))
     {
-        md.AppendLine($"| {row.Package}/{row.File} | {row.Flag} | {FormatMeasured(row.Measured)} | {row.Target:0}% | {GapPoints(row):F2} | {FormatRatio(Attainment(row))} | {LinesToCover(row)} | {(IsBelowTarget(row) ? "below" : "met")} |");
+        md.AppendLine($"| {row.Package}/{row.File} | {row.Flag} | {FormatMeasured(row.Measured)} | {row.Target:0}% | {GapPoints(row).ToString("F2", CultureInfo.InvariantCulture)} | {FormatRatio(Attainment(row))} | {LinesToCover(row)} | {(IsBelowTarget(row) ? "below" : "met")} |");
     }
 }
 

@@ -298,7 +298,9 @@
       visible.sort((a, b) => {
         const ka = keyOf(a, sort.column), kb = keyOf(b, sort.column);
         const order = ka < kb ? -1 : (ka > kb ? 1 : 0);
-        return order !== 0 ? order * dir : keyOf(a, 'file') < keyOf(b, 'file') ? -1 : 1;
+        if (order !== 0) return order * dir;
+        const byFile = keyOf(a, 'file').localeCompare(keyOf(b, 'file'));
+        return byFile !== 0 ? byFile : a.flag.localeCompare(b.flag);
       });
       document.querySelector('#attainment-table tbody').innerHTML = visible.slice(0, shown).map(rowHtml).join('');
       document.getElementById('att-pager').textContent =
