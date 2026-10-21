@@ -1,6 +1,6 @@
 ## Pages reviewed
 
-Issue #52 delivered aggregate snapshotting in `Encina.Marten` (`src/Encina.Marten/Snapshots/`). All paths below were checked in the worktree `wia-52` (branch `audit/52`, tip of `main` `cb7dacdef`). The delta audit of #25 (closed in error, same feature) already reviewed the reader-facing gaps; its stage is `docs/knowledge/audits/25/delta-2026-10/docs.md`, read first, and its findings are mapped here instead of repeated.
+Issue #52 delivered aggregate snapshotting in `Encina.Marten` (`src/Encina.Marten/Snapshots/`). All paths below were checked in the worktree `wia-52` (branch `audit/52`, based on `origin/main` `2307a5db9`). The delta audit of #25 (closed in error, same feature) already reviewed the reader-facing gaps; its stage is `docs/knowledge/audits/25/delta-2026-10/docs.md`, read first, and its findings are mapped here instead of repeated.
 
 | Page | Quadrant and reader | Result |
 | --- | --- | --- |
