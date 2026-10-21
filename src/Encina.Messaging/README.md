@@ -226,7 +226,7 @@ services.AddEncinaMessaging(config =>
 
 **Error Classification**:
 
-`IErrorClassifier`, `ErrorClassification` (`Unknown`, `Transient`, `Permanent`) and `DefaultErrorClassifier` live in core, namespace `Encina.Recoverability`; every retry layer (the Polly retry behavior, this pipeline, the delayed-retry processor, the outbox processor, the job adapters) classifies through the same contract. The `DefaultErrorClassifier` looks at five things, in this order:
+`IErrorClassifier`, `ErrorClassification` (`Unknown`, `Transient`, `Permanent`) and `DefaultErrorClassifier` live in core, namespace `Encina.Recoverability`; every classifying layer (the Polly retry behavior, this pipeline, the delayed-retry processor and the Hangfire and Quartz job adapters) classifies through the same contract. `OutboxBatchProcessor` does not classify: it only schedules the next attempt (see below). The `DefaultErrorClassifier` looks at five things, in this order:
 
 1. **Declared transience** — the `transient` metadata (`OutboundErrorMetadataKeys.Transient`) that an outbound producer such as `Encina.Refit` sets wins over inference: `true` is transient, `false` is permanent.
 2. **Connection-pool exhaustion** — anywhere in the exception chain, the SqlClient text "max pool size was reached", the Npgsql text "connection pool has been exhausted" or the MySqlConnector text "All pooled connections are in use" is transient (the MongoDB driver raises a `TimeoutException`, transient by type). The match is on the English driver messages, because the drivers localize them; register a custom `IErrorClassifier` for another culture.
@@ -269,7 +269,9 @@ config.RecoverabilityOptions.ErrorClassifier = new MyErrorClassifier();
 An error from an outbound call such as `Encina.Refit` carries metadata from `OutboundErrorMetadataKeys` (see the [Encina.Refit README](../Encina.Refit/README.md)). The recoverability layers act on it:
 
 - **`http.retry_after`** — the remaining immediate retries stop and the first delayed retry is scheduled at exactly that delay instead of `DelayedRetries[0]`. `DelayedRetryProcessor` uses the header delay for the next attempt instead of `DelayedRetries[n]`; the attempt still counts against `DelayedRetries.Length`. With delayed retries disabled, the error reaches the caller with the metadata. `OutboxBatchProcessor` sets `NextRetryAtUtc` no earlier than now plus `http.retry_after` when that is later than its own backoff.
-- **`outbound.ambiguous`** — an ambiguous failure of a non-idempotent send (it may already have been processed) is returned like a permanent one, on the dead-letter path, unless the request has an `IdempotencyKey`.
+- **`outbound.ambiguous`** — an ambiguous failure of a non-idempotent send (it may already have been processed) is returned like a permanent one, on the dead-letter path, unless the request has an `IdempotencyKey`. The `IdempotencyKey` is the one of the request context (`IRequestContext.IdempotencyKey`): it is an opt-in, and the Refit client must send it to the provider for the provider to deduplicate.
+
+The Hangfire and Quartz job adapters only use the classification (permanent or transient); they do not apply the `Retry-After` or non-idempotent rules.
 
 ### 6. **Transactions** (Automatic Database Transactions)
 

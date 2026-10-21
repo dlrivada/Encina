@@ -6,8 +6,9 @@ namespace Encina.Recoverability;
 /// <remarks>
 /// <para>
 /// The classifier lives in core so that every retry layer (the Polly retry behavior, the recoverability
-/// pipeline, the delayed-retry processor, the outbox processor and the job adapters) decides through the
-/// same contract; register a custom implementation to classify your own error codes.
+/// pipeline, the delayed-retry processor and the job adapters) decides through the same contract; register a
+/// custom implementation to classify your own error codes. The outbox processor does not classify yet: it only
+/// honours <c>http.retry_after</c> when it schedules the next attempt.
 /// </para>
 /// <para>
 /// The error classifier analyzes failures and categorizes them as:

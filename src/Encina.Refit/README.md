@@ -46,7 +46,7 @@ Every failure is a `Left` with an `EncinaError` whose code is one of `Encina.Rec
 | `transient` | `bool` | always |
 | `outbound.ambiguous` | `bool` | only when true |
 
-An outcome is ambiguous when the server may already have processed the request: on `POST` or `PATCH` (or when the method is unknown), a 500, 502 or 504, a timeout, or a network failure other than a DNS, connection, TLS or proxy-tunnel failure. It is still transient; the retry layers do not retry it automatically unless the request opts in (see the [Encina.Polly README](../Encina.Polly/README.md)).
+An outcome is ambiguous when the server may already have processed the request: on `POST` or `PATCH` (or when the method is unknown), a 500, 502 or 504, a timeout, or a network failure other than a DNS, connection, TLS or proxy-tunnel failure. It is still transient; the retry layers do not retry it automatically unless the request opts in (see the [Encina.Polly README](../Encina.Polly/README.md)). The opt-in is the `IdempotencyKey` of the request context; the Refit client must send it to the provider for the provider to deduplicate. The Hangfire and Quartz adapters do not apply the `Retry-After` or non-idempotent rules, and the outbox processor only schedules its next attempt.
 
 The error never carries the response body: its message is fixed text with the status and reason phrase, the `ApiException` is not attached and exception text is not copied.
 

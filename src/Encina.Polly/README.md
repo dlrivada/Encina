@@ -22,7 +22,7 @@ The behavior takes an `Encina.Recoverability.IErrorClassifier`. `AddEncinaPolly`
 | Classified `Transient` | Retried regardless of `RetryOnAllExceptions` |
 | Classified `Unknown` | Retried only with `RetryOnAllExceptions = true` |
 | `http.retry_after` is at most `MaxDelayMs` | Waits exactly the header delay (no jitter, on the injected `TimeProvider`) and retries in process |
-| `http.retry_after` is larger than `MaxDelayMs` | The transient error is returned unchanged with `http.retry_after`, so an outer layer (delayed retry, outbox) reschedules it |
+| `http.retry_after` is larger than `MaxDelayMs` | The transient error is returned unchanged with `http.retry_after`, so an outer layer (the delayed-retry processor) reschedules it; the outbox processor does not classify, it only schedules its next attempt no earlier than that delay |
 | Ambiguous failure of a non-idempotent send (`outbound.ambiguous`) | Not retried, unless `[Retry(RetryNonIdempotent = true)]` (only for providers that deduplicate) or `IRequestContext.IdempotencyKey` is non-empty |
 | 429, 503, and connection failures that prove the request was not processed | Retried |
 
