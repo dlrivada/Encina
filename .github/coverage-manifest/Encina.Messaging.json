@@ -1008,7 +1008,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 0, "contract": 0, "property": 0, "integration": 0 },
+      "justifications": {
+        "unit": "Store/factory scheduling and saturation paths are all covered by DelayedRetrySchedulerTests (measured 100%).",
+        "guard": "GuardTests measure 0% on this file: the scheduler's public methods are exercised only through unit tests (measured 0%).",
+        "contract": "No public contract test for this implementation; the IDelayedRetryScheduler contract is exercised via unit tests.",
+        "property": "DelayedRetryChainProperties covers the chain, not this thin scheduler.",
+        "integration": "Store persistence is covered per provider by the delayed-retry store integration tests."
+      }
     },
     "Recoverability/FailedMessage.cs": {
       "defaultTests": [

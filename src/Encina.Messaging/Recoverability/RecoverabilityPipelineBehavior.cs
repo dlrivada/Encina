@@ -675,16 +675,16 @@ internal static partial class RecoverabilityLog
         ILogger logger, string correlationId, string requestType, string errorCode);
 
     [LoggerMessage(
-        EventId = 5453,
-        Level = LogLevel.Warning,
-        Message = "[{CorrelationId}] {RequestType} not retried automatically: ambiguous failure of a non-idempotent send ({ErrorCode})")]
-    public static partial void NonIdempotentRetrySkipped(
-        ILogger logger, string correlationId, string requestType, string errorCode);
-
-    [LoggerMessage(
         EventId = 5452,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} scheduling the delayed retry threw")]
     public static partial void SchedulingDelayedRetryThrew(
         ILogger logger, Exception ex, string correlationId, string requestType);
+
+    [LoggerMessage(
+        EventId = 5453,
+        Level = LogLevel.Warning,
+        Message = "[{CorrelationId}] {RequestType} not retried automatically: ambiguous failure of a non-idempotent send ({ErrorCode})")]
+    public static partial void NonIdempotentRetrySkipped(
+        ILogger logger, string correlationId, string requestType, string errorCode);
 }

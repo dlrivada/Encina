@@ -282,6 +282,20 @@ public sealed class OutboundErrorTaxonomyIntegrationTests : IClassFixture<Encina
 
         error.GetCode().IfNone(string.Empty).ShouldBe(OutboundErrorCodes.Timeout);
         error.GetMetadata()[OutboundErrorMetadataKeys.Transient].ShouldBe(true);
+        error.GetMetadata().ContainsKey(OutboundErrorMetadataKeys.Ambiguous).ShouldBeFalse("a GET is idempotent");
+    }
+
+    [Fact]
+    public async Task PostTimeout_IsAmbiguous()
+    {
+        _wireMock.Server.Given(Request.Create().WithPath("/messages").UsingPost())
+            .RespondWith(Response.Create().WithStatusCode(200).WithDelay(TimeSpan.FromSeconds(3)));
+        using var provider = Provider(timeout: TimeSpan.FromMilliseconds(200));
+
+        var error = Error(await Send(provider, new SendMessage()));
+
+        error.GetCode().IfNone(string.Empty).ShouldBe(OutboundErrorCodes.Timeout);
+        error.GetMetadata()[OutboundErrorMetadataKeys.Ambiguous].ShouldBe(true);
     }
 
     [Fact]

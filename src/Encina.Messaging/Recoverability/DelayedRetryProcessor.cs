@@ -339,9 +339,24 @@ public sealed class DelayedRetryProcessor : BackgroundService
     private static void CountSkipped(string reason, IDelayedRetryMessage message, DispatchResult result) =>
         RetryMetrics.RecordSkipped(
             reason,
-            message.RequestType,
+            SimpleRequestName(message.RequestType),
             result.ErrorMessage ?? RecoverabilityConstants.Unknown,
             tenantId: null);
+
+    // The stored request type is assembly qualified ("Ns.Outer+Inner, Assembly, Version=..."); the metric tags every
+    // layer with the simple type name, so the counters of one request line up across layers.
+    internal static string SimpleRequestName(string requestType)
+    {
+        var typeName = requestType.AsSpan();
+        var comma = typeName.IndexOf(',');
+        if (comma >= 0)
+        {
+            typeName = typeName[..comma];
+        }
+
+        var start = Math.Max(typeName.LastIndexOf('.'), typeName.LastIndexOf('+')) + 1;
+        return typeName[start..].Trim().ToString();
+    }
 
     private static async Task<DispatchResult> DispatchRequestAsync(
         IEncina encina,

@@ -3,6 +3,7 @@ using Encina.Messaging.Recoverability;
 using Encina.Messaging.Serialization;
 using Encina.Recoverability;
 using Encina.UnitTests.Messaging.DeadLetter;
+using Encina.UnitTests.Recoverability;
 
 using LanguageExt;
 
@@ -752,6 +753,33 @@ public sealed class DelayedRetryChainTests
         // Assert - no attempt 1 was scheduled
         fixture.Store.AttemptsAdded.ShouldBe([0]);
         fixture.PermanentFailures.Count.ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData("Ns.Outer, My.Assembly, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null", "Outer")]
+    [InlineData("Ns.Sub.Outer+Inner, My.Assembly, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null", "Inner")]
+    [InlineData("Plain", "Plain")]
+    public void SimpleRequestName_ReducesAnAssemblyQualifiedNameToTheSimpleTypeName(string requestType, string expected)
+    {
+        DelayedRetryProcessor.SimpleRequestName(requestType).ShouldBe(expected);
+    }
+
+    [Fact]
+    public async Task SkippedChain_RecordsTheMetricUnderTheSimpleRequestName()
+    {
+        // Arrange - an ambiguous delayed retry without a key ends the chain and counts as skipped
+        using var metrics = new MetricCapture("encina.retry.skipped_total");
+        var fixture = CreateFixture(
+            delayedRetries: 3,
+            failure: "x",
+            errorFactory: isFirst => OutboundFailure(transient: true, ambiguous: !isFirst));
+
+        // Act
+        await fixture.FirstFailureAsync();
+        await fixture.RunProcessorUntilPermanentFailureAsync();
+
+        // Assert - the tag is "ChainCommand", not the assembly-qualified stored name
+        metrics.Tags("encina.retry.skipped_total", nameof(ChainCommand)).ShouldNotBeEmpty();
     }
 
     [Fact]
