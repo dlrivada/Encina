@@ -5,7 +5,6 @@ using Encina.Dapper.PostgreSQL.Repository;
 using Encina.DomainModeling;
 using Encina.Messaging.Transactions;
 using LanguageExt;
-using Npgsql;
 using static LanguageExt.Prelude;
 
 namespace Encina.Dapper.PostgreSQL.UnitOfWork;
