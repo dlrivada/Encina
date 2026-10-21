@@ -122,6 +122,7 @@ Eliminated by rule: filling a no-data flag with the **covered lines of another f
 - A wins when a partial run must be visible and the trend must be comparable (the weekly CI Full on `main` is the source, `publish-coverage.yml`); B wins when someone wants to read the attainment of one special run in isolation (for example a local run of a single flag, `AGENTS.md` section 9 measurement recipe), where most flags are legitimately absent.
 - That B scenario is covered under A by the per-flag filter in the dashboard table and by the `noData` count shown beside the tiles (it is a separate field, not hidden in the ratio).
 - `ci-full.yml` already fails the job when every entry of `docref-index.json` has `noData` (`ci-full.yml:493-496`), so a total collection failure never reaches the dashboard; A only has to behave sensibly for partial ones.
+- Orchestrator rule check (2026-10-21): option B is eliminated by rule, because AGENTS.md section 9 and `IsBelowTarget` (`coverage-report.cs:354-357`) read a flag with no data as below any target above 0. Option C is no better than A in any scenario, because A already lists the pairs that have no line count as unweighted. A is not a dilemma for the maintainer; it is recorded as decided by rule.
 
 </details>
 
@@ -168,6 +169,7 @@ Eliminated by rule: filling a no-data flag with the **covered lines of another f
 - A covers the criterion "Unit tests of the computation in the script's test path pass": the test path **is** `--self-test`. To make the "numbers are reproducible" criterion checkable under A, Phase 6 adds one known-answer fixture (two pairs, values worked by hand in Phase 6) and a check that the JSON object built for `latest.json` contains exactly the documented fields.
 - GuardTests are justified as not applicable: the helpers are `static` local functions of a top-level program, not public API of a package, and the script has none today; a guard test would test a language feature. This is stated in the PR as the issue asks ("justify if the script exposes none").
 - No `src/` file changes, so no per-file coverage obligations arise (AGENTS.md section 9 obligations apply to files under `src/`) and the CRAP gate does not run; the new methods still stay small (Phase 1 rules).
+- Orchestrator rule check (2026-10-21): option B is eliminated by rule (AGENTS.md section 2: scripts are file-based apps with no `.csproj`). The dilemma left for the maintainer is A versus C.
 
 </details>
 
@@ -190,6 +192,7 @@ Eliminated by rule: filling a no-data flag with the **covered lines of another f
 - A wins when the aim is the smallest change that gives a trend now; B wins if the maintainer wants the obligations history frozen byte for byte, or a different retention for attainment.
 - The trend chart already filters series by flag with a missing-value default (`app.js:744-777`); a series built from `h.attainment?.ratio` skips old entries instead of plotting zero.
 - `pairs` is stored so a jump caused by a changed number of targets (for example after a 0 becomes 30, Design Choice 4) is explainable from the data alone.
+- Orchestrator rule check (2026-10-21): option B's main advantage, an untouched `history.json` schema, is a compatibility argument that AGENTS.md section 1 excludes before 1.0. The issue does not ask for a different retention. A is recorded as decided by rule.
 
 </details>
 
