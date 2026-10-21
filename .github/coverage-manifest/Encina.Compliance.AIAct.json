@@ -69,14 +69,30 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 35,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Existing pipeline tests reach the compliance-check paths; this PR changed only XML docs and a comment, so the target holds the measured level.",
+        "guard": "No new public method or parameter; the PR changed documentation only."
+      }
     },
     "AIActErrors.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Every error factory is already exercised by unit tests; this PR changed only an XML doc.",
+        "guard": "Error factories take no reference parameters that need guards beyond existing tests; the PR changed documentation only."
+      }
     },
     "AIActOptions.cs": {
       "defaultTests": [
@@ -124,7 +140,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Classifier branches are covered by existing unit and property tests; the PR changed only an XML doc.",
+        "guard": "Existing guard tests cover its constructor arguments; the PR changed documentation only."
+      }
     },
     "DefaultAIActComplianceValidator.cs": {
       "defaultTests": [
@@ -181,7 +205,15 @@
     "Diagnostics/AIActLogMessages.cs": {
       "defaultTests": [],
       "defaultRule": "*LogMessages.cs",
-      "reason": "Source-generated [LoggerMessage] delegates"
+      "reason": "Source-generated [LoggerMessage] delegates",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Log-message delegates run only when the pipeline logs; the PR changed only one message template string, and tests do not assert log text.",
+        "guard": "The PR changed documentation-level text only; no guard code."
+      }
     },
     "Health/AIActHealthCheck.cs": {
       "defaultTests": [
@@ -227,7 +259,15 @@
         "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "An enum declaration has no executable lines; the PR changed only XML remarks.",
+        "guard": "An enum declaration has no parameters to guard."
+      }
     },
     "Model/AISystemRegistration.cs": {
       "defaultTests": [
