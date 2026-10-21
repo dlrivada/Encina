@@ -2,7 +2,7 @@
 
 ## Status
 
-**Proposed - awaiting the maintainer's decision (#1899).** No option below is chosen. The spike that produced the evidence is [#1899](https://github.com/dlrivada/Encina/issues/1899); its measurements are in the [spike report](../../engineering/languageext-v5-spike-1899.md).
+**Accepted** - 2026-10-21, maintainer decision on [#1899](https://github.com/dlrivada/Encina/issues/1899): option D. The spike that produced the evidence is [#1899](https://github.com/dlrivada/Encina/issues/1899); its measurements are in the [spike report](../../engineering/languageext-v5-spike-1899.md).
 
 ## Context
 
@@ -26,9 +26,17 @@ The spike measured these facts on 2026-10-21 (details and commands in the [spike
 
 ## Decision
 
-**No decision is taken in this ADR yet.** The maintainer chooses one of the four options below; this section is then replaced by the chosen option and the Status changes to Accepted. The options are listed in a fixed order that does not rank them.
+**Option D is chosen.** Encina stays on `LanguageExt.Core` 4.4.9 and prepares now: [#2626](https://github.com/dlrivada/Encina/issues/2626) removes, on 4.4.9, the APIs that v5 drops, so a later migration is small.
 
-### Option A: migrate to v5 beta now, before 1.0
+- **Deadline:** the start of milestone v1.0.0-rc.1. The library's author has no roadmap to rely on, and the natural limit is the 1.0 API freeze.
+- **If a stable LanguageExt 5.0 is published before that date,** Encina migrates before 1.0.
+- **If not,** option B is not taken by default. Option C (Encina-owned result types, with LanguageExt kept internal or removed) is re-evaluated with fresh data before the API freeze. That check is tracked by [#2627](https://github.com/dlrivada/Encina/issues/2627) (a `[SPIKE]` issue).
+
+## Alternatives considered
+
+The four options of the spike follow in their original order, which does not rank them. Their measured costs are kept as recorded on 2026-10-21. Option A is not chosen, option B is not chosen, option C is the conditional re-evaluation, option D is chosen.
+
+### Option A: migrate to v5 beta now, before 1.0 (not chosen)
 
 Encina moves to `LanguageExt.Core` `5.0.0-beta-78` (or the newest beta) and ships 1.0 on it.
 
@@ -38,7 +46,7 @@ Encina moves to `LanguageExt.Core` `5.0.0-beta-78` (or the newest beta) and ship
 - **Risks:** the v5 removal list may change before stable; beta-to-beta changes were not diffed; no stable date exists; the library's trim and AOT safety is unverified; the silent hazards (null `default`, positional `Match`) need a review beyond what the compiler reports.
 - **Better when:** the maintainer values being on the line the library's author develops, accepts shipping 1.0 on a beta, and prefers to pay the break before users exist rather than after.
 
-### Option B: stay on 4.4.9 for 1.0 and use it idiomatically
+### Option B: stay on 4.4.9 for 1.0 and use it idiomatically (not chosen)
 
 Encina keeps `LanguageExt.Core` `4.4.9`, ships 1.0 on it and cleans up the non-idiomatic patterns.
 
@@ -47,7 +55,7 @@ Encina keeps `LanguageExt.Core` `4.4.9`, ships 1.0 on it and cleans up the non-i
 - **Risks:** v4 gets no fixes and the author's work is on v5; the cost of the v5 move is deferred to users (the pilot's break categories, `PublicAPI` churn and the null `default` change all reach them); a .NET 10 or C# 14 problem in v4 would have no upstream fix.
 - **Better when:** the maintainer prioritises a stable dependency for 1.0 and accepts that moving to v5 later is a breaking change, or expects no v5 move at all.
 
-### Option C: isolate LanguageExt behind Encina-owned result types
+### Option C: isolate LanguageExt behind Encina-owned result types (conditional re-evaluation)
 
 Encina defines its own result and option types and keeps LanguageExt (any version) as an internal detail.
 
@@ -56,7 +64,7 @@ Encina defines its own result and option types and keeps LanguageExt (any versio
 - **Risks:** a second `Either`-like type to maintain, test and document; users lose interoperability with LanguageExt code; ADR-001 and ADR-004 need amendments.
 - **Better when:** the maintainer wants Encina's public contract independent of any third-party library's release cycle and accepts owning the types.
 
-### Option D: gate on v5 stable
+### Option D: gate on v5 stable (chosen)
 
 Prepare on 4.4.9 now, and migrate before 1.0 only if a stable 5.0 ships by a date the maintainer sets; otherwise ship 1.0 on 4.4.9.
 
@@ -65,17 +73,17 @@ Prepare on 4.4.9 now, and migrate before 1.0 only if a stable 5.0 ships by a dat
 - **Risks:** the deadline can pass without a stable release (no date exists, and beta-78 followed beta-77 after about 9.3 months), which lands on Option B; the cleanup is work that pays off only if the move happens or if the patterns are worth fixing anyway.
 - **Better when:** the maintainer wants to keep the choice of v5 open without shipping 1.0 on a beta, and can name a date after which 1.0 ships regardless.
 
-## Alternatives considered
+### Other libraries and waiting
 
 - **Replace LanguageExt with another library** (`OneOf`, `ErrorOr`, `FluentResults`, `CSharpFunctionalExtensions`, `Dunet` and similar): not evaluated by the spike. [ADR-001](001-railway-oriented-programming.md) rejected `OneOf` for lacking functional combinators; the others were not researched, and any of them would be a change of the same size as Option C.
 - **Wait for v5 stable and decide then, with no preparation:** equivalent to Option B until the date arrives, without the cleanup that Option D includes.
 
 ## Consequences
 
-- Until the maintainer decides, nothing changes: Encina stays on `LanguageExt.Core` 4.4.9 and no migration work starts.
-- Whichever option is chosen, the idiomatic cleanup findings of the spike report (section 6) are valid on 4.4.9; the order in which they are scheduled depends on the option.
-- Options A and C change the public contract before 1.0; B keeps it and defers any v5 move to a post-1.0 breaking change; D is B unless its condition is met, then A. Where the contract changes, the PublicAPI files and the `docs/` pages that show `Either` signatures change with it.
-- This ADR becomes Accepted when the chosen option replaces the Decision section, and its consequences are then rewritten for that option.
+- [#2626](https://github.com/dlrivada/Encina/issues/2626) is a prerequisite: it removes on 4.4.9 the APIs that v5 drops (the idiomatic cleanup findings of the [spike report](../../engineering/languageext-v5-spike-1899.md), section 6). The `MatchAsync` sites are the exception noted under option D and change only if the migration happens.
+- Until the start of v1.0.0-rc.1, Encina stays on `LanguageExt.Core` 4.4.9. No migration starts unless a stable 5.0 is published first.
+- If the migration happens, the hazards the pilot found apply: `default(Either)` is null, and a positional `Match` with swapped lambdas still compiles when both sides have the same type. They need a review beyond what the compiler reports.
+- If no stable 5.0 appears, the public contract (1040 `PublicAPI` lines) stays on LanguageExt types unless the option C re-evaluation before the API freeze decides otherwise. Where the contract changes, the PublicAPI files and the `docs/` pages that show `Either` signatures change with it.
 
 ## Related
 
@@ -84,7 +92,7 @@ Prepare on 4.4.9 now, and migrate before 1.0 only if a stable 5.0 ships by a dat
 - [ADR-006](006-pure-rop-exception-handling.md) (pure ROP exception handling)
 - [SPEC-000](../../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) (the 1.0 boundary)
 - [Spike report](../../engineering/languageext-v5-spike-1899.md)
-- Issue [#1899](https://github.com/dlrivada/Encina/issues/1899)
+- Issues [#1899](https://github.com/dlrivada/Encina/issues/1899) (the spike), [#2626](https://github.com/dlrivada/Encina/issues/2626) (cleanup on 4.4.9), [#2627](https://github.com/dlrivada/Encina/issues/2627) (option C re-evaluation before the API freeze)
 
 ## Date
 

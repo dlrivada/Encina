@@ -6,6 +6,8 @@ nav_exclude: true
 
 This page is for a maintainer or contributor who has to decide which LanguageExt version Encina 1.0 ships on: it records what was measured about LanguageExt v5, about how Encina uses LanguageExt, and about a throwaway migration of the core package, so the decision starts from evidence. It states measurements and the findings drawn from them, and recommends nothing; the options and the decision are in [ADR-051](../architecture/adr/051-languageext-version-for-1-0.md).
 
+**Decision:** [ADR-051](../architecture/adr/051-languageext-version-for-1-0.md) (Accepted, option D).
+
 **Status:** measured spike, 2026-10-21. **Issue:** [#1899](https://github.com/dlrivada/Encina/issues/1899). **Decision record:** [ADR-051](../architecture/adr/051-languageext-version-for-1-0.md) (Proposed).
 
 ## 1. Question and time box
