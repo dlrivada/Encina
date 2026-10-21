@@ -108,7 +108,7 @@ Per choice, in the table above. In short: a narrower provider scope was rejected
   - Other ADO.NET and Dapper components and stores outside the four messaging stores do not enlist ([#1934](https://github.com/dlrivada/Encina/issues/1934)). On SQL Server and MySQL the driver rejects their commands while the transaction is active; PostgreSQL silently joins.
   - Until its slice lands, EF Core and MongoDB keep the non-atomic post-processor path: their outbox is written after the business commit, so retrying a request whose outbox write failed repeats a change that was already committed.
   - A joiner's `CommitAsync` returning success does not mean the data is durable; only the owner's commit does.
-  - `UnitOfWorkADO` implements only `IAsyncDisposable`, so resolving `IUnitOfWork` inside a request that Encina dispatches fails when the request scope is disposed synchronously. This is a known defect. ([#2556](https://github.com/dlrivada/Encina/issues/2556))
+  - The ADO.NET and Dapper units of work (`UnitOfWorkADO`, `UnitOfWorkDapper`) implement only `IAsyncDisposable`, so resolving `IUnitOfWork` inside a request that Encina dispatches fails when the request scope is disposed synchronously. This is a known defect. ([#2556](https://github.com/dlrivada/Encina/issues/2556))
   - The ADO.NET and Dapper PostgreSQL and MySQL registrations do not support module isolation (`UseModuleIsolation`); SQL Server does. (ADO.NET: [#2557](https://github.com/dlrivada/Encina/issues/2557); Dapper: [#2570](https://github.com/dlrivada/Encina/issues/2570))
 - Registration completeness is proven by a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes` (`AGENTS.md` section 3).
 
