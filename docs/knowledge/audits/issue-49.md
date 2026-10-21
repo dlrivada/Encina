@@ -32,6 +32,10 @@ Record: [issues/49.md](../issues/49.md)
 - https://github.com/dlrivada/Encina/issues/2583 (draft 49-tests-3-no-test-discriminates-the-overload-selection-in-src.md)
 - https://github.com/dlrivada/Encina/issues/2584 (draft 49-tests-4-the-deliverables-of-issue-49-itself-have-one.md)
 
+## Follow-up issues
+
+- https://github.com/dlrivada/Encina/issues/2585 ([DEBT] the audit pipeline cannot drop a false partially related line)
+
 ## Duplicates noted
 
 - tests 2 (Minor): duplicate of #2099 (manual override)
