@@ -1,4 +1,4 @@
-# Benchmarks - Transactional Outbox (ADO.NET PostgreSQL and MySQL)
+# Benchmarks - Transactional Outbox (ADO.NET and Dapper PostgreSQL and MySQL)
 
 ## Status: Not Implemented (for PostgreSQL and MySQL)
 
@@ -6,7 +6,7 @@
 
 The skip-path benchmark of the transactional outbox is implemented once, for SQL Server, in
 `Encina.ADO.SqlServer.Benchmarks/Benchmarks/TransactionalOutboxSkipPathBenchmarks.cs`. It is not repeated for the
-PostgreSQL and MySQL benchmark projects:
+PostgreSQL and MySQL benchmark projects, ADO.NET or Dapper:
 
 ### 1. The measured code is provider-neutral
 

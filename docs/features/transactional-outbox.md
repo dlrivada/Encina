@@ -6,20 +6,22 @@ parent: "Features"
 
 # How to write the outbox inside the request's transaction
 
-This guide shows you how to make the events a request emits and the business change it makes commit or roll back together, on the three ADO.NET providers (SQL Server, PostgreSQL, MySQL). It assumes you already use `Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL` or `Encina.ADO.MySQL` and know what the outbox is. The API is pre-1.0 and may still change.
+This guide shows you how to make the events a request emits and the business change it makes commit or roll back together, on the ADO.NET and Dapper providers (SQL Server, PostgreSQL, MySQL). It assumes you already use `Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL`, `Encina.Dapper.SqlServer`, `Encina.Dapper.PostgreSQL` or `Encina.Dapper.MySQL` and know what the outbox is. The code samples use ADO.NET; on Dapper, pass `transaction: accessor.Current` to each Dapper call instead of setting `command.Transaction`, and register with `AddEncinaDapper`. The API is pre-1.0 and may still change.
 
 The reasons behind the design (one shared transaction, join and rollback-only, the interim per-family switch) are in [ADR-037](../architecture/adr/037-transactional-outbox.md). The members of every type are in the generated API reference (`/api/` on the site).
 
 ## Which providers write inside the transaction
 
-Encina delivers this one provider family at a time. Only the ADO.NET providers write the outbox inside the request's transaction today.
+Encina delivers this one provider family at a time. The ADO.NET and Dapper providers write the outbox inside the request's transaction today.
 
 | Provider | Outbox row written | Status |
 | --- | --- | --- |
 | ADO.NET SQL Server (`Encina.ADO.SqlServer`) | inside the request's transaction | done |
 | ADO.NET PostgreSQL (`Encina.ADO.PostgreSQL`) | inside the request's transaction | done |
 | ADO.NET MySQL (`Encina.ADO.MySQL`) | inside the request's transaction | done |
-| Dapper SQL Server, PostgreSQL, MySQL | after the pipeline, outside the transaction | not yet ([#719](https://github.com/dlrivada/Encina/issues/719)) |
+| Dapper SQL Server (`Encina.Dapper.SqlServer`) | inside the request's transaction | done ([#719](https://github.com/dlrivada/Encina/issues/719)) |
+| Dapper PostgreSQL (`Encina.Dapper.PostgreSQL`) | inside the request's transaction | done ([#719](https://github.com/dlrivada/Encina/issues/719)) |
+| Dapper MySQL (`Encina.Dapper.MySQL`) | inside the request's transaction | done ([#719](https://github.com/dlrivada/Encina/issues/719)) |
 | EF Core (SQL Server, PostgreSQL, MySQL) | after the pipeline, outside the transaction | not yet |
 | MongoDB | after the pipeline, outside the transaction | not yet |
 
@@ -37,7 +39,7 @@ services.AddEncinaADO(connectionString, config =>
 });
 ```
 
-`AddEncinaADO(string, Action<MessagingConfiguration>)` exists on the three ADO.NET packages. It registers the scoped connection, the outbox store, `TransactionalOutboxPipelineBehavior<,>`, the scoped `IDbTransactionAccessor` and, when `UseTransactions` is on, the transaction behavior. The outbox table is created by `Scripts/001_CreateOutboxMessagesTable.sql` in your provider package.
+`AddEncinaADO(string, Action<MessagingConfiguration>)` exists on the three ADO.NET packages. It registers the scoped connection, the outbox store, `TransactionalOutboxPipelineBehavior<,>`, the scoped `IDbTransactionAccessor` and, when `UseTransactions` is on, the transaction behavior. The outbox table is created by `Scripts/001_CreateOutboxMessagesTable.sql` in your provider package. `AddEncinaDapper(Action<MessagingConfiguration>)`, `AddEncinaDapper(string, Action<MessagingConfiguration>)` and `AddEncinaDapper(Func<IServiceProvider, IDbConnection>, Action<MessagingConfiguration>)` on the three Dapper packages register the same behavior, accessor, stores and `UnitOfWorkDapper`.
 
 ## Step 2: Mark the request with `IHasNotifications`
 
@@ -139,11 +141,12 @@ The codes are the constants of `TransactionErrors`. A failed outbox write return
 
 ## Limits
 
-- Only the three ADO.NET providers write inside the transaction today (table above).
-- On the Dapper, EF Core and MongoDB paths the outbox is still written after the business commit: retrying a request whose outbox write failed repeats a change that was already committed (until their slices land).
+- Only the ADO.NET and Dapper providers write inside the transaction today (table above).
+- On the EF Core and MongoDB paths the outbox is still written after the business commit: retrying a request whose outbox write failed repeats a change that was already committed (until their slices land).
 - Only the four messaging stores (outbox, inbox, saga, scheduled message) and the unit-of-work repositories enlist. Other ADO.NET components that use the scoped connection, such as the audit, anonymization and ABAC stores, read/write separation and shard connections, do not enlist ([#1934](https://github.com/dlrivada/Encina/issues/1934)). On SQL Server and MySQL the driver rejects their commands while the transaction is active; PostgreSQL silently joins them.
-- Resolving `IUnitOfWork` inside a request that Encina dispatches fails when the request scope is disposed: `UnitOfWorkADO` implements only `IAsyncDisposable`, and Encina disposes its request scope synchronously. This is a known defect. ([#2556](https://github.com/dlrivada/Encina/issues/2556))
-- `AddEncinaADO` for PostgreSQL and MySQL does not support `UseModuleIsolation`; the SQL Server one does.
+- Resolving `IUnitOfWork` inside a request that Encina dispatches fails when the request scope is disposed: the ADO.NET and Dapper units of work (`UnitOfWorkADO`, `UnitOfWorkDapper`) implement only `IAsyncDisposable`, and Encina disposes its request scope synchronously. This is a known defect. ([#2556](https://github.com/dlrivada/Encina/issues/2556))
+- `AddEncinaADO` and `AddEncinaDapper` for PostgreSQL and MySQL do not support `UseModuleIsolation`; the SQL Server ones do.
+- On Dapper, a store constructed without an `IDbTransactionAccessor` autocommits each command. The other Dapper components that use the shared connection (other repositories, bulk operations, audit, ABAC, anonymization) do not enlist ([#1934](https://github.com/dlrivada/Encina/issues/1934)).
 
 ## Related
 

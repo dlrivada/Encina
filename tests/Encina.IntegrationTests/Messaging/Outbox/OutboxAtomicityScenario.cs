@@ -441,6 +441,11 @@ public static class OutboxAtomicityScenario
         tenantStore.GetTenantAsync("tenant-a", Arg.Any<CancellationToken>())
             .Returns(_ => new ValueTask<TenantInfo?>(tenant));
 
+        // The Dapper connection factories resolve the tenant through GetCurrentTenantAsync, the ADO.NET ones through
+        // GetCurrentTenantId and the store.
+        tenantProvider.GetCurrentTenantAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<TenantInfo?>(tenant));
+
         await using var provider = Build(
             harness,
             (services, configure) => harness.RegisterWithTenancy(services, configure, harness.ConnectionString),

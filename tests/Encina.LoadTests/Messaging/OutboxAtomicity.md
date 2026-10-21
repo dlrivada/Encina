@@ -1,10 +1,10 @@
-# Load Tests - Transactional Outbox (ADO.NET)
+# Load Tests - Transactional Outbox (ADO.NET and Dapper)
 
 ## Status: Not Implemented
 
 ## Justification
 
-A load test for the transactional outbox on the ADO.NET providers (`TransactionalOutboxPipelineBehavior`,
+A load test for the transactional outbox on the ADO.NET and Dapper providers (`TransactionalOutboxPipelineBehavior`,
 `DbTransactionAccessor`, the four messaging stores joining the scope's transaction) is intentionally not implemented:
 
 ### 1. One transaction per scope, no state shared across requests
@@ -34,7 +34,7 @@ the concurrent behavior a Unit of Work load test measures (parallel transactions
 under load, connection pool pressure) is unchanged by this work. The existing profile
 `tests/Encina.LoadTests/profiles/nbomber.database-uow.json` stays the alternative for that: it exercises
 concurrent transactions, rollbacks and connection pool pressure. It currently lists only the EF Core providers; the
-ADO.NET providers are not part of it, and adding them belongs to the Unit of Work load work, not to this slice.
+ADO.NET and Dapper providers are not part of it, and adding them belongs to the Unit of Work load work, not to this slice.
 
 ### 4. Adequate coverage from other test types
 
@@ -45,12 +45,12 @@ ADO.NET providers are not part of it, and adding them belongs to the Unit of Wor
   the behavior contract of the transactional outbox.
 - **Property tests**: the transaction commits if and only if the owner commits and no participant rolled back;
   a committed request leaves exactly n outbox messages and any other outcome leaves none.
-- **Integration tests**: the three ADO.NET providers on real databases.
+- **Integration tests**: the three ADO.NET and the three Dapper providers on real databases.
 - **Benchmark**: the skip path of the behavior (`ADO.SqlServer` benchmarks project).
 
 ### 5. Recommended alternative
 
-If load evidence is needed later, extend `nbomber.database-uow.json` with the ADO.NET providers and a scenario
+If load evidence is needed later, extend `nbomber.database-uow.json` with the ADO.NET and Dapper providers and a scenario
 that sends requests carrying notifications, then compare against the same scenario without notifications.
 
 ## Related Files

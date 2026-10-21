@@ -4,7 +4,7 @@
 
 **Accepted** - 2026-10-09, issue [#2084](https://github.com/dlrivada/Encina/issues/2084).
 
-> **Amendment 2026-10-20 ([#718](https://github.com/dlrivada/Encina/issues/718), [ADR-037](037-transactional-outbox.md)):** on the three ADO.NET providers (SqlServer, PostgreSQL, MySQL) `IDbTransactionAccessor` is no longer a plain holder written by `TransactionPipelineBehavior`. It is the scoped owner of the transaction: `TransactionPipelineBehavior`, `UnitOfWorkADO` and the transactional outbox behavior take a lease on it (`BeginOrJoinAsync`), and `DbLease` reads the same transaction through `IDbTransactionAccessor.Current`. An explicit `IUnitOfWork` transaction of `UnitOfWorkADO` is therefore visible to the inbox, and a unit of work opened inside a `TransactionPipelineBehavior` request joins its transaction instead of failing. The statement under Consequences that the `UnitOfWork` is not visible to the inbox now holds only for the Dapper providers, until the Dapper slice of [#719](https://github.com/dlrivada/Encina/issues/719). The decision (enlisted and independent writes) is unchanged.
+> **Amendment 2026-10-20 ([#718](https://github.com/dlrivada/Encina/issues/718), [ADR-037](037-transactional-outbox.md)):** on the three ADO.NET providers (SqlServer, PostgreSQL, MySQL) `IDbTransactionAccessor` is no longer a plain holder written by `TransactionPipelineBehavior`. It is the scoped owner of the transaction: `TransactionPipelineBehavior`, `UnitOfWorkADO` and the transactional outbox behavior take a lease on it (`BeginOrJoinAsync`), and `DbLease` reads the same transaction through `IDbTransactionAccessor.Current`. An explicit `IUnitOfWork` transaction of `UnitOfWorkADO` is therefore visible to the inbox, and a unit of work opened inside a `TransactionPipelineBehavior` request joins its transaction instead of failing. The statement under Consequences that the `UnitOfWork` is not visible to the inbox held for the Dapper providers until the Dapper slice of [#719](https://github.com/dlrivada/Encina/issues/719), delivered on 2026-10-21: `UnitOfWorkDapper` now takes a lease on the same accessor, so its transaction is visible to the inbox too. The decision (enlisted and independent writes) is unchanged.
 
 ## Context
 
@@ -61,7 +61,7 @@ EF Core requirements: the context type has a public constructor taking `DbContex
 - **Negative, limits**:
   - While a business transaction is open, each independent write uses a second pooled connection, so size the connection pool for it.
   - Under a repeatable-read or serializable `[Transaction]`, the lock taken by the lookup on the business connection can block an independent write until the command timeout.
-  - The Dapper `UnitOfWork` (an explicit `IUnitOfWork` transaction) is not visible to the inbox, which sees only the transaction set by `TransactionPipelineBehavior`. The ADO.NET `UnitOfWorkADO` is visible since the amendment of 2026-10-20 (see the note under Status).
+  - The ADO.NET `UnitOfWorkADO` is visible to the inbox since the amendment of 2026-10-20, and the Dapper `UnitOfWorkDapper` since 2026-10-21 (see the note under Status).
   - A request outside the Transaction pattern (an EF Core request with neither `ITransactionalCommand` nor `[Transaction]`, or any MongoDB request) has no atomic processed mark: a crash between the handler's writes and `MarkAsProcessedAsync` re-runs the handler.
   - Concurrent redeliveries of one message are not serialized; `MaxRetries` holds for sequential deliveries.
 

@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using Encina.Messaging;
 using Encina.Messaging.Outbox;
+using Encina.Messaging.Transactions;
 using LanguageExt;
 
 namespace Encina.Dapper.PostgreSQL.Outbox;
@@ -10,11 +11,17 @@ namespace Encina.Dapper.PostgreSQL.Outbox;
 /// Dapper implementation of <see cref="IOutboxStore"/> for reliable event publishing.
 /// Uses raw SQL queries for maximum performance and control.
 /// </summary>
+/// <remarks>
+/// Every command enlists in the business transaction of the scope when one is active (see
+/// <see cref="DbLease.Enlisted"/>), so the rows the transactional outbox behavior adds commit or roll back with
+/// the request; without an accessor, or without an active transaction, commands run in autocommit.
+/// </remarks>
 public sealed class OutboxStoreDapper : IOutboxStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
     private readonly TimeProvider _timeProvider;
+    private readonly IDbTransactionAccessor? _transactionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxStoreDapper"/> class.
@@ -22,17 +29,23 @@ public sealed class OutboxStoreDapper : IOutboxStore
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The outbox table name (default: outboxmessages).</param>
     /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
+    /// <param name="transactionAccessor">
+    /// Optional accessor of the scope's shared transaction; when a transaction is active the store's commands
+    /// join it, otherwise they run in autocommit.
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> or <paramref name="tableName"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is empty or whitespace.</exception>
     public OutboxStoreDapper(
         IDbConnection connection,
         string tableName = "outboxmessages",
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IDbTransactionAccessor? transactionAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _transactionAccessor = transactionAccessor;
     }
 
     /// <inheritdoc />
@@ -48,7 +61,8 @@ public sealed class OutboxStoreDapper : IOutboxStore
                 VALUES
                 (@Id, @NotificationType, @Content, @CreatedAtUtc, @ProcessedAtUtc, @ErrorMessage, @RetryCount, @NextRetryAtUtc)";
 
-            await _connection.ExecuteAsync(new CommandDefinition(sql, message, cancellationToken: cancellationToken));
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            await lease.Connection.ExecuteAsync(new CommandDefinition(sql, message, lease.Transaction, cancellationToken: cancellationToken));
         }, "outbox.add_failed").ConfigureAwait(false);
     }
 
@@ -73,10 +87,12 @@ public sealed class OutboxStoreDapper : IOutboxStore
                 ORDER BY createdatutc
                 LIMIT @BatchSize";
 
-            var messages = await _connection.QueryAsync<OutboxMessage>(
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            var messages = await lease.Connection.QueryAsync<OutboxMessage>(
                 new CommandDefinition(
                     sql,
                     new { BatchSize = batchSize, MaxRetries = maxRetries, NowUtc = nowUtc },
+                    lease.Transaction,
                     cancellationToken: cancellationToken));
 
             return (IEnumerable<IOutboxMessage>)messages.Cast<IOutboxMessage>().ToList();
@@ -98,8 +114,9 @@ public sealed class OutboxStoreDapper : IOutboxStore
                     errormessage = NULL
                 WHERE id = @MessageId";
 
-            await _connection.ExecuteAsync(
-                new CommandDefinition(sql, new { MessageId = messageId, NowUtc = nowUtc }, cancellationToken: cancellationToken));
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            await lease.Connection.ExecuteAsync(
+                new CommandDefinition(sql, new { MessageId = messageId, NowUtc = nowUtc }, lease.Transaction, cancellationToken: cancellationToken));
         }, "outbox.mark_processed_failed").ConfigureAwait(false);
     }
 
@@ -123,7 +140,8 @@ public sealed class OutboxStoreDapper : IOutboxStore
                     nextretryatutc = @NextRetryAtUtc
                 WHERE id = @MessageId";
 
-            await _connection.ExecuteAsync(
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            await lease.Connection.ExecuteAsync(
                 new CommandDefinition(
                     sql,
                     new
@@ -132,6 +150,7 @@ public sealed class OutboxStoreDapper : IOutboxStore
                         ErrorMessage = errorMessage,
                         NextRetryAtUtc = nextRetryAtUtc
                     },
+                    lease.Transaction,
                     cancellationToken: cancellationToken));
         }, "outbox.mark_failed_failed").ConfigureAwait(false);
     }
@@ -151,8 +170,9 @@ public sealed class OutboxStoreDapper : IOutboxStore
                 WHERE processedatutc IS NULL
                   AND retrycount < @MaxRetries";
 
-            return (int)await _connection.ExecuteScalarAsync<long>(
-                new CommandDefinition(sql, new { MaxRetries = maxRetries }, cancellationToken: cancellationToken));
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            return (int)await lease.Connection.ExecuteScalarAsync<long>(
+                new CommandDefinition(sql, new { MaxRetries = maxRetries }, lease.Transaction, cancellationToken: cancellationToken));
         }, "outbox.get_pending_count_failed").ConfigureAwait(false);
     }
 
@@ -171,8 +191,9 @@ public sealed class OutboxStoreDapper : IOutboxStore
                 WHERE processedatutc IS NULL
                   AND retrycount >= @MaxRetries";
 
-            return (int)await _connection.ExecuteScalarAsync<long>(
-                new CommandDefinition(sql, new { MaxRetries = maxRetries }, cancellationToken: cancellationToken));
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            return (int)await lease.Connection.ExecuteScalarAsync<long>(
+                new CommandDefinition(sql, new { MaxRetries = maxRetries }, lease.Transaction, cancellationToken: cancellationToken));
         }, "outbox.get_exhausted_count_failed").ConfigureAwait(false);
     }
 
@@ -200,10 +221,12 @@ public sealed class OutboxStoreDapper : IOutboxStore
             if (messageIds is not null)
                 sql += " AND id = ANY(@Ids)";
 
-            return await _connection.ExecuteAsync(
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            return await lease.Connection.ExecuteAsync(
                 new CommandDefinition(
                     sql,
                     new { MaxRetries = maxRetries, Ids = messageIds?.Distinct().ToArray() },
+                    lease.Transaction,
                     cancellationToken: cancellationToken));
         }, "outbox.requeue_exhausted_failed").ConfigureAwait(false);
     }

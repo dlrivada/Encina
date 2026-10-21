@@ -86,9 +86,9 @@ public sealed class MessageSerializerRegistrationTests
 
         // Assert
         AssertSerializer(sp, encryption);
-        if (family == ProviderFamily.AdoPostgreSql)
+        if (family is ProviderFamily.AdoPostgreSql or ProviderFamily.DapperPostgreSql)
         {
-            // ADO.NET writes the notifications inside the request's transaction (#718).
+            // ADO.NET and Dapper write the notifications inside the request's transaction (#718, #719).
             sp.GetServices<IPipelineBehavior<ProbeRequest, string>>()
                 .ShouldContain(b => b is TransactionalOutboxPipelineBehavior<ProbeRequest, string>);
         }

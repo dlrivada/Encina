@@ -181,10 +181,19 @@
     },
     "Outbox/OutboxStoreDapper.cs": {
       "defaultTests": [
-        "integration"
+        "integration",
+        "guard"
       ],
       "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
+      "reason": "Dapper store with raw SQL — needs real database",
+      "targets": {
+        "integration": 92,
+        "guard": 10
+      },
+      "justifications": {
+        "integration": "The store tests and the outbox atomicity tests on a real database run every query, the enlisted add and the requeue paths; the uncovered lines are provider error branches.",
+        "guard": "Only the argument checks are guard-reachable."
+      }
     },
     "Pagination/CursorPaginationHelper.cs": {
       "defaultTests": [
@@ -297,10 +306,19 @@
     },
     "Sagas/SagaStoreDapper.cs": {
       "defaultTests": [
-        "integration"
+        "integration",
+        "guard"
       ],
       "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
+      "reason": "Dapper store with raw SQL — needs real database",
+      "targets": {
+        "integration": 72,
+        "guard": 8
+      },
+      "justifications": {
+        "integration": "The saga store tests on a real database run every query but not the empty-result and error branches of the enlisted calls.",
+        "guard": "Only the argument checks are guard-reachable."
+      }
     },
     "Scheduling/ScheduledMessage.cs": {
       "defaultTests": [
@@ -320,10 +338,19 @@
     },
     "Scheduling/ScheduledMessageStoreDapper.cs": {
       "defaultTests": [
-        "integration"
+        "integration",
+        "guard"
       ],
       "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
+      "reason": "Dapper store with raw SQL — needs real database",
+      "targets": {
+        "integration": 90,
+        "guard": 9
+      },
+      "justifications": {
+        "integration": "The scheduled message store tests on a real database run every query; the uncovered lines are provider error branches.",
+        "guard": "Only the argument checks are guard-reachable."
+      }
     },
     "DeadLetter/DeadLetterMessage.cs": {
       "defaultTests": [
@@ -387,11 +414,11 @@
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
       "targets": {
-        "unit": 56,
+        "unit": 60,
         "guard": 5
       },
       "justifications": {
-        "unit": "The registration tests resolve the dead letter and the read/write separation paths (enabled with and without replicas, and disabled) with ValidateOnBuild and ValidateScopes, but the file also registers features that are covered by their own tests, so only part of it is exercised here.",
+        "unit": "The registration tests resolve the dead letter and the read/write separation paths (enabled with and without replicas, and disabled) with ValidateOnBuild and ValidateScopes, but the file also registers features that are covered by their own tests, so only part of it is exercised here. It also covers the transactional outbox registration with UseOutbox, UseTransactions and both, and the unit of work accessor registration.",
         "guard": "Only the few argument checks reachable by guard tests are covered, because the file is dominated by registrations."
       }
     },
@@ -592,10 +619,21 @@
     "UnitOfWork/UnitOfWorkDapper.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 98,
+        "guard": 40,
+        "integration": 80
+      },
+      "justifications": {
+        "unit": "The lease tests drive owner, joiner, double begin, commit failure, rollback and dispose against a real accessor; the few uncovered lines are the repository factory failure paths.",
+        "guard": "Guard tests reach the constructor and disposed-state checks, not the lease paths.",
+        "integration": "The unit of work integration tests and the outbox atomicity tests run the shared transaction on a real database; the uncovered lines are error branches."
+      }
     },
     "UnitOfWork/UnitOfWorkRepositoryDapper.cs": {
       "defaultTests": [
