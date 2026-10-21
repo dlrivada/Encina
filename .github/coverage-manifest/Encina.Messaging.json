@@ -981,9 +981,9 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 85, "guard": 5 },
+      "targets": { "unit": 90, "guard": 5 },
       "justifications": {
-        "unit": "Chain tests drive the processor through every delayed retry and a permanent error (measured 90%); the reflection scheduling fallbacks for an unresolvable type stay uncovered.",
+        "unit": "Retry-After and non-idempotent chain tests in DelayedRetryChainTests; the reflection scheduling fallbacks for an unresolvable type stay uncovered.",
         "guard": "Only the constructor guards exist for this type; the processing loop takes no caller parameters (measured 6%)."
       }
     },
@@ -1016,25 +1016,17 @@
         "guard"
       ],
       "defaultRule": "*Message.cs",
-      "reason": "Domain entity with serialization/validation logic"
+      "reason": "Domain entity with serialization/validation logic",
+      "targets": { "unit": 95, "guard": 45 },
+      "justifications": {
+        "unit": "namespace-only change in #1223",
+        "guard": "namespace-only change in #1223"
+      }
     },
     "Recoverability/IDelayedRetryScheduler.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
       "reason": "Interfaces have no implementation to test"
-    },
-    "Recoverability/IErrorClassifier.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Contains DefaultErrorClassifier",
-      "targets": {
-        "unit": 95
-      },
-      "justifications": {
-        "unit": "DefaultErrorClassifier implementation with exception classification logic (measured 98%)."
-      }
     },
     "Recoverability/RecoverabilityContext.cs": {
       "defaultTests": [
@@ -1053,10 +1045,16 @@
     },
     "Recoverability/RecoverabilityOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": { "unit": 95, "guard": 95 },
+      "justifications": {
+        "unit": "namespace-only change in #1223",
+        "guard": "namespace-only change in #1223"
+      }
     },
     "Recoverability/RecoverabilityPipelineBehavior.cs": {
       "defaultTests": [
@@ -1079,7 +1077,11 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "RegisterErrorClassifier asserted by ErrorClassifierRegistrationTests."
+      }
     },
     "RoutingSlip/IRoutingSlipRunner.cs": {
       "defaultTests": [],
