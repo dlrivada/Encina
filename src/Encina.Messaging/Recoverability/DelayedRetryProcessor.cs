@@ -300,18 +300,9 @@ public sealed class DelayedRetryProcessor : BackgroundService
         CancellationToken cancellationToken)
     {
         var nextDelayedRetryAttempt = message.DelayedRetryAttempt + 1;
-        if (result.IsPermanent)
+        if (SkipReason(message, result) is { } reason)
         {
-            CountSkipped(RetryMetrics.ReasonPermanent, message, result);
-            return false;
-        }
-
-        // An ambiguous failure of a non-idempotent send ends the chain like a permanent one, unless the
-        // original request carried an idempotency key.
-        if (result.Error is { } error
-            && !OutboundRetryRules.AllowsAutomaticRetry(error, ParseContext(message.ContextContent).IdempotencyKey, allowNonIdempotentRetry: false))
-        {
-            CountSkipped(RetryMetrics.ReasonNonIdempotent, message, result);
+            CountSkipped(reason, message, result);
             return false;
         }
 
@@ -322,10 +313,27 @@ public sealed class DelayedRetryProcessor : BackgroundService
 
         // The delay the API dictated (Retry-After) replaces the configured step; the attempt still counts
         // against DelayedRetries.Length. Never shortened and without jitter.
-        var retryAfter = result.Error is { } failure ? OutboundRetryRules.GetRetryAfter(failure) : null;
-        var delay = retryAfter ?? _options.DelayedRetries[nextDelayedRetryAttempt];
+        var delay = RetryAfterOf(result) ?? _options.DelayedRetries[nextDelayedRetryAttempt];
 
         return await ScheduleNextDelayedRetryAsync(message, request, nextDelayedRetryAttempt, delay, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static TimeSpan? RetryAfterOf(DispatchResult result) =>
+        result.Error is { } error ? OutboundRetryRules.GetRetryAfter(error) : null;
+
+    // Why the chain ends instead of scheduling the next attempt, or null. An ambiguous failure of a non-idempotent
+    // send ends the chain like a permanent one, unless the original request carried an idempotency key.
+    private static string? SkipReason(IDelayedRetryMessage message, DispatchResult result)
+    {
+        if (result.IsPermanent)
+        {
+            return RetryMetrics.ReasonPermanent;
+        }
+
+        return result.Error is { } error
+            && !OutboundRetryRules.AllowsAutomaticRetry(error, ParseContext(message.ContextContent).IdempotencyKey, allowNonIdempotentRetry: false)
+                ? RetryMetrics.ReasonNonIdempotent
+                : null;
     }
 
     private static void CountSkipped(string reason, IDelayedRetryMessage message, DispatchResult result) =>

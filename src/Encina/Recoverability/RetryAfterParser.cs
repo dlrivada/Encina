@@ -29,7 +29,7 @@ public static class RetryAfterParser
 
         if (header.Delta is { } delta)
         {
-            return delta < TimeSpan.Zero ? null : delta;
+            return delta > TimeSpan.Zero ? delta : TimeSpan.Zero;
         }
 
         if (header.Date is { } date)

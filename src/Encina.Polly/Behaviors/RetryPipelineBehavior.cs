@@ -160,44 +160,46 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
 
     private bool ShouldRetryError(EncinaError error, RetryAttribute config, IRequestContext context)
     {
-        var cause = error.GetCause().MatchUnsafe(ex => ex, () => null);
-        var code = error.GetCode().IfNone("encina.unknown");
+        return SkipReasonOf(error, config, context) is { } reason
+            ? Skip(reason, error.GetCode().IfNone("encina.unknown"), context)
+            : true;
+    }
 
+    // Why an error is not retried, or null when it is.
+    private string? SkipReasonOf(EncinaError error, RetryAttribute config, IRequestContext context)
+    {
+        var cause = error.GetCause().MatchUnsafe(ex => ex, () => null);
         if (_errorClassifier.Classify(error, cause) == ErrorClassification.Permanent)
         {
-            return Skip(RetryMetrics.ReasonPermanent, code, context);
+            return RetryMetrics.ReasonPermanent;
         }
 
         if (!OutboundRetryRules.AllowsAutomaticRetry(error, context.IdempotencyKey, config.RetryNonIdempotent))
         {
-            return Skip(RetryMetrics.ReasonNonIdempotent, code, context);
+            return RetryMetrics.ReasonNonIdempotent;
         }
 
         // A wait longer than the ceiling is never shortened: the transient error goes back to the caller
         // with http.retry_after so an outer layer can reschedule it.
-        if (OutboundRetryRules.GetRetryAfter(error) is { } retryAfter
-            && retryAfter > TimeSpan.FromMilliseconds(config.MaxDelayMs))
-        {
-            return Skip(RetryMetrics.ReasonRetryAfterExceedsMax, code, context);
-        }
-
-        return true;
+        return OutboundRetryRules.GetRetryAfter(error) > TimeSpan.FromMilliseconds(config.MaxDelayMs)
+            ? RetryMetrics.ReasonRetryAfterExceedsMax
+            : null;
     }
 
     private bool ShouldRetryException(Exception ex, RetryAttribute config, IRequestContext context)
     {
         var classification = _errorClassifier.Classify(EncinaError.New(ex), ex);
 
-        if (classification == ErrorClassification.Permanent)
-        {
-            return Skip(RetryMetrics.ReasonPermanent, ex.GetType().Name, context);
-        }
-
-        // Transient failures are retried; an unknown one only when the request opted in or it is a known transient type.
-        return classification == ErrorClassification.Transient
-            || config.RetryOnAllExceptions
-            || ex is TimeoutException or HttpRequestException or IOException;
+        return classification == ErrorClassification.Permanent
+            ? Skip(RetryMetrics.ReasonPermanent, ex.GetType().Name, context)
+            : IsRetryableException(classification, ex, config);
     }
+
+    // Transient failures are retried; an unknown one only when the request opted in or it is a known transient type.
+    private static bool IsRetryableException(ErrorClassification classification, Exception ex, RetryAttribute config) =>
+        classification == ErrorClassification.Transient
+        || config.RetryOnAllExceptions
+        || ex is TimeoutException or HttpRequestException or IOException;
 
     // Counts and logs a retry that is not performed; always false so a caller can return it.
     private bool Skip(string reason, string errorCode, IRequestContext context)

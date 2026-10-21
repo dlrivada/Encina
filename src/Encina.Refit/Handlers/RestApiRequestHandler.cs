@@ -80,9 +80,7 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
     {
         var requestType = typeof(TRequest).Name;
         var apiClientType = typeof(TApiClient).Name;
-        var context = _contextAccessor?.RequestContext;
-        var correlationId = context?.CorrelationId ?? string.Empty;
-        var tenantId = context?.TenantId;
+        var (correlationId, tenantId) = AmbientContext();
 
         var activity = OutboundTelemetry.Start(requestType, tenantId);
         using var methodScope = OutboundMethodCapture.Begin();
@@ -110,9 +108,7 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
         {
             // General HTTP request failure
             LogHttpException(requestType, apiClientType, httpEx.ForLogging(), correlationId);
-            outcome = httpEx.StatusCode is { } status
-                ? FromStatus((int)status, null, methodScope.Capture.Method)
-                : FromNetworkFailure(httpEx.HttpRequestError, methodScope.Capture.Method);
+            outcome = FromHttpRequestException(httpEx, methodScope.Capture.Method);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -136,6 +132,18 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
         return outcome;
     }
 
+    // The correlation id (empty when absent) and the tenant id of the ambient context, for logs and telemetry only.
+    private (string CorrelationId, string? TenantId) AmbientContext()
+    {
+        var context = _contextAccessor?.RequestContext;
+        return (context?.CorrelationId ?? string.Empty, context?.TenantId);
+    }
+
+    private static Either<EncinaError, TResponse> FromHttpRequestException(HttpRequestException exception, HttpMethod? method) =>
+        exception.StatusCode is { } status
+            ? FromStatusCode((int)status, null, method)
+            : FromNetworkFailure(exception.HttpRequestError, method);
+
     private static void CompleteTelemetry(
         System.Diagnostics.Activity? activity,
         string requestType,
@@ -150,26 +158,31 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
     }
 
     // The fixed-text message names the status and reason phrase only: never the response body.
-    private Either<EncinaError, TResponse> FromStatus(int status, System.Net.Http.Headers.RetryConditionHeaderValue? retryAfterHeader, HttpMethod? method)
-    {
-        var message = $"API call failed with status {status} ({(HttpStatusCode)status})";
-        var retryAfter = RetryAfterParser.Parse(retryAfterHeader, _timeProvider);
+    private Either<EncinaError, TResponse> FromStatus(int status, System.Net.Http.Headers.RetryConditionHeaderValue? retryAfterHeader, HttpMethod? method) =>
+        FromStatusCode(status, RetryAfterParser.Parse(retryAfterHeader, _timeProvider), method);
 
-        return status switch
-        {
-            >= 200 and < 300 => Failure(OutboundErrorCodes.UnexpectedResponse, message, transient: false, status),
-            429 => Failure(OutboundErrorCodes.RateLimited, message, transient: true, status, retryAfter),
-            408 => Failure(OutboundErrorCodes.Timeout, message, transient: true, status, retryAfter),
-            >= 500 and <= 599 => Failure(
-                OutboundErrorCodes.ServerError,
-                message,
-                transient: true,
-                status,
-                retryAfter,
-                ambiguous: status is 500 or 502 or 504 && IsNonIdempotent(method)),
-            _ => Failure(OutboundErrorCodes.ClientError, message, transient: false, status, retryAfter)
-        };
+    private static Either<EncinaError, TResponse> FromStatusCode(int status, TimeSpan? retryAfter, HttpMethod? method)
+    {
+        var (code, transient, ambiguousStatus) = ProfileOf(status);
+        return Failure(
+            code,
+            $"API call failed with status {status} ({(HttpStatusCode)status})",
+            transient,
+            status,
+            retryAfter,
+            ambiguous: ambiguousStatus && IsNonIdempotent(method));
     }
+
+    // crap-exempt: single-question switch — the failure family of each HTTP status.
+    private static (string Code, bool Transient, bool AmbiguousStatus) ProfileOf(int status) => status switch
+    {
+        >= 200 and < 300 => (OutboundErrorCodes.UnexpectedResponse, false, false),
+        429 => (OutboundErrorCodes.RateLimited, true, false),
+        408 => (OutboundErrorCodes.Timeout, true, false),
+        500 or 502 or 504 => (OutboundErrorCodes.ServerError, true, true),
+        >= 500 and <= 599 => (OutboundErrorCodes.ServerError, true, false),
+        _ => (OutboundErrorCodes.ClientError, false, false)
+    };
 
     // A connection that never opened proves the request was not sent; any other network failure is ambiguous.
     private static Either<EncinaError, TResponse> FromNetworkFailure(HttpRequestError error, HttpMethod? method) =>

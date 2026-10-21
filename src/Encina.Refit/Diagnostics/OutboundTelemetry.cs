@@ -48,25 +48,10 @@ internal static class OutboundTelemetry
         string? tenantId)
     {
         var tags = new TagList { { "request_name", requestName }, { "outcome", errorCode is null ? "success" : "failure" } };
-        if (errorCode is not null)
-        {
-            tags.Add("error_code", errorCode);
-        }
-
-        if (transient is { } isTransient)
-        {
-            tags.Add("transient", isTransient);
-        }
-
-        if (httpStatus is { } status)
-        {
-            tags.Add("http.status", status);
-        }
-
-        if (tenantId is not null)
-        {
-            tags.Add("encina.tenant_id", tenantId);
-        }
+        AddIfPresent(ref tags, "error_code", errorCode);
+        AddIfPresent(ref tags, "transient", transient);
+        AddIfPresent(ref tags, "http.status", httpStatus);
+        AddIfPresent(ref tags, "encina.tenant_id", tenantId);
 
         Requests.Add(1, tags);
 
@@ -75,22 +60,19 @@ internal static class OutboundTelemetry
             return;
         }
 
-        if (errorCode is not null)
-        {
-            activity.SetTag("Encina.failure_code", errorCode);
-        }
-
-        if (transient is { } t)
-        {
-            activity.SetTag("transient", t);
-        }
-
-        if (httpStatus is { } s)
-        {
-            activity.SetTag("http.status", s);
-        }
-
+        // SetTag with a null value adds nothing
+        activity.SetTag("Encina.failure_code", errorCode);
+        activity.SetTag("transient", transient);
+        activity.SetTag("http.status", httpStatus);
         activity.SetStatus(errorCode is null ? ActivityStatusCode.Ok : ActivityStatusCode.Error, errorCode);
         activity.Dispose();
+    }
+
+    private static void AddIfPresent(ref TagList tags, string key, object? value)
+    {
+        if (value is not null)
+        {
+            tags.Add(key, value);
+        }
     }
 }

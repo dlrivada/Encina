@@ -202,30 +202,14 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
             return ErrorClassification.Transient;
         }
 
-        // Then, check the exception type
-        if (exception is not null)
+        // Then, the exception passed in, the exception of the error itself, and the error code
+        var known = ClassifyExceptions(encinaError, exception);
+        if (known != ErrorClassification.Unknown)
         {
-            var exceptionClassification = ClassifyException(exception);
-            if (exceptionClassification != ErrorClassification.Unknown)
-            {
-                return exceptionClassification;
-            }
+            return known;
         }
 
-        // Also check the exception from the error itself
-        var errorException = encinaError.Exception.MatchUnsafe(ex => ex, () => null);
-        if (errorException is not null)
-        {
-            var exceptionClassification = ClassifyException(errorException);
-            if (exceptionClassification != ErrorClassification.Unknown)
-            {
-                return exceptionClassification;
-            }
-        }
-
-        // Then, check the error code against the explicit lists
-        var code = encinaError.GetCode().IfNone(string.Empty);
-        var codeClassification = ClassifyErrorCode(code);
+        var codeClassification = ClassifyErrorCode(encinaError.GetCode().IfNone(string.Empty));
         if (codeClassification != ErrorClassification.Unknown)
         {
             return codeClassification;
@@ -240,6 +224,18 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
         }
 
         return ClassifyErrorMessage(encinaError.Message);
+    }
+
+    private static ErrorClassification ClassifyExceptions(EncinaError encinaError, Exception? exception)
+    {
+        var fromArgument = exception is null ? ErrorClassification.Unknown : ClassifyException(exception);
+        if (fromArgument != ErrorClassification.Unknown)
+        {
+            return fromArgument;
+        }
+
+        var errorException = encinaError.Exception.MatchUnsafe(ex => ex, () => null);
+        return errorException is null ? ErrorClassification.Unknown : ClassifyException(errorException);
     }
 
     private static ErrorClassification ClassifyDeclaredTransience(EncinaError encinaError)
@@ -346,33 +342,19 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
 
     private static ErrorClassification ClassifyHttpRequestException(HttpRequestException httpEx)
     {
-        // Check status code if available
-        if (httpEx.StatusCode.HasValue)
-        {
-            var statusCode = (int)httpEx.StatusCode.Value;
-
-            // 5xx errors are transient
-            if (statusCode >= 500 && statusCode <= 599)
-            {
-                return ErrorClassification.Transient;
-            }
-
-            // 408 Request Timeout (the client MAY repeat) and 429 Too Many Requests are transient
-            if (statusCode is 408 or 429)
-            {
-                return ErrorClassification.Transient;
-            }
-
-            // 4xx errors are permanent (except 408 and 429)
-            if (statusCode >= 400 && statusCode <= 499)
-            {
-                return ErrorClassification.Permanent;
-            }
-        }
-
-        // Network errors without status code are transient
-        return ErrorClassification.Transient;
+        // Network errors without a status code are transient
+        return httpEx.StatusCode is { } status ? ClassifyStatusCode((int)status) : ErrorClassification.Transient;
     }
+
+    // crap-exempt: single-question switch — whether a retry can change the outcome of each HTTP status.
+    private static ErrorClassification ClassifyStatusCode(int statusCode) => statusCode switch
+    {
+        // 5xx, 408 Request Timeout (the client MAY repeat) and 429 Too Many Requests are transient
+        >= 500 and <= 599 or 408 or 429 => ErrorClassification.Transient,
+        // other 4xx are permanent
+        >= 400 and <= 499 => ErrorClassification.Permanent,
+        _ => ErrorClassification.Transient
+    };
 
     private static ErrorClassification ClassifyErrorMessage(string message)
     {
