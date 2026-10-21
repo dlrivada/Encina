@@ -199,7 +199,7 @@ public sealed record ChatCommand(string Message) : ICommand<ChatResponse>;
 
 ## Prohibited Practices
 
-The `ProhibitedPractice` enum has 11 members, one for every point of Art. 5(1) as amended by Regulation (EU) 2026/1744. The `ArticlePoint` extension property returns the point of a member. A practice is blocked when the application declares it on the registered `AISystemRegistration.ProhibitedPractices`; this happens in Block and Warn mode (see [Enforcement Modes](#enforcement-modes)).
+The `ProhibitedPractice` enum has 11 members, one for every point of Art. 5(1) as amended by Regulation (EU) 2026/1744. The `GetArticlePoint()` extension method returns the point of a member. A practice is blocked when the application declares it on the registered `AISystemRegistration.ProhibitedPractices`; this happens in Block and Warn mode (see [Enforcement Modes](#enforcement-modes)).
 
 | Practice | Art. 5(1) point | Description | Applies from |
 |----------|-----------------|-------------|--------------|

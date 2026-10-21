@@ -96,7 +96,7 @@ services.AddEncinaAIAct(options =>
 | **Warn** | Non-compliant requests proceed with log warning | Blocked |
 | **Disabled** | No compliance checks (pipeline passthrough) | Not checked |
 
-> **Important**: A prohibited practice (Art. 5) declared on the registered `AISystemRegistration.ProhibitedPractices` is blocked in both Block and Warn mode, so Warn does not let it through. `Disabled` skips every check, and requests without an AI Act attribute are skipped. The library has no date logic: the application declares the practices that apply to a system. `ProhibitedPractice` has 11 members, one per point of Art. 5(1) as amended by Regulation (EU) 2026/1744; the new points (ba) and (bb) apply from 2 December 2026, the others from 2 February 2025. The `ArticlePoint` extension property of a `ProhibitedPractice` returns its point, for example `5(1)(ba)`.
+> **Important**: A prohibited practice (Art. 5) declared on the registered `AISystemRegistration.ProhibitedPractices` is blocked in both Block and Warn mode, so Warn does not let it through. `Disabled` skips every check, and requests without an AI Act attribute are skipped. The library has no date logic: the application declares the practices that apply to a system. `ProhibitedPractice` has 11 members, one per point of Art. 5(1) as amended by Regulation (EU) 2026/1744; the new points (ba) and (bb) apply from 2 December 2026, the others from 2 February 2025. The `GetArticlePoint()` extension method of a `ProhibitedPractice` returns its point, for example `5(1)(ba)`.
 
 ## Observability
 
