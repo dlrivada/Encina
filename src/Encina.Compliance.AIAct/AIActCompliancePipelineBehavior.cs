@@ -42,10 +42,12 @@ namespace Encina.Compliance.AIAct;
 /// <see cref="AIActEnforcementMode.Disabled"/> skips all checks.
 /// </para>
 /// <para>
-/// <b>Important:</b> Every prohibited practice (Art. 5) declared on a registered AI system is blocked
-/// in <see cref="AIActEnforcementMode.Block"/> and <see cref="AIActEnforcementMode.Warn"/> mode alike;
-/// <see cref="AIActEnforcementMode.Warn"/> only relaxes the other violations. Only requests with no AI Act
-/// attribute, or <see cref="AIActEnforcementMode.Disabled"/> mode, bypass the check.
+/// <b>Important:</b> A prohibited practice (Art. 5) is blocked when it is declared on a registered AI
+/// system that the request resolves to, in <see cref="AIActEnforcementMode.Block"/> and
+/// <see cref="AIActEnforcementMode.Warn"/> mode alike; <see cref="AIActEnforcementMode.Warn"/> relaxes
+/// the other violations. Nothing is detected in <see cref="AIActEnforcementMode.Disabled"/> mode, for a
+/// request with no AI Act attribute, for a request whose system id cannot be resolved, or for a system
+/// that is not registered.
 /// </para>
 /// <para>
 /// <b>Observability:</b> Emits OpenTelemetry traces via <c>Encina.Compliance.AIAct</c> ActivitySource,

@@ -21,10 +21,10 @@ namespace Encina.Compliance.AIAct.Model;
 public enum ProhibitedPractice
 {
     /// <summary>
-    /// AI-based social scoring by public authorities or on their behalf.
+    /// AI-based social scoring of natural persons or groups.
     /// </summary>
     /// <remarks>
-    /// Art. 5(1)(c). Evaluation or classification of natural persons based on their social
+    /// Art. 5(1)(c). The prohibition applies to any actor, public or private. Evaluation or classification of natural persons based on their social
     /// behaviour or known/predicted personal or personality characteristics, where the social
     /// score leads to detrimental or unfavourable treatment in social contexts unrelated to
     /// the contexts in which the data was originally generated or collected.
@@ -121,7 +121,7 @@ public enum ProhibitedPractice
     /// <remarks>
     /// Art. 5(1)(ba). AI systems that generate or manipulate intimate or sexually explicit
     /// images, video or audio of an identifiable natural person without that person's consent
-    /// (non-consensual intimate deepfakes, often called "nudification").
+    /// (non-consensual intimate deepfakes).
     /// Added by Regulation (EU) 2026/1744; applies from 2 December 2026.
     /// </remarks>
     NonConsensualIntimateDeepfakes = 9,
