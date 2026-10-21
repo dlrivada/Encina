@@ -25,9 +25,9 @@ public class ProhibitedPracticeTests
 
     [Theory]
     [MemberData(nameof(ExpectedPoints))]
-    public void ArticlePoint_ReturnsExpectedPoint(ProhibitedPractice practice, string expected)
+    public void GetArticlePoint_ReturnsExpectedPoint(ProhibitedPractice practice, string expected)
     {
-        practice.ArticlePoint.ShouldBe(expected);
+        practice.GetArticlePoint().ShouldBe(expected);
     }
 
     [Fact]
@@ -39,10 +39,10 @@ public class ProhibitedPracticeTests
     }
 
     [Fact]
-    public void ArticlePoint_AcrossAllMembers_YieldsTheTenPointsOfArticle5Paragraph1()
+    public void GetArticlePoint_AcrossAllMembers_YieldsTheTenPointsOfArticle5Paragraph1()
     {
         var points = Enum.GetValues<ProhibitedPractice>()
-            .Select(practice => practice.ArticlePoint)
+            .Select(practice => practice.GetArticlePoint())
             .ToHashSet();
 
         points.ShouldBe(
@@ -51,11 +51,11 @@ public class ProhibitedPracticeTests
     }
 
     [Fact]
-    public void ArticlePoint_UndefinedValue_ThrowsArgumentOutOfRangeException()
+    public void GetArticlePoint_UndefinedValue_ThrowsArgumentOutOfRangeException()
     {
         var undefined = (ProhibitedPractice)999;
 
-        var act = () => undefined.ArticlePoint;
+        var act = () => undefined.GetArticlePoint();
 
         act.ShouldThrow<ArgumentOutOfRangeException>().ParamName.ShouldBe("practice");
     }
