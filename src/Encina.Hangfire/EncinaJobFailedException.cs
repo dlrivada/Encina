@@ -8,7 +8,7 @@ namespace Encina.Hangfire;
 /// <remarks>
 /// <para>
 /// Hangfire only marks a job as failed, and applies its retry policy, when the job method throws. The
-/// adapters classify every <c>Left</c> with <see cref="Encina.Messaging.Recoverability.IErrorClassifier"/>:
+/// adapters classify every <c>Left</c> with <see cref="Encina.Recoverability.IErrorClassifier"/>:
 /// transient (and unclassified) failures throw this exception so the job is retried; permanent failures
 /// throw <see cref="EncinaJobPermanentFailureException"/> instead, and an Encina cancellation error while the
 /// job's token is cancelled throws <see cref="OperationCanceledException"/>. The Quartz integration

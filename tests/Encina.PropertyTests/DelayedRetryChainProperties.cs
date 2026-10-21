@@ -1,4 +1,5 @@
 using Encina.Messaging.Recoverability;
+using Encina.Recoverability;
 using FsCheck;
 using FsCheck.Xunit;
 

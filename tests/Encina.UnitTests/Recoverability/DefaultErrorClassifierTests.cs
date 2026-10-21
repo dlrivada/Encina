@@ -1,12 +1,12 @@
 using System.Net;
 using Encina.Messaging.Choreography;
-using Encina.Messaging.Recoverability;
 using Encina.Messaging.RoutingSlip;
 using Encina.Messaging.Sagas;
+using Encina.Recoverability;
 using LanguageExt;
 using Shouldly;
 
-namespace Encina.UnitTests.Messaging.Recoverability;
+namespace Encina.UnitTests.Recoverability;
 
 /// <summary>
 /// Unit tests for <see cref="DefaultErrorClassifier"/>.

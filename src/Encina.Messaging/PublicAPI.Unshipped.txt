@@ -256,7 +256,7 @@ Encina.Messaging.Recoverability.RecoverabilityOptions.DelayedRetries.get -> Syst
 Encina.Messaging.Recoverability.RecoverabilityOptions.DelayedRetries.set -> void
 Encina.Messaging.Recoverability.RecoverabilityOptions.OnPermanentFailure.get -> System.Func<Encina.Messaging.Recoverability.FailedMessage!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
 Encina.Messaging.Recoverability.RecoverabilityOptions.OnPermanentFailure.set -> void
-Encina.Messaging.Recoverability.RecoverabilityOptions.ErrorClassifier.get -> Encina.Messaging.Recoverability.IErrorClassifier?
+Encina.Messaging.Recoverability.RecoverabilityOptions.ErrorClassifier.get -> Encina.Recoverability.IErrorClassifier?
 Encina.Messaging.Recoverability.RecoverabilityOptions.ErrorClassifier.set -> void
 Encina.Messaging.Recoverability.RecoverabilityOptions.EnableDelayedRetries.get -> bool
 Encina.Messaging.Recoverability.RecoverabilityOptions.EnableDelayedRetries.set -> void
@@ -265,15 +265,6 @@ Encina.Messaging.Recoverability.RecoverabilityOptions.UseJitter.set -> void
 Encina.Messaging.Recoverability.RecoverabilityOptions.MaxJitterPercent.get -> int
 Encina.Messaging.Recoverability.RecoverabilityOptions.MaxJitterPercent.set -> void
 Encina.Messaging.Recoverability.RecoverabilityOptions.TotalRetryAttempts.get -> int
-Encina.Messaging.Recoverability.IErrorClassifier
-Encina.Messaging.Recoverability.IErrorClassifier.Classify(Encina.EncinaError encinaError, System.Exception? exception) -> Encina.Messaging.Recoverability.ErrorClassification
-Encina.Messaging.Recoverability.ErrorClassification
-Encina.Messaging.Recoverability.ErrorClassification.Unknown = 0 -> Encina.Messaging.Recoverability.ErrorClassification
-Encina.Messaging.Recoverability.ErrorClassification.Transient = 1 -> Encina.Messaging.Recoverability.ErrorClassification
-Encina.Messaging.Recoverability.ErrorClassification.Permanent = 2 -> Encina.Messaging.Recoverability.ErrorClassification
-Encina.Messaging.Recoverability.DefaultErrorClassifier
-Encina.Messaging.Recoverability.DefaultErrorClassifier.DefaultErrorClassifier() -> void
-Encina.Messaging.Recoverability.DefaultErrorClassifier.Classify(Encina.EncinaError encinaError, System.Exception? exception) -> Encina.Messaging.Recoverability.ErrorClassification
 Encina.Messaging.Recoverability.FailedMessage
 Encina.Messaging.Recoverability.FailedMessage.Id.get -> System.Guid
 Encina.Messaging.Recoverability.FailedMessage.Id.init -> void
@@ -312,7 +303,7 @@ Encina.Messaging.Recoverability.RetryAttempt.Error.get -> Encina.EncinaError
 Encina.Messaging.Recoverability.RetryAttempt.Error.init -> void
 Encina.Messaging.Recoverability.RetryAttempt.Exception.get -> System.Exception?
 Encina.Messaging.Recoverability.RetryAttempt.Exception.init -> void
-Encina.Messaging.Recoverability.RetryAttempt.Classification.get -> Encina.Messaging.Recoverability.ErrorClassification
+Encina.Messaging.Recoverability.RetryAttempt.Classification.get -> Encina.Recoverability.ErrorClassification
 Encina.Messaging.Recoverability.RetryAttempt.Classification.init -> void
 Encina.Messaging.Recoverability.RetryAttempt.Duration.get -> System.TimeSpan?
 Encina.Messaging.Recoverability.RetryAttempt.Duration.init -> void
@@ -325,7 +316,7 @@ Encina.Messaging.Recoverability.RecoverabilityContext.DelayedRetryCount.get -> i
 Encina.Messaging.Recoverability.RecoverabilityContext.TotalAttempts.get -> int
 Encina.Messaging.Recoverability.RecoverabilityContext.LastError.get -> Encina.EncinaError?
 Encina.Messaging.Recoverability.RecoverabilityContext.LastException.get -> System.Exception?
-Encina.Messaging.Recoverability.RecoverabilityContext.LastClassification.get -> Encina.Messaging.Recoverability.ErrorClassification
+Encina.Messaging.Recoverability.RecoverabilityContext.LastClassification.get -> Encina.Recoverability.ErrorClassification
 Encina.Messaging.Recoverability.RecoverabilityContext.IsInDelayedRetryPhase.get -> bool
 Encina.Messaging.Recoverability.RecoverabilityContext.CorrelationId.get -> string?
 Encina.Messaging.Recoverability.RecoverabilityContext.CorrelationId.init -> void
@@ -334,13 +325,13 @@ Encina.Messaging.Recoverability.RecoverabilityContext.IdempotencyKey.init -> voi
 Encina.Messaging.Recoverability.RecoverabilityContext.RequestTypeName.get -> string?
 Encina.Messaging.Recoverability.RecoverabilityContext.RequestTypeName.init -> void
 Encina.Messaging.Recoverability.RecoverabilityContext.RetryHistory.get -> System.Collections.Generic.IReadOnlyList<Encina.Messaging.Recoverability.RetryAttempt!>!
-Encina.Messaging.Recoverability.RecoverabilityContext.RecordFailedAttempt(Encina.EncinaError error, System.Exception? exception, Encina.Messaging.Recoverability.ErrorClassification classification, System.TimeSpan? duration = null) -> void
+Encina.Messaging.Recoverability.RecoverabilityContext.RecordFailedAttempt(Encina.EncinaError error, System.Exception? exception, Encina.Recoverability.ErrorClassification classification, System.TimeSpan? duration = null) -> void
 Encina.Messaging.Recoverability.RecoverabilityContext.IncrementImmediateRetry() -> void
 Encina.Messaging.Recoverability.RecoverabilityContext.IncrementDelayedRetry() -> void
 Encina.Messaging.Recoverability.RecoverabilityContext.TransitionToDelayedPhase() -> void
 Encina.Messaging.Recoverability.RecoverabilityContext.CreateFailedMessage(object! request) -> Encina.Messaging.Recoverability.FailedMessage!
 Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>
-Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>.RecoverabilityPipelineBehavior(Encina.Messaging.Recoverability.RecoverabilityOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>!>! logger, Encina.Messaging.Recoverability.IDelayedRetryScheduler? delayedRetryScheduler = null, System.TimeProvider? timeProvider = null, Encina.Messaging.DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null) -> void
+Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>.RecoverabilityPipelineBehavior(Encina.Messaging.Recoverability.RecoverabilityOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>!>! logger, Encina.Messaging.Recoverability.IDelayedRetryScheduler? delayedRetryScheduler = null, System.TimeProvider? timeProvider = null, Encina.Messaging.DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null, Encina.Recoverability.IErrorClassifier? errorClassifier = null) -> void
 Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Messaging.Recoverability.RecoverabilityErrorCodes
 const Encina.Messaging.Recoverability.RecoverabilityErrorCodes.Cancelled = "recoverability.cancelled" -> string!

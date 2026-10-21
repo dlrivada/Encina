@@ -1,4 +1,4 @@
-using Encina.Messaging.Recoverability;
+using Encina.Recoverability;
 
 namespace Encina.Hangfire;
 

@@ -1,9 +1,15 @@
-namespace Encina.Messaging.Recoverability;
+namespace Encina.Recoverability;
 
 /// <summary>
 /// Classifies errors to determine retry behavior.
 /// </summary>
 /// <remarks>
+/// <para>
+/// The classifier lives in core so that every retry layer (the Polly retry behavior, the recoverability
+/// pipeline, the delayed-retry processor and the job adapters) decides through the same contract; register a
+/// custom implementation to classify your own error codes. The outbox processor does not classify yet: it only
+/// honours <c>http.retry_after</c> when it schedules the next attempt.
+/// </para>
 /// <para>
 /// The error classifier analyzes failures and categorizes them as:
 /// <list type="bullet">
@@ -72,6 +78,16 @@ public enum ErrorClassification
 /// <para>
 /// Evaluation order:
 /// <list type="number">
+/// <item><description>The <c>transient</c> metadata (<see cref="OutboundErrorMetadataKeys.Transient"/>) that an
+/// outbound producer such as <c>Encina.Refit</c> declares: <see langword="true"/> is
+/// <see cref="ErrorClassification.Transient"/>, <see langword="false"/> is
+/// <see cref="ErrorClassification.Permanent"/>. An explicit declaration wins over inference.</description></item>
+/// <item><description>Connection-pool exhaustion anywhere in the exception chain (SqlClient "max pool size was
+/// reached", Npgsql "connection pool has been exhausted", MySqlConnector "All pooled connections are in use";
+/// the MongoDB driver raises a <see cref="TimeoutException"/>, transient by type):
+/// <see cref="ErrorClassification.Transient"/>, because the pool recovers when a connection is returned. The
+/// exception message is only matched, never logged or copied. The drivers localize their messages, so the match
+/// works for the English text; register a custom <see cref="IErrorClassifier"/> for another culture.</description></item>
 /// <item><description>The exception passed in, then <see cref="EncinaError.Exception"/>, by type.</description></item>
 /// <item><description>The error code (<see cref="EncinaErrorExtensions.GetCode(EncinaError)"/>), against an explicit
 /// list of codes whose outcome a retry cannot change (a missing handler, missing, expired or withdrawn
@@ -159,36 +175,32 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
         EncinaErrorCodes.RateLimitExceeded
     };
 
+    // Messages (matched ordinally, ignoring case) that the drivers raise when no pooled connection becomes
+    // available in time. Exception messages are only compared against these, never logged or copied.
+    // SqlClient 7.0.0, Npgsql 10.0.2 and MySqlConnector 2.5.0 texts (English: the drivers localize their messages).
+    // The MongoDB driver raises a TimeoutException, which is transient by type.
+    private static readonly string[] PoolExhaustionMarkers =
+    [
+        "max pool size was reached",
+        "connection pool has been exhausted",
+        "all pooled connections are in use"
+    ];
+
     /// <inheritdoc />
     public ErrorClassification Classify(EncinaError encinaError, Exception? exception)
     {
-        // First, check the exception type
-        if (exception is not null)
+        // An explicit declaration of the producer wins over inference.
+        var declared = ClassifyDeclaredTransience(encinaError);
+        if (declared != ErrorClassification.Unknown)
         {
-            var exceptionClassification = ClassifyException(exception);
-            if (exceptionClassification != ErrorClassification.Unknown)
-            {
-                return exceptionClassification;
-            }
+            return declared;
         }
 
-        // Also check the exception from the error itself
-        var errorException = encinaError.Exception.MatchUnsafe(ex => ex, () => null);
-        if (errorException is not null)
+        // Then, the exceptions and the error code
+        var known = ClassifyExceptionsAndCode(encinaError, exception);
+        if (known != ErrorClassification.Unknown)
         {
-            var exceptionClassification = ClassifyException(errorException);
-            if (exceptionClassification != ErrorClassification.Unknown)
-            {
-                return exceptionClassification;
-            }
-        }
-
-        // Then, check the error code against the explicit lists
-        var code = encinaError.GetCode().IfNone(string.Empty);
-        var codeClassification = ClassifyErrorCode(code);
-        if (codeClassification != ErrorClassification.Unknown)
-        {
-            return codeClassification;
+            return known;
         }
 
         // Finally, check the error message for patterns, unless the error has a causing exception:
@@ -200,6 +212,77 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
         }
 
         return ClassifyErrorMessage(encinaError.Message);
+    }
+
+    private static ErrorClassification ClassifyExceptionsAndCode(EncinaError encinaError, Exception? exception)
+    {
+        // A pool recovers when a connection is returned: exhaustion is transient although the driver
+        // raises an InvalidOperationException, which is otherwise permanent.
+        if (IsPoolExhaustion(exception) || IsPoolExhaustion(encinaError.Exception.MatchUnsafe(ex => ex, () => null)))
+        {
+            return ErrorClassification.Transient;
+        }
+
+        var fromExceptions = ClassifyExceptions(encinaError, exception);
+        return fromExceptions != ErrorClassification.Unknown
+            ? fromExceptions
+            : ClassifyErrorCode(encinaError.GetCode().IfNone(string.Empty));
+    }
+
+    private static ErrorClassification ClassifyExceptions(EncinaError encinaError, Exception? exception)
+    {
+        var fromArgument = exception is null ? ErrorClassification.Unknown : ClassifyException(exception);
+        if (fromArgument != ErrorClassification.Unknown)
+        {
+            return fromArgument;
+        }
+
+        var errorException = encinaError.Exception.MatchUnsafe(ex => ex, () => null);
+        return errorException is null ? ErrorClassification.Unknown : ClassifyException(errorException);
+    }
+
+    private static ErrorClassification ClassifyDeclaredTransience(EncinaError encinaError)
+    {
+        var details = encinaError.GetDetails();
+        if (details.Count == 0
+            || !details.TryGetValue(OutboundErrorMetadataKeys.Transient, out var value)
+            || value is not bool transient)
+        {
+            return ErrorClassification.Unknown;
+        }
+
+        return transient ? ErrorClassification.Transient : ErrorClassification.Permanent;
+    }
+
+    private static bool IsPoolExhaustion(Exception? exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (MatchesPoolExhaustion(current.Message))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool MatchesPoolExhaustion(string? message)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return false;
+        }
+
+        foreach (var marker in PoolExhaustionMarkers)
+        {
+            if (message.Contains(marker, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool HasCause(EncinaError encinaError, Exception? exception)
@@ -262,33 +345,19 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
 
     private static ErrorClassification ClassifyHttpRequestException(HttpRequestException httpEx)
     {
-        // Check status code if available
-        if (httpEx.StatusCode.HasValue)
-        {
-            var statusCode = (int)httpEx.StatusCode.Value;
-
-            // 5xx errors are transient
-            if (statusCode >= 500 && statusCode <= 599)
-            {
-                return ErrorClassification.Transient;
-            }
-
-            // 429 Too Many Requests is transient
-            if (statusCode == 429)
-            {
-                return ErrorClassification.Transient;
-            }
-
-            // 4xx errors are permanent (except 429)
-            if (statusCode >= 400 && statusCode <= 499)
-            {
-                return ErrorClassification.Permanent;
-            }
-        }
-
-        // Network errors without status code are transient
-        return ErrorClassification.Transient;
+        // Network errors without a status code are transient
+        return httpEx.StatusCode is { } status ? ClassifyStatusCode((int)status) : ErrorClassification.Transient;
     }
+
+    // crap-exempt: single-question switch — whether a retry can change the outcome of each HTTP status.
+    private static ErrorClassification ClassifyStatusCode(int statusCode) => statusCode switch
+    {
+        // 5xx, 408 Request Timeout (the client MAY repeat) and 429 Too Many Requests are transient
+        >= 500 and <= 599 or 408 or 429 => ErrorClassification.Transient,
+        // other 4xx are permanent
+        >= 400 and <= 499 => ErrorClassification.Permanent,
+        _ => ErrorClassification.Transient
+    };
 
     private static ErrorClassification ClassifyErrorMessage(string message)
     {

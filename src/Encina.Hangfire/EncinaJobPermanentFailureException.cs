@@ -9,9 +9,9 @@ namespace Encina.Hangfire;
 /// <remarks>
 /// <para>
 /// The adapters classify every <c>Left</c> result with
-/// <see cref="Encina.Messaging.Recoverability.IErrorClassifier"/> (the registered one, or
-/// <see cref="Encina.Messaging.Recoverability.DefaultErrorClassifier"/>). A
-/// <see cref="Encina.Messaging.Recoverability.ErrorClassification.Permanent"/> classification throws this
+/// <see cref="Encina.Recoverability.IErrorClassifier"/> (the registered one, or
+/// <see cref="Encina.Recoverability.DefaultErrorClassifier"/>). A
+/// <see cref="Encina.Recoverability.ErrorClassification.Permanent"/> classification throws this
 /// exception; transient and unclassified failures throw <see cref="EncinaJobFailedException"/>.
 /// </para>
 /// <para>

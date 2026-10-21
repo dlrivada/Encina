@@ -1,7 +1,7 @@
 {
   "package": "Encina.Refit",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 4,
+  "totalFiles": 6,
   "targets": {
     "guard": 15,
     "unit": 55
@@ -20,21 +20,64 @@
       "defaultRule": "GlobalSuppressions.cs",
       "reason": "Only [SuppressMessage] attributes"
     },
+    "Diagnostics/OutboundTelemetry.cs": {
+      "defaultTests": [
+        "unit",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Outbound counter and activity tags for Refit calls",
+      "targets": { "unit": 95, "property": 60, "integration": 60 },
+      "justifications": {
+        "unit": "Counter and activity tags asserted.",
+        "property": "Exercised by the handler properties.",
+        "integration": "Exercised by the WireMock scenarios."
+      }
+    },
+    "Handlers/OutboundMethodCapture.cs": {
+      "defaultTests": [
+        "unit",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Delegating handler that captures the outbound HTTP method for the ambiguity rule",
+      "targets": { "unit": 65, "integration": 95 },
+      "justifications": {
+        "unit": "The capture scope is exercised through the handler; the handler class runs only with the HTTP pipeline.",
+        "integration": "WireMock requests run the capture handler."
+      }
+    },
     "Handlers/RestApiRequestHandler.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property",
+        "integration"
       ],
       "defaultRule": "*Handler.cs",
-      "reason": "Handler with mockeable dependencies"
+      "reason": "Handler with mockeable dependencies",
+      "targets": { "unit": 95, "guard": 5, "property": 70, "integration": 85 },
+      "justifications": {
+        "unit": "Every failure family and metadata key is asserted.",
+        "guard": "Constructor null checks.",
+        "property": "Existing invariants over generated inputs.",
+        "integration": "WireMock scenarios for 400, 429, 503, network, timeout and the S2 slice."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 80, "integration": 40 },
+      "justifications": {
+        "unit": "Registration asserted through the client builder.",
+        "integration": "The WireMock fixture registers clients."
+      }
     }
   }
 }

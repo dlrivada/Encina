@@ -1,4 +1,5 @@
 using Encina.Messaging.Recoverability;
+using Encina.Recoverability;
 using Shouldly;
 
 namespace Encina.UnitTests.Messaging.Recoverability;

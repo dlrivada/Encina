@@ -1,7 +1,7 @@
 {
   "package": "Encina.Polly",
   "generated": "2026-04-13T00:00:00Z",
-  "totalFiles": 18,
+  "totalFiles": 19,
   "targets": {
     "guard": 15,
     "unit": 60
@@ -20,8 +20,13 @@
       "reason": "Attribute marker — no guard clauses"
     },
     "Attributes/RetryAttribute.cs": {
-      "defaultTests": ["unit"],
-      "reason": "Attribute marker — no guard clauses"
+      "defaultTests": ["unit", "integration"],
+      "reason": "Attribute marker — no guard clauses",
+      "targets": { "unit": 95, "integration": 80 },
+      "justifications": {
+        "unit": "Attribute properties are read by the retry tests.",
+        "integration": "WireMock scenarios use RetryNonIdempotent."
+      }
     },
     "Behaviors/BulkheadPipelineBehavior.cs": {
       "defaultTests": ["unit"],
@@ -45,8 +50,23 @@
       "reason": "Pipeline behavior — no constructor null guards"
     },
     "Behaviors/RetryPipelineBehavior.cs": {
-      "defaultTests": ["unit"],
-      "reason": "Pipeline behavior — no constructor null guards"
+      "defaultTests": ["unit", "guard", "integration"],
+      "reason": "Pipeline behavior with Retry-After, non-idempotent and telemetry paths",
+      "targets": { "unit": 95, "guard": 5, "integration": 75 },
+      "justifications": {
+        "unit": "Permanent, Retry-After, non-idempotent and telemetry paths are asserted with FakeTimeProvider.",
+        "guard": "Constructor null checks.",
+        "integration": "S2 slice against WireMock."
+      }
+    },
+    "Diagnostics/RetryTelemetry.cs": {
+      "defaultTests": ["unit", "integration"],
+      "reason": "Activity tags for retry attempts",
+      "targets": { "unit": 95, "integration": 30 },
+      "justifications": {
+        "unit": "Activity tags asserted by the retry telemetry tests.",
+        "integration": "Activities are produced in the WireMock scenarios without a listener."
+      }
     },
     "Bulkhead/BulkheadManager.cs": {
       "defaultTests": ["unit", "guard"],
@@ -81,8 +101,13 @@
       "reason": "State record — no guard clauses"
     },
     "ServiceCollectionExtensions.cs": {
-      "defaultTests": ["unit", "guard"],
-      "reason": "DI registration with ThrowIfNull guards"
+      "defaultTests": ["unit", "guard", "integration"],
+      "reason": "DI registration with ThrowIfNull guards",
+      "targets": { "unit": 55, "integration": 30 },
+      "justifications": {
+        "unit": "AddEncinaPolly registration is asserted by ErrorClassifierRegistrationTests; the database circuit breaker branches are covered elsewhere.",
+        "integration": "The integration scenarios call AddEncinaPolly."
+      }
     }
   }
 }

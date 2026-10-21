@@ -226,15 +226,17 @@ services.AddEncinaMessaging(config =>
 
 **Error Classification**:
 
-The `DefaultErrorClassifier` looks at three things, in this order:
+`IErrorClassifier`, `ErrorClassification` (`Unknown`, `Transient`, `Permanent`) and `DefaultErrorClassifier` live in core, namespace `Encina.Recoverability`; the Polly retry behavior, this pipeline and the Hangfire and Quartz job adapters classify through the same contract. The delayed-retry processor does not classify again: it uses the classification this pipeline recorded in the re-dispatch marker. `OutboxBatchProcessor` does not classify: it only schedules the next attempt (see below). The `DefaultErrorClassifier` looks at five things, in this order:
 
-1. **Exception type** — the exception passed to `Classify`, then `EncinaError.Exception` (inner exceptions are followed).
-2. **Explicit error codes** — the error code is compared, exactly and case-insensitively, with two fixed lists. It is never matched by substring, so codes such as `saga.not_found`, `marten.aggregate_not_found` or `saga.invalid_status`, which can succeed on a later attempt, are not permanent because of their code.
-3. **Message patterns** — only when the error has no causing exception. A message built around an exception (for example the dispatcher's `encina.notification.exception` message, which names the handler type) is not used, so a handler called `CacheInvalidationHandler` does not make a failure permanent.
+1. **Declared transience** — the `transient` metadata (`OutboundErrorMetadataKeys.Transient`) that an outbound producer such as `Encina.Refit` sets wins over inference: `true` is transient, `false` is permanent.
+2. **Connection-pool exhaustion** — anywhere in the exception chain, the SqlClient text "max pool size was reached", the Npgsql text "connection pool has been exhausted" or the MySqlConnector text "All pooled connections are in use" is transient (the MongoDB driver raises a `TimeoutException`, transient by type). The match is on the English driver messages, because the drivers localize them; register a custom `IErrorClassifier` for another culture.
+3. **Exception type** — the exception passed to `Classify`, then `EncinaError.Exception` (inner exceptions are followed).
+4. **Explicit error codes** — the error code is compared, exactly and case-insensitively, with two fixed lists. It is never matched by substring, so codes such as `saga.not_found`, `marten.aggregate_not_found` or `saga.invalid_status`, which can succeed on a later attempt, are not permanent because of their code.
+5. **Message patterns** — only when the error has no causing exception. A message built around an exception (for example the dispatcher's `encina.notification.exception` message, which names the handler type) is not used, so a handler called `CacheInvalidationHandler` does not make a failure permanent.
 
 | Classification | Exception types | Error codes | Message patterns | Behavior |
 |---------------|-----------------|-------------|------------------|----------|
-| **Transient** | `TimeoutException`, `TaskCanceledException`, `IOException`, `HttpRequestException` (5xx, 429, no status) | `encina.timeout`, `encina.ratelimit.exceeded` | "timeout", "unavailable", "connection", "network", "retry", "rate_limit", "throttle", "busy", "overload" | Retry immediately, then schedule delayed retries |
+| **Transient** | `TimeoutException`, `TaskCanceledException`, `IOException`, `HttpRequestException` (5xx, 408, 429, no status) | `encina.timeout`, `encina.ratelimit.exceeded` | "timeout", "unavailable", "connection", "network", "retry", "rate_limit", "throttle", "busy", "overload" | Retry immediately, then schedule delayed retries |
 | **Permanent** | `ArgumentException`, `InvalidOperationException`, `NotSupportedException`, `UnauthorizedAccessException`, `FormatException`, `HttpRequestException` (other 4xx) | missing or mismatched handler (`encina.handler.missing`, `encina.request.handler_missing`, `encina.request.handler_type_mismatch`, `encina.notification.missing_handle`), authorization (`encina.authorization.*`), validation (`Encina.guard.validation_failed`, `Repository.ValidationFailed`, `processor.validation_failed`, `gdpr.compliance_validation_failed`, `aiact.compliance_validation_failed`), consent (`consent.missing`, `consent.expired`, `consent.withdrawn`, `consent.requires_reconsent`, `consent.version_mismatch`), DSR (`dsr.restriction_active`, `dsr.subject_id_missing`, `dsr.identity_not_verified`) | "validation", "not_found", "unauthorized", "forbidden", "invalid", "bad_request" | Move directly to DLQ |
 | **Unknown** | Other exceptions | Any other code | No match, or the error has a causing exception | Treated as transient |
 
@@ -259,6 +261,17 @@ public class MyErrorClassifier : IErrorClassifier
 // Register custom classifier
 config.RecoverabilityOptions.ErrorClassifier = new MyErrorClassifier();
 ```
+
+`RecoverabilityPipelineBehavior` takes the classifier from `RecoverabilityOptions.ErrorClassifier`, else the `IErrorClassifier` registered in DI (an optional constructor parameter), else `DefaultErrorClassifier`. A custom `RecoverabilityOptions.ErrorClassifier` replaces any registered classifier.
+
+**Outbound errors, `Retry-After` and non-idempotent sends**:
+
+An error from an outbound call such as `Encina.Refit` carries metadata from `OutboundErrorMetadataKeys` (see the [Encina.Refit README](../Encina.Refit/README.md)). The recoverability layers act on it:
+
+- **`http.retry_after`** — the remaining immediate retries stop and the first delayed retry is scheduled at exactly that delay instead of `DelayedRetries[0]`. `DelayedRetryProcessor` uses the header delay for the next attempt instead of `DelayedRetries[n]`; the attempt still counts against `DelayedRetries.Length`. With delayed retries disabled, the error reaches the caller with the metadata. `OutboxBatchProcessor` sets `NextRetryAtUtc` no earlier than now plus `http.retry_after` when that is later than its own backoff.
+- **`outbound.ambiguous`** — an ambiguous failure of a non-idempotent send (it may already have been processed) is returned like a permanent one, on the dead-letter path, unless the request has an `IdempotencyKey`. The `IdempotencyKey` is the one of the request context (`IRequestContext.IdempotencyKey`): it is an opt-in, and the Refit client must send it to the provider for the provider to deduplicate.
+
+The Hangfire and Quartz job adapters only use the classification (permanent or transient); they do not apply the `Retry-After` or non-idempotent rules.
 
 ### 6. **Transactions** (Automatic Database Transactions)
 

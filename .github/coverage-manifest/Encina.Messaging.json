@@ -981,9 +981,9 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 85, "guard": 5 },
+      "targets": { "unit": 90, "guard": 5 },
       "justifications": {
-        "unit": "Chain tests drive the processor through every delayed retry and a permanent error (measured 90%); the reflection scheduling fallbacks for an unresolvable type stay uncovered.",
+        "unit": "Retry-After and non-idempotent chain tests in DelayedRetryChainTests; the reflection scheduling fallbacks for an unresolvable type stay uncovered.",
         "guard": "Only the constructor guards exist for this type; the processing loop takes no caller parameters (measured 6%)."
       }
     },
@@ -1008,7 +1008,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 0, "contract": 0, "property": 0, "integration": 0 },
+      "justifications": {
+        "unit": "Store/factory scheduling and saturation paths are all covered by DelayedRetrySchedulerTests (measured 100%).",
+        "guard": "GuardTests measure 0% on this file: the scheduler's public methods are exercised only through unit tests (measured 0%).",
+        "contract": "No public contract test for this implementation; the IDelayedRetryScheduler contract is exercised via unit tests.",
+        "property": "DelayedRetryChainProperties covers the chain, not this thin scheduler.",
+        "integration": "Store persistence is covered per provider by the delayed-retry store integration tests."
+      }
     },
     "Recoverability/FailedMessage.cs": {
       "defaultTests": [
@@ -1016,25 +1024,17 @@
         "guard"
       ],
       "defaultRule": "*Message.cs",
-      "reason": "Domain entity with serialization/validation logic"
+      "reason": "Domain entity with serialization/validation logic",
+      "targets": { "unit": 95, "guard": 45 },
+      "justifications": {
+        "unit": "namespace-only change in #1223",
+        "guard": "namespace-only change in #1223"
+      }
     },
     "Recoverability/IDelayedRetryScheduler.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
       "reason": "Interfaces have no implementation to test"
-    },
-    "Recoverability/IErrorClassifier.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Contains DefaultErrorClassifier",
-      "targets": {
-        "unit": 95
-      },
-      "justifications": {
-        "unit": "DefaultErrorClassifier implementation with exception classification logic (measured 98%)."
-      }
     },
     "Recoverability/RecoverabilityContext.cs": {
       "defaultTests": [
@@ -1053,10 +1053,16 @@
     },
     "Recoverability/RecoverabilityOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": { "unit": 95, "guard": 95 },
+      "justifications": {
+        "unit": "namespace-only change in #1223",
+        "guard": "namespace-only change in #1223"
+      }
     },
     "Recoverability/RecoverabilityPipelineBehavior.cs": {
       "defaultTests": [
@@ -1079,7 +1085,11 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "RegisterErrorClassifier asserted by ErrorClassifierRegistrationTests."
+      }
     },
     "RoutingSlip/IRoutingSlipRunner.cs": {
       "defaultTests": [],
@@ -1303,6 +1313,25 @@
         "unit": "Every lifecycle transition, the not-found and invalid-status paths and the dead letter capture of a failed saga run against a fake store (measured 94%).",
         "guard": "Guard tests reach the constructor and the argument checks of the public operations (measured 48%).",
         "integration": "The saga store and dead letter end-to-end suites start and fail sagas on real databases; stuck and expired saga queries are covered by the store suites and unit tests (measured 35% in the suites run for this change)."
+      }
+    },
+    "SaturatingTime.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal saturating time arithmetic used by delayed retry scheduling",
+      "targets": { "unit": 100, "guard": 0, "contract": 0, "property": 0, "integration": 0 },
+      "justifications": {
+        "unit": "Two-branch saturating addition fully exercised by the OutboxBatchProcessor and DelayedRetryScheduler unit tests.",
+        "guard": "Internal helper with value-type parameters; no null guard exists.",
+        "contract": "Internal helper, not part of any public contract.",
+        "property": "Two branches covered exhaustively by unit tests; no invariant beyond them.",
+        "integration": "Pure time arithmetic with no infrastructure."
       }
     },
     "ScatterGather/BuiltScatterGatherDefinition.cs": {

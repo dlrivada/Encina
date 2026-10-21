@@ -79,7 +79,7 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
         var contextContent = SerializeContext(context);
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var executeAt = now.Add(delay);
+        var executeAt = SaturatingTime.AddSaturating(now, delay);
 
         var messageData = new DelayedRetryMessageData(
             Id: Guid.NewGuid(),

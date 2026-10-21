@@ -100,7 +100,7 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
         "Encina.Messaging.Transactions.ITransactionLeaseSource|factory|Scoped",
         // Recoverability is registered before the transaction so it runs OUTSIDE it (ADR-050).
         "Encina.Messaging.Recoverability.RecoverabilityOptions|Encina.Messaging.Recoverability.RecoverabilityOptions|Singleton",
-        "Encina.Messaging.Recoverability.IErrorClassifier|Encina.Messaging.Recoverability.DefaultErrorClassifier|Singleton",
+        "Encina.Recoverability.IErrorClassifier|Encina.Recoverability.DefaultErrorClassifier|Singleton",
         "Encina.IPipelineBehavior`2[TRequest,TResponse]|Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior`2[TRequest,TResponse]|Scoped",
         "Encina.Messaging.Recoverability.IDelayedRetryScheduler|Encina.Messaging.Recoverability.DelayedRetryScheduler|Scoped",
         "Microsoft.Extensions.Hosting.IHostedService|Encina.Messaging.Recoverability.DelayedRetryProcessor|Singleton",
