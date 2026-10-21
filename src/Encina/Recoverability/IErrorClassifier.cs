@@ -82,9 +82,11 @@ public enum ErrorClassification
 /// <see cref="ErrorClassification.Transient"/>, <see langword="false"/> is
 /// <see cref="ErrorClassification.Permanent"/>. An explicit declaration wins over inference.</description></item>
 /// <item><description>Connection-pool exhaustion anywhere in the exception chain (SqlClient "max pool size was
-/// reached", Npgsql "connection pool has been exhausted", MySqlConnector "All pooled connections are in use",
-/// the MongoDB driver wait-queue timeout): <see cref="ErrorClassification.Transient"/>, because the pool
-/// recovers when a connection is returned. The exception message is only matched, never logged or copied.</description></item>
+/// reached", Npgsql "connection pool has been exhausted", MySqlConnector "All pooled connections are in use";
+/// the MongoDB driver raises a <see cref="TimeoutException"/>, transient by type):
+/// <see cref="ErrorClassification.Transient"/>, because the pool recovers when a connection is returned. The
+/// exception message is only matched, never logged or copied. The drivers localize their messages, so the match
+/// works for the English text; register a custom <see cref="IErrorClassifier"/> for another culture.</description></item>
 /// <item><description>The exception passed in, then <see cref="EncinaError.Exception"/>, by type.</description></item>
 /// <item><description>The error code (<see cref="EncinaErrorExtensions.GetCode(EncinaError)"/>), against an explicit
 /// list of codes whose outcome a retry cannot change (a missing handler, missing, expired or withdrawn
@@ -174,14 +176,13 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
 
     // Messages (matched ordinally, ignoring case) that the drivers raise when no pooled connection becomes
     // available in time. Exception messages are only compared against these, never logged or copied.
-    // SqlClient 7.0.0, Npgsql 10.0.2, MySqlConnector 2.5.0 and MongoDB.Driver 3.12.0 texts.
+    // SqlClient 7.0.0, Npgsql 10.0.2 and MySqlConnector 2.5.0 texts (English: the drivers localize their messages).
+    // The MongoDB driver raises a TimeoutException, which is transient by type.
     private static readonly string[] PoolExhaustionMarkers =
     [
         "max pool size was reached",
         "connection pool has been exhausted",
-        "all pooled connections are in use",
-        "wait queue timeout elapsed",
-        "waiting for a connection from the pool"
+        "all pooled connections are in use"
     ];
 
     /// <inheritdoc />

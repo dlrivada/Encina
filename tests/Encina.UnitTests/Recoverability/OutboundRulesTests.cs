@@ -114,7 +114,6 @@ public sealed class OutboundRulesTests
     [InlineData("Timeout expired.  The timeout period elapsed prior to obtaining a connection from the pool.  This may have occurred because all pooled connections were in use and max pool size was reached.")]
     [InlineData("The connection pool has been exhausted, either raise 'Max Pool Size' (currently 1) or 'Timeout' (currently 1 seconds) in your connection string.")]
     [InlineData("Connect Timeout expired. All pooled connections are in use.")]
-    [InlineData("Wait queue timeout elapsed without a connection becoming available.")]
     public void Classify_PoolExhaustionAnywhereInTheChain_IsTransient(string driverMessage)
     {
         var pool = new InvalidOperationException(driverMessage);
