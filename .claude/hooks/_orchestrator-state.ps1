@@ -28,6 +28,22 @@ function Get-OrchestratorStatePath([string]$StateRoot, [string]$SessionId) {
     return Join-Path $StateRoot "$SessionId.json"
 }
 
+# A percentage as text, with the invariant culture ("59", "17.5"), whatever the host's locale.
+function Format-OrchestratorPercent($Value) {
+    return ([double]$Value).ToString('0.##', [Globalization.CultureInfo]::InvariantCulture)
+}
+
+# markedAtUtc as a UTC DateTime ($null when missing or unparseable). ConvertFrom-Json turns an ISO date into a
+# local DateTime, so both forms are normalised.
+function Get-OrchestratorMarkedAt($State) {
+    try {
+        $value = $State.markedAtUtc
+        if ($value -is [datetime]) { return $value.ToUniversalTime() }
+        return [datetimeoffset]::Parse([string]$value, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal).UtcDateTime
+    }
+    catch { return $null }
+}
+
 # The state of a marked session, or $null (unmarked, unreadable or malformed).
 function Get-OrchestratorState([string]$StateRoot, [string]$SessionId) {
     try {

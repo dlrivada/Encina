@@ -53,7 +53,7 @@ if ($On) {
         capPercent   = $StartPercent + $PacePercent
     }
     [IO.File]::WriteAllText($path, ($state | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
-    "Session $SessionId marked as orchestrator: started at $StartPercent%, pace $PacePercent%/day, cap $($state.capPercent)%."
+    "Session $SessionId marked as orchestrator: started at $(Format-OrchestratorPercent $StartPercent)%, pace $(Format-OrchestratorPercent $PacePercent)%/day, cap $(Format-OrchestratorPercent $state.capPercent)%."
 }
 elseif ($Off) {
     if (Test-Path -LiteralPath $path -PathType Leaf) {
@@ -65,5 +65,9 @@ elseif ($Off) {
 else {
     $state = Get-OrchestratorState $StateRoot $SessionId
     if ($null -eq $state) { "Session $SessionId is unmarked." }
-    else { "Session $SessionId is marked as orchestrator (since $($state.markedAtUtc)): started at $($state.startPercent)%, pace $($state.pacePercent)%/day, cap $($state.capPercent)%." }
+    else {
+        $markedAt = Get-OrchestratorMarkedAt $state
+        $since = if ($null -ne $markedAt) { $markedAt.ToString('yyyy-MM-ddTHH:mm:ssZ', [Globalization.CultureInfo]::InvariantCulture) } else { 'unknown' }
+        "Session $SessionId is marked as orchestrator (since $since): started at $(Format-OrchestratorPercent $state.startPercent)%, pace $(Format-OrchestratorPercent $state.pacePercent)%/day, cap $(Format-OrchestratorPercent $state.capPercent)%."
+    }
 }

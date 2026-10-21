@@ -19,9 +19,13 @@ try {
     $state = Get-OrchestratorState (Get-OrchestratorStateRoot $projectDir) ([string]$payload.session_id)
     if ($null -eq $state) { exit 0 }
 
+    # The cap belongs to the day the session was marked; on a later UTC day the line says so.
+    $markedAt = Get-OrchestratorMarkedAt $state
+    $today = [TimeProvider]::System.GetUtcNow().UtcDateTime.Date
+    $label = if ($null -ne $markedAt -and $markedAt.Date -ne $today) { "Budget pace (set $($markedAt.ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)), re-run -On for today)" } else { 'Budget pace today' }
     $lines = @(
         'Opus decides, sequences, explains dilemmas, merges; edits, issue/PR comments, gh batches, digests and long reads go to mechanical-fixer / Haiku / Sonnet / local model.',
-        "Budget pace today: started at $($state.startPercent)%, cap $($state.capPercent)% (pace $($state.pacePercent)%/day); check usage before refilling slots.",
+        "${label}: started at $(Format-OrchestratorPercent $state.startPercent)%, cap $(Format-OrchestratorPercent $state.capPercent)% (pace $(Format-OrchestratorPercent $state.pacePercent)%/day); check usage before refilling slots.",
         'See CLAUDE.md "Orchestration and delegation".'
     )
     @{ hookSpecificOutput = @{ hookEventName = 'UserPromptSubmit'; additionalContext = ($lines -join "`n") } } | ConvertTo-Json -Compress

@@ -5059,6 +5059,12 @@ The fluent builder chain described in the documentation is fictional. The parame
         $longRepo = Join-Path $repo 'docs\engineering\ENGINEERING-HANDBOOK.md'
         $repoReadme = Join-Path $repo 'README.md'
         $tempTarget = Join-Path ([IO.Path]::GetTempPath()) 'encina-orch-probe.txt'
+        Set-Content (Join-Path $work 'orch-long.png') $longLines
+        $orchHandoffDir = Join-Path $repo 'artifacts\handoff'
+        $orchHandoffCreated = -not (Test-Path $orchHandoffDir)
+        New-Item -ItemType Directory -Force $orchHandoffDir | Out-Null
+        $orchHandoffLong = Join-Path $orchHandoffDir 'orch-test-long.md'
+        Set-Content $orchHandoffLong $longLines
         $denyCases = @(
             @('Read', @{ file_path = $longRepo }, 'a long Read without limit'),
             @('Read', @{ file_path = $longRepo; limit = 2000 }, 'a long Read with limit 2000'),
@@ -5070,6 +5076,15 @@ The fluent builder chain described in the documentation is fictional. The parame
             @('PowerShell', @{ command = 'gh pr edit 1 --body "x"' }, 'gh pr edit'),
             @('PowerShell', @{ command = "pwsh -File '$orchMode' -Off; gh issue comment 1 --body x" }, 'gh issue comment chained after orchestrator-mode.ps1'),
             @('PowerShell', @{ command = "pwsh -File '$(Join-Path $work 'orchestrator-mode.ps1')' -Off > '$repoReadme'" }, 'a lookalike orchestrator-mode.ps1 outside tools/ai'),
+            @('Bash', @{ command = 'gh issue comment 1 --body "x"' }, 'gh issue comment through the Bash tool'),
+            @('NotebookEdit', @{ notebook_path = (Join-Path $repo 'nb.ipynb'); new_source = 'x' }, 'a NotebookEdit in the repository'),
+            @('Read', @{ file_path = (Join-Path $work 'orch-long.txt') }, 'a long Read of a text file outside the repository'),
+            @('PowerShell', @{ command = 'gh issue close 1 --comment "done"' }, 'gh issue close --comment'),
+            @('PowerShell', @{ command = 'gh pr close 1 -c "done"' }, 'gh pr close -c'),
+            @('PowerShell', @{ command = 'gh issue reopen 1 --comment "again"' }, 'gh issue reopen --comment'),
+            @('PowerShell', @{ command = "pwsh -File '$orchMode' -Off > '$(Join-Path $repo 'artifacts\off.txt')'" }, 'orchestrator-mode.ps1 -Off with output redirected into the repository'),
+            @('PowerShell', @{ command = "pwsh -File '$orchMode' -SessionId x 2> docs/x.md" }, 'orchestrator-mode.ps1 with stderr redirected to a relative repository path'),
+            @('PowerShell', @{ command = "Set-Content '$(Join-Path $repo 'artifacts\other\x.md')' 'x'" }, 'Set-Content to artifacts\other'),
             @('PowerShell', @{ command = "Set-Content '$repoReadme' 'x'" }, 'Set-Content to a repository path'),
             @('PowerShell', @{ command = "'x' | Add-Content '$(Join-Path $repo 'artifacts\y.txt')'" }, 'Add-Content to a repository path')
         )
@@ -5089,7 +5104,13 @@ The fluent builder chain described in the documentation is fictional. The parame
             @('PowerShell', @{ command = 'gh pr checks 1' }, 'gh pr checks'),
             @('PowerShell', @{ command = 'gh pr list --state open' }, 'gh pr list'),
             @('PowerShell', @{ command = "pwsh -File '$orchMode' -Off" }, 'orchestrator-mode.ps1 -Off'),
-            @('PowerShell', @{ command = "pwsh -File '$orchMode' -Off > '$(Join-Path $repo 'artifacts\off.txt')'" }, 'orchestrator-mode.ps1 -Off with output redirected into the repository'),
+            @('PowerShell', @{ command = "pwsh -File '$orchMode' -Off > '$tempTarget'" }, 'orchestrator-mode.ps1 -Off with output redirected to a temp path'),
+            @('Read', @{ file_path = $orchHandoffLong }, 'Read of a long artifacts\handoff file'),
+            @('Read', @{ file_path = (Join-Path $repo 'CLAUDE.md') }, 'Read of CLAUDE.md'),
+            @('Read', @{ file_path = (Join-Path $work 'orch-long.png') }, 'Read of a long .png'),
+            @('Write', @{ file_path = (Join-Path $repo 'artifacts\handoff\x.md'); content = 'x' }, 'Write to artifacts\handoff'),
+            @('PowerShell', @{ command = "Set-Content '$(Join-Path $repo 'artifacts\local-ai\briefs\x.md')' 'x'" }, 'Set-Content to artifacts\local-ai\briefs'),
+            @('PowerShell', @{ command = 'gh issue close 1' }, 'gh issue close without a comment'),
             @('PowerShell', @{ command = "Set-Content '$tempTarget' 'x'" }, 'Set-Content to a temp path'),
             @('PowerShell', @{ command = 'git status' }, 'git status')
         )
@@ -5113,6 +5134,12 @@ The fluent builder chain described in the documentation is fictional. The parame
         $script:total++
         if ([string]::IsNullOrWhiteSpace("$silent")) { 'PASS orchestrator mode: no reminder for a payload with agent_id' } else { $script:failed++; "FAIL orchestrator mode: reminder for a subagent: $silent" }
         Invoke-HookCase $orchReminder 'not json' 0 'orchestrator mode: the reminder fails open on a malformed payload'
+        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: a reminder on the day of -On says "today"' '' 'Budget pace today: started at 59%'
+        # A mark from an earlier UTC day: the reminder says the cap is stale.
+        $staleState = [ordered]@{ sessionId = 'sess-stale'; markedAtUtc = '2020-01-02T03:04:05Z'; startPercent = 59; pacePercent = 17; capPercent = 76 } | ConvertTo-Json
+        [IO.File]::WriteAllText((Join-Path $orchState 'sess-stale.json'), $staleState)
+        Invoke-HookCase $orchReminder (& $promptBody 'sess-stale' '') 0 'orchestrator mode: a mark from an earlier day emits "re-run -On"' '' 'set 2020-01-02, re-run -On for today.*started at 59%.*cap 76%'
+        Remove-Item (Join-Path $orchState 'sess-stale.json')
 
         # -Off unmarks: the same deny input is allowed afterwards, and -Off is idempotent.
         $offOut = & pwsh -NoProfile -File $orchMode -Off -SessionId 'sess-marked' -StateRoot $orchState 2>&1
@@ -5125,12 +5152,18 @@ The fluent builder chain described in the documentation is fictional. The parame
         $script:total++
         if ($LASTEXITCODE -ne 0 -and -not (Test-Path (Join-Path $orchState 'sess-x.json'))) { 'PASS orchestrator-mode.ps1 -On without -StartPercent fails' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -On without -StartPercent succeeded: $noStart" }
 
-        $wiredOrch = @((Get-Content (Join-Path $repo '.claude\settings.json') -Raw | ConvertFrom-Json).hooks.PreToolUse | Where-Object { 'Read' -match "^($($_.matcher))$" -or 'Edit' -match "^($($_.matcher))$" -or 'PowerShell' -match "^($($_.matcher))$" } | ForEach-Object { $_.hooks.command } | Where-Object { $_ -match 'orchestrator-delegation-guard\.ps1' })
+        $guardEntries = @((Get-Content (Join-Path $repo '.claude\settings.json') -Raw | ConvertFrom-Json).hooks.PreToolUse | Where-Object { @($_.hooks.command) -match 'orchestrator-delegation-guard\.ps1' })
+        $wiredOrch = @($guardEntries | ForEach-Object { $_.hooks.command } | Where-Object { $_ -match 'orchestrator-delegation-guard\.ps1' })
+        $uncovered = @('Read', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell' | Where-Object { $tn = $_; -not @($guardEntries | Where-Object { $tn -match "^($($_.matcher))$" }) })
+        $script:total++
+        if ($uncovered.Count -eq 0) { 'PASS settings.json matchers of the orchestrator guard cover Read, Write, Edit, MultiEdit, NotebookEdit, Bash and PowerShell' } else { $script:failed++; "FAIL settings.json: the orchestrator guard matchers miss $($uncovered -join ', ')" }
         $wiredPrompt = @((Get-Content (Join-Path $repo '.claude\settings.json') -Raw | ConvertFrom-Json).hooks.UserPromptSubmit | ForEach-Object { $_.hooks.command } | Where-Object { $_ -match 'orchestrator-prompt-reminder\.ps1' })
         $script:total++
         if ($wiredOrch.Count -eq 3 -and $wiredPrompt.Count -eq 1) { 'PASS settings.json wires the orchestrator guard on Read, Edit and PowerShell and the reminder on UserPromptSubmit' } else { $script:failed++; "FAIL settings.json wiring of the orchestrator hooks: guard $($wiredOrch.Count) (expected 3), reminder $($wiredPrompt.Count) (expected 1)" }
     }
     finally {
+        if ($orchHandoffLong) { Remove-Item -LiteralPath $orchHandoffLong -Force -ErrorAction SilentlyContinue }
+        if ($orchHandoffCreated -and $orchHandoffDir) { Remove-Item -LiteralPath $orchHandoffDir -Force -ErrorAction SilentlyContinue }
         $env:ENCINA_ORCHESTRATOR_STATE_ROOT = $savedOrch.State
         $env:USERPROFILE = $savedOrch.Profile
         $env:HOME = $savedOrch.Home
