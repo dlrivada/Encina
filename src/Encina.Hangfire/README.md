@@ -260,7 +260,7 @@ Hangfire marks a job as failed, and applies its retry policy, only when the job 
 | Permanent failure (validation, not found, missing handler, missing or withdrawn consent, active processing restriction, authorization denied, ...) | `EncinaJobPermanentFailureException` | Retried (Hangfire retries every exception) | **Failed, no retries** |
 | Transient or unclassified failure (timeout, unavailable dependency, rate limit, ...) | `EncinaJobFailedException` | Retried | Retried |
 
-Permanent and transient are decided by `Encina.Messaging.Recoverability.IErrorClassifier`: the registered implementation, or `DefaultErrorClassifier` when none is registered. The default classifier looks at the error's exception, then its code, then its message; register your own `IErrorClassifier` to classify your domain error codes.
+Permanent and transient are decided by `Encina.Recoverability.IErrorClassifier`: the registered implementation, or `DefaultErrorClassifier` when none is registered. The default classifier looks at the error's exception, then its code, then its message; register your own `IErrorClassifier` to classify your domain error codes.
 
 Only `EnqueueRequest` has an opt-in for keeping the response (`EnqueueRequestWithResult`, which enqueues `ExecuteAndReturnResultAsync`). `ScheduleRequestWithDelay`, `ScheduleRequestAt` and `AddOrUpdateRecurringRequest` always enqueue `ExecuteAsync`, so the response of a delayed, scheduled or recurring job is never stored in Hangfire.
 
