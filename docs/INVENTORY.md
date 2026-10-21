@@ -6224,7 +6224,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - `IDataQualityValidator` with `ValidateTrainingDataAsync`, `DetectBiasAsync`
 - `IAIActDocumentation` with `GenerateAsync`, `UpdateAsync`
 - AI system risk classification (Prohibited, HighRisk, LimitedRisk, MinimalRisk) — 4 EU AI Act risk tiers
-- 12 high-risk categories from Annex III, 8 prohibited practices from Art. 5
+- 12 high-risk categories from Annex III, 11 prohibited practices from Art. 5(1)
 - `[HighRiskAI]`, `[RequireHumanOversight]`, `[AITransparency]` attributes
 - `AIActCompliancePipelineBehavior` with Block/Warn/Disabled enforcement modes
 - Auto-registration via `AIActAutoRegistrationHostedService`

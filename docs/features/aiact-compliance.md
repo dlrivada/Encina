@@ -60,7 +60,7 @@ Encina.Compliance.AIAct provides attribute-based EU AI Act compliance enforcemen
 | **Automatic enforcement** | Compliance is validated whenever a decorated request enters the pipeline |
 | **Declarative** | AI Act requirements live with the request types, not scattered across services |
 | **Transport-agnostic** | Same compliance enforcement for HTTP, message queue, gRPC, and serverless |
-| **Non-negotiable safety** | Prohibited practices (Art. 5) are always blocked regardless of enforcement mode |
+| **Prohibited practices blocked** | A practice (Art. 5) declared on the system registration is blocked in both Block and Warn mode |
 | **Pluggable** | Replace any default service (registry, classifier, oversight) with custom implementations |
 | **Observable** | Every check emits OpenTelemetry traces, metrics, and structured log events |
 
@@ -80,7 +80,7 @@ Encina.Compliance.AIAct centralizes AI Act compliance at the CQRS pipeline level
 2. **Configure** enforcement mode (Block/Warn/Disabled) and auto-registration
 3. **The pipeline** validates compliance before request execution
 4. **Non-compliant requests** return `EncinaError` (Block mode) or log warnings (Warn mode)
-5. **Prohibited practices** are always blocked, regardless of enforcement mode
+5. **Prohibited practices** declared on the system registration are blocked in Block and Warn mode (`Disabled` skips all checks)
 
 ---
 
@@ -199,18 +199,23 @@ public sealed record ChatCommand(string Message) : ICommand<ChatResponse>;
 
 ## Prohibited Practices
 
-Eight prohibited AI practices from Art. 5 are **always blocked**, regardless of enforcement mode:
+The `ProhibitedPractice` enum has 11 members, one for every point of Art. 5(1) as amended by Regulation (EU) 2026/1744. The `ArticlePoint` extension property returns the point of a member. A practice is blocked when the application declares it on the registered `AISystemRegistration.ProhibitedPractices`; this happens in Block and Warn mode (see [Enforcement Modes](#enforcement-modes)).
 
-| Practice | Description |
-|----------|-------------|
-| `SocialScoring` | Social scoring by public authorities |
-| `RealTimeBiometric` | Real-time remote biometric identification in public spaces |
-| `EmotionRecognition` | Emotion recognition in workplace/education |
-| `PredictivePolicing` | Individual predictive policing |
-| `UntargetedFacialImageScraping` | Untargeted scraping of facial images |
-| `SubconsciousManipulation` | Subliminal/manipulative techniques |
-| `VulnerabilityExploitation` | Exploitation of vulnerable groups |
-| `BiometricCategorisationByRace` | Biometric categorization inferring race, religion, etc. |
+| Practice | Art. 5(1) point | Description | Applies from |
+|----------|-----------------|-------------|--------------|
+| `SubliminalManipulation` | (a) | Subliminal or manipulative/deceptive techniques | 2 Feb 2025 |
+| `VulnerabilityExploitation` | (b) | Exploiting vulnerabilities due to age, disability or social/economic situation | 2 Feb 2025 |
+| `NonConsensualIntimateDeepfakes` | (ba) | Generating or manipulating intimate content of an identifiable person without consent | 2 Dec 2026 |
+| `ChildSexualAbuseMaterial` | (bb) | Generating or manipulating child sexual abuse material | 2 Dec 2026 |
+| `SocialScoring` | (c) | Social scoring | 2 Feb 2025 |
+| `PredictivePolicing` | (d) | Individual predictive policing based solely on profiling | 2 Feb 2025 |
+| `UntargetedFacialScraping` | (e) | Untargeted scraping of facial images from the internet or CCTV | 2 Feb 2025 |
+| `EmotionRecognitionWorkplace` | (f) | Emotion recognition in the workplace | 2 Feb 2025 |
+| `EmotionRecognitionEducation` | (f) | Emotion recognition in educational institutions | 2 Feb 2025 |
+| `BiometricCategorisation` | (g) | Biometric categorisation inferring sensitive attributes | 2 Feb 2025 |
+| `RealTimeBiometricPublicSpaces` | (h) | Real-time remote biometric identification in public spaces for law enforcement | 2 Feb 2025 |
+
+The library has no date logic: the dates above are legal context, and the application decides when to declare a practice on a registration.
 
 ---
 
@@ -237,9 +242,11 @@ services.AddEncinaAIAct(options =>
 
 | Mode | Non-Compliant Behavior | Prohibited Practices |
 |------|----------------------|---------------------|
-| **Block** | Returns `EncinaError` (request rejected) | Always blocked |
-| **Warn** | Logs warning, request proceeds | Always blocked |
-| **Disabled** | No compliance checks (passthrough) | Always blocked |
+| **Block** | Returns `EncinaError` (request rejected) | Declared practice blocked |
+| **Warn** | Logs warning, request proceeds | Declared practice blocked |
+| **Disabled** | No compliance checks (passthrough) | Not checked |
+
+Requests without an AI Act attribute are skipped in every mode.
 
 ---
 
@@ -351,7 +358,7 @@ var validator = Substitute.For<IAIActComplianceValidator>();
 ## FAQ
 
 **Q: Can I disable prohibited practice blocking?**
-A: No. Art. 5 prohibited practices are always blocked regardless of enforcement mode. This is by design — the EU AI Act makes these non-negotiable.
+A: Not in Block or Warn mode: a prohibited practice declared on the registration is blocked in both. Setting `EnforcementMode` to `Disabled` skips all AI Act checks, including this one, so use it only where the AI Act does not apply (for example in tests).
 
 **Q: What happens if a request has no AI Act attributes?**
 A: It bypasses all compliance checks with zero overhead. The pipeline behavior short-circuits immediately.
