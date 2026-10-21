@@ -5101,7 +5101,7 @@ The fluent builder chain described in the documentation is fictional. The parame
 
         # The reminder: at most 3 lines, with the start and the cap; silent otherwise.
         $promptBody = { param($s, $a) $p = @{ session_id = $s; hook_event_name = 'UserPromptSubmit'; prompt = 'hello'; cwd = $repo }; if ($a) { $p.agent_id = $a }; $p | ConvertTo-Json -Compress }
-        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: the reminder is emitted for the marked session' '' 'started at 59%.*cap 76%.*UserPromptSubmit'
+        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: the reminder is emitted for the marked session' '' '(?s)^(?=.*UserPromptSubmit)(?=.*started at 59%)(?=.*cap 76%)'
         $reminderJson = (& $promptBody 'sess-marked' '') | pwsh -NoProfile -File $orchReminder | ConvertFrom-Json
         $reminderLines = @(([string]$reminderJson.hookSpecificOutput.additionalContext) -split "`n")
         $script:total++
