@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using Encina.Messaging;
 using Encina.Messaging.Scheduling;
+using Encina.Messaging.Transactions;
 using LanguageExt;
 using static LanguageExt.Prelude;
 
@@ -11,11 +12,16 @@ namespace Encina.Dapper.MySQL.Scheduling;
 /// Dapper implementation of <see cref="IScheduledMessageStore"/> for delayed message execution.
 /// Provides persistence and retrieval of scheduled messages with support for recurring schedules.
 /// </summary>
+/// <remarks>
+/// Every command enlists in the business transaction of the scope when one is active (see
+/// <see cref="DbLease.Enlisted"/>); without an accessor, or without an active transaction, commands run in autocommit.
+/// </remarks>
 public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
     private readonly TimeProvider _timeProvider;
+    private readonly IDbTransactionAccessor? _transactionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ScheduledMessageStoreDapper"/> class.
@@ -23,17 +29,23 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The scheduled messages table name (default: ScheduledMessages).</param>
     /// <param name="timeProvider">Optional time provider for testability. Defaults to <see cref="TimeProvider.System"/>.</param>
+    /// <param name="transactionAccessor">
+    /// Optional accessor of the scope's shared transaction; when a transaction is active the store's commands
+    /// join it, otherwise they run in autocommit.
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is null or whitespace.</exception>
     public ScheduledMessageStoreDapper(
         IDbConnection connection,
         string tableName = "ScheduledMessages",
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IDbTransactionAccessor? transactionAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _transactionAccessor = transactionAccessor;
     }
 
     /// <inheritdoc />
@@ -51,7 +63,9 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
                 (@Id, @RequestType, @Content, @ScheduledAtUtc, @CreatedAtUtc, @ProcessedAtUtc, @LastExecutedAtUtc,
                  @ErrorMessage, @RetryCount, @NextRetryAtUtc, @IsRecurring, @CronExpression)";
 
-            await _connection.ExecuteAsync(sql, message);
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            await lease.Connection.ExecuteAsync(
+                new CommandDefinition(sql, message, lease.Transaction, cancellationToken: cancellationToken));
         }, "scheduling.add_failed").ConfigureAwait(false);
     }
 
@@ -81,9 +95,13 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
                 ORDER BY ScheduledAtUtc
                 LIMIT @BatchSize";
 
-            var messages = await _connection.QueryAsync<ScheduledMessage>(
-                sql,
-                new { BatchSize = batchSize, MaxRetries = maxRetries, NowUtc = nowUtc });
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            var messages = await lease.Connection.QueryAsync<ScheduledMessage>(
+                new CommandDefinition(
+                    sql,
+                    new { BatchSize = batchSize, MaxRetries = maxRetries, NowUtc = nowUtc },
+                    lease.Transaction,
+                    cancellationToken: cancellationToken));
 
             return messages.Cast<IScheduledMessage>();
         }, "scheduling.get_due_failed").ConfigureAwait(false);
@@ -105,7 +123,9 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
                     ErrorMessage = NULL
                 WHERE Id = @MessageId";
 
-            await _connection.ExecuteAsync(sql, new { MessageId = messageId, NowUtc = nowUtc });
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            await lease.Connection.ExecuteAsync(
+                new CommandDefinition(sql, new { MessageId = messageId, NowUtc = nowUtc }, lease.Transaction, cancellationToken: cancellationToken));
         }, "scheduling.mark_processed_failed").ConfigureAwait(false);
     }
 
@@ -131,15 +151,19 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
                     LastExecutedAtUtc = @NowUtc
                 WHERE Id = @MessageId";
 
-            await _connection.ExecuteAsync(
-                sql,
-                new
-                {
-                    MessageId = messageId,
-                    ErrorMessage = errorMessage,
-                    NextRetryAtUtc = nextRetryAtUtc,
-                    NowUtc = nowUtc
-                });
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            await lease.Connection.ExecuteAsync(
+                new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        MessageId = messageId,
+                        ErrorMessage = errorMessage,
+                        NextRetryAtUtc = nextRetryAtUtc,
+                        NowUtc = nowUtc
+                    },
+                    lease.Transaction,
+                    cancellationToken: cancellationToken));
         }, "scheduling.mark_failed_failed").ConfigureAwait(false);
     }
 
@@ -165,13 +189,17 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
                     NextRetryAtUtc = NULL
                 WHERE Id = @MessageId";
 
-            await _connection.ExecuteAsync(
-                sql,
-                new
-                {
-                    MessageId = messageId,
-                    NextScheduledAtUtc = nextScheduledAtUtc
-                });
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            await lease.Connection.ExecuteAsync(
+                new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        MessageId = messageId,
+                        NextScheduledAtUtc = nextScheduledAtUtc
+                    },
+                    lease.Transaction,
+                    cancellationToken: cancellationToken));
         }, "scheduling.reschedule_failed").ConfigureAwait(false);
     }
 
@@ -187,7 +215,9 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
                 DELETE FROM {_tableName}
                 WHERE Id = @MessageId";
 
-            await _connection.ExecuteAsync(sql, new { MessageId = messageId });
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            await lease.Connection.ExecuteAsync(
+                new CommandDefinition(sql, new { MessageId = messageId }, lease.Transaction, cancellationToken: cancellationToken));
         }, "scheduling.cancel_failed").ConfigureAwait(false);
     }
 

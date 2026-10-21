@@ -4,8 +4,8 @@ namespace Encina.Messaging.Outbox;
 /// Which component writes the notifications of an <see cref="IHasNotifications"/> request to the outbox.
 /// </summary>
 /// <remarks>
-/// Interim switch while the providers move one family at a time (#718): ADO.NET uses
-/// <see cref="TransactionalBehavior"/>; Dapper, EF Core and MongoDB keep <see cref="PostProcessor"/> until
+/// Interim switch while the providers move one family at a time (#718): ADO.NET and Dapper use
+/// <see cref="TransactionalBehavior"/>; EF Core and MongoDB keep <see cref="PostProcessor"/> until
 /// their own slice lands. The enum is deleted together with <see cref="OutboxPostProcessor{TRequest, TResponse}"/>
 /// when the last family migrates.
 /// </remarks>
