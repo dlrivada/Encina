@@ -5068,6 +5068,8 @@ The fluent builder chain described in the documentation is fictional. The parame
             @('PowerShell', @{ command = 'gh issue edit 1 --title "x"' }, 'gh issue edit'),
             @('PowerShell', @{ command = 'gh pr comment 1 --body "x"' }, 'gh pr comment'),
             @('PowerShell', @{ command = 'gh pr edit 1 --body "x"' }, 'gh pr edit'),
+            @('PowerShell', @{ command = "pwsh -File '$orchMode' -Off; gh issue comment 1 --body x" }, 'gh issue comment chained after orchestrator-mode.ps1'),
+            @('PowerShell', @{ command = "pwsh -File '$(Join-Path $work 'orchestrator-mode.ps1')' -Off > '$repoReadme'" }, 'a lookalike orchestrator-mode.ps1 outside tools/ai'),
             @('PowerShell', @{ command = "Set-Content '$repoReadme' 'x'" }, 'Set-Content to a repository path'),
             @('PowerShell', @{ command = "'x' | Add-Content '$(Join-Path $repo 'artifacts\y.txt')'" }, 'Add-Content to a repository path')
         )
@@ -5087,6 +5089,7 @@ The fluent builder chain described in the documentation is fictional. The parame
             @('PowerShell', @{ command = 'gh pr checks 1' }, 'gh pr checks'),
             @('PowerShell', @{ command = 'gh pr list --state open' }, 'gh pr list'),
             @('PowerShell', @{ command = "pwsh -File '$orchMode' -Off" }, 'orchestrator-mode.ps1 -Off'),
+            @('PowerShell', @{ command = "pwsh -File '$orchMode' -Off > '$(Join-Path $repo 'artifacts\off.txt')'" }, 'orchestrator-mode.ps1 -Off with output redirected into the repository'),
             @('PowerShell', @{ command = "Set-Content '$tempTarget' 'x'" }, 'Set-Content to a temp path'),
             @('PowerShell', @{ command = 'git status' }, 'git status')
         )
@@ -5098,7 +5101,7 @@ The fluent builder chain described in the documentation is fictional. The parame
 
         # The reminder: at most 3 lines, with the start and the cap; silent otherwise.
         $promptBody = { param($s, $a) $p = @{ session_id = $s; hook_event_name = 'UserPromptSubmit'; prompt = 'hello'; cwd = $repo }; if ($a) { $p.agent_id = $a }; $p | ConvertTo-Json -Compress }
-        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: the reminder is emitted for the marked session' '' 'UserPromptSubmit.*started at 59%.*cap 76%'
+        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: the reminder is emitted for the marked session' '' 'started at 59%.*cap 76%.*UserPromptSubmit'
         $reminderJson = (& $promptBody 'sess-marked' '') | pwsh -NoProfile -File $orchReminder | ConvertFrom-Json
         $reminderLines = @(([string]$reminderJson.hookSpecificOutput.additionalContext) -split "`n")
         $script:total++

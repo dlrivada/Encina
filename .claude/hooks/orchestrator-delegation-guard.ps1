@@ -70,7 +70,7 @@ try {
         if ($null -ne $limit -and [double]$limit -le 150) { exit 0 }
         $full = Get-FullPath ([string]$payload.tool_input.file_path) $cwd
         if ($null -eq $full -or (Test-MemoryPath $full)) { exit 0 }
-        if ($full -match '\.(png|jpe?g|gif|webp|bmp|svg|pdf|ipynb)$') { exit 0 }
+        if ($full -match '\.(png|jpe?g|gif|webp|bmp|pdf)$') { exit 0 }
         $location = Get-RepoLocation $full $layout
         if ($null -ne $location -and ($location.Relative -match '^artifacts/handoff/' -or $location.Relative -ceq 'CLAUDE.md' -or $location.Relative -ceq 'AGENTS.md')) { exit 0 }
         if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { exit 0 }
@@ -109,11 +109,15 @@ try {
         return $candidate
     }
 
-    $statements = @(Split-CommandStatements -Text $command -Bash:$bash)
+    # Split-CommandStatements returns the statement list as one object: the comma keeps each statement's tokens
+    # as one element, so @() cannot wrap the whole list into a single element.
+    $statements = @(foreach ($s0 in (Split-CommandStatements -Text $command -Bash:$bash)) { , $s0 })
     $onlyModeScript = $statements.Count -gt 0
     foreach ($tokens in $statements) {
         $script = Get-StatementScript $tokens
-        if (-not ($script -and $script -match '(?:^|[\\/])orchestrator-mode\.ps1$')) { $onlyModeScript = $false }
+        $scriptFull = if ($script) { Get-FullPath $script $cwd } else { $null }
+        $scriptLocation = if ($scriptFull) { Get-RepoLocation $scriptFull $layout } else { $null }
+        if ($null -eq $scriptLocation -or $scriptLocation.Relative -cne 'tools/ai/orchestrator-mode.ps1') { $onlyModeScript = $false }
     }
     if ($onlyModeScript) { exit 0 }
 
