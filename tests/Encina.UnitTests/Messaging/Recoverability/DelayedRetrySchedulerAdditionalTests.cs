@@ -1,6 +1,7 @@
 using Encina.Messaging.Recoverability;
 using Encina.Messaging.Serialization;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Shouldly;
 
@@ -78,6 +79,41 @@ public sealed class DelayedRetrySchedulerAdditionalTests
         result.IsRight.ShouldBeTrue();
         _messageFactory.Received(1).Create(Arg.Any<DelayedRetryMessageData>());
         await _store.Received(1).AddAsync(message, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ScheduleRetryAsync_WithMaxValueDelay_SavesAtMaxExecuteTime()
+    {
+        var message = Substitute.For<IDelayedRetryMessage>();
+        DelayedRetryMessageData? captured = null;
+        _messageFactory.Create(Arg.Do<DelayedRetryMessageData>(d => captured = d)).Returns(message);
+        var sut = new DelayedRetryScheduler(_store, _messageFactory, NullLogger<DelayedRetryScheduler>.Instance, _messageSerializer);
+
+        var result = await sut.ScheduleRetryAsync("test-request", new RecoverabilityContext(), TimeSpan.MaxValue, 0);
+
+        result.IsRight.ShouldBeTrue();
+        captured.ShouldNotBeNull();
+        captured.ExecuteAtUtc.ShouldBe(DateTime.MaxValue);
+        await _store.Received(1).AddAsync(message, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ScheduleRetryAsync_WithDelayOverflowingFromFakeNow_SavesAtMaxExecuteTime()
+    {
+        var now = new DateTimeOffset(2026, 10, 21, 12, 0, 0, TimeSpan.Zero);
+        var timeProvider = new FakeTimeProvider(now);
+        var message = Substitute.For<IDelayedRetryMessage>();
+        DelayedRetryMessageData? captured = null;
+        _messageFactory.Create(Arg.Do<DelayedRetryMessageData>(d => captured = d)).Returns(message);
+        var sut = new DelayedRetryScheduler(_store, _messageFactory, NullLogger<DelayedRetryScheduler>.Instance, _messageSerializer, timeProvider);
+        var delay = DateTime.MaxValue - now.UtcDateTime + TimeSpan.FromDays(1);
+
+        var result = await sut.ScheduleRetryAsync("test-request", new RecoverabilityContext(), delay, 0);
+
+        result.IsRight.ShouldBeTrue();
+        captured.ShouldNotBeNull();
+        captured.ScheduledAtUtc.ShouldBe(now.UtcDateTime);
+        captured.ExecuteAtUtc.ShouldBe(DateTime.MaxValue);
     }
 
     [Fact]

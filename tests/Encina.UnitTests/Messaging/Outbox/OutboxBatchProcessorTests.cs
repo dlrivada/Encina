@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Encina.Diagnostics;
+using Encina.Messaging;
 using Encina.Messaging.Outbox;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -454,14 +455,14 @@ public sealed class OutboxBatchProcessorTests
     [Fact]
     public void AddSaturating_DelayWithinRange_AddsIt()
     {
-        OutboxBatchProcessor.AddSaturating(Now.UtcDateTime, TimeSpan.FromMinutes(5))
+        SaturatingTime.AddSaturating(Now.UtcDateTime, TimeSpan.FromMinutes(5))
             .ShouldBe(Now.UtcDateTime.AddMinutes(5));
     }
 
     [Fact]
     public void AddSaturating_DelayOverflowing_ReturnsUtcMaxValue()
     {
-        var result = OutboxBatchProcessor.AddSaturating(Now.UtcDateTime, TimeSpan.MaxValue);
+        var result = SaturatingTime.AddSaturating(Now.UtcDateTime, TimeSpan.MaxValue);
 
         result.ShouldBe(DateTime.MaxValue);
         result.Kind.ShouldBe(DateTimeKind.Utc);

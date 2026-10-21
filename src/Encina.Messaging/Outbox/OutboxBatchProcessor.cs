@@ -265,7 +265,7 @@ internal sealed class OutboxBatchProcessor
             delay = retryAfter;
         }
 
-        var nextRetryAtUtc = AddSaturating(_timeProvider.GetUtcNow().UtcDateTime, delay);
+        var nextRetryAtUtc = SaturatingTime.AddSaturating(_timeProvider.GetUtcNow().UtcDateTime, delay);
 
         var failedMark = await _store.MarkAsFailedAsync(message.Id, failureReason, nextRetryAtUtc, cancellationToken)
             .ConfigureAwait(false);
@@ -350,16 +350,6 @@ internal sealed class OutboxBatchProcessor
         var error = result.LeftToArray()[0];
         MessagingLog.OutboxMessageOutcomeNotRecorded(_logger, operation, message.Id, error.GetCode().IfNone("encina.unknown"));
         return MessageOutcome.StoreError;
-    }
-
-    /// <summary>
-    /// Adds <paramref name="delay"/> to <paramref name="nowUtc"/>, saturating at <see cref="DateTime.MaxValue"/>
-    /// instead of throwing when a very large <see cref="OutboxOptions.MaxRetryDelay"/> would overflow.
-    /// </summary>
-    internal static DateTime AddSaturating(DateTime nowUtc, TimeSpan delay)
-    {
-        var maxUtc = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
-        return delay >= maxUtc - nowUtc ? maxUtc : nowUtc.Add(delay);
     }
 
     private enum MessageOutcome
