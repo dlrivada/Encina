@@ -33,7 +33,7 @@ public class ProhibitedPracticeTests
     [Fact]
     public void ExpectedTable_CoversEveryMember()
     {
-        var tabled = ExpectedPoints.Select(row => (ProhibitedPractice)row[0]).ToHashSet();
+        var tabled = ExpectedPoints.Select(row => row.Data.Item1).ToHashSet();
 
         tabled.ShouldBe(Enum.GetValues<ProhibitedPractice>().ToHashSet(), ignoreOrder: true);
     }
