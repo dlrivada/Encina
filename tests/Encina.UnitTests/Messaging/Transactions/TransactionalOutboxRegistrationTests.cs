@@ -17,8 +17,8 @@ using NSubstitute;
 namespace Encina.UnitTests.Messaging.Transactions;
 
 /// <summary>
-/// Registration of the shared transaction and of the outbox write path (#718): ADO.NET registers the transactional
-/// behavior, Dapper keeps the post-processor, both register one accessor per scope that also answers as the
+/// Registration of the shared transaction and of the outbox write path (#718, #719): ADO.NET and Dapper register the
+/// transactional behavior, both register one accessor per scope that also answers as the
 /// neutral lease source; EF Core and MongoDB, which have no <see cref="IDbConnection"/>, register no accessor and
 /// still build with <c>ValidateOnBuild</c>. Recoverability runs outside the transaction (ADR-050).
 /// </summary>
@@ -39,21 +39,40 @@ public sealed class TransactionalOutboxRegistrationTests
         MongoDB
     }
 
-    public static TheoryData<Family> RelationalFamilies =>
-    [
-        Family.AdoSqlServer, Family.AdoPostgreSql, Family.AdoMySql,
-        Family.DapperSqlServer, Family.DapperPostgreSql, Family.DapperMySql
-    ];
-
     public static TheoryData<Family> NonRelationalFamilies => [Family.EntityFrameworkCore, Family.MongoDB];
 
-    private static bool IsAdo(Family family) => family is Family.AdoSqlServer or Family.AdoPostgreSql or Family.AdoMySql;
-
-    [Theory]
-    [MemberData(nameof(RelationalFamilies))]
-    public void Relational_OutboxAndTransactions_BuildsWithValidationAndSharesOneAccessor(Family family)
+    public static TheoryData<Family, bool, bool> RelationalFamiliesWithEveryOutboxAndTransactionsCombination
     {
-        var services = Register(family);
+        get
+        {
+            var data = new TheoryData<Family, bool, bool>();
+            foreach (var family in new[]
+                     {
+                         Family.AdoSqlServer, Family.AdoPostgreSql, Family.AdoMySql,
+                         Family.DapperSqlServer, Family.DapperPostgreSql, Family.DapperMySql
+                     })
+            {
+                data.Add(family, true, false);
+                data.Add(family, false, true);
+                data.Add(family, true, true);
+            }
+
+            return data;
+        }
+    }
+
+    // Registration completeness for UseOutbox only, UseTransactions only and both, on the six relational
+    // providers: every one builds with ValidateOnBuild + ValidateScopes and registers the transactional outbox
+    // behavior, never the post-processor (#718, #719).
+    [Theory]
+    [MemberData(nameof(RelationalFamiliesWithEveryOutboxAndTransactionsCombination))]
+    public void Relational_BuildsWithValidationAndSharesOneAccessor(Family family, bool useOutbox, bool useTransactions)
+    {
+        var services = Register(family, config =>
+        {
+            config.UseOutbox = useOutbox;
+            config.UseTransactions = useTransactions;
+        });
 
         using var provider = services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
@@ -63,23 +82,12 @@ public sealed class TransactionalOutboxRegistrationTests
         var accessor = sp.GetRequiredService<IDbTransactionAccessor>();
         sp.GetRequiredService<ITransactionLeaseSource>().ShouldBeSameAs(accessor);
         sp.GetRequiredService<IDbTransactionAccessor>().ShouldBeSameAs(accessor);
-        sp.GetServices<IPipelineBehavior<ProbeRequest, string>>()
-            .ShouldContain(b => b is TransactionPipelineBehavior<ProbeRequest, string>);
 
-        if (IsAdo(family))
-        {
-            sp.GetServices<IPipelineBehavior<ProbeRequest, string>>()
-                .ShouldContain(b => b is TransactionalOutboxPipelineBehavior<ProbeRequest, string>);
-            sp.GetServices<IRequestPostProcessor<ProbeRequest, string>>()
-                .ShouldNotContain(p => p is OutboxPostProcessor<ProbeRequest, string>);
-        }
-        else
-        {
-            sp.GetServices<IRequestPostProcessor<ProbeRequest, string>>()
-                .ShouldContain(p => p is OutboxPostProcessor<ProbeRequest, string>);
-            sp.GetServices<IPipelineBehavior<ProbeRequest, string>>()
-                .ShouldNotContain(b => b is TransactionalOutboxPipelineBehavior<ProbeRequest, string>);
-        }
+        var behaviors = sp.GetServices<IPipelineBehavior<ProbeRequest, string>>().ToList();
+        (behaviors.Any(b => b is TransactionPipelineBehavior<ProbeRequest, string>)).ShouldBe(useTransactions);
+        (behaviors.Any(b => b is TransactionalOutboxPipelineBehavior<ProbeRequest, string>)).ShouldBe(useOutbox);
+        sp.GetServices<IRequestPostProcessor<ProbeRequest, string>>()
+            .ShouldNotContain(p => p is OutboxPostProcessor<ProbeRequest, string>);
     }
 
     [Theory]
@@ -101,6 +109,9 @@ public sealed class TransactionalOutboxRegistrationTests
     [InlineData(Family.AdoSqlServer)]
     [InlineData(Family.AdoPostgreSql)]
     [InlineData(Family.AdoMySql)]
+    [InlineData(Family.DapperSqlServer)]
+    [InlineData(Family.DapperPostgreSql)]
+    [InlineData(Family.DapperMySql)]
     public async Task AddEncinaUnitOfWork_RegistersTheAccessorOnceAndResolvesTheUnitOfWork(Family family)
     {
         var services = new ServiceCollection();
@@ -117,9 +128,21 @@ public sealed class TransactionalOutboxRegistrationTests
                 global::Encina.ADO.PostgreSQL.ServiceCollectionExtensions.AddEncinaUnitOfWork(services);
                 global::Encina.ADO.PostgreSQL.ServiceCollectionExtensions.AddEncinaUnitOfWork(services);
                 break;
+            case Family.AdoMySql:
+                global::Encina.ADO.MySQL.ServiceCollectionExtensions.AddEncinaUnitOfWork(services);
+                global::Encina.ADO.MySQL.ServiceCollectionExtensions.AddEncinaUnitOfWork(services);
+                break;
+            case Family.DapperSqlServer:
+                global::Encina.Dapper.SqlServer.ServiceCollectionExtensions.AddEncinaUnitOfWork(services);
+                global::Encina.Dapper.SqlServer.ServiceCollectionExtensions.AddEncinaUnitOfWork(services);
+                break;
+            case Family.DapperPostgreSql:
+                global::Encina.Dapper.PostgreSQL.ServiceCollectionExtensions.AddEncinaUnitOfWork(services);
+                global::Encina.Dapper.PostgreSQL.ServiceCollectionExtensions.AddEncinaUnitOfWork(services);
+                break;
             default:
-                global::Encina.ADO.MySQL.ServiceCollectionExtensions.AddEncinaUnitOfWork(services);
-                global::Encina.ADO.MySQL.ServiceCollectionExtensions.AddEncinaUnitOfWork(services);
+                global::Encina.Dapper.MySQL.ServiceCollectionExtensions.AddEncinaUnitOfWork(services);
+                global::Encina.Dapper.MySQL.ServiceCollectionExtensions.AddEncinaUnitOfWork(services);
                 break;
         }
 
@@ -266,17 +289,17 @@ public sealed class TransactionalOutboxRegistrationTests
             .Select(d => d.ImplementationType)
             .ToList();
 
-    private static ServiceCollection Register(Family family)
+    private static ServiceCollection Register(Family family, Action<MessagingConfiguration>? configure = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddEncina();
 
-        static void OutboxAndTransactions(MessagingConfiguration config)
+        var OutboxAndTransactions = configure ?? (static config =>
         {
             config.UseOutbox = true;
             config.UseTransactions = true;
-        }
+        });
 
         switch (family)
         {
