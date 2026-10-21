@@ -33,6 +33,7 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
     private readonly ICacheKeyGenerator _keyGenerator;
     private readonly CachingOptions _options;
     private readonly ILogger<CacheInvalidationPipelineBehavior<TRequest, TResponse>> _logger;
+    private readonly TimeProvider _timeProvider;
     private static readonly InvalidatesCacheAttribute[] InvalidationAttributes =
         typeof(TRequest).GetCustomAttributes<InvalidatesCacheAttribute>(true).ToArray();
 
@@ -44,12 +45,17 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
     /// <param name="options">The caching options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="pubSubProvider">The optional pub/sub provider for cross-instance invalidation.</param>
+    /// <param name="timeProvider">
+    /// The time provider that schedules delayed invalidation
+    /// (<see cref="InvalidatesCacheAttribute.DelayMilliseconds"/>). Defaults to <see cref="TimeProvider.System"/>.
+    /// </param>
     public CacheInvalidationPipelineBehavior(
         ICacheProvider cacheProvider,
         ICacheKeyGenerator keyGenerator,
         IOptions<CachingOptions> options,
         ILogger<CacheInvalidationPipelineBehavior<TRequest, TResponse>> logger,
-        IPubSubProvider? pubSubProvider = null)
+        IPubSubProvider? pubSubProvider = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(cacheProvider);
         ArgumentNullException.ThrowIfNull(keyGenerator);
@@ -61,6 +67,7 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
         _options = options.Value;
         _logger = logger;
         _pubSubProvider = pubSubProvider;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -137,7 +144,7 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
         string correlationId,
         CancellationToken cancellationToken)
     {
-        await Task.Delay(attr.Delay, cancellationToken).ConfigureAwait(false);
+        await Task.Delay(attr.Delay, _timeProvider, cancellationToken).ConfigureAwait(false);
         await InvalidateCacheAsync(pattern, attr.BroadcastInvalidation, correlationId, cancellationToken)
             .ConfigureAwait(false);
     }
