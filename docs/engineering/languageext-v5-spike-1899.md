@@ -4,7 +4,7 @@ nav_exclude: true
 
 # LanguageExt v5 spike (#1899)
 
-This page is for a maintainer or contributor who has to decide which LanguageExt version Encina 1.0 ships on: it records what was measured about LanguageExt v5, about how Encina uses LanguageExt, and about a throwaway migration of the core package, so the decision starts from evidence. It states measurements only; the options and the decision are in [ADR-051](../architecture/adr/051-languageext-version-for-1-0.md).
+This page is for a maintainer or contributor who has to decide which LanguageExt version Encina 1.0 ships on: it records what was measured about LanguageExt v5, about how Encina uses LanguageExt, and about a throwaway migration of the core package, so the decision starts from evidence. It states measurements and the findings drawn from them, and recommends nothing; the options and the decision are in [ADR-051](../architecture/adr/051-languageext-version-for-1-0.md).
 
 **Status:** measured spike, 2026-10-21. **Issue:** [#1899](https://github.com/dlrivada/Encina/issues/1899). **Decision record:** [ADR-051](../architecture/adr/051-languageext-version-for-1-0.md) (Proposed).
 
@@ -85,7 +85,7 @@ The ratio of 4.4.9 to beta-77 is about 200 to 1. No v4-versus-v5 performance cla
 
 ## 3. What Encina uses
 
-Counted over `src/**/*.cs` (excluding `bin`, `obj`, `.backup`; 2951 files) on `origin/main`, with `LanguageExt.Core` 4.4.9 (`Directory.Packages.props:11`) referenced by 30 `src/*.csproj`. Counts are raw regex hits, not Roslyn-resolved symbols; `Either`, `Unit` and `Prelude` figures are reliable (Encina has no other `Either` or `Unit`), the others are upper bounds.
+Counted on 2026-10-21 over `src/**/*.cs` (excluding `bin`, `obj`, `.backup`; 2951 files) on `origin/main` of that day; a re-count on a later `origin/main` gave figures within 1% (for example 5146 `Either<`), so treat them as approximate. The installed version is `LanguageExt.Core` 4.4.9 (`Directory.Packages.props:11`) referenced by 30 `src/*.csproj`. Counts are raw regex hits, not Roslyn-resolved symbols; `Either`, `Unit` and `Prelude` figures are reliable (Encina has no other `Either` or `Unit`), the others are upper bounds.
 
 ### 3.1 The surface is narrow
 
@@ -221,6 +221,8 @@ Command: `dotnet build Encina.slnx -c Release -v q -clp:NoSummary` after the cor
 
 ### 4.6 Tests
 
+The test, benchmark and AOT figures in sections 4.6 to 4.8 are one-off measurements from a throwaway pilot branch that was not pushed; the raw logs are not retained in the repository, so they cannot be re-run from a clean checkout.
+
 The full `tests/Encina.UnitTests` has 102 project references to packages that no longer compile, so it could not be built. The pilot used a throwaway project linking the `Core`, `Dispatchers`, `Pipeline` and `Sharding` folders and referencing only `src/Encina`; about 35 of 170 files that need other packages were excluded (including `Core/EncinaTests.cs`).
 
 | Figure | Value | Command |
@@ -249,7 +251,7 @@ Command: `dotnet run -c Release --no-build --project tests\Encina.BenchmarkTests
 | Stream_WithCancellation_EarlyExit | 55.363 us | 43.162 us | 90,001 B | 90.02 KB |
 | Stream_DirectHandlerInvocation_NoEncina | 1.407 us | 1.531 us | 400 B | 2.7 KB |
 
-Observed: means moved in both directions, inside the noise band (error columns up to 150% of the mean on some rows). Allocations are about flat on the Encina paths (+0.2 KB on `Send`) and rise for `MaterializeToList` (+15.6 KB for 100 items) and for the direct-handler loop that bypasses Encina (400 B to 2.7 KB). The last rise is the allocation finding: `Either` was a struct in v4 and is an abstract class in v5, so each yielded item becomes a heap object.
+Observed: means moved in both directions, inside the noise band (error columns up to 150% of the mean on some rows). Allocations are about flat on the Encina paths (+0.2 KB on `Send`) and rise for `MaterializeToList` (+15.6 KB for 100 items) and for the direct-handler loop that bypasses Encina (400 B to 2.7 KB). The pilot's reading of the last rise (an inference, not separately measured) is that `Either` was a struct in v4 and is an abstract class in v5, so each yielded item becomes a heap object.
 
 ### 4.8 Analyzer and AOT warnings
 

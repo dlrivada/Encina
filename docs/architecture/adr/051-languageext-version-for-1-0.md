@@ -51,7 +51,7 @@ Encina keeps `LanguageExt.Core` `4.4.9`, ships 1.0 on it and cleans up the non-i
 Encina defines its own result and option types and keeps LanguageExt (any version) as an internal detail or drops it.
 
 - **What it means:** the public API stops exposing `LanguageExt.*` types, so a LanguageExt version change no longer reaches users. It contradicts the reasoning of [ADR-001](001-railway-oriented-programming.md) ("reinventing the wheel") and the choice recorded in [ADR-004](004-reject-mediator-result.md).
-- **Measured cost:** not piloted. It is larger than Option A: the same call sites change (5138 `Either<` occurrences in 811 files and 1040 `PublicAPI` lines), plus the design and tests of the new types and the combinators Encina uses.
+- **Measured cost:** not piloted. It would change the same call sites as Option A (5138 `Either<` occurrences in 811 files and 1040 `PublicAPI` lines), plus the design and tests of the new types and the combinators Encina uses.
 - **Risks:** a second `Either`-like type to maintain, test and document; users lose interoperability with LanguageExt code; ADR-001 and ADR-004 need amendments.
 - **Better when:** the maintainer wants Encina's public contract independent of any third-party library's release cycle and accepts owning the types.
 
@@ -73,7 +73,7 @@ Prepare on 4.4.9 now, and migrate before 1.0 only if a stable 5.0 ships by a dat
 
 - Until the maintainer decides, nothing changes: Encina stays on `LanguageExt.Core` 4.4.9 and no migration work starts.
 - Whichever option is chosen, the idiomatic cleanup findings of the spike report (section 6) are valid on 4.4.9; the order in which they are scheduled depends on the option.
-- Any option other than B moves 1.0 or the post-1.0 public contract; the PublicAPI files and the `docs/` pages that show `Either` signatures change with it.
+- Options A and C change the public contract before 1.0; B keeps it and defers any v5 move to a post-1.0 breaking change; D is B unless its condition is met, then A. Where the contract changes, the PublicAPI files and the `docs/` pages that show `Either` signatures change with it.
 - This ADR becomes Accepted when the chosen option replaces the Decision section, and its consequences are then rewritten for that option.
 
 ## Related
