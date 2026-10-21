@@ -27,19 +27,11 @@ public static class RetryAfterParser
             return null;
         }
 
-        if (header.Delta is { } delta)
-        {
-            return delta > TimeSpan.Zero ? delta : TimeSpan.Zero;
-        }
-
-        if (header.Date is { } date)
-        {
-            var remaining = date - timeProvider.GetUtcNow();
-            return remaining < TimeSpan.Zero ? TimeSpan.Zero : remaining;
-        }
-
-        return null;
+        // A parsed header always holds a delay or a date
+        return NonNegative(header.Delta ?? header.Date.GetValueOrDefault() - timeProvider.GetUtcNow());
     }
+
+    private static TimeSpan NonNegative(TimeSpan value) => value > TimeSpan.Zero ? value : TimeSpan.Zero;
 
     /// <summary>
     /// Reads the delay of a raw <c>Retry-After</c> header value.

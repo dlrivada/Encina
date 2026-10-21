@@ -130,26 +130,16 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             return result;
         }
 
-        // If error is permanent, skip delayed retries
-        var correlationId = context.CorrelationId;
-        if (recoverabilityContext.LastClassification == ErrorClassification.Permanent)
-        {
-            CountSkipped(RetryMetrics.ReasonPermanent, recoverabilityContext, context.TenantId);
-            LogPermanentErrorDetected(correlationId, recoverabilityContext);
-            await HandlePermanentFailureAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
-            return result;
-        }
-
-        // An ambiguous failure of a non-idempotent send is returned to the caller like a permanent one,
-        // unless the request carries an idempotency key (the provider can deduplicate the retry).
-        if (await RejectNonIdempotentAsync(request, context, recoverabilityContext, cancellationToken).ConfigureAwait(false))
+        // A permanent error skips delayed retries; an ambiguous failure of a non-idempotent send is returned to the
+        // caller like a permanent one, unless the request carries an idempotency key (the provider can deduplicate).
+        if (await RejectPermanentAsync(request, context, recoverabilityContext, cancellationToken).ConfigureAwait(false)
+            || await RejectNonIdempotentAsync(request, context, recoverabilityContext, cancellationToken).ConfigureAwait(false))
         {
             return result;
         }
 
         // Schedule delayed retry if enabled and scheduler is available
-        if (_delayedRetryScheduler is not null && CanScheduleDelayedRetry
-            && await ScheduleFirstDelayedRetryAsync(_delayedRetryScheduler, request, recoverabilityContext, cancellationToken).ConfigureAwait(false))
+        if (await TryScheduleFirstDelayedRetryAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false))
         {
             // Return error but note that delayed retry is scheduled
             return Either<EncinaError, TResponse>.Left(
@@ -162,6 +152,31 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         await HandlePermanentFailureAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
         return result;
     }
+
+    private async ValueTask<bool> RejectPermanentAsync(
+        TRequest request,
+        IRequestContext context,
+        RecoverabilityContext recoverabilityContext,
+        CancellationToken cancellationToken)
+    {
+        if (recoverabilityContext.LastClassification != ErrorClassification.Permanent)
+        {
+            return false;
+        }
+
+        CountSkipped(RetryMetrics.ReasonPermanent, recoverabilityContext, context.TenantId);
+        LogPermanentErrorDetected(context.CorrelationId, recoverabilityContext);
+        await HandlePermanentFailureAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    private async ValueTask<bool> TryScheduleFirstDelayedRetryAsync(
+        TRequest request,
+        RecoverabilityContext recoverabilityContext,
+        CancellationToken cancellationToken) =>
+        _delayedRetryScheduler is not null
+        && CanScheduleDelayedRetry
+        && await ScheduleFirstDelayedRetryAsync(_delayedRetryScheduler, request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
 
     // True when the failure was an ambiguous one of a non-idempotent send without an idempotency key: the
     // message took the permanent-failure path and is not retried.

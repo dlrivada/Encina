@@ -168,23 +168,25 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
     // Why an error is not retried, or null when it is.
     private string? SkipReasonOf(EncinaError error, RetryAttribute config, IRequestContext context)
     {
-        var cause = error.GetCause().MatchUnsafe(ex => ex, () => null);
-        if (_errorClassifier.Classify(error, cause) == ErrorClassification.Permanent)
+        if (IsPermanent(error))
         {
             return RetryMetrics.ReasonPermanent;
         }
 
-        if (!OutboundRetryRules.AllowsAutomaticRetry(error, context.IdempotencyKey, config.RetryNonIdempotent))
-        {
-            return RetryMetrics.ReasonNonIdempotent;
-        }
+        return !OutboundRetryRules.AllowsAutomaticRetry(error, context.IdempotencyKey, config.RetryNonIdempotent)
+            ? RetryMetrics.ReasonNonIdempotent
+            : SkipReasonOfRetryAfter(error, config);
+    }
 
-        // A wait longer than the ceiling is never shortened: the transient error goes back to the caller
-        // with http.retry_after so an outer layer can reschedule it.
-        return OutboundRetryRules.GetRetryAfter(error) > TimeSpan.FromMilliseconds(config.MaxDelayMs)
+    private bool IsPermanent(EncinaError error) =>
+        _errorClassifier.Classify(error, error.GetCause().MatchUnsafe(ex => ex, () => null)) == ErrorClassification.Permanent;
+
+    // A wait longer than the ceiling is never shortened: the transient error goes back to the caller
+    // with http.retry_after so an outer layer can reschedule it.
+    private static string? SkipReasonOfRetryAfter(EncinaError error, RetryAttribute config) =>
+        OutboundRetryRules.GetRetryAfter(error) > TimeSpan.FromMilliseconds(config.MaxDelayMs)
             ? RetryMetrics.ReasonRetryAfterExceedsMax
             : null;
-    }
 
     private bool ShouldRetryException(Exception ex, RetryAttribute config, IRequestContext context)
     {

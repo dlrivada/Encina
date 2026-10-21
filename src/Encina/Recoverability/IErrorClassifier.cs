@@ -195,24 +195,11 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
             return declared;
         }
 
-        // A pool recovers when a connection is returned: exhaustion is transient although the driver
-        // raises an InvalidOperationException, which is otherwise permanent.
-        if (IsPoolExhaustion(exception) || IsPoolExhaustion(encinaError.Exception.MatchUnsafe(ex => ex, () => null)))
-        {
-            return ErrorClassification.Transient;
-        }
-
-        // Then, the exception passed in, the exception of the error itself, and the error code
-        var known = ClassifyExceptions(encinaError, exception);
+        // Then, the exceptions and the error code
+        var known = ClassifyExceptionsAndCode(encinaError, exception);
         if (known != ErrorClassification.Unknown)
         {
             return known;
-        }
-
-        var codeClassification = ClassifyErrorCode(encinaError.GetCode().IfNone(string.Empty));
-        if (codeClassification != ErrorClassification.Unknown)
-        {
-            return codeClassification;
         }
 
         // Finally, check the error message for patterns, unless the error has a causing exception:
@@ -224,6 +211,21 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
         }
 
         return ClassifyErrorMessage(encinaError.Message);
+    }
+
+    private static ErrorClassification ClassifyExceptionsAndCode(EncinaError encinaError, Exception? exception)
+    {
+        // A pool recovers when a connection is returned: exhaustion is transient although the driver
+        // raises an InvalidOperationException, which is otherwise permanent.
+        if (IsPoolExhaustion(exception) || IsPoolExhaustion(encinaError.Exception.MatchUnsafe(ex => ex, () => null)))
+        {
+            return ErrorClassification.Transient;
+        }
+
+        var fromExceptions = ClassifyExceptions(encinaError, exception);
+        return fromExceptions != ErrorClassification.Unknown
+            ? fromExceptions
+            : ClassifyErrorCode(encinaError.GetCode().IfNone(string.Empty));
     }
 
     private static ErrorClassification ClassifyExceptions(EncinaError encinaError, Exception? exception)
