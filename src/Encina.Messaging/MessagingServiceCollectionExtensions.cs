@@ -13,6 +13,7 @@ using Encina.Messaging.Scheduling;
 using Encina.Messaging.Serialization;
 using Encina.Messaging.SoftDelete;
 using Encina.Messaging.Transactions;
+using Encina.Recoverability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -145,8 +146,7 @@ public static class MessagingServiceCollectionExtensions
         if (!config.UseRecoverability) return;
 
         services.AddSingleton(config.RecoverabilityOptions);
-        services.TryAddSingleton<IErrorClassifier>(
-            config.RecoverabilityOptions.ErrorClassifier ?? new DefaultErrorClassifier());
+        RecoverabilityServiceCollectionExtensions.RegisterErrorClassifier(services, config.RecoverabilityOptions);
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(RecoverabilityPipelineBehavior<,>));
 
         RegisterDelayedRetries(services, config.RecoverabilityOptions);

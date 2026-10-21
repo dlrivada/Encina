@@ -1,3 +1,4 @@
+using Encina.Recoverability;
 using LanguageExt;
 
 namespace Encina.Messaging.Recoverability;

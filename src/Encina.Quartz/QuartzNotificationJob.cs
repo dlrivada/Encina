@@ -1,5 +1,5 @@
 using Encina.Diagnostics;
-using Encina.Messaging.Recoverability;
+using Encina.Recoverability;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Quartz;

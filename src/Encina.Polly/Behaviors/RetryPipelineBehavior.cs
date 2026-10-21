@@ -1,4 +1,6 @@
 using Encina.Diagnostics;
+using Encina.Polly.Diagnostics;
+using Encina.Recoverability;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Polly;
@@ -12,18 +14,42 @@ namespace Encina.Polly;
 /// </summary>
 /// <typeparam name="TRequest">Request type.</typeparam>
 /// <typeparam name="TResponse">Response type.</typeparam>
+/// <remarks>
+/// <para>
+/// A failure is retried only when the <see cref="IErrorClassifier"/> does not classify it as
+/// <see cref="ErrorClassification.Permanent"/>. A <c>Permanent</c> error is never retried, with or without
+/// <see cref="RetryAttribute.RetryOnAllExceptions"/>, which only widens the retry to <c>Unknown</c> exceptions.
+/// </para>
+/// <para>
+/// An outbound error that carries <c>http.retry_after</c> (see <see cref="OutboundErrorMetadataKeys"/>) is retried
+/// after exactly that delay when it does not exceed <see cref="RetryAttribute.MaxDelayMs"/>; a longer delay is never
+/// shortened, so the transient error is returned unchanged for an outer layer (delayed retry, outbox) to reschedule.
+/// An ambiguous failure of a non-idempotent send (<see cref="OutboundErrorMetadataKeys.Ambiguous"/>) is retried
+/// only with <see cref="RetryAttribute.RetryNonIdempotent"/> or when the request carries an idempotency key.
+/// Every skipped retry is counted in <c>encina.retry.skipped_total</c> with its reason.
+/// </para>
+/// </remarks>
 public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
     private readonly ILogger<RetryPipelineBehavior<TRequest, TResponse>> _logger;
+    private readonly IErrorClassifier _errorClassifier;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RetryPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
     /// <param name="logger">Logger instance.</param>
-    public RetryPipelineBehavior(ILogger<RetryPipelineBehavior<TRequest, TResponse>> logger)
+    /// <param name="errorClassifier">Classifies a failure as transient, permanent or unknown.</param>
+    /// <param name="timeProvider">Clock used for the retry delays; defaults to <see cref="TimeProvider.System"/>.</param>
+    public RetryPipelineBehavior(
+        ILogger<RetryPipelineBehavior<TRequest, TResponse>> logger,
+        IErrorClassifier errorClassifier,
+        TimeProvider? timeProvider = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _errorClassifier = errorClassifier ?? throw new ArgumentNullException(nameof(errorClassifier));
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -43,36 +69,42 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
         }
 
         // Build retry pipeline
-        var pipeline = BuildRetryPipeline(retryAttribute);
+        var pipeline = BuildRetryPipeline(retryAttribute, context);
+
+        using var activity = RetryTelemetry.StartRetry(typeof(TRequest).Name, context.TenantId);
 
         // Execute with retry
         try
         {
-            return await pipeline.ExecuteAsync(async ct => await nextStep().ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+            var result = await pipeline.ExecuteAsync(async ct => await nextStep().ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+            RetryTelemetry.Complete(activity, result.IsRight, result.IsLeft ? ((EncinaError)result).GetCode().IfNone("encina.unknown") : null);
+            return result;
         }
         catch (Exception ex)
         {
             LogRetryExhausted(_logger, typeof(TRequest).Name, retryAttribute.MaxAttempts, ex.ForLogging());
+            RetryTelemetry.Complete(activity, false, ex.GetType().Name);
             return EncinaError.New(ex);
         }
     }
 
     private ResiliencePipeline<Either<EncinaError, TResponse>> BuildRetryPipeline(
-        RetryAttribute config)
+        RetryAttribute config,
+        IRequestContext context)
     {
         var requestType = typeof(TRequest).Name;
+        var tenantId = context.TenantId;
 
-        return new ResiliencePipelineBuilder<Either<EncinaError, TResponse>>()
+        return new ResiliencePipelineBuilder<Either<EncinaError, TResponse>> { TimeProvider = _timeProvider }
             .AddRetry(new RetryStrategyOptions<Either<EncinaError, TResponse>>
             {
                 MaxRetryAttempts = config.MaxAttempts - 1, // -1 because Polly counts retries, not total attempts
                 Delay = TimeSpan.FromMilliseconds(config.BaseDelayMs),
                 MaxDelay = TimeSpan.FromMilliseconds(config.MaxDelayMs),
                 BackoffType = MapBackoffType(config.BackoffType),
-                ShouldHandle = new PredicateBuilder<Either<EncinaError, TResponse>>()
-                    .HandleResult(ShouldRetry)
-                    .Handle<Exception>(ex => ShouldRetryException(ex, config)),
-                OnRetry = args => LogRetryAttempt(args, config, requestType)
+                ShouldHandle = args => ValueTask.FromResult(ShouldRetry(args.Outcome, config, context)),
+                DelayGenerator = args => ValueTask.FromResult(RetryAfterOf(args.Outcome)),
+                OnRetry = args => LogRetryAttempt(args, config, requestType, tenantId)
             })
             .Build();
     }
@@ -88,7 +120,8 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
     private ValueTask LogRetryAttempt(
         OnRetryArguments<Either<EncinaError, TResponse>> args,
         RetryAttribute config,
-        string requestType)
+        string requestType,
+        string? tenantId)
     {
         var attemptNumber = args.AttemptNumber + 1; // +1 because Polly is zero-indexed
         var delay = args.RetryDelay;
@@ -96,35 +129,82 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
         if (args.Outcome.Exception is not null)
         {
             LogRetryAttemptException(_logger, attemptNumber, config.MaxAttempts, requestType, delay.TotalMilliseconds, args.Outcome.Exception.ForLogging());
+            RetryMetrics.RecordAttempt(requestType, args.Outcome.Exception.GetType().Name, tenantId);
         }
         else if (args.Outcome.Result is { } result && result.IsLeft)
         {
-            result.IfLeft(error =>
-            {
-                LogRetryAttemptError(_logger, attemptNumber, config.MaxAttempts, requestType, delay.TotalMilliseconds, error.GetCode().IfNone("encina.unknown"));
-            });
+            var code = ((EncinaError)result).GetCode().IfNone("encina.unknown");
+            LogRetryAttemptError(_logger, attemptNumber, config.MaxAttempts, requestType, delay.TotalMilliseconds, code);
+            RetryMetrics.RecordAttempt(requestType, code, tenantId);
         }
 
         return ValueTask.CompletedTask;
     }
 
-    private static bool ShouldRetry(Either<EncinaError, TResponse> result)
-    {
-        // Only retry on Left (error) results
-        return result.IsLeft;
-    }
+    // The delay the API dictated replaces the computed backoff for that attempt (never shortened, no jitter).
+    private static TimeSpan? RetryAfterOf(Outcome<Either<EncinaError, TResponse>> outcome) =>
+        outcome.Exception is null && outcome.Result.IsLeft
+            ? OutboundRetryRules.GetRetryAfter((EncinaError)outcome.Result)
+            : null;
 
-    private static bool ShouldRetryException(Exception ex, RetryAttribute config)
+    private bool ShouldRetry(Outcome<Either<EncinaError, TResponse>> outcome, RetryAttribute config, IRequestContext context)
     {
-        if (config.RetryOnAllExceptions)
+        if (outcome.Exception is { } exception)
         {
-            return true;
+            return ShouldRetryException(exception, config, context);
         }
 
-        // Only retry transient failures by default
-        return ex is TimeoutException
-            or HttpRequestException
-            or IOException;
+        // Only retry on Left (error) results
+        return outcome.Result.IsLeft && ShouldRetryError((EncinaError)outcome.Result, config, context);
+    }
+
+    private bool ShouldRetryError(EncinaError error, RetryAttribute config, IRequestContext context)
+    {
+        var cause = error.GetCause().MatchUnsafe(ex => ex, () => null);
+        var code = error.GetCode().IfNone("encina.unknown");
+
+        if (_errorClassifier.Classify(error, cause) == ErrorClassification.Permanent)
+        {
+            return Skip(RetryMetrics.ReasonPermanent, code, context);
+        }
+
+        if (!OutboundRetryRules.AllowsAutomaticRetry(error, context.IdempotencyKey, config.RetryNonIdempotent))
+        {
+            return Skip(RetryMetrics.ReasonNonIdempotent, code, context);
+        }
+
+        // A wait longer than the ceiling is never shortened: the transient error goes back to the caller
+        // with http.retry_after so an outer layer can reschedule it.
+        if (OutboundRetryRules.GetRetryAfter(error) is { } retryAfter
+            && retryAfter > TimeSpan.FromMilliseconds(config.MaxDelayMs))
+        {
+            return Skip(RetryMetrics.ReasonRetryAfterExceedsMax, code, context);
+        }
+
+        return true;
+    }
+
+    private bool ShouldRetryException(Exception ex, RetryAttribute config, IRequestContext context)
+    {
+        var classification = _errorClassifier.Classify(EncinaError.New(ex), ex);
+
+        if (classification == ErrorClassification.Permanent)
+        {
+            return Skip(RetryMetrics.ReasonPermanent, ex.GetType().Name, context);
+        }
+
+        // Transient failures are retried; an unknown one only when the request opted in or it is a known transient type.
+        return classification == ErrorClassification.Transient
+            || config.RetryOnAllExceptions
+            || ex is TimeoutException or HttpRequestException or IOException;
+    }
+
+    // Counts and logs a retry that is not performed; always false so a caller can return it.
+    private bool Skip(string reason, string errorCode, IRequestContext context)
+    {
+        RetryMetrics.RecordSkipped(reason, typeof(TRequest).Name, errorCode, context.TenantId);
+        LogRetrySkipped(_logger, typeof(TRequest).Name, reason, errorCode);
+        return false;
     }
 
     [LoggerMessage(
@@ -160,4 +240,14 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
         string requestType,
         double delay,
         string error);
+
+    [LoggerMessage(
+        EventId = 3921,
+        Level = LogLevel.Information,
+        Message = "Retry skipped for {RequestType} ({Reason}): {ErrorCode}")]
+    private static partial void LogRetrySkipped(
+        ILogger logger,
+        string requestType,
+        string reason,
+        string errorCode);
 }

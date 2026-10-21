@@ -4,6 +4,7 @@ using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using Encina.Diagnostics;
 using Encina.Messaging.Serialization;
+using Encina.Recoverability;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -299,13 +300,40 @@ public sealed class DelayedRetryProcessor : BackgroundService
         CancellationToken cancellationToken)
     {
         var nextDelayedRetryAttempt = message.DelayedRetryAttempt + 1;
-        if (result.IsPermanent || nextDelayedRetryAttempt >= _options.DelayedRetries.Length)
+        if (result.IsPermanent)
+        {
+            CountSkipped(RetryMetrics.ReasonPermanent, message, result);
+            return false;
+        }
+
+        // An ambiguous failure of a non-idempotent send ends the chain like a permanent one, unless the
+        // original request carried an idempotency key.
+        if (result.Error is { } error
+            && !OutboundRetryRules.AllowsAutomaticRetry(error, ParseContext(message.ContextContent).IdempotencyKey, allowNonIdempotentRetry: false))
+        {
+            CountSkipped(RetryMetrics.ReasonNonIdempotent, message, result);
+            return false;
+        }
+
+        if (nextDelayedRetryAttempt >= _options.DelayedRetries.Length)
         {
             return false;
         }
 
-        return await ScheduleNextDelayedRetryAsync(message, request, nextDelayedRetryAttempt, cancellationToken).ConfigureAwait(false);
+        // The delay the API dictated (Retry-After) replaces the configured step; the attempt still counts
+        // against DelayedRetries.Length. Never shortened and without jitter.
+        var retryAfter = result.Error is { } failure ? OutboundRetryRules.GetRetryAfter(failure) : null;
+        var delay = retryAfter ?? _options.DelayedRetries[nextDelayedRetryAttempt];
+
+        return await ScheduleNextDelayedRetryAsync(message, request, nextDelayedRetryAttempt, delay, cancellationToken).ConfigureAwait(false);
     }
+
+    private static void CountSkipped(string reason, IDelayedRetryMessage message, DispatchResult result) =>
+        RetryMetrics.RecordSkipped(
+            reason,
+            message.RequestType,
+            result.ErrorMessage ?? RecoverabilityConstants.Unknown,
+            tenantId: null);
 
     private static async Task<DispatchResult> DispatchRequestAsync(
         IEncina encina,
@@ -325,7 +353,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
             return outcome.Match(
                 Right: _ => new DispatchResult(true, null, false, null),
                 // Only the error code: EncinaError.Message can carry personal data (#1259 review).
-                Left: error => new DispatchResult(false, error.GetCode().IfNone("encina.unknown"), isPermanent, marker.Attempt));
+                Left: error => new DispatchResult(false, error.GetCode().IfNone("encina.unknown"), isPermanent, marker.Attempt, error));
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
@@ -337,6 +365,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         IDelayedRetryMessage originalMessage,
         object request,
         int nextDelayedRetryAttempt,
+        TimeSpan delay,
         CancellationToken cancellationToken)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
@@ -351,8 +380,6 @@ public sealed class DelayedRetryProcessor : BackgroundService
         // Reconstruct context from the serialized data
         var context = RestoreContext(originalMessage.ContextContent);
         context.IncrementDelayedRetry();
-
-        var delay = _options.DelayedRetries[nextDelayedRetryAttempt];
 
         DelayedRetryProcessorLog.SchedulingNextRetry(
             _logger,
@@ -585,7 +612,8 @@ public sealed class DelayedRetryProcessor : BackgroundService
             cancellationToken);
     }
 
-    private sealed record DispatchResult(bool IsSuccess, string? ErrorMessage, bool IsPermanent, RecoverabilityContext? Attempt);
+    // ErrorMessage is the error code or the exception type, never EncinaError.Message; Error is only read for its metadata.
+    private sealed record DispatchResult(bool IsSuccess, string? ErrorMessage, bool IsPermanent, RecoverabilityContext? Attempt, EncinaError? Error = null);
 
     // What the permanent-failure path reports: the code or type text, the re-dispatch's own context
     // when the behavior saw it, and whether a delayed retry of this row has run.

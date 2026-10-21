@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Encina.Diagnostics;
+using Encina.Recoverability;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -56,18 +57,23 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     /// once (keyed by <see cref="FailedMessage.Id"/>) while <c>DeadLetterOptions.IntegrateWithRecoverability</c>
     /// is on. A failed capture is logged by the capture; the request already returns its failure.
     /// </param>
+    /// <param name="errorClassifier">
+    /// Optional classifier registered in DI. <see cref="RecoverabilityOptions.ErrorClassifier"/> takes precedence;
+    /// without either, <see cref="DefaultErrorClassifier"/> is used.
+    /// </param>
     public RecoverabilityPipelineBehavior(
         RecoverabilityOptions options,
         ILogger<RecoverabilityPipelineBehavior<TRequest, TResponse>> logger,
         IDelayedRetryScheduler? delayedRetryScheduler = null,
         TimeProvider? timeProvider = null,
-        DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null)
+        DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null,
+        IErrorClassifier? errorClassifier = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
         _options = options;
-        _errorClassifier = options.ErrorClassifier ?? new DefaultErrorClassifier();
+        _errorClassifier = options.ErrorClassifier ?? errorClassifier ?? new DefaultErrorClassifier();
         _logger = logger;
         _delayedRetryScheduler = delayedRetryScheduler;
         _timeProvider = timeProvider ?? TimeProvider.System;
@@ -105,12 +111,12 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             return result;
         }
 
-        return await HandleFailureAsync(request, context.CorrelationId, result, recoverabilityContext, redispatch, cancellationToken).ConfigureAwait(false);
+        return await HandleFailureAsync(request, context, result, recoverabilityContext, redispatch, cancellationToken).ConfigureAwait(false);
     }
 
     private async ValueTask<Either<EncinaError, TResponse>> HandleFailureAsync(
         TRequest request,
-        string correlationId,
+        IRequestContext context,
         Either<EncinaError, TResponse> result,
         RecoverabilityContext recoverabilityContext,
         DelayedRetryRedispatch? redispatch,
@@ -125,9 +131,26 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         }
 
         // If error is permanent, skip delayed retries
+        var correlationId = context.CorrelationId;
         if (recoverabilityContext.LastClassification == ErrorClassification.Permanent)
         {
+            CountSkipped(RetryMetrics.ReasonPermanent, recoverabilityContext, context.TenantId);
             LogPermanentErrorDetected(correlationId, recoverabilityContext);
+            await HandlePermanentFailureAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
+            return result;
+        }
+
+        // An ambiguous failure of a non-idempotent send is returned to the caller like a permanent one,
+        // unless the request carries an idempotency key (the provider can deduplicate the retry).
+        if (recoverabilityContext.LastError is { } lastError
+            && !OutboundRetryRules.AllowsAutomaticRetry(lastError, recoverabilityContext.IdempotencyKey, allowNonIdempotentRetry: false))
+        {
+            CountSkipped(RetryMetrics.ReasonNonIdempotent, recoverabilityContext, context.TenantId);
+            RecoverabilityLog.NonIdempotentRetrySkipped(
+                _logger,
+                correlationId,
+                typeof(TRequest).Name,
+                lastError.GetCode().IfNone(RecoverabilityConstants.Unknown));
             await HandlePermanentFailureAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
             return result;
         }
@@ -148,6 +171,19 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         return result;
     }
 
+    private static void CountSkipped(string reason, RecoverabilityContext recoverabilityContext, string? tenantId) =>
+        RetryMetrics.RecordSkipped(
+            reason,
+            typeof(TRequest).Name,
+            recoverabilityContext.LastError?.GetCode().IfNone(RecoverabilityConstants.Unknown) ?? RecoverabilityConstants.Unknown,
+            tenantId);
+
+    // The delay the API dictated (Retry-After) replaces the configured first delayed retry step, never shortened
+    // and without jitter.
+    private TimeSpan FirstDelayedRetryDelay(RecoverabilityContext recoverabilityContext) =>
+        (recoverabilityContext.LastError is { } lastError ? OutboundRetryRules.GetRetryAfter(lastError) : null)
+        ?? GetDelayWithJitter(_options.DelayedRetries[0]);
+
     private void LogPermanentErrorDetected(string correlationId, RecoverabilityContext recoverabilityContext) =>
         RecoverabilityLog.PermanentErrorDetected(
             _logger,
@@ -164,7 +200,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         CancellationToken cancellationToken)
     {
         var correlationId = recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown;
-        var firstDelayedRetryDelay = GetDelayWithJitter(_options.DelayedRetries[0]);
+        var firstDelayedRetryDelay = FirstDelayedRetryDelay(recoverabilityContext);
 
         RecoverabilityLog.SchedulingDelayedRetry(
             _logger,
@@ -309,6 +345,13 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             return AttemptResult.PermanentFailure(result);
         }
 
+        // Retrying now would be wrong: the failure is ambiguous on a non-idempotent send, or the API asked to be
+        // retried later (Retry-After), which the delayed retry honours. HandleFailureAsync decides what follows.
+        if (StopsImmediateRetries(error, recoverabilityContext))
+        {
+            return AttemptResult.PermanentFailure(result);
+        }
+
         RecoverabilityLog.TransientErrorOnAttempt(
             _logger,
             recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
@@ -319,6 +362,10 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
 
         return AttemptResult.TransientFailure(result);
     }
+
+    private static bool StopsImmediateRetries(EncinaError error, RecoverabilityContext recoverabilityContext) =>
+        !OutboundRetryRules.AllowsAutomaticRetry(error, recoverabilityContext.IdempotencyKey, allowNonIdempotentRetry: false)
+        || OutboundRetryRules.GetRetryAfter(error) is not null;
 
     private AttemptResult HandleException(
         Exception ex,
@@ -598,6 +645,13 @@ internal static partial class RecoverabilityLog
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} failed to schedule delayed retry: {ErrorCode}")]
     public static partial void SchedulingDelayedRetryFailed(
+        ILogger logger, string correlationId, string requestType, string errorCode);
+
+    [LoggerMessage(
+        EventId = 5453,
+        Level = LogLevel.Warning,
+        Message = "[{CorrelationId}] {RequestType} not retried automatically: ambiguous failure of a non-idempotent send ({ErrorCode})")]
+    public static partial void NonIdempotentRetrySkipped(
         ILogger logger, string correlationId, string requestType, string errorCode);
 
     [LoggerMessage(

@@ -1,6 +1,7 @@
 using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Recoverability;
 using Encina.Messaging.Serialization;
+using Encina.Recoverability;
 using Encina.UnitTests.Messaging.DeadLetter;
 
 using LanguageExt;

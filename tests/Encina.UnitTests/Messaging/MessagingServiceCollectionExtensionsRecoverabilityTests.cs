@@ -5,6 +5,7 @@ using Encina.Messaging.Recoverability;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Sagas.LowCeremony;
 using Encina.Messaging.Scheduling;
+using Encina.Recoverability;
 using Encina.Testing.Fakes.Factories;
 using Encina.Testing.Fakes.Stores;
 using Microsoft.Extensions.DependencyInjection;

@@ -1,3 +1,5 @@
+using Encina.Recoverability;
+
 namespace Encina.Messaging.Recoverability;
 
 /// <summary>

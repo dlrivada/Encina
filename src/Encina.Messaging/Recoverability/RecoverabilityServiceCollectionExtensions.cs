@@ -1,3 +1,4 @@
+using Encina.Recoverability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -61,8 +62,7 @@ public static class RecoverabilityServiceCollectionExtensions
 
         services.AddSingleton(options);
 
-        // Register default error classifier if not already registered
-        services.TryAddSingleton<IErrorClassifier>(options.ErrorClassifier ?? new DefaultErrorClassifier());
+        RegisterErrorClassifier(services, options);
 
         // Register the pipeline behavior
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(RecoverabilityPipelineBehavior<,>));
@@ -78,6 +78,23 @@ public static class RecoverabilityServiceCollectionExtensions
         }
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers the error classifier: a custom <see cref="RecoverabilityOptions.ErrorClassifier"/> replaces any
+    /// registered one (the application's own choice wins over a default registered earlier, for example by
+    /// <c>AddEncinaPolly</c>); without one the default is added only when none is registered, so registration
+    /// order never matters.
+    /// </summary>
+    internal static void RegisterErrorClassifier(IServiceCollection services, RecoverabilityOptions options)
+    {
+        if (options.ErrorClassifier is { } custom)
+        {
+            services.Replace(ServiceDescriptor.Singleton(custom));
+            return;
+        }
+
+        services.TryAddSingleton<IErrorClassifier>(new DefaultErrorClassifier());
     }
 
     /// <summary>
