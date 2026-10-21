@@ -31,7 +31,7 @@ namespace Encina.Compliance.AIAct;
 /// <item><description>Detects <see cref="HighRiskAIAttribute"/>, <see cref="RequireHumanOversightAttribute"/>, and <see cref="AITransparencyAttribute"/>.</description></item>
 /// <item><description>Resolves the AI system identifier from attributes or explicit parameter.</description></item>
 /// <item><description>Runs the <see cref="IAIActComplianceValidator"/> for risk classification and compliance checks.</description></item>
-/// <item><description>Blocks prohibited practices unconditionally (Art. 5).</description></item>
+/// <item><description>Blocks every prohibited practice declared on a registered AI system (Art. 5).</description></item>
 /// <item><description>Enforces human oversight requirements (Art. 14).</description></item>
 /// <item><description>Validates transparency obligations (Art. 13, Art. 50).</description></item>
 /// </list>
@@ -42,8 +42,10 @@ namespace Encina.Compliance.AIAct;
 /// <see cref="AIActEnforcementMode.Disabled"/> skips all checks.
 /// </para>
 /// <para>
-/// <b>Important:</b> Prohibited practices (Art. 5) are <em>always</em> blocked regardless of
-/// enforcement mode. The EU AI Act does not allow prohibited systems to operate under any circumstances.
+/// <b>Important:</b> Every prohibited practice (Art. 5) declared on a registered AI system is blocked
+/// in <see cref="AIActEnforcementMode.Block"/> and <see cref="AIActEnforcementMode.Warn"/> mode alike;
+/// <see cref="AIActEnforcementMode.Warn"/> only relaxes the other violations. Only requests with no AI Act
+/// attribute, or <see cref="AIActEnforcementMode.Disabled"/> mode, bypass the check.
 /// </para>
 /// <para>
 /// <b>Observability:</b> Emits OpenTelemetry traces via <c>Encina.Compliance.AIAct</c> ActivitySource,
@@ -181,7 +183,7 @@ public sealed class AIActCompliancePipelineBehavior<TRequest, TResponse> : IPipe
         AIActDiagnostics.SetSystemId(check.Activity, compliance.SystemId);
         AIActDiagnostics.SetRiskLevel(check.Activity, compliance.RiskLevel.ToString());
 
-        // Step 5: Prohibited practices are ALWAYS blocked (Art. 5 — no exceptions)
+        // Step 5: A prohibited practice declared on the system is blocked in Block and Warn mode alike (Art. 5)
         if (compliance.IsProhibited)
         {
             blocked = BlockProhibited(compliance, check);

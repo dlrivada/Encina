@@ -10,9 +10,12 @@ namespace Encina.Compliance.AIAct.Model;
 /// from being placed on the market, put into service, or used in the Union.
 /// </para>
 /// <para>
-/// The prohibitions became effective on 2 February 2025. Violations are subject to
-/// administrative fines of up to EUR 35 million or 7% of total worldwide annual turnover
-/// (Art. 99(3)).
+/// The original prohibitions became effective on 2 February 2025. The points added by
+/// Regulation (EU) 2026/1744, Art. 5(1)(ba) and (bb), apply from 2 December 2026. This enum
+/// has a member for every point of Art. 5(1) as amended; use
+/// <see cref="ProhibitedPracticeExtensions"/> to read the point of a member. Violations are
+/// subject to administrative fines of up to EUR 35 million or 7% of total worldwide annual
+/// turnover (Art. 99(3)).
 /// </para>
 /// </remarks>
 public enum ProhibitedPractice
@@ -99,5 +102,36 @@ public enum ProhibitedPractice
     /// or the effect of materially distorting the behaviour of a person or group, causing
     /// or likely to cause significant harm.
     /// </remarks>
-    SubliminalManipulation = 7
+    SubliminalManipulation = 7,
+
+    /// <summary>
+    /// Exploiting vulnerabilities of a person or group due to age, disability or a specific social or economic situation.
+    /// </summary>
+    /// <remarks>
+    /// Art. 5(1)(b). AI systems that exploit the vulnerabilities of a natural person or a
+    /// specific group of persons due to their age, disability or a specific social or economic
+    /// situation, with the objective or the effect of materially distorting their behaviour in
+    /// a way that causes or is reasonably likely to cause significant harm.
+    /// </remarks>
+    VulnerabilityExploitation = 8,
+
+    /// <summary>
+    /// Generating or manipulating intimate or sexually explicit content of an identifiable person without consent.
+    /// </summary>
+    /// <remarks>
+    /// Art. 5(1)(ba). AI systems that generate or manipulate intimate or sexually explicit
+    /// images, video or audio of an identifiable natural person without that person's consent
+    /// (non-consensual intimate deepfakes, often called "nudification").
+    /// Added by Regulation (EU) 2026/1744; applies from 2 December 2026.
+    /// </remarks>
+    NonConsensualIntimateDeepfakes = 9,
+
+    /// <summary>
+    /// Generating or manipulating child sexual abuse material.
+    /// </summary>
+    /// <remarks>
+    /// Art. 5(1)(bb). AI systems that generate or manipulate child sexual abuse material.
+    /// Added by Regulation (EU) 2026/1744; applies from 2 December 2026.
+    /// </remarks>
+    ChildSexualAbuseMaterial = 10
 }
