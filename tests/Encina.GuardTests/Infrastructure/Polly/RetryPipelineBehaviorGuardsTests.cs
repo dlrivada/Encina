@@ -21,6 +21,16 @@ public class RetryPipelineBehaviorGuardsTests
         ex.ParamName.ShouldBe("logger");
     }
 
+    [Fact]
+    public void Constructor_NullErrorClassifier_ThrowsArgumentNullException()
+    {
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<RetryPipelineBehavior<TestRequest, string>>.Instance;
+
+        var act = () => new RetryPipelineBehavior<TestRequest, string>(logger, null!);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("errorClassifier");
+    }
+
     [Retry]
     private sealed record TestRequest : IRequest<string>;
 }

@@ -644,8 +644,134 @@ public sealed class DelayedRetryChainTests
         string? delayedFailure = null,
         bool failNextSchedule = false,
         bool throwNextSchedule = false,
-        DeadLetterSourceCapture? deadLetterCapture = null) =>
-        new(delayedRetries, failure, delayedFailure ?? failure, failNextSchedule, throwNextSchedule, deadLetterCapture);
+        DeadLetterSourceCapture? deadLetterCapture = null,
+        Func<bool, EncinaError>? errorFactory = null) =>
+        new(delayedRetries, failure, delayedFailure ?? failure, failNextSchedule, throwNextSchedule, deadLetterCapture, errorFactory);
+
+    #region Outbound errors (#1223)
+
+    private static EncinaError OutboundFailure(bool transient, TimeSpan? retryAfter = null, bool ambiguous = false)
+    {
+        var details = new Dictionary<string, object?> { [OutboundErrorMetadataKeys.Transient] = transient };
+        if (retryAfter is { } delay)
+        {
+            details[OutboundErrorMetadataKeys.HttpRetryAfter] = delay;
+        }
+
+        if (ambiguous)
+        {
+            details[OutboundErrorMetadataKeys.Ambiguous] = true;
+        }
+
+        return EncinaErrors.Create(OutboundErrorCodes.ServerError, "outbound failure", details: details);
+    }
+
+    [Fact]
+    public async Task RetryAfterOnTheFirstFailure_StopsImmediateRetriesAndSchedulesTheHeaderDelayExactly()
+    {
+        // Arrange - jitter is on, yet the header delay must not be jittered
+        var fixture = CreateFixture(
+            delayedRetries: 2,
+            failure: "x",
+            errorFactory: _ => OutboundFailure(transient: true, retryAfter: TimeSpan.FromSeconds(90)));
+
+        // Act
+        var result = await fixture.FirstFailureAsync();
+
+        // Assert
+        fixture.Calls.ShouldBe(1, "the remaining immediate retries are skipped");
+        fixture.Scheduled.ShouldBe([(0, TimeSpan.FromSeconds(90))]);
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task RetryAfterOnADelayedRetry_IsUsedForTheNextAttemptInsteadOfTheConfiguredStep()
+    {
+        // Arrange - the first failure has no header; the delayed retry fails with Retry-After: 45 s
+        var fixture = CreateFixture(
+            delayedRetries: 3,
+            failure: "x",
+            errorFactory: isFirst => isFirst
+                ? OutboundFailure(transient: true)
+                : OutboundFailure(transient: true, retryAfter: TimeSpan.FromSeconds(45)));
+
+        // Act
+        await fixture.FirstFailureAsync();
+        await fixture.RunProcessorUntilPermanentFailureAsync();
+
+        // Assert - attempt 1 uses the header; the attempt still counts against DelayedRetries.Length
+        fixture.Scheduled[0].Attempt.ShouldBe(0);
+        fixture.Scheduled[1].ShouldBe((1, TimeSpan.FromSeconds(45)));
+        fixture.Scheduled.Count.ShouldBe(3);
+        fixture.Store.AttemptsAdded.ShouldBe([0, 1, 2]);
+    }
+
+    [Fact]
+    public async Task AmbiguousFailureWithoutIdempotencyKey_IsReturnedWithoutRetryOrSchedule()
+    {
+        // Arrange
+        var fixture = CreateFixture(delayedRetries: 2, failure: "x", errorFactory: _ => OutboundFailure(transient: true, ambiguous: true));
+
+        // Act
+        var result = await fixture.FirstFailureAsync();
+
+        // Assert
+        fixture.Calls.ShouldBe(1);
+        fixture.Scheduled.ShouldBeEmpty();
+        OutboundRetryRules.AllowsAutomaticRetry((EncinaError)result, null, false).ShouldBeFalse();
+        fixture.PermanentFailures.Count.ShouldBe(1, "returned like a permanent failure: the dead letter path runs once");
+    }
+
+    [Fact]
+    public async Task AmbiguousFailureWithIdempotencyKey_IsRetriedAndScheduled()
+    {
+        // Arrange
+        var fixture = CreateFixture(delayedRetries: 2, failure: "x", errorFactory: _ => OutboundFailure(transient: true, ambiguous: true));
+
+        // Act
+        await fixture.FirstFailureAsync(idempotencyKey: "key-1");
+
+        // Assert - the one immediate retry ran, then the first delayed retry was scheduled
+        fixture.Calls.ShouldBe(2);
+        fixture.Scheduled.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task ProcessorEndsTheChain_WhenADelayedRetryFailsAmbiguouslyAndTheRequestHasNoKey()
+    {
+        // Arrange - transient first failure, then an ambiguous one on the delayed retry
+        var fixture = CreateFixture(
+            delayedRetries: 3,
+            failure: "x",
+            errorFactory: isFirst => OutboundFailure(transient: true, ambiguous: !isFirst));
+
+        // Act
+        await fixture.FirstFailureAsync();
+        await fixture.RunProcessorUntilPermanentFailureAsync();
+
+        // Assert - no attempt 1 was scheduled
+        fixture.Store.AttemptsAdded.ShouldBe([0]);
+        fixture.PermanentFailures.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task ProcessorKeepsRetrying_WhenAmbiguousDelayedRetryBelongsToARequestWithAKey()
+    {
+        // Arrange - the key of the original request is stored in the chain context
+        var fixture = CreateFixture(
+            delayedRetries: 2,
+            failure: "x",
+            errorFactory: isFirst => OutboundFailure(transient: true, ambiguous: !isFirst));
+
+        // Act
+        await fixture.FirstFailureAsync(idempotencyKey: "key-1");
+        await fixture.RunProcessorUntilPermanentFailureAsync();
+
+        // Assert
+        fixture.Store.AttemptsAdded.ShouldBe([0, 1]);
+    }
+
+    #endregion
 
     [Fact]
     public async Task DeadLetterQueue_ChainThroughEveryDelayedRetry_CapturesOnceUnderTheChainId()
@@ -853,8 +979,10 @@ public sealed class DelayedRetryChainTests
             string delayedFailure,
             bool failNextSchedule,
             bool throwNextSchedule,
-            DeadLetterSourceCapture? deadLetterCapture)
+            DeadLetterSourceCapture? deadLetterCapture,
+            Func<bool, EncinaError>? errorFactory = null)
         {
+            _errorFactory = errorFactory;
             _deadLetterCapture = deadLetterCapture;
             _firstFailure = firstFailure;
             _delayedFailure = delayedFailure;
@@ -864,10 +992,11 @@ public sealed class DelayedRetryChainTests
             {
                 ImmediateRetries = 1,
                 ImmediateRetryDelay = TimeSpan.FromMilliseconds(1),
-                UseJitter = false,
+                UseJitter = errorFactory is not null,
+                MaxJitterPercent = 50,
                 EnableDelayedRetries = true,
                 DelayedRetries = Enumerable.Repeat(TimeSpan.FromMilliseconds(1), delayedRetries).ToArray(),
-                ErrorClassifier = new MarkerClassifier(),
+                ErrorClassifier = errorFactory is null ? new MarkerClassifier() : new DefaultErrorClassifier(),
                 OnPermanentFailure = (failed, _) =>
                 {
                     PermanentFailures.Add(failed);
@@ -881,7 +1010,9 @@ public sealed class DelayedRetryChainTests
                 new FakeFactory(),
                 NullLogger<DelayedRetryScheduler>.Instance,
                 new JsonMessageSerializer());
-            Scheduler = failNextSchedule ? new FailingNextScheduler(scheduler, throwNextSchedule) : scheduler;
+            Scheduler = new RecordingScheduler(
+                failNextSchedule ? new FailingNextScheduler(scheduler, throwNextSchedule) : scheduler,
+                Scheduled);
 
             _behavior = new RecoverabilityPipelineBehavior<ChainCommand, int>(
                 _options,
@@ -896,10 +1027,15 @@ public sealed class DelayedRetryChainTests
 
         public List<FailedMessage> PermanentFailures { get; } = [];
 
-        public async Task<Either<EncinaError, int>> FirstFailureAsync()
+        public List<(int Attempt, TimeSpan Delay)> Scheduled { get; } = [];
+
+        public int Calls => _calls;
+
+        public async Task<Either<EncinaError, int>> FirstFailureAsync(string? idempotencyKey = null)
         {
             var context = Substitute.For<IRequestContext>();
             context.CorrelationId.Returns("chain-correlation");
+            context.IdempotencyKey.Returns(idempotencyKey);
             var request = new ChainCommand(7);
 
             return await _behavior.Handle(request, context, () => HandlerAsync(isFirst: true), CancellationToken.None);
@@ -954,8 +1090,38 @@ public sealed class DelayedRetryChainTests
         private ValueTask<Either<EncinaError, int>> HandlerAsync(bool isFirst)
         {
             Interlocked.Increment(ref _calls);
+            if (_errorFactory is not null)
+            {
+                return ValueTask.FromResult(Either<EncinaError, int>.Left(_errorFactory(isFirst)));
+            }
+
             var message = isFirst ? _firstFailure : _delayedFailure;
             return ValueTask.FromResult(Either<EncinaError, int>.Left(EncinaError.New(message)));
         }
+
+        private readonly Func<bool, EncinaError>? _errorFactory;
+    }
+
+    // Records each (attempt, delay) the behavior or the processor asked the scheduler for.
+    private sealed class RecordingScheduler(IDelayedRetryScheduler inner, List<(int Attempt, TimeSpan Delay)> scheduled) : IDelayedRetryScheduler
+    {
+        public Task<Either<EncinaError, Unit>> ScheduleRetryAsync<TRequest>(
+            TRequest request,
+            RecoverabilityContext context,
+            TimeSpan delay,
+            int delayedRetryAttempt,
+            CancellationToken cancellationToken = default)
+            where TRequest : notnull
+        {
+            lock (scheduled)
+            {
+                scheduled.Add((delayedRetryAttempt, delay));
+            }
+
+            return inner.ScheduleRetryAsync(request, context, delay, delayedRetryAttempt, cancellationToken);
+        }
+
+        public Task<Either<EncinaError, Unit>> CancelScheduledRetryAsync(Guid recoverabilityContextId, CancellationToken cancellationToken = default) =>
+            inner.CancelScheduledRetryAsync(recoverabilityContextId, cancellationToken);
     }
 }

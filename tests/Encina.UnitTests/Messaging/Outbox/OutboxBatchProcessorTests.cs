@@ -135,6 +135,43 @@ public sealed class OutboxBatchProcessorTests
         entry.Message.ShouldNotContain(HandlerError.Message);
     }
 
+    private static ValueTask<Either<EncinaError, Unit>> RateLimited(TimeSpan retryAfter)
+        => ValueTask.FromResult(Left<EncinaError, Unit>(EncinaErrors.Create(
+            "encina.outbound.rate_limited",
+            "Rate limited",
+            details: new Dictionary<string, object?> { ["transient"] = true, ["http.retry_after"] = retryAfter })));
+
+    [Fact]
+    public async Task ProcessAsync_RetryAfterLongerThanTheBackoff_SchedulesNoEarlierThanTheHeader()
+    {
+        var message = Pending(retryCount: 0);
+        var sut = CreateSut(Options(maxRetries: 5));
+
+        await sut.ProcessAsync((_, _, _) => RateLimited(TimeSpan.FromMinutes(10)), CancellationToken.None);
+
+        // The computed backoff is 5 s; the header asks for 10 minutes and is never undercut.
+        await _store.Received(1).MarkAsFailedAsync(
+            message.Id,
+            "encina.outbound.rate_limited",
+            Now.UtcDateTime.AddMinutes(10),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ProcessAsync_RetryAfterShorterThanTheBackoff_KeepsTheComputedBackoff()
+    {
+        var message = Pending(retryCount: 2);
+        var sut = CreateSut(Options(maxRetries: 5));
+
+        await sut.ProcessAsync((_, _, _) => RateLimited(TimeSpan.FromSeconds(1)), CancellationToken.None);
+
+        await _store.Received(1).MarkAsFailedAsync(
+            message.Id,
+            Arg.Any<string>(),
+            Now.UtcDateTime.AddSeconds(20),
+            Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task ProcessAsync_PublishThrows_FollowsTheSameFailurePath()
     {
