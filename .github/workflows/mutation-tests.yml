@@ -19,6 +19,12 @@ on:
     # Weekly, Friday 03:00 UTC (restored by #1441 with the MTP runner)
     - cron: "0 3 * * 5"
 
+# One run at a time: a ~13 h scheduled run must not overlap a manual
+# dispatch, and a newer run waits instead of cancelling the running one.
+concurrency:
+  group: mutation-tests
+  cancel-in-progress: false
+
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_NOLOGO: true
@@ -28,8 +34,8 @@ jobs:
   # Phase 1 — Select matrix shards.
   #
   # Default (scheduled run, or dispatch without overrides): emits one matrix
-  # entry per SHARDS element, so every weekly run mutates all the rotation
-  # folders of src/Encina/Encina.csproj in parallel.
+  # entry per SHARDS element, so every weekly run mutates all the shards
+  # of src/Encina/Encina.csproj in parallel.
   #
   # Dispatch overrides (custom_scope / full_mode / diff_mode) collapse the
   # matrix to a single shard so operators can target narrow scopes without
@@ -109,7 +115,13 @@ jobs:
           # the resulting shards (66-75 and the replaced 0, 1, 18, 46) are
           # estimates marked "estimated, re-measure": re-measure them on the
           # first run with this layout. Shard 49 failed in its initial test
-          # run (a flaky unit test), so its count is still the planned one.
+          # run on a wall-clock-dependent unit test, so its count is still the
+          # planned one. Known initial-run flakes: #2549
+          # (CircuitBreakerPipelineBehaviorTests, fixed by PR #2550) and #2561
+          # (CacheInvalidationPipelineBehaviorTests, fixed by PR #2563); about
+          # 157 wall-clock waits remain, tracked in #2564. Because
+          # break-on-initial-test-failure is on, any such flake loses a shard:
+          # rerun it with `gh run rerun <run> --failed`.
           #
           # A file cut into several parts has one include span per part but
           # the last (the tail). The tail shard carries the whole-file glob
@@ -164,10 +176,10 @@ jobs:
             "**/Sharding/TimeBased/TierTransitionScheduler.cs{0..7233}"  # 43: 40
             "**/Sharding/TimeBased/TimeBasedShardRouter.cs{0..11128}"  # 44: 42
             "**/Sharding/TimeBased/TimeBasedShardRouter.cs{11128..15744}"  # 45: 42
-            "**/Sharding/TimeBased/TimeBasedShardingOptions.cs;**/Sharding/TimeBased/Log.cs;**/Sharding/TimeBased/IShardArchiver.cs;**/Sharding/TimeBased/ArchiveOptions.cs;**/Sharding/TimeBased/ShardPeriod.cs"  # 46: 20 (estimated, re-measure; the folder remainder held 40)
+            "**/Sharding/TimeBased/TimeBasedShardingOptions.cs;**/Sharding/TimeBased/IShardArchiver.cs;**/Sharding/TimeBased/ArchiveOptions.cs;**/Sharding/TimeBased/ShardPeriod.cs"  # 46: 20 (estimated, re-measure; the folder remainder held 40)
             "**/Sharding/Resharding/Phases/CopyingPhase.cs"  # 47: 28
             "**/Sharding/Resharding/Phases/CuttingOverPhase.cs"  # 48: 34
-            "**/Sharding/Resharding/Phases/ReplicatingPhase.cs"  # 49: 30 (planned; the initial test run failed on a flaky unit test, re-measure)
+            "**/Sharding/Resharding/Phases/ReplicatingPhase.cs"  # 49: 30 (planned; the initial test run failed on a wall-clock flake, see #2549 #2561 #2564, re-measure)
             "**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs{0..9966}"  # 50: 36
             "**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs;!**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs{0..9966}"  # 51: 23
             "**/Sharding/Resharding/Phases/*.cs;!**/Sharding/Resharding/Phases/CuttingOverPhase.cs;!**/Sharding/Resharding/Phases/ReplicatingPhase.cs;!**/Sharding/Resharding/Phases/CopyingPhase.cs;!**/Sharding/Resharding/Phases/PlanningPhase.cs;!**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs"  # 52: 40
@@ -201,7 +213,8 @@ jobs:
           # Shards 2-65 except 18, 46 and 49 carry their measured duration
           # x 1.5 (at least 60); 0, 1, 18, 46 and 66-75 are re-split shards
           # sized from the estimated count, and 49 keeps its planned count
-          # (its initial test run failed on a flaky unit test). GitHub caps a
+          # (its initial test run failed on a wall-clock flake, #2549 #2561
+          # #2564). GitHub caps a
           # job at 360 minutes; 340 is this workflow's ceiling.
           TIMEOUTS=(
             110
@@ -274,7 +287,7 @@ jobs:
             110
             110
             125
-            80
+            81
             111
             111
             140
@@ -576,9 +589,10 @@ jobs:
           MATRIX_SCOPE: ${{ matrix.scope }}
           SELECT_MODE: ${{ needs.select-matrix.outputs.mode }}
           SHARD_COUNT: ${{ needs.select-matrix.outputs.shard_count }}
-          # Not GH_TOKEN: the token (checks: write) is moved into a shell
-          # variable and unset below, so Stryker, its builds and the test
-          # hosts running mutated code never see it; only the gh calls get it.
+          # Not GH_TOKEN: the token (checks: write) is copied into a shell
+          # variable and unset below, so it is not in the environment that
+          # Stryker, its builds and the test hosts inherit; only the gh calls
+          # get it. The workflow runs only on schedule or dispatch on main.
           TELEMETRY_TOKEN: ${{ github.token }}
           DOTNET_GCHeapHardLimit: "0x100000000"
           # Run 37285914861 (#1441 phase 2c): the MTP test server
@@ -613,13 +627,14 @@ jobs:
           # the 12 GiB cap right after a recycle; 37454364141 (4096) peaked
           # at 11487 MB with cg_ev_max 0 but took ~92 min, over the 87 min
           # timeout, because frequent recycles mean cold runs. 4608 recycles
-          # less often; projected peak ~12.0 GB.
+          # less often. Observed on run 39422580958: cg_peak 11386 / 9517 /
+          # 9825 MB on shards 63 / 32 / 6, 0 OOM kills, cap 12288 MB.
           ENCINA_MTP_RECYCLE_MB: "4608"
           ENCINA_MTP_RECYCLE_LOG: ${{ github.workspace }}/artifacts/mutation/logs/mtp-recycle.log
           # Stryker's verbosity: a custom-scope dispatch (a diagnostic run)
           # logs at debug level so the log names the mutant under test when
           # a test host starts to grow; scheduled and full-matrix runs stay
-          # at info (debug logs of 150-mutant shards are large).
+          # at info (debug logs of shards of about 30 to 45 tested mutants are large).
           STRYKER_VERBOSITY: ${{ (github.event_name == 'workflow_dispatch' && inputs.custom_scope != '') && 'debug' || 'info' }}
           # 12 GiB in bytes, for the cgroup's memory.max (see above).
           STRYKER_MEMORY_MAX: "12884901888"
@@ -629,6 +644,9 @@ jobs:
           # would look green.
           set -o pipefail
           TOKEN="$TELEMETRY_TOKEN"
+          # Keeps the token out of the child test host's environment (the
+          # shell's own /proc environ still holds it). The workflow runs only
+          # on schedule or dispatch on main.
           unset TELEMETRY_TOKEN
           LOGS=artifacts/mutation/logs
           mkdir -p "$LOGS"
@@ -1157,9 +1175,15 @@ jobs:
           TESTED=$(jq '[.files[] | (.mutants // [])[] | select(.status == "Killed" or .status == "Survived" or .status == "Timeout")] | length' "$REPORT")
           KILLED=$(jq '[.files[] | (.mutants // [])[] | select(.status == "Killed")] | length' "$REPORT")
           echo "Shard $MATRIX_IDX: $TESTED tested mutants (Killed, Survived or Timeout), $KILLED killed"
-          if [ "$TESTED" -gt 0 ] && [ "$KILLED" -eq 0 ]; then
+          # Below 10 tested mutants a shard can legitimately kill nothing (the
+          # lowest measured kills were 5 of 8, on small option or record
+          # files), so it only warns; the aggregate still fails a run that
+          # killed no mutant at all.
+          if [ "$TESTED" -ge 10 ] && [ "$KILLED" -eq 0 ]; then
             echo "::error title=No mutant killed::Shard $MATRIX_IDX tested $TESTED mutants and killed none; the test runner did not activate the mutants (#1440)"
             exit 1
+          elif [ "$TESTED" -gt 0 ] && [ "$KILLED" -eq 0 ]; then
+            echo "::warning title=No mutant killed::Shard $MATRIX_IDX tested only $TESTED mutants and killed none; too few to prove the runner failed"
           fi
 
   # Phase 3 — Aggregate shard reports into a single mutation-report artifact.
@@ -1277,20 +1301,33 @@ jobs:
           # runner that did not activate the mutants. Publishing it would
           # show 0 % for its files as if it were a measurement. Only the
           # default matrix is guarded (see the shard step of the same name).
+          # A report fails only from 10 tested mutants (a small option or
+          # record file can legitimately kill nothing); below that it is a
+          # warning. The whole run still fails when it killed no mutant at all.
           ZERO_KILLED=()
+          RUN_TESTED=0
+          RUN_KILLED=0
           for report in "${REPORTS[@]}"; do
             if [ "$SELECT_MODE" != "matrix" ]; then
               break
             fi
             TESTED=$(jq '[.files[] | (.mutants // [])[] | select(.status == "Killed" or .status == "Survived" or .status == "Timeout")] | length' "$report")
             KILLED=$(jq '[.files[] | (.mutants // [])[] | select(.status == "Killed")] | length' "$report")
-            if [ "$TESTED" -gt 0 ] && [ "$KILLED" -eq 0 ]; then
+            RUN_TESTED=$((RUN_TESTED + TESTED))
+            RUN_KILLED=$((RUN_KILLED + KILLED))
+            if [ "$TESTED" -ge 10 ] && [ "$KILLED" -eq 0 ]; then
               ZERO_KILLED+=("$report ($TESTED tested)")
+            elif [ "$TESTED" -gt 0 ] && [ "$KILLED" -eq 0 ]; then
+              echo "::warning title=No mutant killed::$report tested only $TESTED mutants and killed none; too few to prove the runner failed"
             fi
           done
           if [ "${#ZERO_KILLED[@]}" -gt 0 ]; then
-            echo "::error title=No mutant killed::Shard reports that tested mutants and killed none (the runner did not activate the mutants, #1440); nothing is published:"
+            echo "::error title=No mutant killed::Shard reports that tested at least 10 mutants and killed none (the runner did not activate the mutants, #1440); nothing is published:"
             printf '  - %s\n' "${ZERO_KILLED[@]}"
+            exit 1
+          fi
+          if [ "$RUN_TESTED" -gt 0 ] && [ "$RUN_KILLED" -eq 0 ]; then
+            echo "::error title=No mutant killed::The whole run tested $RUN_TESTED mutants and killed none (the runner did not activate the mutants, #1440); nothing is published"
             exit 1
           fi
 

@@ -258,11 +258,11 @@ CI run 37454364141 ran the same custom scope at 4096 MB.
 | Seconds per mutant | not compared | warm 52.8 s, recycled 101 s |
 | Outcome | completed | timed out at 87 min after 55 of 64 testable mutants (about 92 min projected) |
 
-4096 MB fixes the memory cap but recycles so often that the shard overruns its timeout. The new choice is 4608 MB (`ENCINA_MTP_RECYCLE_MB` and `StrykerServerRecycler.DefaultThresholdMb`), with a projected peak of about 12.0 GB. Because runner speed varied about 1.3x between two runs of the same scope, a custom scope's timeout is now `max(timeout * 1.3, 110)` minutes, capped at the 340-minute workflow ceiling; the scheduled shards' `TIMEOUTS` are unchanged. The 4608 MB threshold has not run in CI yet.
+4096 MB fixes the memory cap but recycles so often that the shard overruns its timeout. The new choice is 4608 MB (`ENCINA_MTP_RECYCLE_MB` and `StrykerServerRecycler.DefaultThresholdMb`), with a projected peak of about 12.0 GB. Because runner speed varied about 1.3x between two runs of the same scope, a custom scope's timeout is now `max(timeout * 1.3, 110)` minutes, capped at the 340-minute workflow ceiling; the scheduled shards' `TIMEOUTS` are unchanged. Run 39422580958 then ran the 4608 MB threshold on the full matrix: 61 of 66 shards uploaded reports, none withheld by the OOM guard, 0 OOM kills.
 
 #### Limits
 
-- The Linux behaviour (SIGKILL on itself, the `VmData` reading) is confirmed by run 37371127806 at 6144 MB and run 37454364141 at 4096 MB; the 4608 MB threshold has not run in CI yet.
+- The Linux behaviour (SIGKILL on itself, the `VmData` reading) is confirmed by run 37371127806 at 6144 MB and run 37454364141 at 4096 MB; the 4608 MB threshold ran in run 39422580958 (61 of 66 shards uploaded reports, none withheld by the OOM guard, 0 OOM kills).
 - The retry is a cold run with the timeout computed from the initial run. The initial run is itself cold and mutant 1 after the pool reset always runs cold, so the margin is the same as for every first mutant, but a slower runner narrows it.
 - Without the two `MALLOC_*` thresholds, private memory after one run is about 7.3 GB on Linux (6.2), above the 4,608 MB default, so every mutant after the first on a server would recycle: correct but slower.
 - Even with the thresholds, the 4,096 MB default sits below the idle private memory after runs 2-4, so recycles are frequent, not rare, and cold runs are 2-3x slower than warm ones. The mutation workflow's timeouts are still provisional; the next CI run must report seconds per mutant before they are set.

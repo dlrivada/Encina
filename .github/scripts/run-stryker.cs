@@ -17,8 +17,8 @@ try
     // No --log-to-file by default: file logging is always trace level, and
     // under the MTP runner it also writes a JSON-RPC log per test server that
     // grows by about 40 MB for every run of the ~22,000 Encina.UnitTests
-    // tests, so a 150-mutant shard would write gigabytes. Pass it through
-    // (`-- --log-to-file`) for a short diagnostic run.
+    // tests, so a shard of 30 to 45 tested mutants would write gigabytes.
+    // Pass it through (`-- --log-to-file`) for a short diagnostic run.
     var outputPath = Path.Combine(repositoryRoot, "artifacts", "mutation");
     var strykerArguments = new List<string>
     {
