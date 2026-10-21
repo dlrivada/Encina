@@ -71,12 +71,12 @@
       "defaultRule": "*PipelineBehavior.cs",
       "reason": "Mediator pipeline with mockeable next delegate",
       "targets": {
-        "unit": 35,
-        "guard": 0
+        "unit": 97,
+        "guard": 9
       },
       "justifications": {
-        "unit": "Existing pipeline tests reach the compliance-check paths; this PR changed only XML docs and a comment, so the target holds the measured level.",
-        "guard": "No new public method or parameter; the PR changed documentation only."
+        "unit": "Unit tests drive Handle through the disabled, no-attribute, compliant, violation (Block and Warn), prohibited-practice and validator-error paths, covering nearly every line.",
+        "guard": "Guard tests cover the constructor null checks and the request null check in Handle; the remaining lines are pipeline logic that guard tests do not reach."
       }
     },
     "AIActErrors.cs": {
@@ -90,8 +90,8 @@
         "guard": 0
       },
       "justifications": {
-        "unit": "Every error factory is already exercised by unit tests; this PR changed only an XML doc.",
-        "guard": "Error factories take no reference parameters that need guards beyond existing tests; the PR changed documentation only."
+        "unit": "Every error factory has a unit test that asserts its code and metadata.",
+        "guard": "No guard test calls the error factories, and their parameters need no null-check test of their own."
       }
     },
     "AIActOptions.cs": {
@@ -142,12 +142,12 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "unit": 100,
-        "guard": 0
+        "unit": 98,
+        "guard": 16
       },
       "justifications": {
-        "unit": "Classifier branches are covered by existing unit and property tests; the PR changed only an XML doc.",
-        "guard": "Existing guard tests cover its constructor arguments; the PR changed documentation only."
+        "unit": "Unit tests classify registered, unregistered, prohibited-practice and risk-level cases, covering all but a few lines.",
+        "guard": "Guard tests exercise the constructor and method null checks; the classification branches are covered by unit tests."
       }
     },
     "DefaultAIActComplianceValidator.cs": {
@@ -207,12 +207,12 @@
       "defaultRule": "*LogMessages.cs",
       "reason": "Source-generated [LoggerMessage] delegates",
       "targets": {
-        "unit": 0,
+        "unit": 98,
         "guard": 0
       },
       "justifications": {
-        "unit": "Log-message delegates run only when the pipeline logs; the PR changed only one message template string, and tests do not assert log text.",
-        "guard": "The PR changed documentation-level text only; no guard code."
+        "unit": "The pipeline unit tests reach nearly every log delegate through the disabled, skipped, passed, blocked and prohibited paths.",
+        "guard": "Log delegates take pre-validated arguments and have no null-check lines for a guard test to reach."
       }
     },
     "Health/AIActHealthCheck.cs": {
@@ -265,8 +265,8 @@
         "guard": 0
       },
       "justifications": {
-        "unit": "An enum declaration has no executable lines; the PR changed only XML remarks.",
-        "guard": "An enum declaration has no parameters to guard."
+        "unit": "An enum declaration has no executable lines, so no flag has coverable code in this file.",
+        "guard": "An enum declaration has no parameters or executable lines to guard."
       }
     },
     "Model/AISystemRegistration.cs": {
