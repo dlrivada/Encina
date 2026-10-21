@@ -8,6 +8,7 @@ using Encina.Testing.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Caching;
@@ -299,12 +300,14 @@ public class CacheInvalidationPipelineBehaviorTests : IDisposable
         var keyGenerator = Substitute.For<ICacheKeyGenerator>();
         var options = new CachingOptions { EnableCacheInvalidation = true };
         var logger = NullLogger<CacheInvalidationPipelineBehavior<InvalidatingCommandWithDelay, string>>.Instance;
+        var timeProvider = new FakeTimeProvider();
 
         var sut = new CacheInvalidationPipelineBehavior<InvalidatingCommandWithDelay, string>(
             cacheProvider,
             keyGenerator,
             Options.Create(options),
-            logger);
+            logger,
+            timeProvider: timeProvider);
 
         var productId = _faker.Random.Guid();
         var request = new InvalidatingCommandWithDelay(productId);
@@ -325,11 +328,20 @@ public class CacheInvalidationPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult(Right<EncinaError, string>("result")),
             CancellationToken.None);
 
-        // Assert - immediately after the call, cache may not be invalidated yet (delay is 50ms)
-        // Wait significantly longer than the delay to ensure invalidation occurs on slow CI runners
-        await Task.Delay(500);
+        // Assert - nothing is removed before the fake clock reaches the attribute delay
+        cacheProvider.RemovedKeys.ShouldBeEmpty();
 
-        // Now the cache should have been invalidated
+        // Advance the fake clock past the delay; the fire-and-forget invalidation then completes
+        timeProvider.Advance(TimeSpan.FromMilliseconds(50));
+
+        // Wait for the observable condition (no wall-clock sleeps), bounded by a deadline
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        while (cacheProvider.RemovedKeys.Count == 0)
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            await Task.Yield();
+        }
+
         cacheProvider.RemovedKeys.ShouldContain($"product:{productId}:details");
     }
 
