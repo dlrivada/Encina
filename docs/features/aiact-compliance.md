@@ -326,7 +326,7 @@ result.Match(
 1. **Start with Warn mode** during development, switch to Block for production
 2. **Always use explicit SystemId** on `[HighRiskAI]` for stable registry keys
 3. **Combine attributes** — a single request can have `[HighRiskAI]` + `[RequireHumanOversight]` + `[AITransparency]`
-4. **Never bypass Art. 5 on purpose** — the check is skipped in three cases: `Disabled` enforcement mode, a replaced `IAIActComplianceValidator`, and a request with no AI Act attribute. Use none of them to get around a prohibited practice (see [Enforcement Modes](#enforcement-modes))
+4. **Never bypass Art. 5 on purpose** — the check is skipped in two cases: `Disabled` enforcement mode, and a request with no AI Act attribute. Use neither to get around a prohibited practice (see [Enforcement Modes](#enforcement-modes)). A custom `IAIActComplianceValidator` decides for itself, so it must keep blocking declared prohibited practices
 5. **Register custom implementations** before calling `AddEncinaAIAct()` to override defaults (TryAdd semantics)
 6. **Use auto-registration** for consistent registry population across deployments
 
