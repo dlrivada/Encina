@@ -15,7 +15,7 @@ This complements coverage: coverage tells you *which* lines are tested, mutation
 
 ## Current state
 
-The Mutation Tests workflow runs weekly via GitHub Actions on the `main` branch. It fans out into 66 shards, at most 8 running at once (slices of `src/Encina/` sized by mutant count) and an `aggregate` job merges their reports into a single dataset. Results accumulate per-file across runs into a single dashboard ([accumulation model](../../testing/mutation-measurement-methodology.md#the-accumulation-model)).
+The Mutation Tests workflow runs weekly via GitHub Actions on the `main` branch. It fans out into 76 shards, at most 8 running at once (slices of `src/Encina/` sized by mutant count) and an `aggregate` job merges their reports into a single dataset. Results accumulate per-file across runs into a single dashboard ([accumulation model](../../testing/mutation-measurement-methodology.md#the-accumulation-model)).
 
 The accumulated snapshot below still holds rows from 2026-04-14, produced before the migration to the MTP runner; they are not a measure of test quality, and the first run of the new runner replaces them:
 
@@ -167,7 +167,7 @@ The Mutation Tests workflow (`.github/workflows/mutation-tests.yml`) runs Friday
 
 | Trigger | Mode | Scope |
 |---------|------|-------|
-| `schedule` (weekly) | Matrix | All 66 shards run, at most 8 at a time; the `aggregate` job merges their reports |
+| `schedule` (weekly) | Matrix | All 76 shards run, at most 8 at a time; the `aggregate` job merges their reports |
 | `workflow_dispatch` (default) | Matrix | Same as schedule |
 | `workflow_dispatch` `custom_scope: "<glob>"` | Custom (1 shard) | Override the scope: one glob, or several separated by `;` with `!` for exclusions (same form as a `SHARDS` entry); matrix collapses to one shard |
 | `workflow_dispatch` `diff_mode: true` | Diff (1 shard) | `--since:main` — only files changed vs main (PR-style) |
@@ -188,7 +188,7 @@ When a run looks wrong, check the Mutation Tests run summary first:
 - In the default matrix mode, a shard that tested mutants and killed none fails (step "Fail a shard that killed no mutant"), and the `aggregate` job refuses to publish a report of that shape, so one such shard blocks the whole run; it means the runner did not activate the mutants. `custom_scope`, `diff_mode` and `full_mode` dispatches are not guarded, because a small scope can legitimately kill none.
 - A "Missing shard reports" block and a "Shards missing a report" row in the aggregate summary name every shard that uploaded no report (lost runner, timeout or earlier failure). The files of a missing shard keep their previous dashboard data; a file split between two shards is published with the half that ran.
 - For a lost runner, GitHub keeps no job log, but each shard publishes a check run named "mutation telemetry (shard N)" on the commit (N is the shard index, or `custom`, `full` or `diff`). Open the commit's Checks list (or the run's checks): its summary holds the last compact readings (load, memory, swap, top process, `dotnet` and `Encina.UnitTests` process counts) and its text the latest full reading. The check run ends with the conclusion `neutral` because it is a record, not a verdict. For a shard that finished, the `stryker-logs-shard-<idx>` artifact has the same readings in full.
-- A failure that names a file and a mutant key means two shard reports hold the same mutant: two `SHARDS` entries overlap, or the two halves of a span-split file do not pair.
+- A failure that names a file and a mutant key means two shard reports hold the same tested mutant (untested ones, `CompileError` and `Ignored`, are reported by every shard of a span-split file and are exempt): two `SHARDS` entries overlap, or the two halves of a span-split file do not pair.
 - A shard that hits its timeout: the `TIMEOUTS` are provisional, see [methodology — timeouts](../../testing/mutation-measurement-methodology.md#timeouts).
 
 Why each guard exists: [methodology — guards](../../testing/mutation-measurement-methodology.md#guards).

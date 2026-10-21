@@ -65,12 +65,15 @@ jobs:
           # a shard's duration grows with its tested-mutant count, not with
           # its folder.
           #
-          # Sizing rule (#1441): a shard takes about 24 min of setup (restore,
-          # build, Stryker's build and initial test run) plus about 1.2 min
-          # per tested mutant, both measured on CI run 39406760645 at
-          # concurrency 1. A shard holds at most 42 tested mutants, so it is
-          # expected to finish in about 75 min or less. The 66 shards below
-          # follow that rule.
+          # Sizing rule (#1441): a shard takes about 23 min of setup (restore,
+          # build, Stryker's build and initial test run; median 22.9 min)
+          # plus about 1.7 min per tested mutant (median 1.67, p90 1.85),
+          # both measured on CI run 39422580958 at concurrency 1. A shard
+          # holds at most about 30 tested mutants, so it is expected to
+          # finish in about 75 min or less (23 + 1.7 x 30). The 76 shards
+          # below follow that rule, except the measured shards that still
+          # hold more than 30 mutants; their TIMEOUTS carry the measured
+          # duration instead.
           #
           # A SHARDS entry is one or more Stryker mutate globs separated by
           # ';'. A glob that starts with '!' excludes files. A folder too big
@@ -97,13 +100,16 @@ jobs:
           # mutant.
           #
           # The counts in the comments are tested mutants (every status
-          # except Ignored, CompileError and NoCoverage) from run
-          # 36959365309 (2026-10-02), and from run 36304862790 for
-          # Modules/Isolation, whose shard lost its runner in 36959365309
-          # (#1682). 23 of the 92 tested files changed since then; the
-          # counts of shards 0-7 and 48-52 are the drift-heavy ones and carry
-          # a planned weight (measured x growth) instead. Re-measure those
-          # shards on the first run with this layout.
+          # except Ignored, CompileError and NoCoverage) read from the logs
+          # of run 39422580958. Source files grew since the earlier runs
+          # (the first layout was sized from run 36959365309, 2026-10-02),
+          # so shards 0, 1, 18 and 46 held 98, 87, 178 and 40 mutants
+          # instead of the planned 26, 42, 29 and 39 and hit their job
+          # timeout. They were re-split by file or by span; the counts of
+          # the resulting shards (66-75 and the replaced 0, 1, 18, 46) are
+          # estimates marked "estimated, re-measure": re-measure them on the
+          # first run with this layout. Shard 49 failed in its initial test
+          # run (a flaky unit test), so its count is still the planned one.
           #
           # A file cut into several parts has one include span per part but
           # the last (the tail). The tail shard carries the whole-file glob
@@ -112,29 +118,29 @@ jobs:
           # its twin. The tail may also be the file inside a folder glob
           # ('dir/*.cs;!F{a..b}...') when it shares the remainder shard.
           SHARDS=(
-            "**/Core/AmbientRequestContext.cs"  # 0: 26 (planned 52: file grew since the measured run)
-            "**/Core/*.cs;!**/Core/AmbientRequestContext.cs;!**/Core/ServiceCollectionExtensions.cs;!**/Core/RequestContext.cs;!**/Core/StreamDispatcher.cs;!**/Core/EncinaConfiguration.cs"  # 1: 42
-            "**/Core/EncinaConfiguration.cs{0..9649}"  # 2: 23 (planned 42: file grew since the measured run)
-            "**/Core/EncinaConfiguration.cs{9649..24070}"  # 3: 23 (planned 42: file grew since the measured run)
-            "**/Core/EncinaConfiguration.cs{24070..26583}"  # 4: 23 (planned 42: file grew since the measured run)
-            "**/Core/RequestContext.cs"  # 5: 25 (planned 45: file grew since the measured run)
-            "**/Core/ServiceCollectionExtensions.cs"  # 6: 37 (planned 48: file grew since the measured run)
-            "**/Core/StreamDispatcher.cs;**/Core/EncinaConfiguration.cs;!**/Core/EncinaConfiguration.cs{0..9649};!**/Core/EncinaConfiguration.cs{9649..24070};!**/Core/EncinaConfiguration.cs{24070..26583};**/Results/*.cs"  # 7: 21 + 16 (planned 40: file grew since the measured run)
-            "**/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs{0..5855}"  # 8: 42
-            "**/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs;!**/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs{0..5855};**/Pipeline/Behaviors/QueryActivityPipelineBehavior.cs;!**/Pipeline/Behaviors/QueryActivityPipelineBehavior.cs{0..5641}"  # 9: 30
+            "**/Core/AmbientRequestContext.cs{0..6082}"  # 0: 25 (estimated, re-measure; was 98 in one shard)
+            "**/Core/Encina.cs"  # 1: 35 (estimated, re-measure; folder remainder held 87)
+            "**/Core/EncinaConfiguration.cs{0..9649}"  # 2: 8
+            "**/Core/EncinaConfiguration.cs{9649..24070}"  # 3: 8
+            "**/Core/EncinaConfiguration.cs{24070..26583}"  # 4: 26
+            "**/Core/RequestContext.cs"  # 5: 35
+            "**/Core/ServiceCollectionExtensions.cs"  # 6: 56
+            "**/Core/StreamDispatcher.cs;**/Core/EncinaConfiguration.cs;!**/Core/EncinaConfiguration.cs{0..9649};!**/Core/EncinaConfiguration.cs{9649..24070};!**/Core/EncinaConfiguration.cs{24070..26583};**/Results/*.cs"  # 7: 38
+            "**/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs{0..5855}"  # 8: 44
+            "**/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs;!**/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs{0..5855};**/Pipeline/Behaviors/QueryActivityPipelineBehavior.cs;!**/Pipeline/Behaviors/QueryActivityPipelineBehavior.cs{0..5641}"  # 9: 20
             "**/Pipeline/Behaviors/*.cs;!**/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs;!**/Pipeline/Behaviors/QueryActivityPipelineBehavior.cs"  # 10: 28
-            "**/Pipeline/Behaviors/QueryActivityPipelineBehavior.cs{0..5641}"  # 11: 42
+            "**/Pipeline/Behaviors/QueryActivityPipelineBehavior.cs{0..5641}"  # 11: 44
             "**/Pipeline/EncinaNotificationGuards.cs;**/Pipeline/EncinaBehaviorGuards.cs"  # 12: 41
-            "**/Pipeline/*.cs;!**/Pipeline/EncinaNotificationGuards.cs;!**/Pipeline/EncinaBehaviorGuards.cs;!**/Pipeline/PipelineBuilder.cs"  # 13: 42
-            "**/Pipeline/PipelineBuilder.cs{0..9765}"  # 14: 37
-            "**/Sharding/Diagnostics/InstrumentedShardRouter.cs;**/Pipeline/PipelineBuilder.cs;!**/Pipeline/PipelineBuilder.cs{0..9765}"  # 15: 24 + 16
+            "**/Pipeline/*.cs;!**/Pipeline/EncinaNotificationGuards.cs;!**/Pipeline/EncinaBehaviorGuards.cs;!**/Pipeline/PipelineBuilder.cs"  # 13: 41
+            "**/Pipeline/PipelineBuilder.cs{0..9765}"  # 14: 34
+            "**/Sharding/Diagnostics/InstrumentedShardRouter.cs;**/Pipeline/PipelineBuilder.cs;!**/Pipeline/PipelineBuilder.cs{0..9765}"  # 15: 21
             "**/Dispatchers/Strategies/ParallelDispatchStrategy.cs"  # 16: 27
             "**/Dispatchers/Strategies/*.cs;!**/Dispatchers/Strategies/ParallelDispatchStrategy.cs"  # 17: 37
-            "**/Validation/*.cs"  # 18: 29
-            "**/Sharding/Health/*.cs;!**/Sharding/Health/ShardReplicaHealthCheck.cs;**/Sharding/Shadow/Behaviors/ShadowWritePipelineBehavior.cs"  # 19: 24 + 15
+            "**/Validation/EndpointValidator.cs{0..5056}"  # 18: 30 (estimated, re-measure; the folder held 178)
+            "**/Sharding/Health/*.cs;!**/Sharding/Health/ShardReplicaHealthCheck.cs;**/Sharding/Shadow/Behaviors/ShadowWritePipelineBehavior.cs"  # 19: 39
             "**/Sharding/Health/ShardReplicaHealthCheck.cs"  # 20: 33
             "**/Sharding/Migrations/Strategies/*.cs;!**/Sharding/Migrations/Strategies/SequentialMigrationStrategy.cs;!**/Sharding/Migrations/Strategies/CanaryFirstStrategy.cs"  # 21: 36
-            "**/Sharding/Migrations/Strategies/SequentialMigrationStrategy.cs;**/Sharding/Migrations/Strategies/CanaryFirstStrategy.cs;**/Sharding/Execution/*.cs;!**/Sharding/Execution/ShardedQueryExecutor.cs{0..10269}"  # 22: 23 + 19
+            "**/Sharding/Migrations/Strategies/SequentialMigrationStrategy.cs;**/Sharding/Migrations/Strategies/CanaryFirstStrategy.cs;**/Sharding/Execution/*.cs;!**/Sharding/Execution/ShardedQueryExecutor.cs{0..10269}"  # 22: 42
             "**/Sharding/Execution/ShardedQueryExecutor.cs{0..10269}"  # 23: 41
             "**/Sharding/Routing/*.cs;!**/Sharding/Routing/HashShardRouter.cs;!**/Sharding/Routing/DirectoryShardRouter.cs;!**/Sharding/Routing/GeoRegion.cs;!**/Sharding/Routing/ShardRange.cs;!**/Sharding/Routing/GeoShardRouter.cs;!**/Sharding/Routing/RangeShardRouter.cs"  # 24: 42
             "**/Sharding/Routing/DirectoryShardRouter.cs;**/Sharding/Routing/RangeShardRouter.cs;!**/Sharding/Routing/RangeShardRouter.cs{0..5284}"  # 25: 42
@@ -142,7 +148,7 @@ jobs:
             "**/Sharding/Routing/GeoShardRouter.cs;!**/Sharding/Routing/GeoShardRouter.cs{0..6493};**/Sharding/Routing/GeoRegion.cs;**/Sharding/Routing/ShardRange.cs"  # 27: 38
             "**/Sharding/Routing/HashShardRouter.cs"  # 28: 42
             "**/Sharding/Routing/RangeShardRouter.cs{0..5284}"  # 29: 42
-            "**/Sharding/ReplicaSelection/LeastLatencyShardReplicaSelector.cs;**/Sharding/Resharding/Phases/PlanningPhase.cs"  # 30: 25 + 15
+            "**/Sharding/ReplicaSelection/LeastLatencyShardReplicaSelector.cs;**/Sharding/Resharding/Phases/PlanningPhase.cs"  # 30: 40
             "**/Sharding/ReplicaSelection/ReplicaHealthTracker.cs{0..6080}"  # 31: 42
             "**/Sharding/ReplicaSelection/ReplicaHealthTracker.cs;!**/Sharding/ReplicaSelection/ReplicaHealthTracker.cs{0..6080};**/Sharding/ReplicaSelection/LeastConnectionsShardReplicaSelector.cs"  # 32: 42
             "**/Sharding/ReplicaSelection/*.cs;!**/Sharding/ReplicaSelection/LeastConnectionsShardReplicaSelector.cs;!**/Sharding/ReplicaSelection/LeastLatencyShardReplicaSelector.cs;!**/Sharding/ReplicaSelection/ReplicaHealthTracker.cs"  # 33: 42
@@ -150,7 +156,7 @@ jobs:
             "**/Sharding/Shadow/**/*.cs;!**/Sharding/Shadow/Behaviors/ShadowReadPipelineBehavior.cs;!**/Sharding/Shadow/ShadowShardingServiceCollectionExtensions.cs;!**/Sharding/Shadow/Behaviors/ShadowWritePipelineBehavior.cs"  # 35: 41
             "**/Sharding/Shadow/ShadowShardingServiceCollectionExtensions.cs"  # 36: 29
             "**/Sharding/Colocation/*.cs;!**/Sharding/Colocation/ColocationViolationException.cs"  # 37: 36
-            "**/Sharding/Colocation/ColocationViolationException.cs;**/Modules/Isolation/*.cs;!**/Modules/Isolation/ModuleSchemaRegistry.cs;!**/Modules/Isolation/ModuleSchemaOptions.cs;!**/Modules/Isolation/IModuleSchemaRegistry.cs;!**/Modules/Isolation/ModuleIsolationViolationException.cs;!**/Modules/Isolation/ModuleIsolationOptions.cs;!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs;!**/Modules/Isolation/SqlSchemaExtractor.cs;!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs"  # 38: 22 + 20
+            "**/Sharding/Colocation/ColocationViolationException.cs;**/Modules/Isolation/*.cs;!**/Modules/Isolation/ModuleSchemaRegistry.cs;!**/Modules/Isolation/ModuleSchemaOptions.cs;!**/Modules/Isolation/IModuleSchemaRegistry.cs;!**/Modules/Isolation/ModuleIsolationViolationException.cs;!**/Modules/Isolation/ModuleIsolationOptions.cs;!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs;!**/Modules/Isolation/SqlSchemaExtractor.cs;!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs"  # 38: 42
             "**/Sharding/Diagnostics/*.cs;!**/Sharding/Diagnostics/InstrumentedShardRouter.cs"  # 39: 42
             "**/Sharding/TimeBased/PeriodBoundaryCalculator.cs;**/Sharding/TimeBased/TierTransition.cs"  # 40: 41
             "**/Sharding/TimeBased/ShardArchiver.cs;**/Sharding/TimeBased/InMemoryTierStore.cs"  # 41: 42
@@ -158,100 +164,122 @@ jobs:
             "**/Sharding/TimeBased/TierTransitionScheduler.cs{0..7233}"  # 43: 40
             "**/Sharding/TimeBased/TimeBasedShardRouter.cs{0..11128}"  # 44: 42
             "**/Sharding/TimeBased/TimeBasedShardRouter.cs{11128..15744}"  # 45: 42
-            "**/Sharding/TimeBased/*.cs;!**/Sharding/TimeBased/PeriodBoundaryCalculator.cs;!**/Sharding/TimeBased/TierTransition.cs;!**/Sharding/TimeBased/ShardArchiver.cs;!**/Sharding/TimeBased/InMemoryTierStore.cs;!**/Sharding/TimeBased/ShardTierInfo.cs;!**/Sharding/TimeBased/TierTransitionScheduler.cs;!**/Sharding/TimeBased/TimeBasedShardRouter.cs{0..11128};!**/Sharding/TimeBased/TimeBasedShardRouter.cs{11128..15744}"  # 46: 39
+            "**/Sharding/TimeBased/TimeBasedShardingOptions.cs;**/Sharding/TimeBased/Log.cs;**/Sharding/TimeBased/IShardArchiver.cs;**/Sharding/TimeBased/ArchiveOptions.cs;**/Sharding/TimeBased/ShardPeriod.cs"  # 46: 20 (estimated, re-measure; the folder remainder held 40)
             "**/Sharding/Resharding/Phases/CopyingPhase.cs"  # 47: 28
-            "**/Sharding/Resharding/Phases/CuttingOverPhase.cs"  # 48: 33 (planned 39: file grew since the measured run)
-            "**/Sharding/Resharding/Phases/ReplicatingPhase.cs"  # 49: 30
-            "**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs{0..9966}"  # 50: 33 (planned 42: file grew since the measured run)
-            "**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs;!**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs{0..9966}"  # 51: 23 (planned 29: file grew since the measured run)
+            "**/Sharding/Resharding/Phases/CuttingOverPhase.cs"  # 48: 34
+            "**/Sharding/Resharding/Phases/ReplicatingPhase.cs"  # 49: 30 (planned; the initial test run failed on a flaky unit test, re-measure)
+            "**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs{0..9966}"  # 50: 36
+            "**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs;!**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs{0..9966}"  # 51: 23
             "**/Sharding/Resharding/Phases/*.cs;!**/Sharding/Resharding/Phases/CuttingOverPhase.cs;!**/Sharding/Resharding/Phases/ReplicatingPhase.cs;!**/Sharding/Resharding/Phases/CopyingPhase.cs;!**/Sharding/Resharding/Phases/PlanningPhase.cs;!**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs"  # 52: 40
-            "**/Modules/Isolation/ModuleIsolationOptions.cs;**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs;!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{0..4694};!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{4694..7573};!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{7573..11333};!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{11333..17393}"  # 53: 36
+            "**/Modules/Isolation/ModuleIsolationOptions.cs;**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs;!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{0..4694};!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{4694..7573};!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{7573..11333};!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{11333..17393}"  # 53: 38
             "**/Modules/Isolation/ModuleSchemaRegistry.cs"  # 54: 42
             "**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{0..4694}"  # 55: 42
             "**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{4694..7573}"  # 56: 42
             "**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{7573..11333}"  # 57: 42
             "**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs{11333..17393}"  # 58: 42
             "**/Modules/Isolation/SqlSchemaExtractor.cs{0..8681};**/Modules/Isolation/ModuleSchemaOptions.cs"  # 59: 42
-            "**/Modules/Isolation/SqlSchemaExtractor.cs;!**/Modules/Isolation/SqlSchemaExtractor.cs{0..8681};**/Modules/Isolation/ModuleIsolationViolationException.cs"  # 60: 41
+            "**/Modules/Isolation/SqlSchemaExtractor.cs;!**/Modules/Isolation/SqlSchemaExtractor.cs{0..8681};**/Modules/Isolation/ModuleIsolationViolationException.cs"  # 60: 39
             "**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{0..4374}"  # 61: 42
             "**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{4374..7145}"  # 62: 42
             "**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{7145..10123}"  # 63: 42
             "**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{10123..12883}"  # 64: 41
-            "**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs;!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{0..4374};!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{4374..7145};!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{7145..10123};!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{10123..12883};**/Modules/Isolation/IModuleSchemaRegistry.cs"  # 65: 36
+            "**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs;!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{0..4374};!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{4374..7145};!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{7145..10123};!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs{10123..12883};**/Modules/Isolation/IModuleSchemaRegistry.cs"  # 65: 39
+            "**/Core/AmbientRequestContext.cs{6082..12063}"  # 66: 25 (estimated, re-measure)
+            "**/Core/AmbientRequestContext.cs{12063..17769}"  # 67: 25 (estimated, re-measure)
+            "**/Core/AmbientRequestContext.cs;!**/Core/AmbientRequestContext.cs{0..6082};!**/Core/AmbientRequestContext.cs{6082..12063};!**/Core/AmbientRequestContext.cs{12063..17769}"  # 68: 23 (estimated, re-measure)
+            "**/Core/RequestContextAccessor.cs;**/Core/ChainFacts.cs;**/Core/IDecoratedServiceFactory.cs"  # 69: 34 (estimated, re-measure)
+            "**/Core/*.cs;!**/Core/AmbientRequestContext.cs;!**/Core/ServiceCollectionExtensions.cs;!**/Core/RequestContext.cs;!**/Core/StreamDispatcher.cs;!**/Core/EncinaConfiguration.cs;!**/Core/Encina.cs;!**/Core/RequestContextAccessor.cs;!**/Core/ChainFacts.cs;!**/Core/IDecoratedServiceFactory.cs"  # 70: 18 (estimated, re-measure)
+            "**/Validation/EndpointValidator.cs{5056..10399}"  # 71: 30 (estimated, re-measure)
+            "**/Validation/EndpointValidator.cs;!**/Validation/EndpointValidator.cs{0..5056};!**/Validation/EndpointValidator.cs{5056..10399}"  # 72: 28 (estimated, re-measure)
+            "**/Validation/ValidationResult.cs;**/Validation/ValidationOrchestrator.cs"  # 73: 41 (estimated, re-measure)
+            "**/Validation/*.cs;!**/Validation/EndpointValidator.cs;!**/Validation/ValidationResult.cs;!**/Validation/ValidationOrchestrator.cs"  # 74: 34 (estimated, re-measure)
+            "**/Sharding/TimeBased/*.cs;!**/Sharding/TimeBased/PeriodBoundaryCalculator.cs;!**/Sharding/TimeBased/TierTransition.cs;!**/Sharding/TimeBased/ShardArchiver.cs;!**/Sharding/TimeBased/InMemoryTierStore.cs;!**/Sharding/TimeBased/ShardTierInfo.cs;!**/Sharding/TimeBased/TierTransitionScheduler.cs;!**/Sharding/TimeBased/TimeBasedShardRouter.cs{0..11128};!**/Sharding/TimeBased/TimeBasedShardRouter.cs{11128..15744};!**/Sharding/TimeBased/TimeBasedShardingOptions.cs;!**/Sharding/TimeBased/Log.cs;!**/Sharding/TimeBased/IShardArchiver.cs;!**/Sharding/TimeBased/ArchiveOptions.cs;!**/Sharding/TimeBased/ShardPeriod.cs"  # 75: 20 (estimated, re-measure)
           )
           # Per-shard job timeout in minutes, same index as SHARDS.
-          # PROVISIONAL until the validation run measures the real shard
-          # durations (#1441). TIMEOUT = max(60, ceil(expected x 1.5)) with
-          # expected = 24 + 1.2 x tested mutants (planned weight for the
-          # drift-heavy shards 0-7 and 48-52, hence shard 0 at 130). GitHub
-          # caps a job at 360 minutes; 340 is this workflow's ceiling.
+          # TIMEOUT = max(60, ceil(expected x 1.5)) with expected = 23 + 1.7 x
+          # tested mutants (setup and rate measured on run 39422580958).
+          # Shards 2-65 except 18, 46 and 49 carry their measured duration
+          # x 1.5 (at least 60); 0, 1, 18, 46 and 66-75 are re-split shards
+          # sized from the estimated count, and 49 keeps its planned count
+          # (its initial test run failed on a flaky unit test). GitHub caps a
+          # job at 360 minutes; 340 is this workflow's ceiling.
           TIMEOUTS=(
-            130
-            112
-            112
-            112
-            112
-            117
-            123
-            108
-            112
-            90
-            87
-            112
             110
-            112
-            103
-            108
+            125
+            60
+            60
             85
-            103
-            89
-            107
-            96
-            101
-            112
-            110
-            112
-            112
-            112
-            105
-            112
-            112
-            108
-            112
-            112
-            112
-            90
-            110
-            89
-            101
-            112
-            112
-            110
-            112
-            99
-            108
-            112
-            112
-            107
+            154
+            175
+            114
+            148
+            75
+            69
+            130
+            113
+            147
             87
-            107
-            90
-            112
             89
+            70
+            142
+            111
+            120
+            103
+            127
+            143
+            117
+            106
+            141
+            137
+            128
+            131
+            130
+            140
+            91
+            153
+            148
+            77
+            126
+            115
+            132
+            154
+            146
+            139
+            86
+            123
+            145
+            142
+            151
+            100
             108
+            84
+            111
+            126
+            65
+            89
             101
-            112
-            112
-            112
-            112
-            112
-            112
+            141
+            92
+            147
+            147
+            88
+            144
+            137
+            147
+            142
+            153
+            138
+            135
             110
-            112
-            112
-            112
             110
-            101
+            110
+            125
+            80
+            111
+            111
+            140
+            125
+            100
           )
 
           if [ "${#SHARDS[@]}" -ne "${#TIMEOUTS[@]}" ]; then
@@ -1286,14 +1314,24 @@ jobs:
           #   Should Stryker rename the placeholder reason, its placeholders
           #   count as results and this check fails loudly instead of
           #   merging them silently.
+          # - Mutants that were never tested (CompileError, and Ignored for
+          #   a reason other than the placeholder one) are the exception:
+          #   every shard of a span-split file reports the file's untested
+          #   mutants, whichever span they fall in, so they are not
+          #   duplicates. They are deduplicated per file by mutant key in
+          #   the merge and skipped by the duplicate check. They stay in the
+          #   report: mutation-history.cs reads CompileError.
           JQ_DEFS='
             def placeholder: .status == "Ignored" and (.statusReason // "") == "Removed by mutate filter";
+            def untested: .status == "CompileError" or .status == "Ignored";
             def results: [(.mutants // [])[] | select(placeholder | not)];
             def mutant_key: [.location.start.line, .location.start.column, .location.end.line, .location.end.column, .mutatorName, .replacement] | tostring;
+            def merge_mutants: (add // []) as $all
+              | [$all[] | select(untested | not)] + ([$all[] | select(untested)] | unique_by(mutant_key));
           '
           DUPLICATES=$(jq -s -r "$JQ_DEFS"'
             [to_entries[] | .key as $report | .value.files | to_entries[] | .key as $file
-              | .value | results[] | {report: $report, file: $file, key: mutant_key}]
+              | .value | results[] | select(untested | not) | {report: $report, file: $file, key: mutant_key}]
             | group_by([.file, .key])
             | map(select((map(.report) | unique | length) > 1) | "\(.[0].file) \(.[0].key)")
             | .[]' "${REPORTS[@]}")
@@ -1307,12 +1345,18 @@ jobs:
             (.[0]) + {files: (
               [.[] | .files | to_entries[] | .value.mutants = (.value | results) | select(.value.mutants | length > 0)]
               | group_by(.key)
-              | map({key: .[0].key, value: (.[0].value + {mutants: (map(.value.mutants) | add)})})
+              | map({key: .[0].key, value: (.[0].value + {mutants: (map(.value.mutants) | merge_mutants)})})
               | from_entries)}' \
             "${REPORTS[@]}" > artifacts/mutation/reports/mutation-report.json
 
-          # Guard: the merge must neither lose nor invent a result.
-          EXPECTED=$(jq -s "$JQ_DEFS"'[.[] | .files[] | results | length] | add // 0' "${REPORTS[@]}")
+          # Guard: the merge must neither lose nor invent a result. Tested
+          # results count once per report; untested ones once per file and
+          # mutant key.
+          EXPECTED=$(jq -s "$JQ_DEFS"'
+            [.[] | .files | to_entries[] | {key, value: (.value | results)}]
+            | group_by(.key)
+            | map(map(.value) | merge_mutants | length)
+            | add // 0' "${REPORTS[@]}")
 
           MUTANTS=$(jq '[.files | to_entries[] | .value.mutants // [] | length] | add // 0' \
             artifacts/mutation/reports/mutation-report.json)
