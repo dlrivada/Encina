@@ -6229,7 +6229,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - `AIActCompliancePipelineBehavior` with Block/Warn/Disabled enforcement modes
 - Auto-registration via `AIActAutoRegistrationHostedService`
 - OpenTelemetry tracing, metrics, structured logging (EventId 9400-9449), health check
-- 3 domain notifications: `AISystemReclassifiedNotification`, `ProhibitedUseBlockedNotification`, `HumanOversightRequiredNotification`
+- 3 domain notifications declared: `AISystemReclassifiedNotification` (published by `InMemoryAISystemRegistry` on reclassification), `ProhibitedUseBlockedNotification` and `HumanOversightRequiredNotification` (declared, not yet published by the package)
 - **Paquete implementado**: `Encina.Compliance.AIAct`
 - **135 tests** across 4 test projects (88 unit, 23 guard, 13 contract, 11 property)
 - Labels: `area-compliance`, `eu-regulation`, `area-ai-ml`, `area-data-protection`, `industry-best-practice`

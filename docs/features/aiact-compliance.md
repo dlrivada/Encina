@@ -246,7 +246,7 @@ services.AddEncinaAIAct(options =>
 | **Warn** | Logs warning, request proceeds | Declared practice blocked |
 | **Disabled** | No compliance checks (passthrough) | Not checked |
 
-Requests without an AI Act attribute are skipped in every mode.
+Requests without an AI Act attribute are skipped in every mode. A declared prohibited practice is blocked only for a registered AI system that the request resolves to; an unresolvable system id or an unregistered system is not checked for prohibited practices.
 
 ---
 
@@ -326,7 +326,7 @@ result.Match(
 1. **Start with Warn mode** during development, switch to Block for production
 2. **Always use explicit SystemId** on `[HighRiskAI]` for stable registry keys
 3. **Combine attributes** — a single request can have `[HighRiskAI]` + `[RequireHumanOversight]` + `[AITransparency]`
-4. **Never bypass Art. 5 on purpose** — the check is skipped in two cases: `Disabled` enforcement mode, and a request with no AI Act attribute. Use neither to get around a prohibited practice (see [Enforcement Modes](#enforcement-modes)). A custom `IAIActComplianceValidator` decides for itself, so it must keep blocking declared prohibited practices
+4. **Never bypass Art. 5 on purpose** — a prohibited practice is blocked when it is declared on a registered AI system that the request resolves to. Nothing is detected in `Disabled` mode, for a request with no AI Act attribute, for a request whose system id cannot be resolved, or for a system that is not registered, so do not rely on those paths to get around a prohibited practice (see [Enforcement Modes](#enforcement-modes)). A custom `IAIActComplianceValidator` decides for itself, so it must keep blocking declared prohibited practices
 5. **Register custom implementations** before calling `AddEncinaAIAct()` to override defaults (TryAdd semantics)
 6. **Use auto-registration** for consistent registry population across deployments
 
@@ -358,7 +358,7 @@ var validator = Substitute.For<IAIActComplianceValidator>();
 ## FAQ
 
 **Q: Can I disable prohibited practice blocking?**
-A: Not in Block or Warn mode: a prohibited practice declared on the registration is blocked in both. Setting `EnforcementMode` to `Disabled` skips all AI Act checks, including this one, so use it only where the AI Act does not apply (for example in tests).
+A: Not in Block or Warn mode: a prohibited practice declared on a registered AI system that the request resolves to is blocked in both. Setting `EnforcementMode` to `Disabled` skips all AI Act checks, including this one, so use it only where the AI Act does not apply (for example in tests).
 
 **Q: What happens if a request has no AI Act attributes?**
 A: It bypasses all compliance checks with zero overhead. The pipeline behavior short-circuits immediately.
