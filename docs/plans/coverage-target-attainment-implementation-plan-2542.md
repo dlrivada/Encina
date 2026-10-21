@@ -16,7 +16,7 @@ Today the coverage report can say whether a file's flag meets its justified targ
 
 The maintainer's wording in the issue is the requirement: "Guard at 20% says nothing by itself; Guard at 20% against a target of 21% or of 50% says exactly how close we are to the demanding and realistic goal we set."
 
-**What this plan implements** (the issue's main proposal; every fork is a Design Choice below, pending the maintainer):
+**What this plan implements** (the issue's main proposal; every fork is a Design Choice below, decided by the maintainer on 2026-10-21, see Maintainer Decisions):
 
 1. **Per-(file, flag) attainment** for every pair that has a per-file target in `.github/coverage-manifest/*.json`: measured %, target %, gap in percentage points (`max(0, target - measured)`), capped attainment (`min(measured / target, 1)`), and the line counts behind them. Emitted in the "Per-file targets" table of `encina-coverage-report.md`, in `encina-coverage-summary.json` (which `publish-coverage.yml` publishes verbatim as `latest.json`), and rendered on the Pages dashboard, sortable by gap.
 2. **Aggregates** next to the unchanged obligations figure: the targets-met ratio, the line-weighted attainment (`sum(min(covered, target x total)) / sum(target x total)`), the mean gap, and the number of pairs the aggregates leave out (no data, zero target).
@@ -45,7 +45,7 @@ The maintainer's wording in the issue is the requirement: "Guard at 20% says not
 
 ## Design Choices
 
-Nine forks were found in the code; each has at least two valid options with a concrete winning scenario. None is decided: every Chosen Option is the plan author's recommendation, pending the maintainer, and the issue itself labels the scope question `needs-decision`. Options eliminated by a rule are named in the rationale of the choice they would belong to.
+Nine forks were found in the code; each has at least two valid options with a concrete winning scenario. Every Chosen Option was decided by the maintainer on 2026-10-21 (see Maintainer Decisions at the end of this file); the issue's `needs-decision` label predates that decision. Options eliminated by a rule are named in the rationale of the choice they would belong to.
 
 <details>
 <summary><strong>1. Scope of the attainment view — per-file plus aggregates, or something smaller</strong></summary>
@@ -61,7 +61,7 @@ Nine forks were found in the code; each has at least two valid options with a co
 | **C — Alternative B of the issue: aggregates only, no per-file breakdown** | Smallest payload; one tile and one trend line | Hides which files are far from target, so it cannot prioritise work; the per-file table already exists in the report, so dropping it from the dashboard loses information the team already has |
 | **D — Aggregates and a per-package roll-up in `latest.json` and the dashboard; per-file rows only in the Markdown report** | Keeps `latest.json` small (no 967-row array); package rows can show their own attainment; files stay visible in the CI job summary | The dashboard cannot sort files by gap, which is the issue's acceptance criterion; two places show different granularity |
 
-### Chosen Option: **A — Per-file and aggregate attainment everywhere** (recommended, pending the maintainer)
+### Chosen Option: **A — Per-file and aggregate attainment everywhere** (decided by the maintainer, 2026-10-21)
 
 ### Rationale
 
@@ -89,7 +89,7 @@ Nine forks were found in the code; each has at least two valid options with a co
 
 Eliminated by rule: a project-wide attainment **target** or a fixed colour threshold for the new headline (for example "green at 80%"): AGENTS.md section 9 states "There is no project-wide percentage" (`AGENTS.md:124`), and #1656 tracks the one project-wide line the dashboard still hard-codes (`docs/coverage/app.js:817-830`). The new tiles show numbers and trends, with no colour derived from a project-wide cut-off.
 
-### Chosen Option: **C — Ratio headline, line-weighted beside it, mean gap in points and lines still to cover** (recommended, pending the maintainer)
+### Chosen Option: **C — Ratio headline, line-weighted beside it, mean gap in points and lines still to cover** (decided by the maintainer, 2026-10-21)
 
 ### Rationale
 
@@ -115,7 +115,7 @@ Eliminated by rule: a project-wide attainment **target** or a fixed colour thres
 
 Eliminated by rule: filling a no-data flag with the **covered lines of another flag** (so that the file looks tested): AGENTS.md section 9 ("a line covered by one flag does not count for another"). Option A borrows only the **number of lines**, never their coverage.
 
-### Chosen Option: **A — Count as 0% measured; borrow the line count, never the coverage** (recommended, pending the maintainer)
+### Chosen Option: **A — Count as 0% measured; borrow the line count, never the coverage** (decided by the maintainer, 2026-10-21)
 
 ### Rationale
 
@@ -138,7 +138,7 @@ Eliminated by rule: filling a no-data flag with the **covered lines of another f
 | **A — Include them: a target of 0 is met (as `IsBelowTarget` says, `:356-357`), attainment 1, weight 0 in the line-weighted value** | Consistent with the table and with the console line "Per-file targets: N" which counts every row (`:960`); denominators stay stable when someone raises a 0 to a real target | 173 of 967 pairs at the time of writing are zero targets (each justified, "a 0 only with a reason", AGENTS.md section 9), so the pair-count ratio is inflated by pairs that carry no demand |
 | **B — Exclude them from the aggregates and show "of which zero-target: N" beside the tiles** | The ratio and the mean gap describe only the demanding targets; raising a 0 to 30 visibly adds a pair to the denominator | Denominator jumps when a 0 becomes a target (history needs the `pairs` field to explain the jump); a zero target stops being counted anywhere in the headline |
 
-### Chosen Option: **B — Exclude from aggregates, show the count beside them** (recommended, pending the maintainer)
+### Chosen Option: **B — Exclude from aggregates, show the count beside them** (decided by the maintainer, 2026-10-21)
 
 ### Rationale
 
@@ -161,7 +161,7 @@ Eliminated by rule: filling a no-data flag with the **covered lines of another f
 | **B — Move the pure functions to a shared `.cs` file linked into a test project under `tests/Encina.UnitTests` and write xUnit tests** | Standard test tooling, Shouldly assertions, per-flag coverage reporting | AGENTS.md section 2 scripts are file-based apps with no `.csproj`; `coverage-report.cs` cannot include a second file as far as this plan could establish (not tried), so the functions would exist twice or the script would become a project, which that rule excludes; `AGENTS.md` section 9 measures `src/` only, so the coverage buys nothing |
 | **C — A PowerShell self-test that runs the script end to end on checked-in fixtures (`.github/scripts/testdata/coverage-report/`: a manifest dir and Cobertura XML) and compares the produced JSON with a golden file, like `crap-gate-selftest.ps1`** | Proves the whole chain "manifests + Cobertura -> numbers" (acceptance: "Numbers are reproducible from the manifests + Cobertura files"); catches schema drift in `latest.json` | A new CI step is needed (`ci.yml`, an orchestrator hot spot, next to `:554-556`); fixtures to maintain |
 
-### Chosen Option: **A — Extend the in-script self-test, with fixtures built in memory** (recommended, pending the maintainer)
+### Chosen Option: **A — Extend the in-script self-test, with fixtures built in memory** (decided by the maintainer, 2026-10-21)
 
 ### Rationale
 
@@ -185,7 +185,7 @@ Eliminated by rule: filling a no-data flag with the **covered lines of another f
 | **A — Add an `attainment` object to each existing `history.json` entry (`pairs`, `met`, `ratio`, `lineWeighted`, `meanGap`, `linesToCover`, `noData`, `zeroTarget`); old entries simply lack it** | One file, one writer (`coverage-history.cs:42-69`); the trend chart already reads that file (`app.js:729-741`); no workflow or plumbing change; the cap of 100 applies to both series together | Entries get bigger (about 10 numbers); consumers must tolerate a missing key for old entries; a schema change touches every consumer of `history.json` (the dashboard and `coverage-recalculate.cs` only, today) |
 | **B — A separate `attainment-history.json` with its own cap** | Existing `history.json` schema untouched; can keep more or fewer points | New data file: `pages-dashboard-data.ps1:120` (`$DataFiles`), `docs.yml:103` and `publish-coverage.yml` must learn it, all hot spots; two histories to keep in step and to recalculate |
 
-### Chosen Option: **A — New fields inside the existing entries** (recommended, pending the maintainer)
+### Chosen Option: **A — New fields inside the existing entries** (decided by the maintainer, 2026-10-21)
 
 ### Rationale
 
@@ -209,7 +209,7 @@ Eliminated by rule: filling a no-data flag with the **covered lines of another f
 | **B — In `docref-index.json`: a per-file `fileTarget` next to the existing package-level `target`** | Documentation could cite per-file attainment through covref markers | Changes SPEC-001 REQ-002's schema and `cov-docs-render.cs:81-82` allowed fields; the dashboard does not read this file today, so the dashboard would gain a second fetch; the index is per file with `perFlag`, not per target pair |
 | **C — A new `file-targets.json` next to `latest.json`** | Keeps `latest.json` small; the dashboard fetches it lazily when the card is opened | New file in the publish chain: `publish-coverage.yml` (stage step, `:105-124`), `pages-dashboard-data.ps1:120`, `docs.yml:103`; a second file can be out of step with `latest.json` |
 
-### Chosen Option: **A — top-level `fileTargets` inside `latest.json`** (recommended, pending the maintainer)
+### Chosen Option: **A — top-level `fileTargets` inside `latest.json`** (decided by the maintainer, 2026-10-21)
 
 ### Rationale
 
@@ -231,7 +231,7 @@ Eliminated by rule: filling a no-data flag with the **covered lines of another f
 | **A — No backfill: old entries have no `attainment`; the series starts at the first run after the merge** | Honest: targets and justifications changed over time (#1762 only recently introduced them), so attainment against today's manifests is not what those runs measured; `coverage-recalculate.cs` needs no change (it writes named keys only, `:170-203`) | The trend starts short; no immediate before/after picture |
 | **B — Backfill through `coverage-recalculate.cs`, applying today's manifests to the raw Cobertura of past runs (limited to artifacts still retained, 90 days per the methodology)** | A trend from day one | Presents today's targets as if they were the targets of those runs, so a flat file looks like a regression whenever a target was raised; depends on `gh run download` and on retention; the recalculation script already rewrites categories that no longer exist (`:179-190`) |
 
-### Chosen Option: **A — No backfill** (recommended, pending the maintainer)
+### Chosen Option: **A — No backfill** (decided by the maintainer, 2026-10-21)
 
 ### Rationale
 
@@ -253,7 +253,7 @@ Eliminated by rule: filling a no-data flag with the **covered lines of another f
 | **B — Only a per-package drill-down: clicking a package row opens its `fileTargets` (replacing the File Detail panel that cannot open today, `app.js:478-505`)** | Small; reuses an existing interaction and its place in the page | No cross-package sorting by gap, so "the worst 20 files" is not answerable; the existing click handler is currently dead code, so its behaviour is untested |
 | **C — Both: the card of A, and the drill-down of B** | Overview and drill-down | Most code; two ways to reach the same rows |
 
-### Chosen Option: **A — One card with tiles, trend toggle and a filterable, sortable table** (recommended, pending the maintainer)
+### Chosen Option: **A — One card with tiles, trend toggle and a filterable, sortable table** (decided by the maintainer, 2026-10-21)
 
 ### Rationale
 
@@ -608,3 +608,23 @@ No function is deferred, so no follow-up issue is needed for the matrix. One fol
 3. Self-review with `adversarial-reviewer` on the script and dashboard diffs; PR-level review as usual.
 4. After the merge and the next `publish-coverage` run, the orchestrator updates the untracked `artifacts/board/refresh-dash.ps1` to read `overall.attainment` from the published `latest.json` (fields: `pairs`, `met`, `ratio`, `lineWeighted`, `meanGap`, `linesToCover`, `noData`, `zeroTarget`) for the `dash/coverage` snapshot. That script is not part of the repository.
 5. The implementation PR that closes #2542 writes `docs/knowledge/issues/2542.md`.
+
+## Maintainer Decisions
+
+**D1** (2026-10-21): A — per-file and aggregate attainment in the report, `latest.json`, the dashboard and the history. Option B is also excluded by AGENTS.md section 9 ("There is no project-wide percentage"); options C and D fail the acceptance criterion "Pages dashboard displays per-file metrics (sortable by gap)".
+
+**D2** (2026-10-21): C — the pairs-met ratio is the large headline; line-weighted attainment, mean gap in points and lines to cover are shown in small text below it. No colour and no threshold on any of these values.
+
+**D3** (2026-10-21): A — a pair with no data counts as 0% measured (decided by rule: AGENTS.md section 9 and `IsBelowTarget`); only the line count is borrowed, never coverage.
+
+**D4** (2026-10-21): B — zero-target pairs are excluded from the aggregates and shown next to them as "of which zero-target: N"; they stay in the per-file table with status `met` and their justification, so nothing is hidden.
+
+**D5** (2026-10-21): A — extend the in-script `--self-test` with known-answer checks and the hand-computed two-pair fixture of Phase 6; no `ci.yml` step of option C.
+
+**D6** (2026-10-21): A — new `attainment` fields inside the existing `history.json` entries (decided by rule: AGENTS.md section 1, no compatibility argument before 1.0).
+
+**D7** (2026-10-21): A — a top-level `fileTargets` array inside `latest.json`; the implementation measures the real `latest.json` size on its first full run and reports it in the PR.
+
+**D8** (2026-10-21): A — no backfill: recomputing past runs against today's manifests would show targets that did not exist then.
+
+**D9** (2026-10-21): A — one "Target attainment" card with a sortable, filterable table (default sort: gap descending). The File Detail panel (#2566) is a separate decision and is not part of this plan.
