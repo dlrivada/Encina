@@ -1,6 +1,6 @@
 # Implementation Plan: Coverage Target Attainment — per-file/per-flag measured-vs-target view and aggregate "how close are we" metrics (`coverage-report.cs`, `latest.json`, `history.json`, Pages dashboard)
 
-> **Issue**: [#2542](https://github.com/dlrivada/Encina/issues/2542) (`enhancement`, `area-testing`, `p1-recommended`, `needs-decision`, `urgent`)
+> **Issue**: [#2542](https://github.com/dlrivada/Encina/issues/2542) (`enhancement`, `area-testing`, `p1-recommended`, `urgent`)
 > **Type**: Feature (build and measurement tooling; no library runtime code)
 > **Milestone**: Release Engineering (per the issue's "Related Issues": parent context #1651)
 > **Research**: read at `origin/main` on 2026-10-21: `.github/scripts/coverage-report.cs`, `coverage-history.cs`, `coverage-recalculate.cs`, `cov-docs-render.cs`, `pages-dashboard-data.ps1`; `.github/workflows/ci.yml`, `ci-full.yml`, `publish-coverage.yml`, `docs.yml`; `docs/coverage/{index.html,app.js}`; `.github/coverage-manifest/*.json`; `docs/testing/coverage-measurement-methodology.md`; SPEC-001; `AGENTS.md` section 9
@@ -29,23 +29,23 @@ The maintainer's wording in the issue is the requirement: "Guard at 20% says not
 - A flag is measured **straight from its own Cobertura data, whatever the file's `defaultTests` say** (`:332-333`); a line covered under one flag never counts for another (AGENTS.md section 9). The attainment view keeps that.
 - `encina-coverage-summary.json` (`:1025-1078`) has `overall`, `packages[]` and `untrackedPackages`. `publish-coverage.yml:109` copies it to `overlay/coverage/data/latest.json` unchanged and `:127-128` only adds `runId`; so anything written into the summary reaches `latest.json` **without a workflow change**.
 - `coverage-history.cs:42-49` builds each history entry from `latest.json`'s `overall` (`coverage`, `obligations`, `met`, `runId`, `perFlag`) and keeps the last 100 (`:85-86`); `coverage-recalculate.cs:170-203` updates only named keys of an existing entry, so an extra key survives a recalculation.
-- The dashboard (`docs/coverage/app.js`) fetches `data/latest.json` (`:5`, `:141`), `data/cited-by.json` (`:158`) and `data/history.json` (`:729`). It never reads `docref-index.json`. Its "File Detail" panel (`:478-505`) reads `pkg.files`, which the summary does not emit (`packages[]` has no `files`, `coverage-report.cs:1036-1066`): that panel cannot open against live data. Follow-up issue file written (see the report).
+- The dashboard (`docs/coverage/app.js`) fetches `data/latest.json` (`:5`, `:141`), `data/cited-by.json` (`:158`) and `data/history.json` (`:729`). It never reads `docref-index.json`. Its "File Detail" panel (`:478-505`) reads `pkg.files`, which the summary does not emit (`packages[]` has no `files`, `coverage-report.cs:1036-1066`): that panel cannot open against live data. Tracked in #2566.
 - `docref-index.json` (`BuildDocRefIndex`, `:1125-1208`) already carries `perFlag[flag].target`, but it is the **package-level** target (`:1136`, `:1158`), not the per-file one. SPEC-001 REQ-002 fixes that schema, and `cov-docs-render.cs:81-82` validates citation fields against it.
 - The script has **no test project**: `git grep` finds no reference to `.github/scripts` under `tests/`. Its test path is the in-script `--self-test` (`RunSelfTest`, `coverage-report.cs:364-445`), run in `ci.yml:619-622` (step "Check coverage-report self-test and per-file justifications"). Design Choice 5 decides how the new computation is tested.
 - `artifacts/board/refresh-dash.ps1` (named in the issue) is **not tracked**: `artifacts/` is git-ignored (`.gitignore:26`) and `git ls-files` finds no such script. The implementation PR cannot change it; the plan fixes the `latest.json` contract it will read and lists the board update as an orchestrator task (Next Steps).
 - Size of the problem at `origin/main` on 2026-10-21 (counts of manifest entries, not coverage figures): 56 manifests carry per-file targets, 441 files, 967 (file, flag) pairs, 173 of them with target 0. Re-count before coding with the snippet in Phase 1 task 1.
 
-**Affected paths**: `.github/scripts/coverage-report.cs`, `.github/scripts/coverage-history.cs`, `.github/scripts/coverage-recalculate.cs` (only if Design Choice 8 picks backfill), `docs/coverage/index.html`, `docs/coverage/app.js`, `docs/coverage/app.css`, `docs/testing/coverage-measurement-methodology.md`. **No `src/` file, no package, no manifest**; the only workflow edit under the recommended options is the added `ci.yml` command.
+**Affected paths**: `.github/scripts/coverage-report.cs`, `.github/scripts/coverage-history.cs`, `.github/scripts/coverage-recalculate.cs` (comment only, Design Choice 8-A), `docs/coverage/index.html`, `docs/coverage/app.js`, `docs/coverage/app.css`, `docs/testing/coverage-measurement-methodology.md`. **No `src/` file, no package, no manifest**; the only workflow edit is the added `ci.yml` command.
 
 **Provider category**: none (build tooling).
 
-**Hot spots**: the publish path needs no change to `.github/workflows/*`, but the recommended options need **one added command in `ci.yml`** (the history self-test, see "Workflow and script changes"). Changes that **would** be needed under a non-recommended option are listed in "Workflow and script changes" under Prerequisites & Dependencies, so the orchestrator can decide before a brief is written.
+**Hot spots**: the publish path needs no change to `.github/workflows/*`, but the chosen options need **one added command in `ci.yml`** (the history self-test, see "Workflow and script changes" under Prerequisites & Dependencies), which the orchestrator adds.
 
 ---
 
 ## Design Choices
 
-Nine forks were found in the code; each has at least two valid options with a concrete winning scenario. Every Chosen Option was decided by the maintainer on 2026-10-21 (see Maintainer Decisions at the end of this file); the issue's `needs-decision` label predates that decision. Options eliminated by a rule are named in the rationale of the choice they would belong to.
+Nine forks were found in the code; each has at least two valid options with a concrete winning scenario. Every Chosen Option was decided by the maintainer on 2026-10-21 (see Maintainer Decisions at the end of this file). Options eliminated by a rule are named in the rationale of the choice they would belong to.
 
 <details>
 <summary><strong>1. Scope of the attainment view — per-file plus aggregates, or something smaller</strong></summary>
@@ -66,7 +66,7 @@ Nine forks were found in the code; each has at least two valid options with a co
 ### Rationale
 
 - A wins when the goal is prioritisation: "which file/flag is furthest from its justified target" is only answerable per file and sortable on the dashboard (acceptance: "Pages dashboard displays per-file metrics (sortable by gap) and aggregates").
-- B wins only if the maintainer wants no new surface at all (for example while #1651 is expected to change what the dashboard shows); it fails the issue's own motivation.
+- B wins only if the maintainer wants no new surface at all (for example while #1651 is expected to change what the dashboard shows); it fails the issue's own motivation. Excluded by rule: AGENTS.md section 9 ("There is no project-wide percentage") rules out colour cut-offs on the obligations figure as the answer (D1).
 - C wins when payload size matters more than actionability; the size cost of A is small (see Design Choice 7).
 - D wins if the 967-row array is judged too heavy for `latest.json` and the sort-by-gap criterion is relaxed; it is the fallback if Design Choice 7 is answered "separate file" and the extra file is refused.
 - The Markdown report keeps the per-file table in every option.
@@ -115,7 +115,7 @@ Eliminated by rule: a project-wide attainment **target** or a fixed colour thres
 
 Eliminated by rule: filling a no-data flag with the **covered lines of another flag** (so that the file looks tested): AGENTS.md section 9 ("a line covered by one flag does not count for another"). Option A borrows only the **number of lines**, never their coverage.
 
-### Chosen Option: **A — Count as 0% measured; borrow the line count, never the coverage** (decided by the maintainer, 2026-10-21)
+### Chosen Option: **A — Count as 0% measured; borrow the line count, never the coverage** (decided by rule, recorded 2026-10-21: AGENTS.md section 9 and IsBelowTarget)
 
 ### Rationale
 
@@ -157,7 +157,7 @@ Eliminated by rule: filling a no-data flag with the **covered lines of another f
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A — Extend the in-script `--self-test` (`RunSelfTest`, `coverage-report.cs:364-445`) with known-answer checks on the new pure functions, using in-memory `coverageByFlag` data as the existing checks do (`:409-435`)** | The test path already exists and already runs in CI (`ci.yml:619-622`), so no workflow change; same style as #1762; the new functions are `static` and pure | A custom check harness, not xUnit or Shouldly; cannot run the Cobertura loader (the loading loop is top-level code, `:668-768`) |
+| **A — Extend the in-script `--self-test` (`RunSelfTest`, `coverage-report.cs:364-445`) with known-answer checks on the new pure functions, using in-memory `coverageByFlag` data as the existing checks do (`:409-435`)** | The test path already exists and already runs in CI (`ci.yml:619-622`), so the `coverage-report.cs` checks need no workflow change (the history self-test adds one command, see "Workflow and script changes"); same style as #1762; the new functions are `static` and pure | A custom check harness, not xUnit or Shouldly; cannot run the Cobertura loader (the loading loop is top-level code, `:668-768`) |
 | **B — Move the pure functions to a shared `.cs` file linked into a test project under `tests/Encina.UnitTests` and write xUnit tests** | Standard test tooling, Shouldly assertions, per-flag coverage reporting | AGENTS.md section 2 scripts are file-based apps with no `.csproj`; `coverage-report.cs` cannot include a second file as far as this plan could establish (not tried), so the functions would exist twice or the script would become a project, which that rule excludes; `AGENTS.md` section 9 measures `src/` only, so the coverage buys nothing |
 | **C — A PowerShell self-test that runs the script end to end on checked-in fixtures (`.github/scripts/testdata/coverage-report/`: a manifest dir and Cobertura XML) and compares the produced JSON with a golden file, like `crap-gate-selftest.ps1`** | Proves the whole chain "manifests + Cobertura -> numbers" (acceptance: "Numbers are reproducible from the manifests + Cobertura files"); catches schema drift in `latest.json` | A new CI step is needed (`ci.yml`, an orchestrator hot spot, next to `:554-556`); fixtures to maintain |
 
@@ -169,7 +169,7 @@ Eliminated by rule: filling a no-data flag with the **covered lines of another f
 - A covers the criterion "Unit tests of the computation in the script's test path pass": the test path **is** `--self-test`. To make the "numbers are reproducible" criterion checkable under A, Phase 6 adds one known-answer fixture (two pairs, values worked by hand in Phase 6) and a check that the JSON object built for `latest.json` contains exactly the documented fields.
 - GuardTests are justified as not applicable: the helpers are `static` local functions of a top-level program, not public API of a package, and the script has none today; a guard test would test a language feature. This is stated in the PR as the issue asks ("justify if the script exposes none").
 - No `src/` file changes, so no per-file coverage obligations arise (AGENTS.md section 9 obligations apply to files under `src/`) and the CRAP gate does not run; the new methods still stay small (Phase 1 rules).
-- Orchestrator rule check (2026-10-21): option B is eliminated by rule (AGENTS.md section 2: scripts are file-based apps with no `.csproj`). The dilemma left for the maintainer is A versus C.
+- Orchestrator rule check (2026-10-21): option B is eliminated by rule (AGENTS.md section 2: scripts are file-based apps with no `.csproj`). The dilemma was A versus C; the maintainer chose A (D5).
 
 </details>
 
@@ -185,7 +185,7 @@ Eliminated by rule: filling a no-data flag with the **covered lines of another f
 | **A — Add an `attainment` object to each existing `history.json` entry (`pairs`, `met`, `ratio`, `lineWeighted`, `meanGap`, `linesToCover`, `noData`, `zeroTarget`); old entries simply lack it** | One file, one writer (`coverage-history.cs:42-69`); the trend chart already reads that file (`app.js:729-741`); no workflow or plumbing change; the cap of 100 applies to both series together | Entries get bigger (about 10 numbers); consumers must tolerate a missing key for old entries; a schema change touches every consumer of `history.json` (the dashboard and `coverage-recalculate.cs` only, today) |
 | **B — A separate `attainment-history.json` with its own cap** | Existing `history.json` schema untouched; can keep more or fewer points | New data file: `pages-dashboard-data.ps1:120` (`$DataFiles`), `docs.yml:103` and `publish-coverage.yml` must learn it, all hot spots; two histories to keep in step and to recalculate |
 
-### Chosen Option: **A — New fields inside the existing entries** (decided by the maintainer, 2026-10-21)
+### Chosen Option: **A — New fields inside the existing entries** (decided by rule, recorded 2026-10-21: AGENTS.md section 1)
 
 ### Rationale
 
@@ -290,7 +290,7 @@ All in `.github/scripts/coverage-report.cs`. Before editing, re-count the sizing
 <summary>Prompt for AI Agents — Phase 1</summary>
 
 ```text
-CONTEXT: Encina coverage tooling. .github/scripts/coverage-report.cs is a C# 14 file-based app (top-level statements, no .csproj). It already builds one FileTargetRow per (file, flag) with a per-file target (BuildFileTargetRows, lines 334-352; record at the end of the file, ~1501) and reports met/below via IsBelowTarget (356-357). Issue #2542 adds attainment (measured vs target) and aggregates. Plan: docs/plans/coverage-target-attainment-implementation-plan-2542.md. The maintainer has not yet answered the nine Design Choices; implement the recommended option of each unless the orchestrator's brief states the answer.
+CONTEXT: Encina coverage tooling. .github/scripts/coverage-report.cs is a C# 14 file-based app (top-level statements, no .csproj). It already builds one FileTargetRow per (file, flag) with a per-file target (BuildFileTargetRows, lines 334-352; record at the end of the file, ~1501) and reports met/below via IsBelowTarget (356-357). Issue #2542 adds attainment (measured vs target) and aggregates. Plan: docs/plans/coverage-target-attainment-implementation-plan-2542.md. The maintainer answered the nine Design Choices on 2026-10-21 (section "Maintainer Decisions" of the plan); implement exactly those options.
 TASK: Add CountFileFlagLines, FileLineCount, GapPoints, Attainment, LinesToCover, the AttainmentSummary record and SummariseAttainment as static pure functions; extend FileTargetRow with TotalLines and CoveredLines; keep MeasureFileFlag and IsBelowTarget behaviour byte for byte. Rules: target 0 pairs are excluded from the pair-count ratio and the mean gap and counted in ZeroTarget; a no-data pair counts as 0% measured and in NoData; its line count may be borrowed from another flag's line set but its covered lines never; line-weighted value = sum(min(covered, t*total)) / sum(t*total) over pairs with a known line count (null when the denominator is 0).
 KEY RULES: A line covered by one flag never counts for another flag (AGENTS.md section 9). No project-wide target or threshold for the new metrics. Compare unrounded values; round only for display. Scripts are PowerShell or C# file-based apps. Edit files only with the Edit/Write tools. Do not touch .github/workflows/*. English only; no AI attribution in commits.
 REFERENCE FILES: .github/scripts/coverage-report.cs (lines 246-255, 323-357, 364-445, 869-875, 1501), docs/testing/coverage-measurement-methodology.md (Per-file targets and justifications), AGENTS.md section 9.
@@ -338,7 +338,7 @@ REFERENCE FILES: .github/scripts/coverage-report.cs (957-998, 1025-1078), .githu
 
 1. `.github/scripts/coverage-history.cs`: after the `perFlag` block (`:58-69`) put `overall["attainment"].DeepClone()` (a `JsonNode` that already has a parent cannot be added to another node) into `entry["attainment"]` when it is an object; when absent, write nothing. Move the entry building into a `static` function and add a `--self-test` mode that checks it with and without `attainment` (this file has none today); CI runs it through the added `ci.yml` command (a `latest.json` from an older schema still produces a valid entry).
 2. Keep the 100-entry cap (`:83-86`) and the rest of the entry unchanged.
-3. `coverage-recalculate.cs` (Design Choice 8 option A): no code change; add a one-line comment at `:170` stating that unknown keys such as `attainment` are intentionally left as published. If the maintainer picks option B, the recalculation writes `attainment` from `newOverall["attainment"]` with `basis: "current-manifests"` and the function is covered by the same self-test style check.
+3. `coverage-recalculate.cs` (Design Choice 8 option A): no code change; add a one-line comment at `:170` stating that unknown keys such as `attainment` are intentionally left as published. (Backfill, option 8-B, was not chosen.)
 4. Self-checks (Phase 6): an entry built from a `latest.json` with and without `attainment`.
 
 </details>
@@ -365,11 +365,11 @@ REFERENCE FILES: .github/scripts/coverage-history.cs, .github/scripts/coverage-r
 <summary>Tasks</summary>
 
 1. `docs/coverage/index.html`: add `<section class="card" id="attainment">` after the `#overall` card with the tiles container, the trend toggle slot, the filter inputs (package, flag, status, search) and `<table id="attainment-table">`. Existing ids (`overall-pct`, `package-table`, `files-table`, ...) stay.
-2. `docs/coverage/app.js` (inside the existing async IIFE, after the overall block at `:201-218`): render the tiles from `data.overall.attainment`; build the row list by reading `data.fileTargets`; sort (default gap descending, clickable headers like the package table, `:247-` and `:401`); filter and search; page size or "top N" so 967 rows stay light. Show "not available yet" when the snapshot has no `attainment` (an older `latest.json`).
-3. Trend: add a `target attainment` series to `renderTrendChart` (`app.js:744-`) from `h.attainment?.ratio`, skipping entries without it; no target line is drawn for this series. The existing block at `:817-830` draws "target 85%" whenever 85 lies inside the axis range, for any series, so add a minimal guard there (draw it only for the combined/per-flag coverage series); this guard is part of this task and does not fix #1656 itself (removing the line). Note the overall card also hard-codes 80/60 cut-offs (`app.js:204`) while the methodology says 70/50: follow-up issue file.
+2. `docs/coverage/app.js` (inside the existing async IIFE, after the overall block at `:201-218`): render the headline (the pairs-met ratio, large) and, in small text below it, the line-weighted attainment, the mean gap in points and the lines to cover, from `data.overall.attainment` (D2); no colour and no threshold on these values; build the row list by reading `data.fileTargets`; sort (default gap descending, clickable headers like the package table, `:247-` and `:401`); filter and search; page size or "top N" so 967 rows stay light. Show "not available yet" when the snapshot has no `attainment` (an older `latest.json`).
+3. Trend: add a `target attainment` series to `renderTrendChart` (`app.js:744-`) from `h.attainment?.ratio`, skipping entries without it; no target line is drawn for this series. The existing block at `:817-830` draws "target 85%" whenever 85 lies inside the axis range, for any series, so add a minimal guard there (draw it only for the combined/per-flag coverage series); this guard is part of this task and does not fix #1656 itself (removing the line). Note the overall card also hard-codes 80/60 cut-offs (`app.js:204`) while the methodology says 70/50: tracked in #2566.
 4. Status colours: the three-state rule of the methodology for the per-row status (pass, warn from 80% of target, fail), using the existing `pctColor`/`barHtml` helpers (`app.js:8-30`).
 5. `docs/coverage/app.css`: only the styles the card needs.
-6. Do not repair the dead File Detail panel here (follow-up issue file; Design Choice 9 option B/C would reuse it).
+6. Do not repair the dead File Detail panel here (tracked in #2566; a decision separate from this plan).
 7. This is the site's code: self-review with `adversarial-reviewer`, not `docs-writer`.
 
 </details>
@@ -379,7 +379,7 @@ REFERENCE FILES: .github/scripts/coverage-history.cs, .github/scripts/coverage-r
 
 ```text
 CONTEXT: The Pages coverage dashboard (docs/coverage/index.html, app.js, app.css) fetches data/latest.json and data/history.json only. Phase 2 adds overall.attainment and a top-level fileTargets array to latest.json; Phase 3 adds attainment to history entries. Plan: docs/plans/coverage-target-attainment-implementation-plan-2542.md.
-TASK: Add the "Target attainment" card: tiles (targets met ratio, line-weighted attainment, mean gap in points, lines to cover, plus the no-data and zero-target counts), a trend toggle fed by history attainment.ratio (skip entries without it), and a table of all (file, flag) rows, sortable by every column (default gap descending), filterable by package/flag/status, with search. Degrade quietly when the snapshot has no attainment.
+TASK: Add the "Target attainment" card: a large pairs-met ratio headline with the other values in small text below it (line-weighted attainment, mean gap in points, lines to cover), and the no-data count and the zero-target count labelled "of which zero-target: N" (D4), a trend toggle fed by history attainment.ratio (skip entries without it), and a table of all (file, flag) rows, sortable by every column (default gap descending), filterable by package/flag/status, with search. Degrade quietly when the snapshot has no attainment.
 KEY RULES: No project-wide target or fixed colour threshold for the new metrics; per-row status uses the existing three-state rule against the row's own target; escape every inserted string (use the existing escapeHtml, app.js:165); no new network fetch; do not touch the 85% line (#1656) or the File Detail panel; keep existing element ids.
 REFERENCE FILES: docs/coverage/app.js (1-130 helpers, 196-218 overall, 247-300 sorting, 729-830 history and trend), docs/coverage/index.html, docs/coverage/app.css.
 ```
@@ -395,7 +395,7 @@ REFERENCE FILES: docs/coverage/app.js (1-130 helpers, 196-218 overall, 247-300 s
 <details>
 <summary>Tasks</summary>
 
-1. List for the orchestrator the `ci.yml` command that runs the history self-test (needed under the recommended options) and, if the maintainer chose 5-C, 6-B, 7-B or 7-C, the other the exact edits from "Workflow and script changes" in the worker brief so the orchestrator makes them.
+1. List for the orchestrator the `ci.yml` command that runs the history self-test (the only workflow edit under the chosen options) in the worker brief, so the orchestrator makes it.
 2. SPEC-001: confirm `cov-docs-render.cs` allowed fields (`:81-82`), `docref-index.json` and `cited-by.json` are unchanged under 7-A; run the dangling-citation check locally (`dotnet run .github/scripts/cov-docs-render.cs -- --check-dangling --docs-root docs --scan-roots src --manifest-dir .github/coverage-manifest --src-root src`).
 3. #1651 (CI gate per flag): the attainment rows are the data a future gate would read; add a sentence to the methodology that attainment is report-only, as the per-file table already is (`coverage-measurement-methodology.md:182`).
 4. Control board: the contract for `artifacts/board/refresh-dash.ps1` is `latest.json` `overall.attainment` (see Next Steps); the script is untracked.
@@ -460,9 +460,9 @@ REFERENCE FILES: .github/scripts/coverage-report.cs (364-445), .github/scripts/c
 <details>
 <summary>Tasks</summary>
 
-1. `docs/testing/coverage-measurement-methodology.md` (owner: `docs-writer`): add "Target attainment" under "Per-file targets and justifications" (after `:182`): definitions (gap, attainment, line-weighted attainment, lines to cover), the rules for no data and zero targets as the maintainer decided them, the `latest.json` and `history.json` fields, why the obligations figure is unchanged, and that the figure is report-only. Remove the sentence at `:187` ("Per-file targets are not yet shown...") and update "How to read the dashboard" (`:418-429`) with the new card. Fix the sentence at `:146` only if the answered choices change the "override nothing" statement (they do not under the recommended options).
+1. `docs/testing/coverage-measurement-methodology.md` (owner: `docs-writer`): add "Target attainment" under "Per-file targets and justifications" (after `:182`): definitions (gap, attainment, line-weighted attainment, lines to cover), the rules for no data and zero targets as the maintainer decided them, the `latest.json` and `history.json` fields, why the obligations figure is unchanged, and that the figure is report-only. Remove the sentence at `:187` ("Per-file targets are not yet shown...") and update "How to read the dashboard" (`:418-429`) with the new card. Fix the sentence at `:146` only if the answered choices change the "override nothing" statement (they do not under the chosen options).
 2. No hand-typed coverage figures anywhere: the page describes formulas and field names; any number comes from a covref marker (SPEC-001) or is omitted. Aggregate attainment is not a per-file DocRef, so it is not cited; the page says where to read it (the dashboard).
-3. Changelog fragment: decision recorded here, none under the recommended options (internal tooling; the dashboard card is the only visible change). If the maintainer rules the dashboard change user-visible, `mechanical-fixer` writes `changelog.d/2542-coverage-target-attainment.added.md`.
+3. Changelog fragment: decision recorded here, none under the chosen options (internal tooling; the dashboard card is the only visible change). If the maintainer rules the dashboard change user-visible, `mechanical-fixer` writes `changelog.d/2542-coverage-target-attainment.added.md`.
 4. Knowledge record: `docs/knowledge/issues/2542.md` is written by the implementation PR that closes the issue (not by this plan PR).
 5. No ADR (tooling; no architectural decision beyond the Design Choices); `ROADMAP.md`, package READMEs, `docs/INVENTORY.md`: not affected (no package, no file inventory of `src/`). PublicAPI files: not applicable.
 6. Verification: zero build warnings is vacuous (no project builds); run the repository's link/lint checks for the changed page through `docs-writer`/`docs-reviewer`, `--check-justifications`, `--self-test`, and the SPEC-001 dangling check.
@@ -507,7 +507,7 @@ REFERENCE FILES: docs/testing/coverage-measurement-methodology.md (139-190, 228-
 | `coverage-recalculate.cs` | `.github/scripts/coverage-recalculate.cs:162-203` | Left alone under Design Choice 8-A (unknown keys survive) |
 | Dashboard | `docs/coverage/index.html`, `app.js` (`:5` fetch, `:196-218` overall, `:744-` trend, `:8-30` colour helpers), `app.css` | Where the card is added |
 | `BuildDocRefIndex` and `cov-docs-render.cs` allowed fields | `coverage-report.cs:1125-1208`; `.github/scripts/cov-docs-render.cs:81-82` | Unchanged; documented so the citation gate keeps working |
-| Publish plumbing | `.github/scripts/pages-dashboard-data.ps1:120` (`$DataFiles`), `.github/workflows/docs.yml:103` | Changed only under a non-recommended option (Workflow and script changes) |
+| Publish plumbing | `.github/scripts/pages-dashboard-data.ps1:120` (`$DataFiles`), `.github/workflows/docs.yml:103` | Not changed (Design Choices 6-A and 7-A) |
 | `artifacts/board/refresh-dash.ps1` | not tracked (`.gitignore:26`) | Out of reach of the PR; contract documented in Next Steps |
 
 ### Event ID Allocation
@@ -524,7 +524,7 @@ REFERENCE FILES: docs/testing/coverage-measurement-methodology.md (139-190, 228-
 | Dashboard changed | 3 (`docs/coverage/index.html`, `app.js`, `app.css`) | One card |
 | Documentation changed | 1 (`docs/testing/coverage-measurement-methodology.md`) | `docs-writer` |
 | Tests | 0 new files | In-script `--self-test` (Design Choice 5-A) |
-| Workflows | 1 (`ci.yml`, one added command) | Under the recommended options; no edit on the publish path (3 files under 6-B or 7-C) |
+| Workflows | 1 (`ci.yml`, one added command) | One added command; no edit on the publish path (Design Choices 6-A, 7-A) |
 | New packages, manifests, PublicAPI, EventIds, changelog fragments | 0 | Decision recorded in Phase 7 |
 
 ---
@@ -535,7 +535,7 @@ REFERENCE FILES: docs/testing/coverage-measurement-methodology.md (139-190, 228-
 <summary><strong>Full combined prompt for all phases</strong></summary>
 
 ```text
-PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; this task is build tooling only (AGENTS.md). Coverage is measured per flag (unit, guard, contract, property, integration); per-file targets with justifications live in .github/coverage-manifest/*.json (#1762). .github/scripts/coverage-report.cs (a file-based app) compares each measured (file, flag) with its target (IsBelowTarget) but reports only met/below. Issue #2542 adds attainment (how close) per pair and in aggregate. Plan: docs/plans/coverage-target-attainment-implementation-plan-2542.md. The maintainer has not answered the nine Design Choices; implement each recommended option unless the brief states the answer.
+PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; this task is build tooling only (AGENTS.md). Coverage is measured per flag (unit, guard, contract, property, integration); per-file targets with justifications live in .github/coverage-manifest/*.json (#1762). .github/scripts/coverage-report.cs (a file-based app) compares each measured (file, flag) with its target (IsBelowTarget) but reports only met/below. Issue #2542 adds attainment (how close) per pair and in aggregate. Plan: docs/plans/coverage-target-attainment-implementation-plan-2542.md. The maintainer answered the nine Design Choices on 2026-10-21 (section "Maintainer Decisions" of the plan); implement exactly those options.
 
 IMPLEMENTATION OVERVIEW:
 1. coverage-report.cs: line counts on FileTargetRow; pure static functions GapPoints, Attainment, LinesToCover, SummariseAttainment (pair-count ratio excluding zero targets, line-weighted attainment sum(min(covered, t*total))/sum(t*total), mean gap in points, lines to cover, noData and zeroTarget counts); no data counts as 0% measured with a borrowed line count but never borrowed coverage.
@@ -571,7 +571,7 @@ REFERENCE FILES: .github/scripts/coverage-report.cs, .github/scripts/coverage-hi
 | 11 | Module Isolation | ❌ | Package roll-ups use the manifest `package` names, not `ModuleId` |
 | 12 | Audit Trail | ❌ | No compliance or security event; per-file targets stay justified in the manifests (`--check-justifications`) |
 
-No function is deferred, so no follow-up issue is needed for the matrix. One follow-up issue file was written for defects found while reading the dashboard (see the report).
+No function is deferred, so no follow-up issue is needed for the matrix. The defects found while reading the dashboard are tracked in #2566.
 
 ---
 
@@ -590,12 +590,12 @@ No function is deferred, so no follow-up issue is needed for the matrix. One fol
 
 | Condition | File | Change |
 |-----------|------|--------|
-| Recommended options | `.github/workflows/ci.yml` | One added command in the step at `:619-622`: `dotnet run .github/scripts/coverage-history.cs -- --self-test` (Phase 3 adds that mode, because `coverage-history.cs` has none and the history check would otherwise never run in CI). Publishing needs no edit: `publish-coverage.yml:109` already copies the summary to `latest.json` |
-| Design Choice 5-C (end-to-end fixture self-test) | `.github/workflows/ci.yml` | One new step beside `:554-556` or an extra command in the step at `:619-622`, running the new `pwsh` self-test |
-| Design Choice 6-B or 7-C (separate data file) | `.github/workflows/publish-coverage.yml` | Stage and persist the new file next to `latest.json` (`:105-124`) |
-| Design Choice 6-B or 7-C | `.github/workflows/docs.yml` | Add the file to the live-data list at `:103` |
-| Design Choice 6-B or 7-C | `.github/scripts/pages-dashboard-data.ps1` | Add the file to `$DataFiles` (`:120`) (a script, not a workflow, but part of the publish chain) |
-| Design Choice 7-B (docref-index) | `.github/scripts/cov-docs-render.cs`, SPEC-001 | Schema and allowed-field change; amend SPEC-001 REQ-002 |
+| Chosen options (D5-A, D6-A, D7-A) | `.github/workflows/ci.yml` | One added command in the step at `:619-622`: `dotnet run .github/scripts/coverage-history.cs -- --self-test` (Phase 3 adds that mode, because `coverage-history.cs` has none and the history check would otherwise never run in CI). Publishing needs no edit: `publish-coverage.yml:109` already copies the summary to `latest.json` |
+| Not applicable: option not chosen | `.github/workflows/ci.yml` | One new step beside `:554-556` or an extra command in the step at `:619-622`, running the new `pwsh` self-test |
+| Not applicable: option not chosen | `.github/workflows/publish-coverage.yml` | Stage and persist the new file next to `latest.json` (`:105-124`) |
+| Not applicable: option not chosen | `.github/workflows/docs.yml` | Add the file to the live-data list at `:103` |
+| Not applicable: option not chosen | `.github/scripts/pages-dashboard-data.ps1` | Add the file to `$DataFiles` (`:120`) (a script, not a workflow, but part of the publish chain) |
+| Not applicable: option not chosen | `.github/scripts/cov-docs-render.cs`, SPEC-001 | Schema and allowed-field change; amend SPEC-001 REQ-002 |
 
 **Risks**: `latest.json` grows by roughly the size of the per-pair array (estimate in Design Choice 7), which the dashboard and the board download on every refresh; a partial CI run lowers the headline temporarily (Design Choice 3-A, by design); a raised target lowers attainment for the same tests, so the history carries `pairs` to explain jumps; the dashboard table must stay responsive with about a thousand rows (page size or top N, Phase 4).
 
@@ -603,7 +603,7 @@ No function is deferred, so no follow-up issue is needed for the matrix. One fol
 
 ## Next Steps
 
-1. Merge this plan. The maintainer answers the nine Design Choices when work on the issue starts (the orchestrator then adds the dated `## Maintainer Decisions` entries and a short issue comment linking them; `check-plan.ps1` without `-Draft` is the gate before the worker brief).
+1. Merge this plan. The maintainer answered the nine Design Choices on 2026-10-21; the answers are recorded in `## Maintainer Decisions` below and linked from a comment on #2542, and `needs-decision` has been removed from the issue. `check-plan.ps1` without `-Draft` passes and is the gate before the worker brief.
 2. The orchestrator writes one worker brief for Phases 1-3 and 6 (scripts and self-test, `issue-worker`), one for Phase 4 (dashboard code, same worker or a second one) and delegates Phase 7 to `docs-writer`.
 3. Self-review with `adversarial-reviewer` on the script and dashboard diffs; PR-level review as usual.
 4. After the merge and the next `publish-coverage` run, the orchestrator updates the untracked `artifacts/board/refresh-dash.ps1` to read `overall.attainment` from the published `latest.json` (fields: `pairs`, `met`, `ratio`, `lineWeighted`, `meanGap`, `linesToCover`, `noData`, `zeroTarget`) for the `dash/coverage` snapshot. That script is not part of the repository.
