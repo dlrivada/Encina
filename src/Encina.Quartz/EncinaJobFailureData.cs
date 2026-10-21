@@ -31,7 +31,7 @@ public static class EncinaJobFailureData
 
     /// <summary>
     /// Key of the failure classification: <c>"Permanent"</c> or <c>"Transient"</c> (unclassified failures
-    /// are reported as transient), as decided by <c>Encina.Messaging.Recoverability.IErrorClassifier</c>.
+    /// are reported as transient), as decided by <c>Encina.Recoverability.IErrorClassifier</c>.
     /// </summary>
     public const string ErrorClassificationKey = "Encina.ErrorClassification";
 }

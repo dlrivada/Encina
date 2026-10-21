@@ -333,7 +333,38 @@ $cases = @(
     @($publish, 'PowerShell', 'pwsh -NoProfile -Command "git push origin x"', 2, 'git push inside pwsh -Command'),
     @($publish, 'PowerShell', 'powershell -c "git -C x push"', 2, 'git push inside powershell -c'),
     @($publish, 'Bash', "bash -lc 'git push'", 2, 'git push inside bash -lc'),
-    @($publish, 'PowerShell', 'pwsh -Command "git status"', 0, 'git status inside pwsh -Command is allowed')
+    @($publish, 'PowerShell', 'pwsh -Command "git status"', 0, 'git status inside pwsh -Command is allowed'),
+    # #2009 item 4: git archive is a local, read-only verb; --remote, --exec and a tar program stay denied.
+    @($publish, 'PowerShell', 'git archive --format zip HEAD', 0, 'git archive to stdout is allowed (#2009)'),
+    @($publish, 'PowerShell', 'git archive HEAD | Out-Null', 0, 'git archive piped is allowed (#2009)'),
+    @($publish, 'PowerShell', 'git archive --output=a.zip --format=zip HEAD -- src', 0, 'git archive --output=<file> is allowed here (ownership judges the path) (#2009)'),
+    @($publish, 'PowerShell', 'git -C D:\x archive -o a.zip HEAD', 0, 'git -C dir archive -o is allowed here (#2009)'),
+    @($publish, 'PowerShell', 'git archive --remote=origin HEAD', 2, 'git archive --remote= is denied (#2009)'),
+    @($publish, 'PowerShell', 'git archive --remote origin HEAD', 2, 'git archive --remote <url> is denied (#2009)'),
+    @($publish, 'PowerShell', 'git archive HEAD --remote=origin', 2, 'git archive with --remote after the tree-ish is denied (#2009)'),
+    @($publish, 'PowerShell', 'git archive --exec=/bin/x --remote=origin HEAD', 2, 'git archive --exec= is denied (#2009)'),
+    @($publish, 'PowerShell', 'git archive --exec evil HEAD', 2, 'git archive --exec <program> is denied (#2009)'),
+    @($publish, 'PowerShell', 'git archive --rem=origin HEAD', 2, 'git archive --rem= (abbreviated --remote) is denied (#2009)'),
+    @($publish, 'PowerShell', 'git archive --ex=evil HEAD', 2, 'git archive --ex= (abbreviated --exec) is denied (#2009)'),
+    @($publish, 'PowerShell', 'git archive "--remote=origin" HEAD', 2, 'git archive with a quoted --remote is denied (#2009)'),
+    @($publish, 'PowerShell', 'git -c tar.x.command=evil archive --format x HEAD', 2, 'git -c tar.*.command archive is denied (#2009)'),
+    @($publish, 'PowerShell', 'git -c TAR.x.command=evil archive HEAD', 2, 'git -c TAR.* (case-insensitive) is denied (#2009)'),
+    @($publish, 'PowerShell', 'git config tar.x.command evil', 2, 'git config tar.*.command is denied (#2009)'),
+    @($publish, 'PowerShell', '$a = ''--remote=origin''; git archive $a HEAD', 2, 'git archive with a variable argument is denied (#2009 review)'),
+    @($publish, 'PowerShell', 'git archive @(''--remote=origin'', ''HEAD'')', 2, 'git archive with a subexpression argument is denied (#2009 review)'),
+    @($publish, 'PowerShell', 'git archive --output $x HEAD', 2, 'git archive --output with a variable path is denied (#2009 review)'),
+    @($publish, 'PowerShell', 'git -c $k=evil archive HEAD', 2, 'git -c with a variable next to archive is denied (#2009 review)'),
+    @($publish, 'PowerShell', '$env:GIT_CONFIG_COUNT = 1; $env:GIT_CONFIG_KEY_0 = ''tar.x.command''; git archive --format x HEAD', 2, 'git archive next to GIT_CONFIG_* is denied (#2009 review)'),
+    @($publish, 'PowerShell', '$env:GIT_CONFIG_GLOBAL = ''C:\x\evil.cfg''; git archive --format x HEAD', 2, 'git archive next to GIT_CONFIG_GLOBAL is denied (#2009 PR review)'),
+    @($publish, 'PowerShell', '$env:GIT_CONFIG_SYSTEM = ''C:\x\evil.cfg''; git archive --format x HEAD', 2, 'git archive next to GIT_CONFIG_SYSTEM is denied (#2009 PR review)'),
+    @($publish, 'PowerShell', 'git archive HEAD -- $path', 0, 'git archive pathspecs after -- may be variables (#2009 review)'),
+    @($publish, 'PowerShell', 'git config -f .git/config tar.x.command evil', 2, 'git config -f <file> tar.*.command is denied (#2009 review)'),
+    @($publish, 'PowerShell', 'git config --file .git/config tar.x.command evil', 2, 'git config --file <file> tar.*.command is denied (#2009 review)'),
+    @($publish, 'PowerShell', 'git config --get tar.x.command', 0, 'git config --get tar.* is a read (#2009 review)'),
+    @($publish, 'PowerShell', 'git config tar.x.command', 0, 'git config <key> alone is a read (#2009 review)'),
+    @($publish, 'PowerShell', 'git config --unset-all tar.x.command', 0, 'git config --unset-all tar.* only removes (#2009 review)'),
+    @($publish, 'PowerShell', 'git push', 2, 'git push is still denied next to archive (#2009)'),
+    @($publish, 'PowerShell', 'git archive HEAD; git push origin x', 2, 'git push after git archive is denied (#2009)')
 )
 
 # -Agent argument, payload agent_type, subagent_type, expected, label
@@ -466,6 +497,17 @@ $writeCases = @(
     @('PowerShell', @{ command = 'Get-Content a.txt >>b.txt' }, $main, 2, '>> attached redirection in the main checkout'),
     @('PowerShell', @{ command = "Get-Content a.txt > '$outside\b.txt'" }, $main, 0, 'redirection outside the project'),
     @('PowerShell', @{ command = 'git status 2>&1; Get-ChildItem > $null' }, $main, 0, '2>&1 and > $null are not writes'),
+    # #2009: only `&<digits>` and `&-` are stream merges; `>&file` / `&>file` write the file.
+    @('PowerShell', @{ command = 'git status >&2; git status 2>&1 >&2; Get-ChildItem *>&1; git status >&-' }, $main, 0, 'stream merges 2>&1, >&2, *>&1 and >&- are not writes (#2009)'),
+    @('PowerShell', @{ command = 'Get-Content a.txt >&b.txt' }, $main, 2, '>&file is a write to file in the main checkout (#2009)'),
+    @('PowerShell', @{ command = 'Get-Content a.txt >& b.txt' }, $main, 2, '>& file (target in the next token) is a write in the main checkout (#2009)'),
+    @('Bash', @{ command = 'echo x &>notes.txt' }, $main, 2, 'Bash &>file is a write in the main checkout (#2009)'),
+    @('Bash', @{ command = 'echo x &> notes.txt' }, $main, 2, 'Bash &> file is a write in the main checkout (#2009)'),
+    @('Bash', @{ command = 'echo x &>/dev/null; echo y >&2' }, $main, 0, 'Bash &>/dev/null and >&2 are not writes (#2009)'),
+    @('PowerShell', @{ command = 'git archive --output=a.zip HEAD' }, $main, 2, 'git archive --output into the main checkout (#2009)'),
+    @('PowerShell', @{ command = 'git archive -o a.zip HEAD' }, $main, 2, 'git archive -o into the main checkout (#2009)'),
+    @('PowerShell', @{ command = 'git archive HEAD | Out-Null' }, $main, 0, 'git archive to stdout is not a write (#2009)'),
+    @('PowerShell', @{ command = "git archive --output '$outside\a.zip' HEAD" }, $main, 0, 'git archive --output outside the project (#2009)'),
     @('PowerShell', @{ command = "Copy-Item '$outside\a.txt' docs\a.txt" }, $main, 2, 'Copy-Item into the main checkout'),
     @('PowerShell', @{ command = "Copy-Item docs\a.txt '$outside\a.txt'" }, $main, 0, 'Copy-Item out of the main checkout'),
     @('PowerShell', @{ command = "Move-Item -Path '$wt\a.txt' -Destination '$main\a.txt'" }, $wt, 2, 'Move-Item -Destination into the main checkout'),
@@ -593,6 +635,10 @@ $writeCases = @(
 
 # tool, command, expected, label (block-prohibited-commands.ps1)
 $commandCases = @(
+    # #2009 item 2: "on system path ... is blocked" is Claude Code's built-in check, not this hook: a regex with
+    # `\.` in a Select-String call passes here, a real prohibited command still does not.
+    @('PowerShell', 'Select-String -Pattern ''\.Compile\('' -InputObject $text', 0, 'Select-String with a regex fragment is not blocked by this hook (#2009 item 2)'),
+    @('PowerShell', 'Select-String -Pattern ''\.Compile\('' -InputObject $text; python x.py', 2, 'a python call next to that Select-String is still blocked (#2009 item 2)'),
     @('PowerShell', 'grep -r foo src', 2, 'grep'),
     @('PowerShell', 'python script.py', 2, 'python'),
     @('PowerShell', 'python3 -c "print(1)"', 2, 'python3'),
@@ -898,6 +944,19 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "Get-Content x.patch | git -C '$wt' apply" }, $main, $null, 2, 'main session: git apply from stdin'),
     @('PowerShell', @{ command = "git -C '$wt' am '$srcPatch'" }, $main, $null, 2, 'main session: git am of a patch that changes src'),
     @('PowerShell', @{ command = "git -C '$wt' rebase origin/main" }, $main, $null, 0, 'main session: git rebase is allowed'),
+    # #2009 item 1: a redirection token is not a pathspec (the orchestrator's `git checkout main 2>$null`).
+    @('PowerShell', @{ command = 'git checkout main 2>$null' }, $wt, $null, 0, 'main session: git checkout <branch> 2>$null (#2009)'),
+    @('PowerShell', @{ command = 'git checkout main 2>&1' }, $wt, $null, 0, 'main session: git checkout <branch> 2>&1 (#2009)'),
+    @('PowerShell', @{ command = 'git checkout main *>&1' }, $wt, $null, 0, 'main session: git checkout <branch> *>&1 (#2009)'),
+    @('PowerShell', @{ command = 'git checkout main > $null' }, $wt, $null, 0, 'main session: git checkout <branch> > $null (#2009)'),
+    @('PowerShell', @{ command = 'git checkout main 2>$null' }, $wt, 'a1b2', 0, 'general-purpose subagent: git checkout <branch> 2>$null (#2009)', 'general-purpose'),
+    @('PowerShell', @{ command = 'git checkout main -- tests\x.cs' }, $wt, $null, 2, 'main session: git checkout <rev> -- tests path is still denied (#2009)'),
+    @('PowerShell', @{ command = 'git checkout main -- tests\x.cs 2>$null' }, $wt, $null, 2, 'main session: a real pathspec next to 2>$null is still denied (#2009)'),
+    @('PowerShell', @{ command = 'git checkout main src\x.cs 2>&1' }, $wt, $null, 2, 'main session: git checkout <rev> <path> 2>&1 is still denied (#2009)'),
+    @('PowerShell', @{ command = 'git diff 2>&1 > src\x.txt' }, $wt, $null, 2, 'main session: 2>&1 followed by a redirect into src is still denied (#2009)'),
+    @('PowerShell', @{ command = 'git diff >&src\x.txt' }, $wt, $null, 2, 'main session: >&file into src is denied (#2009)'),
+    @('Bash', @{ command = 'git diff &>src/x.txt' }, $wt, $null, 2, 'main session: Bash &>file into src is denied (#2009)'),
+    @('PowerShell', @{ command = "git diff main > '$outside\d.diff'" }, $wt, $null, 0, 'main session: a scratch redirect outside the repository (#2009)'),
     @('PowerShell', @{ command = "Invoke-WebRequest https://example.com/x -OutFile '$wt\src\x.cs'" }, $main, $null, 2, 'main session: Invoke-WebRequest -OutFile into src'),
     @('PowerShell', @{ command = "Invoke-RestMethod https://example.com/x -OutFile '$outside\x.json'" }, $main, $null, 0, 'main session: Invoke-RestMethod -OutFile outside'),
     @('PowerShell', @{ command = "Expand-Archive '$outside\a.zip' -DestinationPath '$wt'" }, $main, $null, 2, 'main session: Expand-Archive into a checkout root'),
@@ -1276,6 +1335,42 @@ try {
         # pr-reviewer directly, the same way the stage-agent cases above do.
         @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\src\Encina\X.cs' -Value 'fabricated'", 2, 'shell vector (#1447): pr-reviewer shell write outside artifacts/pr-review is denied'),
         @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\pr-review\1447.md' -Value 'ok'", 0, 'shell vector (#1447): pr-reviewer shell write to its own artifacts/pr-review is allowed'),
+        # #2009 item 1: a redirection token is not a pathspec; real pathspecs and real redirections still count.
+        @('pr-reviewer', 'PowerShell', 'git checkout main 2>&1', 0, 'redirect (#2009): git checkout <branch> 2>&1 is allowed for pr-reviewer'),
+        @('pr-reviewer', 'PowerShell', 'git checkout main 2>$null', 0, 'redirect (#2009): git checkout <branch> 2>$null is allowed for pr-reviewer'),
+        @('pr-reviewer', 'PowerShell', 'git checkout main *>&1', 0, 'redirect (#2009): git checkout <branch> *>&1 is allowed for pr-reviewer'),
+        @('pr-reviewer', 'PowerShell', 'git checkout main >&2', 0, 'redirect (#2009): git checkout <branch> >&2 is allowed for pr-reviewer'),
+        @('pr-reviewer', 'PowerShell', 'git checkout main > $null', 0, 'redirect (#2009): git checkout <branch> > $null is allowed for pr-reviewer'),
+        @('pr-reviewer', 'PowerShell', "git diff main > '$outside\d.diff'", 0, 'redirect (#2009): a scratch redirect of git diff outside the repository is allowed'),
+        @('pr-reviewer', 'PowerShell', "git diff main 2>&1 > '$outside\d.diff'", 0, 'redirect (#2009): 2>&1 plus a scratch redirect outside the repository is allowed'),
+        @('pr-reviewer', 'PowerShell', 'git checkout main src\x.cs', 2, 'redirect (#2009): git checkout <rev> <path> in src is still denied'),
+        @('pr-reviewer', 'PowerShell', 'git checkout main src\x.cs 2>&1', 2, 'redirect (#2009): a real pathspec next to 2>&1 is still denied'),
+        @('pr-reviewer', 'PowerShell', 'git restore src\x.cs 2>$null', 2, 'redirect (#2009): git restore <path> next to 2>$null is still denied'),
+        @('pr-reviewer', 'PowerShell', 'git diff 2>&1 > src\x.txt', 2, 'redirect (#2009): 2>&1 followed by a redirect into the repository is still denied'),
+        @('pr-reviewer', 'PowerShell', 'git diff > src\x.txt', 2, 'redirect (#2009): a redirect into the repository is still denied'),
+        @('pr-reviewer', 'PowerShell', 'git checkout main > src\x.txt', 2, 'redirect (#2009): git checkout <branch> > repo file is denied through the redirect'),
+        @('pr-reviewer', 'PowerShell', 'git diff >&src\x.txt', 2, 'redirect (#2009): >&file is a write to file, denied'),
+        @('pr-reviewer', 'PowerShell', 'git diff >& src\x.txt', 2, 'redirect (#2009): >& file (target in the next token) is denied'),
+        @('pr-reviewer', 'Bash', 'git diff &>src/x.txt', 2, 'redirect (#2009): Bash &>file is a write to file, denied'),
+        @('pr-reviewer', 'Bash', 'git diff &> src/x.txt', 2, 'redirect (#2009): Bash &> file is denied'),
+        @('pr-reviewer', 'Bash', 'git diff &>/dev/null', 0, 'redirect (#2009): Bash &>/dev/null is not a write'),
+        @('pr-reviewer', 'Bash', 'git diff 2>& 1', 0, 'redirect (#2009 review): Bash 2>& 1 (a space) is a stream merge, not a file named 1'),
+        @('pr-reviewer', 'Bash', 'git diff >& 2', 0, 'redirect (#2009 review): Bash >& 2 is a stream merge'),
+        # #2009 item 4: git archive --output is a write to that path.
+        @('pr-reviewer', 'PowerShell', 'git archive --format zip HEAD', 0, 'archive (#2009): git archive to stdout is allowed'),
+        @('pr-reviewer', 'PowerShell', 'git archive HEAD | Out-Null', 0, 'archive (#2009): git archive piped is allowed'),
+        @('pr-reviewer', 'PowerShell', "git archive --output '$outside\a.zip' HEAD", 0, 'archive (#2009): --output outside the repository is allowed'),
+        @('pr-reviewer', 'PowerShell', "git archive --output='$outside\a.zip' HEAD", 0, 'archive (#2009): --output=<outside path> is allowed'),
+        @('pr-reviewer', 'PowerShell', "git archive -o '$outside\a.zip' HEAD", 0, 'archive (#2009): -o <outside path> is allowed'),
+        @('pr-reviewer', 'PowerShell', 'git archive --output src\a.zip HEAD', 2, 'archive (#2009): --output into the repository is denied'),
+        @('pr-reviewer', 'PowerShell', 'git archive --output=src\a.zip HEAD', 2, 'archive (#2009): --output=<repo path> is denied'),
+        @('pr-reviewer', 'PowerShell', 'git archive --out src\a.zip HEAD', 2, 'archive (#2009): --out (abbreviated --output) into the repository is denied'),
+        @('pr-reviewer', 'PowerShell', 'git archive --o=src\a.zip HEAD', 2, 'archive (#2009): --o= into the repository is denied'),
+        @('pr-reviewer', 'PowerShell', 'git archive -o src\a.zip HEAD', 2, 'archive (#2009): -o <repo path> is denied'),
+        @('pr-reviewer', 'PowerShell', 'git archive -osrc\a.zip HEAD', 2, 'archive (#2009): -o<repo path> attached is denied'),
+        @('pr-reviewer', 'PowerShell', 'git archive HEAD -o src\a.zip', 2, 'archive (#2009): -o after the tree-ish is denied'),
+        @('pr-reviewer', 'PowerShell', 'git archive HEAD > src\a.zip', 2, 'archive (#2009): a redirect of archive into the repository is denied'),
+        @('pr-reviewer', 'PowerShell', "git -C '$wt' archive --output docs\a.zip HEAD", 2, 'archive (#2009): git -C <repo> --output into the repository is denied'),
         # #1523: the coverage-scratch allowance is checked through the same Test-PathOwnership path for a shell
         # write as for a Write/Edit tool call, so redirection into artifacts/audit/coverage behaves the same as
         # the direct Write case above (allowed for test-auditor/audit-verifier, denied for anyone else).
@@ -4711,6 +4806,55 @@ The fluent builder chain described in the documentation is fictional. The parame
             @("`$sb={ 1 }; & `$sb", 'a call through a variable holding a script block'))) {
         Invoke-Probe1854 'adversarial-reviewer' $case[0] 0 "adversarial-reviewer: $($case[1]) is allowed (#1854 review)"
     }
+    # ---- #2009 item 3: a script path through a variable that the same command assigns once, at its top level,
+    # to a literal resolves and is judged like a literal path; every other variable path stays unresolved. ----
+    $wordingPattern2009 = 'cannot resolve \(tried .*against base .*assign the variable to a literal earlier in the same command'
+    foreach ($case in @(
+            @("`$wt = '$s'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'pwsh -File through a literal-assigned variable (double-quoted path)'),
+            @("`$wt = '$s'; pwsh -NoProfile -File `$wt\benign.ps1", 'pwsh -File through a literal-assigned variable (bare path)'),
+            @("`$wt = '$s'; pwsh -NoProfile -File `"`${wt}\benign.ps1`"", 'pwsh -File through a braced variable'),
+            @("`$wt = `"$s`"; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a double-quoted literal without variables'),
+            @("[string]`$wt = '$s'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a typed assignment'),
+            @("`$wt = '$s'; & `"`$wt\benign.ps1`"", 'the call operator through a literal-assigned variable'),
+            @("`$p = '$s\benign.ps1'; & `$p", 'a call through a variable holding the script path'),
+            @("`$wt = '$s'; Set-Location `$wt; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a second use of the same variable'))) {
+        Invoke-Probe1854 'adversarial-reviewer' $case[0] 0 "adversarial-reviewer: $($case[1]) is allowed (#2009)"
+        Invoke-Probe1854 'pr-reviewer' $case[0] 0 "pr-reviewer: $($case[1]) is allowed (#2009)"
+    }
+    Invoke-Probe1854 'adversarial-reviewer' "`$wt = '$s'; pwsh -NoProfile -File `"`$wt\evil.ps1`"" 2 'adversarial-reviewer: a resolved variable path to a script that references src/ and writes files is blocked (#2009)' 'evil\.ps1.* which references src/ or tests/ and writes files'
+    Invoke-Probe1854 'pr-reviewer' "`$wt = '$s'; & `"`$wt\evil.ps1`"" 2 'pr-reviewer: the call operator through a resolved variable to a harmful script is blocked (#2009)' 'references src/ or tests/ and writes files'
+    Invoke-Probe1854 'adversarial-reviewer' "`$wt = '$s'; pwsh -NoProfile -File `"`$wt\missing.ps1`"" 2 'adversarial-reviewer: a resolved variable path to a missing script is blocked (#2009)' 'which does not exist'
+    Set-Content -LiteralPath (Join-Path $s 'rebind.ps1') -Value "`$global:wt = 'C:\other'`n"
+    foreach ($case in @(
+            @("`$wt = '$s'; & '$s\rebind.ps1'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a script called by name that sets $global:wt before the launch'),
+            @("`$wt = '$s'; `$wt = 'C:\other'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable assigned twice'),
+            @("`$wt = '$s'; `$wt += '\x'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable extended with +='),
+            @("`$wt = '$s'; `$wt++; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable incremented'),
+            @("pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable from another call'),
+            @("pwsh -NoProfile -File `"`$wt\benign.ps1`"; `$wt = '$s'", 'a variable used before it is assigned'),
+            @("`$wt = '$s'; pwsh -NoProfile -File `"`$wt\`$other.ps1`"", 'a path with a second unresolved variable'),
+            @("`$wt = '$s'; pwsh -NoProfile -File `"`$wt\`$env:NOPE_2009.ps1`"", 'a path with a second variable the hook does not know'),
+            @("if (`$true) { `$wt = '$s' }; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'an assignment inside an if'),
+            @("foreach (`$i in 1) { `$wt = '$s' }; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'an assignment inside a loop'),
+            @("`$run = { `$wt = '$s' }; & `$run; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'an assignment inside a script block'),
+            @("`$wt = '$s'; Set-Item variable:wt 'C:\other'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable rebound with Set-Item variable:'),
+            @("`$wt = '$s'; 'C:\other' | Tee-Object -Variable wt | Out-Null; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable rebound with Tee-Object -Variable'),
+            @("`$wt = '$s'; Microsoft.PowerShell.Utility\Set-Variable wt 'C:\other'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable rebound with a module-qualified Set-Variable'),
+            @("`$wt = '$s'; `$ExecutionContext.SessionState.PSVariable.Set('wt','C:\other'); pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable rebound through a .NET call'),
+            @("`$wt = '$s'; & ([scriptblock]::Create('`$global:wt = ''C:\other''')); pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable rebound by a created script block'),
+            @("`$wt = '$s'; New-Item -Path variable:wt -Value 'C:\other' -Force; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable rebound with New-Item variable:'),
+            @("`$wt = '$s'; & Set-Variable wt 'C:\other'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable rebound through the call operator'),
+            @("`$wt = '$s'; Set-Variable wt 'C:\other'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable rebound with Set-Variable'),
+            @("`$wt = '$s'; Get-Item . -OutVariable wt; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable rebound with -OutVariable'),
+            @("`$wt = '$s'; foreach (`$wt in 1) { }; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable rebound by a foreach'),
+            @("`$wt = '$s'; . '$s\benign2.ps1'; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a dot-sourced script that could rebind the variable'),
+            @("`$wt = Get-Location; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable assigned from a command'),
+            @("`$wt = `"`$env:TEMP`"; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a variable assigned from an expandable string'),
+            @("`$wt = '$s'; pwsh -NoProfile -Command 'pwsh -NoProfile -File `$wt\benign.ps1'", 'a path inside a single-quoted wrapper string'),
+            @("`$wt = '$s'; Set-Content `$other x; pwsh -NoProfile -File `"`$wt\benign.ps1`"", 'a write the hook cannot resolve next to the launch'))) {
+        Invoke-Probe1854 'adversarial-reviewer' $case[0] 2 "adversarial-reviewer: $($case[1]) stays unresolved and blocked, naming the workaround (#2009)" $wordingPattern2009
+    }
+    Invoke-Probe1854 'pr-reviewer' "pwsh -NoProfile -File `"`$wt\benign.ps1`"" 2 'pr-reviewer: an unassigned variable path is blocked with the workaround in the message (#2009)' $wordingPattern2009
     Remove-Item -LiteralPath $scratch1854 -Recurse -Force -ErrorAction SilentlyContinue
     # ---- end #1854 block ----
 
@@ -4883,6 +5027,147 @@ The fluent builder chain described in the documentation is fictional. The parame
     $script:total++
     if ($undocumented.Count -gt 0) { $script:failed++; "FAIL issue-worker.md does not name these source extensions of block-main-checkout-writes.ps1: $($undocumented -join ', ')" }
     else { "PASS issue-worker.md names every source extension of block-main-checkout-writes.ps1 ($($hookExtensions.Count))" }
+
+    # #2516: orchestrator mode. A marked session gets the reminder and its specialist-level steps are denied;
+    # an unmarked session and any subagent (agent_id) are untouched. State lives in a temp folder
+    # (ENCINA_ORCHESTRATOR_STATE_ROOT) and the home directory is faked so the memory-dir exemption is real.
+    $orchGuard = Join-Path $hooks 'orchestrator-delegation-guard.ps1'
+    $orchReminder = Join-Path $hooks 'orchestrator-prompt-reminder.ps1'
+    $orchMode = Join-Path $repo 'tools\ai\orchestrator-mode.ps1'
+    $orchState = Join-Path $work 'orch-state'
+    $orchHome = Join-Path $work 'orch-home'
+    $orchMemory = Join-Path $orchHome '.claude\projects\proj\memory'
+    New-Item -ItemType Directory -Force $orchMemory | Out-Null
+    $longLines = (1..200 | ForEach-Object { "line $_" })
+    Set-Content (Join-Path $work 'orch-long.txt') $longLines
+    Set-Content (Join-Path $work 'orch-short.txt') (1..10 | ForEach-Object { "line $_" })
+    Set-Content (Join-Path $orchMemory 'long.md') $longLines
+    $savedOrch = @{ State = $env:ENCINA_ORCHESTRATOR_STATE_ROOT; Profile = $env:USERPROFILE; Home = $env:HOME }
+    try {
+        $env:ENCINA_ORCHESTRATOR_STATE_ROOT = $orchState
+        $env:USERPROFILE = $orchHome
+        $env:HOME = $orchHome
+        $markOut = & pwsh -NoProfile -File $orchMode -On -StartPercent 59 -SessionId 'sess-marked' -StateRoot $orchState 2>&1
+        $script:total++
+        if ((Test-Path (Join-Path $orchState 'sess-marked.json')) -and "$markOut" -match 'cap 76%') { 'PASS orchestrator-mode.ps1 -On writes the state file (cap 76%)' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -On did not mark the session: $markOut" }
+
+        function New-OrchPayload([string]$Session, [string]$Tool, $ToolInput, [string]$AgentId) {
+            $p = @{ session_id = $Session; tool_name = $Tool; cwd = $repo; tool_input = $ToolInput }
+            if ($AgentId) { $p.agent_id = $AgentId; $p.agent_type = 'issue-worker' }
+            return ($p | ConvertTo-Json -Compress -Depth 5)
+        }
+        $longRepo = Join-Path $repo 'docs\engineering\ENGINEERING-HANDBOOK.md'
+        $repoReadme = Join-Path $repo 'README.md'
+        $tempTarget = Join-Path ([IO.Path]::GetTempPath()) 'encina-orch-probe.txt'
+        Set-Content (Join-Path $work 'orch-long.png') $longLines
+        $orchHandoffDir = Join-Path $repo 'artifacts\handoff'
+        $orchHandoffCreated = -not (Test-Path $orchHandoffDir)
+        New-Item -ItemType Directory -Force $orchHandoffDir | Out-Null
+        $orchHandoffLong = Join-Path $orchHandoffDir 'orch-test-long.md'
+        Set-Content $orchHandoffLong $longLines
+        $denyCases = @(
+            @('Read', @{ file_path = $longRepo }, 'a long Read without limit'),
+            @('Read', @{ file_path = $longRepo; limit = 2000 }, 'a long Read with limit 2000'),
+            @('Edit', @{ file_path = $repoReadme; old_string = 'a'; new_string = 'b' }, 'an Edit in the repository'),
+            @('Write', @{ file_path = (Join-Path $repo 'x.txt'); content = 'x' }, 'a Write in the repository'),
+            @('PowerShell', @{ command = 'gh issue comment 1 --body "x"' }, 'gh issue comment'),
+            @('PowerShell', @{ command = 'gh issue edit 1 --title "x"' }, 'gh issue edit'),
+            @('PowerShell', @{ command = 'gh pr comment 1 --body "x"' }, 'gh pr comment'),
+            @('PowerShell', @{ command = 'gh pr edit 1 --body "x"' }, 'gh pr edit'),
+            @('PowerShell', @{ command = "pwsh -File '$orchMode' -Off; gh issue comment 1 --body x" }, 'gh issue comment chained after orchestrator-mode.ps1'),
+            @('PowerShell', @{ command = "pwsh -File '$(Join-Path $work 'orchestrator-mode.ps1')' -Off > '$repoReadme'" }, 'a lookalike orchestrator-mode.ps1 outside tools/ai'),
+            @('Bash', @{ command = 'gh issue comment 1 --body "x"' }, 'gh issue comment through the Bash tool'),
+            @('NotebookEdit', @{ notebook_path = (Join-Path $repo 'nb.ipynb'); new_source = 'x' }, 'a NotebookEdit in the repository'),
+            @('Read', @{ file_path = (Join-Path $work 'orch-long.txt') }, 'a long Read of a text file outside the repository'),
+            @('PowerShell', @{ command = 'gh issue close 1 --comment "done"' }, 'gh issue close --comment'),
+            @('PowerShell', @{ command = 'gh pr close 1 -c "done"' }, 'gh pr close -c'),
+            @('PowerShell', @{ command = 'gh issue reopen 1 --comment "again"' }, 'gh issue reopen --comment'),
+            @('PowerShell', @{ command = "pwsh -File '$orchMode' -Off > '$(Join-Path $repo 'artifacts\off.txt')'" }, 'orchestrator-mode.ps1 -Off with output redirected into the repository'),
+            @('PowerShell', @{ command = "pwsh -File '$orchMode' -SessionId x 2> docs/x.md" }, 'orchestrator-mode.ps1 with stderr redirected to a relative repository path'),
+            @('PowerShell', @{ command = "Set-Content '$(Join-Path $repo 'artifacts\other\x.md')' 'x'" }, 'Set-Content to artifacts\other'),
+            @('PowerShell', @{ command = "Set-Content '$repoReadme' 'x'" }, 'Set-Content to a repository path'),
+            @('PowerShell', @{ command = "'x' | Add-Content '$(Join-Path $repo 'artifacts\y.txt')'" }, 'Add-Content to a repository path')
+        )
+        foreach ($c in $denyCases) {
+            Invoke-HookCase $orchGuard (New-OrchPayload 'sess-marked' $c[0] $c[1] '') 2 "orchestrator mode: marked session, $($c[2]) is denied"
+            Invoke-HookCase $orchGuard (New-OrchPayload 'sess-unmarked' $c[0] $c[1] '') 0 "orchestrator mode: unmarked session, $($c[2]) is allowed"
+            Invoke-HookCase $orchGuard (New-OrchPayload 'sess-marked' $c[0] $c[1] 'agent-1') 0 "orchestrator mode: subagent of the marked session, $($c[2]) is allowed"
+        }
+        $allowCases = @(
+            @('Read', @{ file_path = $longRepo; limit = 150 }, 'Read with limit 150'),
+            @('Read', @{ file_path = (Join-Path $work 'orch-short.txt') }, 'Read of a short file'),
+            @('Read', @{ file_path = (Join-Path $orchMemory 'long.md') }, 'Read of a long memory file'),
+            @('Read', @{ file_path = (Join-Path $repo 'AGENTS.md') }, 'Read of AGENTS.md (231 lines)'),
+            @('Edit', @{ file_path = (Join-Path $orchMemory 'MEMORY.md'); old_string = 'a'; new_string = 'b' }, 'Edit in the memory dir'),
+            @('Write', @{ file_path = (Join-Path ([IO.Path]::GetTempPath()) 'claude\scratch\note.txt'); content = 'x' }, 'Write in the scratchpad root'),
+            @('PowerShell', @{ command = 'gh issue view 1 --repo dlrivada/Encina --comments' }, 'gh issue view'),
+            @('PowerShell', @{ command = 'gh pr checks 1' }, 'gh pr checks'),
+            @('PowerShell', @{ command = 'gh pr list --state open' }, 'gh pr list'),
+            @('PowerShell', @{ command = "pwsh -File '$orchMode' -Off" }, 'orchestrator-mode.ps1 -Off'),
+            @('PowerShell', @{ command = "pwsh -File '$orchMode' -Off > '$tempTarget'" }, 'orchestrator-mode.ps1 -Off with output redirected to a temp path'),
+            @('Read', @{ file_path = $orchHandoffLong }, 'Read of a long artifacts\handoff file'),
+            @('Read', @{ file_path = (Join-Path $repo 'CLAUDE.md') }, 'Read of CLAUDE.md'),
+            @('Read', @{ file_path = (Join-Path $work 'orch-long.png') }, 'Read of a long .png'),
+            @('Write', @{ file_path = (Join-Path $repo 'artifacts\handoff\x.md'); content = 'x' }, 'Write to artifacts\handoff'),
+            @('PowerShell', @{ command = "Set-Content '$(Join-Path $repo 'artifacts\local-ai\briefs\x.md')' 'x'" }, 'Set-Content to artifacts\local-ai\briefs'),
+            @('PowerShell', @{ command = 'gh issue close 1' }, 'gh issue close without a comment'),
+            @('PowerShell', @{ command = "Set-Content '$tempTarget' 'x'" }, 'Set-Content to a temp path'),
+            @('PowerShell', @{ command = 'git status' }, 'git status')
+        )
+        foreach ($c in $allowCases) {
+            Invoke-HookCase $orchGuard (New-OrchPayload 'sess-marked' $c[0] $c[1] '') 0 "orchestrator mode: marked session, $($c[2]) is allowed"
+        }
+        Invoke-HookCase $orchGuard 'not json' 0 'orchestrator mode: a malformed payload fails open'
+        Invoke-HookCase $orchGuard (New-OrchPayload '' 'PowerShell' @{ command = 'gh issue comment 1 --body "x"' } '') 0 'orchestrator mode: a payload without session_id is allowed'
+
+        # The reminder: at most 3 lines, with the start and the cap; silent otherwise.
+        $promptBody = { param($s, $a) $p = @{ session_id = $s; hook_event_name = 'UserPromptSubmit'; prompt = 'hello'; cwd = $repo }; if ($a) { $p.agent_id = $a }; $p | ConvertTo-Json -Compress }
+        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: the reminder is emitted for the marked session' '' '(?s)^(?=.*UserPromptSubmit)(?=.*started at 59%)(?=.*cap 76%)'
+        $reminderJson = (& $promptBody 'sess-marked' '') | pwsh -NoProfile -File $orchReminder | ConvertFrom-Json
+        $reminderLines = @(([string]$reminderJson.hookSpecificOutput.additionalContext) -split "`n")
+        $script:total++
+        if ($reminderLines.Count -le 3 -and $reminderLines.Count -ge 2 -and $reminderJson.hookSpecificOutput.hookEventName -eq 'UserPromptSubmit') { "PASS orchestrator mode: the reminder has $($reminderLines.Count) lines (at most 3)" } else { $script:failed++; "FAIL orchestrator mode: the reminder has $($reminderLines.Count) lines" }
+        $silent = (& $promptBody 'sess-unmarked' '') | pwsh -NoProfile -File $orchReminder
+        $script:total++
+        if ([string]::IsNullOrWhiteSpace("$silent")) { 'PASS orchestrator mode: no reminder for an unmarked session' } else { $script:failed++; "FAIL orchestrator mode: reminder for an unmarked session: $silent" }
+        $silent = (& $promptBody 'sess-marked' 'agent-1') | pwsh -NoProfile -File $orchReminder
+        $script:total++
+        if ([string]::IsNullOrWhiteSpace("$silent")) { 'PASS orchestrator mode: no reminder for a payload with agent_id' } else { $script:failed++; "FAIL orchestrator mode: reminder for a subagent: $silent" }
+        Invoke-HookCase $orchReminder 'not json' 0 'orchestrator mode: the reminder fails open on a malformed payload'
+        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: a reminder on the day of -On says "today"' '' 'Budget pace today: started at 59%'
+        # A mark from an earlier UTC day: the reminder says the cap is stale.
+        $staleState = [ordered]@{ sessionId = 'sess-stale'; markedAtUtc = '2020-01-02T03:04:05Z'; startPercent = 59; pacePercent = 17; capPercent = 76 } | ConvertTo-Json
+        [IO.File]::WriteAllText((Join-Path $orchState 'sess-stale.json'), $staleState)
+        Invoke-HookCase $orchReminder (& $promptBody 'sess-stale' '') 0 'orchestrator mode: a mark from an earlier day emits "re-run -On"' '' 'set 2020-01-02, re-run -On for today.*started at 59%.*cap 76%'
+        Remove-Item (Join-Path $orchState 'sess-stale.json')
+
+        # -Off unmarks: the same deny input is allowed afterwards, and -Off is idempotent.
+        $offOut = & pwsh -NoProfile -File $orchMode -Off -SessionId 'sess-marked' -StateRoot $orchState 2>&1
+        $offAgain = & pwsh -NoProfile -File $orchMode -Off -SessionId 'sess-marked' -StateRoot $orchState 2>&1
+        $script:total++
+        if (-not (Test-Path (Join-Path $orchState 'sess-marked.json')) -and $LASTEXITCODE -eq 0 -and "$offOut" -match 'unmarked' -and "$offAgain" -match 'was not marked') { 'PASS orchestrator-mode.ps1 -Off unmarks and is idempotent' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -Off: $offOut / $offAgain" }
+        Invoke-HookCase $orchGuard (New-OrchPayload 'sess-marked' 'PowerShell' @{ command = 'gh issue comment 1 --body "x"' } '') 0 'orchestrator mode: after -Off the session is allowed'
+
+        $noStart = & pwsh -NoProfile -NonInteractive -File $orchMode -On -SessionId 'sess-x' -StateRoot $orchState 2>&1
+        $script:total++
+        if ($LASTEXITCODE -ne 0 -and -not (Test-Path (Join-Path $orchState 'sess-x.json'))) { 'PASS orchestrator-mode.ps1 -On without -StartPercent fails' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -On without -StartPercent succeeded: $noStart" }
+
+        $guardEntries = @((Get-Content (Join-Path $repo '.claude\settings.json') -Raw | ConvertFrom-Json).hooks.PreToolUse | Where-Object { @($_.hooks.command) -match 'orchestrator-delegation-guard\.ps1' })
+        $wiredOrch = @($guardEntries | ForEach-Object { $_.hooks.command } | Where-Object { $_ -match 'orchestrator-delegation-guard\.ps1' })
+        $uncovered = @('Read', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell' | Where-Object { $tn = $_; -not @($guardEntries | Where-Object { $tn -match "^($($_.matcher))$" }) })
+        $script:total++
+        if ($uncovered.Count -eq 0) { 'PASS settings.json matchers of the orchestrator guard cover Read, Write, Edit, MultiEdit, NotebookEdit, Bash and PowerShell' } else { $script:failed++; "FAIL settings.json: the orchestrator guard matchers miss $($uncovered -join ', ')" }
+        $wiredPrompt = @((Get-Content (Join-Path $repo '.claude\settings.json') -Raw | ConvertFrom-Json).hooks.UserPromptSubmit | ForEach-Object { $_.hooks.command } | Where-Object { $_ -match 'orchestrator-prompt-reminder\.ps1' })
+        $script:total++
+        if ($wiredOrch.Count -eq 3 -and $wiredPrompt.Count -eq 1) { 'PASS settings.json wires the orchestrator guard on Read, Edit and PowerShell and the reminder on UserPromptSubmit' } else { $script:failed++; "FAIL settings.json wiring of the orchestrator hooks: guard $($wiredOrch.Count) (expected 3), reminder $($wiredPrompt.Count) (expected 1)" }
+    }
+    finally {
+        if ($orchHandoffLong) { Remove-Item -LiteralPath $orchHandoffLong -Force -ErrorAction SilentlyContinue }
+        if ($orchHandoffCreated -and $orchHandoffDir) { Remove-Item -LiteralPath $orchHandoffDir -Force -ErrorAction SilentlyContinue }
+        $env:ENCINA_ORCHESTRATOR_STATE_ROOT = $savedOrch.State
+        $env:USERPROFILE = $savedOrch.Profile
+        $env:HOME = $savedOrch.Home
+    }
 }
 finally {
     Pop-Location

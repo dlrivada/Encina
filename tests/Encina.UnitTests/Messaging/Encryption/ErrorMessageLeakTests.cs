@@ -13,6 +13,7 @@ using Encina.Messaging.ScatterGather;
 using Encina.Messaging.Scheduling;
 using Encina.Messaging.Serialization;
 using Encina.OpenTelemetry.Enrichers;
+using Encina.Recoverability;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
 using LanguageExt;

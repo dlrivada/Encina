@@ -78,7 +78,7 @@ internal static class AIActLogMessages
         LoggerMessage.Define<string, string, string>(
             LogLevel.Error,
             new EventId(9505, nameof(ProhibitedUseBlocked)),
-            "AI Act: PROHIBITED practice detected. RequestType={RequestType}, SystemId={SystemId}, Violations={Violations}. Request blocked unconditionally per Art. 5.");
+            "AI Act: PROHIBITED practice detected. RequestType={RequestType}, SystemId={SystemId}, Violations={Violations}. Request blocked per Art. 5.");
 
     internal static void ProhibitedUseBlocked(this ILogger logger, string requestType, string systemId, string violations)
         => ProhibitedUseBlockedDef(logger, requestType, systemId, violations, null);

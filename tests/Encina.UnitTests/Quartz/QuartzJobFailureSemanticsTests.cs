@@ -1,5 +1,5 @@
-using Encina.Messaging.Recoverability;
 using Encina.Quartz;
+using Encina.Recoverability;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Quartz;

@@ -59,8 +59,9 @@ public static class AIActErrors
     /// <param name="violations">The list of Art. 5 violations detected.</param>
     /// <returns>An error indicating prohibited AI practice.</returns>
     /// <remarks>
-    /// Per Art. 5, certain AI practices are unconditionally prohibited. Systems classified
-    /// as <see cref="AIRiskLevel.Prohibited"/> cannot be deployed regardless of enforcement mode.
+    /// Per Art. 5, certain AI practices are prohibited. A system classified as
+    /// <see cref="AIRiskLevel.Prohibited"/>, or declaring a prohibited practice, is blocked
+    /// in both <see cref="AIActEnforcementMode.Block"/> and <see cref="AIActEnforcementMode.Warn"/> mode.
     /// </remarks>
     public static EncinaError ProhibitedUse(
         Type requestType,

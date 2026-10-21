@@ -96,7 +96,14 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
         "System.TimeProvider|System.TimeProvider+SystemTimeProvider|Singleton",
         "Encina.IRequestContextAccessor|Encina.RequestContextAccessor|Singleton",
         "Encina.Messaging.Serialization.IMessageSerializer|Encina.Messaging.Serialization.JsonMessageSerializer|Singleton",
-        "Encina.Messaging.IDbTransactionAccessor|Encina.Messaging.DbTransactionAccessor|Scoped",
+        "Encina.Messaging.Transactions.IDbTransactionAccessor|Encina.Messaging.Transactions.DbTransactionAccessor|Scoped",
+        "Encina.Messaging.Transactions.ITransactionLeaseSource|factory|Scoped",
+        // Recoverability is registered before the transaction so it runs OUTSIDE it (ADR-050).
+        "Encina.Messaging.Recoverability.RecoverabilityOptions|Encina.Messaging.Recoverability.RecoverabilityOptions|Singleton",
+        "Encina.Recoverability.IErrorClassifier|Encina.Recoverability.DefaultErrorClassifier|Singleton",
+        "Encina.IPipelineBehavior`2[TRequest,TResponse]|Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior`2[TRequest,TResponse]|Scoped",
+        "Encina.Messaging.Recoverability.IDelayedRetryScheduler|Encina.Messaging.Recoverability.DelayedRetryScheduler|Scoped",
+        "Microsoft.Extensions.Hosting.IHostedService|Encina.Messaging.Recoverability.DelayedRetryProcessor|Singleton",
         "Encina.IPipelineBehavior`2[TRequest,TResponse]|Encina.Messaging.TransactionPipelineBehavior`2[TRequest,TResponse]|Scoped",
         "Encina.Messaging.Outbox.OutboxOptions|Encina.Messaging.Outbox.OutboxOptions|Singleton",
         "Encina.Messaging.Outbox.IOutboxStore|Encina.Testing.Fakes.Stores.FakeOutboxStore|Scoped",
@@ -111,11 +118,6 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
         "Encina.IPipelineBehavior`2[TRequest,TResponse]|Encina.Messaging.Inbox.InboxPipelineBehavior`2[TRequest,TResponse]|Scoped",
         "Encina.Messaging.RoutingSlip.RoutingSlipOptions|Encina.Messaging.RoutingSlip.RoutingSlipOptions|Singleton",
         "Encina.Messaging.RoutingSlip.IRoutingSlipRunner|Encina.Messaging.RoutingSlip.RoutingSlipRunner|Scoped",
-        "Encina.Messaging.Recoverability.RecoverabilityOptions|Encina.Messaging.Recoverability.RecoverabilityOptions|Singleton",
-        "Encina.Messaging.Recoverability.IErrorClassifier|Encina.Messaging.Recoverability.DefaultErrorClassifier|Singleton",
-        "Encina.IPipelineBehavior`2[TRequest,TResponse]|Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior`2[TRequest,TResponse]|Scoped",
-        "Encina.Messaging.Recoverability.IDelayedRetryScheduler|Encina.Messaging.Recoverability.DelayedRetryScheduler|Scoped",
-        "Microsoft.Extensions.Hosting.IHostedService|Encina.Messaging.Recoverability.DelayedRetryProcessor|Singleton",
         "Encina.Messaging.ContentRouter.ContentRouterOptions|Encina.Messaging.ContentRouter.ContentRouterOptions|Singleton",
         "Encina.Messaging.ContentRouter.IContentRouter|Encina.Messaging.ContentRouter.ContentRouter|Scoped",
         "Encina.Messaging.ScatterGather.ScatterGatherOptions|Encina.Messaging.ScatterGather.ScatterGatherOptions|Singleton",
@@ -135,7 +137,8 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
         "System.TimeProvider|System.TimeProvider+SystemTimeProvider|Singleton",
         "Encina.IRequestContextAccessor|Encina.RequestContextAccessor|Singleton",
         "Encina.Messaging.Serialization.IMessageSerializer|Encina.Messaging.Serialization.JsonMessageSerializer|Singleton",
-        "Encina.Messaging.IDbTransactionAccessor|Encina.Messaging.DbTransactionAccessor|Scoped",
+        "Encina.Messaging.Transactions.IDbTransactionAccessor|Encina.Messaging.Transactions.DbTransactionAccessor|Scoped",
+        "Encina.Messaging.Transactions.ITransactionLeaseSource|factory|Scoped",
     ];
 
     #region Stub Types (minimal implementations for generic constraints)

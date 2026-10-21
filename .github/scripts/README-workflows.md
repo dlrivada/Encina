@@ -104,6 +104,21 @@ Job: SonarCloud Code Quality → Step: SonarCloud Scan
 ─────────────────────────────────────────────────────────────
 ```
 
+### 3. `release-readiness.cs` - Release Readiness Gate
+
+Checks every release criterion of SPEC-000 and SPEC-002 before a tag (#104). The registry is `.github/release-checklist.json`; the profiles are `minor`, `rc` and `final`. Collection writes a facts file, evaluation reads only that file.
+
+**Usage:**
+
+```bash
+dotnet run --file .github/scripts/release-readiness.cs -- --check-registry
+dotnet run --file .github/scripts/release-readiness.cs -- --collect --from-branch release/v0.14.0 --out facts.json
+dotnet run --file .github/scripts/release-readiness.cs -- --evaluate --facts facts.json --from-branch release/v0.14.0 --signoff checklist.md
+dotnet run --file .github/scripts/release-readiness.cs -- --self-test
+```
+
+The header of the script lists every mode, the exit codes and the sign-off file format. Alert facts that the Actions token cannot read come from the GitHub App token in `RELEASE_GATE_APP_TOKEN`.
+
 ## Integration with Claude Code
 
 You can configure Claude Code to automatically run these scripts when workflows fail.

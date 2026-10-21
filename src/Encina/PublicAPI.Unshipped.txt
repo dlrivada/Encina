@@ -2204,3 +2204,37 @@ Encina.MultiTenancyMarker.MultiTenancyMarker() -> void
 Encina.Diagnostics.ActivityStatusDescriptions
 static Encina.Diagnostics.ActivityStatusDescriptions.ForError(Encina.EncinaError error) -> string!
 static Encina.Diagnostics.ActivityStatusDescriptions.ForException(System.Exception! exception) -> string!
+Encina.Recoverability.IErrorClassifier
+Encina.Recoverability.IErrorClassifier.Classify(Encina.EncinaError encinaError, System.Exception? exception) -> Encina.Recoverability.ErrorClassification
+Encina.Recoverability.ErrorClassification
+Encina.Recoverability.ErrorClassification.Unknown = 0 -> Encina.Recoverability.ErrorClassification
+Encina.Recoverability.ErrorClassification.Transient = 1 -> Encina.Recoverability.ErrorClassification
+Encina.Recoverability.ErrorClassification.Permanent = 2 -> Encina.Recoverability.ErrorClassification
+Encina.Recoverability.DefaultErrorClassifier
+Encina.Recoverability.DefaultErrorClassifier.DefaultErrorClassifier() -> void
+Encina.Recoverability.DefaultErrorClassifier.Classify(Encina.EncinaError encinaError, System.Exception? exception) -> Encina.Recoverability.ErrorClassification
+Encina.Recoverability.OutboundErrorCodes
+const Encina.Recoverability.OutboundErrorCodes.ClientError = "encina.outbound.client_error" -> string!
+const Encina.Recoverability.OutboundErrorCodes.ServerError = "encina.outbound.server_error" -> string!
+const Encina.Recoverability.OutboundErrorCodes.RateLimited = "encina.outbound.rate_limited" -> string!
+const Encina.Recoverability.OutboundErrorCodes.Timeout = "encina.outbound.timeout" -> string!
+const Encina.Recoverability.OutboundErrorCodes.NetworkError = "encina.outbound.network_error" -> string!
+const Encina.Recoverability.OutboundErrorCodes.UnexpectedResponse = "encina.outbound.unexpected_response" -> string!
+const Encina.Recoverability.OutboundErrorCodes.Unexpected = "encina.outbound.unexpected" -> string!
+Encina.Recoverability.OutboundErrorMetadataKeys
+const Encina.Recoverability.OutboundErrorMetadataKeys.HttpStatus = "http.status" -> string!
+const Encina.Recoverability.OutboundErrorMetadataKeys.HttpRetryAfter = "http.retry_after" -> string!
+const Encina.Recoverability.OutboundErrorMetadataKeys.Transient = "transient" -> string!
+const Encina.Recoverability.OutboundErrorMetadataKeys.Ambiguous = "outbound.ambiguous" -> string!
+Encina.Recoverability.OutboundRetryRules
+static Encina.Recoverability.OutboundRetryRules.AllowsAutomaticRetry(Encina.EncinaError error, string? idempotencyKey, bool allowNonIdempotentRetry) -> bool
+static Encina.Recoverability.OutboundRetryRules.GetRetryAfter(Encina.EncinaError error) -> System.TimeSpan?
+Encina.Recoverability.RetryAfterParser
+static Encina.Recoverability.RetryAfterParser.Parse(System.Net.Http.Headers.RetryConditionHeaderValue? header, System.TimeProvider! timeProvider) -> System.TimeSpan?
+static Encina.Recoverability.RetryAfterParser.Parse(string? value, System.TimeProvider! timeProvider) -> System.TimeSpan?
+Encina.Recoverability.RetryMetrics
+const Encina.Recoverability.RetryMetrics.ReasonPermanent = "permanent" -> string!
+const Encina.Recoverability.RetryMetrics.ReasonNonIdempotent = "non_idempotent" -> string!
+const Encina.Recoverability.RetryMetrics.ReasonRetryAfterExceedsMax = "retry_after_exceeds_max" -> string!
+static Encina.Recoverability.RetryMetrics.RecordAttempt(string! requestName, string! errorCode, string? tenantId) -> void
+static Encina.Recoverability.RetryMetrics.RecordSkipped(string! reason, string! requestName, string! errorCode, string? tenantId) -> void

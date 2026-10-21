@@ -1,3 +1,4 @@
+using Encina.Recoverability;
 using Encina.Refit;
 using Encina.Testing.Shouldly;
 using LanguageExt;
@@ -62,7 +63,7 @@ public class RestApiRequestHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ApiException_WithContent_ShouldIncludeContent()
+    public async Task Handle_ApiException_WithContent_ShouldNeverIncludeTheBody()
     {
         // Arrange
         var request = new TestRequest { ShouldThrowApiException = true };
@@ -75,7 +76,8 @@ public class RestApiRequestHandlerTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.ShouldContain("Error content");
+            error.Message.ShouldNotContain("Error content");
+            error.Exception.Filter(ex => ex.Message.Contains("Error content", StringComparison.Ordinal)).IsNone.ShouldBeTrue();
         });
     }
 
@@ -94,7 +96,8 @@ public class RestApiRequestHandlerTests
         result.IfLeft(error =>
         {
             error.Message.ShouldContain("HTTP request failed");
-            error.Message.ShouldContain("Network error");
+            // The exception text (which can name a host) is not copied into the error
+            error.Message.ShouldNotContain("Network error");
         });
     }
 
@@ -156,9 +159,8 @@ public class RestApiRequestHandlerTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            // error.Exception is Option<Exception>, need to use IsSome and check the inner value
-            error.Exception.IsSome.ShouldBeTrue();
-            error.Exception.IfSome(ex => ex.ShouldBeOfType<InvalidOperationException>());
+            error.GetCode().IfNone(string.Empty).ShouldBe(OutboundErrorCodes.Unexpected);
+            error.GetMetadata()[OutboundErrorMetadataKeys.Transient].ShouldBe(false);
         });
     }
 

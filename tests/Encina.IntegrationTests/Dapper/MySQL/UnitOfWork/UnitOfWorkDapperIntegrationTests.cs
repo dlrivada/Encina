@@ -3,8 +3,10 @@ using Dapper;
 using Encina.Dapper.MySQL.Repository;
 using Encina.Dapper.MySQL.UnitOfWork;
 using Encina.DomainModeling;
+using Encina.Messaging.Transactions;
 using Encina.TestInfrastructure.Fixtures;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using MySqlConnector;
 using Shouldly;
 
@@ -46,7 +48,7 @@ public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
         services.AddSingleton(_mapping);
         _serviceProvider = services.BuildServiceProvider();
 
-        _unitOfWork = new UnitOfWorkDapper(_connection, _serviceProvider);
+        _unitOfWork = new UnitOfWorkDapper(new DbTransactionAccessor(_connection, NullLogger<DbTransactionAccessor>.Instance), _serviceProvider);
     }
 
     public async ValueTask DisposeAsync()

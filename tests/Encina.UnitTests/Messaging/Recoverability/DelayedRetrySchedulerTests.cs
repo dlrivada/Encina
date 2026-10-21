@@ -1,5 +1,6 @@
 using Encina.Messaging.Recoverability;
 using Encina.Messaging.Serialization;
+using Encina.Recoverability;
 
 using Microsoft.Extensions.Logging.Abstractions;
 

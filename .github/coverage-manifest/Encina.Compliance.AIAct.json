@@ -1,7 +1,7 @@
 {
   "package": "Encina.Compliance.AIAct",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 43,
+  "totalFiles": 44,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -69,14 +69,30 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 97,
+        "guard": 9
+      },
+      "justifications": {
+        "unit": "Unit tests drive Handle through the disabled, no-attribute, compliant, violation (Block and Warn), prohibited-practice and validator-error paths, covering nearly every line.",
+        "guard": "Guard tests cover the constructor null checks and the request null check in Handle; the remaining lines are pipeline logic that guard tests do not reach."
+      }
     },
     "AIActErrors.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Every error factory has a unit test that asserts its code and metadata.",
+        "guard": "No guard test calls the error factories, and their parameters need no null-check test of their own."
+      }
     },
     "AIActOptions.cs": {
       "defaultTests": [
@@ -124,7 +140,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 98,
+        "guard": 16
+      },
+      "justifications": {
+        "unit": "Unit tests classify registered, unregistered, prohibited-practice and risk-level cases, covering all but a few lines.",
+        "guard": "Guard tests exercise the constructor and method null checks; the classification branches are covered by unit tests."
+      }
     },
     "DefaultAIActComplianceValidator.cs": {
       "defaultTests": [
@@ -181,7 +205,15 @@
     "Diagnostics/AIActLogMessages.cs": {
       "defaultTests": [],
       "defaultRule": "*LogMessages.cs",
-      "reason": "Source-generated [LoggerMessage] delegates"
+      "reason": "Source-generated [LoggerMessage] delegates",
+      "targets": {
+        "unit": 98,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "The pipeline unit tests reach nearly every log delegate through the disabled, skipped, passed, blocked and prohibited paths.",
+        "guard": "Log delegates take pre-validated arguments and have no null-check lines for a guard test to reach."
+      }
     },
     "Health/AIActHealthCheck.cs": {
       "defaultTests": [
@@ -227,7 +259,15 @@
         "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "An enum declaration has no executable lines, so no flag has coverable code in this file.",
+        "guard": "An enum declaration has no parameters or executable lines to guard."
+      }
     },
     "Model/AISystemRegistration.cs": {
       "defaultTests": [
@@ -290,7 +330,30 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "An enum declaration has no executable lines, so no flag has coverable code in this file.",
+        "guard": "An enum declaration has no parameters or executable lines to guard."
+      }
+    },
+    "Model/ProhibitedPracticeExtensions.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "Pure enum-to-Art. 5(1)-point mapping; unit tests cover every member and the undefined-value throw",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Every enum member and the undefined-value branch of the single switch expression has a unit test.",
+        "guard": "The extension takes an enum value, not a reference, so it has no null guard to test."
+      }
     },
     "Model/ReclassificationRecord.cs": {
       "defaultTests": [

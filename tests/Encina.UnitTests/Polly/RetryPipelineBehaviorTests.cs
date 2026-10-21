@@ -1,4 +1,5 @@
 using Encina.Polly;
+using Encina.Recoverability;
 using Encina.Testing;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -19,7 +20,7 @@ public class RetryPipelineBehaviorTests
     public RetryPipelineBehaviorTests()
     {
         _logger = Substitute.For<ILogger<RetryPipelineBehavior<TestRequest, string>>>();
-        _behavior = new RetryPipelineBehavior<TestRequest, string>(_logger);
+        _behavior = new RetryPipelineBehavior<TestRequest, string>(_logger, new DefaultErrorClassifier());
     }
 
     [Fact]
@@ -32,7 +33,7 @@ public class RetryPipelineBehaviorTests
         RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<EncinaError, string>(expectedResponse));
 
         var behavior = new RetryPipelineBehavior<TestRequestNoRetry, string>(
-            Substitute.For<ILogger<RetryPipelineBehavior<TestRequestNoRetry, string>>>());
+            Substitute.For<ILogger<RetryPipelineBehavior<TestRequestNoRetry, string>>>(), new DefaultErrorClassifier());
 
         // Act
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
@@ -213,13 +214,13 @@ public class RetryPipelineBehaviorTests
         var context = Substitute.For<IRequestContext>();
         var callCount = 0;
         var behavior = new RetryPipelineBehavior<TestRequestRetryAll, string>(
-            Substitute.For<ILogger<RetryPipelineBehavior<TestRequestRetryAll, string>>>());
+            Substitute.For<ILogger<RetryPipelineBehavior<TestRequestRetryAll, string>>>(), new DefaultErrorClassifier());
 
         RequestHandlerCallback<string> next = () =>
         {
             callCount++;
             return callCount < 3
-                ? throw new InvalidOperationException("Any error")
+                ? throw new UnclassifiedFailureException("Any error")
                 : ValueTask.FromResult(Right<EncinaError, string>("success"));
         };
 
@@ -228,8 +229,34 @@ public class RetryPipelineBehaviorTests
 
         // Assert
         result.ShouldBeSuccess();
-        callCount.ShouldBe(3, "should retry all exceptions when RetryOnAllExceptions = true");
+        callCount.ShouldBe(3, "RetryOnAllExceptions widens the retry to exceptions the classifier cannot classify");
     }
+
+    [Fact]
+    public async Task Handle_PermanentException_RetryOnAllExceptionsTrue_ShouldNotRetry()
+    {
+        // Arrange: InvalidOperationException is classified Permanent; the flag never overrides that (D-C)
+        var request = new TestRequestRetryAll();
+        var context = Substitute.For<IRequestContext>();
+        var callCount = 0;
+        var behavior = new RetryPipelineBehavior<TestRequestRetryAll, string>(
+            Substitute.For<ILogger<RetryPipelineBehavior<TestRequestRetryAll, string>>>(), new DefaultErrorClassifier());
+
+        RequestHandlerCallback<string> next = () =>
+        {
+            callCount++;
+            throw new InvalidOperationException("Any error");
+        };
+
+        // Act
+        var result = await behavior.Handle(request, context, next, CancellationToken.None);
+
+        // Assert
+        result.ShouldBeError();
+        callCount.ShouldBe(1, "a Permanent classification is never retried, even with RetryOnAllExceptions");
+    }
+
+    private sealed class UnclassifiedFailureException(string message) : Exception(message);
 
     [Fact]
     public async Task Handle_ExponentialBackoff_ShouldIncreaseDelay()
@@ -241,7 +268,7 @@ public class RetryPipelineBehaviorTests
         var context = Substitute.For<IRequestContext>();
         var callCount = 0;
         var behavior = new RetryPipelineBehavior<TestRequestExponential, string>(
-            Substitute.For<ILogger<RetryPipelineBehavior<TestRequestExponential, string>>>());
+            Substitute.For<ILogger<RetryPipelineBehavior<TestRequestExponential, string>>>(), new DefaultErrorClassifier());
 
         RequestHandlerCallback<string> next = () =>
         {
@@ -267,7 +294,7 @@ public class RetryPipelineBehaviorTests
         var context = Substitute.For<IRequestContext>();
         var callCount = 0;
         var behavior = new RetryPipelineBehavior<TestRequestConstant, string>(
-            Substitute.For<ILogger<RetryPipelineBehavior<TestRequestConstant, string>>>());
+            Substitute.For<ILogger<RetryPipelineBehavior<TestRequestConstant, string>>>(), new DefaultErrorClassifier());
 
         RequestHandlerCallback<string> next = () =>
         {
@@ -293,7 +320,7 @@ public class RetryPipelineBehaviorTests
         var context = Substitute.For<IRequestContext>();
         var callCount = 0;
         var behavior = new RetryPipelineBehavior<TestRequestLinear, string>(
-            Substitute.For<ILogger<RetryPipelineBehavior<TestRequestLinear, string>>>());
+            Substitute.For<ILogger<RetryPipelineBehavior<TestRequestLinear, string>>>(), new DefaultErrorClassifier());
 
         RequestHandlerCallback<string> next = () =>
         {

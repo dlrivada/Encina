@@ -327,7 +327,7 @@ services.AddEncinaQuartz(configureOptions: options => options.ExposeResponseInJo
 
 Enable it only for responses known not to carry personal or sensitive data. To observe the outcome of requests whose response may carry personal data, read it through Encina's own stores (outbox, audit trail) instead.
 
-Quartz has no retry policy of its own, so a failed job is not refired; it runs again at its trigger's next fire time. Encina classifies every failure with `Encina.Messaging.Recoverability.IErrorClassifier` (the registered one, or `DefaultErrorClassifier`) and records the result on the exception so a listener can act on it:
+Quartz has no retry policy of its own, so a failed job is not refired; it runs again at its trigger's next fire time. Encina classifies every failure with `Encina.Recoverability.IErrorClassifier` (the registered one, or `DefaultErrorClassifier`) and records the result on the exception so a listener can act on it:
 
 - `jobException.Data[EncinaJobFailureData.ErrorCodeKey]` is the Encina error code.
 - `jobException.Data[EncinaJobFailureData.ErrorClassificationKey]` is `"Permanent"` (validation, missing consent, active processing restriction, ... — retrying cannot succeed) or `"Transient"` (timeouts, unavailable dependencies and unclassified failures).

@@ -44,11 +44,15 @@ internal sealed class OutboxProcessorMetrics
     internal const string OutcomeExhausted = "exhausted";
     internal const string OutcomeStoreError = "store_error";
     internal const string OutcomeUnsaved = "unsaved";
+    internal const string EnqueueWritten = "written";
+    internal const string EnqueueFailed = "failed";
 
     private static readonly Meter Meter = new("Encina", "1.0");
 
     private readonly Counter<long> _messagesProcessed;
     private readonly Counter<long> _messagesRequeued;
+    private readonly Counter<long> _messagesEnqueued;
+    private readonly Counter<long> _transactionsRollbackOnly;
 
     // -1 until a count has been observed, so that the gauge reports nothing rather than a false zero.
     private long _lastExhaustedCount = -1;
@@ -64,6 +68,16 @@ internal sealed class OutboxProcessorMetrics
             "encina.outbox.messages_requeued_total",
             unit: "{messages}",
             description: "Total number of exhausted outbox messages returned to the pending state.");
+
+        _messagesEnqueued = Meter.CreateCounter<long>(
+            "encina.outbox.enqueued",
+            unit: "{messages}",
+            description: "Total number of outbox messages written inside a request's transaction, by outcome (written, failed) and db.system.");
+
+        _transactionsRollbackOnly = Meter.CreateCounter<long>(
+            "encina.transaction.rollback_only",
+            unit: "{transactions}",
+            description: "Total number of shared transactions a participant marked rollback-only, by db.system.");
 
         Meter.CreateObservableGauge(
             "encina.outbox.messages_exhausted",
@@ -121,6 +135,32 @@ internal sealed class OutboxProcessorMetrics
         {
             _messagesRequeued.Add(count);
         }
+    }
+
+    /// <summary>
+    /// Records the outcome of writing a request's notifications to the outbox inside its transaction.
+    /// </summary>
+    /// <param name="outcome"><see cref="EnqueueWritten"/> or <see cref="EnqueueFailed"/>.</param>
+    /// <param name="dbSystem">The <c>db.system</c> value of the scope's connection.</param>
+    /// <param name="count">The number of notifications in the write.</param>
+    internal void RecordEnqueued(string outcome, string dbSystem, int count)
+    {
+        if (count > 0)
+        {
+            _messagesEnqueued.Add(
+                count,
+                new KeyValuePair<string, object?>("outcome", outcome),
+                new KeyValuePair<string, object?>("db.system", dbSystem));
+        }
+    }
+
+    /// <summary>
+    /// Records a shared transaction that a participant marked rollback-only.
+    /// </summary>
+    /// <param name="dbSystem">The <c>db.system</c> value of the scope's connection.</param>
+    internal void RecordRollbackOnly(string dbSystem)
+    {
+        _transactionsRollbackOnly.Add(1, new KeyValuePair<string, object?>("db.system", dbSystem));
     }
 
     /// <summary>

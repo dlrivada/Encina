@@ -1,5 +1,5 @@
 using Encina.Diagnostics;
-using Encina.Messaging.Recoverability;
+using Encina.Recoverability;
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Hangfire;

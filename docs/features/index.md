@@ -68,6 +68,7 @@ has_children: true
 
 ## Messaging & Caching
 
+- [Transactional Outbox](transactional-outbox.md)
 - [Message Encryption](message-encryption.md)
 - [Query Caching](query-caching.md)
 

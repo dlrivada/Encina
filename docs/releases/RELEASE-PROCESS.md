@@ -10,9 +10,50 @@ This guide is for the maintainer. It shows how to publish an Encina release (tag
 
 Every command runs from the repository root. Replace `0.14.0` with the version you are releasing, the date with today's date and the title with the milestone name without its `vX.Y.Z` prefix (for example `Hardening`).
 
+## Release readiness gate
+
+Every release of the 1.0 sequence passes through the release readiness gate, a tool that checks the SPEC-000 and SPEC-002 acceptance criteria that CI can answer and lists the ones only you can answer. The reason for its design is [ADR-038](../architecture/adr/038-release-readiness-gate.md). This section is the reference you need while following the steps below; the day-to-day commands (adding an item, answering a manual item) are in [How to run the release readiness gate](release-readiness.md).
+
+The tool derives the release profile from the name of the release branch, `release/v<version>`:
+
+| Branch name | Profile | Meaning |
+| --- | --- | --- |
+| `release/v0.14.0` (any `X.Y.0` without a prerelease, except `1.0.0`) | `minor` | each minor tag of the 1.0 sequence |
+| `release/v1.0.0-rc.1` (a `-rc.N` prerelease) | `rc` | a release candidate |
+| `release/v1.0.0` | `final` | the 1.0 release |
+
+Any other name is an error and the tool exits with code 2: a branch that does not match `release/v<version>`, a version that is not valid SemVer, build metadata, a prerelease other than `rc.N` and a patch version such as `release/v0.14.1`. The tool never falls back to the lightest profile. Check a name before you create the branch:
+
+```powershell
+dotnet run --file .github/scripts/release-readiness.cs -- --from-branch release/v0.14.0
+```
+
+The output is `version=0.14.0` and `profile=minor`.
+
+Each item of the registry has a severity per profile: `block` fails the gate, `warn` is reported without failing it, `skip` is not checked. A blocking item fails when its fact is missing, could not be read or is older than 24 hours, and a manual item that nobody answered is `PENDING`, which also fails the gate. The gate runs on pull requests whose head branch starts with `release/`, as the `release-readiness` job that feeds `ci-result`, so the required checks of the branch protection stay `build`, `ci-result` and `Analyze` ([SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-020).
+
+### Set up the GitHub App for alert facts
+
+The `GITHUB_TOKEN` of a workflow cannot read open secret-scanning alerts, open Dependabot alerts or the branch protection of `main`. The gate reads them with a GitHub App token. You create the App once; the gate never assumes it exists.
+
+1. Create a GitHub App owned by the repository owner. Give it three repository permissions, all read-only: "Secret scanning alerts", "Dependabot alerts" and "Administration" (`Administration: Read-only`, which the branch protection fact needs).
+2. Install it on `dlrivada/Encina` only, not on all repositories.
+3. Add the repository variable `RELEASE_GATE_APP_ID` (the App ID) and the repository secret `RELEASE_GATE_APP_PRIVATE_KEY` (the App's private key). The workflow mints a short-lived token from them with `actions/create-github-app-token` and passes it to the tool as the environment variable `RELEASE_GATE_APP_TOKEN`.
+4. If the App already exists with only the two alert permissions, grant the new one. The maintainer adds "Administration" as Read-only to the `encina-release-gate` App under Settings > Developer settings > GitHub Apps > the App > Permissions, then accepts the updated permission on the installation through its "Review request". Until the permission is accepted, `branch-protection-exact` fails closed with a message that names this step.
+
+The tool uses the token only for three collectors: the two alert facts and the branch protection of `main`. When the token is missing, or the API call fails (for branch protection, with 403 or 404), the fact is recorded with an error and the items `secret-scanning-no-alerts`, `dependabot-no-alerts` and `branch-protection-exact` fail: the gate fails closed.
+
+The only fallback is manual and visible. The items `attest-secret-scanning` and `attest-dependabot` are accepted only when the matching automatic fact has an error, and only when their line in `docs/releases/v<version>/checklist.md` is ticked with an evidence link. The evaluation output then says that the attestation replaced the fact. When the fact was collected normally, the attestation is not needed and is ignored. Alert data is never typed into `facts.json` by hand. Branch protection has no attestation: a `branch-protection-exact` error is fixed by granting the permission in step 4, never by ticking a line.
+
+To run the gate locally with the alert facts, set the variable in your shell for the session (the value comes from a token you mint for the App; do not write it into a file in the repository):
+
+```powershell
+$env:RELEASE_GATE_APP_TOKEN = '<installation token>'
+```
+
 ## Before you start
 
-Check each item; do not continue if one fails.
+Check each item; do not continue if one fails. Items 1 to 4 are the manual checks; item 5 runs the gate in dry-run mode.
 
 1. `main` is green. Look at the latest `CI` run on `main`:
 
@@ -45,6 +86,16 @@ Check each item; do not continue if one fails.
    ```
 
    `git status --short` prints nothing.
+
+5. The registry is valid, and you know how far the repository is from a green gate. A dry run writes its facts under `artifacts/`, not into the release folder:
+
+   ```powershell
+   dotnet run --file .github/scripts/release-readiness.cs -- --check-registry
+   dotnet run --file .github/scripts/release-readiness.cs -- --collect --from-branch release/v0.14.0 --out artifacts/release/facts-dry-run.json
+   dotnet run --file .github/scripts/release-readiness.cs -- --evaluate --facts artifacts/release/facts-dry-run.json --from-branch release/v0.14.0
+   ```
+
+   The first command prints `Registry OK: ... (N items, M retired)`. The last one prints one line per item (`PASS`, `FAIL`, `WARN`, `PENDING` or `SKIP`) and a `SUMMARY` line ending in `result=PASS` or `result=FAIL`. Items that read the files Step 1 creates, such as `release-notes-page` and `version-no-suffix`, fail until Step 1 is done.
 
 ## Step 1: prepare the release branch
 
@@ -100,6 +151,24 @@ Create `docs/releases/v0.14.0/README.md`, modelled on [`docs/releases/v0.13.0/RE
 > **Status**: Closed on 2026-09-22 by the merge of #1101; the `v0.13.0` tag is created on that merge commit and the release is published from it.
 ```
 
+### Render the checklist, collect the facts and write the evidence
+
+With the changelog folded, the version set and the notes page written, render the sign-off file for the profile of the branch, collect the facts for the release branch and generate the evidence report from them. All three go into the release folder and are committed with the pull request ([SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) AC-022):
+
+```powershell
+dotnet run --file .github/scripts/release-readiness.cs -- --render-checklist --profile minor --version 0.14.0 --out docs/releases/v0.14.0/checklist.md
+dotnet run --file .github/scripts/release-readiness.cs -- --collect --from-branch release/v0.14.0 --out docs/releases/v0.14.0/facts.json
+dotnet run --file .github/scripts/release-readiness.cs -- --evidence --facts docs/releases/v0.14.0/facts.json --signoff docs/releases/v0.14.0/checklist.md --out docs/releases/v0.14.0/evidence.md
+```
+
+Use the profile of your branch in the first command (`minor`, `rc` or `final`). Open `checklist.md`, tick each manual item you can answer and add `evidence: <link>` to its line, then regenerate `evidence.md` with the third command. [How to run the release readiness gate](release-readiness.md#answer-a-manual-item) shows the line format. Check the verdict:
+
+```powershell
+dotnet run --file .github/scripts/release-readiness.cs -- --evaluate --facts docs/releases/v0.14.0/facts.json --from-branch release/v0.14.0 --signoff docs/releases/v0.14.0/checklist.md
+```
+
+How to check it worked: the `SUMMARY` line ends in `result=PASS`, and the exit code is 0. The evaluation rejects facts older than 24 hours, so run it soon after the collection.
+
 ### Open the pull request and merge it
 
 ```powershell
@@ -116,16 +185,17 @@ How to check it worked: the PR passes the same required checks as any other PR a
 
 Tag the commit that the release PR created on `main`, not a branch tip. Branch protection covers branches, so the tag push is not blocked.
 
-First require a green `CI Full` run on that exact commit. `ci.yml` may skip test jobs, while `CI Full` runs all of them, so a completed, successful run on the commit to tag, started by `schedule` or `workflow_dispatch`, is the evidence that the tests pass:
+First require a green `CI Full` run on that exact commit. `ci.yml` may skip test jobs, while `CI Full` runs all of them, so a completed, successful run on the commit to tag, started by `schedule` or `workflow_dispatch`, with every job `success`, is the evidence that the tests pass. The gate item `ci-full-on-sha` checks exactly that. Collect the facts for the merge commit and evaluate only that item:
 
 ```powershell
 git switch main
 git pull --ff-only
-git rev-parse HEAD
-gh run list --repo dlrivada/Encina --workflow ci-full.yml --limit 5 --json databaseId,headSha,status,conclusion,event
+$sha = git rev-parse HEAD
+dotnet run --file .github/scripts/release-readiness.cs -- --collect --from-branch release/v0.14.0 --sha $sha --out artifacts/release/facts-tag.json
+dotnet run --file .github/scripts/release-readiness.cs -- --evaluate --facts artifacts/release/facts-tag.json --from-branch release/v0.14.0 --only ci-full-on-sha
 ```
 
-A row must have `event` `schedule` or `workflow_dispatch`, `status` `completed`, `conclusion` `success` and a `headSha` equal to the `git rev-parse HEAD` output. If no row matches, start a run on `main` and wait for it, then list again:
+The evaluation prints `PASS ci-full-on-sha` with the run id and the number of jobs, and the exit code is 0. A `FAIL ci-full-on-sha` line names the problem: no completed run on that commit, or the jobs that did not end in `success`. If no run exists for the commit, start one on `main`, wait for it, and run the last two commands again:
 
 ```powershell
 gh workflow run ci-full.yml --repo dlrivada/Encina --ref main
@@ -133,15 +203,9 @@ gh run list --repo dlrivada/Encina --workflow ci-full.yml --limit 3 --json datab
 gh run watch <run-id> --repo dlrivada/Encina
 ```
 
-Before you use a run id, check that its `headSha` equals the `git rev-parse HEAD` output and that its `status` is the run you just started (`queued` or `in_progress`), not an older one.
+Before you use a run id, check that its `headSha` equals `$sha` and that its `status` is the run you just started (`queued` or `in_progress`), not an older one.
 
-Then confirm that no job of that run, test shards included, ended in anything but `success` (the output must be empty):
-
-```powershell
-gh run view <run-id> --repo dlrivada/Encina --json jobs --jq '.jobs[] | select(.conclusion != "success") | .name'
-```
-
-Do not tag until this passes. Then tag:
+Do not tag until the gate passes. Then tag:
 
 ```powershell
 git log --oneline -1
@@ -275,3 +339,5 @@ The manual process is temporary: [SPEC-000](../specifications/SPEC-000-encina-1.
 - [`changelog.d/README.md`](../../changelog.d/README.md): reference for fragments and `changelog-fragments.cs`.
 - [`docs/releases/v0.13.0/README.md`](v0.13.0/README.md): the release notes page used as the model.
 - [Contributing guide](../contributing/README.md): how a change travels to `main`.
+- [How to run the release readiness gate](release-readiness.md): adding and retiring items, answering manual items, running the gate locally.
+- [ADR-038](../architecture/adr/038-release-readiness-gate.md): why the gate is built this way.

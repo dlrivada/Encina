@@ -1,0 +1,1 @@
+- `CacheInvalidationPipelineBehavior` takes an optional `TimeProvider` (default `TimeProvider.System`) that schedules delayed invalidation (`[InvalidatesCache]` `DelayMilliseconds`), so tests can drive the delay with a `FakeTimeProvider` (#2561).

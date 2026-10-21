@@ -134,6 +134,7 @@ The messaging patterns work exactly the same way as with EF Core:
 public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 {
     private readonly IDbConnection _connection;
+    private readonly IDbTransactionAccessor _transactionAccessor;
 
     public async ValueTask<Either<EncinaError, Order>> Handle(
         CreateOrderCommand request,
@@ -143,9 +144,12 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
         var order = new Order { Id = Guid.NewGuid(), ... };
 
         // Insert order using Dapper
-        await _connection.ExecuteAsync(
+        // Join the request's transaction so the order and its outbox rows commit together
+        await _connection.ExecuteAsync(new CommandDefinition(
             "INSERT INTO Orders (Id, CustomerId, Total) VALUES (@Id, @CustomerId, @Total)",
-            order);
+            order,
+            transaction: _transactionAccessor.Current,
+            cancellationToken: cancellationToken));
 
         // Events stored in outbox automatically
         context.AddNotification(new OrderCreatedEvent(order.Id));
@@ -154,6 +158,10 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
     }
 }
 ```
+
+### 4. Transactional Outbox
+
+With `config.UseOutbox = true`, `AddEncinaDapper` registers `TransactionalOutboxPipelineBehavior<,>` and the notifications of a request that implements `IHasNotifications` are written to the outbox inside the request's single database transaction: the business change and its outbox rows commit or roll back together, and a failed outbox write or commit fails the request. `UnitOfWorkDapper` and the outbox, inbox, saga and scheduled-message stores share that transaction through the scoped `IDbTransactionAccessor`; a store constructed without an accessor autocommits. Handlers that run their own Dapper commands pass `transaction: accessor.Current`; the components outside those four stores (other repositories on the shared connection, bulk operations, audit, ABAC, anonymization) do not enlist ([#1934](https://github.com/dlrivada/Encina/issues/1934)), and MySQL rejects their commands while the transaction is active. This registration does not support `UseModuleIsolation`. See [How to write the outbox inside the request's transaction](../../docs/features/transactional-outbox.md) and [ADR-037](../../docs/architecture/adr/037-transactional-outbox.md).
 
 ## Messaging Patterns
 

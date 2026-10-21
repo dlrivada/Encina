@@ -1,4 +1,5 @@
 using Encina.Polly;
+using Encina.Recoverability;
 
 namespace Encina.GuardTests.Infrastructure.Polly;
 
@@ -15,9 +16,19 @@ public class RetryPipelineBehaviorGuardsTests
         ILogger<RetryPipelineBehavior<TestRequest, string>> logger = null!;
 
         // Act & Assert
-        var act = () => new RetryPipelineBehavior<TestRequest, string>(logger);
+        var act = () => new RetryPipelineBehavior<TestRequest, string>(logger, new DefaultErrorClassifier());
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("logger");
+    }
+
+    [Fact]
+    public void Constructor_NullErrorClassifier_ThrowsArgumentNullException()
+    {
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<RetryPipelineBehavior<TestRequest, string>>.Instance;
+
+        var act = () => new RetryPipelineBehavior<TestRequest, string>(logger, null!);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("errorClassifier");
     }
 
     [Retry]

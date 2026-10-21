@@ -1389,6 +1389,96 @@
         "contract": "Contract tests stream through the handler path (measured 65%); behavior wrapping is covered by unit tests."
       }
     },
+    "Recoverability/IErrorClassifier.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Error classifier contract and DefaultErrorClassifier, moved from Encina.Messaging in #1223",
+      "targets": { "unit": 95, "guard": 0, "contract": 80, "property": 75, "integration": 80 },
+      "justifications": {
+        "unit": "Classifier branches covered by DefaultErrorClassifierTests and OutboundRulesTests.",
+        "guard": "Classify takes a struct and a nullable exception: there is no null guard to test.",
+        "contract": "ErrorClassifierContractTests run the real DefaultErrorClassifier.",
+        "property": "Classification invariants run over generated errors.",
+        "integration": "Pool exhaustion is classified against the real SqlClient, Npgsql and MySqlConnector drivers."
+      }
+    },
+    "Recoverability/OutboundErrorCodes.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*ErrorCodes.cs",
+      "reason": "Outbound error code constants",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "Constants only: no executable lines."
+      }
+    },
+    "Recoverability/OutboundErrorMetadataKeys.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Outbound error metadata key constants",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "Constants only: no executable lines."
+      }
+    },
+    "Recoverability/OutboundRetryRules.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Outbound retry rules: permanent, transient, ambiguous and non-idempotent decisions",
+      "targets": { "unit": 98, "guard": 90, "property": 50, "integration": 95 },
+      "justifications": {
+        "unit": "Every rule branch is asserted.",
+        "guard": "Default-value arguments are exercised by the guard tests.",
+        "property": "The opt-in rule is checked over generated flags and keys.",
+        "integration": "The S2 WireMock scenarios drive both rules."
+      }
+    },
+    "Recoverability/RetryAfterParser.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*Parser.cs",
+      "reason": "Retry-After header parser: delay-seconds and HTTP-date forms",
+      "targets": { "unit": 98, "guard": 20, "property": 95, "integration": 50 },
+      "justifications": {
+        "unit": "Delay-seconds, HTTP-date, past date and invalid values are asserted.",
+        "guard": "The guard tests cover the two null checks; the rest is behaviour covered by unit.",
+        "property": "Round-trip and non-negative invariants run over generated values.",
+        "integration": "The WireMock Retry-After scenarios parse real headers."
+      }
+    },
+    "Recoverability/RetryMetrics.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*Metrics.cs",
+      "reason": "Retry counters for the outbound and recoverability pipelines",
+      "targets": { "unit": 98, "guard": 15, "integration": 95 },
+      "justifications": {
+        "unit": "Both counters and all tags are asserted.",
+        "guard": "The guard tests cover the null checks; the rest is covered by unit.",
+        "integration": "The retry scenarios increment the counters."
+      }
+    },
     "Results/EitherHelpers.cs": {
       "defaultTests": [
         "unit",

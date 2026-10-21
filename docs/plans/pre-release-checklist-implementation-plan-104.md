@@ -840,3 +840,24 @@ The gate itself has no prerequisite: it can land now and report red items until 
 3. One `issue-worker` implements Phases 1-3, 5 and 6 in its own worktree. The orchestrator applies the Phase 4 `ci.yml` patch and creates the `deferred-1.0` label. `docs-writer` writes the Phase 7 pages.
 4. First live run on the `v0.14.0` release PR; false positives fixed in the same PR.
 5. The PR closes #104 (`Fixes #104` under option C of Design Choice 7, `Refs #104` otherwise).
+
+
+---
+
+## Maintainer Decisions
+
+Recorded 2026-10-20 after the decision register (`artifacts/decisions/104.md`). Design Choices 1, 2, 3, 5, 6 and 8 were classified Settled or Trivial (each cites SPEC-000, SPEC-002, AGENTS.md or an existing precedent) and keep the chosen option shown above. Three real decisions were open:
+
+| Choice | Decision | Date |
+|---|---|---|
+| **4. Enforcement point** | **B.** A blocking `release-readiness` job feeds `ci-result` and runs only on `release/*` heads, with the `minor`, `rc` and `final` profiles. A branch name the tool cannot map to a profile is an error (fail closed), never the lightest profile. The `ci.yml` edit stays with the orchestrator: the worker writes the job in a separate file or hands back the exact snippet. | 2026-10-20 |
+| **7. Lifecycle of #104** | **C.** The PR that delivers the gate says `Fixes #104`. A new `[INFRA]` issue, "Cut 1.0.0-rc.1 and 1.0.0 through the readiness gate", owns the final run, and EPIC #893's criterion points to it. | 2026-10-20 |
+| **9. Trust model for facts the Actions token cannot read** (new; secret-scanning and Dependabot alerts) | **A GitHub App installed only on `dlrivada/Encina`** with read-only "Secret scanning alerts" and "Dependabot alerts" permissions. The workflow mints a token with `actions/create-github-app-token` from the repository variable `RELEASE_GATE_APP_ID` and the secret `RELEASE_GATE_APP_PRIVATE_KEY`. If either is missing or the API call fails, the gate fails closed. A manual attested item is the only explicit, logged fallback. The maintainer creates the App; the implementation must not assume it exists and documents the setup in `RELEASE-PROCESS.md`. | 2026-10-20 |
+
+Consequence of decision 9: the committed `facts.json` carries no alert data supplied by hand; alert facts come from the App token in CI, or from a manual attested item.
+
+Corrections found by the adversarial review of the register, applied to this plan:
+
+- AC-011 also needs a `security` classification, but no `security` label exists (only `area-security`); `bug-gate` tests `area-security` and says so.
+- Issues #1945 (`global.json`), #1946 (dependency licences and notices) and #1947 (workflow-level `permissions:`) are already open: link them, do not open new ones.
+- `main` protection lacks the `build` required context, so the AC-020 item is red until that is fixed; it has its own issue.

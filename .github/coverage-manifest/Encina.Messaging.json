@@ -121,34 +121,10 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "DbLease.cs": {
-      "defaultTests": [
-        "unit",
-        "integration"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Connection and transaction lease for stores sharing the request connection",
-      "targets": { "unit": 95, "integration": 78 },
-      "justifications": {
-        "unit": "Enlist/independent/clone/dispose branches are driven with substitute connections.",
-        "integration": "Real ADO.NET and Dapper pipeline runs exercise the clone path on three databases; driver-specific clone failures are not reachable."
-      }
-    },
     "IWrappedDbConnection.cs": {
       "defaultTests": [],
       "defaultRule": "*.cs",
       "reason": "Interface, no implementation"
-    },
-    "IDbTransactionAccessor.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Accessor interface and its scoped default holder",
-      "targets": { "unit": 100 },
-      "justifications": {
-        "unit": "A property holder driven by the transaction behavior tests."
-      }
     },
     "DeadLetter/DeadLetterCleanupProcessor.cs": {
       "defaultTests": [
@@ -418,12 +394,10 @@
         "unit"
       ],
       "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags",
-      "targets": {
-        "unit": 85
-      },
+      "reason": "Activity/span wrapper - verify creation and tags",
+      "targets": { "unit": 90 },
       "justifications": {
-        "unit": "Span start and complete methods are driven by the unit tests (measured 86.36%)."
+        "unit": "Span start, complete and the new enqueue span are driven by the unit tests (measured 92%)."
       }
     },
     "Diagnostics/OutboxStoreLog.cs": {
@@ -439,7 +413,11 @@
         "unit"
       ],
       "defaultRule": "*Metrics.cs",
-      "reason": "Meter/counter wrapper — verify tags and recording"
+      "reason": "Meter/counter wrapper - verify tags and recording",
+      "targets": { "unit": 90 },
+      "justifications": {
+        "unit": "Every counter, including the new enqueue and rollback-only counters, is recorded under a meter listener in the unit tests (measured 94%)."
+      }
     },
     "Diagnostics/SagaActivitySource.cs": {
       "defaultTests": [
@@ -491,6 +469,19 @@
       ],
       "defaultRule": "*Metrics.cs",
       "reason": "Meter/counter wrapper — verify tags and recording"
+    },
+    "Diagnostics/TransactionActivitySource.cs": {
+      "defaultTests": [
+        "unit",
+        "integration"
+      ],
+      "defaultRule": "*ActivitySource.cs",
+      "reason": "Activity wrapper for the shared transaction: owner, outcome and db.system tags",
+      "targets": { "unit": 95, "integration": 90 },
+      "justifications": {
+        "unit": "Start and complete are driven with an activity listener for every outcome (measured 100%).",
+        "integration": "The outbox atomicity test attaches a listener and reads the owner and outcome tags on three databases (measured 100%)."
+      }
     },
     "DomainEvents/DomainEventsOptions.cs": {
       "defaultTests": [
@@ -706,11 +697,14 @@
     },
     "MessagingLog.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "LoggerMessage declarations",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "The file declares partial [LoggerMessage] methods; their bodies are generated into LoggerMessage.g.cs, so the file itself has no executable lines to measure."
+      }
     },
     "MessagingServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -720,11 +714,22 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 95, "guard": 60, "integration": 35 },
+      "targets": { "unit": 95, "guard": 60, "integration": 70 },
       "justifications": {
-        "unit": "Registration snapshots and DI tests cover every pattern flag and nearly every branch of the messaging wiring, including the dead letter path.",
-        "guard": "Guard tests cover the null-argument checks of the public registration methods, which are a minority of the file.",
-        "integration": "Provider package registrations run it end to end; per-flag branches are unit-covered."
+        "unit": "Registration snapshots, the registration-order tests and the DI tests cover every pattern flag and both write paths with ValidateOnBuild and ValidateScopes (measured 100%).",
+        "guard": "Guard tests cover the null-argument checks of the public registration methods, which are a minority of the file (measured 64%).",
+        "integration": "The three ADO.NET provider registrations run it end to end in the outbox atomicity tests (measured 76%); per-flag branches are unit-covered."
+      }
+    },
+    "Outbox/IHasNotifications.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Marker interface with no executable lines",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "An interface declaration has no executable lines, so there is nothing to cover; the behavior and writer tests use it through test requests."
       }
     },
     "Outbox/IOutboxMessage.cs": {
@@ -786,11 +791,11 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks",
+      "reason": "Interim post-processor for the families still on the post-processor write path",
       "targets": { "unit": 95, "guard": 0, "contract": 0 },
       "justifications": {
-        "unit": "Process and the constructor are fully exercised by OutboxPostProcessorTests (measured 100%).",
-        "guard": "Constructor null checks are asserted in the unit tests; the guard project has no separate tests for this class.",
+        "unit": "Process delegates to the writer and returns the first Left; the constructor and both outcomes are driven by OutboxPostProcessorTests (measured 100%).",
+        "guard": "Constructor null checks are asserted in the unit tests; the guard project has no separate tests for this interim class.",
         "contract": "A concrete scoped processor with no public contract beyond IRequestPostProcessor, covered by ProcessorContracts for the interface."
       }
     },
@@ -819,6 +824,55 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
+    },
+    "Outbox/OutboxWritePath.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Interim switch enum with no executable lines",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "An enum declaration has no executable lines, so there is nothing to cover; the registration tests drive both values."
+      }
+    },
+    "Outbox/OutboxWriter.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal writer that serializes notifications and adds them to the outbox store",
+      "targets": { "unit": 95, "guard": 35, "contract": 95, "property": 95, "integration": 95 },
+      "justifications": {
+        "unit": "Serialization, factory, add, save and first-Left propagation are driven with substitute stores (measured 100%).",
+        "guard": "The guard tests reach the constructor and the first branch of the write loop (measured 38%); the remaining lines need a store.",
+        "contract": "The behavior contract tests run the writer through the real accessor (measured 100%).",
+        "property": "The commit-or-nothing property writes up to eight notifications per run (measured 100%).",
+        "integration": "The outbox atomicity tests write through the real stores (measured 100%)."
+      }
+    },
+    "Outbox/TransactionalOutboxPipelineBehavior.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*PipelineBehavior.cs",
+      "reason": "Pipeline behavior that writes notifications inside the request transaction",
+      "targets": { "unit": 95, "guard": 25, "contract": 90, "property": 90, "integration": 90 },
+      "justifications": {
+        "unit": "Skip path, handler Left, write Left, commit Left, exception, cancellation and join paths use substitute leases (measured 100%).",
+        "guard": "Only the constructor and Handle argument checks are guard-reachable (measured 29%).",
+        "contract": "The behavior contract tests drive commit, handler Left, failed write, participant rollback, exception and join over the real accessor (measured 98%).",
+        "property": "The commit-or-nothing property covers every outcome except cancellation (measured 94%).",
+        "integration": "Real-database request runs cover every path except cancellation (measured 95%)."
+      }
     },
     "ReadWriteSeparation/DatabaseIntent.cs": {
       "defaultTests": [
@@ -927,9 +981,9 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 85, "guard": 5 },
+      "targets": { "unit": 90, "guard": 5 },
       "justifications": {
-        "unit": "Chain tests drive the processor through every delayed retry and a permanent error (measured 90%); the reflection scheduling fallbacks for an unresolvable type stay uncovered.",
+        "unit": "Retry-After and non-idempotent chain tests in DelayedRetryChainTests; the reflection scheduling fallbacks for an unresolvable type stay uncovered.",
         "guard": "Only the constructor guards exist for this type; the processing loop takes no caller parameters (measured 6%)."
       }
     },
@@ -954,7 +1008,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 0, "contract": 0, "property": 0, "integration": 0 },
+      "justifications": {
+        "unit": "Store/factory scheduling and saturation paths are all covered by DelayedRetrySchedulerTests (measured 100%).",
+        "guard": "GuardTests measure 0% on this file: the scheduler's public methods are exercised only through unit tests (measured 0%).",
+        "contract": "No public contract test for this implementation; the IDelayedRetryScheduler contract is exercised via unit tests.",
+        "property": "DelayedRetryChainProperties covers the chain, not this thin scheduler.",
+        "integration": "Store persistence is covered per provider by the delayed-retry store integration tests."
+      }
     },
     "Recoverability/FailedMessage.cs": {
       "defaultTests": [
@@ -962,25 +1024,17 @@
         "guard"
       ],
       "defaultRule": "*Message.cs",
-      "reason": "Domain entity with serialization/validation logic"
+      "reason": "Domain entity with serialization/validation logic",
+      "targets": { "unit": 95, "guard": 45 },
+      "justifications": {
+        "unit": "namespace-only change in #1223",
+        "guard": "namespace-only change in #1223"
+      }
     },
     "Recoverability/IDelayedRetryScheduler.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
       "reason": "Interfaces have no implementation to test"
-    },
-    "Recoverability/IErrorClassifier.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Contains DefaultErrorClassifier",
-      "targets": {
-        "unit": 95
-      },
-      "justifications": {
-        "unit": "DefaultErrorClassifier implementation with exception classification logic (measured 98%)."
-      }
     },
     "Recoverability/RecoverabilityContext.cs": {
       "defaultTests": [
@@ -999,10 +1053,16 @@
     },
     "Recoverability/RecoverabilityOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": { "unit": 95, "guard": 95 },
+      "justifications": {
+        "unit": "namespace-only change in #1223",
+        "guard": "namespace-only change in #1223"
+      }
     },
     "Recoverability/RecoverabilityPipelineBehavior.cs": {
       "defaultTests": [
@@ -1025,7 +1085,11 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "RegisterErrorClassifier asserted by ErrorClassifierRegistrationTests."
+      }
     },
     "RoutingSlip/IRoutingSlipRunner.cs": {
       "defaultTests": [],
@@ -1249,6 +1313,25 @@
         "unit": "Every lifecycle transition, the not-found and invalid-status paths and the dead letter capture of a failed saga run against a fake store (measured 94%).",
         "guard": "Guard tests reach the constructor and the argument checks of the public operations (measured 48%).",
         "integration": "The saga store and dead letter end-to-end suites start and fail sagas on real databases; stuck and expired saga queries are covered by the store suites and unit tests (measured 35% in the suites run for this change)."
+      }
+    },
+    "SaturatingTime.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal saturating time arithmetic used by delayed retry scheduling",
+      "targets": { "unit": 100, "guard": 0, "contract": 0, "property": 0, "integration": 0 },
+      "justifications": {
+        "unit": "Two-branch saturating addition fully exercised by the OutboxBatchProcessor and DelayedRetryScheduler unit tests.",
+        "guard": "Internal helper with value-type parameters; no null guard exists.",
+        "contract": "Internal helper, not part of any public contract.",
+        "property": "Two branches covered exhaustively by unit tests; no invariant beyond them.",
+        "integration": "Pure time arithmetic with no infrastructure."
       }
     },
     "ScatterGather/BuiltScatterGatherDefinition.cs": {
@@ -1507,12 +1590,139 @@
       ],
       "defaultRule": "*PipelineBehavior.cs",
       "reason": "Mediator pipeline with mockeable next delegate",
-      "targets": { "unit": 95, "guard": 15, "contract": 70, "integration": 65 },
+      "targets": { "unit": 95, "guard": 25, "contract": 85, "integration": 80 },
       "justifications": {
-        "unit": "Commit, rollback, cancellation, open-connection and accessor publication branches use substitute connections.",
-        "guard": "Only the argument checks are guard-reachable.",
-        "contract": "The behavior contract tests drive commit and rollback.",
-        "integration": "Real database pipeline runs cover the DbConnection path; the plain IDbConnection branch needs substitutes."
+        "unit": "Commit, rollback, commit Left, exception, cancellation and begin-failure branches use substitute leases (measured 98%).",
+        "guard": "Only the argument checks are guard-reachable (measured 28%).",
+        "contract": "The behavior contract tests drive commit, rollback, exception and begin failure (measured 90%).",
+        "integration": "Real database request runs cover commit, rollback and rollback-only on three databases (measured 88%)."
+      }
+    },
+    "Transactions/DbLease.cs": {
+      "defaultTests": [
+        "unit",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Connection and transaction lease for stores sharing the request connection",
+      "targets": { "unit": 95, "integration": 80 },
+      "justifications": {
+        "unit": "Enlist, independent, clone and dispose branches are driven with substitute connections (measured 100%).",
+        "integration": "Real ADO.NET and Dapper pipeline runs exercise the enlist and clone paths on three databases (measured 87%); driver-specific clone failures are not reachable."
+      }
+    },
+    "Transactions/DbTransactionAccessor.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Scoped owner of the request transaction: begin or join, commit, rollback, rollback-only",
+      "targets": { "unit": 95, "guard": 2, "contract": 80, "property": 70, "integration": 75 },
+      "justifications": {
+        "unit": "A recording DbConnection drives open, begin, commit, rollback, cancellation, isolation mismatch and the not-supported branch (measured 99%).",
+        "guard": "Only the two constructor argument checks are guard-reachable; every other line needs a transaction.",
+        "contract": "The lease contract tests run owner, joiner, rollback-only, dispose and commit-failure paths against the real accessor (measured 85%); the synchronous dispose and cancellation branches stay with the unit tests.",
+        "property": "The join, commit and rollback sequence property runs the owner and joiner leases (measured 75%); error construction and synchronous disposal are not generated.",
+        "integration": "The outbox atomicity tests run the accessor on SqlServer, PostgreSQL and MySQL (measured 82%); begin and commit failures need a broken connection and stay with the unit tests."
+      }
+    },
+    "Transactions/TransactionLeaseState.cs": {
+      "defaultTests": [
+        "unit",
+        "contract",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal join depth and rollback-only state shared by the leases of one transaction",
+      "targets": { "unit": 95, "contract": 90, "property": 90, "integration": 90 },
+      "justifications": {
+        "unit": "Join, leave, rollback-only, close and logging paths are driven directly (measured 100%).",
+        "contract": "The lease contract tests drive join and rollback-only through the accessor (measured 93%); the diagnostic logging of a refused commit needs a log sink.",
+        "property": "The join and rollback property covers the state transitions (measured 93%); the same logging branches stay unit-only.",
+        "integration": "Real transactions reach the same transitions (measured 93%)."
+      }
+    },
+    "Transactions/TransactionErrors.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Error factories for the transaction error codes",
+      "targets": { "unit": 95, "guard": 8, "contract": 80 },
+      "justifications": {
+        "unit": "Every factory is asserted for its code and for the absence of the exception message (measured 100%).",
+        "guard": "Only the argument checks of the factories are guard-reachable.",
+        "contract": "The lease contract tests reach the rollback-only, lease-disposed, commit-failed, isolation and not-supported factories (measured 83%)."
+      }
+    },
+    "Transactions/DbSystemName.cs": {
+      "defaultTests": [
+        "unit",
+        "contract",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Maps a connection to its db.system value for diagnostics",
+      "targets": { "unit": 95, "contract": 75, "property": 75, "integration": 80 },
+      "justifications": {
+        "unit": "Every provider type name and the unknown fallback are asserted (measured 100%).",
+        "contract": "The stub connection reaches the fallback and the source-based overload (measured 79%); the provider-specific names need the provider connection types.",
+        "property": "The property tests reuse the stub connection, so the provider-specific names are not reached (measured 79%).",
+        "integration": "Real SqlServer, PostgreSQL and MySQL connections reach the provider-specific names (measured 86%)."
+      }
+    },
+    "Transactions/TransactionLeaseExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "contract"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "Unwraps the lease of a successful begin-or-join result",
+      "targets": { "unit": 95, "contract": 95 },
+      "justifications": {
+        "unit": "The single method is exercised on the Right path by the behavior tests (measured 100%).",
+        "contract": "The behavior contract tests call it through the real accessor (measured 100%)."
+      }
+    },
+    "Transactions/IDbTransactionAccessor.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Accessor interface with no executable lines",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "An interface declaration has no executable lines, so there is nothing to cover; DbTransactionAccessor implements it and carries the targets."
+      }
+    },
+    "Transactions/ITransactionLease.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Lease interface with no executable lines",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "An interface declaration has no executable lines, so there is nothing to cover; the accessor leases implement it and carry the targets."
+      }
+    },
+    "Transactions/ITransactionLeaseSource.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Lease source interface with no executable lines",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "An interface declaration has no executable lines, so there is nothing to cover; DbTransactionAccessor implements it and carries the targets."
       }
     }
   }

@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using Encina.Messaging;
 using Encina.Messaging.Sagas;
+using Encina.Messaging.Transactions;
 using LanguageExt;
 using static LanguageExt.Prelude;
 
@@ -11,11 +12,16 @@ namespace Encina.Dapper.SqlServer.Sagas;
 /// Dapper implementation of <see cref="ISagaStore"/> for saga orchestration.
 /// Provides persistence and retrieval of saga state for distributed transactions.
 /// </summary>
+/// <remarks>
+/// Every command enlists in the business transaction of the scope when one is active (see
+/// <see cref="DbLease.Enlisted"/>); without an accessor, or without an active transaction, commands run in autocommit.
+/// </remarks>
 public sealed class SagaStoreDapper : ISagaStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
     private readonly TimeProvider _timeProvider;
+    private readonly IDbTransactionAccessor? _transactionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SagaStoreDapper"/> class.
@@ -23,17 +29,23 @@ public sealed class SagaStoreDapper : ISagaStore
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The saga state table name (default: SagaStates).</param>
     /// <param name="timeProvider">Optional time provider for testability. Defaults to <see cref="TimeProvider.System"/>.</param>
+    /// <param name="transactionAccessor">
+    /// Optional accessor of the scope's shared transaction; when a transaction is active the store's commands
+    /// join it, otherwise they run in autocommit.
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is null or whitespace.</exception>
     public SagaStoreDapper(
         IDbConnection connection,
         string tableName = "SagaStates",
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IDbTransactionAccessor? transactionAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _transactionAccessor = transactionAccessor;
     }
 
     /// <inheritdoc />
@@ -49,7 +61,9 @@ public sealed class SagaStoreDapper : ISagaStore
                 FROM {_tableName}
                 WHERE SagaId = @SagaId";
 
-            var result = await _connection.QuerySingleOrDefaultAsync<SagaState>(sql, new { SagaId = sagaId });
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            var result = await lease.Connection.QuerySingleOrDefaultAsync<SagaState>(
+                new CommandDefinition(sql, new { SagaId = sagaId }, lease.Transaction, cancellationToken: cancellationToken));
 
             return result is not null
                 ? Option<ISagaState>.Some(result)
@@ -70,7 +84,9 @@ public sealed class SagaStoreDapper : ISagaStore
                 VALUES
                 (@SagaId, @SagaType, @Data, @Status, @StartedAtUtc, @LastUpdatedAtUtc, @CompletedAtUtc, @ErrorMessage, @CurrentStep, @TimeoutAtUtc)";
 
-            await _connection.ExecuteAsync(sql, sagaState);
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            await lease.Connection.ExecuteAsync(
+                new CommandDefinition(sql, sagaState, lease.Transaction, cancellationToken: cancellationToken));
         }, "saga.add_failed").ConfigureAwait(false);
     }
 
@@ -94,20 +110,24 @@ public sealed class SagaStoreDapper : ISagaStore
                     TimeoutAtUtc = @TimeoutAtUtc
                 WHERE SagaId = @SagaId";
 
-            await _connection.ExecuteAsync(
-                sql,
-                new
-                {
-                    sagaState.SagaId,
-                    sagaState.SagaType,
-                    sagaState.Data,
-                    sagaState.Status,
-                    NowUtc = nowUtc,
-                    sagaState.CompletedAtUtc,
-                    sagaState.ErrorMessage,
-                    sagaState.CurrentStep,
-                    sagaState.TimeoutAtUtc
-                });
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            await lease.Connection.ExecuteAsync(
+                new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        sagaState.SagaId,
+                        sagaState.SagaType,
+                        sagaState.Data,
+                        sagaState.Status,
+                        NowUtc = nowUtc,
+                        sagaState.CompletedAtUtc,
+                        sagaState.ErrorMessage,
+                        sagaState.CurrentStep,
+                        sagaState.TimeoutAtUtc
+                    },
+                    lease.Transaction,
+                    cancellationToken: cancellationToken));
         }, "saga.update_failed").ConfigureAwait(false);
     }
 
@@ -133,15 +153,19 @@ public sealed class SagaStoreDapper : ISagaStore
                   AND LastUpdatedAtUtc < @ThresholdUtc
                 ORDER BY LastUpdatedAtUtc";
 
-            var sagas = await _connection.QueryAsync<SagaState>(
-                sql,
-                new
-                {
-                    BatchSize = batchSize,
-                    Running = "Running",
-                    Compensating = "Compensating",
-                    ThresholdUtc = thresholdUtc
-                });
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            var sagas = await lease.Connection.QueryAsync<SagaState>(
+                new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        BatchSize = batchSize,
+                        Running = "Running",
+                        Compensating = "Compensating",
+                        ThresholdUtc = thresholdUtc
+                    },
+                    lease.Transaction,
+                    cancellationToken: cancellationToken));
 
             return sagas.Cast<ISagaState>();
         }, "saga.get_stuck_failed").ConfigureAwait(false);
@@ -166,15 +190,19 @@ public sealed class SagaStoreDapper : ISagaStore
                   AND TimeoutAtUtc <= @NowUtc
                 ORDER BY TimeoutAtUtc";
 
-            var sagas = await _connection.QueryAsync<SagaState>(
-                sql,
-                new
-                {
-                    BatchSize = batchSize,
-                    Running = "Running",
-                    Compensating = "Compensating",
-                    NowUtc = nowUtc
-                });
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            var sagas = await lease.Connection.QueryAsync<SagaState>(
+                new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        BatchSize = batchSize,
+                        Running = "Running",
+                        Compensating = "Compensating",
+                        NowUtc = nowUtc
+                    },
+                    lease.Transaction,
+                    cancellationToken: cancellationToken));
 
             return sagas.Cast<ISagaState>();
         }, "saga.get_expired_failed").ConfigureAwait(false);

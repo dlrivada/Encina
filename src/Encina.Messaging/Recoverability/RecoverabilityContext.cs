@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Encina.Recoverability;
 using LanguageExt;
 
 namespace Encina.Messaging.Recoverability;

@@ -1,5 +1,6 @@
 using Encina.Database;
 using Encina.Polly.Predicates;
+using Encina.Recoverability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -51,6 +52,10 @@ public static class ServiceCollectionExtensions
 
         // Register Adaptive Rate Limiter as singleton (shared state across requests)
         services.TryAddSingleton<IRateLimiter, AdaptiveRateLimiter>();
+
+        // Register the default error classifier the retry behavior classifies through; the application or
+        // AddEncinaRecoverability (with a custom classifier) replaces it in any registration order.
+        services.TryAddSingleton<IErrorClassifier, DefaultErrorClassifier>();
 
         // Register Bulkhead behavior (first in pipeline to limit concurrency early)
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(BulkheadPipelineBehavior<,>));

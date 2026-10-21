@@ -55,11 +55,31 @@ public sealed class RetryAttribute : Attribute
     /// Whether to retry on all exceptions or only on specific transient failures.
     /// </summary>
     /// <remarks>
-    /// When false, only retries on: TimeoutException, HttpRequestException, IOException.
-    /// When true, retries on all exceptions.
+    /// When false, retries exceptions that are classified as transient and the known transient types:
+    /// TimeoutException, HttpRequestException, IOException.
+    /// When true, also retries exceptions the <c>IErrorClassifier</c> cannot classify (<c>Unknown</c>).
+    /// An exception classified <c>Permanent</c> is never retried, with or without this flag; use a custom
+    /// <c>IErrorClassifier</c> registered in DI to change a classification.
     /// Default: false (only transient failures)
     /// </remarks>
     public bool RetryOnAllExceptions { get; init; }
+
+    /// <summary>
+    /// Whether an ambiguous failure of a non-idempotent send may be retried automatically.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An outbound call with a non-idempotent method (POST, PATCH) that fails ambiguously (500, 502, 504, a timeout
+    /// or a broken connection after the request was sent) may already have been processed, so retrying it can
+    /// duplicate the effect. By default it is returned to the caller instead of being retried. Set this only for a
+    /// provider that deduplicates; a request that carries an idempotency key is retried without it.
+    /// </para>
+    /// <para>
+    /// 429 and the responses that prove the request was not processed (503, 408, a connection that never opened)
+    /// are retried regardless. Default: false.
+    /// </para>
+    /// </remarks>
+    public bool RetryNonIdempotent { get; init; }
 }
 
 /// <summary>

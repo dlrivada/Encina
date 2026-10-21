@@ -1,5 +1,6 @@
 using System.Reflection;
 using Encina.Polly;
+using Encina.Recoverability;
 using Encina.TestInfrastructure.PropertyTests;
 using Encina.Testing;
 using LanguageExt;
@@ -23,7 +24,7 @@ public sealed class PolicyCombinationTests
     {
         // Arrange
         var retryBehavior = new RetryPipelineBehavior<RetryCircuitBreakerRequest, string>(
-            NullLogger<RetryPipelineBehavior<RetryCircuitBreakerRequest, string>>.Instance);
+            NullLogger<RetryPipelineBehavior<RetryCircuitBreakerRequest, string>>.Instance, new DefaultErrorClassifier());
         var circuitBreakerBehavior = new CircuitBreakerPipelineBehavior<RetryCircuitBreakerRequest, string>(
             NullLogger<CircuitBreakerPipelineBehavior<RetryCircuitBreakerRequest, string>>.Instance);
 
@@ -61,7 +62,7 @@ public sealed class PolicyCombinationTests
         var rateLimiter = new AdaptiveRateLimiter(timeProvider);
 
         var retryBehavior = new RetryPipelineBehavior<RetryRateLimitRequest, string>(
-            NullLogger<RetryPipelineBehavior<RetryRateLimitRequest, string>>.Instance);
+            NullLogger<RetryPipelineBehavior<RetryRateLimitRequest, string>>.Instance, new DefaultErrorClassifier());
         var rateLimitBehavior = new RateLimitingPipelineBehavior<RetryRateLimitRequest, string>(
             NullLogger<RateLimitingPipelineBehavior<RetryRateLimitRequest, string>>.Instance,
             rateLimiter);
@@ -217,7 +218,7 @@ public sealed class PolicyCombinationTests
     {
         // Arrange
         var retryBehavior = new RetryPipelineBehavior<RetryTestRequest, string>(
-            NullLogger<RetryPipelineBehavior<RetryTestRequest, string>>.Instance);
+            NullLogger<RetryPipelineBehavior<RetryTestRequest, string>>.Instance, new DefaultErrorClassifier());
 
         var request = new RetryTestRequest();
         var context = new TestRequestContext();
@@ -242,7 +243,7 @@ public sealed class PolicyCombinationTests
     {
         // Arrange
         var retryBehavior = new RetryPipelineBehavior<RetryTestRequest, string>(
-            NullLogger<RetryPipelineBehavior<RetryTestRequest, string>>.Instance);
+            NullLogger<RetryPipelineBehavior<RetryTestRequest, string>>.Instance, new DefaultErrorClassifier());
 
         var request = new RetryTestRequest();
         var context = new TestRequestContext();
@@ -270,7 +271,7 @@ public sealed class PolicyCombinationTests
     {
         // Arrange
         var retryBehavior = new RetryPipelineBehavior<RetryExceptionRequest, string>(
-            NullLogger<RetryPipelineBehavior<RetryExceptionRequest, string>>.Instance);
+            NullLogger<RetryPipelineBehavior<RetryExceptionRequest, string>>.Instance, new DefaultErrorClassifier());
 
         var request = new RetryExceptionRequest();
         var context = new TestRequestContext();

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Refit;
 
 namespace Encina.Refit;
@@ -45,7 +46,7 @@ public static class ServiceCollectionExtensions
         // Note: The handler is registered automatically by Encina's assembly scanning
         // when you call AddEncina() because it implements IRequestHandler<,>
 
-        return httpClientBuilder;
+        return WithMethodCapture(services, httpClientBuilder);
     }
 
     /// <summary>
@@ -86,7 +87,7 @@ public static class ServiceCollectionExtensions
             httpClientBuilder.ConfigureHttpClient(configure);
         }
 
-        return httpClientBuilder;
+        return WithMethodCapture(services, httpClientBuilder);
     }
 
     /// <summary>
@@ -125,6 +126,14 @@ public static class ServiceCollectionExtensions
             httpClientBuilder.ConfigureHttpClient(configure);
         }
 
-        return httpClientBuilder;
+        return WithMethodCapture(services, httpClientBuilder);
+    }
+
+    // Reports the HTTP method of each call to the handler, so a timeout or a broken connection of a
+    // non-idempotent method is recognized as an ambiguous failure.
+    private static IHttpClientBuilder WithMethodCapture(IServiceCollection services, IHttpClientBuilder httpClientBuilder)
+    {
+        services.TryAddTransient<OutboundMethodCaptureHandler>();
+        return httpClientBuilder.AddHttpMessageHandler<OutboundMethodCaptureHandler>();
     }
 }

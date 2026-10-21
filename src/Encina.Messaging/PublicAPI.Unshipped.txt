@@ -157,21 +157,6 @@ static Encina.Messaging.MessagingLog.TransactionStarted(Microsoft.Extensions.Log
 static Encina.Messaging.MessagingLog.TransactionCommitted(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
 static Encina.Messaging.MessagingLog.TransactionRolledBack(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
 Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>
-Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPipelineBehavior(System.Data.IDbConnection! connection, Encina.Messaging.IDbTransactionAccessor? transactionAccessor = null) -> void
-Encina.Messaging.DbLease
-Encina.Messaging.DbLease.Connection.get -> System.Data.IDbConnection!
-Encina.Messaging.DbLease.CreateCommand() -> System.Data.IDbCommand!
-Encina.Messaging.DbLease.Dispose() -> void
-Encina.Messaging.DbLease.Transaction.get -> System.Data.IDbTransaction?
-static Encina.Messaging.DbLease.Enlisted(System.Data.IDbConnection! connection, Encina.Messaging.IDbTransactionAccessor? accessor) -> Encina.Messaging.DbLease!
-static Encina.Messaging.DbLease.IndependentAsync(System.Data.IDbConnection! connection, Encina.Messaging.IDbTransactionAccessor? accessor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Encina.Messaging.DbLease!>!
-Encina.Messaging.DbTransactionAccessor
-Encina.Messaging.DbTransactionAccessor.Current.get -> System.Data.IDbTransaction?
-Encina.Messaging.DbTransactionAccessor.Current.set -> void
-Encina.Messaging.DbTransactionAccessor.DbTransactionAccessor() -> void
-Encina.Messaging.IDbTransactionAccessor
-Encina.Messaging.IDbTransactionAccessor.Current.get -> System.Data.IDbTransaction?
-Encina.Messaging.IDbTransactionAccessor.Current.set -> void
 Encina.Messaging.Inbox.IInboxStore.CacheHandlerErrorAsync(string! messageId, string! response, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
 Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 static Encina.Messaging.MessagingServiceCollectionExtensions.AddMessagingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Encina.Messaging.MessagingConfiguration! config) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -271,7 +256,7 @@ Encina.Messaging.Recoverability.RecoverabilityOptions.DelayedRetries.get -> Syst
 Encina.Messaging.Recoverability.RecoverabilityOptions.DelayedRetries.set -> void
 Encina.Messaging.Recoverability.RecoverabilityOptions.OnPermanentFailure.get -> System.Func<Encina.Messaging.Recoverability.FailedMessage!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
 Encina.Messaging.Recoverability.RecoverabilityOptions.OnPermanentFailure.set -> void
-Encina.Messaging.Recoverability.RecoverabilityOptions.ErrorClassifier.get -> Encina.Messaging.Recoverability.IErrorClassifier?
+Encina.Messaging.Recoverability.RecoverabilityOptions.ErrorClassifier.get -> Encina.Recoverability.IErrorClassifier?
 Encina.Messaging.Recoverability.RecoverabilityOptions.ErrorClassifier.set -> void
 Encina.Messaging.Recoverability.RecoverabilityOptions.EnableDelayedRetries.get -> bool
 Encina.Messaging.Recoverability.RecoverabilityOptions.EnableDelayedRetries.set -> void
@@ -280,15 +265,6 @@ Encina.Messaging.Recoverability.RecoverabilityOptions.UseJitter.set -> void
 Encina.Messaging.Recoverability.RecoverabilityOptions.MaxJitterPercent.get -> int
 Encina.Messaging.Recoverability.RecoverabilityOptions.MaxJitterPercent.set -> void
 Encina.Messaging.Recoverability.RecoverabilityOptions.TotalRetryAttempts.get -> int
-Encina.Messaging.Recoverability.IErrorClassifier
-Encina.Messaging.Recoverability.IErrorClassifier.Classify(Encina.EncinaError encinaError, System.Exception? exception) -> Encina.Messaging.Recoverability.ErrorClassification
-Encina.Messaging.Recoverability.ErrorClassification
-Encina.Messaging.Recoverability.ErrorClassification.Unknown = 0 -> Encina.Messaging.Recoverability.ErrorClassification
-Encina.Messaging.Recoverability.ErrorClassification.Transient = 1 -> Encina.Messaging.Recoverability.ErrorClassification
-Encina.Messaging.Recoverability.ErrorClassification.Permanent = 2 -> Encina.Messaging.Recoverability.ErrorClassification
-Encina.Messaging.Recoverability.DefaultErrorClassifier
-Encina.Messaging.Recoverability.DefaultErrorClassifier.DefaultErrorClassifier() -> void
-Encina.Messaging.Recoverability.DefaultErrorClassifier.Classify(Encina.EncinaError encinaError, System.Exception? exception) -> Encina.Messaging.Recoverability.ErrorClassification
 Encina.Messaging.Recoverability.FailedMessage
 Encina.Messaging.Recoverability.FailedMessage.Id.get -> System.Guid
 Encina.Messaging.Recoverability.FailedMessage.Id.init -> void
@@ -327,7 +303,7 @@ Encina.Messaging.Recoverability.RetryAttempt.Error.get -> Encina.EncinaError
 Encina.Messaging.Recoverability.RetryAttempt.Error.init -> void
 Encina.Messaging.Recoverability.RetryAttempt.Exception.get -> System.Exception?
 Encina.Messaging.Recoverability.RetryAttempt.Exception.init -> void
-Encina.Messaging.Recoverability.RetryAttempt.Classification.get -> Encina.Messaging.Recoverability.ErrorClassification
+Encina.Messaging.Recoverability.RetryAttempt.Classification.get -> Encina.Recoverability.ErrorClassification
 Encina.Messaging.Recoverability.RetryAttempt.Classification.init -> void
 Encina.Messaging.Recoverability.RetryAttempt.Duration.get -> System.TimeSpan?
 Encina.Messaging.Recoverability.RetryAttempt.Duration.init -> void
@@ -340,7 +316,7 @@ Encina.Messaging.Recoverability.RecoverabilityContext.DelayedRetryCount.get -> i
 Encina.Messaging.Recoverability.RecoverabilityContext.TotalAttempts.get -> int
 Encina.Messaging.Recoverability.RecoverabilityContext.LastError.get -> Encina.EncinaError?
 Encina.Messaging.Recoverability.RecoverabilityContext.LastException.get -> System.Exception?
-Encina.Messaging.Recoverability.RecoverabilityContext.LastClassification.get -> Encina.Messaging.Recoverability.ErrorClassification
+Encina.Messaging.Recoverability.RecoverabilityContext.LastClassification.get -> Encina.Recoverability.ErrorClassification
 Encina.Messaging.Recoverability.RecoverabilityContext.IsInDelayedRetryPhase.get -> bool
 Encina.Messaging.Recoverability.RecoverabilityContext.CorrelationId.get -> string?
 Encina.Messaging.Recoverability.RecoverabilityContext.CorrelationId.init -> void
@@ -349,13 +325,13 @@ Encina.Messaging.Recoverability.RecoverabilityContext.IdempotencyKey.init -> voi
 Encina.Messaging.Recoverability.RecoverabilityContext.RequestTypeName.get -> string?
 Encina.Messaging.Recoverability.RecoverabilityContext.RequestTypeName.init -> void
 Encina.Messaging.Recoverability.RecoverabilityContext.RetryHistory.get -> System.Collections.Generic.IReadOnlyList<Encina.Messaging.Recoverability.RetryAttempt!>!
-Encina.Messaging.Recoverability.RecoverabilityContext.RecordFailedAttempt(Encina.EncinaError error, System.Exception? exception, Encina.Messaging.Recoverability.ErrorClassification classification, System.TimeSpan? duration = null) -> void
+Encina.Messaging.Recoverability.RecoverabilityContext.RecordFailedAttempt(Encina.EncinaError error, System.Exception? exception, Encina.Recoverability.ErrorClassification classification, System.TimeSpan? duration = null) -> void
 Encina.Messaging.Recoverability.RecoverabilityContext.IncrementImmediateRetry() -> void
 Encina.Messaging.Recoverability.RecoverabilityContext.IncrementDelayedRetry() -> void
 Encina.Messaging.Recoverability.RecoverabilityContext.TransitionToDelayedPhase() -> void
 Encina.Messaging.Recoverability.RecoverabilityContext.CreateFailedMessage(object! request) -> Encina.Messaging.Recoverability.FailedMessage!
 Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>
-Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>.RecoverabilityPipelineBehavior(Encina.Messaging.Recoverability.RecoverabilityOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>!>! logger, Encina.Messaging.Recoverability.IDelayedRetryScheduler? delayedRetryScheduler = null, System.TimeProvider? timeProvider = null, Encina.Messaging.DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null) -> void
+Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>.RecoverabilityPipelineBehavior(Encina.Messaging.Recoverability.RecoverabilityOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>!>! logger, Encina.Messaging.Recoverability.IDelayedRetryScheduler? delayedRetryScheduler = null, System.TimeProvider? timeProvider = null, Encina.Messaging.DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null, Encina.Recoverability.IErrorClassifier? errorClassifier = null) -> void
 Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Messaging.Recoverability.RecoverabilityErrorCodes
 const Encina.Messaging.Recoverability.RecoverabilityErrorCodes.Cancelled = "recoverability.cancelled" -> string!
@@ -893,3 +869,57 @@ Encina.Messaging.Scheduling.SchedulerOrchestrator.SchedulerOrchestrator(Encina.M
 static Encina.Messaging.MessagingServiceCollectionExtensions.TryAddDefaultMessageSerializer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Encina.Messaging.IWrappedDbConnection
 Encina.Messaging.IWrappedDbConnection.InnerConnection.get -> System.Data.IDbConnection!
+Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPipelineBehavior(Encina.Messaging.Transactions.IDbTransactionAccessor! transactionAccessor, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Messaging.Transactions.DbLease
+Encina.Messaging.Transactions.DbLease.Connection.get -> System.Data.IDbConnection!
+Encina.Messaging.Transactions.DbLease.CreateCommand() -> System.Data.IDbCommand!
+Encina.Messaging.Transactions.DbLease.Dispose() -> void
+Encina.Messaging.Transactions.DbLease.EnsureOpenAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Messaging.Transactions.DbLease.Transaction.get -> System.Data.IDbTransaction?
+static Encina.Messaging.Transactions.DbLease.Enlisted(System.Data.IDbConnection! connection, Encina.Messaging.Transactions.IDbTransactionAccessor? accessor) -> Encina.Messaging.Transactions.DbLease!
+static Encina.Messaging.Transactions.DbLease.IndependentAsync(System.Data.IDbConnection! connection, Encina.Messaging.Transactions.IDbTransactionAccessor? accessor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Encina.Messaging.Transactions.DbLease!>!
+Encina.Messaging.Transactions.DbTransactionAccessor
+Encina.Messaging.Transactions.DbTransactionAccessor.BeginOrJoinAsync(System.Data.IsolationLevel? isolationLevel, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Transactions.IDbTransactionLease!>>
+Encina.Messaging.Transactions.DbTransactionAccessor.BeginOrJoinAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Transactions.ITransactionLease!>>
+Encina.Messaging.Transactions.DbTransactionAccessor.Connection.get -> System.Data.IDbConnection!
+Encina.Messaging.Transactions.DbTransactionAccessor.Current.get -> System.Data.IDbTransaction?
+Encina.Messaging.Transactions.DbTransactionAccessor.DbTransactionAccessor(System.Data.IDbConnection! connection, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Transactions.DbTransactionAccessor!>! logger) -> void
+Encina.Messaging.Transactions.DbTransactionAccessor.Dispose() -> void
+Encina.Messaging.Transactions.DbTransactionAccessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Encina.Messaging.Transactions.DbTransactionAccessor.HasActiveTransaction.get -> bool
+Encina.Messaging.Transactions.IDbTransactionAccessor
+Encina.Messaging.Transactions.IDbTransactionAccessor.BeginOrJoinAsync(System.Data.IsolationLevel? isolationLevel, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Transactions.IDbTransactionLease!>>
+Encina.Messaging.Transactions.IDbTransactionAccessor.Connection.get -> System.Data.IDbConnection!
+Encina.Messaging.Transactions.IDbTransactionAccessor.Current.get -> System.Data.IDbTransaction?
+Encina.Messaging.Transactions.IDbTransactionLease
+Encina.Messaging.Transactions.IDbTransactionLease.Transaction.get -> System.Data.IDbTransaction!
+Encina.Messaging.Transactions.ITransactionLease
+Encina.Messaging.Transactions.ITransactionLease.CommitAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Messaging.Transactions.ITransactionLease.IsOwner.get -> bool
+Encina.Messaging.Transactions.ITransactionLease.RollbackAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Encina.Messaging.Transactions.ITransactionLeaseSource
+Encina.Messaging.Transactions.ITransactionLeaseSource.BeginOrJoinAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Transactions.ITransactionLease!>>
+Encina.Messaging.Transactions.ITransactionLeaseSource.HasActiveTransaction.get -> bool
+Encina.Messaging.Transactions.TransactionErrors
+const Encina.Messaging.Transactions.TransactionErrors.BeginFailedCode = "transaction.begin_failed" -> string!
+const Encina.Messaging.Transactions.TransactionErrors.CommitFailedCode = "transaction.commit_failed" -> string!
+const Encina.Messaging.Transactions.TransactionErrors.IsolationLevelMismatchCode = "transaction.isolation_level_mismatch" -> string!
+const Encina.Messaging.Transactions.TransactionErrors.LeaseDisposedCode = "transaction.lease_disposed" -> string!
+const Encina.Messaging.Transactions.TransactionErrors.NotSupportedCode = "transaction.not_supported" -> string!
+const Encina.Messaging.Transactions.TransactionErrors.RollbackOnlyCode = "transaction.rollback_only" -> string!
+static Encina.Messaging.Transactions.TransactionErrors.BeginFailed(System.Exception! exception) -> Encina.EncinaError
+static Encina.Messaging.Transactions.TransactionErrors.CommitFailed(System.Exception! exception) -> Encina.EncinaError
+static Encina.Messaging.Transactions.TransactionErrors.IsolationLevelMismatch(System.Data.IsolationLevel requested, System.Data.IsolationLevel active) -> Encina.EncinaError
+static Encina.Messaging.Transactions.TransactionErrors.LeaseDisposed() -> Encina.EncinaError
+static Encina.Messaging.Transactions.TransactionErrors.NotSupported(System.Type! connectionType) -> Encina.EncinaError
+static Encina.Messaging.Transactions.TransactionErrors.RollbackOnly() -> Encina.EncinaError
+Encina.Messaging.Outbox.TransactionalOutboxPipelineBehavior<TRequest, TResponse>
+Encina.Messaging.Outbox.TransactionalOutboxPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Messaging.Outbox.TransactionalOutboxPipelineBehavior<TRequest, TResponse>.TransactionalOutboxPipelineBehavior(Encina.Messaging.Transactions.ITransactionLeaseSource! transactionSource, Encina.Messaging.Outbox.IOutboxStore! outboxStore, Encina.Messaging.Outbox.IOutboxMessageFactory! messageFactory, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Outbox.TransactionalOutboxPipelineBehavior<TRequest, TResponse>!>! logger, System.TimeProvider? timeProvider = null) -> void
+static Encina.Messaging.MessagingLog.TransactionJoined(Microsoft.Extensions.Logging.ILogger! logger, int joinDepth) -> void
+static Encina.Messaging.MessagingLog.TransactionMarkedRollbackOnly(Microsoft.Extensions.Logging.ILogger! logger) -> void
+static Encina.Messaging.MessagingLog.TransactionRollbackOnlyCommitRefused(Microsoft.Extensions.Logging.ILogger! logger, string! errorCode) -> void
+static Encina.Messaging.MessagingLog.TransactionCommitFailed(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception, string! errorCode) -> void
+static Encina.Messaging.MessagingLog.OutboxNotificationsWritten(Microsoft.Extensions.Logging.ILogger! logger, int notificationCount, string! requestType) -> void
+static Encina.Messaging.MessagingLog.OutboxWriteFailed(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string! errorCode) -> void
+static Encina.Messaging.MessagingLog.OutboxBehaviorSkipped(Microsoft.Extensions.Logging.ILogger! logger, string! requestType) -> void

@@ -1,4 +1,4 @@
-using Encina.Messaging.Recoverability;
+using Encina.Recoverability;
 using Quartz;
 
 namespace Encina.Quartz;

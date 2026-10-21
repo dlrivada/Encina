@@ -3,8 +3,8 @@ using System.Data;
 using Encina;
 using Encina.Dapper.PostgreSQL.Repository;
 using Encina.DomainModeling;
+using Encina.Messaging.Transactions;
 using LanguageExt;
-using Npgsql;
 using static LanguageExt.Prelude;
 
 namespace Encina.Dapper.PostgreSQL.UnitOfWork;
@@ -31,7 +31,7 @@ namespace Encina.Dapper.PostgreSQL.UnitOfWork;
 /// <para>
 /// PostgreSQL-specific features:
 /// <list type="bullet">
-/// <item><description>Uses <see cref="NpgsqlConnection"/> for native async connection opening</description></item>
+/// <item><description>Shares the scope's connection and transaction with the messaging stores through the transaction accessor</description></item>
 /// <item><description>Supports PostgreSQL transaction isolation levels</description></item>
 /// <item><description>Repositories use double-quoted identifiers for PostgreSQL compatibility</description></item>
 /// </list>
@@ -65,39 +65,54 @@ namespace Encina.Dapper.PostgreSQL.UnitOfWork;
 /// </example>
 public sealed class UnitOfWorkDapper : IUnitOfWork
 {
-    private readonly IDbConnection _connection;
+    private readonly IDbTransactionAccessor _transactionAccessor;
     private readonly IServiceProvider _serviceProvider;
     private readonly ConcurrentDictionary<Type, object> _repositories = new();
-    private IDbTransaction? _transaction;
+    private IDbTransactionLease? _lease;
     private bool _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="UnitOfWorkDapper"/> class.
     /// </summary>
-    /// <param name="connection">The database connection.</param>
+    /// <param name="transactionAccessor">
+    /// The scope's transaction accessor: the unit of work takes a lease on the transaction the scope shares
+    /// with the transaction behavior and the messaging stores, instead of owning a private one.
+    /// </param>
     /// <param name="serviceProvider">The service provider for resolving dependencies.</param>
     /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="connection"/> or <paramref name="serviceProvider"/> is null.
+    /// Thrown when <paramref name="transactionAccessor"/> or <paramref name="serviceProvider"/> is null.
     /// </exception>
-    public UnitOfWorkDapper(IDbConnection connection, IServiceProvider serviceProvider)
+    public UnitOfWorkDapper(IDbTransactionAccessor transactionAccessor, IServiceProvider serviceProvider)
     {
-        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transactionAccessor);
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
-        _connection = connection;
+        _transactionAccessor = transactionAccessor;
         _serviceProvider = serviceProvider;
     }
 
     /// <inheritdoc/>
-    public bool HasActiveTransaction => _transaction is not null;
+    /// <remarks>
+    /// <see langword="true"/> while this unit of work holds a lease on the scope's transaction, whether it
+    /// began the transaction or joined one a transaction behavior already opened.
+    /// </remarks>
+    public bool HasActiveTransaction => _lease is not null;
 
     /// <summary>
-    /// Gets the current transaction, if one is active.
+    /// Gets the current transaction of the scope, if one is active.
     /// </summary>
     /// <remarks>
     /// This property is used internally by repositories to participate in the transaction.
     /// </remarks>
-    internal IDbTransaction? CurrentTransaction => _transaction;
+    internal IDbTransaction? CurrentTransaction => _transactionAccessor.Current;
+
+    /// <summary>
+    /// Gets the database connection.
+    /// </summary>
+    /// <remarks>
+    /// This property is used internally by repositories for database operations.
+    /// </remarks>
+    internal IDbConnection Connection => _transactionAccessor.Connection;
 
     /// <inheritdoc/>
     public IFunctionalRepository<TEntity, TId> Repository<TEntity, TId>()
@@ -119,7 +134,7 @@ public sealed class UnitOfWorkDapper : IUnitOfWork
                         $"No entity mapping found for {typeof(TEntity).Name}. " +
                         $"Register a mapping using services.AddEncinaRepository<{typeof(TEntity).Name}, {typeof(TId).Name}>(...)");
 
-                return new UnitOfWorkRepositoryDapper<TEntity, TId>(_connection, mapping, this);
+                return new UnitOfWorkRepositoryDapper<TEntity, TId>(Connection, mapping, this);
             });
     }
 
@@ -143,17 +158,25 @@ public sealed class UnitOfWorkDapper : IUnitOfWork
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (_transaction is not null)
+        // TransactionAlreadyActive only when THIS unit of work holds a lease; a transaction another participant
+        // of the scope owns is joined, not refused.
+        if (_lease is not null)
         {
             return Left<EncinaError, Unit>(UnitOfWorkErrors.TransactionAlreadyActive());
         }
 
         try
         {
-            await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
-            _transaction = _connection.BeginTransaction();
+            var begun = await _transactionAccessor.BeginOrJoinAsync(isolationLevel: null, cancellationToken).ConfigureAwait(false);
 
-            return Right<EncinaError, Unit>(Unit.Default);
+            return begun.Match(
+                Right: lease =>
+                {
+                    _lease = lease;
+                    return Right<EncinaError, Unit>(Unit.Default);
+                },
+                Left: error => Left<EncinaError, Unit>(
+                    UnitOfWorkErrors.TransactionStartFailed(TransactionErrors.AsException(error))));
         }
         catch (Exception ex)
         {
@@ -162,36 +185,29 @@ public sealed class UnitOfWorkDapper : IUnitOfWork
     }
 
     /// <inheritdoc/>
-    public Task<Either<EncinaError, Unit>> CommitAsync(CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> CommitAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (_transaction is null)
+        if (_lease is null)
         {
-            return Task.FromResult(Left<EncinaError, Unit>(UnitOfWorkErrors.NoActiveTransaction()));
+            return Left<EncinaError, Unit>(UnitOfWorkErrors.NoActiveTransaction());
         }
 
-        try
-        {
-            _transaction.Commit();
-            DisposeTransaction();
+        // A joined lease's commit is a no-op; only the owner commits, and a rollback-only transaction is
+        // rolled back and refused.
+        var committed = await _lease.CommitAsync(cancellationToken).ConfigureAwait(false);
+        await ReleaseLeaseAsync().ConfigureAwait(false);
 
-            return Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        }
-        catch (Exception ex)
-        {
-            RollbackInternal();
-            return Task.FromResult(Left<EncinaError, Unit>(UnitOfWorkErrors.CommitFailed(ex)));
-        }
+        return committed.MapLeft(error => UnitOfWorkErrors.CommitFailed(TransactionErrors.AsException(error)));
     }
 
     /// <inheritdoc/>
-    public Task RollbackAsync(CancellationToken cancellationToken = default)
+    public async Task RollbackAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        RollbackInternal();
-        return Task.CompletedTask;
+        await RollbackInternalAsync().ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -226,63 +242,44 @@ public sealed class UnitOfWorkDapper : IUnitOfWork
     }
 
     /// <inheritdoc/>
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_disposed)
         {
-            return ValueTask.CompletedTask;
+            return;
         }
 
         _disposed = true;
 
         // Auto-rollback uncommitted transaction
-        RollbackInternal();
+        await RollbackInternalAsync().ConfigureAwait(false);
 
         _repositories.Clear();
 
         GC.SuppressFinalize(this);
-        return ValueTask.CompletedTask;
     }
 
-    private async Task EnsureConnectionOpenAsync(CancellationToken cancellationToken)
+    private async Task RollbackInternalAsync()
     {
-        if (_connection.State == ConnectionState.Open)
-            return;
-
-        if (_connection is NpgsqlConnection npgsqlConnection)
-        {
-            await npgsqlConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        }
-        else
-        {
-            await Task.Run(_connection.Open, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    private void RollbackInternal()
-    {
-        if (_transaction is null)
+        if (_lease is null)
         {
             return;
         }
 
-        try
-        {
-            _transaction.Rollback();
-        }
-        catch
-        {
-            // Swallow rollback exceptions - we're already in an error path
-        }
-        finally
-        {
-            DisposeTransaction();
-        }
+        // The lease's rollback never throws and runs to completion; a joined lease marks the shared
+        // transaction rollback-only instead.
+        await _lease.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+        await ReleaseLeaseAsync().ConfigureAwait(false);
     }
 
-    private void DisposeTransaction()
+    private async Task ReleaseLeaseAsync()
     {
-        _transaction?.Dispose();
-        _transaction = null;
+        var lease = _lease;
+        _lease = null;
+
+        if (lease is not null)
+        {
+            await lease.DisposeAsync().ConfigureAwait(false);
+        }
     }
 }

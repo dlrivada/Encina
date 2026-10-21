@@ -1,6 +1,7 @@
 using Encina.Diagnostics;
 using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Serialization;
+using Encina.Recoverability;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -228,12 +229,16 @@ internal sealed class OutboxBatchProcessor
         // data-subject id (#1259 review). No exception is attached for a Left: the error's exception carries
         // EncinaError.Message (EncinaErrors.FromException copies the cause's message).
         var errorCode = error.GetCode().IfNone("encina.unknown");
-        return await FailAsync(message, new Failure(errorCode, errorCode), cancellationToken).ConfigureAwait(false);
+        return await FailAsync(
+            message,
+            new Failure(errorCode, errorCode, RetryAfter: OutboundRetryRules.GetRetryAfter(error)),
+            cancellationToken).ConfigureAwait(false);
     }
 
     // Reason is what is stored in ErrorMessage and logged: the EncinaError code, the exception type, or a
-    // fixed description, never EncinaError.Message. ErrorCode is what a dead letter records.
-    private readonly record struct Failure(string Reason, string ErrorCode, Exception? Exception = null);
+    // fixed description, never EncinaError.Message. ErrorCode is what a dead letter records. RetryAfter is the
+    // delay the API asked for (http.retry_after), which the next attempt never undercuts.
+    private readonly record struct Failure(string Reason, string ErrorCode, Exception? Exception = null, TimeSpan? RetryAfter = null);
 
     private async Task<MessageOutcome> FailAsync(
         IOutboxMessage message,
@@ -255,7 +260,12 @@ internal sealed class OutboxBatchProcessor
             _options.MaxRetryDelay,
             _options.RetryJitterRatio,
             _jitterSource());
-        var nextRetryAtUtc = AddSaturating(_timeProvider.GetUtcNow().UtcDateTime, delay);
+        if (failure.RetryAfter is { } retryAfter && retryAfter > delay)
+        {
+            delay = retryAfter;
+        }
+
+        var nextRetryAtUtc = SaturatingTime.AddSaturating(_timeProvider.GetUtcNow().UtcDateTime, delay);
 
         var failedMark = await _store.MarkAsFailedAsync(message.Id, failureReason, nextRetryAtUtc, cancellationToken)
             .ConfigureAwait(false);
@@ -340,16 +350,6 @@ internal sealed class OutboxBatchProcessor
         var error = result.LeftToArray()[0];
         MessagingLog.OutboxMessageOutcomeNotRecorded(_logger, operation, message.Id, error.GetCode().IfNone("encina.unknown"));
         return MessageOutcome.StoreError;
-    }
-
-    /// <summary>
-    /// Adds <paramref name="delay"/> to <paramref name="nowUtc"/>, saturating at <see cref="DateTime.MaxValue"/>
-    /// instead of throwing when a very large <see cref="OutboxOptions.MaxRetryDelay"/> would overflow.
-    /// </summary>
-    internal static DateTime AddSaturating(DateTime nowUtc, TimeSpan delay)
-    {
-        var maxUtc = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
-        return delay >= maxUtc - nowUtc ? maxUtc : nowUtc.Add(delay);
     }
 
     private enum MessageOutcome
