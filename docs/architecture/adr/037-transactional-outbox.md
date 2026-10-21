@@ -4,6 +4,8 @@
 
 **Accepted** - 2026-10-20, issue [#718](https://github.com/dlrivada/Encina/issues/718). The six design choices were decided by the maintainer on 2026-10-06 (plan [outbox-atomicity-ado-implementation-plan-718.md](../../plans/outbox-atomicity-ado-implementation-plan-718.md), "Design Choices"); the provider-neutral lease contract was settled by elimination on 2026-10-20 (see choice 3). The first slice, the three ADO.NET providers, is implemented; the other families follow (see "Slices").
 
+**Status note, 2026-10-21 (issue [#719](https://github.com/dlrivada/Encina/issues/719)):** the second slice, the three Dapper providers (SQL Server, PostgreSQL, MySQL), is implemented with the same mechanism. The decision is unchanged. EF Core and MongoDB remain on the post-processor.
+
 ## Context
 
 The Outbox pattern promises that an event and the business change that caused it are stored together, so an event is neither published for a change that rolled back nor lost for one that committed. Before this decision the promise was false on all 10 database providers, for four reasons found in the code:
@@ -84,12 +86,12 @@ The change is delivered one provider family at a time. The Outbox registration c
 
 | Value | Used by | Behavior |
 | --- | --- | --- |
-| `TransactionalBehavior` | ADO.NET (SQL Server, PostgreSQL, MySQL) | `TransactionalOutboxPipelineBehavior<,>` writes inside the transaction. |
-| `PostProcessor` | Dapper, EF Core, MongoDB | The post-processor still writes after the pipeline, outside the transaction. It now returns the first `Left` of the store instead of swallowing it. |
+| `TransactionalBehavior` | ADO.NET and Dapper (SQL Server, PostgreSQL, MySQL) | `TransactionalOutboxPipelineBehavior<,>` writes inside the transaction. |
+| `PostProcessor` | EF Core, MongoDB | The post-processor still writes after the pipeline, outside the transaction. It now returns the first `Left` of the store instead of swallowing it. |
 
 The switch is a scaffold, not an extension point: it is `internal` and is deleted, with `OutboxPostProcessor<,>`, when the last family moves. `AGENTS.md` section 3 forbids keeping compatibility layers. The accessor registration is internal too and uses `TryAdd`, so an application's own registration wins; it is made by the ADO.NET and Dapper registration paths (it needs a scoped `IDbConnection`, which EF Core and MongoDB containers do not have) and by `AddEncinaUnitOfWork`.
 
-Slice 1 (delivered; issue #718 stays open until every family is done): the shared abstractions, the accessor, the two behaviors, the three ADO.NET providers, observability, and the move of the inbox to the same accessor. Not yet implemented: Dapper ([#719](https://github.com/dlrivada/Encina/issues/719)), EF Core, MongoDB, and the removal of the post-processor ([#1935](https://github.com/dlrivada/Encina/issues/1935), closed as a duplicate of #718). Each is a later slice of the same plan.
+Slice 1 (delivered; issue #718 stays open until every family is done): the shared abstractions, the accessor, the two behaviors, the three ADO.NET providers, observability, and the move of the inbox to the same accessor. Slice 2 (delivered, [#719](https://github.com/dlrivada/Encina/issues/719)): the three Dapper providers; `AddEncinaDapper` registers `TransactionalOutboxPipelineBehavior<,>`, `UnitOfWorkDapper` takes a lease on the shared transaction, and the four Dapper messaging stores enlist in it. Not yet implemented: EF Core, MongoDB, and the removal of the post-processor ([#1935](https://github.com/dlrivada/Encina/issues/1935), closed as a duplicate of #718). Each is a later slice of the same plan.
 
 ### Observability
 
@@ -101,13 +103,13 @@ Per choice, in the table above. In short: a narrower provider scope was rejected
 
 ## Consequences
 
-- **Positive**: a committed command leaves exactly one outbox row per notification, and a rolled-back command, a `Left` or a failed outbox write leaves none and fails the request, on the ADO.NET providers. The unit of work, the transaction behavior and the four messaging stores compose in one transaction. The inbox ([ADR-048](048-inbox-record-vs-business-transaction.md)) reads the same transaction.
+- **Positive**: a committed command leaves exactly one outbox row per notification, and a rolled-back command, a `Left` or a failed outbox write leaves none and fails the request, on the ADO.NET and Dapper providers. The unit of work, the transaction behavior and the four messaging stores compose in one transaction. The inbox ([ADR-048](048-inbox-record-vs-business-transaction.md)) reads the same transaction.
 - **Negative, limits**:
-  - Other ADO.NET components and stores outside the four messaging stores do not enlist ([#1934](https://github.com/dlrivada/Encina/issues/1934)). On SQL Server and MySQL the driver rejects their commands while the transaction is active; PostgreSQL silently joins.
-  - Until its slice lands, Dapper, EF Core and MongoDB keep the non-atomic post-processor path: their outbox is written after the business commit, so retrying a request whose outbox write failed repeats a change that was already committed.
+  - Other ADO.NET and Dapper components and stores outside the four messaging stores do not enlist ([#1934](https://github.com/dlrivada/Encina/issues/1934)). On SQL Server and MySQL the driver rejects their commands while the transaction is active; PostgreSQL silently joins.
+  - Until its slice lands, EF Core and MongoDB keep the non-atomic post-processor path: their outbox is written after the business commit, so retrying a request whose outbox write failed repeats a change that was already committed.
   - A joiner's `CommitAsync` returning success does not mean the data is durable; only the owner's commit does.
   - `UnitOfWorkADO` implements only `IAsyncDisposable`, so resolving `IUnitOfWork` inside a request that Encina dispatches fails when the request scope is disposed synchronously. This is a known defect. ([#2556](https://github.com/dlrivada/Encina/issues/2556))
-  - The ADO.NET PostgreSQL and MySQL registrations do not support module isolation (`UseModuleIsolation`); SQL Server does. ([#2557](https://github.com/dlrivada/Encina/issues/2557))
+  - The ADO.NET and Dapper PostgreSQL and MySQL registrations do not support module isolation (`UseModuleIsolation`); SQL Server does. ([#2557](https://github.com/dlrivada/Encina/issues/2557))
 - Registration completeness is proven by a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes` (`AGENTS.md` section 3).
 
 ## Related

@@ -155,6 +155,10 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 }
 ```
 
+### 4. Transactional Outbox
+
+With `config.UseOutbox = true`, `AddEncinaDapper` registers `TransactionalOutboxPipelineBehavior<,>` and the notifications of a request that implements `IHasNotifications` are written to the outbox inside the request's single database transaction: the business change and its outbox rows commit or roll back together, and a failed outbox write or commit fails the request. `UnitOfWorkDapper` and the outbox, inbox, saga and scheduled-message stores share that transaction through the scoped `IDbTransactionAccessor`; a store constructed without an accessor autocommits. Handlers that run their own Dapper commands pass `transaction: accessor.Current`; the components outside those four stores (other repositories on the shared connection, bulk operations, audit, ABAC, anonymization) do not enlist ([#1934](https://github.com/dlrivada/Encina/issues/1934)), and SQL Server rejects their commands while the transaction is active. See [How to write the outbox inside the request's transaction](../../docs/features/transactional-outbox.md) and [ADR-037](../../docs/architecture/adr/037-transactional-outbox.md).
+
 ## Messaging Patterns
 
 All patterns work identically to Encina.EntityFrameworkCore. See the [EntityFrameworkCore README](../Encina.EntityFrameworkCore/README.md) for detailed examples.

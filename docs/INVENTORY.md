@@ -402,7 +402,7 @@ flowchart TB
 **Outbox Pattern:**
 
 - `IOutboxMessage`, `IOutboxStore`, `IOutboxMessageFactory`
-- `OutboxOrchestrator`, `OutboxPostProcessor` (interim: still the write path of Dapper, EF Core and MongoDB; deleted when the last family moves)
+- `OutboxOrchestrator`, `OutboxPostProcessor` (interim: still the write path of EF Core and MongoDB; deleted when the last family moves)
 - Configuración: `OutboxOptions` (ProcessingInterval, BatchSize, MaxRetries, BaseRetryDelay)
 - Transactional outbox on the 3 ADO.NET providers (#718, first slice; ADR-037), enabled with `UseOutbox`:
   - `Encina.Messaging/Outbox/`: `TransactionalOutboxPipelineBehavior`, `OutboxWriter` (internal), `OutboxWritePath` (internal interim switch), `IHasNotifications` (moved out of `OutboxPostProcessor.cs`)
