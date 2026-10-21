@@ -21,8 +21,8 @@ The spike measured these facts on 2026-10-21 (details and commands in the [spike
 | Public API | 1040 `PublicAPI` lines (6.7% of 15,480) in 49 packages mention `LanguageExt.`; there is no adapter layer |
 | Pilot cost, core only | `src/Encina` reached 0 errors after +168 / -167 lines in 33 files and +181 / -181 `PublicAPI` lines; 515 distinct errors on the first build. The full solution build then reported 435 distinct errors in 10 more projects, a lower bound |
 | Extrapolation | About 1,650 source lines, about 1,020 `PublicAPI` lines, about 160 judgement edits and about 140 test files (an estimate scaled from the core; method in the report) |
-| Behaviour | `Either` becomes an abstract class: `default` is null, a positional `Match` swaps to (Left, Right) order and compiles silently when both lambdas have the same type. The benchmark loop that bypasses Encina rose from 400 B to 2.7 KB; Encina paths were about flat in allocations |
-| Idiomatic v4 | 117 `LeftToArray()` / `RightToArray()` calls in 17 files, 8 `.Case` uses and 8 `Match(async ...)` sites use members that v5 removes or obsoletes; cleaning them up is possible on 4.4.9 |
+| Behaviour | `Either` becomes an abstract class: `default` is null, a positional `Match` swaps to (Left, Right) order and compiles silently when both lambdas have the same type. The benchmark loop that bypasses Encina rose from 400 B to 2.7 KB; `Send` and `Publish` were about flat in allocations and `Stream_MaterializeToList_100Items` rose about 17% (one ShortRun each, means within noise) |
+| Idiomatic v4 | 117 `LeftToArray()` / `RightToArray()` calls in 17 files and 8 `.Case` uses rely on members that v5 removes or obsoletes; cleaning them up is possible on 4.4.9. The 31 `MatchAsync` sites in 18 files are different: `MatchAsync` is idiomatic on 4.4.9 and is what v5 removes (the v5 form is `Match(async ...)`), so only the chosen option resolves them |
 
 ## Decision
 
@@ -32,8 +32,9 @@ The spike measured these facts on 2026-10-21 (details and commands in the [spike
 
 Encina moves to `LanguageExt.Core` `5.0.0-beta-78` (or the newest beta) and ships 1.0 on it.
 
+- **What it gives:** 1.0 is built on the line the library's author develops, and the break is paid before 1.0 rather than by users afterwards. In the pilot, 1974 of 1974 tests of the core subset passed on v5, `src/Encina` built with 0 warnings and 0 IL2xxx / IL3xxx findings, and benchmark means stayed within noise.
 - **What it means:** 1.0 depends on a pre-release package of a project with a bus factor of 1, and `Either` becomes a reference type across the whole public API. Encina follows later betas until a stable 5.0 appears.
-- **Measured cost:** the pilot numbers above, for the core only; the extrapolation (about 1,650 source lines, about 1,020 `PublicAPI` lines, about 160 judgement edits, about 140 test files) covers 30 packages that each need at least one extra build cycle.
+- **Measured cost:** the pilot numbers above, for the core only; the extrapolation (about 1,650 source lines, about 1,020 `PublicAPI` lines, about 160 judgement edits, about 140 test files) covers 106 `src/` projects (30 reference `LanguageExt.Core` directly, 82 use it in source, 49 expose it in PublicAPI) that each need at least one extra build cycle.
 - **Risks:** the v5 removal list may change before stable; beta-to-beta changes were not diffed; no stable date exists; the library's trim and AOT safety is unverified; the silent hazards (null `default`, positional `Match`) need a review beyond what the compiler reports.
 - **Better when:** the maintainer values being on the line the library's author develops, accepts shipping 1.0 on a beta, and prefers to pay the break before users exist rather than after.
 
@@ -42,13 +43,13 @@ Encina moves to `LanguageExt.Core` `5.0.0-beta-78` (or the newest beta) and ship
 Encina keeps `LanguageExt.Core` `4.4.9`, ships 1.0 on it and cleans up the non-idiomatic patterns.
 
 - **What it means:** a stable package that is frozen (no fixes) and not deprecated. A later move to v5 is a post-1.0 breaking change for users, because `Either` is in 1040 `PublicAPI` lines.
-- **Measured cost:** the idiomatic cleanup only (117 `LeftToArray` / `RightToArray` calls, 8 `.Case`, 8 `Match(async ...)` sites and related patterns); no migration cost is paid now.
+- **Measured cost:** the idiomatic cleanup only (117 `LeftToArray` / `RightToArray` calls, 8 `.Case` and related patterns); no migration cost is paid now.
 - **Risks:** v4 gets no fixes and the author's work is on v5; the cost of the v5 move is deferred to users (the pilot's break categories, `PublicAPI` churn and the null `default` change all reach them); a .NET 10 or C# 14 problem in v4 would have no upstream fix.
 - **Better when:** the maintainer prioritises a stable dependency for 1.0 and accepts that moving to v5 later is a breaking change, or expects no v5 move at all.
 
 ### Option C: isolate LanguageExt behind Encina-owned result types
 
-Encina defines its own result and option types and keeps LanguageExt (any version) as an internal detail or drops it.
+Encina defines its own result and option types and keeps LanguageExt (any version) as an internal detail.
 
 - **What it means:** the public API stops exposing `LanguageExt.*` types, so a LanguageExt version change no longer reaches users. It contradicts the reasoning of [ADR-001](001-railway-oriented-programming.md) ("reinventing the wheel") and the choice recorded in [ADR-004](004-reject-mediator-result.md).
 - **Measured cost:** not piloted. It would change the same call sites as Option A (5138 `Either<` occurrences in 811 files and 1040 `PublicAPI` lines), plus the design and tests of the new types and the combinators Encina uses.
@@ -59,7 +60,7 @@ Encina defines its own result and option types and keeps LanguageExt (any versio
 
 Prepare on 4.4.9 now, and migrate before 1.0 only if a stable 5.0 ships by a date the maintainer sets; otherwise ship 1.0 on 4.4.9.
 
-- **What it means:** Encina first removes the patterns that v5 removes or obsoletes while staying on 4.4.9 (`LeftToArray`, `Case`, `MatchAsync`, `Match(async ...)` and the hand-rolled async combinators), so a later bump is mostly mechanical. The migration is then a conditional second step with a deadline.
+- **What it means:** Encina first removes the patterns that v5 removes or obsoletes and that are not idiomatic on 4.4.9 either (`LeftToArray` / `RightToArray` extraction, `.Case`), so a later bump is mostly mechanical. The 31 `MatchAsync` sites are not cleaned up this way: `MatchAsync` is idiomatic on 4.4.9 and v5 replaces it with `Match(async ...)`, so they change only if the v5 move happens. The migration is then a conditional second step with a deadline.
 - **Measured cost:** the Option B cleanup now, plus the Option A migration cost only if the condition is met. The pilot's mechanical part (factories, `PublicAPI`) is unchanged by the cleanup.
 - **Risks:** the deadline can pass without a stable release (no date exists, and beta-78 followed beta-77 after about 9.3 months), which lands on Option B; the cleanup is work that pays off only if the move happens or if the patterns are worth fixing anyway.
 - **Better when:** the maintainer wants to keep the choice of v5 open without shipping 1.0 on a beta, and can name a date after which 1.0 ships regardless.

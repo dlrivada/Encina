@@ -127,7 +127,7 @@ flowchart LR
 
 ## 4. Pilot migration
 
-Setup: `LanguageExt.Core` 4.4.9 changed to 5.0.0-beta-78 on a local branch of `origin/main` ("pilot branch, not merged"), scope `src/Encina` plus a core subset of `tests/Encina.UnitTests`. Edits were made with the editor tools; three bulk rewrites were delegated to `mechanical-fixer`.
+The pilot branch is kept locally, unpushed, as a throwaway; its figures come from the commands stated in each section. Setup: `LanguageExt.Core` 4.4.9 changed to 5.0.0-beta-78 on a local branch of `origin/main` ("pilot branch, not merged"), scope `src/Encina` plus a core subset of `tests/Encina.UnitTests`. Edits were made with the editor tools; three bulk rewrites were delegated to `mechanical-fixer`.
 
 ### 4.1 Compile breaks
 
@@ -162,7 +162,7 @@ First build after the bump: `dotnet build src\Encina\Encina.csproj -c Release -v
 | Null into `Match` result | `Right: _ => null` | `Right: _ => null!` | 1 | 1 edit |
 | PublicAPI | `...Either<A, B>>` | `...Either<A, B>!>` | 181 lines, 1 file (`src/Encina/PublicAPI.Unshipped.txt`, +181 / -181) | `mechanical-fixer`, 351 s wall |
 
-About 163 of the 167 changed `.cs` lines are the factory rewrite; about 25 lines are cases that need judgement. `dotnet format analyzers --diagnostics RS0016 RS0017` changed nothing, so the PublicAPI churn has no automatic fix. `PublicAPI.Shipped.txt` for Encina did not change.
+About 137 of the changed `.cs` lines are the factory rewrite; about 25 lines are cases that need judgement (137 + 25 = 162 of the 168 added lines; the rest are small variants). `dotnet format analyzers --diagnostics RS0016 RS0017` changed nothing, so the PublicAPI churn has no automatic fix. `PublicAPI.Shipped.txt` for Encina did not change.
 
 ### 4.3 Effort and extrapolation
 
@@ -178,7 +178,7 @@ Extrapolation method: scale the core's measured ratio by the usage inventory's t
 | `LeftToArray` / `RightToArray` | 0 in the core | 117 in 17 files; 82 `LeftToArray` and 32 obsolete `RightToArray` seen downstream | one each, with reasoning | about 120 judgement edits |
 | `MatchAsync` / `MatchUnsafe` | 3 and 8 | 31 `MatchAsync` in 18 files; 7 `MatchUnsafe` seen downstream | n/a | about 40 judgement edits |
 | Test files | 24 of about 135 included core test files edited (18%) | 768 test files with `using LanguageExt` | x0.18 | about 140 files, about 800 lines |
-| Agent edit time | about 19 minutes for about 330 lines | about 3,500 lines | linear | about 3.5 hours, plus at least one extra build cycle per package (30 packages) |
+| Agent edit time | about 19 minutes for about 330 lines | about 3,500 lines | linear | about 3.5 hours, plus at least one extra build cycle per package (106 `src/` projects: 30 reference `LanguageExt.Core` directly, 82 use it in source, 49 expose it in PublicAPI) |
 
 The mechanical part (factories, PublicAPI) is linear and tool-friendly; the judgement part (`LeftToArray` extraction, `MatchAsync`, `Case`, async `Match`) is about 160 sites that need individual reading. No estimate in person-days was derived.
 
@@ -251,7 +251,7 @@ Command: `dotnet run -c Release --no-build --project tests\Encina.BenchmarkTests
 | Stream_WithCancellation_EarlyExit | 55.363 us | 43.162 us | 90,001 B | 90.02 KB |
 | Stream_DirectHandlerInvocation_NoEncina | 1.407 us | 1.531 us | 400 B | 2.7 KB |
 
-Observed: means moved in both directions, inside the noise band (error columns up to 150% of the mean on some rows). Allocations are about flat on the Encina paths (+0.2 KB on `Send`) and rise for `MaterializeToList` (+15.6 KB for 100 items) and for the direct-handler loop that bypasses Encina (400 B to 2.7 KB). The pilot's reading of the last rise (an inference, not separately measured) is that `Either` was a struct in v4 and is an abstract class in v5, so each yielded item becomes a heap object.
+Observed: means moved in both directions, inside the noise band (error columns up to 150% of the mean on some rows). Allocations are about flat on `Send` (+0.2 KB) and `Publish`, and rise for `Stream_MaterializeToList_100Items` (+15.6 KB, about 17%) and for the direct-handler loop that bypasses Encina (400 B to 2.7 KB). The pilot's reading of the last rise (an inference, not separately measured) is that `Either` was a struct in v4 and is an abstract class in v5, so each yielded item becomes a heap object.
 
 ### 4.8 Analyzer and AOT warnings
 
@@ -280,7 +280,7 @@ Removed or changed members seen in the probe: `.Case` is gone (replaced by patte
 
 ## 6. Idiomatic-v4 findings
 
-The usage audit found patterns that are untidy on v4.4.9 and are also among the v5-removed or v5-changed members, so cleaning them up helps either decision. Counts are regex-based and approximate; every example was read at its line.
+The usage audit found patterns that are untidy on v4.4.9; all but the async row are also v5-removed or v5-changed members, so cleaning them up helps either decision. The async row is different and is explained in its cell. Counts are regex-based and approximate; every example was read at its line.
 
 | Pattern | Count (occurrences / files) | Why it matters | Verified example |
 | --- | --- | --- | --- |
@@ -288,9 +288,9 @@ The usage audit found patterns that are untidy on v4.4.9 and are also among the 
 | `.IsLeft` / `.IsRight` followed by `Match`, `IfRight` or `LeftToArray` to extract | 36 / 26 (multi-line pattern) and 73 / 38 (second pattern) | Double inspection; one `Match` or `Bind` does the job | `src/Encina/Dispatchers/Strategies/ParallelDispatchStrategy.cs:117,124-126` |
 | `Match(Right: x => x, Left: _ => default!/null!)` to extract | 19 / 17, plus 21 / 19 for `Left: _ => default/null` | Relies on a prior check or a null value | `src/Encina/Sharding/ReferenceTables/PollingRefreshDetector.cs:79-81` |
 | `.Case is X` / `(EncinaError)x.Case` | 8 / 3 | Untyped object; removed in v5 | `src/Encina/Core/Encina.cs:94,96,109,111` |
-| `Match(async ...)` instead of `MatchAsync`, `BindAsync` or `MapAsync` | 8 / 4 | Encina also hand-rolls `BindAsync`, `MapAsync` and `TapAsync` | `src/Encina.EntityFrameworkCore/TransactionPipelineBehavior.cs:162-174`; `src/Encina.DomainModeling/EitherExtensions.cs:259-340` |
+| Async matching: `Match(async ...)` (8 / 4) versus `MatchAsync` (31 / 18) | 8 / 4 and 31 / 18 | On 4.4.9 `MatchAsync` is the idiomatic call, but v5 removes `Either.MatchAsync` and the v5 form is `Match(async ...)`; Encina also hand-rolls `BindAsync`, `MapAsync` and `TapAsync` (Encina code, not a v5 removal). This tension is resolved by the [ADR-051](../architecture/adr/051-languageext-version-for-1-0.md) decision, not by a cleanup on 4.4.9 | `src/Encina.EntityFrameworkCore/TransactionPipelineBehavior.cs:162-174`; `src/Encina.DomainModeling/EitherExtensions.cs:259-340` |
 | `Right(Unit.Default)` / `Right(unit)` noise | 174 / 56, 44 / 26 and 62 / 35 in three forms | One constant would remove it; not LanguageExt-specific | `src/Encina/Dispatchers/Encina.NotificationDispatcher.cs:72` |
-| Boolean `Match(Right: _ => true, Left: _ => false)` | 5 / 4 | Equivalent to `.IsRight` | `src/Encina/Sharding/TimeBased/TimeBasedShardRouter.cs:282-286` |
+| Boolean `Match(Right: _ => true, Left: _ => false)` | 5 / 4 | Equivalent to `.IsRight` | Count from the regex only; no site was verified at a line |
 
 `Match(..., Left: x => throw ...)` at startup boundaries (116 / 51) is intentional under [ADR-001](../architecture/adr/001-railway-oriented-programming.md) and is not a finding; about 50 are test-assertion helpers where the throw is the point.
 
