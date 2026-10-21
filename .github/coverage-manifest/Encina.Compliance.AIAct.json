@@ -1,7 +1,7 @@
 {
   "package": "Encina.Compliance.AIAct",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 43,
+  "totalFiles": 44,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -290,7 +290,30 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "An enum declaration has no executable lines, so no flag has coverable code in this file.",
+        "guard": "An enum declaration has no parameters or executable lines to guard."
+      }
+    },
+    "Model/ProhibitedPracticeExtensions.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "Pure enum-to-Art. 5(1)-point mapping; unit tests cover every member and the undefined-value throw",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Every enum member and the undefined-value branch of the single switch expression has a unit test.",
+        "guard": "The extension takes an enum value, not a reference, so it has no null guard to test."
+      }
     },
     "Model/ReclassificationRecord.cs": {
       "defaultTests": [
