@@ -217,6 +217,122 @@
     document.getElementById('overall-lines').parentElement?.appendChild(rawLink);
   }
 
+  // ── Target attainment (#2542) ───────────────────────────────────────
+  // Reads overall.attainment and the top-level fileTargets array of latest.json. Both are absent in a
+  // snapshot from an older schema: the card then says so and stays quiet. Nothing here is coloured by a
+  // project-wide cut-off; only a row's status compares that row with its own target.
+  (function renderAttainment() {
+    const att = ov.attainment;
+    const rows = Array.isArray(data.fileTargets) ? data.fileTargets : [];
+    const ratioEl = document.getElementById('att-ratio');
+    if (!att) {
+      ratioEl.textContent = 'n/a';
+      document.getElementById('att-ratio-label').textContent = 'Target attainment is not available in this snapshot yet.';
+      return;
+    }
+
+    const num = (v, digits) => (v == null ? 'n/a' : Number(v).toFixed(digits));
+    const pctOf = (v) => (v == null ? 'n/a' : `${(v * 100).toFixed(1)}%`);
+    ratioEl.textContent = pctOf(att.ratio);
+    document.getElementById('att-ratio-label').textContent =
+      `targets met (${att.met.toLocaleString()} of ${att.pairs.toLocaleString()} file/flag targets)`;
+    document.getElementById('att-details').textContent =
+      `line-weighted attainment ${pctOf(att.lineWeighted)} · mean gap ${num(att.meanGap, 1)} points · ` +
+      `${att.linesToCover.toLocaleString()} lines to cover`;
+    document.getElementById('att-counts').textContent =
+      `no data: ${att.noData.toLocaleString()} · without line count: ${(att.unweighted ?? 0).toLocaleString()} · ` +
+      `of which zero-target: ${att.zeroTarget.toLocaleString()} · obligations figure: ${ov.coverage}% (see Overall)`;
+
+    if (rows.length === 0) return;
+
+    const PAGE = 50;
+    let shown = PAGE;
+    const sort = { column: 'gap', direction: 'desc' };
+    const filters = { pkg: '', flag: '', status: '', text: '' };
+
+    const fill = (id, values) => {
+      const select = document.getElementById(id);
+      for (const v of [...new Set(values)].sort()) {
+        const option = document.createElement('option');
+        option.value = v;
+        option.textContent = v;
+        select.appendChild(option);
+      }
+    };
+    fill('att-package', rows.map(r => r.package));
+    fill('att-flag', rows.map(r => r.flag));
+    document.getElementById('att-controls').style.display = '';
+    document.getElementById('attainment-table').style.display = '';
+
+    const keyOf = (r, col) => (col === 'file' ? `${r.package}/${r.file}`.toLowerCase() : (r[col] ?? -1));
+
+    function statusHtml(r) {
+      if (r.status === 'met') return '<span class="status-pass">MET</span>';
+      // Below its own target: warn from 80% of the target (methodology three-state rule), else fail.
+      return (r.measured ?? 0) >= r.target * 0.8
+        ? '<span class="status-warn">BELOW</span>' : '<span class="status-fail">BELOW</span>';
+    }
+
+    function rowHtml(r) {
+      const measured = r.measured == null ? '<span class="na" title="No coverage data">no data</span>' : `${Number(r.measured).toFixed(2)}%`;
+      return `<tr>
+        <td class="att-file">${escapeHtml(r.package)}/${escapeHtml(r.file)}</td>
+        <td>${escapeHtml(r.flag)}</td>
+        <td class="pct">${measured}</td>
+        <td class="pct tgt-val">${escapeHtml(r.target)}%</td>
+        <td class="pct">${Number(r.gap).toFixed(2)}</td>
+        <td class="pct">${(Number(r.attainment) * 100).toFixed(1)}%</td>
+        <td class="num">${Number(r.linesToCover).toLocaleString()}</td>
+        <td>${statusHtml(r)}</td>
+      </tr>`;
+    }
+
+    function draw() {
+      const text = filters.text.toLowerCase();
+      const visible = rows.filter(r =>
+        (!filters.pkg || r.package === filters.pkg) &&
+        (!filters.flag || r.flag === filters.flag) &&
+        (!filters.status || r.status === filters.status) &&
+        (!text || `${r.package}/${r.file}`.toLowerCase().includes(text)));
+      const dir = sort.direction === 'asc' ? 1 : -1;
+      visible.sort((a, b) => {
+        const ka = keyOf(a, sort.column), kb = keyOf(b, sort.column);
+        const order = ka < kb ? -1 : (ka > kb ? 1 : 0);
+        return order !== 0 ? order * dir : keyOf(a, 'file') < keyOf(b, 'file') ? -1 : 1;
+      });
+      document.querySelector('#attainment-table tbody').innerHTML = visible.slice(0, shown).map(rowHtml).join('');
+      document.getElementById('att-pager').textContent =
+        `Showing ${Math.min(shown, visible.length).toLocaleString()} of ${visible.length.toLocaleString()} file/flag targets`;
+      document.getElementById('att-more').style.display = visible.length > shown ? '' : 'none';
+      document.querySelectorAll('#attainment-table th[data-att-sort]').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (th.dataset.attSort === sort.column) th.classList.add(`sort-${sort.direction}`);
+      });
+    }
+
+    document.querySelectorAll('#attainment-table th[data-att-sort]').forEach(th => {
+      th.setAttribute('data-sort', th.dataset.attSort); // reuse the sortable header styling
+      th.addEventListener('click', () => {
+        const col = th.dataset.attSort;
+        sort.direction = sort.column === col && sort.direction === 'desc' ? 'asc' : 'desc';
+        sort.column = col;
+        shown = PAGE;
+        draw();
+      });
+    });
+    const onFilter = (id, key) => document.getElementById(id).addEventListener('input', e => {
+      filters[key] = e.target.value;
+      shown = PAGE;
+      draw();
+    });
+    onFilter('att-package', 'pkg');
+    onFilter('att-flag', 'flag');
+    onFilter('att-status', 'status');
+    onFilter('att-search', 'text');
+    document.getElementById('att-more').addEventListener('click', () => { shown += PAGE; draw(); });
+    draw();
+  })();
+
   // ── Prefix-based filter buttons (derived from package names) ─────────
   const filtersDiv = document.querySelector('.filters');
   const allPackages = data.packages || [];
@@ -511,6 +627,7 @@
   // ── Flag colors (consistent across charts) ────────────────────────
   const FLAG_COLORS = {
     combined: '#58a6ff',
+    attainment: '#d29922',
     unit: '#8b5cf6',
     guard: '#f97316',
     contract: '#06b6d4',
@@ -528,13 +645,14 @@
     buttons.forEach(btn => {
       btn.addEventListener('click', () => {
         const flag = btn.dataset.flag;
-        if (flag === 'combined') {
-          // Radio: activate Combined, deactivate all others
-          buttons.forEach(b => b.classList.toggle('active', b.dataset.flag === 'combined'));
+        if (flag === 'combined' || flag === 'attainment') {
+          // Radio: activate this one, deactivate all others (attainment is a different measure, never mixed)
+          buttons.forEach(b => b.classList.toggle('active', b.dataset.flag === flag));
         } else {
-          // Checkbox: toggle this flag, deactivate Combined
+          // Checkbox: toggle this flag, deactivate Combined and Targets met
           btn.classList.toggle('active');
           container.querySelector('[data-flag="combined"]')?.classList.remove('active');
+          container.querySelector('[data-flag="attainment"]')?.classList.remove('active');
           // If nothing selected, reactivate Combined
           const anyActive = [...buttons].some(b => b.dataset.flag !== 'combined' && b.classList.contains('active'));
           if (!anyActive) {
@@ -760,10 +878,25 @@
     const plotH = H - pad.top - pad.bottom;
 
     const isCombined = selectedFlags.includes('combined');
+    const isAttainment = selectedFlags.includes('attainment');
 
     // Build series: one per selected flag
     const series = [];
-    if (isCombined) {
+    if (isAttainment) {
+      // Share of per-file targets met; entries published before the metric existed have no attainment
+      // object and are skipped, not plotted as 0.
+      const points = history
+        .filter(h => h.attainment?.ratio != null)
+        .map(h => ({ t: new Date(h.timestamp), v: Math.round(h.attainment.ratio * 1000) / 10 }));
+      if (points.length === 0) {
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+        document.getElementById('trend-info').textContent =
+          'No target attainment history yet — it starts with the first run after this metric was added.';
+        return;
+      }
+      series.push({ flag: 'attainment', color: FLAG_COLORS.attainment, points });
+    } else if (isCombined) {
       series.push({
         flag: 'combined',
         color: FLAG_COLORS.combined,
@@ -814,8 +947,8 @@
       ctx.fillText(v + '%', pad.left - 6, y(v));
     }
 
-    // Target line at 85%
-    if (minV <= 85 && maxV >= 85) {
+    // Target line at 85% (coverage series only: attainment has no project-wide target; #1656 tracks the line itself)
+    if (!isAttainment && minV <= 85 && maxV >= 85) {
       ctx.strokeStyle = '#9e6a03';
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 4]);
@@ -897,9 +1030,9 @@
     const mainSeries = series[0];
     const latest = mainSeries.points[mainSeries.points.length - 1];
     const first = mainSeries.points[0];
-    const delta = latest.v - first.v;
+    const delta = Math.round((latest.v - first.v) * 10) / 10;
     const arrow = delta > 0 ? '\u2191' : (delta < 0 ? '\u2193' : '\u2192');
-    const flagLabel = isCombined ? '' : ` (${selectedFlags.join('+')})`;
+    const flagLabel = isCombined ? '' : (isAttainment ? ' (targets met)' : ` (${selectedFlags.join('+')})`);
     document.getElementById('trend-info').textContent =
       `${mainSeries.points.length} data points${flagLabel} \u2014 ${first.t.toLocaleDateString()} to ${latest.t.toLocaleDateString()} \u2014 ${arrow} ${delta > 0 ? '+' : ''}${delta}% change`;
   }
