@@ -1307,6 +1307,25 @@
         "integration": "The saga store and dead letter end-to-end suites start and fail sagas on real databases; stuck and expired saga queries are covered by the store suites and unit tests (measured 35% in the suites run for this change)."
       }
     },
+    "SaturatingTime.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal saturating time arithmetic used by delayed retry scheduling",
+      "targets": { "unit": 100, "guard": 0, "contract": 0, "property": 0, "integration": 0 },
+      "justifications": {
+        "unit": "Two-branch saturating addition fully exercised by the OutboxBatchProcessor and DelayedRetryScheduler unit tests.",
+        "guard": "Internal helper with value-type parameters; no null guard exists.",
+        "contract": "Internal helper, not part of any public contract.",
+        "property": "Two branches covered exhaustively by unit tests; no invariant beyond them.",
+        "integration": "Pure time arithmetic with no infrastructure."
+      }
+    },
     "ScatterGather/BuiltScatterGatherDefinition.cs": {
       "defaultTests": [
         "unit",
