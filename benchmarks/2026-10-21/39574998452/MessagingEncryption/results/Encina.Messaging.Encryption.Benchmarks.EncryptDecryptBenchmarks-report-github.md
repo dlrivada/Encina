@@ -1,0 +1,29 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 4.15GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+
+WarmupCount=3  
+
+```
+| Method          | Job        | IterationCount | LaunchCount | Mean     | Error     | StdDev    | Ratio | RatioSD | Gen0    | Gen1   | Allocated | Alloc Ratio |
+|---------------- |----------- |--------------- |------------ |---------:|----------:|----------:|------:|--------:|--------:|-------:|----------:|------------:|
+| Encrypt_Medium  | Job-YFEFPZ | 10             | Default     | 3.192 μs | 0.1007 μs | 0.0599 μs |  1.09 |    0.02 |  0.2174 |      - |    3688 B |        5.01 |
+| Encrypt_Large   | Job-YFEFPZ | 10             | Default     | 9.549 μs | 0.1715 μs | 0.1134 μs |  3.25 |    0.04 | 11.7645 |      - |  197227 B |      267.97 |
+| Decrypt_Medium  | Job-YFEFPZ | 10             | Default     | 2.073 μs | 0.0423 μs | 0.0252 μs |  0.71 |    0.01 |  0.1411 |      - |    2416 B |        3.28 |
+| Decrypt_Large   | Job-YFEFPZ | 10             | Default     | 6.860 μs | 0.0443 μs | 0.0293 μs |  2.33 |    0.01 |  7.8430 | 0.9766 |  131442 B |      178.59 |
+| Decrypt_Short   | Job-YFEFPZ | 10             | Default     | 1.853 μs | 0.0164 μs | 0.0098 μs |  0.63 |    0.00 |  0.0267 |      - |     448 B |        0.61 |
+| Encrypt_Short   | Job-YFEFPZ | 10             | Default     | 2.940 μs | 0.0276 μs | 0.0144 μs |  1.00 |    0.01 |  0.0420 |      - |     736 B |        1.00 |
+| Roundtrip_Short | Job-YFEFPZ | 10             | Default     | 4.824 μs | 0.0875 μs | 0.0521 μs |  1.64 |    0.02 |  0.0687 |      - |    1184 B |        1.61 |
+|                 |            |                |             |          |           |           |       |         |         |        |           |             |
+| Encrypt_Medium  | ShortRun   | 3              | 1           | 3.102 μs | 0.3391 μs | 0.0186 μs |  1.04 |    0.02 |  0.2174 |      - |    3688 B |        5.01 |
+| Encrypt_Large   | ShortRun   | 3              | 1           | 9.494 μs | 8.2454 μs | 0.4520 μs |  3.19 |    0.14 | 11.7645 |      - |  197227 B |      267.97 |
+| Decrypt_Medium  | ShortRun   | 3              | 1           | 2.128 μs | 2.6336 μs | 0.1444 μs |  0.72 |    0.04 |  0.1411 |      - |    2416 B |        3.28 |
+| Decrypt_Large   | ShortRun   | 3              | 1           | 7.014 μs | 1.3706 μs | 0.0751 μs |  2.36 |    0.05 |  7.8430 | 0.9766 |  131442 B |      178.59 |
+| Decrypt_Short   | ShortRun   | 3              | 1           | 1.873 μs | 0.8839 μs | 0.0484 μs |  0.63 |    0.02 |  0.0267 |      - |     448 B |        0.61 |
+| Encrypt_Short   | ShortRun   | 3              | 1           | 2.976 μs | 1.1086 μs | 0.0608 μs |  1.00 |    0.02 |  0.0420 |      - |     736 B |        1.00 |
+| Roundtrip_Short | ShortRun   | 3              | 1           | 4.933 μs | 0.3720 μs | 0.0204 μs |  1.66 |    0.03 |  0.0687 |      - |    1184 B |        1.61 |
