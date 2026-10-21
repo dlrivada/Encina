@@ -228,7 +228,7 @@ Target attainment and the obligations figure measure different things and neithe
 - `packages[].attainment`: the same object computed over that package's pairs; absent for a package without pairs.
 - `fileTargets`: one row per pair, furthest from target first, with `package`, `file`, `flag`, `target`, `measured`, `covered`, `total`, `gap`, `attainment`, `linesToCover` and `status` (`met` or `below`). `measured` is absent when the flag has no data; `covered` and `total` are absent when no flag has a line count for the file (a pair without data but with a borrowed line count has `covered` 0). Absent means omitted from the JSON, which is also how a `null` ratio or mean gap appears.
 
-Each entry of `history.json` also carries the `attainment` object, copied by `coverage-history.cs` (`BuildEntry`) from `overall.attainment`. Entries from before the metric existed do not have it and are not backfilled.
+Each entry of `history.json` also carries the `attainment` object, copied by `coverage-history.cs` (`BuildEntry`) from `overall.attainment`. Entries from before the metric existed do not have it and are not backfilled. A recalculated run keeps the attainment object it was published with; attainment is not recomputed (no backfill, #2542 D8).
 
 ### Per-package targets
 

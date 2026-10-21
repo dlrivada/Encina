@@ -443,7 +443,7 @@ static FileTargetEntry ToFileTargetEntry(FileTargetRow row) => new(
     row.Package, row.File, row.Flag, row.Target,
     row.Measured is { } m ? Math.Round(m, 2) : null,
     row.CoveredLines, row.TotalLines,
-    Math.Round(GapPoints(row), 2), Math.Round(Attainment(row), 4), LinesToCover(row),
+    Math.Round(GapPoints(row), 2), IsBelowTarget(row) ? Math.Floor(Attainment(row) * 10000 + 1e-9) / 10000 : Math.Round(Attainment(row), 4), LinesToCover(row),
     IsBelowTarget(row) ? "below" : "met");
 
 // The aggregates of one package's pairs, or null when the package has none.
@@ -471,7 +471,14 @@ static string FormatAttainmentSummary(AttainmentSummary s)
 
 // Display only: two decimals so a value just under the target never prints as the target.
 static string FormatMeasured(double? measured)
-    => measured is { } m ? m.ToString("F2") + "%" : "no data";
+    => measured is { } m ? m.ToString("F2", CultureInfo.InvariantCulture) + "%" : "no data";
+
+// Display only: floored, never rounded, so a pair below its target cannot show 100.0% or a gap of 0.00.
+static string FormatAttainment(double attainment)
+    => (Math.Floor(attainment * 1000 + 1e-9) / 10).ToString("F1", CultureInfo.InvariantCulture) + "%";
+
+static string FormatGap(double gap)
+    => (Math.Floor(gap * 100 + 1e-9) / 100).ToString("F2", CultureInfo.InvariantCulture);
 
 // Self-test (#1762): exercises the per-file obligation logic without touching the repository.
 int RunSelfTest()
@@ -554,6 +561,11 @@ int RunSelfTest()
 
     Check(Near(GapPoints(new FileTargetRow("Pkg", "A.cs", "unit", 90, measured)), 90 - 89.96), "gap of 89.96% against 90 is 0.04 points");
     Check(GapPoints(new FileTargetRow("Pkg", "A.cs", "unit", 89, measured)) == 0, "89.96% against 89 has no gap");
+    var justBelow = new FileTargetRow("Pkg", "A.cs", "unit", 90, 89.96);
+    Check(IsBelowTarget(justBelow), "89.96% against 90 is below");
+    Check(FormatAttainment(Attainment(justBelow)) != "100.0%" && FormatAttainment(Attainment(justBelow)) == "99.9%", "a pair just below target never displays 100.0% attainment");
+    Check(FormatGap(GapPoints(justBelow)) != "0.00", "a pair just below target never displays a gap of 0.00");
+    Check(ToFileTargetEntry(justBelow).Attainment < 1, "the JSON attainment of a below pair is not rounded up to 1");
     Check(GapPoints(new FileTargetRow("Pkg", "A.cs", "guard", 0, null)) == 0, "a target of 0 has no gap");
     Check(GapPoints(new FileTargetRow("Pkg", "A.cs", "guard", 40, null)) == 40, "no data is a gap of the whole target");
     Check(Near(Attainment(new FileTargetRow("Pkg", "A.cs", "unit", 90, measured)), 89.96 / 90), "attainment of 89.96% against 90 is measured / target");
@@ -1188,7 +1200,7 @@ if (fileTargetRows.Count > 0)
     md.AppendLine("|------|:----:|:--------:|:------:|:---:|:----------:|:--------------:|:------:|");
     foreach (var row in OrderByGap(fileTargetRows))
     {
-        md.AppendLine($"| {row.Package}/{row.File} | {row.Flag} | {FormatMeasured(row.Measured)} | {row.Target:0}% | {GapPoints(row).ToString("F2", CultureInfo.InvariantCulture)} | {FormatRatio(Attainment(row))} | {LinesToCover(row)} | {(IsBelowTarget(row) ? "below" : "met")} |");
+        md.AppendLine($"| {row.Package}/{row.File} | {row.Flag} | {FormatMeasured(row.Measured)} | {row.Target:0}% | {FormatGap(GapPoints(row))} | {FormatAttainment(Attainment(row))} | {LinesToCover(row)} | {(IsBelowTarget(row) ? "below" : "met")} |");
     }
 }
 

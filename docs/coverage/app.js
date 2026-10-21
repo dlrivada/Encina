@@ -274,14 +274,19 @@
     }
 
     function rowHtml(r) {
-      const measured = r.measured == null ? '<span class="na" title="No coverage data">no data</span>' : `${Number(r.measured).toFixed(2)}%`;
+      const measuredCell = r.measured == null
+        ? '<td class="na pct" title="No coverage data">no data</td>'
+        : `<td class="pct">${Number(r.measured).toFixed(2)}%</td>`;
+      // Floored, never rounded: a pair below its target must not show 100.0% or a gap of 0.00.
+      const gapShown = (Math.floor(Number(r.gap) * 100 + 1e-9) / 100).toFixed(2);
+      const attShown = (Math.floor(Number(r.attainment) * 1000 + 1e-9) / 10).toFixed(1);
       return `<tr>
         <td class="att-file">${escapeHtml(r.package)}/${escapeHtml(r.file)}</td>
         <td>${escapeHtml(r.flag)}</td>
-        <td class="pct">${measured}</td>
+        ${measuredCell}
         <td class="pct tgt-val">${escapeHtml(r.target)}%</td>
-        <td class="pct">${Number(r.gap).toFixed(2)}</td>
-        <td class="pct">${(Number(r.attainment) * 100).toFixed(1)}%</td>
+        <td class="pct">${gapShown}</td>
+        <td class="pct">${attShown}%</td>
         <td class="num">${Number(r.linesToCover).toLocaleString()}</td>
         <td>${statusHtml(r)}</td>
       </tr>`;
@@ -316,7 +321,11 @@
       th.setAttribute('data-sort', th.dataset.attSort); // reuse the sortable header styling
       th.addEventListener('click', () => {
         const col = th.dataset.attSort;
-        sort.direction = sort.column === col && sort.direction === 'desc' ? 'asc' : 'desc';
+        const textColumn = ['file', 'flag', 'status'].includes(col);
+        const firstDirection = textColumn ? 'asc' : 'desc';
+        sort.direction = sort.column === col
+          ? (sort.direction === 'desc' ? 'asc' : 'desc')
+          : firstDirection;
         sort.column = col;
         shown = PAGE;
         draw();
@@ -1032,7 +1041,8 @@
     const mainSeries = series[0];
     const latest = mainSeries.points[mainSeries.points.length - 1];
     const first = mainSeries.points[0];
-    const delta = Math.round((latest.v - first.v) * 10) / 10;
+    const rawDelta = latest.v - first.v;
+    const delta = isAttainment ? Math.round(rawDelta * 10) / 10 : rawDelta;
     const arrow = delta > 0 ? '\u2191' : (delta < 0 ? '\u2193' : '\u2192');
     const flagLabel = isCombined ? '' : (isAttainment ? ' (targets met)' : ` (${selectedFlags.join('+')})`);
     document.getElementById('trend-info').textContent =
