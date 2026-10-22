@@ -105,7 +105,7 @@ exit $LASTEXITCODE
 '@
     Write-Text (Join-Path $stubs 'gh-stub.ps1') @'
 Add-Content -LiteralPath $env:AUDIT_STUB_LOG -Value ('gh ' + ($args -join ' '))
-if ($args -contains 'list') { exit 0 }
+if (($args -join ' ') -match ' -X GET ') { exit 0 }
 'https://github.com/dlrivada/Encina/pull/9999'
 exit 0
 '@
@@ -239,14 +239,14 @@ exit 0
     $expected = @("A docs/knowledge/audits/99/$folder/docs.md", "A docs/knowledge/audits/99/$folder/tests.md", "A docs/knowledge/audits/99/$folder/remediation.md", "A docs/knowledge/audits/99/$folder/verification.md", "A docs/knowledge/audits/99/$folder/lessons.md", "A docs/knowledge/audits/99/$folder/delta-scope.md" | Sort-Object)
     Assert-That 'the publish layout is exactly docs/knowledge/audits/99/delta-2026-10/ (original record and result untouched)' (($diff -join "`n") -ceq ($expected -join "`n")) "`nactual:`n$($diff -join "`n")`nexpected:`n$($expected -join "`n")"
     Assert-That 'the publication commit names the delta' ((Git -C $main log -1 --format=%s $branch) -ceq "docs(knowledge): SPEC-003 delta $set audit of #99")
-    Assert-That 'NoPublish shows the push and gh pr create commands and runs neither' (($d1.Text -like "*push -u origin $branch*") -and ($d1.Text -like "*pr create*--head $branch*--body Refs #1345*") -and -not ($d1.Log | Where-Object { $_ -match ' push ' -or $_ -match '^gh ' }))
+    Assert-That 'NoPublish shows the push and gh pr create commands and runs neither' (($d1.Text -like "*push -u origin $branch*") -and ($d1.Text -like "*api -X POST repos/*/pulls*head=$branch*body=Refs #1345*") -and -not ($d1.Log | Where-Object { $_ -match ' push ' -or $_ -match '^gh ' }))
     Assert-That 'NoPublish keeps the delta audit open' ((Test-Path $wt) -and (Test-Path $currentAudit))
 
     # --- 5. real publish ---------------------------------------------------------------------------------------
     $d2 = Invoke-Script 'audit-done.ps1' @()
     Assert-That 'the publish exits 0' ($d2.Exit -eq 0) $d2.Text
-    $prLine = @($d2.Log | Where-Object { $_ -match '^gh pr create' })
-    Assert-That 'gh pr create ran with Refs #1345 for the delta branch' ($prLine.Count -eq 1 -and $prLine[0] -like "*--head $branch*" -and $prLine[0] -like '*--body Refs #1345*' -and $prLine[0] -notlike '*Fixes*') ($d2.Log -join "`n")
+    $prLine = @($d2.Log | Where-Object { $_ -match '^gh api -X POST repos/\S+/pulls' })
+    Assert-That 'gh pr create ran with Refs #1345 for the delta branch' ($prLine.Count -eq 1 -and $prLine[0] -like "*head=$branch*" -and $prLine[0] -like '*body=Refs #1345*' -and $prLine[0] -notlike '*Fixes*') ($d2.Log -join "`n")
     Assert-That 'the delta audit is closed (worktree, branch, current-audit.json)' ((-not (Test-Path $wt)) -and (-not (Test-Path $currentAudit)) -and (-not (Git -C $main branch --list 'audit/99')))
     Assert-That 'the delta progress file records 99 and progress.csv is untouched' (((Get-Content $deltaProgress) -match '^99,done') -and ((Get-Content (Join-Path $knowledge 'progress.csv') -Raw) -ceq $progressBefore))
     Assert-That 'the delta stages were archived next to, not over, the originals' ((Test-Path (Join-Path $knowledge "stages\99-$folder\docs.md")) -and -not (Test-Path (Join-Path $knowledge 'stages\99')))

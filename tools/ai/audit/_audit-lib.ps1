@@ -967,7 +967,7 @@ function Update-PlanLinks($Plan, [string]$Tmp) {
 
 # Builds the publication of one audit. Returns @{ Ok; Message; Branch; PrUrl; Planned }.
 #   -NoPublish: prepares the branch locally (layout, validation, commit) and records the push and
-#   'gh pr create' commands in Planned without running them.
+#   'gh api -X POST repos/<repo>/pulls' (pull request creation over REST) commands in Planned without running them.
 # On any failure the caller keeps the audit worktree, the audit branch and its open-audit state file; the temporary
 # worktree is always removed and a stale local knowledge/audit-<n> branch from an earlier try is replaced.
 function Publish-AuditKnowledge {
@@ -1090,7 +1090,8 @@ function Publish-AuditKnowledge {
         }
 
         $pushArgs = @('-C', $tmp, 'push', '-u', 'origin', $branch)
-        $prArgs = @('pr', 'create', '--repo', $Repo, '--base', 'main', '--head', $branch, '--title', $title, '--body', 'Refs #1345')
+        # REST (#2661): `gh pr create` is GraphQL-backed and fails when the shared GraphQL quota is exhausted.
+        $prArgs = @('api', '-X', 'POST', "repos/$Repo/pulls", '-f', "title=$title", '-f', "head=$branch", '-f', 'base=main', '-f', 'body=Refs #1345', '--jq', '.html_url')
         if ($NoPublish) {
             $planned.Add('git ' + ($pushArgs -join ' '))
             $planned.Add('gh ' + ($prArgs -join ' '))
@@ -1103,13 +1104,14 @@ function Publish-AuditKnowledge {
         $r = Invoke-AuditGit ($pushArgs + '--force')
         if ($r.ExitCode -ne 0) { return (& $fail "git push failed: $($r.Output)") }
         # A pull request left by an earlier attempt is reused instead of opening a duplicate.
-        $existing = Invoke-AuditGh @('pr', 'list', '--repo', $Repo, '--head', $branch, '--state', 'open', '--json', 'url', '--jq', '.[0].url')
+        $owner = ($Repo -split '/')[0]
+        $existing = Invoke-AuditGh @('api', '-X', 'GET', "repos/$Repo/pulls", '-f', 'state=open', '-f', "head=${owner}:$branch", '--jq', '.[0].html_url')
         $existingUrl = ($existing.Output -split "`n" | Where-Object { $_ -match '^https://' } | Select-Object -First 1)
         if ($existing.ExitCode -eq 0 -and $existingUrl) {
             return (& $complete @{ Ok = $true; Message = "published $branch (pull request already open)"; Branch = $branch; PrUrl = "$existingUrl"; Planned = @($planned) })
         }
         $r = Invoke-AuditGh $prArgs
-        if ($r.ExitCode -ne 0) { return (& $fail "gh pr create failed (the branch $branch is pushed; re-running replaces it): $($r.Output)") }
+        if ($r.ExitCode -ne 0) { return (& $fail "creating the pull request over REST failed (the branch $branch is pushed; re-running replaces it): $($r.Output)") }
         $url = ($r.Output -split "`n" | Where-Object { $_ -match '^https://' } | Select-Object -Last 1)
         return (& $complete @{ Ok = $true; Message = "published $branch"; Branch = $branch; PrUrl = "$url"; Planned = @($planned) })
     }

@@ -33,7 +33,7 @@
 # set, so the order of the rows does not matter) and its own lessons; the other open audits keep running.
 #
 # -NoPublish: runs every check, builds and commits the publication branch locally, prints the push and
-# 'gh pr create' commands it would run, and stops. It does not push, open a pull request or close the audit
+# 'gh api -X POST repos/<repo>/pulls' commands it would run, and stops. It does not push, open a pull request or close the audit
 # (the audit worktree, branch and state file stay).
 
 param([switch]$NoPublish, [int]$Issue)
