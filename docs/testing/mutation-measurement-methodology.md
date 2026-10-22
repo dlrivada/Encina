@@ -122,7 +122,7 @@ Stryker keeps a mutant only when an include span contains it whole and no exclud
 
 ### Timeouts
 
-Each shard's `timeout-minutes` comes from the `TIMEOUTS` array, same index as `SHARDS`. The values apply `max(60, ceil(expected x 1.5))`, with `expected` = 23 minutes of setup plus 1.7 minutes per tested mutant (both measured on CI run 39422580958 at concurrency 1). Shards measured in that run carry their measured duration x 1.5 instead; the re-split shards use the estimated count, so they are provisional until the next run measures them ([#1441](https://github.com/dlrivada/Encina/issues/1441)). Read the per-shard values in the workflow; they are not repeated here.
+Each shard's `timeout-minutes` comes from the `TIMEOUTS` array, same index as `SHARDS`. The values are `max(60, ceil(measured minutes x 1.5))` from the 71 clean shards of full-matrix run 39611628419 (setup median 22.4 minutes; 1.67 minutes per mutant median, but runner speed is bimodal per job: slow draws take 1.73, fast draws 1.34). Each value is then raised to at least `ceil(1.5 x (26 + 2.2 x tested mutants))`, so a shard measured on a fast runner survives a slow draw. Shards 16, 31, 52, 55 and 58 were cancelled by their old job timeout in that run (planned count equals tested count, slow runners); they carry predictions (`26 + 2.47 x mutants`, x1.5) until custom-scope runs re-measure them. The cap is 340 minutes, below GitHub's 360-minute job limit ([#1441](https://github.com/dlrivada/Encina/issues/1441)). Read the per-shard values in the workflow; they are not repeated here.
 
 ### Dispatch overrides
 
