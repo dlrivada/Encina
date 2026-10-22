@@ -87,6 +87,13 @@ public sealed class DbContextTransactionAccessor : IDbTransactionAccessor, IAsyn
             return Join(owner, isolationLevel);
         }
 
+        // A participant rolled the application's transaction back: fail closed for the rest of the scope instead
+        // of beginning a new transaction that would commit on its own.
+        if (_externalRolledBack is not null)
+        {
+            return Left<EncinaError, IDbTransactionLease>(TransactionErrors.RollbackOnly());
+        }
+
         return _dbContext.Database.CurrentTransaction is { } external
             ? JoinExternal(external, isolationLevel)
             : await BeginAsync(isolationLevel, cancellationToken).ConfigureAwait(false);

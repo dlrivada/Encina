@@ -1,11 +1,11 @@
 using Encina.EntityFrameworkCore.Transactions;
 using Encina.EntityFrameworkCore.UnitOfWork;
+using Encina.Messaging.Transactions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 using Xunit;
-using Encina.Messaging.Transactions;
 
 namespace Encina.GuardTests.EntityFrameworkCore.Transactions;
 

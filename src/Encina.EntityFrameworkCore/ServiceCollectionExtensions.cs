@@ -221,8 +221,8 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers EF Core's own DbContext-bound <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/>
-    /// when <paramref name="useTransactions"/> is enabled.
+    /// Registers the scope's shared transaction: <see cref="IDbTransactionAccessor"/> and the neutral
+    /// <see cref="ITransactionLeaseSource"/> resolved from the same instance (TryAdd, so the application wins).
     /// </summary>
     private static void AddTransactionAccessor(IServiceCollection services)
     {
@@ -230,6 +230,10 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ITransactionLeaseSource>(sp => sp.GetRequiredService<IDbTransactionAccessor>());
     }
 
+    /// <summary>
+    /// Registers EF Core's own DbContext-bound <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/>
+    /// when <paramref name="useTransactions"/> is enabled.
+    /// </summary>
     private static void RegisterTransactionBehavior(IServiceCollection services, bool useTransactions)
     {
         if (!useTransactions) return;
