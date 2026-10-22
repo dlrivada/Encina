@@ -1,0 +1,1 @@
+- `SqlIdentifierValidator` now accepts only a bare or fully bracketed identifier with an optional schema part and rejects trailing or embedded control characters (a trailing newline used to pass) and half-delimited parts such as `[abc` or `a[b]` (#2028).
