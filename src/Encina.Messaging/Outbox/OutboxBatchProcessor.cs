@@ -241,26 +241,27 @@ internal sealed class OutboxBatchProcessor
     // delay the API asked for (http.retry_after), which the next attempt never undercuts.
     private readonly record struct Failure(string Reason, string ErrorCode, Exception? Exception = null, TimeSpan? RetryAfter = null);
 
-    private async Task<MessageOutcome> FailAsync(
+    private Task<MessageOutcome> FailAsync(
         IOutboxMessage message,
         Failure failure,
         CancellationToken cancellationToken)
     {
         var retryCount = message.RetryCount + 1;
-        var failureReason = failure.Reason;
-        var exception = failure.Exception;
 
         // A Retry-After above the ceiling schedules nothing: the message is exhausted at once, whatever its retry count.
         if (failure.RetryAfter is { } requested && requested > _options.MaxRetryAfter)
         {
-            return await ExhaustAboveCeilingAsync(message, failure, requested, retryCount, cancellationToken).ConfigureAwait(false);
+            return ExhaustAboveCeilingAsync(message, failure, requested, retryCount, cancellationToken);
         }
 
-        if (retryCount >= _options.MaxRetries)
-        {
-            return await ExhaustAsync(message, failure, retryCount, cancellationToken).ConfigureAwait(false);
-        }
+        return retryCount >= _options.MaxRetries
+            ? ExhaustAsync(message, failure, retryCount, cancellationToken)
+            : ScheduleRetryAsync(message, failure, retryCount, cancellationToken);
+    }
 
+    // The next attempt: the capped exponential backoff, never earlier than the Retry-After the API asked for.
+    private DateTime NextRetryAtUtc(IOutboxMessage message, Failure failure)
+    {
         var delay = OutboxRetryBackoff.ComputeDelay(
             message.RetryCount,
             _options.BaseRetryDelay,
@@ -272,7 +273,18 @@ internal sealed class OutboxBatchProcessor
             delay = retryAfter;
         }
 
-        var nextRetryAtUtc = SaturatingTime.AddSaturating(_timeProvider.GetUtcNow().UtcDateTime, delay);
+        return SaturatingTime.AddSaturating(_timeProvider.GetUtcNow().UtcDateTime, delay);
+    }
+
+    private async Task<MessageOutcome> ScheduleRetryAsync(
+        IOutboxMessage message,
+        Failure failure,
+        int retryCount,
+        CancellationToken cancellationToken)
+    {
+        var failureReason = failure.Reason;
+        var exception = failure.Exception;
+        var nextRetryAtUtc = NextRetryAtUtc(message, failure);
 
         var failedMark = await _store.MarkAsFailedAsync(message.Id, failureReason, nextRetryAtUtc, cancellationToken)
             .ConfigureAwait(false);

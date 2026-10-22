@@ -269,7 +269,17 @@ config.RecoverabilityOptions.ErrorClassifier = new MyErrorClassifier();
 An error from an outbound call such as `Encina.Refit` carries metadata from `OutboundErrorMetadataKeys` (see the [Encina.Refit README](../Encina.Refit/README.md)). The recoverability layers act on it:
 
 - **`http.retry_after`** — the remaining immediate retries stop and the first delayed retry is scheduled at exactly that delay instead of `DelayedRetries[0]`. `DelayedRetryProcessor` uses the header delay for the next attempt instead of `DelayedRetries[n]`; the attempt still counts against `DelayedRetries.Length`. With delayed retries disabled, the error reaches the caller with the metadata. `OutboxBatchProcessor` sets `NextRetryAtUtc` no earlier than now plus `http.retry_after` when that is later than its own backoff.
+- **`http.retry_after` ceiling** — a `Retry-After` at or below the ceiling is honoured as above: the next attempt waits at least the header, never less. A `Retry-After` strictly above the ceiling schedules nothing (with delayed retries enabled, for `RecoverabilityPipelineBehavior`): the message is dead-lettered through the permanent-failure path (the outbox exhausts it at once, whatever its retry count) with the error code `recoverability.retry_after_exceeds_ceiling` (`RecoverabilityErrorCodes.RetryAfterExceedsCeiling`). A warning is logged (EventId 5454 in `RecoverabilityPipelineBehavior`, 5455 in `DelayedRetryProcessor`, 5456 in the outbox processor) and `encina.retry.skipped_total` is counted with the reason `retry_after_exceeds_ceiling`. The log and the metric's `error_code` tag keep the original error code, never the error message. The dead letter can be requeued or replayed like any other.
 - **`outbound.ambiguous`** — an ambiguous failure of a non-idempotent send (it may already have been processed) is returned like a permanent one, on the dead-letter path, unless the request has an `IdempotencyKey`. The `IdempotencyKey` is the one of the request context (`IRequestContext.IdempotencyKey`): it is an opt-in, and the Refit client must send it to the provider for the provider to deduplicate.
+
+The ceiling is a `TimeSpan` that must be greater than zero and defaults to 24 hours. `RecoverabilityOptions.MaxRetryAfter` governs `RecoverabilityPipelineBehavior` and `DelayedRetryProcessor`; `OutboxOptions.MaxRetryAfter` governs the outbox batch processor. A positive `TimeSpan.MaxValue` is the explicit "no ceiling".
+
+```csharp
+config.RecoverabilityOptions.MaxRetryAfter = TimeSpan.FromHours(6);
+config.OutboxOptions.MaxRetryAfter = TimeSpan.FromHours(6);
+```
+
+The in-process Polly path (`RetryAttribute`) is unchanged and has its own limit: it honours a `Retry-After` up to `RetryAttribute.MaxDelayMs`. A longer one is never shortened: the retry is skipped (`encina.retry.skipped_total`, reason `retry_after_exceeds_max`) and the error returns with `http.retry_after` for the layers above to apply the ceiling.
 
 The Hangfire and Quartz job adapters only use the classification (permanent or transient); they do not apply the `Retry-After` or non-idempotent rules.
 

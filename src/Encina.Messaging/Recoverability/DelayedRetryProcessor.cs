@@ -312,13 +312,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         CancellationToken cancellationToken)
     {
         var nextDelayedRetryAttempt = message.DelayedRetryAttempt + 1;
-        if (SkipReason(message, result) is { } reason)
-        {
-            CountSkipped(reason, message, result);
-            return NextAttempt.Ended;
-        }
-
-        if (nextDelayedRetryAttempt >= _options.DelayedRetries.Length)
+        if (EndsChainBeforeScheduling(message, result, nextDelayedRetryAttempt))
         {
             return NextAttempt.Ended;
         }
@@ -337,6 +331,19 @@ public sealed class DelayedRetryProcessor : BackgroundService
         return await ScheduleNextDelayedRetryAsync(message, request, nextDelayedRetryAttempt, delay, cancellationToken).ConfigureAwait(false)
             ? NextAttempt.Scheduled
             : NextAttempt.Ended;
+    }
+
+    // True when the chain ends without a next attempt: a permanent error, an ambiguous failure of a non-idempotent
+    // send (both counted as skipped), or no delayed retry left.
+    private bool EndsChainBeforeScheduling(IDelayedRetryMessage message, DispatchResult result, int nextDelayedRetryAttempt)
+    {
+        if (SkipReason(message, result) is { } reason)
+        {
+            CountSkipped(reason, message, result);
+            return true;
+        }
+
+        return nextDelayedRetryAttempt >= _options.DelayedRetries.Length;
     }
 
     private void RecordCeilingExceeded(IDelayedRetryMessage message, DispatchResult result, TimeSpan retryAfter)
