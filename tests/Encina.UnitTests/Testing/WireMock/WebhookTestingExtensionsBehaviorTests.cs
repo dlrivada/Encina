@@ -100,14 +100,24 @@ public sealed class WebhookTestingExtensionsBehaviorTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SetupWebhookTimeout_DefaultDelay_TimesOutShortClient()
+    public async Task SetupWebhookTimeout_ShortClientTimeout_TimesOut()
     {
-        _fixture.SetupWebhookTimeout("/hooks/slow");
+        _fixture.SetupWebhookTimeout("/hooks/slow", TimeSpan.FromMilliseconds(500));
         using var client = _fixture.CreateClient();
         client.Timeout = TimeSpan.FromMilliseconds(100);
 
         await Should.ThrowAsync<TaskCanceledException>(async () =>
             await client.PostAsync("/hooks/slow", Json("{}"), CancellationToken.None));
+    }
+
+    [Fact]
+    public void SetupWebhookTimeout_DefaultDelay_RegistersThirtySecondDelay()
+    {
+        // No request is sent: the server would hold the 30 s delay on shutdown.
+        _fixture.SetupWebhookTimeout("/hooks/slow");
+
+        var mapping = _fixture.Server.MappingModels.ShouldHaveSingleItem();
+        mapping.Response.Delay.ShouldBe((int)TimeSpan.FromSeconds(30).TotalMilliseconds);
     }
 
     [Fact]

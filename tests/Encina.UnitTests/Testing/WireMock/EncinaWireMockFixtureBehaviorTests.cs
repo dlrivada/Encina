@@ -124,18 +124,33 @@ public sealed class EncinaWireMockFixtureBehaviorTests : IAsyncLifetime
         var outcome = await Record.ExceptionAsync(async () =>
         {
             using var response = await client.GetAsync("/api/data", TestContext.Current.CancellationToken);
+            response.StatusCode.ShouldBe(HttpStatusCode.OK);
             (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).ShouldBeEmpty();
         });
 
-        // Either the connection is closed (HttpRequestException) or an empty body arrives.
+        // The client either sees the connection closed or an empty 200; never a 404 (no stub matched).
         if (outcome is not null)
         {
             outcome.ShouldBeOfType<HttpRequestException>();
         }
+
+        AssertFaultServed("EMPTY_RESPONSE");
+    }
+
+    private void AssertFaultServed(string expectedFault)
+    {
+        var mapping = _fixture.Server.MappingModels.ShouldHaveSingleItem();
+        mapping.Response.Fault.ShouldNotBeNull();
+        mapping.Response.Fault.Type.ShouldBe(expectedFault);
+
+        var entry = _fixture.Server.LogEntries.ShouldHaveSingleItem();
+        entry.MappingGuid.ShouldBe(mapping.Guid);
+        entry.RequestMatchResult.ShouldNotBeNull();
+        entry.RequestMatchResult.IsPerfectMatch.ShouldBeTrue();
     }
 
     [Fact]
-    public async Task StubFault_MalformedResponse_DoesNotReturnValidJson()
+    public async Task StubFault_MalformedResponse_IsServedAsMalformedChunkFault()
     {
         _fixture.StubFault("/api/data", FaultType.MalformedResponse, method: "GET");
         using var client = _fixture.CreateClient();
@@ -143,27 +158,29 @@ public sealed class EncinaWireMockFixtureBehaviorTests : IAsyncLifetime
         var outcome = await Record.ExceptionAsync(async () =>
         {
             using var response = await client.GetAsync("/api/data", TestContext.Current.CancellationToken);
-            var content = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-            content.ShouldNotBe("""{"name":"x"}""");
+            response.StatusCode.ShouldBe(HttpStatusCode.OK);
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         });
 
+        // The client either fails reading the response or gets a 200; never a 404 (no stub matched).
         if (outcome is not null)
         {
-            outcome.ShouldBeAssignableTo<Exception>();
+            outcome.ShouldBeOfType<HttpRequestException>();
         }
 
-        _fixture.VerifyCallMade("/api/data", method: "GET");
+        AssertFaultServed("MALFORMED_RESPONSE_CHUNK");
     }
 
     [Fact]
-    public async Task StubFault_Timeout_CausesClientTimeout()
+    public void StubFault_Timeout_RegistersThirtySecondDelay()
     {
+        // No request is sent: the server would hold the 30 s delay on shutdown. The end-to-end
+        // timeout behaviour is covered by the integration flag (FaultSimulationTests).
         _fixture.StubFault("/api/slow", FaultType.Timeout);
-        using var client = _fixture.CreateClient();
-        client.Timeout = TimeSpan.FromMilliseconds(100);
 
-        await Should.ThrowAsync<TaskCanceledException>(async () =>
-            await client.GetAsync("/api/slow", CancellationToken.None));
+        var mapping = _fixture.Server.MappingModels.ShouldHaveSingleItem();
+        mapping.Response.Delay.ShouldBe((int)TimeSpan.FromSeconds(30).TotalMilliseconds);
+        mapping.Response.Fault.ShouldBeNull();
     }
 
     [Fact]
