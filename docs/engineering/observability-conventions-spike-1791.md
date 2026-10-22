@@ -1,4 +1,6 @@
 ---
+title: "Observability conventions and cross-boundary trace propagation (spike #1791)"
+layout: default
 nav_exclude: true
 ---
 
@@ -109,7 +111,7 @@ Read on 2026-10-22; "not read" marks claims taken from search snippets that must
 | MassTransit | Source name from `DiagnosticHeaders.DefaultListenerName`, meter from `InstrumentationOptions.MeterName`; instrument names configurable | not read in detail | [MassTransit observability](https://masstransit.massient.com/documentation/configuration/observability) |
 | Wolverine | Source `Wolverine`; meter `Wolverine:{ApplicationName}`, subscribed with `AddMeter("Wolverine*")`; per-endpoint `TelemetryEnabled(false)`; extra diagnostics default off | Parent id stored in the envelope, so it survives the durable outbox; retries link to the failed attempt (assessment, line 137; source not read for this page) | [Wolverine logging](https://wolverinefx.net/guide/logging.html) |
 | CAP | `AddCapInstrumentation()` in `DotNetCore.CAP.OpenTelemetry`; injects `traceparent` and `baggage` into message headers and restores them on receive; `TraceContextPropagator` opts out of baggage | restored as context | [CAP docs](https://cap.dotnetcore.xyz/user-guide/en/monitoring/opentelemetry/) |
-| Brighter | Sources `Paramore.Brighter` and `Paramore.Brighter.ServiceActivator`, subscribed with `Paramore.*`; spans for add-to-outbox, fetch and dispatch | `traceparent`/`tracestate` header; consumer is a child (assessment); page predates newer versions | [Brighter telemetry](https://github.com/BrighterCommand/Docs/blob/master/contents/9/Telemetry.md) |
+| Brighter | Sources `Paramore.Brighter` and `Paramore.Brighter.ServiceActivator`, subscribed with `Paramore.*`; spans for add-to-outbox, fetch and dispatch | `traceparent`/`tracestate` header; consumer is a child (assessment); page predates newer versions | [Brighter observability source](https://github.com/BrighterCommand/Brighter/tree/master/src/Paramore.Brighter/Observability) |
 | Npgsql | `AddNpgsql()`; Npgsql 10 meter `Npgsql` with `db.client.operation.duration` in `s` | not applicable | [Npgsql tracing](https://www.npgsql.org/doc/diagnostics/tracing.html), [metrics](https://www.npgsql.org/doc/diagnostics/metrics.html) |
 | Polly | Meter `Polly`; instruments `resilience.polly.*`; durations in milliseconds (a departure from the seconds rule) | not applicable | [Polly telemetry](https://www.pollydocs.org/advanced/telemetry.html) |
 | Hangfire, Quartz | Separate contrib or community packages (`AddHangfireInstrumentation()`, `AddQuartzInstrumentation()`); the official Quartz package is marked obsolete and incompatible with .NET 10 | not read | [Hangfire contrib](https://github.com/open-telemetry/opentelemetry-dotnet-contrib/tree/main/src/OpenTelemetry.Instrumentation.Hangfire), [Quartz](https://www.quartz-scheduler.net/documentation/quartz-3.x/packages/opentelemetry-integration.html) |
