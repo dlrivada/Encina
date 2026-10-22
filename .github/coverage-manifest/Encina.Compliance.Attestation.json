@@ -24,7 +24,13 @@
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods",
+      "targets": {
+        "unit": 98
+      },
+      "justifications": {
+        "unit": "Every factory method and its details dictionary are asserted by the error theory and the detail tests (measured 100%); 2 points of slack."
+      }
     },
     "AttestationHasher.cs": {
       "defaultTests": [
@@ -32,14 +38,28 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 98,
+        "guard": 98
+      },
+      "justifications": {
+        "unit": "Both hash overloads, SHA-256 helper and algorithm branch are asserted against reference digests (measured 100%).",
+        "guard": "Every null argument and the unsupported-algorithm rejection run through the real hasher (measured 100%)."
+      }
     },
     "AttestationOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO — defaults verification"
+      "reason": "Configuration POCO — defaults verification",
+      "targets": {
+        "unit": 98
+      },
+      "justifications": {
+        "unit": "UseInMemory, UseHashChain and UseHttp configuration paths are exercised through the service registration and options tests (measured 100%)."
+      }
     },
     "Attributes/AttestationFailureMode.cs": {
       "defaultTests": [
@@ -47,7 +67,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "An enum with two members has no executable lines, so there is nothing to measure; its values are asserted through the behavior tests (no coverage data).",
+        "guard": "An enum has no arguments to validate and no executable lines, so guard coverage is not applicable (no coverage data)."
+      }
     },
     "Attributes/AttestDecisionAttribute.cs": {
       "defaultTests": [
@@ -55,7 +83,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 98,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "The attribute defaults are asserted directly and it is read by the pipeline behavior tests (measured 100%).",
+        "guard": "A property bag with no argument validation; guard tests have nothing to reject, so a 0 here is accurate (measured 0%)."
+      }
     },
     "Behaviors/AttestationPipelineBehavior.cs": {
       "defaultTests": [
@@ -64,7 +100,17 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 98,
+        "guard": 20,
+        "contract": 98
+      },
+      "justifications": {
+        "unit": "Pass-through, handler failure, success, record type fallback, Enforce and LogOnly failure paths are all covered (measured 100%).",
+        "guard": "Guard tests reject null constructor arguments and a null request; the attribute lookup, record building, attestation call and Enforce/LogOnly handling after the null check are pipeline behavior covered by the unit and contract flags (measured 22%).",
+        "contract": "The contract tests run the real behavior against the real providers for pass-through, success, handler failure, Enforce and LogOnly (measured 100%)."
+      }
     },
     "ContentHasher.cs": {
       "defaultTests": [
@@ -72,7 +118,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 98,
+        "guard": 84
+      },
+      "justifications": {
+        "unit": "Every hash, HMAC and key-size branch including unsupported algorithms is covered (measured 100%).",
+        "guard": "Guard tests reject null content and unsupported algorithms and run the SHA-256 path through the providers; the SHA-384/SHA-512 hash, HMAC and key-size branches are covered by the unit flag (measured 86%)."
+      }
     },
     "Diagnostics/AttestationDiagnostics.cs": {
       "defaultTests": [
@@ -80,7 +134,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 98,
+        "guard": 72
+      },
+      "justifications": {
+        "unit": "Activity creation with a listener, success/failure recording and null-activity paths are asserted (measured 100%).",
+        "guard": "Guard tests attach no ActivityListener, so the activity creation and tagging lines (StartAttestation, StartVerification) and RecordFailure bodies never run; they are covered by the unit flag, which attaches a listener (measured 74%)."
+      }
     },
     "Diagnostics/AttestationLogMessages.cs": {
       "defaultTests": [],
@@ -92,7 +154,13 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO — defaults verification"
+      "reason": "Configuration POCO — defaults verification",
+      "targets": {
+        "unit": 98
+      },
+      "justifications": {
+        "unit": "Defaults are asserted and the options flow through the provider tests (measured 100%)."
+      }
     },
     "Health/AttestationHealthCheck.cs": {
       "defaultTests": [
@@ -100,14 +168,28 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "unit": 98,
+        "guard": 20
+      },
+      "justifications": {
+        "unit": "Healthy, error-code and exception paths are asserted without leaking messages (measured 100%).",
+        "guard": "Guard tests reject null constructor arguments and construct the check once; the CheckHealthAsync probe, Healthy/Unhealthy mapping and exception handling are behavior covered by the unit flag (measured 22%)."
+      }
     },
     "HttpAttestationOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO — defaults verification"
+      "reason": "Configuration POCO — defaults verification",
+      "targets": {
+        "unit": 98
+      },
+      "justifications": {
+        "unit": "Defaults, ToString redaction and JSON exclusion of the auth header are asserted (measured 100%)."
+      }
     },
     "Model/AttestationReceipt.cs": {
       "defaultTests": [
@@ -115,7 +197,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 98,
+        "guard": 85
+      },
+      "justifications": {
+        "unit": "Value equality and with-expressions are asserted (measured 100%).",
+        "guard": "The only uncovered line is the optional ExpiresAtUtc property, which no guard flow sets; it is asserted by the unit flag (measured 89%)."
+      }
     },
     "Model/AttestationVerification.cs": {
       "defaultTests": [
@@ -123,7 +213,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 98,
+        "guard": 98
+      },
+      "justifications": {
+        "unit": "Built and asserted by every provider verification test (measured 100%).",
+        "guard": "Built by the guard tests that verify through real providers (measured 100%)."
+      }
     },
     "Model/AuditRecord.cs": {
       "defaultTests": [
@@ -131,7 +229,15 @@
         "guard"
       ],
       "defaultRule": "*Record.cs",
-      "reason": "Data record"
+      "reason": "Data record",
+      "targets": {
+        "unit": 98,
+        "guard": 52
+      },
+      "justifications": {
+        "unit": "Optional property defaults and with-expressions are asserted (measured 100%).",
+        "guard": "The uncovered lines are the optional ActorId, TenantId, ModuleId and Metadata properties, which guard tests never set; the unit flag asserts them (measured 56%)."
+      }
     },
     "Providers/HashChainAttestationProvider.cs": {
       "defaultTests": [
@@ -139,7 +245,15 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": {
+        "unit": 92,
+        "guard": 60
+      },
+      "justifications": {
+        "unit": "Attest, idempotency, verify (valid, forged, unknown), chain integrity, SHA-384/512 and the receipt store are covered; the uncovered lines are the double-checked-lock race branch (measured 94%).",
+        "guard": "Guard tests reach the constructor checks and one attest/verify/retrieve round trip; the idempotent-return, forged and unknown receipt verification, VerifyChainIntegrity, SHA-384/512 and explicit store-member bodies are behavior covered by the unit flag, not argument validation (measured 62%)."
+      }
     },
     "Providers/HttpAttestationProvider.cs": {
       "defaultTests": [
@@ -147,7 +261,15 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": {
+        "unit": 98,
+        "guard": 8
+      },
+      "justifications": {
+        "unit": "A stub HttpMessageHandler drives success, non-success status, missing attestation_id, invalid GUID, blank or missing signature, proof-metadata, transport failure, cancellation and timeout paths (measured 100%); malformed-body branches (empty, non-JSON or wrongly typed 2xx bodies) throw today and arrive with #2656.",
+        "guard": "Guard tests reject null constructor and method arguments; the lines after those checks (request building, response parsing, receipt creation, metrics) are HTTP behavior covered by the unit flag, so only the constructor and argument checks count here (measured 9%)."
+      }
     },
     "Providers/InMemoryAttestationProvider.cs": {
       "defaultTests": [
@@ -155,7 +277,15 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": {
+        "unit": 93,
+        "guard": 64
+      },
+      "justifications": {
+        "unit": "Attest, idempotency, verify (valid, forged, tampered, unknown) and receipt retrieval are covered; the uncovered lines are the lost-race branch of TryAdd (measured 96%).",
+        "guard": "Guard tests reach the constructor checks and one attest/verify/retrieve round trip; the idempotent-return, lost-race, forged and unknown receipt verification and explicit store-member bodies past their null checks are behavior covered by the unit flag (measured 67%)."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -163,7 +293,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 91,
+        "guard": 68
+      },
+      "justifications": {
+        "unit": "All three provider registrations, health check, behavior registration and validation failures are covered (measured 93%); the rest are defensive branches.",
+        "guard": "Guard tests reject null arguments and build the in-memory and hash-chain registrations; the HTTP provider registration (validator, HttpClient) and the health check registration are registration behavior covered by the unit flag (measured 71%)."
+      }
     },
     "Validation/HttpAttestationOptionsValidator.cs": {
       "defaultTests": [
@@ -172,7 +310,17 @@
         "property"
       ],
       "defaultRule": "*Validator.cs",
-      "reason": "Validation logic with invariants"
+      "reason": "Validation logic with invariants",
+      "targets": {
+        "unit": 98,
+        "guard": 98,
+        "property": 98
+      },
+      "justifications": {
+        "unit": "HTTPS, HTTP, private network and verify-endpoint cases are asserted (measured 100%).",
+        "guard": "Null options and a valid configuration run through the real validator (measured 100%).",
+        "property": "FsCheck properties over public hosts, every private and loopback range (10/8, 172.16/12, 192.168/16, 100.64/10, 127/8) with both schemes and the AllowInsecureHttp switch, plus link-local, cloud metadata and unspecified addresses that are always rejected, execute every line (measured 100%)."
+      }
     }
   }
 }
