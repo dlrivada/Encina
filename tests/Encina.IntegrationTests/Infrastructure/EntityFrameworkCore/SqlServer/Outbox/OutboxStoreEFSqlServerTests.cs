@@ -220,4 +220,12 @@ public sealed class OutboxStoreEFSqlServerTests : IAsyncLifetime
         await context.Database.EnsureCreatedAsync();
         await OutboxRetryScenarios.RequeueAllExhaustedAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
     }
+
+    [Fact]
+    public async Task MarkAsExhausted_RaisesRetryCountToMaxRetries_AndTheMessageIsNeverFetchedAgain()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        await OutboxRetryScenarios.MarkAsExhaustedRaisesRetryCountAndIsNeverFetchedAgainAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
+    }
 }

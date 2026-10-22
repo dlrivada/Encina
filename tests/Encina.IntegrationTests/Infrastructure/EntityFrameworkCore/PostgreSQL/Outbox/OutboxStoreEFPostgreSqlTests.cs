@@ -211,4 +211,11 @@ public sealed class OutboxStoreEFPostgreSqlTests : IAsyncLifetime
         await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         await OutboxRetryScenarios.RequeueAllExhaustedAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
     }
+
+    [Fact]
+    public async Task MarkAsExhausted_RaisesRetryCountToMaxRetries_AndTheMessageIsNeverFetchedAgain()
+    {
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
+        await OutboxRetryScenarios.MarkAsExhaustedRaisesRetryCountAndIsNeverFetchedAgainAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
+    }
 }

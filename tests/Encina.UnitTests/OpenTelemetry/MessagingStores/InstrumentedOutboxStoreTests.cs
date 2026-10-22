@@ -75,6 +75,32 @@ public sealed class InstrumentedOutboxStoreTests
     }
 
     [Fact]
+    public async Task MarkAsExhaustedAsync_DelegatesToInner()
+    {
+        var id = Guid.NewGuid();
+        _inner.MarkAsExhaustedAsync(id, "error", 10, Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, Unit>.Right(Unit.Default));
+
+        var result = await _sut.MarkAsExhaustedAsync(id, "error", 10);
+
+        result.ShouldBeSuccess();
+        await _inner.Received(1).MarkAsExhaustedAsync(id, "error", 10, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task MarkAsExhaustedAsync_InnerReturnsLeft_ReturnsTheError()
+    {
+        var id = Guid.NewGuid();
+        var error = EncinaErrors.Create("outbox.mark_exhausted_failed", "down");
+        _inner.MarkAsExhaustedAsync(id, "error", 10, Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, Unit>.Left(error));
+
+        var result = await _sut.MarkAsExhaustedAsync(id, "error", 10);
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task SaveChangesAsync_DelegatesToInner()
     {
         _inner.SaveChangesAsync(Arg.Any<CancellationToken>())
