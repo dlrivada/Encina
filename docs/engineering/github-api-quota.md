@@ -43,33 +43,37 @@ gh api graphql -f query='{ rateLimit { cost remaining resetAt } }'
 
 ## Cost per call
 
-These numbers are **calculated** from GitHub's documented GraphQL cost formula (points = connection requests / 100, rounded, minimum 1; a `first:N` under a parent counts N times), **not measured**. Measure with the command above to confirm.
+Measured on 2026-10-22 against this repository: raw queries report their own `rateLimit { cost }`; `gh` subcommands were measured as the drop in `remaining` across the call. Reading `rateLimit` alone costs 0 points.
 
-| Call | Calculated cost (points) |
+| Call | Measured cost (points) |
 | --- | --- |
-| `gh pr view --json statusCheckRollup` | about 1 |
-| `gh pr checks` | about 1 |
-| `gh pr view --json state,mergeCommit` | about 1 |
-| `reviewThreads(first:100)` with `comments(first:1)` (202 requests) | 2 |
-| `gh label list --limit 400` (4 pages) | about 4 to 8 |
+| `gh pr view --json statusCheckRollup` (or the same query raw) | 1 |
+| `gh pr checks` | 1 |
+| `gh pr view --json state,mergeCommit` | 1 |
+| `reviewThreads(first:100)` with `comments(first:1)` | 1 |
+| `gh label list --limit 400` | 1 per page of 100 labels; 3 for the 243 labels of today |
 | `gh issue view --json title,body` | 1 |
-| `gh issue list --search x --limit 8` | about 1 |
-| One `collect-issues` page (100 issues, `labels(first:30)`; 3101 requests) | about 31 (three pages, about 93, if the open backlog is about 300 issues) |
+| `gh issue list --search x --limit 8` | 1 |
+| One `collect-issues` page (100 issues, `labels(first:30)`) | 1 |
+
+Every call costs about 1 point: the quota runs out through the **number** of calls, not through expensive queries. Polling is what matters.
+
+The `remaining` value is not consistent between consecutive reads: on 2026-10-22 back-to-back reads alternated between about 3480 and about 4130. A single drop measurement is therefore noisy; the costs above were confirmed with the query's own `cost` field.
 
 ## Hourly cost and intervals
 
-Same caveat: estimates, not measurements.
+From the measured cost of 1 point per call.
 
 | Caller | Interval | Before | After |
 | --- | --- | --- | --- |
-| `watch-open-prs` (6 open PRs) | 60 s | 3 per PR per poll, about 1080 per hour | checks over REST (0); threads only when a PR's `updated_at` changed (assuming 4 changes per hour per PR, about 48 per hour) plus about 12 on the first poll |
-| `watch-pr-events` (per watched PR) | 45 s | about 2 per poll, about 160 per hour | 0 (REST) |
-| `pr-watcher` agent | 60 s | about 2 per poll, about 120 per hour | 0 (REST) |
-| `check-target-issue-template` hook | one read per worker spawn | 1 per spawn; failed closed at 0 quota | REST |
-| Label listings (`audit-draft-remediation -Prepare`, `open-remediation`, `apply-priority-labels`) | per run | 1 to 8 per run; failed at 0 | REST |
-| `audit-draft-remediation` duplicate search and issue reads | per run | GraphQL | REST (the search API has its own limit of 30 requests per minute) |
-| `score-issues -Issue` | per run | GraphQL | REST |
-| `collect-issues` | per run | GraphQL | GraphQL, behind `Wait-GhGraphQLQuota` and `Write-GhQuotaUsage`; about 31 per page |
+| `watch-open-prs` (6 open PRs) | 60 s | 2 per PR per poll (check rollup and threads), 720 per hour per running watcher; several sessions each ran one | checks over REST (0); threads only when a PR's `updated_at` changed and `remaining >= 300` (about 4 changes per PR per hour: about 24 per hour) plus 6 on the first poll |
+| `watch-pr-events` (per watched PR) | 45 s | 2 per poll, 160 per hour | 0 (REST) |
+| `pr-watcher` agent (per watched PR) | 60 s | 2 per poll, 120 per hour | 0 (REST) |
+| `check-target-issue-template` hook | one read per worker spawn | 1 per spawn; at 0 quota it blocked every spawn (fails closed) | 0 (REST) |
+| Label listings (`audit-draft-remediation -Prepare`, `open-remediation`, `apply-priority-labels`) | per run | 3 per run; failed at 0 | 0 (REST) |
+| `audit-draft-remediation` duplicate search and issue reads | per run | 1 per search or read | 0 (REST; the search API has its own limit of 30 requests per minute) |
+| `score-issues -Issue` | per run | 1 | 0 (REST) |
+| `collect-issues` | per run | 1 per page | 1 per page, behind `Wait-GhGraphQLQuota` and `Write-GhQuotaUsage` |
 
 The only GraphQL polling left is the review-thread read of `watch-open-prs.ps1`. It runs when the PR's `updated_at` changed and `remaining >= 300`; when skipped it prints one `WARN` line per reset window.
 
