@@ -15,6 +15,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_priority-lib.ps1')
+. (Join-Path $PSScriptRoot '..\gh-quota.ps1')
 
 $parts = $Repo.Split('/')
 if ($parts.Count -ne 2) { throw "Repo must be 'owner/name', got '$Repo'" }
@@ -46,8 +47,12 @@ while ($hasNext) {
     $page++
     $ghArgs = @('api', 'graphql', '-f', "query=$query", '-f', "owner=$owner", '-f', "name=$name", '-F', "pageSize=$PageSize")
     if ($cursor) { $ghArgs += @('-f', "cursor=$cursor") } else { $ghArgs += @('-F', 'cursor=null') }
+    # #2568: GraphQL-only bulk read: wait for the shared quota (until resetAt when low), then record the call.
+    [void](Wait-GhGraphQLQuota -Caller 'collect-issues' -MinRemaining 200)
     $raw = & gh @ghArgs 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "gh api graphql failed on page $page`: $raw" }
+    $ghCode = $LASTEXITCODE
+    Write-GhQuotaUsage -Caller 'collect-issues' -Operation "issues page $page"
+    if ($ghCode -ne 0) { throw "gh api graphql failed on page $page`: $raw" }
     $resp = $raw | ConvertFrom-Json
     $conn = $resp.data.repository.issues
     foreach ($n in $conn.nodes) { $nodes.Add($n) }

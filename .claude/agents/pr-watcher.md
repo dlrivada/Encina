@@ -29,7 +29,7 @@ What to report, each time it happens, with `SendMessage` to `main` (first line =
 4. All relevant checks finished: a per-check table (pass / fail / skipped) plus the codecov patch percentage.
 5. The PR merged or closed: the merge commit SHA.
 
-Polling: `gh pr checks <n> --json name,bucket,link`, `gh api repos/dlrivada/Encina/pulls/<n>/reviews`, `gh api repos/dlrivada/Encina/pulls/<n>/comments?since=<iso>`, `gh pr view <n> --json state,mergeStateStatus,mergeCommit`. Poll every 60 seconds with `Start-Sleep -Seconds 60` inside a bounded loop; never busy-loop.
+Polling is REST only (#2568; `gh pr view` and `gh pr checks` use GraphQL, whose quota is shared and runs out): `gh api repos/dlrivada/Encina/pulls/<n>` (state, `merged`, `merge_commit_sha`, `mergeable_state`, `head.sha`), `gh api "repos/dlrivada/Encina/commits/<head-sha>/check-runs?per_page=100"` and `gh api repos/dlrivada/Encina/commits/<head-sha>/status` (checks: a check run is pending unless its `status` is `completed`; `conclusion` success/neutral passes, skipped is skipped, anything else fails), `gh api repos/dlrivada/Encina/pulls/<n>/reviews`, `gh api repos/dlrivada/Encina/pulls/<n>/comments?since=<iso>`. Poll every 60 seconds with `Start-Sleep -Seconds 60` inside a bounded loop; never busy-loop.
 
 Known non-failures: a `SonarCloud Analysis` auth error means the token expired (report once, do not investigate); `codecov/patch` may show a low value while test shards are still uploading (report only when all shards are done); CodeRabbit "Review rate limited" means the hourly quota is spent (report once).
 

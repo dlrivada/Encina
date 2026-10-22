@@ -1,8 +1,12 @@
 param(
     [int]$Pr = 1093,
     [string]$Repo = 'dlrivada/Encina',
-    [string]$Me = 'dlrivada'
+    [string]$Me = 'dlrivada',
+    [switch]$Once   # a single poll, then exit (verification and tests)
 )
+
+# REST only (#2568): no `gh pr ...` subcommand (they use GraphQL); see docs/engineering/github-api-quota.md.
+. (Join-Path $PSScriptRoot 'gh-quota.ps1')
 
 # Emits one line per actionable event on a pull request:
 #   REVIEW-COMMENT  <user> <path>:<line> <first 160 chars>   (new inline comment/reply, not mine)
@@ -53,19 +57,23 @@ while ($true) {
             }
         }
 
-        $checks = gh pr checks $Pr --repo $Repo --json name,bucket,link 2>$null | ConvertFrom-Json
-        if ($checks) {
-            $relevant = $checks | Where-Object { $_.name -notmatch '^(Benchmarks|Validate|Determine|Run Benchmarks|Benchmark)' }
-            foreach ($k in ($relevant | Where-Object { $_.bucket -eq 'fail' })) {
-                if ($seenFails.Add($k.name + '|' + $k.link)) {
-                    Write-Output ("CHECK-FAIL " + $k.name + " " + $k.link)
+        # REST only (#2568): the PR read gives the head sha and the state; checks come from the sha's check runs and statuses.
+        $prJson = gh api "repos/$Repo/pulls/$Pr" 2>$null | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or -not $prJson) { throw 'pull request read failed' }
+
+        $checks = @(Get-GhCheckBuckets -Repo $Repo -Sha $prJson.head.sha)
+        if ($checks.Count -gt 0) {
+            $relevant = $checks | Where-Object { $_.Name -notmatch '^(Benchmarks|Validate|Determine|Run Benchmarks|Benchmark)' }
+            foreach ($k in ($relevant | Where-Object { $_.Bucket -eq 'fail' })) {
+                if ($seenFails.Add($k.Name + '|' + $k.Url)) {
+                    Write-Output ("CHECK-FAIL " + $k.Name + " " + $k.Url)
                 }
             }
-            $pending = @($relevant | Where-Object { $_.bucket -eq 'pending' }).Count
+            $pending = @($relevant | Where-Object { $_.Bucket -eq 'pending' }).Count
             if ($pending -eq 0 -and -not $doneAnnounced) {
-                $pass = @($relevant | Where-Object { $_.bucket -eq 'pass' }).Count
-                $fail = @($relevant | Where-Object { $_.bucket -eq 'fail' }).Count
-                $skip = @($relevant | Where-Object { $_.bucket -eq 'skipping' }).Count
+                $pass = @($relevant | Where-Object { $_.Bucket -eq 'pass' }).Count
+                $fail = @($relevant | Where-Object { $_.Bucket -eq 'fail' }).Count
+                $skip = @($relevant | Where-Object { $_.Bucket -eq 'skipping' }).Count
                 Write-Output ("CHECKS-DONE pass=$pass fail=$fail skip=$skip")
                 $doneAnnounced = $true
             }
@@ -74,14 +82,18 @@ while ($true) {
             }
         }
 
-        $st = gh pr view $Pr --repo $Repo --json state,mergeCommit --jq '.state + " " + (.mergeCommit.oid // "")' 2>$null
-        if ($st -like 'MERGED*' -or $st -like 'CLOSED*') {
-            Write-Output ("PR-" + $st)
+        if ($prJson.merged) {
+            Write-Output ("PR-MERGED " + $prJson.merge_commit_sha)
+            break
+        }
+        if ($prJson.state -eq 'closed') {
+            Write-Output "PR-CLOSED "
             break
         }
     }
     catch {
         # transient API/network failure: keep polling
     }
+    if ($Once) { break }
     Start-Sleep -Seconds 45
 }

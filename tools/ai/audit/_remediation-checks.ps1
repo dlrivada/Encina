@@ -1280,7 +1280,10 @@ function Invoke-GhWithRetry {
         if ($result.Success) { return $result }
         $retryIndex = $attempt - 1
         if ($retryIndex -ge $DelaysSeconds.Count -or -not (Test-GhTransientFailure $result.Output)) { return $result }
-        [Console]::Error.WriteLine("gh $($Arguments[0]) $($Arguments[1]): transient failure (attempt $attempt, exit $code); retrying in $($DelaysSeconds[$retryIndex]) s.")
-        & $Sleep $DelaysSeconds[$retryIndex]
+        # #2568: a quota error is never retried sooner than 60 s (the shared quota helper's minimum re-check interval).
+        $delay = $DelaysSeconds[$retryIndex]
+        if ($result.Output -match '(?i)rate limit|HTTP 429\b|abuse detection') { $delay = [Math]::Max($delay, 60) }
+        [Console]::Error.WriteLine("gh $($Arguments[0]) $($Arguments[1]): transient failure (attempt $attempt, exit $code); retrying in $delay s.")
+        & $Sleep $delay
     }
 }

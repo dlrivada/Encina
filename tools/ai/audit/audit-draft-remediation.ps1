@@ -473,7 +473,7 @@ foreach ($kindName in $routes.Keys) {
     if (-not (Test-Path -LiteralPath $routes[$kindName].template)) { Stop-Remediation "issue template '$($routes[$kindName].template)' not found." }
 }
 if (-not $NoGh) {
-    $existingLabels = @((Get-GhResult @('label', 'list', '--repo', 'dlrivada/Encina', '--limit', '400', '--json', 'name', '--jq', '.[].name') 'the label check') -split "`r?`n")
+    $existingLabels = @((Get-GhResult @('api', 'repos/dlrivada/Encina/labels?per_page=100', '--paginate', '--jq', '.[].name') 'the label check') -split "`r?`n")
     if ($existingLabels -notcontains 'area-documentation') { $routes.docs.labels = @('technical-debt') }
 }
 
@@ -547,7 +547,7 @@ foreach ($requested in $requestedKeys) {
 # #1534 decision 3: every -DuplicateOf target must be a real, OPEN issue.
 if ($duplicateOfEntries -and -not $NoGh) {
     foreach ($dupIssueNumber in @($duplicateOfEntries.Values | Select-Object -Unique)) {
-        $stateJson = Get-GhResult @('issue', 'view', $dupIssueNumber, '--repo', 'dlrivada/Encina', '--json', 'state') "-DuplicateOf #$dupIssueNumber"
+        $stateJson = Get-GhResult @('api', "repos/dlrivada/Encina/issues/$dupIssueNumber", '--jq', '{state: (.state | ascii_upcase)}') "-DuplicateOf #$dupIssueNumber"
         $state = $null
         try { $state = ($stateJson | ConvertFrom-Json).state } catch { $state = $null }
         if ($state -ne 'OPEN') { Stop-Remediation "-DuplicateOf names #$dupIssueNumber, but it is not an OPEN issue (state: $(if ($state) { $state } else { 'unknown' }))." }
@@ -792,18 +792,18 @@ foreach ($gi in $touchedGroupIndexes) {
         # One search per term (GitHub ANDs a space-separated query), merged by number, capped at 10.
         $candidatesByNumber = [ordered]@{}
         foreach ($term in (Get-SearchTerms $primary.Text)) {
-            $listJson = Get-GhResult @('issue', 'list', '--repo', 'dlrivada/Encina', '--state', 'open', '--search', $term, '--json', 'number,title', '--limit', '8') "$primaryLabel (term '$term')"
+            $listJson = Get-GhResult @('api', '-X', 'GET', 'search/issues', '-f', "q=repo:dlrivada/Encina is:issue is:open $term", '-f', 'per_page=8', '--jq', '[.items[] | {number: .number, title: .title}]') "$primaryLabel (term '$term')"
             # A malformed reply fails the stage: treating it as "no candidates" would hide a real duplicate (#1572 review).
             $parsed = @()
-            try { $parsed = @($listJson | ConvertFrom-Json) } catch { Stop-Remediation "'gh issue list --search $term' for $primaryLabel returned malformed JSON: $($_.Exception.Message)" }
+            try { $parsed = @($listJson | ConvertFrom-Json) } catch { Stop-Remediation "'gh api search/issues ($term)' for $primaryLabel returned malformed JSON: $($_.Exception.Message)" }
             foreach ($c in $parsed) { if (-not $candidatesByNumber.Contains([string]$c.number)) { $candidatesByNumber[[string]$c.number] = $c } }
         }
         $evidenceCandidates = foreach ($c in @($candidatesByNumber.Values | Select-Object -First 10)) {
             $number = [string]$c.number
             if (-not $ghIssueCache.ContainsKey($number)) {
-                $viewJson = Get-GhResult @('issue', 'view', $number, '--repo', 'dlrivada/Encina', '--json', 'title,body') "$primaryLabel (candidate #$number)"
+                $viewJson = Get-GhResult @('api', "repos/dlrivada/Encina/issues/$number", '--jq', '{title: .title, body: .body}') "$primaryLabel (candidate #$number)"
                 try { $ghIssueCache[$number] = $viewJson | ConvertFrom-Json }
-                catch { Stop-Remediation "'gh issue view $number' for $primaryLabel returned malformed JSON: $($_.Exception.Message)" }
+                catch { Stop-Remediation "'gh api issues/$number' for $primaryLabel returned malformed JSON: $($_.Exception.Message)" }
             }
             $cached = $ghIssueCache[$number]
             [pscustomobject]@{ Number = $number; Title = [string]$c.title; TitleAndBody = if ($cached) { "$($cached.title)`n$($cached.body)" } else { '' } }

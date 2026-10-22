@@ -169,12 +169,14 @@ try {
     New-Item -ItemType Directory -Force $main, $stubs, $bodies | Out-Null
     & git init -q -b main $main | Out-Null
     Copy-Item -Recurse (Join-Path $repo 'tools\ai\audit') (Join-Path $main 'tools\ai\audit') -Force
+    Copy-Item (Join-Path $repo 'tools\ai\gh-quota.ps1') (Join-Path $main 'tools\ai\gh-quota.ps1') -Force   # open-remediation.ps1 dot-sources it (#2568)
     New-Item -ItemType Directory -Force (Join-Path $main '.github\ISSUE_TEMPLATE') | Out-Null
     Copy-Item (Join-Path $repo '.github\ISSUE_TEMPLATE\technical_debt.md') (Join-Path $main '.github\ISSUE_TEMPLATE\technical_debt.md') -Force
 
     Write-Text (Join-Path $stubs 'gh-stub.ps1') @'
 Add-Content -LiteralPath $env:OR_STUB_LOG -Value ('gh ' + ($args -join ' '))
-if ($args[0] -eq 'label') { 'technical-debt'; 'area-testing'; 'bug'; 'p0-mandatory'; 'p1-recommended'; 'p2-post-1.0'; exit 0 }
+if ($env:OR_STUB_GRAPHQL_DOWN -and ($args[0] -in 'label', 'issue', 'pr')) { 'GraphQL: API rate limit already exceeded'; $global:LASTEXITCODE = 1; exit 1 }
+if ($args[0] -eq 'api' -and $args[1] -like 'repos/*/labels*') { 'technical-debt'; 'area-testing'; 'bug'; 'p0-mandatory'; 'p1-recommended'; 'p2-post-1.0'; exit 0 }
 if ($args[0] -eq 'api') { "v0.14.0 $([char]0x2014) Hardening"; "v0.19.0 $([char]0x2014) Providers & Testing"; "v0.21.0 $([char]0x2014) Documentation"; exit 0 }
 if ($args[0] -eq 'project') {
     Add-Content -LiteralPath $env:OR_STUB_LOG -Value ('TOKENS:[' + $env:GITHUB_TOKEN + $env:GH_TOKEN + ']')
@@ -245,6 +247,12 @@ exit 0
     $rows = @(Get-Content $csv)
     Assert-That 'opened.csv has 3 rows with the same URL' ($rows.Count -eq 3 -and @($rows | ForEach-Object { ($_ -split ',')[1] } | Select-Object -Unique).Count -eq 1 -and $rows[0].StartsWith('2-delta-docs-a.md,https://github.com/')) ($rows -join ' | ')
     Assert-That 'non-delta draft is not folded and has no row' (-not $body.Contains('Extra Z') -and -not ($rows -join "`n").Contains('2-extra-z.md')) ($rows -join ' | ')
+
+    # --- 1b. #2568: the label listing is REST, so it works while every GraphQL-backed gh subcommand fails ----------
+    $env:OR_STUB_GRAPHQL_DOWN = '1'
+    try { $r1b = Invoke-Open '-Consolidate -WhatIf' } finally { Remove-Item Env:OR_STUB_GRAPHQL_DOWN -ErrorAction SilentlyContinue }
+    Assert-That 'GraphQL down: the label listing still succeeds over REST' ($r1b.Exit -eq 0 -and $r1b.Text -notmatch 'label listing failed') $r1b.Text
+    Assert-That 'GraphQL down: no gh label subcommand is called' (-not (@(Get-Content $log) -match '^gh label ')) ((Get-Content $log) -join ' | ')
 
     # --- 2. idempotent re-run ----------------------------------------------------------------------------------
     $r2 = Invoke-Open '-Consolidate'

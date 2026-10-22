@@ -23,9 +23,17 @@ param(
 # which silently caps the result at N and can make an omitted PR read as closed.
 # -Once does a single poll and exits 0, for verification and tests.
 
+# Quota (#2568): everything here is REST except the review threads, which exist only in GraphQL. Threads are queried
+# only when the PR's updated_at changed since its last successful thread read (or on the first poll), after
+# Wait-GhGraphQLQuota -NoWait; when the GraphQL quota is low the thread read is skipped (one WARN per reset window)
+# and the previous thread state is kept. See docs/engineering/github-api-quota.md.
+
 $ErrorActionPreference = 'Continue'
+. (Join-Path $PSScriptRoot 'gh-quota.ps1')
 $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
 $open = [System.Collections.Generic.HashSet[int]]::new()
+$threadsReadAt = @{}   # PR number -> updated_at of the PR when its threads were last read successfully
+$warnedResetWindow = $null
 $first = $true
 $repoParts = $Repo -split '/', 2
 $repoOwner = $repoParts[0]
@@ -36,31 +44,46 @@ while ($true) {
         if ($LASTEXITCODE -ne 0) { throw "gh api pulls list failed: $prsRaw" }
         $pages = $prsRaw | ConvertFrom-Json
         $prs = @(foreach ($page in @($pages)) { foreach ($p in @($page)) { $p } }) |
-            ForEach-Object { [pscustomobject]@{ number = $_.number; title = $_.title } }
+            ForEach-Object { [pscustomobject]@{ number = $_.number; title = $_.title; sha = $_.head.sha; updated = [string]$_.updated_at } }
         $nums = @($prs | ForEach-Object { $_.number })
         foreach ($n in @($open)) {
             if ($nums -notcontains $n) {
-                $st = gh pr view $n --repo $Repo --json state --jq .state 2>&1
-                if ($LASTEXITCODE -ne 0) { Write-Output "WARN gh pr view #$n state failed: $st"; continue }
+                $stRaw = gh api "repos/$Repo/pulls/$n" 2>&1
+                if ($LASTEXITCODE -ne 0) { Write-Output "WARN gh api pulls/$n state failed: $stRaw"; continue }
+                $st = if (($stRaw | ConvertFrom-Json).merged) { 'MERGED' } else { 'CLOSED' }
                 Write-Output "PR #$n $st"
                 [void]$open.Remove($n)
+                $threadsReadAt.Remove($n)
             }
         }
         $existing = 0
         foreach ($p in $prs) {
             $n = $p.number; [void]$open.Add($n)
-            $jRaw = gh pr view $n --repo $Repo --json statusCheckRollup 2>&1
-            if ($LASTEXITCODE -ne 0) { Write-Output "WARN gh pr view #$n statusCheckRollup failed: $jRaw"; continue }
-            $j = $jRaw | ConvertFrom-Json
-            foreach ($c in @($j.statusCheckRollup)) {
-                if ($c.conclusion -in 'FAILURE', 'TIMED_OUT', 'CANCELLED' -and $c.name -notmatch '^codecov/') {
-                    if ($seen.Add("$n|fail|$($c.name)|$($c.detailsUrl)")) { Write-Output "PR #$n CHECK-FAIL $($c.name) $($c.detailsUrl)" }
+            try {
+                foreach ($c in @(Get-GhCheckBuckets -Repo $Repo -Sha $p.sha)) {
+                    if ($c.Bucket -eq 'fail' -and $c.Name -notmatch '^codecov/') {
+                        if ($seen.Add("$n|fail|$($c.Name)|$($c.Url)")) { Write-Output "PR #$n CHECK-FAIL $($c.Name) $($c.Url)" }
+                    }
                 }
+            }
+            catch { Write-Output "WARN checks of #$n failed: $($_.Exception.Message)"; continue }
+            if ($threadsReadAt.ContainsKey($n) -and $threadsReadAt[$n] -eq $p.updated) { continue }
+            if (-not (Wait-GhGraphQLQuota -Caller 'watch-open-prs' -MinRemaining 300 -NoWait)) {
+                $quota = Get-GhGraphQLQuota
+                $window = if ($quota) { $quota.ResetAt.ToString('o') } else { 'unknown' }
+                if ($warnedResetWindow -ne $window) {
+                    $warnedResetWindow = $window
+                    Write-Output "WARN GraphQL low ($($quota.Remaining)); review threads of #$n skipped until $($quota.ResetAt.ToString('HH:mm:ss')) UTC (resetAt)"
+                }
+                continue
             }
             $q = 'query { repository(owner:"' + $repoOwner + '", name:"' + $repoName + '") { pullRequest(number: ' + $n + ') { reviewThreads(first: 100) { nodes { id isResolved comments(first: 1) { nodes { author { login } path } } } } } } }'
             $tRaw = gh api graphql -f query=$q 2>&1
-            if ($LASTEXITCODE -ne 0) { Write-Output "WARN gh api graphql reviewThreads for #$n failed: $tRaw"; continue }
+            $tCode = $LASTEXITCODE
+            Write-GhQuotaUsage -Caller 'watch-open-prs' -Operation "reviewThreads #$n"
+            if ($tCode -ne 0) { Write-Output "WARN gh api graphql reviewThreads for #$n failed: $tRaw"; continue }
             $t = $tRaw | ConvertFrom-Json
+            $threadsReadAt[$n] = $p.updated
             foreach ($th in @($t.data.repository.pullRequest.reviewThreads.nodes | Where-Object { -not $_.isResolved })) {
                 if ($seen.Add("$n|thread|$($th.id)")) {
                     if ($first) { $existing++ } else { Write-Output "PR #$n NEW-THREAD $($th.comments.nodes[0].author.login) $($th.comments.nodes[0].path)" }
