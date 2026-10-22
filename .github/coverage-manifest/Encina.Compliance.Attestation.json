@@ -67,7 +67,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "An enum with two members has no executable lines, so there is nothing to measure; its values are asserted through the behavior tests (no coverage data).",
+        "guard": "An enum has no arguments to validate and no executable lines, so guard coverage is not applicable (no coverage data)."
+      }
     },
     "Attributes/AttestDecisionAttribute.cs": {
       "defaultTests": [
@@ -100,7 +108,7 @@
       },
       "justifications": {
         "unit": "Pass-through, handler failure, success, record type fallback, Enforce and LogOnly failure paths are all covered (measured 100%).",
-        "guard": "Guard tests only reject null constructor arguments and a null request (measured 22%); the pipeline flow itself is covered by unit and contract tests.",
+        "guard": "Guard tests reject null constructor arguments and a null request; the attribute lookup, record building, attestation call and Enforce/LogOnly handling after the null check are pipeline behavior covered by the unit and contract flags (measured 22%).",
         "contract": "The contract tests run the real behavior against the real providers for pass-through, success, handler failure, Enforce and LogOnly (measured 100%)."
       }
     },
@@ -117,7 +125,7 @@
       },
       "justifications": {
         "unit": "Every hash, HMAC and key-size branch including unsupported algorithms is covered (measured 100%).",
-        "guard": "Null content and unsupported algorithm rejections plus one valid call per algorithm path (measured 86%)."
+        "guard": "Guard tests reject null content and unsupported algorithms and run the SHA-256 path through the providers; the SHA-384/SHA-512 hash, HMAC and key-size branches are covered by the unit flag (measured 86%)."
       }
     },
     "Diagnostics/AttestationDiagnostics.cs": {
@@ -133,7 +141,7 @@
       },
       "justifications": {
         "unit": "Activity creation with a listener, success/failure recording and null-activity paths are asserted (measured 100%).",
-        "guard": "Guard tests run the providers, which start activities only when a listener exists (measured 74%)."
+        "guard": "Guard tests attach no ActivityListener, so the activity creation and tagging lines (StartAttestation, StartVerification) and RecordFailure bodies never run; they are covered by the unit flag, which attaches a listener (measured 74%)."
       }
     },
     "Diagnostics/AttestationLogMessages.cs": {
@@ -167,7 +175,7 @@
       },
       "justifications": {
         "unit": "Healthy, error-code and exception paths are asserted without leaking messages (measured 100%).",
-        "guard": "Guard tests cover the constructor rejections and one valid construction (measured 22%); the probe flow is a unit-test concern."
+        "guard": "Guard tests reject null constructor arguments and construct the check once; the CheckHealthAsync probe, Healthy/Unhealthy mapping and exception handling are behavior covered by the unit flag (measured 22%)."
       }
     },
     "HttpAttestationOptions.cs": {
@@ -196,7 +204,7 @@
       },
       "justifications": {
         "unit": "Value equality and with-expressions are asserted (measured 100%).",
-        "guard": "Receipts are built by every guard test that attests through a real provider (measured 89%)."
+        "guard": "The only uncovered line is the optional ExpiresAtUtc property, which no guard flow sets; it is asserted by the unit flag (measured 89%)."
       }
     },
     "Model/AttestationVerification.cs": {
@@ -228,7 +236,7 @@
       },
       "justifications": {
         "unit": "Optional property defaults and with-expressions are asserted (measured 100%).",
-        "guard": "Records are built by the guard tests; optional properties are only touched by unit tests (measured 56%)."
+        "guard": "The uncovered lines are the optional ActorId, TenantId, ModuleId and Metadata properties, which guard tests never set; the unit flag asserts them (measured 56%)."
       }
     },
     "Providers/HashChainAttestationProvider.cs": {
@@ -244,7 +252,7 @@
       },
       "justifications": {
         "unit": "Attest, idempotency, verify (valid, forged, unknown), chain integrity, SHA-384/512 and the receipt store are covered; the uncovered lines are the double-checked-lock race branch (measured 94%).",
-        "guard": "Guard tests reject null arguments and run one attest/verify/retrieve round trip per provider (measured 62%)."
+        "guard": "Guard tests reach the constructor checks and one attest/verify/retrieve round trip; the idempotent-return, forged and unknown receipt verification, VerifyChainIntegrity, SHA-384/512 and explicit store-member bodies are behavior covered by the unit flag, not argument validation (measured 62%)."
       }
     },
     "Providers/HttpAttestationProvider.cs": {
@@ -259,8 +267,8 @@
         "guard": 8
       },
       "justifications": {
-        "unit": "A stub HttpMessageHandler drives success, non-success, malformed JSON, transport failure, cancellation and timeout paths (measured 100%).",
-        "guard": "Guard tests only reject null constructor and method arguments; the HTTP flows are unit-tested with a stub handler (measured 9%)."
+        "unit": "A stub HttpMessageHandler drives success, non-success status, missing attestation_id, invalid GUID, blank or missing signature, proof-metadata, transport failure, cancellation and timeout paths (measured 100%); malformed-body branches (empty, non-JSON or wrongly typed 2xx bodies) throw today and arrive with #2656.",
+        "guard": "Guard tests reject null constructor and method arguments; the lines after those checks (request building, response parsing, receipt creation, metrics) are HTTP behavior covered by the unit flag, so only the constructor and argument checks count here (measured 9%)."
       }
     },
     "Providers/InMemoryAttestationProvider.cs": {
@@ -276,7 +284,7 @@
       },
       "justifications": {
         "unit": "Attest, idempotency, verify (valid, forged, tampered, unknown) and receipt retrieval are covered; the uncovered lines are the lost-race branch of TryAdd (measured 96%).",
-        "guard": "Guard tests reject null arguments and run an attest/verify/retrieve round trip (measured 67%)."
+        "guard": "Guard tests reach the constructor checks and one attest/verify/retrieve round trip; the idempotent-return, lost-race, forged and unknown receipt verification and explicit store-member bodies past their null checks are behavior covered by the unit flag (measured 67%)."
       }
     },
     "ServiceCollectionExtensions.cs": {
@@ -292,7 +300,7 @@
       },
       "justifications": {
         "unit": "All three provider registrations, health check, behavior registration and validation failures are covered (measured 93%); the rest are defensive branches.",
-        "guard": "Guard tests reject null arguments and build the in-memory and hash-chain registrations with ValidateOnBuild (measured 71%)."
+        "guard": "Guard tests reject null arguments and build the in-memory and hash-chain registrations; the HTTP provider registration (validator, HttpClient) and the health check registration are registration behavior covered by the unit flag (measured 71%)."
       }
     },
     "Validation/HttpAttestationOptionsValidator.cs": {
@@ -311,7 +319,7 @@
       "justifications": {
         "unit": "HTTPS, HTTP, private network and verify-endpoint cases are asserted (measured 100%).",
         "guard": "Null options and a valid configuration run through the real validator (measured 100%).",
-        "property": "FsCheck properties over generated hosts, private addresses and the AllowInsecureHttp switch execute every line (measured 100%)."
+        "property": "FsCheck properties over public hosts, every private and loopback range (10/8, 172.16/12, 192.168/16, 100.64/10, 127/8) with both schemes and the AllowInsecureHttp switch, plus link-local, cloud metadata and unspecified addresses that are always rejected, execute every line (measured 100%)."
       }
     }
   }
