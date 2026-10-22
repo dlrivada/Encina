@@ -172,6 +172,7 @@ foreach (var (index, runId, timestamp) in entriesToRecalc)
         var newCov = (int)(newOverall["coverage"]?.GetValue<double>() ?? 0);
         var newCovered = Math.Round(newOverall["covered"]?.GetValue<double>() ?? 0, 2);
 
+        // Updates only named keys, so a history entry's attainment object (#2542) is kept as written by coverage-history.cs.
         entry["coverage"] = newCov;
         entry["lines"] = newOverall["lines"]?.GetValue<int>() ?? 0;
         entry["covered"] = newCovered;

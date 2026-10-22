@@ -184,9 +184,51 @@ dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/covera
 
 Generator deviation: the generator preserves per-file targets and justifications and never invents them, because a justification is a judgement about a specific file that a generator cannot make; it keeps its generic `reason` for `defaultTests`.
 
-Per-file targets are not yet shown on the coverage dashboard or in the docref index.
-
 Rule: `AGENTS.md` section 9 requires targets and justifications for every new file, and every file a PR touches, under `src/`, and PRs report measured coverage against them.
+
+The per-file targets are summarised as target attainment (next subsection) and shown on the coverage dashboard; they are not part of the docref index.
+
+#### Target attainment
+
+Target attainment answers one question: how close is each (file, flag) pair to its own per-file target, and how close is the whole repository? It is computed by `.github/scripts/coverage-report.cs` from the same measured values as the "Per-file targets" table (`GapPoints`, `Attainment`, `LinesToCover`, `LineWeight`, `SummariseAttainment`). A **pair** is one file with one flag that has a target; the aggregates below count only pairs whose target is above 0 (see the rules).
+
+Definitions, for a pair with target `T` (percent), measured coverage `M` (percent), `covered` lines and `total` lines of that flag:
+
+| Quantity | Definition |
+|---|---|
+| Gap | `max(0, T - M)`, in percentage points |
+| Attainment | `min(M / T, 1)`; a pair with `T = 0` has attainment 1 |
+| Lines to cover | `max(0, ceil(T × total / 100) - covered)`, the target is multiplied by the line count first, then divided; an unknown line count gives 0 |
+| Targets met (pairs-met ratio) | pairs whose unrounded `M` reaches `T`, over all pairs with `T > 0` |
+| Mean gap | the average gap over all pairs with `T > 0` |
+| Line-weighted attainment | `Σ min(covered, T × total / 100)` over `Σ (T × total / 100)`; a surplus in one file never offsets a deficit in another |
+
+Rules:
+
+- **No data counts as 0% measured.** A pair whose flag produced no coverage data has `M = 0`, so its gap is the whole target. For line counts it borrows only the line count of the file's other flags, never their coverage.
+- **A file with no line count under any flag** is still counted in the pair aggregates (ratio, mean gap) and is listed as **unweighted**, because it cannot take part in the line-weighted value.
+- **Pairs with a target of 0 are left out of every aggregate.** They are counted as "of which zero-target" and remain in the per-file table with status `met`.
+- **Ratio and mean gap are absent (`null`) when there are no pairs**, because an empty average cannot be written as JSON. The line-weighted value is also `null` when no pair has a line count.
+- **Comparisons use unrounded values.** The JSON rounds `measured` and `gap` to two decimals. It rounds `attainment` to four decimals for a pair that meets its target and truncates it to four decimals for a pair below it, so a below-target pair never reads 1. The report and the dashboard truncate the displayed gap and attainment for the same reason.
+- **The figure is report-only.** There is no project-wide target and no colour cut-off for it; only a row's status compares that row with its own target.
+
+Target attainment and the obligations figure measure different things and neither replaces the other:
+
+| | Obligations coverage | Target attainment |
+|---|---|---|
+| Question | What share of the applicable (flag, line) pairs is covered? | How close is each (file, flag) pair to its own target? |
+| Unit | Lines | Pairs (and, for the line-weighted value, target lines) |
+| Targets used | None (every applicable line counts) | The per-file `targets` of the manifests |
+
+##### Fields in the published data
+
+`latest.json` (the consolidated summary) carries:
+
+- `overall.attainment`: `pairs`, `met`, `ratio`, `lineWeighted`, `meanGap`, `linesToCover`, `noData`, `unweighted`, `zeroTarget`.
+- `packages[].attainment`: the same object computed over that package's pairs; absent for a package without pairs.
+- `fileTargets`: one row per pair, furthest from target first, with `package`, `file`, `flag`, `target`, `measured`, `covered`, `total`, `gap`, `attainment`, `linesToCover` and `status` (`met` or `below`). `measured` is absent when the flag has no data; `covered` and `total` are absent when no flag has a line count for the file (a pair without data but with a borrowed line count has `covered` 0). Absent means omitted from the JSON, which is also how a `null` ratio or mean gap appears.
+
+Each entry of `history.json` also carries the `attainment` object, copied by `coverage-history.cs` (`BuildEntry`) from `overall.attainment`. Entries from before the metric existed do not have it and are not backfilled. A recalculated run keeps the attainment object it was published with; attainment is not recomputed (no backfill, #2542 D8).
 
 ### Per-package targets
 
@@ -303,6 +345,7 @@ It contains at most **100 entries**. When the 101st entry is appended, the oldes
 | `met` | Met obligations in this snapshot |
 | `runId` *(optional)* | GitHub Actions run ID — enables retroactive recalculation |
 | `perFlag` *(optional)* | Per-flag overall coverage for trend filtering (unit, guard, contract, property, integration) |
+| `attainment` *(optional)* | The [target attainment](#target-attainment) object of the snapshot; absent in entries published before the metric existed |
 
 The 100-entry cap is historically motivated — at one snapshot per successful CI Full run on `main`, it covers several months of history. The archived snapshot files are not retained on Pages beyond the latest one (`pages-dashboard-data.ps1 -Mode Persist` prunes earlier timestamped snapshots on every persist, #1386); for full historical detail beyond `history.json`'s 100 entries, the raw CI artifacts of each run are the source of truth. The lightweight `history.json` exists for fast dashboard loading, not as the primary data store.
 
@@ -420,7 +463,8 @@ The methodology is deliberate and imperfect. These are the trade-offs we know ab
 Visit <https://dlrivada.github.io/Encina/coverage/>. Key elements:
 
 - **Headline percentage** at the top with its obligations breakdown and link to the triggering CI run.
-- **Coverage Over Time** chart with toggle between combined and per-flag views.
+- **Coverage Over Time** chart with toggle between combined and per-flag views, plus a **Targets met** toggle that plots the pairs-met ratio from the `attainment` object of the history entries (entries without it are skipped, so the series starts with the first run after the metric was added).
+- **Target Attainment** card (see [Target attainment](#target-attainment)). The large headline is the pairs-met ratio, uncoloured because it has no target. Small text below shows line-weighted attainment, mean gap and lines to cover, and the counts of pairs with no data, without a line count (unweighted) and of which zero-target. Under it, a table of `fileTargets` rows can be filtered by package, flag, status and a text search, and sorted by any column; it opens sorted by gap, descending, and shows 50 rows per page with a button for more. A row's status uses the three-state rule under [Dashboard coloring](#dashboard-coloring) against the row's own target (MET is green; BELOW is amber from 80% of the target, red under it). A snapshot from before the metric shows "n/a" and a note instead.
 - **Coverage Distribution** (sunburst) showing which packages contribute which portions.
 - **By Package table** with sortable columns for each flag's coverage and target. Package names can be filtered by search or by prefix. A "Show Lines" toggle switches from percentages to raw line counts.
 - **File Detail** expansions under each package row.

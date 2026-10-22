@@ -319,14 +319,31 @@ static string? ToSrcRelativePath(string filename, string source)
     return filename[(srcIdx + 1)..];
 }
 
-// Unrounded line coverage (0-100) of one file under one flag; null when that flag has no data for it.
-static double? MeasureFileFlag(
+// Instrumented and covered line counts of one file under one flag; null when that flag has no data for it.
+static (int Total, int Covered)? CountFileFlagLines(
     Dictionary<TestType, Dictionary<string, Dictionary<int, int>>> coverageByFlag, TestType flag, string sourcePath)
 {
     if (flag != TestType.None && coverageByFlag.TryGetValue(flag, out var flagData) &&
         flagData.TryGetValue(sourcePath, out var lines) && lines.Count > 0)
-        return lines.Values.Count(h => h > 0) * 100.0 / lines.Count;
+        return (lines.Count, lines.Values.Count(h => h > 0));
     return null;
+}
+
+// Unrounded line coverage (0-100) of one file under one flag; null when that flag has no data for it.
+static double? MeasureFileFlag(
+    Dictionary<TestType, Dictionary<string, Dictionary<int, int>>> coverageByFlag, TestType flag, string sourcePath)
+    => CountFileFlagLines(coverageByFlag, flag, sourcePath) is { } c ? c.Covered * 100.0 / c.Total : null;
+
+// Largest line-set size of a file over all flags, or null when no flag has the file (#2542, D3). It lends
+// a pair with no data its line count for weighting; the covered lines of another flag are never lent.
+static int? FileLineCount(
+    Dictionary<TestType, Dictionary<string, Dictionary<int, int>>> coverageByFlag, string sourcePath)
+{
+    int? best = null;
+    foreach (var flagData in coverageByFlag.Values)
+        if (flagData.TryGetValue(sourcePath, out var lines) && lines.Count > 0 && (best is null || lines.Count > best))
+            best = lines.Count;
+    return best;
 }
 
 // One row per (file, flag) with a per-file target. Measured comes straight from the Cobertura data of
@@ -344,11 +361,22 @@ static List<FileTargetRow> BuildFileTargetRows(
             var sourcePath = $"src/{package}/{relPath}";
             var targets = NormaliseFlagKeys(entry.Targets, []);
             foreach (var (flagName, target) in targets.OrderBy(kv => kv.Key, StringComparer.Ordinal))
-                rows.Add(new FileTargetRow(package, relPath, flagName, target,
-                    MeasureFileFlag(coverageByFlag, ParseFlag(flagName), sourcePath)));
+                rows.Add(BuildFileTargetRow(package, relPath, flagName, target, coverageByFlag, sourcePath));
         }
     }
     return rows;
+}
+
+// A pair with data carries its own counts; a pair without data is 0% measured and borrows only the line
+// count of the file's other flags (null when no flag has the file), never their covered lines.
+static FileTargetRow BuildFileTargetRow(
+    string package, string relPath, string flagName, double target,
+    Dictionary<TestType, Dictionary<string, Dictionary<int, int>>> coverageByFlag, string sourcePath)
+{
+    if (CountFileFlagLines(coverageByFlag, ParseFlag(flagName), sourcePath) is { } c)
+        return new FileTargetRow(package, relPath, flagName, target, c.Covered * 100.0 / c.Total, c.Total, c.Covered);
+    var borrowed = FileLineCount(coverageByFlag, sourcePath);
+    return new FileTargetRow(package, relPath, flagName, target, null, borrowed, borrowed is null ? null : 0);
 }
 
 // A target of 0 is always met; no data counts as below any target above 0. The measured value is
@@ -356,9 +384,101 @@ static List<FileTargetRow> BuildFileTargetRows(
 static bool IsBelowTarget(FileTargetRow row)
     => row.Target > 0 && (row.Measured is null || row.Measured < row.Target);
 
+// ─── Target attainment (#2542): how close a (file, flag) pair is to its own target ───────────────────
+
+// Percentage points still missing to the target; no data counts as 0% measured.
+static double GapPoints(FileTargetRow row) => Math.Max(0, row.Target - (row.Measured ?? 0));
+
+// Share of the target reached, capped at 1; a target of 0 is fully attained.
+static double Attainment(FileTargetRow row)
+    => row.Target <= 0 ? 1 : Math.Min((row.Measured ?? 0) / row.Target, 1);
+
+// Lines still to cover to reach the target: max(0, ceil(target x total / 100) - covered). The target is
+// multiplied by the line count before dividing, so a whole-number target gives an exact result.
+static int LinesToCover(FileTargetRow row)
+    => row.TotalLines is not { } total
+        ? 0
+        : Math.Max(0, (int)Math.Ceiling(row.Target * total / 100.0) - (row.CoveredLines ?? 0));
+
+// Weight of a pair in the line-weighted value (target lines) and the credit it earns (covered lines, capped
+// at the weight, so surplus in one file never offsets a deficit in another).
+static (double Weight, double Credit) LineWeight(FileTargetRow row)
+{
+    var weight = row.Target * (row.TotalLines ?? 0) / 100.0;
+    return (weight, Math.Min(row.CoveredLines ?? 0, weight));
+}
+
+// The aggregates over a set of pairs. Pairs with a target of 0 are left out of every aggregate and only
+// counted (D4); a pair with no data stays in as 0% measured (D3) and is counted in NoData; a pair whose file
+// has no line count under any flag is counted in the pair aggregates and listed in Unweighted.
+// Ratio and MeanGap are null when there are no pairs: NaN cannot be written as JSON.
+static AttainmentSummary SummariseAttainment(IReadOnlyList<FileTargetRow> rows)
+{
+    var demanding = rows.Where(r => r.Target > 0).ToList();
+    var weighted = demanding.Where(r => r.TotalLines is > 0).Select(LineWeight).ToList();
+    var denominator = weighted.Sum(w => w.Weight);
+    var met = demanding.Count(r => !IsBelowTarget(r));
+    return new AttainmentSummary(
+        Pairs: demanding.Count,
+        Met: met,
+        Ratio: demanding.Count > 0 ? (double)met / demanding.Count : null,
+        LineWeighted: denominator > 0 ? weighted.Sum(w => w.Credit) / denominator : null,
+        MeanGap: demanding.Count > 0 ? demanding.Average(GapPoints) : null,
+        LinesToCover: demanding.Sum(LinesToCover),
+        NoData: demanding.Count(r => r.Measured is null),
+        Unweighted: demanding.Count(r => r.TotalLines is not > 0),
+        ZeroTarget: rows.Count - demanding.Count);
+}
+
+// The rows of the "Per-file targets" table and of latest.json "fileTargets", furthest from target first.
+static List<FileTargetRow> OrderByGap(IEnumerable<FileTargetRow> rows)
+    => rows.OrderByDescending(GapPoints)
+        .ThenBy(r => r.Package, StringComparer.Ordinal)
+        .ThenBy(r => r.File, StringComparer.Ordinal)
+        .ThenBy(r => r.Flag, StringComparer.Ordinal)
+        .ToList();
+
+// The latest.json row of one pair (Design Choice 7); display values are rounded, status is the exact verdict.
+static FileTargetEntry ToFileTargetEntry(FileTargetRow row) => new(
+    row.Package, row.File, row.Flag, row.Target,
+    row.Measured is { } m ? Math.Round(m, 2) : null,
+    row.CoveredLines, row.TotalLines,
+    Math.Round(GapPoints(row), 2), IsBelowTarget(row) ? Math.Floor(Attainment(row) * 10000 + 1e-9) / 10000 : Math.Round(Attainment(row), 4), LinesToCover(row),
+    IsBelowTarget(row) ? "below" : "met");
+
+// The aggregates of one package's pairs, or null when the package has none.
+static AttainmentSummary? PackageAttainment(IReadOnlyList<FileTargetRow> rows, string package)
+{
+    var own = rows.Where(r => r.Package == package).ToList();
+    return own.Count > 0 ? SummariseAttainment(own) : null;
+}
+
+// Options of encina-coverage-summary.json: camelCase, nulls omitted.
+static JsonSerializerOptions SummaryJsonOptions() => new()
+{
+    WriteIndented = true,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver()
+};
+
+static string FormatRatio(double? value) => value is { } v ? (v * 100).ToString("F1", CultureInfo.InvariantCulture) + "%" : "n/a";
+
+static string FormatAttainmentSummary(AttainmentSummary s)
+    => $"targets met {s.Met}/{s.Pairs} ({FormatRatio(s.Ratio)}) | line-weighted {FormatRatio(s.LineWeighted)} | " +
+       $"mean gap {(s.MeanGap is { } g ? g.ToString("F1", CultureInfo.InvariantCulture) + " points" : "n/a")} | " +
+       $"lines to cover {s.LinesToCover} | no data {s.NoData} | unweighted {s.Unweighted} | of which zero-target {s.ZeroTarget}";
+
 // Display only: two decimals so a value just under the target never prints as the target.
 static string FormatMeasured(double? measured)
-    => measured is { } m ? m.ToString("F2") + "%" : "no data";
+    => measured is { } m ? m.ToString("F2", CultureInfo.InvariantCulture) + "%" : "no data";
+
+// Display only: floored, never rounded, so a pair below its target cannot show 100.0% or a gap of 0.00.
+static string FormatAttainment(double attainment)
+    => (Math.Floor(attainment * 1000 + 1e-9) / 10).ToString("F1", CultureInfo.InvariantCulture) + "%";
+
+static string FormatGap(double gap)
+    => (Math.Floor(gap * 100 + 1e-9) / 100).ToString("F2", CultureInfo.InvariantCulture);
 
 // Self-test (#1762): exercises the per-file obligation logic without touching the repository.
 int RunSelfTest()
@@ -433,6 +553,84 @@ int RunSelfTest()
         [TestType.Unit] = new(StringComparer.OrdinalIgnoreCase) { [ToSrcRelativePath("Pkg\\A.cs", "C:\\repo\\src\\")!] = lines }
     });
     Check(rowFromShape.Any(r => r.Flag == "unit" && r.Measured is not null), "a per-file target finds data reported in the shape 2 filename");
+
+    // --- target attainment (#2542) ---
+    static bool Near(double? actual, double expected) => actual is { } a && Math.Abs(a - expected) < 1e-9;
+    static FileTargetRow Pair(string file, string flag, double target, int total, int covered)
+        => new("Pkg", file, flag, target, total == 0 ? null : covered * 100.0 / total, total, covered);
+
+    Check(Near(GapPoints(new FileTargetRow("Pkg", "A.cs", "unit", 90, measured)), 90 - 89.96), "gap of 89.96% against 90 is 0.04 points");
+    Check(GapPoints(new FileTargetRow("Pkg", "A.cs", "unit", 89, measured)) == 0, "89.96% against 89 has no gap");
+    var justBelow = new FileTargetRow("Pkg", "A.cs", "unit", 90, 89.96);
+    Check(IsBelowTarget(justBelow), "89.96% against 90 is below");
+    Check(FormatAttainment(Attainment(justBelow)) != "100.0%" && FormatAttainment(Attainment(justBelow)) == "99.9%", "a pair just below target never displays 100.0% attainment");
+    Check(FormatGap(GapPoints(justBelow)) != "0.00", "a pair just below target never displays a gap of 0.00");
+    Check(ToFileTargetEntry(justBelow).Attainment < 1, "the JSON attainment of a below pair is not rounded up to 1");
+    Check(GapPoints(new FileTargetRow("Pkg", "A.cs", "guard", 0, null)) == 0, "a target of 0 has no gap");
+    Check(GapPoints(new FileTargetRow("Pkg", "A.cs", "guard", 40, null)) == 40, "no data is a gap of the whole target");
+    Check(Near(Attainment(new FileTargetRow("Pkg", "A.cs", "unit", 90, measured)), 89.96 / 90), "attainment of 89.96% against 90 is measured / target");
+    Check(Attainment(new FileTargetRow("Pkg", "A.cs", "unit", 89, measured)) == 1, "attainment is capped at 1");
+    Check(Attainment(new FileTargetRow("Pkg", "A.cs", "guard", 0, null)) == 1, "a target of 0 is fully attained");
+    Check(Attainment(new FileTargetRow("Pkg", "A.cs", "guard", 40, null)) == 0, "no data has attainment 0");
+    Check(LinesToCover(new FileTargetRow("Pkg", "A.cs", "unit", 7, 0, 100, 0)) == 7, "target 7 of 100 lines needs 7 lines (integer arithmetic)");
+    Check(LinesToCover(new FileTargetRow("Pkg", "A.cs", "unit", 90, 50, 3, 1)) == 2, "lines to cover rounds the target up");
+    Check(LinesToCover(new FileTargetRow("Pkg", "A.cs", "unit", 90, null)) == 0, "an unknown line count needs no lines");
+    Check(LinesToCover(new FileTargetRow("Pkg", "A.cs", "unit", 10, 100, 10, 10)) == 0, "a met pair needs no lines");
+
+    // Two-pair known answer, worked by hand (plan Phase 6): A target 50, 30/100 covered: gap 20, weight 50, credit 30;
+    // B target 80, 190/200 covered: gap 0, weight 160, credit min(190 covered, 160) = 160.
+    var two = SummariseAttainment([Pair("A.cs", "unit", 50, 100, 30), Pair("B.cs", "unit", 80, 200, 190)]);
+    Check(two.Pairs == 2 && two.Met == 1, "two pairs, one met");
+    Check(Near(two.Ratio, 0.5), "two-pair ratio is 0.5");
+    Check(Near(two.LineWeighted, 190.0 / 210.0), "two-pair line-weighted attainment is 190/210");
+    Check(Near(two.MeanGap, 10), "two-pair mean gap is 10 points");
+    Check(two.LinesToCover == 20, "two-pair lines to cover is 20");
+    Check(two.NoData == 0 && two.Unweighted == 0 && two.ZeroTarget == 0, "two-pair counts of excluded pairs are 0");
+
+    // A zero-target pair (D4) is excluded from every aggregate and counted.
+    var withZero = SummariseAttainment([Pair("A.cs", "unit", 50, 100, 30), Pair("B.cs", "unit", 80, 200, 190), Pair("C.cs", "guard", 0, 50, 0)]);
+    Check(withZero.Pairs == 2 && withZero.ZeroTarget == 1 && Near(withZero.Ratio, 0.5) && Near(withZero.MeanGap, 10) && Near(withZero.LineWeighted, 190.0 / 210.0),
+        "a zero-target pair leaves the aggregates unchanged and is counted");
+
+    // A pair with no data (D3) is 0% measured: counted, with the borrowed line count and no borrowed coverage.
+    var other = new Dictionary<int, int>();
+    for (var n = 1; n <= 20; n++) other[n] = 1; // every line covered under the unit flag
+    var noDataRows = BuildFileTargetRows(One(new ManifestFileEntry { Targets = new() { ["unit"] = 50, ["guard"] = 50 } }), new()
+    {
+        [TestType.Unit] = new(StringComparer.OrdinalIgnoreCase) { ["src/Pkg/A.cs"] = other }
+    });
+    var guardRow = noDataRows.Single(r => r.Flag == "guard");
+    Check(guardRow.Measured is null && guardRow.TotalLines == 20 && guardRow.CoveredLines == 0, "no data borrows the line count only: covered stays 0");
+    var noData = SummariseAttainment(noDataRows);
+    Check(noData.Pairs == 2 && noData.Met == 1 && noData.NoData == 1 && noData.Unweighted == 0, "a no-data pair counts as unmet and in NoData");
+    Check(Near(noData.MeanGap, 25) && noData.LinesToCover == 10, "a no-data pair has a gap of its whole target");
+    Check(Near(noData.LineWeighted, 10.0 / 20.0), "no-data pair weighs its target lines and earns no credit");
+
+    // A file with no data under any flag: counted in the pair aggregates, unweighted.
+    var noLines = SummariseAttainment([new FileTargetRow("Pkg", "Z.cs", "unit", 60, null)]);
+    Check(noLines.Pairs == 1 && noLines.Met == 0 && noLines.NoData == 1 && noLines.Unweighted == 1, "a pair with no line count is counted and unweighted");
+    Check(noLines.LineWeighted is null && Near(noLines.Ratio, 0) && Near(noLines.MeanGap, 60), "an unweighted-only set has no line-weighted value");
+
+    // No pairs: Ratio and MeanGap are null, not NaN, and the summary still serialises.
+    var empty = SummariseAttainment([]);
+    Check(empty.Pairs == 0 && empty.Ratio is null && empty.MeanGap is null && empty.LineWeighted is null, "no pairs gives null ratio and mean gap");
+    var zeroOnly = SummariseAttainment([Pair("A.cs", "guard", 0, 10, 0)]);
+    Check(zeroOnly.Pairs == 0 && zeroOnly.ZeroTarget == 1 && zeroOnly.Ratio is null, "only zero-target pairs give null ratio");
+    Check(JsonSerializer.Serialize(empty, SummaryJsonOptions()).Contains("\"pairs\": 0", StringComparison.Ordinal), "the empty summary serialises");
+
+    // Case-duplicate flag keys give one pair in the aggregates.
+    Check(SummariseAttainment(duplicateRows).Pairs == 1, "case-duplicate keys give one attainment pair");
+
+    // The JSON written to latest.json has exactly the documented fields.
+    static string Fields(object value)
+        => string.Join(",", JsonSerializer.SerializeToNode(value, SummaryJsonOptions())!.AsObject().Select(kv => kv.Key).Order(StringComparer.Ordinal));
+    Check(Fields(two) == "lineWeighted,linesToCover,meanGap,met,noData,pairs,ratio,unweighted,zeroTarget", "the attainment object has exactly the documented fields");
+    var entry = ToFileTargetEntry(Pair("A.cs", "unit", 50, 100, 30));
+    Check(Fields(entry) == "attainment,covered,file,flag,gap,linesToCover,measured,package,status,target,total", "a fileTargets row has exactly the documented fields");
+    Check(entry.Status == "below" && entry.Gap == 20 && entry.LinesToCover == 20 && entry.Covered == 30 && entry.Total == 100, "a fileTargets row carries the pair's values");
+    Check(!JsonSerializer.Serialize(ToFileTargetEntry(new FileTargetRow("Pkg", "Z.cs", "unit", 60, null)), SummaryJsonOptions()).Contains("measured", StringComparison.Ordinal),
+        "a pair without data omits measured instead of writing 0");
+    Check(OrderByGap([Pair("B.cs", "unit", 80, 200, 190), Pair("A.cs", "unit", 50, 100, 30)])[0].File == "A.cs", "rows are ordered by gap, largest first");
 
     foreach (var failure in failures) Console.WriteLine($"  FAIL: {failure}");
     if (failures.Count > 0)
@@ -953,11 +1151,13 @@ Console.WriteLine($"  Packages: {packageResults.Count} | Files: {fileResults.Cou
 // ─── Per-file targets (#1762): measured vs target, report only ───────────────
 
 var fileTargetRows = BuildFileTargetRows(fileObligations, coverageByFlag);
+var overallAttainment = fileTargetRows.Count > 0 ? SummariseAttainment(fileTargetRows) : null;
 
 if (fileTargetRows.Count > 0)
 {
     var below = fileTargetRows.Where(IsBelowTarget).ToList();
     Console.WriteLine($"\n  Per-file targets: {fileTargetRows.Count} | below target: {below.Count}");
+    Console.WriteLine($"  Target attainment: {FormatAttainmentSummary(overallAttainment!)}");
     foreach (var row in below)
         Console.WriteLine($"    BELOW: {row.Package}/{row.File} {row.Flag}: {FormatMeasured(row.Measured)} < {row.Target:0}%");
 }
@@ -989,11 +1189,18 @@ if (fileTargetRows.Count > 0)
     md.AppendLine();
     md.AppendLine("## Per-file targets");
     md.AppendLine();
-    md.AppendLine("| File | Flag | Measured | Target | Status |");
-    md.AppendLine("|------|:----:|:--------:|:------:|:------:|");
-    foreach (var row in fileTargetRows)
+    md.AppendLine("Target attainment (pairs with a target of 0 are left out of the aggregates):");
+    md.AppendLine();
+    md.AppendLine("| Targets met | Line-weighted | Mean gap | Lines to cover | No data | Unweighted | Of which zero-target |");
+    md.AppendLine("|:-----------:|:-------------:|:--------:|:--------------:|:-------:|:----------:|:--------------------:|");
+    var att = overallAttainment!;
+    md.AppendLine($"| {att.Met}/{att.Pairs} ({FormatRatio(att.Ratio)}) | {FormatRatio(att.LineWeighted)} | {(att.MeanGap is { } mg ? mg.ToString("F1", CultureInfo.InvariantCulture) + " points" : "n/a")} | {att.LinesToCover} | {att.NoData} | {att.Unweighted} | {att.ZeroTarget} |");
+    md.AppendLine();
+    md.AppendLine("| File | Flag | Measured | Target | Gap | Attainment | Lines to cover | Status |");
+    md.AppendLine("|------|:----:|:--------:|:------:|:---:|:----------:|:--------------:|:------:|");
+    foreach (var row in OrderByGap(fileTargetRows))
     {
-        md.AppendLine($"| {row.Package}/{row.File} | {row.Flag} | {FormatMeasured(row.Measured)} | {row.Target:0}% | {(IsBelowTarget(row) ? "below" : "met")} |");
+        md.AppendLine($"| {row.Package}/{row.File} | {row.Flag} | {FormatMeasured(row.Measured)} | {row.Target:0}% | {FormatGap(GapPoints(row))} | {FormatAttainment(Attainment(row))} | {LinesToCover(row)} | {(IsBelowTarget(row) ? "below" : "met")} |");
     }
 }
 
@@ -1031,11 +1238,14 @@ var jsonData = new
         perFlag = overallPerFlag.ToDictionary(
             kv => kv.Key.ToString().ToLowerInvariant(),
             kv => new { total = kv.Value.Total, covered = kv.Value.Covered,
-                        coverage = kv.Value.Total > 0 ? Math.Round(kv.Value.Covered * 100.0 / kv.Value.Total, 2) : 0 })
+                        coverage = kv.Value.Total > 0 ? Math.Round(kv.Value.Covered * 100.0 / kv.Value.Total, 2) : 0 }),
+        attainment = overallAttainment
     },
+    fileTargets = fileTargetRows.Count > 0 ? OrderByGap(fileTargetRows).Select(ToFileTargetEntry).ToList() : null,
     packages = packageResults.Select(p => new
     {
         name = p.Name,
+        attainment = PackageAttainment(fileTargetRows, p.Name),
         coverage = p.Percentage,
         lines = p.TotalLines,
         covered = Math.Round(p.CoveredEquivalent, 2),
@@ -1067,13 +1277,7 @@ var jsonData = new
     untrackedPackages = untrackedPackages.Count > 0 ? untrackedPackages : null
 };
 
-var jsonOptions = new JsonSerializerOptions
-{
-    WriteIndented = true,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver()
-};
+var jsonOptions = SummaryJsonOptions();
 File.WriteAllText(Path.Combine(outputDir, "encina-coverage-summary.json"),
     JsonSerializer.Serialize(jsonData, jsonOptions));
 Console.WriteLine($"  JSON:     {Path.Combine(outputDir, "encina-coverage-summary.json")}");
@@ -1498,7 +1702,18 @@ sealed class MethodCrapInfo(string relFile, string className, string name, strin
 }
 
 // One per-file target against its measured value (#1762); Measured is unrounded, null without data.
-record FileTargetRow(string Package, string File, string Flag, double Target, double? Measured);
+// TotalLines and CoveredLines are the counts behind Measured; a pair without data may carry a line count
+// borrowed from the file's other flags (CoveredLines 0), or null when no flag has the file (#2542).
+record FileTargetRow(string Package, string File, string Flag, double Target, double? Measured,
+    int? TotalLines = null, int? CoveredLines = null);
+
+// Target attainment aggregates (#2542); the field names are the contract of latest.json overall.attainment.
+record AttainmentSummary(int Pairs, int Met, double? Ratio, double? LineWeighted, double? MeanGap,
+    int LinesToCover, int NoData, int Unweighted, int ZeroTarget);
+
+// One element of latest.json "fileTargets" (Design Choice 7).
+record FileTargetEntry(string Package, string File, string Flag, double Target, double? Measured,
+    int? Covered, int? Total, double Gap, double Attainment, int LinesToCover, string Status);
 
 record PackageCoverage(string Name, int TotalLines, double CoveredEquivalent, double Percentage,
     Dictionary<TestType, (int Total, int Covered)> PerFlag,

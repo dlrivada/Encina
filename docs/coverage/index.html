@@ -27,6 +27,7 @@
           <button class="toggle-btn" data-flag="contract">Contract</button>
           <button class="toggle-btn" data-flag="property">Property</button>
           <button class="toggle-btn" data-flag="integration">Integration</button>
+          <button class="toggle-btn" data-flag="attainment" title="Share of per-file targets met, over time">Targets met</button>
         </div>
         <canvas id="trend-chart"></canvas>
         <p id="trend-info" class="subtitle"></p>
@@ -45,6 +46,44 @@
       <canvas id="sunburst"></canvas>
     </section>
   </div>
+
+  <section class="card" id="attainment">
+    <h2>Target Attainment</h2>
+    <p class="subtitle">How close each file is to its own justified target, flag by flag. Report only: no project-wide cut-off.</p>
+    <div class="att-headline">
+      <div id="att-ratio" class="big-number">--</div>
+      <div id="att-ratio-label" class="subtitle">targets met</div>
+    </div>
+    <p id="att-details" class="subtitle att-small"></p>
+    <p id="att-counts" class="subtitle att-small"></p>
+    <div id="att-controls" class="att-controls" style="display:none">
+      <select id="att-package" class="att-select" aria-label="Filter by package"><option value="">All packages</option></select>
+      <select id="att-flag" class="att-select" aria-label="Filter by flag"><option value="">All flags</option></select>
+      <select id="att-status" class="att-select" aria-label="Filter by status">
+        <option value="">Any status</option>
+        <option value="below">Below target</option>
+        <option value="met">Met</option>
+      </select>
+      <input type="text" id="att-search" placeholder="Search files..." class="search-input att-search">
+    </div>
+    <table id="attainment-table" style="display:none">
+      <thead>
+        <tr>
+          <th data-att-sort="file">File</th>
+          <th data-att-sort="flag">Flag</th>
+          <th class="pct" data-att-sort="measured">Measured</th>
+          <th class="pct" data-att-sort="target">Target</th>
+          <th class="pct" data-att-sort="gap">Gap (points)</th>
+          <th class="pct" data-att-sort="attainment">Attainment</th>
+          <th class="num" data-att-sort="linesToCover">Lines to cover</th>
+          <th data-att-sort="status">Status</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <p id="att-pager" class="subtitle"></p>
+    <button id="att-more" class="copy-btn" style="display:none">Show more</button>
+  </section>
 
   <section class="card">
     <div class="section-header">
