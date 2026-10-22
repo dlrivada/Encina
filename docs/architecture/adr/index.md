@@ -70,3 +70,4 @@ An ADR takes the next number that is neither used nor reserved. A plan or spike 
 | 049 | [pipeline-execution-order-implementation-plan-2184.md](../../plans/pipeline-execution-order-implementation-plan-2184.md) (#2184) | Pipeline behavior execution-order contract (named stages) | Reserved, ADR not written |
 | 052 | [rop-exceptions-locks-aggregates-spike-1799-1798.md](../../engineering/rop-exceptions-locks-aggregates-spike-1799-1798.md) (#1799) | Distributed lock provider failure contract | Reserved, ADR not written |
 | 053 | [rop-exceptions-locks-aggregates-spike-1799-1798.md](../../engineering/rop-exceptions-locks-aggregates-spike-1799-1798.md) (#1798) | Aggregate rule violations and ROP | Reserved, ADR not written |
+| 054 | [observability-conventions-spike-1791.md](../../engineering/observability-conventions-spike-1791.md) (#1791) | Observability conventions and cross-boundary trace propagation | Reserved, ADR not written |
