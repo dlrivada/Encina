@@ -23,7 +23,7 @@ $seenReviews = New-Object System.Collections.Generic.HashSet[long]
 $seenFails = New-Object System.Collections.Generic.HashSet[string]
 $doneAnnounced = $false
 $checkedSha = $null      # head sha of the last successful check read
-$checkPending = $true    # the last read still had pending (or no) checks; true until the first read
+$checkPending = $true    # the last read still had pending, failed or no checks; true until the first read
 
 function Short([string]$s) {
     $t = ($s -replace '\s+', ' ').Trim()
@@ -67,7 +67,7 @@ while ($true) {
         $prJson = $prR.Stdout | ConvertFrom-Json
 
         # Check runs and statuses (2 REST calls) are read only on the first poll, after the head sha changed, or while the
-        # previous read still had pending (or no) checks; otherwise the previous result stands and no check line is emitted.
+        # previous read still had pending, failed or no checks; otherwise the previous result stands and no check line is emitted.
         $checks = @()
         if ($null -eq $checkedSha -or $checkedSha -ne $prJson.head.sha -or $checkPending) {
             $checks = @(Get-GhCheckBuckets -Repo $Repo -Sha $prJson.head.sha)
@@ -82,7 +82,7 @@ while ($true) {
                 }
             }
             $pending = @($relevant | Where-Object { $_.Bucket -eq 'pending' }).Count
-            $checkPending = ($pending -gt 0)
+            $checkPending = ($pending -gt 0) -or (@($relevant | Where-Object { $_.Bucket -eq 'fail' }).Count -gt 0)   # a failed job can be re-run on the same sha
             if ($pending -eq 0 -and -not $doneAnnounced) {
                 $pass = @($relevant | Where-Object { $_.Bucket -eq 'pass' }).Count
                 $fail = @($relevant | Where-Object { $_.Bucket -eq 'fail' }).Count

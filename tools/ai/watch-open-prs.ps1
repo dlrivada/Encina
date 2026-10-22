@@ -37,7 +37,7 @@ $warnedResetWindow = $null
 $quotaSkipped = [System.Collections.Generic.HashSet[int]]::new()   # PRs whose first-poll thread read did not happen (GraphQL low or a failed read): still in the silent baseline
 $baselined = [System.Collections.Generic.HashSet[int]]::new()   # PRs whose thread baseline was recorded silently
 $checkedSha = @{}      # PR number -> head sha of its last successful check read
-$checkPending = @{}    # PR number -> $true when that read still had pending (or no) checks
+$checkPending = @{}    # PR number -> $true when that read still had pending, failed or no checks
 $first = $true
 $repoParts = $Repo -split '/', 2
 $repoOwner = $repoParts[0]
@@ -70,7 +70,7 @@ while ($true) {
         foreach ($p in $prs) {
             $n = $p.number; [void]$open.Add($n)
             # Check runs and statuses (2 REST calls) are read only on the first poll, after the head sha changed, or while
-            # the previous read still had pending checks; otherwise the previous result stands (no new lines).
+            # the previous read still had pending, failed or no checks; otherwise the previous result stands (no new lines).
             $needChecks = (-not $checkedSha.ContainsKey($n)) -or $checkedSha[$n] -ne $p.sha -or $checkPending[$n]
             if ($needChecks) {
                 try {
@@ -81,7 +81,7 @@ while ($true) {
                         }
                     }
                     $checkedSha[$n] = $p.sha
-                    $checkPending[$n] = ($buckets.Count -eq 0) -or (@($buckets | Where-Object { $_.Bucket -eq 'pending' }).Count -gt 0)
+                    $checkPending[$n] = ($buckets.Count -eq 0) -or (@($buckets | Where-Object { $_.Bucket -in 'pending', 'fail' }).Count -gt 0)   # a failed job can be re-run on the same sha
                 }
                 catch {
                     if ($_.Exception.Message -match '(?i)rate limit') { $rateLimited = $true }

@@ -75,7 +75,7 @@ From the measured cost of 1 point per call.
 | `score-issues -Issue` | per run | 1 | 0 (REST) | per run |
 | `collect-issues` | per run | 1 per page | 1 per page, behind `Wait-GhGraphQLQuota` and `Write-GhQuotaUsage` | 0 |
 
-The watchers read check runs and commit status only when the head sha changed or the previous read had pending checks; reviews and the comment lists are read every poll (the comment lists with `since`; reviews are filtered by `submitted_at`). Limit: once checks on a head sha are settled they are not read again, so a re-run of a failed job on the same sha is not announced until the sha changes or the PR state changes; read the run list by hand after a re-run. REST has its own budget of 5000 requests per hour, shared like GraphQL, so several watchers on the same PR should not run at once.
+The watchers read check runs and commit status only when the head sha changed or the previous read had pending or failed checks (a failed job can be re-run on the same sha); reviews and the comment lists are read every poll (the comment lists with `since`; reviews are filtered by `submitted_at`). Limit: once checks on a head sha are settled they are not read again, so a re-run of a failed job on the same sha is not announced until the sha changes or the PR state changes; read the run list by hand after a re-run. REST has its own budget of 5000 requests per hour, shared like GraphQL, so several watchers on the same PR should not run at once.
 
 The only GraphQL polling left is the review-thread read of `watch-open-prs.ps1`. It runs when the PR's `updated_at` changed and `remaining >= 300`; when skipped it prints one `WARN` line per reset window.
 
