@@ -101,7 +101,7 @@ Each option and the scenario where it wins is in section 6 of the [spike report]
 | --- | --- |
 | The #1164 envelope carries `traceparent` and `tracestate`; the dispatcher rebuilds the trace from it | [#1164](https://github.com/dlrivada/Encina/issues/1164) |
 | `Send` consumer spans are children and `Publish`, scheduled and batch consumer spans carry an `ActivityLink`, on all 10 transports | [#725](https://github.com/dlrivada/Encina/issues/725), [#132](https://github.com/dlrivada/Encina/issues/132) |
-| The 27 plain `"Encina"` meters are renamed to their package name; `WithEncina()` subscribes by wildcard | [#1787](https://github.com/dlrivada/Encina/issues/1787), [#1790](https://github.com/dlrivada/Encina/issues/1790) |
+| The 27 plain `"Encina"` meters are renamed to their package name; `WithEncina()` subscribes by wildcard | Follow-up issue of #1791, with [#1787](https://github.com/dlrivada/Encina/issues/1787) (architecture test) and [#1790](https://github.com/dlrivada/Encina/issues/1790) (dead sources) |
 | One semantic-conventions constants class holds every messaging and database attribute key | [#177](https://github.com/dlrivada/Encina/issues/177) |
 | The tenant tag is emitted only when multi-tenancy is enabled; there is no baggage | Follow-up issues of #1791 |
 | Spans and metrics at the Encina operation level for the 10 database stores, the 8 caches and the 5 lock providers | Follow-up issues of #1791 |
