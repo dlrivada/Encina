@@ -1,8 +1,13 @@
 param(
     [int]$Pr = 1093,
     [string]$Repo = 'dlrivada/Encina',
-    [string]$Me = 'dlrivada'
+    [string]$Me = 'dlrivada',
+    [int]$IntervalSeconds = 60,
+    [switch]$Once   # a single poll, then exit (verification and tests)
 )
+
+# REST only (#2568): no `gh pr ...` subcommand (they use GraphQL); see docs/engineering/github-api-quota.md.
+. (Join-Path $PSScriptRoot 'gh-quota.ps1')
 
 # Emits one line per actionable event on a pull request:
 #   REVIEW-COMMENT  <user> <path>:<line> <first 160 chars>   (new inline comment/reply, not mine)
@@ -17,6 +22,8 @@ $seenComments = New-Object System.Collections.Generic.HashSet[long]
 $seenReviews = New-Object System.Collections.Generic.HashSet[long]
 $seenFails = New-Object System.Collections.Generic.HashSet[string]
 $doneAnnounced = $false
+$checkedSha = $null      # head sha of the last successful check read
+$checkPending = $true    # the last read still had pending, failed or no checks; true until the first read
 
 function Short([string]$s) {
     $t = ($s -replace '\s+', ' ').Trim()
@@ -25,6 +32,7 @@ function Short([string]$s) {
 }
 
 while ($true) {
+    $rateLimited = $false
     try {
         $iso = $since.ToString('yyyy-MM-ddTHH:mm:ssZ')
 
@@ -53,19 +61,32 @@ while ($true) {
             }
         }
 
-        $checks = gh pr checks $Pr --repo $Repo --json name,bucket,link 2>$null | ConvertFrom-Json
-        if ($checks) {
-            $relevant = $checks | Where-Object { $_.name -notmatch '^(Benchmarks|Validate|Determine|Run Benchmarks|Benchmark)' }
-            foreach ($k in ($relevant | Where-Object { $_.bucket -eq 'fail' })) {
-                if ($seenFails.Add($k.name + '|' + $k.link)) {
-                    Write-Output ("CHECK-FAIL " + $k.name + " " + $k.link)
+        # REST only (#2568): the PR read gives the head sha and the state; checks come from the sha's check runs and statuses.
+        $prR = Invoke-GhQuotaGh @('api', "repos/$Repo/pulls/$Pr")
+        if ($prR.Code -ne 0 -or -not $prR.Stdout) { throw "pull request read failed: $($prR.Output)" }
+        $prJson = $prR.Stdout | ConvertFrom-Json
+
+        # Check runs and statuses (2 REST calls) are read only on the first poll, after the head sha changed, or while the
+        # previous read still had pending, failed or no checks; otherwise the previous result stands and no check line is emitted.
+        $checks = @()
+        if ($null -eq $checkedSha -or $checkedSha -ne $prJson.head.sha -or $checkPending) {
+            $checks = @(Get-GhCheckBuckets -Repo $Repo -Sha $prJson.head.sha)
+            $checkedSha = $prJson.head.sha
+            $checkPending = $true
+        }
+        if ($checks.Count -gt 0) {
+            $relevant = $checks | Where-Object { $_.Name -notmatch '^(Benchmarks|Validate|Determine|Run Benchmarks|Benchmark)' }
+            foreach ($k in ($relevant | Where-Object { $_.Bucket -eq 'fail' })) {
+                if ($seenFails.Add($k.Name + '|' + $k.Url)) {
+                    Write-Output ("CHECK-FAIL " + $k.Name + " " + $k.Url)
                 }
             }
-            $pending = @($relevant | Where-Object { $_.bucket -eq 'pending' }).Count
+            $pending = @($relevant | Where-Object { $_.Bucket -eq 'pending' }).Count
+            $checkPending = ($pending -gt 0) -or (@($relevant | Where-Object { $_.Bucket -eq 'fail' }).Count -gt 0)   # a failed job can be re-run on the same sha
             if ($pending -eq 0 -and -not $doneAnnounced) {
-                $pass = @($relevant | Where-Object { $_.bucket -eq 'pass' }).Count
-                $fail = @($relevant | Where-Object { $_.bucket -eq 'fail' }).Count
-                $skip = @($relevant | Where-Object { $_.bucket -eq 'skipping' }).Count
+                $pass = @($relevant | Where-Object { $_.Bucket -eq 'pass' }).Count
+                $fail = @($relevant | Where-Object { $_.Bucket -eq 'fail' }).Count
+                $skip = @($relevant | Where-Object { $_.Bucket -eq 'skipping' }).Count
                 Write-Output ("CHECKS-DONE pass=$pass fail=$fail skip=$skip")
                 $doneAnnounced = $true
             }
@@ -74,14 +95,21 @@ while ($true) {
             }
         }
 
-        $st = gh pr view $Pr --repo $Repo --json state,mergeCommit --jq '.state + " " + (.mergeCommit.oid // "")' 2>$null
-        if ($st -like 'MERGED*' -or $st -like 'CLOSED*') {
-            Write-Output ("PR-" + $st)
+        if ($prJson.merged) {
+            Write-Output ("PR-MERGED " + $prJson.merge_commit_sha)
+            break
+        }
+        if ($prJson.state -eq 'closed') {
+            Write-Output "PR-CLOSED "
             break
         }
     }
     catch {
-        # transient API/network failure: keep polling
+        # transient API/network failure: keep polling (a -Once run says so, to tell "no events" from "REST down")
+        if ($_.Exception.Message -match '(?i)rate limit') { $rateLimited = $true }
+        if ($Once) { Write-Output "WARN $($_.Exception.Message)" }
     }
-    Start-Sleep -Seconds 45
+    if ($Once) { break }
+    # After a failure that mentions a rate limit the next poll is at least 60 s away, whatever the interval.
+    Start-Sleep -Seconds $(if ($rateLimited) { [Math]::Max(60, $IntervalSeconds) } else { $IntervalSeconds })
 }

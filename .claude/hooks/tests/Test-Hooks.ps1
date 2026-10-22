@@ -2866,6 +2866,12 @@ Test.
     $script:ghStubReplies = @(, @(1, 'net/http: TLS handshake timeout'))
     $retryExhausted = Invoke-GhWithRetry -Arguments @('issue', 'list') -Sleep $recordSleep
     Test-GhRetryCase 'a transient failure that never clears: 4 attempts (3 retries) after waiting 5, 15 and 45 s, then fails' { -not $retryExhausted.Success -and $retryExhausted.Attempts -eq 4 -and (@($script:ghSleeps) -join ',') -eq '5,15,45' }
+
+    # #2568: a quota error is never retried sooner than 60 s, whatever the configured delay.
+    $script:ghStubCalls = 0; $script:ghSleeps.Clear()
+    $script:ghStubReplies = @(@(1, 'HTTP 403: API rate limit already exceeded'), @(0, '{}'))
+    $retryQuota = Invoke-GhWithRetry -Arguments @('api', 'repos/x/y/labels') -Sleep $recordSleep
+    Test-GhRetryCase 'a quota error waits at least 60 s before the retry (not the 5 s step)' { $retryQuota.Success -and $retryQuota.Attempts -eq 2 -and (@($script:ghSleeps) -join ',') -eq '60' }
     Remove-Item Function:\gh
 
     # End to end: -Prepare with a stubbed gh (a function defined in the child pwsh's global scope, see
@@ -2890,12 +2896,12 @@ function global:gh {
         $candidate1300 = @{ title = '[DEBT] Bar cleanup'; body = "## Location`n`n- **File(s)**: ``src/Encina.Bar/B.cs```n`n## Current Behavior`n`n``DoThing`` returns the wrong type in this file only." } | ConvertTo-Json -Compress
         $candidate1200 = @{ title = '[DEBT] Unrelated'; body = "## Location`n`n- **File(s)**: ``src/Encina.Other/Z.cs```n" } | ConvertTo-Json -Compress
         @(
-            @{ match = 'label list*'; exit = 0; output = "bug`narea-testing`ntechnical-debt" },
-            @{ match = 'issue list*'; exit = 0; output = '[{"number":1170,"title":"[BUG] Store.OpenConnectionAsync is a no-op"},{"number":1200,"title":"[DEBT] Unrelated"},{"number":1300,"title":"[DEBT] Bar cleanup"}]' },
-            @{ match = 'issue view 1170 *title,body*'; exit = 0; output = $candidate1170 },
-            @{ match = 'issue view 1200 *title,body*'; exit = 0; output = $candidate1200 },
-            @{ match = 'issue view 1300 *title,body*'; exit = 0; output = $candidate1300 },
-            @{ match = 'issue view 1177 *state*'; exit = 0; output = '{"state":"CLOSED"}' }
+            @{ match = 'api repos/dlrivada/Encina/labels*'; exit = 0; output = "bug`narea-testing`ntechnical-debt" },
+            @{ match = 'api -X GET search/issues*'; exit = 0; output = '[{"number":1170,"title":"[BUG] Store.OpenConnectionAsync is a no-op"},{"number":1200,"title":"[DEBT] Unrelated"},{"number":1300,"title":"[DEBT] Bar cleanup"}]' },
+            @{ match = 'api repos/dlrivada/Encina/issues/1170 *title*'; exit = 0; output = $candidate1170 },
+            @{ match = 'api repos/dlrivada/Encina/issues/1200 *title*'; exit = 0; output = $candidate1200 },
+            @{ match = 'api repos/dlrivada/Encina/issues/1300 *title*'; exit = 0; output = $candidate1300 },
+            @{ match = 'api repos/dlrivada/Encina/issues/1177 *state*'; exit = 0; output = '{"state":"CLOSED"}' }
         ) | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ghRulesPath -Encoding utf8
         $env:ENCINA_GH_STUB_RULES = $ghRulesPath
 
@@ -2924,8 +2930,8 @@ function global:gh {
         # A malformed JSON reply fails the stage instead of reading as "no candidates" (which would hide a duplicate).
         $ghBadRulesPath = Join-Path $work 'gh-stub-rules-malformed.json'
         @(
-            @{ match = 'label list*'; exit = 0; output = "bug`narea-testing`ntechnical-debt" },
-            @{ match = 'issue list*'; exit = 0; output = '<html>502 proxy page</html>' }
+            @{ match = 'api repos/dlrivada/Encina/labels*'; exit = 0; output = "bug`narea-testing`ntechnical-debt" },
+            @{ match = 'api -X GET search/issues*'; exit = 0; output = '<html>502 proxy page</html>' }
         ) | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ghBadRulesPath -Encoding utf8
         $env:ENCINA_GH_STUB_RULES = $ghBadRulesPath
         $ghMalformed = Invoke-Remediation $ghWt @('-Prepare') $ghStubPath
@@ -4295,9 +4301,9 @@ Two SagaStoreADO test classes duplicate the same setup.
             $ghRules1863 = Join-Path $work 'gh-stub-rules-1863.json'
             $cand1170For1863 = @{ title = '[BUG] Store.OpenConnectionAsync is a no-op'; body = "## Location`n`n- **File(s)**: ``src/Encina.Foo/Store.cs```n`n## Current Behavior`n`n``OpenConnectionAsync`` never opens the connection." } | ConvertTo-Json -Compress
             @(
-                @{ match = 'label list*'; exit = 0; output = "bug`narea-testing`ntechnical-debt" },
-                @{ match = 'issue list*'; exit = 0; output = '[{"number":1170,"title":"[BUG] Store.OpenConnectionAsync is a no-op"}]' },
-                @{ match = 'issue view 1170 *title,body*'; exit = 0; output = $cand1170For1863 }
+                @{ match = 'api repos/dlrivada/Encina/labels*'; exit = 0; output = "bug`narea-testing`ntechnical-debt" },
+                @{ match = 'api -X GET search/issues*'; exit = 0; output = '[{"number":1170,"title":"[BUG] Store.OpenConnectionAsync is a no-op"}]' },
+                @{ match = 'api repos/dlrivada/Encina/issues/1170 *title*'; exit = 0; output = $cand1170For1863 }
             ) | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ghRules1863 -Encoding utf8
             $env:ENCINA_GH_STUB_RULES = $ghRules1863
             $ghWt1863 = New-RemediationFixture 'RemediationNotDuplicateGhWt' 1864 "1. **Major** -- ``src/Encina.Foo/Store.cs:10``: ``OpenConnectionAsync`` never opens the connection." '- none' '- none'
@@ -4940,7 +4946,8 @@ The fluent builder chain described in the documentation is fictional. The parame
     $targetGate = Join-Path $hooks 'check-target-issue-template.ps1'
     $stubDir = Join-Path $work 'gh-stub'
     New-Item -ItemType Directory -Force $stubDir | Out-Null
-    Set-Content (Join-Path $stubDir 'gh-stub.ps1') '$f = Join-Path $env:ENCINA_STUB_DIR "$($args[2]).json"; if (Test-Path -LiteralPath $f) { Get-Content -LiteralPath $f -Raw; exit 0 } else { exit 1 }'
+    # The gate reads the issue over REST (#2568): `api repos/dlrivada/Encina/issues/<n> --jq ...`, so the number is the tail of args[1].
+    Set-Content (Join-Path $stubDir 'gh-stub.ps1') '$f = Join-Path $env:ENCINA_STUB_DIR "$(($args[1] -split ''/'')[-1]).json"; if ($args[0] -ne ''api'') { exit 1 }; if (Test-Path -LiteralPath $f) { Get-Content -LiteralPath $f -Raw; exit 0 } else { exit 1 }'
     function Write-StubIssue([int]$Number, [string]$Title, [string]$Body) {
         [IO.File]::WriteAllText((Join-Path $stubDir "$Number.json"), (@{ title = $Title; body = $Body } | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
     }

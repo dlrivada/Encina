@@ -567,9 +567,18 @@ if ($PSCmdlet.ParameterSetName -eq 'All') {
 else {
     # -Issue <n>: single-issue mode for a newly opened issue.
     if (-not (Test-Path $ScoresFile)) { throw "No scores.json at '$ScoresFile'; run -All first." }
-    $ghJson = gh issue view $Issue --repo $Repo --json number,title,labels,milestone,createdAt,body 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "gh issue view $Issue failed: $ghJson" }
-    $ghIssue = $ghJson | ConvertFrom-Json
+    # REST read (#2568): the GraphQL-backed `issue view` fails when the GraphQL quota is exhausted.
+    $ghJson = gh api "repos/$Repo/issues/$Issue" 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "gh api issues/$Issue failed: $ghJson" }
+    $restIssue = $ghJson | ConvertFrom-Json
+    $ghIssue = [pscustomobject]@{
+        number    = $restIssue.number
+        title     = $restIssue.title
+        labels    = @($restIssue.labels)
+        milestone = $restIssue.milestone
+        createdAt = $restIssue.created_at
+        body      = $restIssue.body
+    }
 
     $dependents = @()
     if (Test-Path $IssuesFile) {

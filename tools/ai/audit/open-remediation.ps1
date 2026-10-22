@@ -40,8 +40,10 @@ $ErrorActionPreference = 'Stop'
 $root = Get-MainRoot $PSScriptRoot
 $dir = Join-Path $root 'artifacts\knowledge\remediation'
 $opened = Join-Path $dir 'opened.csv'
-$labels = gh label list --repo dlrivada/Encina --limit 400 --json name --jq '.[].name'
-if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh label list failed (exit $LASTEXITCODE); refusing to open issues without the label list"; exit 1 }
+# Labels over REST (#2568): the GraphQL-backed label listing of gh fails when the GraphQL quota is exhausted.
+. (Join-Path $PSScriptRoot '..\gh-quota.ps1')
+try { $labels = Get-GhRepoLabelNames -Repo 'dlrivada/Encina' }
+catch { Write-Error "open-remediation: the REST label listing failed ($($_.Exception.Message)); refusing to open issues without the label list"; exit 1 }
 # The milestone titles hold an em dash: decode gh's output as UTF-8 whatever the console code page is.
 $savedEncoding = [Console]::OutputEncoding
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)

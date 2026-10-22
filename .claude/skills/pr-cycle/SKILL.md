@@ -42,6 +42,8 @@ pwsh -NoProfile -File tools/ai/watch-open-prs.ps1
 
 `watch-open-prs.ps1` emits `CHECK-FAIL` (including a failure already present on the first poll), `NEW-THREAD` (a new unresolved review thread, which covers CodeRabbit inline comments) and `MERGED`/`CLOSED` for every open PR. `REVIEW`, `ISSUE-COMMENT` and `CHECKS-DONE` still come only from `watch-pr-events.ps1 -Pr <n>`, so keep one per-PR watcher running for every PR whose events you must react to, and use the multi-PR one to notice failures and merges across all of them without polling each one yourself.
 
+Both watchers poll over REST only (#2568): PR state and head sha from `repos/.../pulls/<n>`, checks from the head sha's `check-runs` and `status`; `gh pr checks` and `gh pr view` are GraphQL and are not used for polling. The one GraphQL read, the review threads, runs only when a PR's `updated_at` changed and the shared quota allows it (`tools/ai/gh-quota.ps1`; the note is `docs/engineering/github-api-quota.md`). When you run a GraphQL-only command by hand (the thread query and `resolveReviewThread` below, auto-merge, Projects v2), check the quota first with `gh api graphql -f query='{ rateLimit { remaining resetAt } }'` and wait for `resetAt` when `remaining` is low.
+
 Never exclude `check-links` from either watcher's failure bucket: ignoring it hid a real failure from 2026-09-23 to 2026-09-26.
 
 React to each event as it arrives:

@@ -15,7 +15,9 @@ $labels = @{
     P2 = @{ name = 'p2-post-1.0';    color = '0E8A16'; desc = 'Backlog priority P2: post-1.0, must not block the first stable release' }
     P3 = @{ name = 'p3-obsolete';    color = 'BFBFBF'; desc = 'Backlog priority P3: obsolete, duplicate or superseded; close or mark as replaced' }
 }
-$existing = gh label list --repo $Repo --limit 300 --json name --jq '.[].name'
+. (Join-Path $PSScriptRoot 'gh-quota.ps1')
+# Labels over REST (#2568): the GraphQL-backed label listing fails when the GraphQL quota is exhausted.
+$existing = Get-GhRepoLabelNames -Repo $Repo
 foreach ($k in $labels.Keys) {
     $l = $labels[$k]
     if ($existing -notcontains $l.name) {

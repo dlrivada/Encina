@@ -5,7 +5,7 @@
 # Applies only when tool_input.subagent_type is issue-worker or docs-writer (every other agent type passes),
 # except an issue-worker spawning its own docs-writer, which names no issue. The
 # target issue is the "Issue #<n>" that opens the first non-empty line of the prompt (the worker-brief fixed part starts with it). The title
-# and body are read with `gh issue view <n> --repo dlrivada/Encina --json title,body` (the executable can be
+# and body are read with `gh api repos/dlrivada/Encina/issues/<n> --jq '{title: .title, body: .body}'` (REST, #2568; the executable can be
 # overridden with ENCINA_ISSUE_GH, as in check-issue-template.ps1, so tests stub it); the template is picked by
 # the title prefix and read at run time from .github/ISSUE_TEMPLATE. The body must contain every level-2 header
 # of the template verbatim (case included) and in order. Closed issues are checked the same way.
@@ -67,7 +67,8 @@ try {
         $job = Start-Job -ArgumentList $gh, $number -ScriptBlock {
             param($ghExe, $n)
             try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch { }
-            $out = (& $ghExe issue view $n --repo dlrivada/Encina --json title,body 2>$null) -join "`n"
+            # REST read (#2568): the GraphQL-backed `issue view` fails when the GraphQL quota is exhausted, and this gate fails closed.
+            $out = (& $ghExe api "repos/dlrivada/Encina/issues/$n" --jq '{title: .title, body: .body}' 2>$null) -join "`n"
             [pscustomobject]@{ Code = $LASTEXITCODE; Out = $out }
         }
         if (Wait-Job $job -Timeout $limit) {
@@ -83,7 +84,7 @@ try {
         exit 2
     }
     if ($null -eq $issue -or $null -eq $issue.title) {
-        [Console]::Error.WriteLine("Blocked: issue #$number could not be read with gh (gh issue view $number --repo dlrivada/Encina), so its body cannot be checked against its template (#1980). Run gh auth status and spawn again.")
+        [Console]::Error.WriteLine("Blocked: issue #$number could not be read with gh (gh api repos/dlrivada/Encina/issues/$number), so its body cannot be checked against its template (#1980). Run gh auth status and spawn again.")
         exit 2
     }
 
