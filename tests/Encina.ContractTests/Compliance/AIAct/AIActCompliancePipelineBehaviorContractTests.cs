@@ -177,10 +177,16 @@ public sealed class AIActCompliancePipelineBehaviorContractTests
         var result = await sut.Handle(
             new CompliantRequest(),
             RequestContext.CreateForTest(),
-            () => ValueTask.FromResult<Either<EncinaError, Unit>>(handlerError),
+            () =>
+            {
+                _nextCalls++;
+                return ValueTask.FromResult<Either<EncinaError, Unit>>(handlerError);
+            },
             CancellationToken.None);
 
         result.IsLeft.ShouldBeTrue();
+        _nextCalls.ShouldBe(1);
+        ((EncinaError)result).Message.ShouldBe("handler failed");
     }
 
     [Fact]

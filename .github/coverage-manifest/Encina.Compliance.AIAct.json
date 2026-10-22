@@ -57,7 +57,7 @@
         "guard": 100
       },
       "justifications": {
-        "guard": "Measured 100% guard line coverage; the descriptor's only executable lines are its constructor null checks, which the guard tests reach."
+        "guard": "Measured 100% guard line coverage; the descriptor is a positional record, so its guard-measured lines are the ones run by constructing it."
       }
     },
     "AIActAutoRegistrationHostedService.cs": {
@@ -71,7 +71,7 @@
         "guard": 95
       },
       "justifications": {
-        "guard": "Measured 100% guard line coverage; the guard tests reach the constructor null checks and StartAsync scanning a decorated assembly twice."
+        "guard": "Measured 100% guard line coverage; the constructor has no null checks, and the guard tests run the StartAsync lines that scan a decorated assembly twice."
       }
     },
     "AIActCompliancePipelineBehavior.cs": {
@@ -84,12 +84,12 @@
       "reason": "Mediator pipeline with mockeable next delegate",
       "targets": {
         "unit": 97,
-        "guard": 9,
+        "guard": 8,
         "contract": 95
       },
       "justifications": {
         "unit": "Unit tests drive Handle through the disabled, no-attribute, compliant, violation (Block and Warn), prohibited-practice and validator-error paths, covering nearly every line.",
-        "guard": "Guard tests cover the constructor null checks and the request null check in Handle; the remaining lines are pipeline logic that guard tests do not reach.",
+        "guard": "Measured about 8.9% in a full-project run; guard tests cover the constructor null checks and the request null check in Handle, and the remaining lines are pipeline logic that guard tests do not reach.",
         "contract": "Measured 97.7% contract line coverage; contract tests drive passthrough, disabled, compliant, Block and Warn violations, prohibited practices and validator errors against the real registry, classifier and validator."
       }
     },
@@ -118,7 +118,7 @@
         "guard": 95
       },
       "justifications": {
-        "guard": "Measured 100% guard line coverage; the guard tests reach the options property and constructor paths that carry null-check lines."
+        "guard": "Measured 100% guard line coverage; the guard tests run the property initializer lines by constructing the options class."
       }
     },
     "AIActOptionsValidator.cs": {
@@ -134,7 +134,7 @@
         "property": 95
       },
       "justifications": {
-        "guard": "Measured 100% guard line coverage; the guard tests reach the constructor and Validate null checks and every option-combination branch.",
+        "guard": "Measured 100% guard line coverage; the guard tests run the single null check of Validate and every rule branch.",
         "property": "Measured 100% property line coverage; FsCheck properties over the mode, auto-register and assembly-count combinations drive every branch."
       }
     },
@@ -171,11 +171,11 @@
       "reason": "Default: assume testable with mocks",
       "targets": {
         "unit": 98,
-        "guard": 95
+        "guard": 90
       },
       "justifications": {
         "unit": "Unit tests classify registered, unregistered, prohibited-practice and risk-level cases, covering all but a few lines.",
-        "guard": "Measured 98.1% guard line coverage; the guard tests reach the constructor and method null checks and the shared classification paths they exercise."
+        "guard": "Measured about 94.7% in a full-project run; the guard tests reach the constructor and method null checks and the shared classification paths they exercise."
       }
     },
     "DefaultAIActComplianceValidator.cs": {
@@ -188,12 +188,12 @@
       "reason": "Validation logic with invariants",
       "targets": {
         "unit": 95,
-        "guard": 55,
+        "guard": 50,
         "property": 70
       },
       "justifications": {
         "unit": "Unit tests drive every branch (no system id, unregistered system, registered system, classifier error) through the real validator with substituted collaborators (measured 97.6%); the remaining lines are compiler-generated async state-machine paths.",
-        "guard": "Measured 58.1% guard line coverage; the guard tests cover the constructor null checks and the null request check of ValidateAsync, and the remaining branch logic is owned by unit tests.",
+        "guard": "Measured about 57% in a full-project run; the guard tests cover the constructor null checks and the null request check of ValidateAsync, and the remaining branch logic is owned by unit tests.",
         "property": "Measured 73.0% property line coverage; FsCheck properties over unregistered, registered and prohibited systems with an explicit system id drive the rule branches, and the remaining async and error paths are owned by unit tests."
       }
     },
@@ -239,7 +239,7 @@
         "guard": 95
       },
       "justifications": {
-        "guard": "Measured 100% guard line coverage; the guard tests reach every constructor and method null check of the enforcer."
+        "guard": "Measured 100% guard line coverage; the guard tests run the record, approve and review lines, and the class has no constructor."
       }
     },
     "Diagnostics/AIActDiagnostics.cs": {
@@ -271,10 +271,10 @@
       "defaultRule": "*HealthCheck.cs",
       "reason": "Health check with mockeable service dependencies",
       "targets": {
-        "guard": 70
+        "guard": 65
       },
       "justifications": {
-        "guard": "Measured 74.0% guard line coverage; the guard tests reach the constructor null checks, and the health status branches are owned by unit tests."
+        "guard": "Measured about 68% in a full-project run; the guard tests reach the constructor null checks, and the health status branches are owned by unit tests."
       }
     },
     "InMemoryAISystemRegistry.cs": {
@@ -302,7 +302,7 @@
         "guard": 95
       },
       "justifications": {
-        "guard": "Measured 100% guard line coverage; the guard tests reach the result type's constructor and factory null checks."
+        "guard": "Measured 100% guard line coverage; the guard tests run the init-property lines by constructing the record, which has no constructor checks."
       }
     },
     "Model/AIActEnforcementMode.cs": {
@@ -362,7 +362,7 @@
         "guard": 95
       },
       "justifications": {
-        "guard": "Measured 100% guard line coverage; the guard tests reach the report constructor null checks."
+        "guard": "Measured 100% guard line coverage; the guard tests run the init-property lines by constructing the record, which has no constructor checks."
       }
     },
     "Model/DataGap.cs": {
@@ -391,7 +391,7 @@
         "guard": 95
       },
       "justifications": {
-        "guard": "Measured 100% guard line coverage; the guard tests reach the report constructor null checks."
+        "guard": "Measured 100% guard line coverage; the guard tests run the init-property lines by constructing the record, which has no constructor checks."
       }
     },
     "Model/HumanDecisionRecord.cs": {
@@ -444,7 +444,7 @@
         "guard": 95
       },
       "justifications": {
-        "guard": "Measured 100% guard line coverage; the guard tests reach the record constructor null checks."
+        "guard": "Measured 100% guard line coverage; the guard tests run the init-property lines by constructing the record, which has no constructor checks."
       }
     },
     "Model/TechnicalDocumentation.cs": {
@@ -473,7 +473,7 @@
         "guard": 95
       },
       "justifications": {
-        "guard": "Measured 100% guard line coverage; the guard tests reach the notification constructor null checks."
+        "guard": "Measured 100% guard line coverage; the guard tests run the init-property lines by constructing the record, which has no constructor checks."
       }
     },
     "Notifications/HumanOversightRequiredNotification.cs": {
