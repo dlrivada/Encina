@@ -138,6 +138,12 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             return result;
         }
 
+        // A Retry-After above the ceiling schedules nothing: the message is dead-lettered with its own error code.
+        if (await RejectRetryAfterAboveCeilingAsync(request, context, recoverabilityContext, cancellationToken).ConfigureAwait(false) is { } ceilingError)
+        {
+            return Either<EncinaError, TResponse>.Left(ceilingError);
+        }
+
         // Schedule delayed retry if enabled and scheduler is available
         if (await TryScheduleFirstDelayedRetryAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false))
         {
@@ -200,6 +206,39 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             lastError.GetCode().IfNone(RecoverabilityConstants.Unknown));
         await HandlePermanentFailureAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
         return true;
+    }
+
+    // The error the dead letter and the caller carry when the first delayed retry would wait longer than
+    // MaxRetryAfter, or null when the retry is not held back by the ceiling (no scheduler, delayed retries off,
+    // no Retry-After, or one at or below the ceiling).
+    private async ValueTask<EncinaError?> RejectRetryAfterAboveCeilingAsync(
+        TRequest request,
+        IRequestContext context,
+        RecoverabilityContext recoverabilityContext,
+        CancellationToken cancellationToken)
+    {
+        if (_delayedRetryScheduler is null
+            || !CanScheduleDelayedRetry
+            || recoverabilityContext.LastError is not { } lastError
+            || OutboundRetryRules.GetRetryAfter(lastError) is not { } retryAfter
+            || retryAfter <= _options.MaxRetryAfter)
+        {
+            return null;
+        }
+
+        var originalCode = lastError.GetCode().IfNone(RecoverabilityConstants.Unknown);
+        CountSkipped(RetryMetrics.ReasonRetryAfterExceedsCeiling, recoverabilityContext, context.TenantId);
+        RecoverabilityLog.RetryAfterExceedsCeiling(
+            _logger,
+            context.CorrelationId,
+            typeof(TRequest).Name,
+            originalCode,
+            retryAfter,
+            _options.MaxRetryAfter);
+
+        var ceilingError = RetryAfterCeiling.CreateError(originalCode);
+        await HandlePermanentFailureAsync(request, recoverabilityContext, cancellationToken, ceilingError).ConfigureAwait(false);
+        return ceilingError;
     }
 
     private static void CountSkipped(string reason, RecoverabilityContext recoverabilityContext, string? tenantId) =>
@@ -477,9 +516,14 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     private async Task HandlePermanentFailureAsync(
         TRequest request,
         RecoverabilityContext recoverabilityContext,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        EncinaError? terminalError = null)
     {
         var failedMessage = recoverabilityContext.CreateFailedMessage(request);
+        if (terminalError is { } terminal)
+        {
+            failedMessage = failedMessage with { Error = terminal };
+        }
 
         RecoverabilityLog.MessagePermanentlyFailed(
             _logger,
@@ -573,6 +617,31 @@ public static class RecoverabilityErrorCodes
     /// Failed to cancel scheduled retry.
     /// </summary>
     public const string CancelRetryFailed = "recoverability.cancel_retry_failed";
+
+    /// <summary>
+    /// A <c>Retry-After</c> above the configured ceiling (<see cref="RecoverabilityOptions.MaxRetryAfter"/>,
+    /// <c>OutboxOptions.MaxRetryAfter</c>): nothing is scheduled and the message is dead-lettered with this code.
+    /// </summary>
+    public const string RetryAfterExceedsCeiling = "recoverability.retry_after_exceeds_ceiling";
+}
+
+/// <summary>
+/// The rule shared by the three asynchronous retry layers for a <c>Retry-After</c> above the ceiling.
+/// </summary>
+internal static class RetryAfterCeiling
+{
+    /// <summary>Metadata key of the error code that carried the <c>Retry-After</c>.</summary>
+    internal const string OriginalErrorCodeKey = "original_error_code";
+
+    /// <summary>
+    /// Creates the error a dead letter carries. Its message is fixed text: the original error's message never
+    /// reaches it (AGENTS.md section 3); only the original code is kept, in the details.
+    /// </summary>
+    internal static EncinaError CreateError(string originalErrorCode) =>
+        EncinaErrors.Create(
+            RecoverabilityErrorCodes.RetryAfterExceedsCeiling,
+            "The Retry-After of the failure exceeds the configured ceiling; the message was dead-lettered.",
+            details: new Dictionary<string, object?> { [OriginalErrorCodeKey] = originalErrorCode });
 }
 
 /// <summary>
@@ -687,4 +756,15 @@ internal static partial class RecoverabilityLog
         Message = "[{CorrelationId}] {RequestType} not retried automatically: ambiguous failure of a non-idempotent send ({ErrorCode})")]
     public static partial void NonIdempotentRetrySkipped(
         ILogger logger, string correlationId, string requestType, string errorCode);
+
+    /// <remarks>
+    /// Event IDs: 5450-5499 (see EventIdRanges.MessagingRecoverability). Only the original error code is
+    /// logged, never <c>EncinaError.Message</c>.
+    /// </remarks>
+    [LoggerMessage(
+        EventId = 5454,
+        Level = LogLevel.Warning,
+        Message = "[{CorrelationId}] {RequestType} not retried: Retry-After {RetryAfter} exceeds the ceiling {MaxRetryAfter}, dead-lettered ({ErrorCode})")]
+    public static partial void RetryAfterExceedsCeiling(
+        ILogger logger, string correlationId, string requestType, string errorCode, TimeSpan retryAfter, TimeSpan maxRetryAfter);
 }

@@ -279,21 +279,33 @@ public sealed class DelayedRetryProcessor : BackgroundService
 
         progress.Settled = true;
 
-        if (await TryScheduleNextAsync(message, request, result, cancellationToken).ConfigureAwait(false))
+        var outcome = await TryScheduleNextAsync(message, request, result, cancellationToken).ConfigureAwait(false);
+        if (outcome == NextAttempt.Scheduled)
         {
             await store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        // All delayed retries exhausted, a permanent error, or no next attempt could be scheduled
-        var errorMessage = result.ErrorMessage ?? "Unknown error";
-        await EndChainAsync(message, store, request, new FailureInfo(errorMessage, result.Attempt, true), cancellationToken).ConfigureAwait(false);
+        // All delayed retries exhausted, a permanent error, no next attempt could be scheduled, or a Retry-After
+        // above the ceiling
+        var failure = outcome == NextAttempt.ExceedsCeiling
+            ? CeilingFailure(result)
+            : new FailureInfo(result.ErrorMessage ?? "Unknown error", result.Attempt, true);
+        await EndChainAsync(message, store, request, failure, cancellationToken).ConfigureAwait(false);
     }
+
+    // The chain ends with the ceiling's own error code; the original code stays in the error's details.
+    private static FailureInfo CeilingFailure(DispatchResult result) =>
+        new(
+            RecoverabilityErrorCodes.RetryAfterExceedsCeiling,
+            result.Attempt,
+            true,
+            RetryAfterCeiling.CreateError(result.ErrorMessage ?? RecoverabilityConstants.Unknown));
 
     // Only this processor decides attempt N+1 or permanent failure: the re-dispatch ran without
     // starting a chain of its own. A permanent error ends the chain at once; so does a failure to
-    // schedule the next attempt (never reported as success).
-    private async Task<bool> TryScheduleNextAsync(
+    // schedule the next attempt (never reported as success) and a Retry-After above the ceiling.
+    private async Task<NextAttempt> TryScheduleNextAsync(
         IDelayedRetryMessage message,
         object request,
         DispatchResult result,
@@ -303,19 +315,40 @@ public sealed class DelayedRetryProcessor : BackgroundService
         if (SkipReason(message, result) is { } reason)
         {
             CountSkipped(reason, message, result);
-            return false;
+            return NextAttempt.Ended;
         }
 
         if (nextDelayedRetryAttempt >= _options.DelayedRetries.Length)
         {
-            return false;
+            return NextAttempt.Ended;
         }
 
         // The delay the API dictated (Retry-After) replaces the configured step; the attempt still counts
-        // against DelayedRetries.Length. Never shortened and without jitter.
-        var delay = RetryAfterOf(result) ?? _options.DelayedRetries[nextDelayedRetryAttempt];
+        // against DelayedRetries.Length. Never shortened and without jitter. Above the ceiling nothing is scheduled.
+        var retryAfter = RetryAfterOf(result);
+        if (retryAfter > _options.MaxRetryAfter)
+        {
+            RecordCeilingExceeded(message, result, retryAfter.Value);
+            return NextAttempt.ExceedsCeiling;
+        }
 
-        return await ScheduleNextDelayedRetryAsync(message, request, nextDelayedRetryAttempt, delay, cancellationToken).ConfigureAwait(false);
+        var delay = retryAfter ?? _options.DelayedRetries[nextDelayedRetryAttempt];
+
+        return await ScheduleNextDelayedRetryAsync(message, request, nextDelayedRetryAttempt, delay, cancellationToken).ConfigureAwait(false)
+            ? NextAttempt.Scheduled
+            : NextAttempt.Ended;
+    }
+
+    private void RecordCeilingExceeded(IDelayedRetryMessage message, DispatchResult result, TimeSpan retryAfter)
+    {
+        CountSkipped(RetryMetrics.ReasonRetryAfterExceedsCeiling, message, result);
+        DelayedRetryProcessorLog.RetryAfterExceedsCeiling(
+            _logger,
+            message.CorrelationId ?? RecoverabilityConstants.Unknown,
+            message.RequestType,
+            result.ErrorMessage ?? RecoverabilityConstants.Unknown,
+            retryAfter,
+            _options.MaxRetryAfter);
     }
 
     private static TimeSpan? RetryAfterOf(DispatchResult result) =>
@@ -537,7 +570,8 @@ public sealed class DelayedRetryProcessor : BackgroundService
         }
 
         // A row that could not be re-dispatched has no request object: the raw content stands in for it.
-        return context.CreateFailedMessage(request ?? message.RequestContent) with { RequestType = message.RequestType };
+        var failedMessage = context.CreateFailedMessage(request ?? message.RequestContent) with { RequestType = message.RequestType };
+        return failure.TerminalError is { } terminal ? failedMessage with { Error = terminal } : failedMessage;
     }
 
     // The end of the chain. The dead letter is captured before the row is failed: when the capture fails (it
@@ -639,8 +673,17 @@ public sealed class DelayedRetryProcessor : BackgroundService
     private sealed record DispatchResult(bool IsSuccess, string? ErrorMessage, bool IsPermanent, RecoverabilityContext? Attempt, EncinaError? Error = null);
 
     // What the permanent-failure path reports: the code or type text, the re-dispatch's own context
-    // when the behavior saw it, and whether a delayed retry of this row has run.
-    private sealed record FailureInfo(string Text, RecoverabilityContext? Attempt, bool Dispatched);
+    // when the behavior saw it, whether a delayed retry of this row has run, and the error that replaces the
+    // last one in the dead letter (the ceiling error), or null.
+    private sealed record FailureInfo(string Text, RecoverabilityContext? Attempt, bool Dispatched, EncinaError? TerminalError = null);
+
+    // How the chain continues after a failed delayed retry.
+    private enum NextAttempt
+    {
+        Scheduled,
+        Ended,
+        ExceedsCeiling
+    }
 
     // Where a row got to, so an unexpected exception takes the permanent-failure path only when the
     // chain was not already settled (a store failure after success or a scheduled next attempt does not).
@@ -760,4 +803,15 @@ internal static partial class DelayedRetryProcessorLog
         Message = "[{CorrelationId}] {RequestType} scheduling the next delayed retry threw")]
     public static partial void SchedulingNextRetryThrew(
         ILogger logger, Exception ex, string correlationId, string requestType);
+
+    /// <remarks>
+    /// Event IDs: 5450-5499 (see EventIdRanges.MessagingRecoverability). Only the original error code is
+    /// logged, never <c>EncinaError.Message</c>.
+    /// </remarks>
+    [LoggerMessage(
+        EventId = 5455,
+        Level = LogLevel.Warning,
+        Message = "[{CorrelationId}] {RequestType} next delayed retry not scheduled: Retry-After {RetryAfter} exceeds the ceiling {MaxRetryAfter}, dead-lettered ({ErrorCode})")]
+    public static partial void RetryAfterExceedsCeiling(
+        ILogger logger, string correlationId, string requestType, string errorCode, TimeSpan retryAfter, TimeSpan maxRetryAfter);
 }

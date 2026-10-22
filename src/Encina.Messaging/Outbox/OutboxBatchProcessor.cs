@@ -1,5 +1,6 @@
 using Encina.Diagnostics;
 using Encina.Messaging.DeadLetter;
+using Encina.Messaging.Recoverability;
 using Encina.Messaging.Serialization;
 using Encina.Recoverability;
 using LanguageExt;
@@ -249,6 +250,12 @@ internal sealed class OutboxBatchProcessor
         var failureReason = failure.Reason;
         var exception = failure.Exception;
 
+        // A Retry-After above the ceiling schedules nothing: the message is exhausted at once, whatever its retry count.
+        if (failure.RetryAfter is { } requested && requested > _options.MaxRetryAfter)
+        {
+            return await ExhaustAboveCeilingAsync(message, failure, requested, retryCount, cancellationToken).ConfigureAwait(false);
+        }
+
         if (retryCount >= _options.MaxRetries)
         {
             return await ExhaustAsync(message, failure, retryCount, cancellationToken).ConfigureAwait(false);
@@ -284,6 +291,40 @@ internal sealed class OutboxBatchProcessor
             nextRetryAtUtc);
 
         return MessageOutcome.Failure;
+    }
+
+    // The ceiling's failure carries its own code and reason; the original code stays in the warning and the metric.
+    // They are recorded once the exhausted state is, so a retried dead letter capture does not count twice.
+    private async Task<MessageOutcome> ExhaustAboveCeilingAsync(
+        IOutboxMessage message,
+        Failure original,
+        TimeSpan retryAfter,
+        int retryCount,
+        CancellationToken cancellationToken)
+    {
+        var ceilingFailure = new Failure(
+            RecoverabilityErrorCodes.RetryAfterExceedsCeiling,
+            RecoverabilityErrorCodes.RetryAfterExceedsCeiling,
+            original.Exception);
+
+        var outcome = await ExhaustAsync(message, ceilingFailure, retryCount, cancellationToken).ConfigureAwait(false);
+        if (outcome == MessageOutcome.Exhausted)
+        {
+            RetryMetrics.RecordSkipped(
+                RetryMetrics.ReasonRetryAfterExceedsCeiling,
+                DelayedRetryProcessor.SimpleRequestName(message.NotificationType),
+                original.ErrorCode,
+                tenantId: null);
+            MessagingLog.OutboxRetryAfterExceedsCeiling(
+                _logger,
+                message.Id,
+                message.NotificationType,
+                original.ErrorCode,
+                retryAfter,
+                _options.MaxRetryAfter);
+        }
+
+        return outcome;
     }
 
     // The failure that uses up MaxRetries. The dead letter is captured before the exhausted state is recorded:

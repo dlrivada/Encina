@@ -8,7 +8,9 @@ using Encina.UnitTests.Recoverability;
 using LanguageExt;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 
 using NSubstitute;
 
@@ -646,8 +648,9 @@ public sealed class DelayedRetryChainTests
         bool failNextSchedule = false,
         bool throwNextSchedule = false,
         DeadLetterSourceCapture? deadLetterCapture = null,
-        Func<bool, EncinaError>? errorFactory = null) =>
-        new(delayedRetries, failure, delayedFailure ?? failure, failNextSchedule, throwNextSchedule, deadLetterCapture, errorFactory);
+        Func<bool, EncinaError>? errorFactory = null,
+        TimeSpan? maxRetryAfter = null) =>
+        new(delayedRetries, failure, delayedFailure ?? failure, failNextSchedule, throwNextSchedule, deadLetterCapture, errorFactory, maxRetryAfter);
 
     #region Outbound errors (#1223)
 
@@ -706,6 +709,143 @@ public sealed class DelayedRetryChainTests
         fixture.Scheduled.Count.ShouldBe(3);
         fixture.Store.AttemptsAdded.ShouldBe([0, 1, 2]);
     }
+
+    #region Retry-After ceiling (#2588)
+
+    private const string CeilingReason = RetryMetrics.ReasonRetryAfterExceedsCeiling;
+
+    private static void ShouldBeDeadLetteredAtTheCeiling(FailedMessage failed)
+    {
+        failed.Error.GetCode().IfNone("none").ShouldBe(RecoverabilityErrorCodes.RetryAfterExceedsCeiling);
+        failed.Error.GetDetails()[RetryAfterCeiling.OriginalErrorCodeKey].ShouldBe(OutboundErrorCodes.ServerError);
+        failed.Error.Message.ShouldNotContain("outbound failure");
+    }
+
+    private static Dictionary<string, object?> SkippedTags(MetricCapture metrics) =>
+        metrics.Tags("encina.retry.skipped_total", nameof(ChainCommand)).Single(tags => (string?)tags["reason"] == CeilingReason);
+
+    [Theory]
+    [InlineData(30)]
+    [InlineData(60)]
+    public async Task RetryAfterAtOrBelowTheCeiling_SchedulesExactlyTheHeaderDelay(int minutes)
+    {
+        // Arrange - the ceiling is one hour; the header equals it or is below it
+        var fixture = CreateFixture(
+            delayedRetries: 2,
+            failure: "x",
+            errorFactory: _ => OutboundFailure(transient: true, retryAfter: TimeSpan.FromMinutes(minutes)),
+            maxRetryAfter: TimeSpan.FromHours(1));
+
+        // Act
+        var result = await fixture.FirstFailureAsync();
+
+        // Assert
+        fixture.Scheduled.ShouldBe([(0, TimeSpan.FromMinutes(minutes))]);
+        result.LeftToArray()[0].Message.ShouldContain(RecoverabilityErrorCodes.DelayedRetryScheduled);
+        fixture.PermanentFailures.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task RetryAfterAboveTheCeiling_SchedulesNothingAndDeadLettersWithTheCeilingCode()
+    {
+        // Arrange
+        using var metrics = new MetricCapture("encina.retry.skipped_total");
+        var fixture = CreateFixture(
+            delayedRetries: 2,
+            failure: "x",
+            errorFactory: _ => OutboundFailure(transient: true, retryAfter: TimeSpan.FromMinutes(61)),
+            maxRetryAfter: TimeSpan.FromHours(1));
+
+        // Act
+        var result = await fixture.FirstFailureAsync();
+
+        // Assert
+        fixture.Scheduled.ShouldBeEmpty();
+        result.IsLeft.ShouldBeTrue();
+        result.LeftToArray()[0].GetCode().IfNone("none").ShouldBe(RecoverabilityErrorCodes.RetryAfterExceedsCeiling);
+        fixture.PermanentFailures.Count.ShouldBe(1);
+        ShouldBeDeadLetteredAtTheCeiling(fixture.PermanentFailures[0]);
+
+        var entry = fixture.BehaviorLogger.Collector.GetSnapshot().Single(e => e.Id.Id == 5454);
+        entry.Level.ShouldBe(LogLevel.Warning);
+        entry.Message.ShouldContain(OutboundErrorCodes.ServerError);
+        entry.Message.ShouldNotContain("outbound failure");
+
+        var tags = SkippedTags(metrics);
+        tags["error_code"].ShouldBe(OutboundErrorCodes.ServerError);
+    }
+
+    [Fact]
+    public async Task RetryAfterAboveTheDefaultCeiling_IsDeadLetteredAndTwoHoursIsNot()
+    {
+        // Arrange - the default ceiling is 24 hours
+        var tooLong = CreateFixture(
+            delayedRetries: 2, failure: "x",
+            errorFactory: _ => OutboundFailure(transient: true, retryAfter: TimeSpan.FromHours(25)));
+        var acceptable = CreateFixture(
+            delayedRetries: 2, failure: "x",
+            errorFactory: _ => OutboundFailure(transient: true, retryAfter: TimeSpan.FromHours(2)));
+
+        // Act
+        await tooLong.FirstFailureAsync();
+        await acceptable.FirstFailureAsync();
+
+        // Assert
+        tooLong.Scheduled.ShouldBeEmpty();
+        acceptable.Scheduled.ShouldBe([(0, TimeSpan.FromHours(2))]);
+    }
+
+    [Fact]
+    public async Task RetryAfterAboveTheCeilingOnADelayedRetry_EndsTheChainWithTheCeilingCode()
+    {
+        // Arrange - the first failure has no header; the delayed retry fails with Retry-After: 25 h
+        using var metrics = new MetricCapture("encina.retry.skipped_total");
+        var fixture = CreateFixture(
+            delayedRetries: 3,
+            failure: "x",
+            errorFactory: isFirst => isFirst
+                ? OutboundFailure(transient: true)
+                : OutboundFailure(transient: true, retryAfter: TimeSpan.FromHours(25)));
+
+        // Act
+        await fixture.FirstFailureAsync();
+        await fixture.RunProcessorUntilPermanentFailureAsync();
+
+        // Assert - only attempt 0 was scheduled; the chain ended at the ceiling, once
+        fixture.Scheduled.Select(s => s.Attempt).ShouldBe([0]);
+        fixture.PermanentFailures.Count.ShouldBe(1);
+        ShouldBeDeadLetteredAtTheCeiling(fixture.PermanentFailures[0]);
+        fixture.Store.FailedCount.ShouldBe(1);
+
+        var entry = fixture.ProcessorLogger.Collector.GetSnapshot().Single(e => e.Id.Id == 5455);
+        entry.Level.ShouldBe(LogLevel.Warning);
+        entry.Message.ShouldContain(OutboundErrorCodes.ServerError);
+        SkippedTags(metrics)["error_code"].ShouldBe(OutboundErrorCodes.ServerError);
+    }
+
+    [Fact]
+    public async Task RetryAfterAtACustomCeilingOnADelayedRetry_IsStillScheduledExactly()
+    {
+        // Arrange - ceiling 45 s, header 45 s on every delayed retry
+        var fixture = CreateFixture(
+            delayedRetries: 3,
+            failure: "x",
+            errorFactory: isFirst => isFirst
+                ? OutboundFailure(transient: true)
+                : OutboundFailure(transient: true, retryAfter: TimeSpan.FromSeconds(45)),
+            maxRetryAfter: TimeSpan.FromSeconds(45));
+
+        // Act
+        await fixture.FirstFailureAsync();
+        await fixture.RunProcessorUntilPermanentFailureAsync();
+
+        // Assert
+        fixture.Scheduled[1].ShouldBe((1, TimeSpan.FromSeconds(45)));
+        fixture.Scheduled[2].ShouldBe((2, TimeSpan.FromSeconds(45)));
+        fixture.ProcessorLogger.Collector.GetSnapshot().ShouldNotContain(e => e.Id.Id == 5455);
+    }
+
+    #endregion
 
     [Fact]
     public async Task AmbiguousFailureWithoutIdempotencyKey_IsReturnedWithoutRetryOrSchedule()
@@ -1008,7 +1148,8 @@ public sealed class DelayedRetryChainTests
             bool failNextSchedule,
             bool throwNextSchedule,
             DeadLetterSourceCapture? deadLetterCapture,
-            Func<bool, EncinaError>? errorFactory = null)
+            Func<bool, EncinaError>? errorFactory = null,
+            TimeSpan? maxRetryAfter = null)
         {
             _errorFactory = errorFactory;
             _deadLetterCapture = deadLetterCapture;
@@ -1025,6 +1166,7 @@ public sealed class DelayedRetryChainTests
                 EnableDelayedRetries = true,
                 DelayedRetries = Enumerable.Repeat(TimeSpan.FromMilliseconds(1), delayedRetries).ToArray(),
                 ErrorClassifier = errorFactory is null ? new MarkerClassifier() : new DefaultErrorClassifier(),
+                MaxRetryAfter = maxRetryAfter ?? TimeSpan.FromHours(24),
                 OnPermanentFailure = (failed, _) =>
                 {
                     PermanentFailures.Add(failed);
@@ -1044,12 +1186,16 @@ public sealed class DelayedRetryChainTests
 
             _behavior = new RecoverabilityPipelineBehavior<ChainCommand, int>(
                 _options,
-                NullLogger<RecoverabilityPipelineBehavior<ChainCommand, int>>.Instance,
+                BehaviorLogger,
                 Scheduler,
                 deadLetterCapture: deadLetterCapture);
         }
 
         public FakeStore Store { get; }
+
+        public FakeLogger<RecoverabilityPipelineBehavior<ChainCommand, int>> BehaviorLogger { get; } = new();
+
+        public FakeLogger<DelayedRetryProcessor> ProcessorLogger { get; } = new();
 
         public IDelayedRetryScheduler Scheduler { get; }
 
@@ -1095,7 +1241,7 @@ public sealed class DelayedRetryChainTests
             scopeFactory.CreateScope().Returns(scope);
 
             var processor = new DelayedRetryProcessor(
-                scopeFactory, _options, NullLogger<DelayedRetryProcessor>.Instance, deadLetterCapture: _deadLetterCapture)
+                scopeFactory, _options, ProcessorLogger, deadLetterCapture: _deadLetterCapture)
             {
                 ProcessingInterval = TimeSpan.FromMilliseconds(5)
             };

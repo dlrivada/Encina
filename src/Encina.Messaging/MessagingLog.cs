@@ -244,6 +244,30 @@ public static partial class MessagingLog
         string lastFailureReason);
 
     // =========================================================================
+    // Outbox Processor, Retry-After above the ceiling (EventId 5456)
+    // =========================================================================
+
+    /// <summary>
+    /// Logs when a failure carries a <c>Retry-After</c> above <see cref="Outbox.OutboxOptions.MaxRetryAfter"/>, so
+    /// the outbox message is exhausted and dead-lettered at once.
+    /// </summary>
+    /// <remarks>
+    /// Event IDs: 5450-5499 (see EventIdRanges.MessagingRecoverability). <paramref name="errorCode"/> is the code
+    /// of the original failure, never <c>EncinaError.Message</c>.
+    /// </remarks>
+    [LoggerMessage(
+        EventId = 5456,
+        Level = LogLevel.Warning,
+        Message = "Outbox message {MessageId} of type {NotificationType} not retried: Retry-After {RetryAfter} exceeds the ceiling {MaxRetryAfter}, dead-lettered ({ErrorCode})")]
+    public static partial void OutboxRetryAfterExceedsCeiling(
+        ILogger logger,
+        Guid messageId,
+        string notificationType,
+        string errorCode,
+        TimeSpan retryAfter,
+        TimeSpan maxRetryAfter);
+
+    // =========================================================================
     // Outbox requeue of exhausted messages (EventId 2959)
     // =========================================================================
 

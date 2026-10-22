@@ -265,6 +265,8 @@ Encina.Messaging.Recoverability.RecoverabilityOptions.UseJitter.set -> void
 Encina.Messaging.Recoverability.RecoverabilityOptions.MaxJitterPercent.get -> int
 Encina.Messaging.Recoverability.RecoverabilityOptions.MaxJitterPercent.set -> void
 Encina.Messaging.Recoverability.RecoverabilityOptions.TotalRetryAttempts.get -> int
+Encina.Messaging.Recoverability.RecoverabilityOptions.MaxRetryAfter.get -> System.TimeSpan
+Encina.Messaging.Recoverability.RecoverabilityOptions.MaxRetryAfter.set -> void
 Encina.Messaging.Recoverability.FailedMessage
 Encina.Messaging.Recoverability.FailedMessage.Id.get -> System.Guid
 Encina.Messaging.Recoverability.FailedMessage.Id.init -> void
@@ -339,6 +341,7 @@ const Encina.Messaging.Recoverability.RecoverabilityErrorCodes.ExceptionThrown =
 const Encina.Messaging.Recoverability.RecoverabilityErrorCodes.DelayedRetryScheduled = "recoverability.delayed_retry_scheduled" -> string!
 const Encina.Messaging.Recoverability.RecoverabilityErrorCodes.PermanentlyFailed = "recoverability.permanently_failed" -> string!
 const Encina.Messaging.Recoverability.RecoverabilityErrorCodes.Unknown = "recoverability.unknown" -> string!
+const Encina.Messaging.Recoverability.RecoverabilityErrorCodes.RetryAfterExceedsCeiling = "recoverability.retry_after_exceeds_ceiling" -> string!
 Encina.Messaging.Recoverability.IDelayedRetryScheduler
 Encina.Messaging.Recoverability.IDelayedRetryScheduler.ScheduleRetryAsync<TRequest>(TRequest request, Encina.Messaging.Recoverability.RecoverabilityContext! context, System.TimeSpan delay, int delayedRetryAttempt, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
 Encina.Messaging.Recoverability.IDelayedRetryScheduler.CancelScheduledRetryAsync(System.Guid recoverabilityContextId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
@@ -923,3 +926,5 @@ static Encina.Messaging.MessagingLog.TransactionCommitFailed(Microsoft.Extension
 static Encina.Messaging.MessagingLog.OutboxNotificationsWritten(Microsoft.Extensions.Logging.ILogger! logger, int notificationCount, string! requestType) -> void
 static Encina.Messaging.MessagingLog.OutboxWriteFailed(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string! errorCode) -> void
 static Encina.Messaging.MessagingLog.OutboxBehaviorSkipped(Microsoft.Extensions.Logging.ILogger! logger, string! requestType) -> void
+Encina.Messaging.Outbox.OutboxOptions.MaxRetryAfter.get -> System.TimeSpan
+Encina.Messaging.Outbox.OutboxOptions.MaxRetryAfter.set -> void
