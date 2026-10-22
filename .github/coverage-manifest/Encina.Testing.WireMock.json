@@ -4,7 +4,11 @@
   "totalFiles": 5,
   "targets": {
     "guard": 15,
-    "unit": 60
+    "unit": 85
+  },
+  "justifications": {
+    "unit": "Unit tests drive both fixtures and every webhook extension against an in-process WireMock server; only the Docker-backed WireMockContainerFixture start-up is left to the integration flag (#2651).",
+    "guard": "Guard tests cover the argument and not-initialized checks of the fixtures, a small share of the lines (#2651)."
   },
   "files": {
     "EncinaRefitMockFixture.cs": {
@@ -45,7 +49,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 40,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Without Docker only the not-initialized paths and DisposeAsync run in unit tests; start-up, client creation and reset need a container and run in the integration flag (#2651).",
+        "guard": "The container fixture has no argument checks; its state checks are covered by unit tests (#2651)."
+      }
     }
   }
 }
