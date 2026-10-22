@@ -497,7 +497,7 @@ function Get-DeclaredEncinaTypes {
 # This runs Test-DuplicateEvidence against EVERY candidate the duplicate search returned (never only the one the
 # model named), using each candidate's own real title+body text. When one or more candidates pass, the finding
 # is a duplicate of the LOWEST-numbered passing candidate -- a fixed, order-independent tie-break -- so the same
-# finding against the same open issues always classifies the same way, whatever order `gh issue list` happened
+# finding against the same open issues always classifies the same way, whatever order the issue listing happened
 # to return them in. Returns that candidate's number as a plain numeric string, or $null when no candidate
 # passes at all.
 function Find-DuplicateAmongCandidates {
@@ -1132,7 +1132,7 @@ function Add-ReportedByLine {
     return [pscustomobject]@{ Text = $text; Found = $false }
 }
 
-# Up to 4 search terms from a finding's text, for the `gh issue list --search` duplicate query of
+# Up to 4 search terms from a finding's text, for the issue search duplicate query of
 # audit-draft-remediation.ps1 -Prepare: backticked identifiers or file:line citations first (the most specific
 # terms a finding carries), then un-backticked path-like tokens with a known extension (a finding may cite
 # 'src/A.cs:12' in plain prose, not backticks). Both kinds are reduced to a file basename; the un-backticked

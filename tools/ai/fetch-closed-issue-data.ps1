@@ -1,7 +1,7 @@
 # SPEC-003 evidence extractor (batch 1, #1311): for each closed issue, fetches the body, the human
 # comments (no bots), the labels, the milestone, the close reason and date, and the linked pull
 # requests. PR links come from `closedByPullRequestsReferences` (GraphQL) and timeline
-# cross-references (REST): pilot 1 showed `gh pr list --search` misses them for early issues. For
+# cross-references (REST): pilot 1 showed a PR search misses them for early issues. For
 # each PR it also fetches the title, the merge commit and the files it changed.
 #
 # One JSON file per issue at <OutDir>/<n>.json. Resumable: an existing file is skipped unless -Force.
@@ -24,6 +24,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'gh-quota.ps1')
 $bots = @('coderabbitai[bot]', 'github-actions[bot]', 'codecov[bot]', 'dependabot[bot]', 'sonarqubecloud[bot]', 'copilot[bot]')
 $repoParts = $Repo.Split('/')
 $owner = $repoParts[0]
@@ -39,10 +40,15 @@ function Get-ClosedIssues {
     # issue list` paginates internally up to --limit, so a low cap silently truncates the result set
     # with no error. A `gh` failure here (network, auth, rate limit) must not be mistaken for "zero
     # closed issues" — check $LASTEXITCODE before parsing, matching every other gh call below.
+    # Bulk GraphQL stays GraphQL (#2661): thousands of issues WITH comments would need one extra REST call per
+    # issue. It runs behind the shared quota helper: it waits until resetAt when the quota is low.
+    [void](Wait-GhGraphQLQuota -Caller 'fetch-closed-issue-data' -MinRemaining 200)
     $raw = gh issue list --repo $Repo --state closed --limit 100000 @searchArgs `
         --json number,title,body,labels,milestone,closedAt,stateReason,comments 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "gh issue list failed (exit $LASTEXITCODE): $raw"
+    $listExit = $LASTEXITCODE
+    Write-GhQuotaUsage -Caller 'fetch-closed-issue-data' -Operation 'issue list (bulk, with comments)'
+    if ($listExit -ne 0) {
+        throw "gh issue list failed (exit $listExit): $raw"
     }
     $issues = $raw | ConvertFrom-Json
     if ($parsedNumbers.Count -gt 0) { $issues = @($issues | Where-Object { $parsedNumbers -contains [int]$_.number }) }
@@ -50,7 +56,7 @@ function Get-ClosedIssues {
 }
 
 # closedByPullRequestsReferences: the GraphQL field pilot 1 found reliable for early issues, where
-# `gh pr list --search` misses the link. Returns fully-detailed PR objects in one call.
+# a PR search misses the link. Returns fully-detailed PR objects in one call.
 $closingPrsQuery = @'
 query($owner: String!, $repo: String!, $number: Int!) {
   repository(owner: $owner, name: $repo) {
@@ -77,7 +83,7 @@ function ConvertTo-PrRecord($node) {
     # files(first: 100) silently truncates a PR touching more than 100 files. There is no error to
     # detect from the API response itself, so flag the exact page-size boundary as suspicious.
     if ($files.Count -eq 100) {
-        $script:currentIssueErrors.Add("PR #$($node.number): files list has exactly 100 entries — GraphQL's files(first: 100) page size; it may be truncated for a large PR. Verify with 'gh pr view $($node.number) --repo $Repo --json files' (paginated) if the file count matters.")
+        $script:currentIssueErrors.Add("PR #$($node.number): files list has exactly 100 entries — GraphQL's files(first: 100) page size; it may be truncated for a large PR. Verify with 'gh api repos/$Repo/pulls/$($node.number)/files --paginate' if the file count matters.")
     }
     [pscustomobject]@{
         number        = $node.number
@@ -97,8 +103,12 @@ function ConvertTo-PrRecord($node) {
 # empty result" (a real, empty answer) from "gh failed" (an error, captured and surfaced).
 function Get-ClosingPrs([int]$number) {
     try {
+        # No REST equivalent of closedByPullRequestsReferences: GraphQL, behind the shared quota helper (#2661).
+        [void](Wait-GhGraphQLQuota -Caller 'fetch-closed-issue-data' -MinRemaining 200)
         $raw = gh api graphql -f query=$closingPrsQuery -F "owner=$owner" -F "repo=$repoName" -F "number=$number" 2>&1
-        if ($LASTEXITCODE -ne 0) {
+        $gqlExit = $LASTEXITCODE
+        Write-GhQuotaUsage -Caller 'fetch-closed-issue-data' -Operation 'closedByPullRequestsReferences'
+        if ($gqlExit -ne 0) {
             $script:currentIssueErrors.Add("gh api graphql (closedByPullRequestsReferences) failed for #$number : $raw")
             return @()
         }
@@ -149,29 +159,36 @@ function Get-TimelineReferencedPrNumbers([int]$number) {
 
 function Get-PrByNumber([int]$number) {
     try {
-        $json = gh pr view $number --repo $Repo --json number,title,state,mergedAt,closedAt,mergeCommit,files 2>&1
+        # REST (#2661): the pull request and its files (paginated, so no 100-file truncation).
+        $json = gh api "repos/$Repo/pulls/$number" 2>&1
         if ($LASTEXITCODE -ne 0) {
-            $script:currentIssueErrors.Add("gh pr view $number failed : $json")
+            $script:currentIssueErrors.Add("gh api pulls/$number failed : $json")
             return $null
         }
         $pr = $json | ConvertFrom-Json
-        $files = @($pr.files | ForEach-Object { [pscustomobject]@{ path = $_.path; additions = $_.additions; deletions = $_.deletions } })
-        if ($files.Count -eq 100) {
-            $script:currentIssueErrors.Add("PR #$($pr.number): files list has exactly 100 entries — 'gh pr view --json files' page size; it may be truncated for a large PR.")
+        $filesJson = gh api "repos/$Repo/pulls/$number/files?per_page=100" --paginate --slurp 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            $script:currentIssueErrors.Add("gh api pulls/$number/files failed : $filesJson")
+            return $null
+        }
+        $files = @(($filesJson | ConvertFrom-Json) | ForEach-Object { $_ } | ForEach-Object { [pscustomobject]@{ path = $_.filename; additions = $_.additions; deletions = $_.deletions } })
+        # REST lists at most 3000 files of a pull request: that count is the only truncation left to flag.
+        if ($files.Count -ge 3000) {
+            $script:currentIssueErrors.Add("PR #$($pr.number): files list has $($files.Count) entries — REST's 3000-file cap; it may be truncated.")
         }
         return [pscustomobject]@{
             number        = $pr.number
             title         = $pr.title
-            state         = $pr.state
-            merged        = ($pr.state -eq 'MERGED')
-            mergedAt      = $pr.mergedAt
-            closedAt      = $pr.closedAt
-            mergeCommit   = if ($pr.mergeCommit) { $pr.mergeCommit.oid } else { $null }
+            state         = $(if ($pr.merged_at) { 'MERGED' } else { ([string]$pr.state).ToUpperInvariant() })
+            merged        = [bool]$pr.merged_at
+            mergedAt      = $pr.merged_at
+            closedAt      = $pr.closed_at
+            mergeCommit   = $pr.merge_commit_sha
             files         = $files
         }
     }
     catch {
-        $script:currentIssueErrors.Add("gh pr view $number threw : $($_.Exception.Message)")
+        $script:currentIssueErrors.Add("reading PR $number over REST threw : $($_.Exception.Message)")
         return $null
     }
 }
@@ -204,12 +221,12 @@ foreach ($i in $issues) {
     # Reset per issue: a `gh` failure while fetching this issue's PRs must not leak into the next.
     $script:currentIssueErrors = New-Object System.Collections.Generic.List[string]
 
-    # gh issue list --json comments requests comments through GraphQL's default page size (100). An
+    # The bulk issue list with comments requests comments through GraphQL's default page size (100). An
     # issue with more than 100 comments is silently truncated with no error from `gh` itself — flag
     # the exact page-size boundary as suspicious rather than trust it as the full comment list.
     $rawCommentsCount = @($i.comments).Count
     if ($rawCommentsCount -eq 100) {
-        $script:currentIssueErrors.Add("issue #$($i.number): comments field has exactly 100 entries — the GraphQL page size; it may be truncated. Verify with 'gh issue view $($i.number) --repo $Repo --comments' if the comment count matters.")
+        $script:currentIssueErrors.Add("issue #$($i.number): comments field has exactly 100 entries — the GraphQL page size; it may be truncated. Verify with 'gh api repos/$Repo/issues/$($i.number)/comments --paginate' if the comment count matters.")
     }
 
     $comments = @($i.comments | Where-Object { $_.author.login -notin $bots } | ForEach-Object {

@@ -132,7 +132,7 @@ function Write-GhQuotaUsage {
 }
 
 function Get-GhCheckBuckets {
-    # REST replacement of `gh pr checks` / statusCheckRollup (#2568): the check runs and the combined commit status
+    # REST replacement of the gh PR checks subcommand / statusCheckRollup (#2568): the check runs and the combined commit status
     # of one head sha, as { Name; Bucket (pass|fail|pending|skipping); Url }. Throws when a read fails.
     param([Parameter(Mandatory)][string]$Repo, [Parameter(Mandatory)][string]$Sha)
     $buckets = [System.Collections.Generic.List[object]]::new()

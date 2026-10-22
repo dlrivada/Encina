@@ -1090,7 +1090,7 @@ function Publish-AuditKnowledge {
         }
 
         $pushArgs = @('-C', $tmp, 'push', '-u', 'origin', $branch)
-        # REST (#2661): `gh pr create` is GraphQL-backed and fails when the shared GraphQL quota is exhausted.
+        # REST (#2661): the gh pull request creation subcommand is GraphQL-backed and fails when the shared GraphQL quota is exhausted.
         $prArgs = @('api', '-X', 'POST', "repos/$Repo/pulls", '-f', "title=$title", '-f', "head=$branch", '-f', 'base=main', '-f', 'body=Refs #1345', '--jq', '.html_url')
         if ($NoPublish) {
             $planned.Add('git ' + ($pushArgs -join ' '))

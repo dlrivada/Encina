@@ -19,7 +19,7 @@ param(
 #                                              and no partial or failed result is ever applied)
 #
 # Keys use an ordinal (case-sensitive) set: GraphQL node ids can differ only in case.
-# The open-PR list comes from paginated REST (`gh api --paginate --slurp`), never `gh pr list --limit N`,
+# The open-PR list comes from paginated REST (`gh api --paginate --slurp`), never the gh PR list subcommand with a limit,
 # which silently caps the result at N and can make an omitted PR read as closed.
 # -Once does a single poll and exits 0, for verification and tests.
 
