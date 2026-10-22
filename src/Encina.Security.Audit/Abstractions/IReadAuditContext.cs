@@ -62,4 +62,23 @@ public interface IReadAuditContext
     /// </para>
     /// </remarks>
     IReadAuditContext WithPurpose(string purpose);
+
+    /// <summary>
+    /// Gets the metadata declared for the current scope.
+    /// </summary>
+    /// <remarks>
+    /// Empty when none has been declared. The read-audit decorator copies it into
+    /// <see cref="ReadAuditEntry.Metadata"/>; a key the decorator itself writes (such as <c>method</c>)
+    /// always wins. Never put personal data in it.
+    /// </remarks>
+    IReadOnlyDictionary<string, string> Metadata { get; }
+
+    /// <summary>
+    /// Declares a metadata entry for subsequent read operations in the current scope.
+    /// </summary>
+    /// <param name="key">The metadata key (for example <c>elevation_id</c>).</param>
+    /// <param name="value">The metadata value.</param>
+    /// <returns>This instance for fluent chaining.</returns>
+    /// <remarks>Calling this method again with the same key replaces the value.</remarks>
+    IReadAuditContext WithMetadata(string key, string value);
 }

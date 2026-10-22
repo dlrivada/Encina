@@ -2238,3 +2238,15 @@ const Encina.Recoverability.RetryMetrics.ReasonNonIdempotent = "non_idempotent" 
 const Encina.Recoverability.RetryMetrics.ReasonRetryAfterExceedsMax = "retry_after_exceeds_max" -> string!
 static Encina.Recoverability.RetryMetrics.RecordAttempt(string! requestName, string! errorCode, string? tenantId) -> void
 static Encina.Recoverability.RetryMetrics.RecordSkipped(string! reason, string! requestName, string! errorCode, string? tenantId) -> void
+Encina.AccessElevation
+Encina.AccessElevation.AccessElevation(System.Guid ElevationId, string! Scope, System.DateTimeOffset ExpiresAtUtc) -> void
+Encina.AccessElevation.ElevationId.get -> System.Guid
+Encina.AccessElevation.ElevationId.init -> void
+Encina.AccessElevation.ExpiresAtUtc.get -> System.DateTimeOffset
+Encina.AccessElevation.ExpiresAtUtc.init -> void
+Encina.AccessElevation.Scope.get -> string!
+Encina.AccessElevation.Scope.init -> void
+Encina.AccessElevationDenials
+static Encina.AccessElevationDenials.IsOverridable(Encina.EncinaError denial) -> bool
+Encina.IAccessElevationGate
+Encina.IAccessElevationGate.TryElevateAsync<TRequest>(TRequest request, Encina.IRequestContext! context, Encina.EncinaError denial, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.AccessElevation!>>>

@@ -59,6 +59,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IEncina, Encina>();
         services.AddEncinaRequestIdentity();
         services.TryAddSingleton<IEncinaMetrics, EncinaMetrics>();
+        services.TryAddSingleton<IAccessElevationGate, NoAccessElevationGate>();
         var stageRegistry = GetOrAddStageRegistry(services);
         services.TryAddSingleton(new PipelineRegistrationSnapshot(services));
         services.TryAddSingleton(static provider => new PipelineOrderResolver(

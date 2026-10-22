@@ -244,10 +244,7 @@ public sealed class AuditedReadOnlyRepository<TEntity, TId> : IReadOnlyRepositor
                 Purpose = _readAuditContext.Purpose,
                 AccessMethod = ReadAccessMethod.Repository,
                 EntityCount = entityCount,
-                Metadata = new Dictionary<string, object?>
-                {
-                    ["method"] = methodName
-                }
+                Metadata = BuildMetadata(methodName)
             };
 
             await _readAuditStore.LogReadAsync(entry, CancellationToken.None).ConfigureAwait(false);
@@ -266,5 +263,18 @@ public sealed class AuditedReadOnlyRepository<TEntity, TId> : IReadOnlyRepositor
                 new KeyValuePair<string, object?>(ReadAuditMeter.TagEntityType, entityTypeName));
             ReadAuditActivitySource.Failed(activity, ActivityStatusDescriptions.ForException(ex));
         }
+    }
+
+    // The metadata declared on the context first, then the decorator's own keys, which always win.
+    private Dictionary<string, object?> BuildMetadata(string methodName)
+    {
+        var metadata = new Dictionary<string, object?>();
+        foreach (var (key, value) in _readAuditContext.Metadata)
+        {
+            metadata[key] = value;
+        }
+
+        metadata["method"] = methodName;
+        return metadata;
     }
 }
