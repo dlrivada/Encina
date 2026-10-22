@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.ContentRouterBenchmarks-20261022-150124</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+INTEL XEON PLATINUM 8573C 3.00GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>SimpleRoute_SingleCondition</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>1,766.2 ns</td><td>16.75 ns</td><td>11.08 ns</td><td>1.00</td><td>0.0114</td><td>984 B</td><td>1.00</td>
+</tr><tr><td>ComplexRoute_FirstMatch</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>1,376.8 ns</td><td>27.93 ns</td><td>18.47 ns</td><td>0.78</td><td>0.0057</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>ComplexRoute_DefaultFallback</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>1,375.9 ns</td><td>22.31 ns</td><td>14.76 ns</td><td>0.78</td><td>0.0057</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>ManyRoutes_FirstMatch</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>1,782.3 ns</td><td>7.82 ns</td><td>4.09 ns</td><td>1.01</td><td>0.0114</td><td>1024 B</td><td>1.04</td>
+</tr><tr><td>ManyRoutes_LateMatch</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>1,790.6 ns</td><td>19.10 ns</td><td>12.63 ns</td><td>1.01</td><td>0.0114</td><td>1024 B</td><td>1.04</td>
+</tr><tr><td>BuildDefinition_Simple</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>392.5 ns</td><td>1.25 ns</td><td>0.74 ns</td><td>0.22</td><td>0.0067</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>BuildDefinition_Complex</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>665.9 ns</td><td>3.55 ns</td><td>2.35 ns</td><td>0.38</td><td>0.0153</td><td>1320 B</td><td>1.34</td>
+</tr><tr><td>SimpleRoute_SingleCondition</td><td>ShortRun</td><td>3</td><td>1</td><td>1,712.6 ns</td><td>79.54 ns</td><td>4.36 ns</td><td>1.00</td><td>0.0114</td><td>984 B</td><td>1.00</td>
+</tr><tr><td>ComplexRoute_FirstMatch</td><td>ShortRun</td><td>3</td><td>1</td><td>1,377.0 ns</td><td>304.46 ns</td><td>16.69 ns</td><td>0.80</td><td>0.0057</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>ComplexRoute_DefaultFallback</td><td>ShortRun</td><td>3</td><td>1</td><td>1,389.8 ns</td><td>218.28 ns</td><td>11.96 ns</td><td>0.81</td><td>0.0057</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>ManyRoutes_FirstMatch</td><td>ShortRun</td><td>3</td><td>1</td><td>1,846.2 ns</td><td>103.76 ns</td><td>5.69 ns</td><td>1.08</td><td>0.0114</td><td>1024 B</td><td>1.04</td>
+</tr><tr><td>ManyRoutes_LateMatch</td><td>ShortRun</td><td>3</td><td>1</td><td>1,781.0 ns</td><td>20.98 ns</td><td>1.15 ns</td><td>1.04</td><td>0.0114</td><td>1024 B</td><td>1.04</td>
+</tr><tr><td>BuildDefinition_Simple</td><td>ShortRun</td><td>3</td><td>1</td><td>388.0 ns</td><td>18.35 ns</td><td>1.01 ns</td><td>0.23</td><td>0.0067</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>BuildDefinition_Complex</td><td>ShortRun</td><td>3</td><td>1</td><td>680.6 ns</td><td>17.77 ns</td><td>0.97 ns</td><td>0.40</td><td>0.0153</td><td>1320 B</td><td>1.34</td>
+</tr></tbody></table>
+</body>
+</html>

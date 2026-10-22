@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Compliance.DPIA.DPIAServiceBenchmarks-20261022-151433</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon Platinum 8370C CPU 2.80GHz (Max: 2.79GHz), 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                            </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Create assessment (fast path)&#39;</td><td>1,639.2 ns</td><td>162.3 ns</td><td>8.89 ns</td><td>1.00</td><td>0.01</td><td>2</td><td>0.0172</td><td>0.0153</td><td>432 B</td><td>1.00</td>
+</tr><tr><td>&#39;Evaluate assessment (risk engine)&#39;</td><td>1,560.0 ns</td><td>2,347.4 ns</td><td>128.67 ns</td><td>0.95</td><td>0.07</td><td>2</td><td>0.0172</td><td>0.0153</td><td>432 B</td><td>1.00</td>
+</tr><tr><td>&#39;RequiresDPIA check (pipeline hot-path)&#39;</td><td>982.1 ns</td><td>335.3 ns</td><td>18.38 ns</td><td>0.60</td><td>0.01</td><td>1</td><td>0.0114</td><td>0.0095</td><td>320 B</td><td>0.74</td>
+</tr><tr><td>&#39;Request DPO consultation&#39;</td><td>1,415.3 ns</td><td>162.5 ns</td><td>8.91 ns</td><td>0.86</td><td>0.01</td><td>2</td><td>0.0172</td><td>0.0153</td><td>432 B</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>

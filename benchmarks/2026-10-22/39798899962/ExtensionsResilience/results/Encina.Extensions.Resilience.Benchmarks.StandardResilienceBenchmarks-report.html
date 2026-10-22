@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Extensions.Resilience.Benchmarks.StandardResilienceBenchmarks-20261022-154143</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                                 </th><th>Mean  </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>NoResilience_Baseline</td><td>1.921 &mu;s</td><td>0.7194 &mu;s</td><td>0.0394 &mu;s</td><td>1.00</td><td>0.03</td><td>1</td><td>0.1106</td><td>1.83 KB</td><td>1.00</td>
+</tr><tr><td>StandardResilience_Success</td><td>3.755 &mu;s</td><td>0.9661 &mu;s</td><td>0.0530 &mu;s</td><td>1.96</td><td>0.04</td><td>2</td><td>0.1297</td><td>2.15 KB</td><td>1.18</td>
+</tr><tr><td>StandardResilience_MultipleSequentialRequests</td><td>37.526 &mu;s</td><td>20.0377 &mu;s</td><td>1.0983 &mu;s</td><td>19.54</td><td>0.61</td><td>3</td><td>1.2207</td><td>20.38 KB</td><td>11.15</td>
+</tr><tr><td>StandardResilience_ConcurrentRequests</td><td>38.278 &mu;s</td><td>30.2057 &mu;s</td><td>1.6557 &mu;s</td><td>19.93</td><td>0.83</td><td>3</td><td>1.2817</td><td>21.84 KB</td><td>11.95</td>
+</tr><tr><td>StandardResilience_WithRetry</td><td>1,694.815 &mu;s</td><td>190.5384 &mu;s</td><td>10.4441 &mu;s</td><td>882.54</td><td>16.54</td><td>4</td><td>1.9531</td><td>52.55 KB</td><td>28.74</td>
+</tr></tbody></table>
+</body>
+</html>

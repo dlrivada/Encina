@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Polly.Benchmarks.RateLimitingBenchmarks-20261022-154144</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 4.01GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  Job-IAMMPO : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>InvocationCount=1  UnrollFactor=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                       </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean </th><th>Error </th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>RecordFailure</td><td>Job-IAMMPO</td><td>15</td><td>Default</td><td>5</td><td>66.92 ns</td><td>96.84 ns</td><td>80.87 ns</td><td>55.00 ns</td><td>0.03</td><td>0.03</td><td>-</td><td>0.00</td>
+</tr><tr><td>GetState</td><td>Job-IAMMPO</td><td>15</td><td>Default</td><td>5</td><td>29.88 ns</td><td>51.92 ns</td><td>40.53 ns</td><td>14.50 ns</td><td>0.01</td><td>0.02</td><td>-</td><td>0.00</td>
+</tr><tr><td>AcquireAndRecordSuccess_Combined</td><td>Job-IAMMPO</td><td>15</td><td>Default</td><td>5</td><td>2,691.47 ns</td><td>332.76 ns</td><td>311.27 ns</td><td>2,639.00 ns</td><td>1.13</td><td>0.15</td><td>336 B</td><td>0.76</td>
+</tr><tr><td>AcquireAndRecordFailure_Combined</td><td>Job-IAMMPO</td><td>15</td><td>Default</td><td>5</td><td>1,232.60 ns</td><td>941.55 ns</td><td>880.73 ns</td><td>731.00 ns</td><td>0.52</td><td>0.36</td><td>336 B</td><td>0.76</td>
+</tr><tr><td>AcquireAsync_WithAdaptiveThrottling</td><td>Job-IAMMPO</td><td>15</td><td>Default</td><td>5</td><td>546.67 ns</td><td>99.36 ns</td><td>77.57 ns</td><td>561.00 ns</td><td>0.23</td><td>0.04</td><td>440 B</td><td>1.00</td>
+</tr><tr><td>RecordSuccess</td><td>Job-IAMMPO</td><td>15</td><td>Default</td><td>5</td><td>485.67 ns</td><td>741.76 ns</td><td>693.84 ns</td><td>45.00 ns</td><td>0.20</td><td>0.28</td><td>-</td><td>0.00</td>
+</tr><tr><td>AcquireAsync_SimpleRateLimiting</td><td>Job-IAMMPO</td><td>15</td><td>Default</td><td>5</td><td>2,399.14 ns</td><td>205.07 ns</td><td>181.79 ns</td><td>2,353.50 ns</td><td>1.01</td><td>0.10</td><td>440 B</td><td>1.00</td>
+</tr><tr><td>RecordFailure</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>220.67 ns</td><td>4,367.47 ns</td><td>239.40 ns</td><td>171.00 ns</td><td>0.17</td><td>0.18</td><td>-</td><td>0.00</td>
+</tr><tr><td>GetState</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>170.33 ns</td><td>5,069.67 ns</td><td>277.89 ns</td><td>20.00 ns</td><td>0.13</td><td>0.20</td><td>-</td><td>0.00</td>
+</tr><tr><td>AcquireAndRecordSuccess_Combined</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>2,076.17 ns</td><td>22,401.79 ns</td><td>1,227.92 ns</td><td>1,812.50 ns</td><td>1.57</td><td>1.11</td><td>336 B</td><td>0.76</td>
+</tr><tr><td>AcquireAndRecordFailure_Combined</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>3,141.33 ns</td><td>8,884.17 ns</td><td>486.97 ns</td><td>2,944.00 ns</td><td>2.37</td><td>1.11</td><td>336 B</td><td>0.76</td>
+</tr><tr><td>AcquireAsync_WithAdaptiveThrottling</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>2,260.33 ns</td><td>33,150.95 ns</td><td>1,817.12 ns</td><td>1,282.00 ns</td><td>1.70</td><td>1.49</td><td>440 B</td><td>1.00</td>
+</tr><tr><td>RecordSuccess</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>220.00 ns</td><td>3,888.11 ns</td><td>213.12 ns</td><td>234.50 ns</td><td>0.17</td><td>0.17</td><td>-</td><td>0.00</td>
+</tr><tr><td>AcquireAsync_SimpleRateLimiting</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>1,648.33 ns</td><td>17,905.95 ns</td><td>981.49 ns</td><td>1,311.00 ns</td><td>1.24</td><td>0.89</td><td>440 B</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>
