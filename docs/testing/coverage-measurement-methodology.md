@@ -209,7 +209,7 @@ Rules:
 - **A file with no line count under any flag** is still counted in the pair aggregates (ratio, mean gap) and is listed as **unweighted**, because it cannot take part in the line-weighted value.
 - **Pairs with a target of 0 are left out of every aggregate.** They are counted as "of which zero-target" and remain in the per-file table with status `met`.
 - **Ratio and mean gap are absent (`null`) when there are no pairs**, because an empty average cannot be written as JSON. The line-weighted value is also `null` when no pair has a line count.
-- **Comparisons use unrounded values**; only the display rounds (gap to two decimals, attainment to four decimals in the JSON).
+- **Comparisons use unrounded values.** The JSON rounds `measured` and `gap` to two decimals. It rounds `attainment` to four decimals for a pair that meets its target and truncates it to four decimals for a pair below it, so a below-target pair never reads 1. The report and the dashboard truncate the displayed gap and attainment for the same reason.
 - **The figure is report-only.** There is no project-wide target and no colour cut-off for it; only a row's status compares that row with its own target.
 
 Target attainment and the obligations figure measure different things and neither replaces the other:
