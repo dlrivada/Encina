@@ -134,8 +134,13 @@ public sealed class EncinaPactFixtureVerificationTests : IDisposable
 
         Should.NotThrow(_sut.ClearPactFiles);
 
-        // Windows refuses to delete the locked file and the warning branch runs; other platforms unlink it.
         _sut.GetPactFiles().ShouldNotContain(f => Path.GetFileName(f) == "free.json");
+
+        // Windows refuses to delete the locked file and the warning branch runs; other platforms unlink it.
+        if (OperatingSystem.IsWindows())
+        {
+            File.Exists(locked).ShouldBeTrue();
+        }
     }
 
     [Fact]

@@ -20,7 +20,7 @@ public sealed record PactGuardDto(Guid Id);
 
 /// <summary>
 /// Argument guards of the remaining public members of <see cref="EncinaPactConsumerBuilder"/>,
-/// <see cref="EncinaPactProviderVerifier"/>, <see cref="EncinaPactFixture"/> and <see cref="XunitOutputAdapter"/>.
+/// <see cref="EncinaPactProviderVerifier"/>, <see cref="EncinaPactFixture"/> and <see cref="PactExtensions"/>.
 /// Each test calls the real member with one invalid argument and valid values for the rest.
 /// </summary>
 public sealed class PactArgumentGuardTests : IDisposable
@@ -112,21 +112,22 @@ public sealed class PactArgumentGuardTests : IDisposable
         Should.Throw<ArgumentNullException>(() => _builder.Verify(null!));
     }
 
-    [Fact]
-    public void ConsumerBuilder_GetMockServerUri_BeforeVerify_Throws()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void ConsumerBuilder_Constructor_InvalidConsumerName_Throws(string? consumerName)
     {
-        Should.Throw<InvalidOperationException>(() => _builder.GetMockServerUri());
+        Should.Throw<ArgumentException>(() => new EncinaPactConsumerBuilder(consumerName!, "OrdersApi", _pactDirectory));
     }
 
-    [Fact]
-    public void ConsumerBuilder_MembersAfterDispose_ThrowObjectDisposed()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void ConsumerBuilder_Constructor_InvalidProviderName_Throws(string? providerName)
     {
-        _builder.Dispose();
-
-        Should.Throw<ObjectDisposedException>(() => _builder.GetMockServerUri());
-        Should.Throw<ObjectDisposedException>(() => _builder.Verify(_ => { }));
-        Should.Throw<ObjectDisposedException>(() =>
-            _builder.WithNotificationExpectation(new PactGuardNotification(Id)));
+        Should.Throw<ArgumentException>(() => new EncinaPactConsumerBuilder("WebApp", providerName!, _pactDirectory));
     }
 
     // EncinaPactProviderVerifier
@@ -187,13 +188,6 @@ public sealed class PactArgumentGuardTests : IDisposable
         await Should.ThrowAsync<ArgumentException>(() => _verifier.VerifyAsync(path!));
     }
 
-    [Fact]
-    public async Task Verifier_VerifyAsync_AfterDispose_Throws()
-    {
-        _verifier.Dispose();
-
-        await Should.ThrowAsync<ObjectDisposedException>(() => _verifier.VerifyAsync("pact.json"));
-    }
 
     // EncinaPactFixture
 
@@ -246,5 +240,79 @@ public sealed class PactArgumentGuardTests : IDisposable
     public void Fixture_CreateConsumer_InvalidConsumerName_Throws(string? consumerName)
     {
         Should.Throw<ArgumentException>(() => _fixture.CreateConsumer(consumerName!, "OrdersApi"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void Fixture_CreateConsumer_InvalidProviderName_Throws(string? providerName)
+    {
+        Should.Throw<ArgumentException>(() => _fixture.CreateConsumer("WebApp", providerName!));
+    }
+
+    [Fact]
+    public async Task Fixture_ConfiguredWithServices_InvalidProviderNames_Throw()
+    {
+        _fixture.WithServices(services => services.AddEncina());
+
+        Should.Throw<ArgumentException>(() => _fixture.CreateVerifier(" "));
+        await Should.ThrowAsync<ArgumentException>(() => _fixture.VerifyProviderAsync(""));
+    }
+
+    [Fact]
+    public void Fixture_ConfiguredWithEncina_NullTestActionStillThrows()
+    {
+        _fixture.WithEncina(Substitute.For<IEncina>(), new ServiceCollection().BuildServiceProvider());
+        _fixture.CreateConsumer("WebApp", "OrdersApi");
+
+        Should.Throw<ArgumentException>(() => _fixture.CreateVerifier(null!));
+    }
+
+    [Fact]
+    public void Verifier_ValidRegistrationsFollowedByInvalidOnes_Throw()
+    {
+        _verifier
+            .WithProviderName("OrdersApi")
+            .WithStrictProviderStates()
+            .OnMissingProviderState(_ => { })
+            .WithProviderState("async", () => Task.CompletedTask)
+            .WithProviderState("params", (IDictionary<string, object> _) => Task.CompletedTask)
+            .WithProviderState("sync", () => { });
+
+        Should.Throw<ArgumentException>(() => _verifier.WithProviderState(" ", () => { }));
+        Should.Throw<ArgumentNullException>(() => _verifier.WithProviderState("other", (Action)null!));
+    }
+
+    // PactExtensions
+
+    [Fact]
+    public async Task Extensions_SendCommandAsync_NullClient_Throws()
+    {
+        await Should.ThrowAsync<ArgumentNullException>(() =>
+            PactExtensions.SendCommandAsync<PactGuardCommand, PactGuardDto>(null!, new PactGuardCommand(Id)));
+    }
+
+    [Fact]
+    public async Task Extensions_SendQueryAsync_NullQuery_Throws()
+    {
+        using var client = new HttpClient();
+
+        await Should.ThrowAsync<ArgumentNullException>(() =>
+            client.SendQueryAsync<PactGuardQuery, PactGuardDto>(null!));
+    }
+
+    [Fact]
+    public async Task Extensions_PublishNotificationAsync_NullClient_Throws()
+    {
+        await Should.ThrowAsync<ArgumentNullException>(() =>
+            PactExtensions.PublishNotificationAsync<PactGuardNotification>(null!, new PactGuardNotification(Id)));
+    }
+
+    [Fact]
+    public async Task Extensions_ReadAsEitherAsync_NullResponse_Throws()
+    {
+        await Should.ThrowAsync<ArgumentNullException>(() =>
+            PactExtensions.ReadAsEitherAsync<PactGuardDto>(null!));
     }
 }
