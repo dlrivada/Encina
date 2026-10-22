@@ -37,7 +37,8 @@ function Get-GhQuotaDirectory {
     $root = $env:ENCINA_GH_QUOTA_ROOT
     if (-not $root) {
         # The main checkout, so the cache and usage.csv are shared by every worktree and process.
-        $common = & git rev-parse --path-format=absolute --git-common-dir 2>$null
+        # Resolved from this script's folder, so it does not depend on the caller's current directory.
+        $common = & git -C $PSScriptRoot rev-parse --path-format=absolute --git-common-dir 2>$null
         $root = if ($LASTEXITCODE -eq 0 -and $common) { Split-Path -Parent ([string]$common) } else { (Get-Location).Path }
     }
     $dir = Join-Path $root 'artifacts/gh-quota'

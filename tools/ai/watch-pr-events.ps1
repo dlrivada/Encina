@@ -2,6 +2,7 @@ param(
     [int]$Pr = 1093,
     [string]$Repo = 'dlrivada/Encina',
     [string]$Me = 'dlrivada',
+    [int]$IntervalSeconds = 60,
     [switch]$Once   # a single poll, then exit (verification and tests)
 )
 
@@ -21,6 +22,8 @@ $seenComments = New-Object System.Collections.Generic.HashSet[long]
 $seenReviews = New-Object System.Collections.Generic.HashSet[long]
 $seenFails = New-Object System.Collections.Generic.HashSet[string]
 $doneAnnounced = $false
+$checkedSha = $null      # head sha of the last successful check read
+$checkPending = $true    # the last read still had pending (or no) checks; true until the first read
 
 function Short([string]$s) {
     $t = ($s -replace '\s+', ' ').Trim()
@@ -29,6 +32,7 @@ function Short([string]$s) {
 }
 
 while ($true) {
+    $rateLimited = $false
     try {
         $iso = $since.ToString('yyyy-MM-ddTHH:mm:ssZ')
 
@@ -58,10 +62,18 @@ while ($true) {
         }
 
         # REST only (#2568): the PR read gives the head sha and the state; checks come from the sha's check runs and statuses.
-        $prJson = gh api "repos/$Repo/pulls/$Pr" 2>$null | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0 -or -not $prJson) { throw 'pull request read failed' }
+        $prR = Invoke-GhQuotaGh @('api', "repos/$Repo/pulls/$Pr")
+        if ($prR.Code -ne 0 -or -not $prR.Stdout) { throw "pull request read failed: $($prR.Output)" }
+        $prJson = $prR.Stdout | ConvertFrom-Json
 
-        $checks = @(Get-GhCheckBuckets -Repo $Repo -Sha $prJson.head.sha)
+        # Check runs and statuses (2 REST calls) are read only on the first poll, after the head sha changed, or while the
+        # previous read still had pending (or no) checks; otherwise the previous result stands and no check line is emitted.
+        $checks = @()
+        if ($null -eq $checkedSha -or $checkedSha -ne $prJson.head.sha -or $checkPending) {
+            $checks = @(Get-GhCheckBuckets -Repo $Repo -Sha $prJson.head.sha)
+            $checkedSha = $prJson.head.sha
+            $checkPending = $true
+        }
         if ($checks.Count -gt 0) {
             $relevant = $checks | Where-Object { $_.Name -notmatch '^(Benchmarks|Validate|Determine|Run Benchmarks|Benchmark)' }
             foreach ($k in ($relevant | Where-Object { $_.Bucket -eq 'fail' })) {
@@ -70,6 +82,7 @@ while ($true) {
                 }
             }
             $pending = @($relevant | Where-Object { $_.Bucket -eq 'pending' }).Count
+            $checkPending = ($pending -gt 0)
             if ($pending -eq 0 -and -not $doneAnnounced) {
                 $pass = @($relevant | Where-Object { $_.Bucket -eq 'pass' }).Count
                 $fail = @($relevant | Where-Object { $_.Bucket -eq 'fail' }).Count
@@ -93,8 +106,10 @@ while ($true) {
     }
     catch {
         # transient API/network failure: keep polling (a -Once run says so, to tell "no events" from "REST down")
+        if ($_.Exception.Message -match '(?i)rate limit') { $rateLimited = $true }
         if ($Once) { Write-Output "WARN $($_.Exception.Message)" }
     }
     if ($Once) { break }
-    Start-Sleep -Seconds 45
+    # After a failure that mentions a rate limit the next poll is at least 60 s away, whatever the interval.
+    Start-Sleep -Seconds $(if ($rateLimited) { [Math]::Max(60, $IntervalSeconds) } else { $IntervalSeconds })
 }

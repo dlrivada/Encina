@@ -34,43 +34,61 @@ $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer
 $open = [System.Collections.Generic.HashSet[int]]::new()
 $threadsReadAt = @{}   # PR number -> updated_at of the PR when its threads were last read successfully
 $warnedResetWindow = $null
-$quotaSkipped = [System.Collections.Generic.HashSet[int]]::new()   # PRs whose first-poll thread read was skipped (GraphQL low)
+$quotaSkipped = [System.Collections.Generic.HashSet[int]]::new()   # PRs whose first-poll thread read did not happen (GraphQL low or a failed read): still in the silent baseline
 $baselined = [System.Collections.Generic.HashSet[int]]::new()   # PRs whose thread baseline was recorded silently
+$checkedSha = @{}      # PR number -> head sha of its last successful check read
+$checkPending = @{}    # PR number -> $true when that read still had pending (or no) checks
 $first = $true
 $repoParts = $Repo -split '/', 2
 $repoOwner = $repoParts[0]
 $repoName = $repoParts[1]
 while ($true) {
+    $rateLimited = $false   # set when a failure of this poll mentions a rate limit: the next poll waits at least 60 s
     try {
-        $prsRaw = gh api --paginate --slurp "repos/$Repo/pulls?state=open&per_page=100" 2>&1
-        if ($LASTEXITCODE -ne 0) { throw "gh api pulls list failed: $prsRaw" }
-        $pages = $prsRaw | ConvertFrom-Json
+        $prsR = Invoke-GhQuotaGh @('api', '--paginate', '--slurp', "repos/$Repo/pulls?state=open&per_page=100")
+        if ($prsR.Code -ne 0) { throw "gh api pulls list failed: $($prsR.Output)" }
+        $pages = $prsR.Stdout | ConvertFrom-Json
         $prs = @(foreach ($page in @($pages)) { foreach ($p in @($page)) { $p } }) |
             ForEach-Object { [pscustomobject]@{ number = $_.number; title = $_.title; sha = $_.head.sha; updated = [string]$_.updated_at } }
         $nums = @($prs | ForEach-Object { $_.number })
         foreach ($n in @($open)) {
             if ($nums -notcontains $n) {
-                $stRaw = gh api "repos/$Repo/pulls/$n" 2>&1
-                if ($LASTEXITCODE -ne 0) { Write-Output "WARN gh api pulls/$n state failed: $stRaw"; continue }
-                $stJson = $stRaw | ConvertFrom-Json
+                $stR = Invoke-GhQuotaGh @('api', "repos/$Repo/pulls/$n")
+                if ($stR.Code -ne 0) {
+                    if ($stR.Output -match '(?i)rate limit') { $rateLimited = $true }
+                    Write-Output "WARN gh api pulls/$n state failed: $($stR.Output)"; continue
+                }
+                $stJson = $stR.Stdout | ConvertFrom-Json
                 if ($stJson.state -eq 'open') { continue }   # still open: only missing from the list (keep watching it)
                 $st = if ($stJson.merged) { 'MERGED' } else { 'CLOSED' }
                 Write-Output "PR #$n $st"
                 [void]$open.Remove($n)
-                $threadsReadAt.Remove($n)
+                $threadsReadAt.Remove($n); $checkedSha.Remove($n); $checkPending.Remove($n)
             }
         }
         $existing = 0
         foreach ($p in $prs) {
             $n = $p.number; [void]$open.Add($n)
-            try {
-                foreach ($c in @(Get-GhCheckBuckets -Repo $Repo -Sha $p.sha)) {
-                    if ($c.Bucket -eq 'fail' -and $c.Name -notmatch '^codecov/') {
-                        if ($seen.Add("$n|fail|$($c.Name)|$($c.Url)")) { Write-Output "PR #$n CHECK-FAIL $($c.Name) $($c.Url)" }
+            # Check runs and statuses (2 REST calls) are read only on the first poll, after the head sha changed, or while
+            # the previous read still had pending checks; otherwise the previous result stands (no new lines).
+            $needChecks = (-not $checkedSha.ContainsKey($n)) -or $checkedSha[$n] -ne $p.sha -or $checkPending[$n]
+            if ($needChecks) {
+                try {
+                    $buckets = @(Get-GhCheckBuckets -Repo $Repo -Sha $p.sha)
+                    foreach ($c in $buckets) {
+                        if ($c.Bucket -eq 'fail' -and $c.Name -notmatch '^codecov/') {
+                            if ($seen.Add("$n|fail|$($c.Name)|$($c.Url)")) { Write-Output "PR #$n CHECK-FAIL $($c.Name) $($c.Url)" }
+                        }
                     }
+                    $checkedSha[$n] = $p.sha
+                    $checkPending[$n] = ($buckets.Count -eq 0) -or (@($buckets | Where-Object { $_.Bucket -eq 'pending' }).Count -gt 0)
+                }
+                catch {
+                    if ($_.Exception.Message -match '(?i)rate limit') { $rateLimited = $true }
+                    if ($first) { [void]$quotaSkipped.Add($n) }   # its threads are not read this poll: keep the silent baseline for later
+                    Write-Output "WARN checks of #$n failed: $($_.Exception.Message)"; continue
                 }
             }
-            catch { Write-Output "WARN checks of #$n failed: $($_.Exception.Message)"; continue }
             if ($threadsReadAt.ContainsKey($n) -and $threadsReadAt[$n] -eq $p.updated) { continue }
             if (-not (Wait-GhGraphQLQuota -Caller 'watch-open-prs' -MinRemaining 300 -NoWait)) {
                 if ($first) { [void]$quotaSkipped.Add($n) }   # its first thread read is still the silent baseline
@@ -83,11 +101,15 @@ while ($true) {
                 continue
             }
             $q = 'query { repository(owner:"' + $repoOwner + '", name:"' + $repoName + '") { pullRequest(number: ' + $n + ') { reviewThreads(first: 100) { nodes { id isResolved comments(first: 1) { nodes { author { login } path } } } } } } }'
-            $tRaw = gh api graphql -f query=$q 2>&1
-            $tCode = $LASTEXITCODE
+            $tR = Invoke-GhQuotaGh @('api', 'graphql', '-f', "query=$q")
             Write-GhQuotaUsage -Caller 'watch-open-prs' -Operation "reviewThreads #$n"
-            if ($tCode -ne 0) { Write-Output "WARN gh api graphql reviewThreads for #$n failed: $tRaw"; continue }
-            $t = $tRaw | ConvertFrom-Json
+            if ($tR.Code -ne 0) {
+                if ($tR.Output -match '(?i)rate limit') { $rateLimited = $true }
+                # A failed first read keeps the PR in the silent baseline, so old threads are never announced as NEW-THREAD.
+                if ($first) { [void]$quotaSkipped.Add($n) }
+                Write-Output "WARN gh api graphql reviewThreads for #$n failed: $($tR.Output)"; continue
+            }
+            $t = $tR.Stdout | ConvertFrom-Json
             $threadsReadAt[$n] = $p.updated
             # The silent baseline lasts until a PR's FIRST successful thread read, so a read skipped while GraphQL
             # was low never turns old threads into NEW-THREAD lines later.
@@ -102,9 +124,11 @@ while ($true) {
         if ($first) { Write-Output "WATCHING PRs $($nums -join ', ') ($existing unresolved threads already known)"; $first = $false }
     }
     catch {
+        if ($_.Exception.Message -match '(?i)rate limit') { $rateLimited = $true }
         Write-Output "WARN $($_.Exception.Message)"
     }
 
     if ($Once) { exit 0 }
-    Start-Sleep -Seconds $IntervalSeconds
+    # After a failure that mentions a rate limit the next poll is at least 60 s away, whatever the interval.
+    Start-Sleep -Seconds $(if ($rateLimited) { [Math]::Max(60, $IntervalSeconds) } else { $IntervalSeconds })
 }

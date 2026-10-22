@@ -77,6 +77,7 @@ exit $LASTEXITCODE
 Add-Content -LiteralPath $env:AUDIT_STUB_LOG -Value ('gh ' + ($args -join ' '))
 if ($args[0] -eq 'issue' -and $args[1] -eq 'view') { 'CLOSED'; exit 0 }
 if ($args[0] -eq 'label') { 'technical-debt'; 'area-testing'; 'bug'; 'p0-mandatory'; 'p1-recommended'; 'p2-post-1.0'; exit 0 }
+if ($args[0] -eq 'api' -and $args[1] -like 'repos/*/labels*') { 'technical-debt'; 'area-testing'; 'bug'; 'p0-mandatory'; 'p1-recommended'; 'p2-post-1.0'; exit 0 }
 if ($args[0] -eq 'api') { "v0.14.0 $([char]0x2014) Hardening"; "v0.19.0 $([char]0x2014) Providers & Testing"; "v0.21.0 $([char]0x2014) Documentation"; exit 0 }
 if ($args[0] -eq 'issue' -and $args[1] -eq 'create') {
     # The concurrency case (section 5b) widens the create and counts every create in its own file.
@@ -96,6 +97,7 @@ exit 0
     Git -C $main config user.email 'selftest@example.invalid' | Out-Null
     Git init -q --bare -b main $origin | Out-Null
     Copy-Item -Recurse (Join-Path $repo 'tools\ai\audit') (Join-Path $main 'tools\ai\audit') -Force
+    Copy-Item (Join-Path $repo 'tools\ai\gh-quota.ps1') (Join-Path $main 'tools\ai\gh-quota.ps1') -Force   # open-remediation.ps1 dot-sources it (#2568)
     New-Item -ItemType Directory -Force (Join-Path $main '.github\scripts') | Out-Null
     Copy-Item (Join-Path $repo '.github\scripts\knowledge-records.cs') (Join-Path $main '.github\scripts\knowledge-records.cs') -Force
     Copy-Item -Recurse (Join-Path $repo '.github\ISSUE_TEMPLATE') (Join-Path $main '.github\ISSUE_TEMPLATE') -Force

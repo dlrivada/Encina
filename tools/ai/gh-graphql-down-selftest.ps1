@@ -14,10 +14,33 @@ function global:gh {
     Add-Content -LiteralPath $env:GQD_CALLS -Value $joined
     $global:LASTEXITCODE = 0
     $down = 'GraphQL: API rate limit already exceeded'
-    # The rateLimit probe itself answers: remaining 0, resets in 30 minutes.
+    # Per-name call counter (a file, so it survives across the calls of one child process).
+    function Step([string]$name) {
+        $f = "$env:GQD_CALLS.$name"; $n = 1
+        if (Test-Path -LiteralPath $f) { $n = [int](Get-Content -LiteralPath $f) + 1 }
+        Set-Content -LiteralPath $f -Value $n; return $n
+    }
+    # The rateLimit probe itself answers: remaining 0 (GraphQL down) or plenty (GQD_HIGH), resets in 30 minutes.
     if ($joined -like 'api graphql*rateLimit*') {
-        '{"data":{"rateLimit":{"remaining":0,"resetAt":"' + (Get-Date).ToUniversalTime().AddMinutes(30).ToString('yyyy-MM-ddTHH:mm:ssZ') + '"}}}'
+        $rem = if ($env:GQD_HIGH) { 4000 } else { 0 }
+        '{"data":{"rateLimit":{"remaining":' + $rem + ',"resetAt":"' + (Get-Date).ToUniversalTime().AddMinutes(30).ToString('yyyy-MM-ddTHH:mm:ssZ') + '"}}}'
         return
+    }
+    if ($env:GQD_HIGH -and $joined -like 'api graphql*reviewThreads*') {
+        # First thread query fails, later ones answer with one unresolved (old) thread.
+        if ((Step 'threads') -eq 1) { $global:LASTEXITCODE = 1; return 'HTTP 502: boom' }
+        return '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[{"id":"T1","isResolved":false,"comments":{"nodes":[{"author":{"login":"rev"},"path":"a.cs"}]}}]}}}}}'
+    }
+    # GQD_SETTLED: no check is pending. GQD_LOOP: the loop ends by itself (PR merged on the 2nd read, exit on the 3rd list).
+    if ($env:GQD_SETTLED -and $joined -like 'api --paginate --slurp repos/*/commits/abc/check-runs*') {
+        return '[{"check_runs":[{"name":"build","status":"completed","conclusion":"success","html_url":"https://x/run/2"}]}]'
+    }
+    if ($env:GQD_LOOP -and $joined -like 'api repos/*/pulls/7') {
+        if ((Step 'pull') -ge 2) { return '{"head":{"sha":"abc"},"state":"closed","merged":true,"merge_commit_sha":"deadbeef"}' }
+        return '{"head":{"sha":"abc"},"state":"open","merged":false,"merge_commit_sha":null}'
+    }
+    if ($env:GQD_LOOP -and $joined -like 'api --paginate --slurp repos/*/pulls?state=open*') {
+        if ((Step 'list') -ge 3) { exit 0 }
     }
     if ($joined -like 'api graphql*' -or $args[0] -in 'pr', 'issue', 'label') { $global:LASTEXITCODE = 1; return $down }
     switch -Wildcard ($joined) {
@@ -75,6 +98,26 @@ try {
     Assert-That 'watch-open-prs skips the review threads with one WARN line' (@([regex]::Matches($r.Text, 'WARN GraphQL low \(0\); review threads of #7 skipped')).Count -eq 1) $r.Text
     Assert-That 'watch-open-prs makes no thread query while GraphQL is low' (@(Get-Calls | Where-Object { $_ -like 'api graphql*' -and $_ -notlike '*rateLimit*' }).Count -eq 0) ((Get-Calls) -join ' | ')
     Assert-That 'watch-open-prs prints the WATCHING line' ($r.Text -match 'WATCHING PRs 7') $r.Text
+
+    # watch-pr-events: a second poll with an unchanged sha and no pending checks makes no check-runs/status call
+    Get-ChildItem "$callLog*" -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
+    $r = Invoke-Down "& '$here\watch-pr-events.ps1' -Pr 7 -IntervalSeconds 1" @{ GQD_LOOP = '1'; GQD_SETTLED = '1' }
+    $loopCalls = Get-Calls
+    Assert-That 'watch-pr-events polls twice (the PR reads)' (@($loopCalls | Where-Object { $_ -eq 'api repos/dlrivada/Encina/pulls/7' }).Count -eq 2) ($loopCalls -join ' | ')
+    Assert-That 'watch-pr-events reads check runs once for an unchanged sha with settled checks' (@($loopCalls | Where-Object { $_ -like '*check-runs*' }).Count -eq 1) ($loopCalls -join ' | ')
+    Assert-That 'watch-pr-events reads the commit status once for an unchanged sha with settled checks' (@($loopCalls | Where-Object { $_ -like '*commits/abc/status*' }).Count -eq 1) ($loopCalls -join ' | ')
+    Assert-That 'watch-pr-events announces CHECKS-DONE once and then PR-MERGED' ((@([regex]::Matches($r.Text, 'CHECKS-DONE')).Count -eq 1) -and $r.Text -match 'PR-MERGED deadbeef') $r.Text
+
+    # watch-open-prs: a failed first thread query, then a good one, never announces the old thread as NEW-THREAD;
+    # settled checks are read once across polls
+    Get-ChildItem "$callLog*" -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
+    Remove-Item (Join-Path $work 'artifacts/gh-quota/graphql-ratelimit.json') -ErrorAction SilentlyContinue   # drop the cached "remaining 0"
+    $r = Invoke-Down "& '$here\watch-open-prs.ps1' -IntervalSeconds 1" @{ GQD_LOOP = '1'; GQD_SETTLED = '1'; GQD_HIGH = '1' }
+    $loopCalls = Get-Calls
+    Assert-That 'watch-open-prs warns about the failed first thread query' ($r.Text -match 'WARN gh api graphql reviewThreads for #7 failed') $r.Text
+    Assert-That 'watch-open-prs retried the thread query (two thread queries)' (@($loopCalls | Where-Object { $_ -like 'api graphql*reviewThreads*' }).Count -eq 2) ($loopCalls -join ' | ')
+    Assert-That 'watch-open-prs does not announce an old thread as NEW-THREAD after a failed first read' ($r.Text -notmatch 'NEW-THREAD') $r.Text
+    Assert-That 'watch-open-prs reads check runs once across polls for an unchanged sha' (@($loopCalls | Where-Object { $_ -like '*check-runs*' }).Count -eq 1) ($loopCalls -join ' | ')
 
     # Covered elsewhere: the open-remediation label listing by open-remediation-selftest.ps1 (case 1b); the
     # audit-draft-remediation label listing, duplicate search and issue reads by the REST-shaped gh stub rules of
