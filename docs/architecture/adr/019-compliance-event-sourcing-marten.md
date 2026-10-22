@@ -180,6 +180,8 @@ public sealed class ConsentAggregate : AggregateBase
 }
 ```
 
+> **Superseded in part:** the exception-based rule enforcement shown in `Withdraw` above (lines 173-178) is superseded by [ADR-053](053-aggregate-rule-violations-return-either.md), which makes compliance aggregate command methods return `Either<EncinaError, Unit>` with a `Left` for a broken rule.
+
 **Events:**
 
 ```csharp
