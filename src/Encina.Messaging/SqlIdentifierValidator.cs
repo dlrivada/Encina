@@ -86,6 +86,8 @@ public static partial class SqlIdentifierValidator
         if (tableName.Length > MaxSqlIdentifierLength)
             return TooLongMessage;
 
+        // Defence in depth (#2028): the anchored regex already excludes control characters, but this
+        // explicit check keeps their rejection independent of the pattern.
         foreach (var c in tableName)
         {
             if (char.IsControl(c))
