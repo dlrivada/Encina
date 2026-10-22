@@ -188,7 +188,6 @@ public sealed class PactArgumentGuardTests : IDisposable
         await Should.ThrowAsync<ArgumentException>(() => _verifier.VerifyAsync(path!));
     }
 
-
     // EncinaPactFixture
 
     [Theory]
@@ -261,7 +260,7 @@ public sealed class PactArgumentGuardTests : IDisposable
     }
 
     [Fact]
-    public void Fixture_ConfiguredWithEncina_NullTestActionStillThrows()
+    public void Fixture_ConfiguredWithEncina_NullProviderNameStillThrows()
     {
         _fixture.WithEncina(Substitute.For<IEncina>(), new ServiceCollection().BuildServiceProvider());
         _fixture.CreateConsumer("WebApp", "OrdersApi");
