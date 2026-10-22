@@ -21,7 +21,7 @@ public sealed record ScreenCandidateCommand(string CandidateId) : ICommand<Scree
 
 // 3. The pipeline behavior enforces compliance automatically
 // - Validates risk classification
-// - Checks for prohibited practices (always blocked)
+// - Checks for prohibited practices declared on the system registration (blocked in Block and Warn mode)
 // - Evaluates transparency obligations
 // - Returns EncinaError if non-compliant (Block mode) or logs warning (Warn mode)
 ```
@@ -31,7 +31,7 @@ public sealed record ScreenCandidateCommand(string CandidateId) : ICommand<Scree
 | Feature | EU AI Act Article | Description |
 |---------|-------------------|-------------|
 | **Risk Classification** | Art. 6, Annex III | 4 risk tiers with 12 high-risk categories |
-| **Prohibited Practices** | Art. 5 | 8 prohibited practices, always blocked regardless of enforcement mode |
+| **Prohibited Practices** | Art. 5 | 11 prohibited practices (every point of Art. 5(1) as amended); a practice declared on the system registration is blocked in Block and Warn mode |
 | **Human Oversight** | Art. 14 | Decision recording, approval tracking, review requirements |
 | **Transparency** | Art. 13, 50 | 5 obligation types (AI content, deepfakes, emotion, biometric, chatbot) |
 | **Technical Documentation** | Art. 11 | Design specs, data governance, accuracy metrics |
@@ -92,11 +92,11 @@ services.AddEncinaAIAct(options =>
 
 | Mode | Behavior | Prohibited Practices |
 |------|----------|---------------------|
-| **Block** | Non-compliant requests return `EncinaError` | Always blocked |
-| **Warn** | Non-compliant requests proceed with log warning | Always blocked |
-| **Disabled** | No compliance checks (pipeline passthrough) | Always blocked |
+| **Block** | Non-compliant requests return `EncinaError` | Blocked |
+| **Warn** | Non-compliant requests proceed with log warning | Blocked |
+| **Disabled** | No compliance checks (pipeline passthrough) | Not checked |
 
-> **Important**: Prohibited practices (Art. 5) are **always blocked** regardless of enforcement mode. Social scoring, real-time biometric surveillance, and other prohibited uses cannot be bypassed.
+> **Important**: A prohibited practice (Art. 5) declared on the registered `AISystemRegistration.ProhibitedPractices` is blocked in both Block and Warn mode, so Warn does not let it through. `Disabled` skips every check, and requests without an AI Act attribute are skipped. The library has no date logic: the application declares the practices that apply to a system. `ProhibitedPractice` has 11 members, one per point of Art. 5(1) as amended by Regulation (EU) 2026/1744; the new points (ba) and (bb) apply from 2 December 2026, the others from 2 February 2025. The `GetArticlePoint()` extension method of a `ProhibitedPractice` returns its point, for example `5(1)(ba)`.
 
 ## Observability
 

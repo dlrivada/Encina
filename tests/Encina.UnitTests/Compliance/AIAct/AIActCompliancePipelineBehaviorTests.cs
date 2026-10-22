@@ -54,7 +54,7 @@ public class AIActCompliancePipelineBehaviorTests
         result.IsRight.ShouldBeTrue();
     }
 
-    // -- Prohibited use (always blocked) --
+    // -- Prohibited use (blocked in Block and Warn mode) --
 
     [Fact]
     public async Task Handle_ProhibitedUse_BlockMode_ShouldReturnError()
@@ -74,7 +74,7 @@ public class AIActCompliancePipelineBehaviorTests
     [Fact]
     public async Task Handle_ProhibitedUse_WarnMode_ShouldStillBlock()
     {
-        // Arrange — prohibited practices are ALWAYS blocked regardless of enforcement mode
+        // Arrange — a prohibited practice is blocked in Warn mode as well as Block mode
         SetupValidator(prohibited: true, violations: ["Art. 5: Social scoring"]);
         var behavior = CreateHighRiskBehavior(opts => opts.EnforcementMode = AIActEnforcementMode.Warn);
 

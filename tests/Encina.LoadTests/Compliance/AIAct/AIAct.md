@@ -22,7 +22,7 @@ The AI Act compliance engine is a stateless, in-memory pipeline behavior. Load t
 
 ### 3. Adequate Coverage from Other Test Types
 
-- **Unit Tests**: Cover all enforcement modes, prohibited-always-blocked invariant, validator error handling
+- **Unit Tests**: Cover all enforcement modes, prohibited-practice-blocking invariant, validator error handling
 - **Guard Tests**: Verify parameter validation on all public methods
 - **Property Tests**: Verify registry round-trip invariants under random inputs, classifier prohibited-practice invariant
 - **Contract Tests**: Verify interface implementations behave consistently
