@@ -1,0 +1,36 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  MediumRun  : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+
+
+```
+| Method                   | Job        | IterationCount | LaunchCount | WarmupCount | concurrencyLevel | Mean             | Error         | StdDev        | Median           | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|------------------------- |----------- |--------------- |------------ |------------ |----------------- |-----------------:|--------------:|--------------:|-----------------:|------:|--------:|-------:|----------:|------------:|
+| **AcquireAndReleaseLock**    | **Job-YFEFPZ** | **10**             | **Default**     | **3**           | **?**                |       **1,634.0 ns** |       **6.36 ns** |       **3.32 ns** |       **1,633.1 ns** |  **1.00** |    **0.00** | **0.0229** |     **392 B** |        **1.00** |
+| TryAcquireAsync_Success  | Job-YFEFPZ | 10             | Default     | 3           | ?                |       1,672.7 ns |      11.01 ns |       7.29 ns |       1,670.8 ns |  1.02 |    0.00 | 0.0229 |     392 B |        1.00 |
+| IsLockedAsync_NotLocked  | Job-YFEFPZ | 10             | Default     | 3           | ?                |         751.2 ns |       2.06 ns |       1.36 ns |         750.8 ns |  0.46 |    0.00 | 0.0057 |     104 B |        0.27 |
+| IsLockedAsync_Locked     | Job-YFEFPZ | 10             | Default     | 3           | ?                |       1,685.8 ns |       7.05 ns |       4.66 ns |       1,684.5 ns |  1.03 |    0.00 | 0.0229 |     400 B |        1.02 |
+| ExtendLock               | Job-YFEFPZ | 10             | Default     | 3           | ?                |       1,783.3 ns |       2.41 ns |       1.59 ns |       1,783.1 ns |  1.09 |    0.00 | 0.0248 |     432 B |        1.10 |
+|                          |            |                |             |             |                  |                  |               |               |                  |       |         |        |           |             |
+| AcquireAndReleaseLock    | MediumRun  | 15             | 2           | 10          | ?                |       1,634.4 ns |       2.06 ns |       2.83 ns |       1,633.5 ns |  1.00 |    0.00 | 0.0229 |     392 B |        1.00 |
+| TryAcquireAsync_Success  | MediumRun  | 15             | 2           | 10          | ?                |       1,688.7 ns |      12.50 ns |      17.92 ns |       1,702.1 ns |  1.03 |    0.01 | 0.0229 |     392 B |        1.00 |
+| IsLockedAsync_NotLocked  | MediumRun  | 15             | 2           | 10          | ?                |         760.5 ns |       1.58 ns |       2.21 ns |         759.4 ns |  0.47 |    0.00 | 0.0057 |     104 B |        0.27 |
+| IsLockedAsync_Locked     | MediumRun  | 15             | 2           | 10          | ?                |       1,695.0 ns |       1.85 ns |       2.60 ns |       1,694.8 ns |  1.04 |    0.00 | 0.0229 |     400 B |        1.02 |
+| ExtendLock               | MediumRun  | 15             | 2           | 10          | ?                |       1,764.4 ns |      14.52 ns |      19.88 ns |       1,763.0 ns |  1.08 |    0.01 | 0.0248 |     432 B |        1.10 |
+|                          |            |                |             |             |                  |                  |               |               |                  |       |         |        |           |             |
+| **ConcurrentLockContention** | **Job-YFEFPZ** | **10**             | **Default**     | **3**           | **10**               |  **47,452,990.3 ns** | **358,992.65 ns** | **237,451.41 ns** |  **47,429,474.3 ns** |     **?** |       **?** |      **-** |   **17646 B** |           **?** |
+|                          |            |                |             |             |                  |                  |               |               |                  |       |         |        |           |             |
+| ConcurrentLockContention | MediumRun  | 15             | 2           | 10          | 10               |  47,521,679.0 ns | 222,434.98 ns | 332,930.23 ns |  47,519,981.2 ns |     ? |       ? |      - |   17864 B |           ? |
+|                          |            |                |             |             |                  |                  |               |               |                  |       |         |        |           |             |
+| **ConcurrentLockContention** | **Job-YFEFPZ** | **10**             | **Default**     | **3**           | **50**               | **101,304,004.5 ns** | **406,271.47 ns** | **268,723.42 ns** | **101,324,115.8 ns** |     **?** |       **?** |      **-** |  **196034 B** |           **?** |
+|                          |            |                |             |             |                  |                  |               |               |                  |       |         |        |           |             |
+| ConcurrentLockContention | MediumRun  | 15             | 2           | 10          | 50               | 101,214,849.4 ns | 159,078.84 ns | 233,175.72 ns | 101,192,509.6 ns |     ? |       ? |      - |  196502 B |           ? |
+|                          |            |                |             |             |                  |                  |               |               |                  |       |         |        |           |             |
+| **ConcurrentLockContention** | **Job-YFEFPZ** | **10**             | **Default**     | **3**           | **100**              | **101,391,683.0 ns** | **508,153.18 ns** | **336,111.87 ns** | **101,381,654.6 ns** |     **?** |       **?** |      **-** |  **424928 B** |           **?** |
+|                          |            |                |             |             |                  |                  |               |               |                  |       |         |        |           |             |
+| ConcurrentLockContention | MediumRun  | 15             | 2           | 10          | 100              | 101,441,490.4 ns | 210,192.73 ns | 314,606.61 ns | 101,469,954.7 ns |     ? |       ? |      - |  441499 B |           ? |

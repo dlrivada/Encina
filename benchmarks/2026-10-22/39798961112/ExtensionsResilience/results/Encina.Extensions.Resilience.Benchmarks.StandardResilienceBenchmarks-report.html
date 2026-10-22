@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Extensions.Resilience.Benchmarks.StandardResilienceBenchmarks-20261022-162630</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 3.10GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]    : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  MediumRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=MediumRun  IterationCount=15  LaunchCount=2  
+WarmupCount=10  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                                 </th><th>Mean  </th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>NoResilience_Baseline</td><td>3.175 &mu;s</td><td>0.0704 &mu;s</td><td>0.1032 &mu;s</td><td>3.231 &mu;s</td><td>1.00</td><td>0.05</td><td>1</td><td>0.1106</td><td>1.83 KB</td><td>1.00</td>
+</tr><tr><td>StandardResilience_Success</td><td>6.960 &mu;s</td><td>0.0183 &mu;s</td><td>0.0269 &mu;s</td><td>6.958 &mu;s</td><td>2.19</td><td>0.07</td><td>2</td><td>0.1297</td><td>2.15 KB</td><td>1.18</td>
+</tr><tr><td>StandardResilience_MultipleSequentialRequests</td><td>67.833 &mu;s</td><td>0.9066 &mu;s</td><td>1.2409 &mu;s</td><td>68.663 &mu;s</td><td>21.39</td><td>0.78</td><td>3</td><td>1.2207</td><td>20.38 KB</td><td>11.15</td>
+</tr><tr><td>StandardResilience_ConcurrentRequests</td><td>70.668 &mu;s</td><td>0.5152 &mu;s</td><td>0.7712 &mu;s</td><td>70.768 &mu;s</td><td>22.28</td><td>0.75</td><td>3</td><td>1.2207</td><td>21.84 KB</td><td>11.95</td>
+</tr><tr><td>StandardResilience_WithRetry</td><td>1,890.203 &mu;s</td><td>26.9618 &mu;s</td><td>40.3552 &mu;s</td><td>1,893.227 &mu;s</td><td>595.93</td><td>22.80</td><td>4</td><td>3.9063</td><td>75.17 KB</td><td>41.12</td>
+</tr></tbody></table>
+</body>
+</html>

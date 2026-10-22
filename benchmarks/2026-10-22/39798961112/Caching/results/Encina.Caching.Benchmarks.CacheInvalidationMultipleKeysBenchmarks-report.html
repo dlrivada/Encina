@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Caching.Benchmarks.CacheInvalidationMultipleKeysBenchmarks-20261022-162151</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]    : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  MediumRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=MediumRun  IterationCount=15  LaunchCount=2  
+WarmupCount=10  
+</code></pre>
+
+<table>
+<thead><tr><th>Method               </th><th>keyCount</th><th>Mean  </th><th>Error </th><th>StdDev </th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Gen2</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Invalidation_NoMatchingKeys</td><td>?</td><td>18.93 &mu;s</td><td>0.138 &mu;s</td><td>0.202 &mu;s</td><td>1.00</td><td>0.01</td><td>1.0376</td><td>0.0305</td><td>-</td><td>17.16 KB</td><td>1.00</td>
+</tr><tr><td>Invalidation_MultipleKeys</td><td>5</td><td>10,858.65 &mu;s</td><td>3,924.329 &mu;s</td><td>5,873.751 &mu;s</td><td>?</td><td>?</td><td>17.5781</td><td>16.1133</td><td>16.1133</td><td>816.42 KB</td><td>?</td>
+</tr><tr><td>Invalidation_MultipleKeys</td><td>10</td><td>24,051.39 &mu;s</td><td>6,819.744 &mu;s</td><td>10,207.473 &mu;s</td><td>?</td><td>?</td><td>17.5781</td><td>16.6016</td><td>16.6016</td><td>975.05 KB</td><td>?</td>
+</tr><tr><td>Invalidation_MultipleKeys</td><td>25</td><td>40,394.33 &mu;s</td><td>7,517.333 &mu;s</td><td>11,251.591 &mu;s</td><td>?</td><td>?</td><td>17.5781</td><td>15.6250</td><td>15.6250</td><td>1626.5 KB</td><td>?</td>
+</tr></tbody></table>
+</body>
+</html>
