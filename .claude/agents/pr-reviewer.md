@@ -101,6 +101,14 @@ decision, never bypassed (#1345; the #1346 worker bypassed `block-main-checkout-
      #1161).
    - `EncinaError.Message` leaking into logs, activity tags, health-check results or plaintext storage
      instead of only the error code or exception type (#1168, #1173, #1259, #1274).
+   - Lock failure contract (`docs/architecture/adr/052-distributed-lock-failure-contract.md`): `TryAcquireAsync`
+     returns `Either<EncinaError, Option<ILockHandle>>`; contention or timeout is `Right(None)`, infrastructure
+     faults are `Left` with `LockErrorCodes`, `OperationCanceledException` propagates. Flag a new exception type
+     for lock failures or a fault mapped to `None`/null.
+   - Aggregate rule violations (`docs/architecture/adr/053-aggregate-rule-violations-return-either.md`): aggregate
+     commands return `Either<EncinaError, Unit>` (factories `Either<EncinaError, TAggregate>`), a violation is a
+     `Left` with a rule code decided before `RaiseEvent`. Flag a new `throw new InvalidOperationException` on a rule
+     path or a `catch (InvalidOperationException)` in compliance services; `ThrowIf*` argument guards stay.
 5. Spawn `Explore` (the only agent you may spawn) for read-only cross-file research when a claim needs
    checking beyond the diff itself (for example, "is this the only caller of this method").
 6. Write `artifacts/pr-review/<pr>.md` with exactly these five sections:
