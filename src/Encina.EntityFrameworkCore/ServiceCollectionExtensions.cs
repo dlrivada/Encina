@@ -23,6 +23,7 @@ using Encina.EntityFrameworkCore.Scheduling;
 using Encina.EntityFrameworkCore.SoftDelete;
 using Encina.EntityFrameworkCore.Temporal;
 using Encina.EntityFrameworkCore.Tenancy;
+using Encina.EntityFrameworkCore.Transactions;
 using Encina.EntityFrameworkCore.UnitOfWork;
 using Encina.Messaging;
 using Encina.Messaging.Health;
@@ -31,6 +32,7 @@ using Encina.Messaging.Outbox;
 using Encina.Messaging.ReadWriteSeparation;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
+using Encina.Messaging.Transactions;
 using Encina.Modules.Isolation;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
@@ -160,10 +162,14 @@ public static class ServiceCollectionExtensions
         // Register the DbContext as DbContext (non-generic) for behaviors
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TDbContext>());
 
-        // EF Core has its own DbContext-bound TransactionPipelineBehavior (it wraps
-        // DbContext.Database transactions), unlike the generic Encina.Messaging behavior ADO.NET
+        // The scope's shared transaction: the transaction behavior, the unit of work and the transactional
+        // outbox take a lease on it, so they commit or roll back together (#718).
+        AddTransactionAccessor(services);
+
+        // EF Core has its own DbContext-bound TransactionPipelineBehavior (it takes its lease from the
+        // DbContext transaction accessor), unlike the generic Encina.Messaging behavior ADO.NET
         // and Dapper share, so this pattern stays registered here instead of going through the
-        // shared helper.
+        // shared helper. It registers first so it runs outside the transactional outbox behavior.
         RegisterTransactionBehavior(services, config.UseTransactions);
 
         // Register the Outbox, Inbox, Saga and Scheduling patterns through the shared helper, the
@@ -183,7 +189,8 @@ public static class ServiceCollectionExtensions
             config.UseOutbox, config.OutboxOptions,
             config.UseInbox, config.InboxOptions,
             config.UseSagas, config.SagaOptions,
-            config.UseScheduling, config.SchedulingOptions);
+            config.UseScheduling, config.SchedulingOptions,
+            OutboxWritePath.TransactionalBehavior);
 
         services.AddDeadLetterQueueServices<DeadLetterStoreEF, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions);
 
@@ -217,6 +224,12 @@ public static class ServiceCollectionExtensions
     /// Registers EF Core's own DbContext-bound <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/>
     /// when <paramref name="useTransactions"/> is enabled.
     /// </summary>
+    private static void AddTransactionAccessor(IServiceCollection services)
+    {
+        services.TryAddScoped<IDbTransactionAccessor, DbContextTransactionAccessor>();
+        services.TryAddScoped<ITransactionLeaseSource>(sp => sp.GetRequiredService<IDbTransactionAccessor>());
+    }
+
     private static void RegisterTransactionBehavior(IServiceCollection services, bool useTransactions)
     {
         if (!useTransactions) return;
@@ -549,6 +562,7 @@ public static class ServiceCollectionExtensions
 
         // Just register DbContext mapping, no patterns enabled
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TDbContext>());
+        AddTransactionAccessor(services);
         return services;
     }
 
@@ -703,6 +717,9 @@ public static class ServiceCollectionExtensions
     {
         // Ensure DbContext is registered as DbContext (non-generic)
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TDbContext>());
+
+        // The unit of work takes a lease on the scope's shared transaction, so it needs the accessor.
+        AddTransactionAccessor(services);
 
         // Register UnitOfWork with scoped lifetime
         services.TryAddScoped<IUnitOfWork, UnitOfWorkEF>();

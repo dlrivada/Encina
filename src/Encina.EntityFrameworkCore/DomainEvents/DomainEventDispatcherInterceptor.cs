@@ -13,7 +13,13 @@ namespace Encina.EntityFrameworkCore.DomainEvents;
 /// <para>
 /// This interceptor collects domain events from all tracked entities that inherit from
 /// <see cref="Entity{TId}"/> and dispatches them through <see cref="IEncina"/> after
-/// the database transaction has been successfully committed.
+/// <c>SaveChanges</c> has persisted the changes.
+/// </para>
+/// <para>
+/// <b>Limit</b>: the dispatch happens in <c>SavedChangesAsync</c>, which runs before an explicit transaction
+/// (the one <c>TransactionPipelineBehavior</c> or <c>UnitOfWorkEF</c> opened) commits. When that transaction
+/// later rolls back, the events were already published. Handlers must not assume the state is committed;
+/// for events that must follow the commit, use the transactional outbox.
 /// </para>
 /// <para>
 /// <b>Event Dispatch Order</b>:

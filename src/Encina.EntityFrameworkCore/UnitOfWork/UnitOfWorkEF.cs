@@ -4,10 +4,10 @@ using Encina;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Concurrency;
 using Encina.EntityFrameworkCore.Extensions;
+using Encina.Messaging.Transactions;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Storage;
 using static LanguageExt.Prelude;
 
 namespace Encina.EntityFrameworkCore.UnitOfWork;
@@ -81,23 +81,31 @@ public sealed class UnitOfWorkEF : IUnitOfWork
 {
     private readonly DbContext _dbContext;
     private readonly ConcurrentDictionary<Type, object> _repositories = new();
-    private IDbContextTransaction? _transaction;
+    private readonly IDbTransactionAccessor _transactionAccessor;
+    private IDbTransactionLease? _lease;
     private bool _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="UnitOfWorkEF"/> class.
     /// </summary>
     /// <param name="dbContext">The database context.</param>
+    /// <param name="transactionAccessor">
+    /// The scope's transaction accessor: the unit of work takes a lease on the transaction the scope shares
+    /// with the transaction behavior and the transactional outbox, instead of owning a private one.
+    /// </param>
     /// <param name="serviceProvider">The service provider for resolving dependencies.</param>
     /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="dbContext"/> or <paramref name="serviceProvider"/> is null.
+    /// Thrown when <paramref name="dbContext"/>, <paramref name="transactionAccessor"/> or
+    /// <paramref name="serviceProvider"/> is null.
     /// </exception>
-    public UnitOfWorkEF(DbContext dbContext, IServiceProvider serviceProvider)
+    public UnitOfWorkEF(DbContext dbContext, IDbTransactionAccessor transactionAccessor, IServiceProvider serviceProvider)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(transactionAccessor);
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
         _dbContext = dbContext;
+        _transactionAccessor = transactionAccessor;
     }
 
     /// <summary>
@@ -110,7 +118,11 @@ public sealed class UnitOfWorkEF : IUnitOfWork
     internal DbContext DbContext => _dbContext;
 
     /// <inheritdoc/>
-    public bool HasActiveTransaction => _transaction is not null;
+    /// <remarks>
+    /// <see langword="true"/> while this unit of work holds a lease on the scope's transaction, whether it
+    /// began the transaction or joined one a transaction behavior (or the application) already opened.
+    /// </remarks>
+    public bool HasActiveTransaction => _lease is not null;
 
     /// <inheritdoc/>
     public IFunctionalRepository<TEntity, TId> Repository<TEntity, TId>()
@@ -216,18 +228,25 @@ public sealed class UnitOfWorkEF : IUnitOfWork
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (_transaction is not null)
+        // TransactionAlreadyActive only when THIS unit of work holds a lease; a transaction another participant
+        // of the scope owns is joined, not refused.
+        if (_lease is not null)
         {
             return Left<EncinaError, Unit>(UnitOfWorkErrors.TransactionAlreadyActive());
         }
 
         try
         {
-            _transaction = await _dbContext.Database
-                .BeginTransactionAsync(cancellationToken)
-                .ConfigureAwait(false);
+            var begun = await _transactionAccessor.BeginOrJoinAsync(isolationLevel: null, cancellationToken).ConfigureAwait(false);
 
-            return Right<EncinaError, Unit>(Unit.Default);
+            return begun.Match(
+                Right: lease =>
+                {
+                    _lease = lease;
+                    return Right<EncinaError, Unit>(Unit.Default);
+                },
+                Left: error => Left<EncinaError, Unit>(
+                    UnitOfWorkErrors.TransactionStartFailed(TransactionErrors.AsException(error))));
         }
         catch (Exception ex)
         {
@@ -240,23 +259,17 @@ public sealed class UnitOfWorkEF : IUnitOfWork
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (_transaction is null)
+        if (_lease is null)
         {
             return Left<EncinaError, Unit>(UnitOfWorkErrors.NoActiveTransaction());
         }
 
-        try
-        {
-            await _transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            await DisposeTransactionAsync().ConfigureAwait(false);
+        // A joined lease's commit is a no-op; only the owner commits, and a rollback-only transaction is
+        // rolled back and refused.
+        var committed = await _lease.CommitAsync(cancellationToken).ConfigureAwait(false);
+        await ReleaseLeaseAsync().ConfigureAwait(false);
 
-            return Right<EncinaError, Unit>(Unit.Default);
-        }
-        catch (Exception ex)
-        {
-            await RollbackInternalAsync().ConfigureAwait(false);
-            return Left<EncinaError, Unit>(UnitOfWorkErrors.CommitFailed(ex));
-        }
+        return committed.MapLeft(error => UnitOfWorkErrors.CommitFailed(TransactionErrors.AsException(error)));
     }
 
     /// <inheritdoc/>
@@ -310,33 +323,25 @@ public sealed class UnitOfWorkEF : IUnitOfWork
 
     private async Task RollbackInternalAsync()
     {
-        if (_transaction is null)
+        if (_lease is null)
         {
             return;
         }
 
-        try
-        {
-            await _transaction.RollbackAsync().ConfigureAwait(false);
-        }
-        catch
-        {
-            // Swallow rollback exceptions - we're already in an error path
-        }
-        finally
-        {
-            await DisposeTransactionAsync().ConfigureAwait(false);
-        }
+        // The lease's rollback never throws and runs to completion; a joined lease marks the shared
+        // transaction rollback-only instead.
+        await _lease.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+        await ReleaseLeaseAsync().ConfigureAwait(false);
     }
 
-    private async Task DisposeTransactionAsync()
+    private async Task ReleaseLeaseAsync()
     {
-        if (_transaction is null)
-        {
-            return;
-        }
+        var lease = _lease;
+        _lease = null;
 
-        await _transaction.DisposeAsync().ConfigureAwait(false);
-        _transaction = null;
+        if (lease is not null)
+        {
+            await lease.DisposeAsync().ConfigureAwait(false);
+        }
     }
 }
