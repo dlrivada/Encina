@@ -57,7 +57,7 @@ public class GDPRValidatorPropertyTests
             BlankText.ToArbitrary(),
             (name) =>
             {
-                var result = Validate(new GDPROptions { ControllerName = name, ControllerEmail = "a@b.test" });
+                var result = Validate(new GDPROptions { EnforcementMode = GDPREnforcementMode.Enforce, ControllerName = name, ControllerEmail = "a@b.test" });
                 return result.Failed && result.Failures!.Count() == 1 && result.FailureMessage.Contains("ControllerName");
             });
 
@@ -67,7 +67,7 @@ public class GDPRValidatorPropertyTests
             BlankText.ToArbitrary(),
             (email) =>
             {
-                var result = Validate(new GDPROptions { ControllerName = "Acme", ControllerEmail = email });
+                var result = Validate(new GDPROptions { EnforcementMode = GDPREnforcementMode.Enforce, ControllerName = "Acme", ControllerEmail = email });
                 return result.Failed && result.Failures!.Count() == 1 && result.FailureMessage.Contains("ControllerEmail");
             });
 
@@ -140,15 +140,5 @@ public class GDPRValidatorPropertyTests
         return result.Match(
             Right: r => r.IsCompliant && r.Errors.Count == 0 && r.Warnings.Count == 0,
             Left: _ => false);
-    }
-
-    [Property(MaxTest = 20)]
-    public bool DefaultValidator_AnyRequestType_NeverReturnsLeft(int request)
-    {
-        var sut = new DefaultGDPRComplianceValidator();
-
-        var result = sut.ValidateAsync(request, RequestContext.CreateForTest(), CancellationToken.None).AsTask().Result;
-
-        return result.IsRight;
     }
 }

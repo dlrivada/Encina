@@ -115,13 +115,14 @@ public class GDPRPipelineBehaviorContractTests
     [Fact]
     public async Task Handle_NextReturnsLeft_PropagatesTheNextError()
     {
-        var next = new NextProbe { Outcome = EncinaError.New("handler failed") };
+        var next = new NextProbe { Outcome = EncinaErrors.Create("test.handler_failed", "handler failed") };
         var sut = Create<AnnotatedCommand>(RegistryWithAnnotatedCommand());
 
         var result = await sut.Handle(new AnnotatedCommand(), RequestContext.CreateForTest(), next.Callback, TestContext.Current.CancellationToken);
 
         result.IsLeft.ShouldBeTrue();
         next.Calls.ShouldBe(1);
+        ((EncinaError)result).GetCode().IfNone(string.Empty).ShouldBe("test.handler_failed");
     }
 
     [Fact]
@@ -208,13 +209,14 @@ public class GDPRPipelineBehaviorContractTests
     public async Task Handle_ValidatorReturnsLeft_PropagatesValidatorErrorWithoutCallingNext()
     {
         var next = new NextProbe();
-        var validator = new FixedValidator(EncinaError.New("validator unavailable"));
+        var validator = new FixedValidator(EncinaErrors.Create("test.validator_unavailable", "validator unavailable"));
         var sut = Create<AnnotatedCommand>(RegistryWithAnnotatedCommand(), validator);
 
         var result = await sut.Handle(new AnnotatedCommand(), RequestContext.CreateForTest(), next.Callback, TestContext.Current.CancellationToken);
 
         result.IsLeft.ShouldBeTrue();
         next.Calls.ShouldBe(0);
+        ((EncinaError)result).GetCode().IfNone(string.Empty).ShouldBe("test.validator_unavailable");
     }
 
     [Fact]

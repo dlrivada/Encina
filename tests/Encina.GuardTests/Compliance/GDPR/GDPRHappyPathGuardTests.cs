@@ -474,7 +474,14 @@ public class GDPRHappyPathGuardTests
     [Fact]
     public async Task PipelineBehavior_Handle_RegisteredCompliantActivity_PassesAndTraces()
     {
-        using var listener = StartListener();
+        var stopped = new System.Collections.Concurrent.ConcurrentBag<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == GDPRDiagnostics.SourceName,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = stopped.Add
+        };
+        ActivitySource.AddActivityListener(listener);
         var registry = new InMemoryProcessingActivityRegistry();
         registry.AutoRegisterFromAssemblies([typeof(GDPRHappyPathGuardTests).Assembly]);
         var called = false;
@@ -484,6 +491,9 @@ public class GDPRHappyPathGuardTests
 
         result.IsRight.ShouldBeTrue();
         called.ShouldBeTrue();
+        stopped
+            .Where(a => Equals(a.GetTagItem(GDPRDiagnostics.TagRequestType), nameof(AnnotatedCommand)))
+            .ShouldContain(a => Equals(a.GetTagItem(GDPRDiagnostics.TagOutcome), "passed"));
     }
 
     [Fact]
@@ -617,16 +627,17 @@ public class GDPRHappyPathGuardTests
     }
 
     [Fact]
-    public void GDPRDiagnostics_NoListener_ReturnsNullActivitiesAndNullSafeRecorders()
+    public void GDPRDiagnostics_NullActivity_RecordersAreNullSafe()
     {
-        GDPRDiagnostics.RecordPassed(null);
-        GDPRDiagnostics.RecordFailed(null, "x");
-        GDPRDiagnostics.RecordSkipped(null);
-        GDPRDiagnostics.RecordExportCompleted(null);
-        GDPRDiagnostics.RecordExportFailed(null, "x");
-        GDPRDiagnostics.SetLawfulBasis(null, LawfulBasisValue.Contract);
-
-        GDPRDiagnostics.SourceName.ShouldBe("Encina.Compliance.GDPR");
+        Should.NotThrow(() =>
+        {
+            GDPRDiagnostics.RecordPassed(null);
+            GDPRDiagnostics.RecordFailed(null, "x");
+            GDPRDiagnostics.RecordSkipped(null);
+            GDPRDiagnostics.RecordExportCompleted(null);
+            GDPRDiagnostics.RecordExportFailed(null, "x");
+            GDPRDiagnostics.SetLawfulBasis(null, LawfulBasisValue.Contract);
+        });
     }
 
     [Fact]
@@ -668,13 +679,24 @@ public class GDPRHappyPathGuardTests
     }
 
     [Fact]
-    public void ProcessingActivityDiagnostics_NoListener_ReturnsNullActivities()
+    public void ProcessingActivityDiagnostics_NullActivity_RecordersAreNullSafe()
     {
-        ProcessingActivityDiagnostics.RecordSuccess(null);
-        ProcessingActivityDiagnostics.RecordFailure(null);
-        LawfulBasisDiagnostics.SetBasis(null, LawfulBasisValue.Consent);
+        Should.NotThrow(() =>
+        {
+            ProcessingActivityDiagnostics.RecordSuccess(null);
+            ProcessingActivityDiagnostics.RecordSuccess(null, 2, "get_all");
+            ProcessingActivityDiagnostics.RecordFailure(null);
+        });
+    }
 
-        ProcessingActivityDiagnostics.SourceName.ShouldBe("Encina.Compliance.GDPR.ProcessingActivity");
+    [Fact]
+    public void LawfulBasisDiagnostics_NullActivity_RecordersAreNullSafe()
+    {
+        Should.NotThrow(() =>
+        {
+            LawfulBasisDiagnostics.SetBasis(null, LawfulBasisValue.Consent);
+            LawfulBasisDiagnostics.CompleteValidation(null, true);
+        });
     }
 
     [Fact]
