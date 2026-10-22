@@ -35,6 +35,16 @@ function global:gh {
     if ($env:GQD_SETTLED -and $joined -like 'api --paginate --slurp repos/*/commits/abc/check-runs*') {
         return '[{"check_runs":[{"name":"build","status":"completed","conclusion":"success","html_url":"https://x/run/2"}]}]'
     }
+    if ($env:GQD_SETTLED -and $joined -like 'api repos/*/commits/abc/status*') {
+        return '{"state":"success","statuses":[{"context":"codecov/patch","state":"success","target_url":"https://x/cov"}]}'
+    }
+    # GQD_FAILED: one completed failed check, no pending check, a passing status (a failed job, settled on the sha).
+    if ($env:GQD_FAILED -and $joined -like 'api --paginate --slurp repos/*/commits/abc/check-runs*') {
+        return '[{"check_runs":[{"name":"build","status":"completed","conclusion":"failure","html_url":"https://x/run/1"}]}]'
+    }
+    if ($env:GQD_FAILED -and $joined -like 'api repos/*/commits/abc/status*') {
+        return '{"state":"success","statuses":[{"context":"codecov/patch","state":"success","target_url":"https://x/cov"}]}'
+    }
     if ($env:GQD_LOOP -and $joined -like 'api repos/*/pulls/7') {
         if ((Step 'pull') -ge 2) { return '{"head":{"sha":"abc"},"state":"closed","merged":true,"merge_commit_sha":"deadbeef"}' }
         return '{"head":{"sha":"abc"},"state":"open","merged":false,"merge_commit_sha":null}'
@@ -108,6 +118,13 @@ try {
     Assert-That 'watch-pr-events reads the commit status once for an unchanged sha with settled checks' (@($loopCalls | Where-Object { $_ -like '*commits/abc/status*' }).Count -eq 1) ($loopCalls -join ' | ')
     Assert-That 'watch-pr-events announces CHECKS-DONE once and then PR-MERGED' ((@([regex]::Matches($r.Text, 'CHECKS-DONE')).Count -eq 1) -and $r.Text -match 'PR-MERGED deadbeef') $r.Text
 
+    # watch-pr-events: a failed check on an unchanged sha is re-read on the next poll (a re-run is seen), and its failure is announced once
+    Get-ChildItem "$callLog*" -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
+    $r = Invoke-Down "& '$here\watch-pr-events.ps1' -Pr 7 -IntervalSeconds 1" @{ GQD_LOOP = '1'; GQD_FAILED = '1' }
+    $loopCalls = Get-Calls
+    Assert-That 'watch-pr-events re-reads check runs on an unchanged sha while a check failed (two check-runs calls)' (@($loopCalls | Where-Object { $_ -like '*check-runs*' }).Count -eq 2) ($loopCalls -join ' | ')
+    Assert-That 'watch-pr-events announces the same failed check once' (@([regex]::Matches($r.Text, 'CHECK-FAIL build')).Count -eq 1) $r.Text
+
     # watch-open-prs: a failed first thread query, then a good one, never announces the old thread as NEW-THREAD;
     # settled checks are read once across polls
     Get-ChildItem "$callLog*" -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
@@ -118,6 +135,13 @@ try {
     Assert-That 'watch-open-prs retried the thread query (two thread queries)' (@($loopCalls | Where-Object { $_ -like 'api graphql*reviewThreads*' }).Count -eq 2) ($loopCalls -join ' | ')
     Assert-That 'watch-open-prs does not announce an old thread as NEW-THREAD after a failed first read' ($r.Text -notmatch 'NEW-THREAD') $r.Text
     Assert-That 'watch-open-prs reads check runs once across polls for an unchanged sha' (@($loopCalls | Where-Object { $_ -like '*check-runs*' }).Count -eq 1) ($loopCalls -join ' | ')
+
+    # watch-open-prs: a failed check on an unchanged sha is re-read on the next poll, and its failure is announced once
+    Get-ChildItem "$callLog*" -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
+    $r = Invoke-Down "& '$here\watch-open-prs.ps1' -IntervalSeconds 1" @{ GQD_LOOP = '1'; GQD_FAILED = '1' }
+    $loopCalls = Get-Calls
+    Assert-That 'watch-open-prs re-reads check runs on an unchanged sha while a check failed (two check-runs calls)' (@($loopCalls | Where-Object { $_ -like '*check-runs*' }).Count -eq 2) ($loopCalls -join ' | ')
+    Assert-That 'watch-open-prs announces the same failed check once' (@([regex]::Matches($r.Text, 'CHECK-FAIL build')).Count -eq 1) $r.Text
 
     # Covered elsewhere: the open-remediation label listing by open-remediation-selftest.ps1 (case 1b); the
     # audit-draft-remediation label listing, duplicate search and issue reads by the REST-shaped gh stub rules of
