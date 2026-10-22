@@ -13,7 +13,7 @@ public static partial class SqlIdentifierValidator
     /// </summary>
     private const int MaxSqlIdentifierLength = 128;
 
-    private const string TooLongMessage =
+    private static readonly string TooLongMessage =
         $"Table name exceeds maximum length of {MaxSqlIdentifierLength} characters.";
 
     // The name is not echoed: it may carry control characters that would forge log lines.
