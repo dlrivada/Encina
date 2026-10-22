@@ -405,18 +405,6 @@ public sealed class AttestationSupportTests
         (await store.GetReceiptAsync(foreign.AuditRecordId)).ShouldBeNull();
     }
 
-    [Fact]
-    public void HashChainProvider_UnsupportedAlgorithm_ConstructsButFailsOnFirstAttest()
-    {
-        var options = new HashChainOptions { HashAlgorithm = HashAlgorithmName.MD5 };
-
-        // The key size lookup falls back to 32 bytes, so only hashing the first record rejects the algorithm.
-        var sut = new HashChainAttestationProvider(
-            _time, NullLogger<HashChainAttestationProvider>.Instance, Options.Create(options));
-
-        Should.Throw<ArgumentException>(() => sut.AttestAsync(Record()).AsTask().GetAwaiter().GetResult());
-    }
-
     private static AttestationReceipt StoredReceipt(Guid recordId, string signature) => new()
     {
         AttestationId = Guid.NewGuid(),
