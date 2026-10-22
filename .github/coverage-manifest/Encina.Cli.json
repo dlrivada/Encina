@@ -61,7 +61,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 85,
+        "integration": 60
+      },
+      "justifications": {
+        "unit": "Unit tests scaffold every template with each database, caching and transport option plus the unknown-option, non-empty-directory and error paths, so nearly every line is reachable.",
+        "guard": "The guard suite also scaffolds every template and every provider option end to end, so it reaches most of the file beyond the argument checks.",
+        "integration": "The Roslyn compilation test runs CreateProjectAsync for the api, worker and console templates with default options, so it covers the template generators but not the provider-option or error branches."
+      }
     }
   }
 }
