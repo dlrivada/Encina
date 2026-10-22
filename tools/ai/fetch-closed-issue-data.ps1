@@ -183,7 +183,7 @@ function Get-PrByNumber([int]$number) {
             merged        = [bool]$pr.merged_at
             mergedAt      = $pr.merged_at
             closedAt      = $pr.closed_at
-            mergeCommit   = $pr.merge_commit_sha
+            mergeCommit   = $(if ($pr.merged_at) { $pr.merge_commit_sha } else { $null })   # GraphQL's mergeCommit was null unless merged
             files         = $files
         }
     }
