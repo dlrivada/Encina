@@ -131,11 +131,11 @@ public class GDPRValidatorPropertyTests
     // -- DefaultGDPRComplianceValidator --
 
     [Property(MaxTest = 50)]
-    public bool DefaultValidator_AnyRequest_YieldsCompliantResultWithoutMessages(NonEmptyString request)
+    public async Task<bool> DefaultValidator_AnyRequest_YieldsCompliantResultWithoutMessages(NonEmptyString request)
     {
         var sut = new DefaultGDPRComplianceValidator();
 
-        var result = sut.ValidateAsync(request.Get, RequestContext.CreateForTest(), CancellationToken.None).AsTask().Result;
+        var result = await sut.ValidateAsync(request.Get, RequestContext.CreateForTest(), CancellationToken.None);
 
         return result.Match(
             Right: r => r.IsCompliant && r.Errors.Count == 0 && r.Warnings.Count == 0,

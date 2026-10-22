@@ -23,8 +23,9 @@ using LawfulBasisValue = global::Encina.Compliance.GDPR.LawfulBasis;
 namespace Encina.GuardTests.Compliance.GDPR;
 
 /// <summary>
-/// Guard tests for Encina.Compliance.GDPR that reject invalid arguments and also run the guarded
-/// member with valid arguments, so the guard flag measures the body of the package code.
+/// Guard-flag tests for Encina.Compliance.GDPR that execute the guarded members with valid
+/// arguments, so the guard flag measures the body of the package code. Argument rejection lives
+/// in <c>GDPRGuardTests</c>.
 /// </summary>
 public class GDPRHappyPathGuardTests
 {
