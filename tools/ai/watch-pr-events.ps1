@@ -92,7 +92,8 @@ while ($true) {
         }
     }
     catch {
-        # transient API/network failure: keep polling
+        # transient API/network failure: keep polling (a -Once run says so, to tell "no events" from "REST down")
+        if ($Once) { Write-Output "WARN $($_.Exception.Message)" }
     }
     if ($Once) { break }
     Start-Sleep -Seconds 45

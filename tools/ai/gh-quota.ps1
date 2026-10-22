@@ -28,14 +28,17 @@ function Invoke-GhQuotaGh {
     $global:LASTEXITCODE = 0
     $raw = @(& $exe @Arguments 2>&1)
     $code = $LASTEXITCODE
-    [pscustomobject]@{ Code = $code; Output = (($raw | ForEach-Object { [string]$_ }) -join "`n") }
+    # Stdout is what callers parse; Output (stdout + stderr) is what they report. A stray stderr line never breaks parsing.
+    $stdout = @($raw | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { [string]$_ })
+    [pscustomobject]@{ Code = $code; Stdout = ($stdout -join "`n"); Output = (($raw | ForEach-Object { [string]$_ }) -join "`n") }
 }
 
 function Get-GhQuotaDirectory {
     $root = $env:ENCINA_GH_QUOTA_ROOT
     if (-not $root) {
-        $top = & git rev-parse --show-toplevel 2>$null
-        $root = if ($LASTEXITCODE -eq 0 -and $top) { [string]$top } else { (Get-Location).Path }
+        # The main checkout, so the cache and usage.csv are shared by every worktree and process.
+        $common = & git rev-parse --path-format=absolute --git-common-dir 2>$null
+        $root = if ($LASTEXITCODE -eq 0 -and $common) { Split-Path -Parent ([string]$common) } else { (Get-Location).Path }
     }
     $dir = Join-Path $root 'artifacts/gh-quota'
     if (-not (Test-Path -LiteralPath $dir)) { [void](New-Item -ItemType Directory -Force -Path $dir) }
@@ -63,7 +66,7 @@ function Get-GhGraphQLQuota {
     try {
         $r = Invoke-GhQuotaGh @('api', 'graphql', '-f', 'query={ rateLimit { remaining resetAt } }')
         if ($r.Code -ne 0) { return $null }
-        $rl = ($r.Output | ConvertFrom-Json).data.rateLimit
+        $rl = ($r.Stdout | ConvertFrom-Json).data.rateLimit
         if ($null -eq $rl -or $null -eq $rl.remaining) { return $null }
         $reset = [datetime]::Parse([string]$rl.resetAt, [cultureinfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal)
         $quota = [pscustomobject]@{ Remaining = [int]$rl.remaining; ResetAt = $reset; ReadAtUtc = (Get-Date).ToUniversalTime() }
@@ -103,11 +106,9 @@ function Wait-GhGraphQLQuota {
             [Console]::Error.WriteLine("gh-quota: GraphQL remaining $($q.Remaining) < $MinRemaining; $Caller waits until $($q.ResetAt.ToString('yyyy-MM-dd HH:mm:ss')) UTC")
             $announced = $true
         }
-        # Sleep until resetAt (+5 s) but wake at most once per 60 s to re-check (another session may have
-        # lowered or the window may have reset); never re-check faster than that.
-        $untilReset = ($q.ResetAt.AddSeconds(5) - (Get-Date).ToUniversalTime()).TotalSeconds
-        $sleepSeconds = if ($untilReset -le 0) { 60 } else { [int][Math]::Min(60, [Math]::Max(1, [Math]::Ceiling($untilReset))) }
-        Start-Sleep -Seconds $sleepSeconds
+        # Wake once per 60 s to re-check until the window resets (resetAt + 5 s is the latest a new window can start).
+        # Never re-check faster than once per 60 s, even when resetAt is closer (the re-read after it sees the new window).
+        Start-Sleep -Seconds 60
         $maxAge = 1   # after a sleep the cached reading is stale: read again
     }
 }
@@ -136,7 +137,7 @@ function Get-GhCheckBuckets {
     $buckets = [System.Collections.Generic.List[object]]::new()
     $runs = Invoke-GhQuotaGh @('api', '--paginate', '--slurp', "repos/$Repo/commits/$Sha/check-runs?per_page=100")
     if ($runs.Code -ne 0) { throw "gh api check-runs of $Sha failed (exit $($runs.Code)): $($runs.Output)" }
-    foreach ($page in @($runs.Output | ConvertFrom-Json)) {
+    foreach ($page in @($runs.Stdout | ConvertFrom-Json)) {
         foreach ($cr in @($page.check_runs)) {
             $bucket = if ($cr.status -ne 'completed') { 'pending' }
             else {
@@ -151,7 +152,7 @@ function Get-GhCheckBuckets {
     }
     $st = Invoke-GhQuotaGh @('api', "repos/$Repo/commits/$Sha/status?per_page=100")
     if ($st.Code -ne 0) { throw "gh api status of $Sha failed (exit $($st.Code)): $($st.Output)" }
-    foreach ($s in @(($st.Output | ConvertFrom-Json).statuses)) {
+    foreach ($s in @(($st.Stdout | ConvertFrom-Json).statuses)) {
         $bucket = switch ([string]$s.state) { 'success' { 'pass' } 'pending' { 'pending' } default { 'fail' } }   # failure, error
         $buckets.Add([pscustomobject]@{ Name = [string]$s.context; Bucket = $bucket; Url = [string]$s.target_url })
     }
@@ -162,5 +163,5 @@ function Get-GhRepoLabelNames {
     param([Parameter(Mandatory)][string]$Repo)
     $r = Invoke-GhQuotaGh @('api', "repos/$Repo/labels", '--paginate', '--jq', '.[].name')
     if ($r.Code -ne 0) { throw "gh api repos/$Repo/labels failed (exit $($r.Code)): $($r.Output)" }
-    return @($r.Output -split "`r?`n" | Where-Object { $_ -ne '' })
+    return @($r.Stdout -split "`r?`n" | Where-Object { $_ -ne '' })
 }

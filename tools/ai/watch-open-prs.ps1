@@ -34,6 +34,8 @@ $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer
 $open = [System.Collections.Generic.HashSet[int]]::new()
 $threadsReadAt = @{}   # PR number -> updated_at of the PR when its threads were last read successfully
 $warnedResetWindow = $null
+$quotaSkipped = [System.Collections.Generic.HashSet[int]]::new()   # PRs whose first-poll thread read was skipped (GraphQL low)
+$baselined = [System.Collections.Generic.HashSet[int]]::new()   # PRs whose thread baseline was recorded silently
 $first = $true
 $repoParts = $Repo -split '/', 2
 $repoOwner = $repoParts[0]
@@ -50,7 +52,9 @@ while ($true) {
             if ($nums -notcontains $n) {
                 $stRaw = gh api "repos/$Repo/pulls/$n" 2>&1
                 if ($LASTEXITCODE -ne 0) { Write-Output "WARN gh api pulls/$n state failed: $stRaw"; continue }
-                $st = if (($stRaw | ConvertFrom-Json).merged) { 'MERGED' } else { 'CLOSED' }
+                $stJson = $stRaw | ConvertFrom-Json
+                if ($stJson.state -eq 'open') { continue }   # still open: only missing from the list (keep watching it)
+                $st = if ($stJson.merged) { 'MERGED' } else { 'CLOSED' }
                 Write-Output "PR #$n $st"
                 [void]$open.Remove($n)
                 $threadsReadAt.Remove($n)
@@ -69,6 +73,7 @@ while ($true) {
             catch { Write-Output "WARN checks of #$n failed: $($_.Exception.Message)"; continue }
             if ($threadsReadAt.ContainsKey($n) -and $threadsReadAt[$n] -eq $p.updated) { continue }
             if (-not (Wait-GhGraphQLQuota -Caller 'watch-open-prs' -MinRemaining 300 -NoWait)) {
+                if ($first) { [void]$quotaSkipped.Add($n) }   # its first thread read is still the silent baseline
                 $quota = Get-GhGraphQLQuota
                 $window = if ($quota) { $quota.ResetAt.ToString('o') } else { 'unknown' }
                 if ($warnedResetWindow -ne $window) {
@@ -84,9 +89,13 @@ while ($true) {
             if ($tCode -ne 0) { Write-Output "WARN gh api graphql reviewThreads for #$n failed: $tRaw"; continue }
             $t = $tRaw | ConvertFrom-Json
             $threadsReadAt[$n] = $p.updated
+            # The silent baseline lasts until a PR's FIRST successful thread read, so a read skipped while GraphQL
+            # was low never turns old threads into NEW-THREAD lines later.
+            $isBaseline = $false
+            if (-not $baselined.Contains($n) -and ($first -or $quotaSkipped.Contains($n))) { $isBaseline = $true; [void]$baselined.Add($n) }
             foreach ($th in @($t.data.repository.pullRequest.reviewThreads.nodes | Where-Object { -not $_.isResolved })) {
                 if ($seen.Add("$n|thread|$($th.id)")) {
-                    if ($first) { $existing++ } else { Write-Output "PR #$n NEW-THREAD $($th.comments.nodes[0].author.login) $($th.comments.nodes[0].path)" }
+                    if ($isBaseline) { $existing++ } else { Write-Output "PR #$n NEW-THREAD $($th.comments.nodes[0].author.login) $($th.comments.nodes[0].path)" }
                 }
             }
         }
