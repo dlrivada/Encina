@@ -70,6 +70,13 @@ reviews:
           `catch (InvalidOperationException)` in compliance services
         - Argument guards (ThrowIf*) remain exceptions
 
+    - path: "src/Encina.DomainModeling/**"
+      instructions: |
+        - Aggregate rule violations (ADR-053, docs/architecture/adr/053-aggregate-rule-violations-return-either.md):
+          the IBusinessRule/Check support is the base for aggregate rule violations returning Either
+        - The adapter from a rule violation to EncinaError must carry a rule code and never copy an
+          exception message into EncinaError.Message
+
     - path: "tests/**/*.cs"
       instructions: |
         - Tests should follow AAA pattern (Arrange, Act, Assert)
