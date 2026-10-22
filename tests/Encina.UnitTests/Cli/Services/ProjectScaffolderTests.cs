@@ -23,6 +23,9 @@ public class ProjectScaffolderTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    /// <summary>
+    /// Verifies that the API template emits the inferred response-type Send call.
+    /// </summary>
     [Fact]
     public async Task CreateProjectAsync_WithApiTemplate_GeneratesApiProject()
     {
@@ -55,6 +58,7 @@ public class ProjectScaffolderTests : IDisposable
         var programContent = await File.ReadAllTextAsync(programFile);
         programContent.ShouldContain("WebApplication");
         programContent.ShouldContain("AddEncinaAspNetCore");
+        programContent.ShouldContain("encina.Send(command)");
     }
 
     [Fact]

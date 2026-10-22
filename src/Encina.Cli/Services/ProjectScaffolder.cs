@@ -180,6 +180,9 @@ public static class ProjectScaffolder
         _ => null
     };
 
+    /// <summary>
+    /// Generates the top-level program for an API project.
+    /// </summary>
     private static string GenerateApiProgram(ProjectOptions options)
     {
         return $$"""
@@ -200,7 +203,7 @@ public static class ProjectScaffolder
             // Sample endpoint using Encina
             app.MapPost("/api/sample", async (SampleCommand command, IEncina encina) =>
             {
-                var result = await encina.Send<SampleCommand, SampleResponse>(command);
+                var result = await encina.Send(command);
                 return result.Match(
                     Right: response => Results.Ok(response),
                     Left: error => Results.Problem(error.Message));
