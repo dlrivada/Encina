@@ -114,6 +114,14 @@ public sealed class TransactionalOutboxPipelineBehavior<TRequest, TResponse> : I
                 return result;
             }
 
+            // The transaction ended while the handler ran (for example an application-begun transaction that a
+            // nested participant rolled back): an outbox row written now would autocommit for a failed request.
+            if (!_transactionSource.HasActiveTransaction)
+            {
+                await lease.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                return TransactionErrors.RollbackOnly();
+            }
+
             var written = await WriteNotificationsAsync(request, cancellationToken).ConfigureAwait(false);
             if (written.IsLeft)
             {
