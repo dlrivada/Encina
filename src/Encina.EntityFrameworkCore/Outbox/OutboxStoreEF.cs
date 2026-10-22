@@ -122,6 +122,30 @@ public sealed class OutboxStoreEF : IOutboxStore
     }
 
     /// <inheritdoc/>
+    public async Task<Either<EncinaError, Unit>> MarkAsExhaustedAsync(
+        Guid messageId,
+        string errorMessage,
+        int maxRetries,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(errorMessage);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxRetries);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var message = await _dbContext.Set<OutboxMessage>()
+                .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
+
+            if (message == null)
+                return;
+
+            message.ErrorMessage = errorMessage;
+            message.RetryCount = Math.Max(message.RetryCount + 1, maxRetries);
+            message.NextRetryAtUtc = null;
+        }, "outbox.mark_exhausted_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
     public async Task<Either<EncinaError, int>> GetPendingCountAsync(
         int maxRetries,
         CancellationToken cancellationToken = default)

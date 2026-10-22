@@ -158,6 +158,30 @@ public sealed class FakeOutboxStore : IOutboxStore
     }
 
     /// <inheritdoc />
+    public Task<Either<EncinaError, Unit>> MarkAsExhaustedAsync(
+        Guid messageId,
+        string errorMessage,
+        int maxRetries,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxRetries);
+
+        if (_messages.TryGetValue(messageId, out var message))
+        {
+            message.ErrorMessage = errorMessage;
+            message.RetryCount = Math.Max(message.RetryCount + 1, maxRetries);
+            message.NextRetryAtUtc = null;
+
+            lock (_lock)
+            {
+                _failedMessageIds.Add(messageId);
+            }
+        }
+
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
+    }
+
+    /// <inheritdoc />
     public Task<Either<EncinaError, int>> GetPendingCountAsync(int maxRetries, CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);

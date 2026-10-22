@@ -65,6 +65,28 @@ public interface IOutboxStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Marks a message as exhausted: it is recorded as failed with no next retry and its retries are used up, so it
+    /// is no longer returned by <see cref="GetPendingMessagesAsync"/> (<c>maxRetries</c>) until it is requeued.
+    /// </summary>
+    /// <remarks>
+    /// <c>RetryCount</c> becomes <c>max(RetryCount + 1, maxRetries)</c> and <c>NextRetryAtUtc</c> becomes
+    /// <see langword="null"/>, in one atomic update, so the message is counted by <see cref="GetExhaustedCountAsync"/>
+    /// whatever its retry count was. Stores with a unit of work (EF Core) record the change on their context, and it
+    /// is persisted by <see cref="SaveChangesAsync"/>.
+    /// </remarks>
+    /// <param name="messageId">The message ID.</param>
+    /// <param name="errorMessage">The error message (an error code or exception type, never <c>EncinaError.Message</c>).</param>
+    /// <param name="maxRetries">The retry limit (<see cref="OutboxOptions.MaxRetries"/>); it must be positive.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxRetries"/> is not positive.</exception>
+    Task<Either<EncinaError, Unit>> MarkAsExhaustedAsync(
+        Guid messageId,
+        string errorMessage,
+        int maxRetries,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Counts the messages that are waiting to be delivered: not processed and with retries left
     /// (<c>RetryCount &lt; maxRetries</c>), whether they are due now or scheduled for a later retry.
     /// </summary>
