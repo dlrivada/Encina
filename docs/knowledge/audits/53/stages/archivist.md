@@ -14,7 +14,7 @@ Tests today (consolidated by 658263027): `tests/Encina.UnitTests/Polly/Bulkhead{
 
 Docs: `src/Encina.Polly/README.md` (one intro sentence only, no usage section), `docs/engineering/PROJECT-HISTORY.md`, `CHANGELOG.md` ("Bulkhead Isolation Pattern (Issue #53)"), `docs/plans/pipeline-execution-order-implementation-plan-2184.md` (Admission stage).
 
-PR #2591 (#1223, state OPEN today, mergedAt null) changes `src/Encina.Polly/ServiceCollectionExtensions.cs`, `src/Encina.Polly/README.md`, `PublicAPI.Unshipped.txt` and `.github/coverage-manifest/Encina.Polly.json`, but not the Bulkhead files; if it merges during the audit, re-read those four shared files before judging registration or README.
+PR #2591 (#1223, state OPEN when this stage ran on 2026-10-21, mergedAt null; merged later that day at 11:01:08Z, see `docs.md`) changes `src/Encina.Polly/ServiceCollectionExtensions.cs`, `src/Encina.Polly/README.md`, `PublicAPI.Unshipped.txt` and `.github/coverage-manifest/Encina.Polly.json`, but not the Bulkhead files; if it merges during the audit, re-read those four shared files before judging registration or README.
 
 ## Destinations
 
