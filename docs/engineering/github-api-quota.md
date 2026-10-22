@@ -68,14 +68,14 @@ From the measured cost of 1 point per call.
 | --- | --- | --- | --- | --- |
 | `watch-open-prs` (6 open PRs) | 60 s | 2 per PR per poll (check rollup and threads), 720 per hour per running watcher; several sessions each ran one | checks over REST (0); threads only when a PR's `updated_at` changed and `remaining >= 300` (about 4 changes per PR per hour: about 24 per hour) plus 6 on the first poll; nothing else changes | 60 per hour for the pulls list, plus 2 per PR per poll only while checks are pending or after a push |
 | `watch-pr-events` (per watched PR) | 60 s | 2 per poll, 160 per hour | 0 (REST); nothing else changes | about 240 per watched PR when checks are settled (4 calls per poll), up to 360 while checks are pending (6 per poll) |
-| `pr-watcher` agent (per watched PR) | 60 s | 2 per poll, 120 per hour | 0 (REST); nothing else changes | same as `watch-pr-events` |
+| `pr-watcher` agent (per watched PR) | 60 s | 2 per poll, 120 per hour | 0 (REST); nothing else changes | about 180 per watched PR when checks are settled (3 calls per poll), about 300 while checks are pending (5 per poll) |
 | `check-target-issue-template` hook | one read per worker spawn | 1 per spawn; at 0 quota it blocked every spawn (fails closed) | 0 (REST) | per run |
 | Label listings (`audit-draft-remediation -Prepare`, `open-remediation`, `apply-priority-labels`) | per run | 3 per run; failed at 0 | 0 (REST) | per run |
 | `audit-draft-remediation` duplicate search and issue reads | per run | 1 per search or read | 0 (REST; the search API has its own limit of 30 requests per minute) | per run |
 | `score-issues -Issue` | per run | 1 | 0 (REST) | per run |
 | `collect-issues` | per run | 1 per page | 1 per page, behind `Wait-GhGraphQLQuota` and `Write-GhQuotaUsage` | 0 |
 
-The watchers read check runs and commit status only when the head sha changed or the previous read had pending checks; reviews and both comment lists are read every poll, with `since`. REST has its own budget of 5000 requests per hour, shared like GraphQL, so several watchers on the same PR should not run at once.
+The watchers read check runs and commit status only when the head sha changed or the previous read had pending checks; reviews and the comment lists are read every poll (the comment lists with `since`; reviews are filtered by `submitted_at`). Limit: once checks on a head sha are settled they are not read again, so a re-run of a failed job on the same sha is not announced until the sha changes or the PR state changes; read the run list by hand after a re-run. REST has its own budget of 5000 requests per hour, shared like GraphQL, so several watchers on the same PR should not run at once.
 
 The only GraphQL polling left is the review-thread read of `watch-open-prs.ps1`. It runs when the PR's `updated_at` changed and `remaining >= 300`; when skipped it prints one `WARN` line per reset window.
 

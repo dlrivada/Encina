@@ -239,7 +239,7 @@ Two more watchers, next to `watch-pr-events.ps1` above, cost no model tokens eit
 
 | Script | Purpose | Input | Output |
 |---|---|---|---|
-| `watch-open-prs.ps1` | Polls every open pull request of the repository and emits one line per new event | GitHub API (`gh pr list`, `gh pr view`) | `PR #n CHECK-FAIL`/`NEW-THREAD`/`MERGED`/`CLOSED`, `WATCHING PRs`, `WARN` (stdout) |
+| `watch-open-prs.ps1` | Polls every open pull request of the repository and emits one line per new event | GitHub REST API (`gh api repos/.../pulls`, check runs and commit status) plus the GraphQL review-thread read | `PR #n CHECK-FAIL`/`NEW-THREAD`/`MERGED`/`CLOSED`, `WATCHING PRs`, `WARN` (stdout) |
 | `watch-worktrees.ps1` | Polls the worktrees under `.claude/worktrees/` and reports when one stops changing | `git worktree list`, filesystem timestamps under each worktree's `artifacts/` | `WATCHING worktrees`, `STALLED`, `RESUMED`, `REMOVED` (stdout) |
 
 ## 7. First run
