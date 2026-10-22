@@ -14,9 +14,9 @@ A request that enters Encina is dispatched, may be written to the outbox, inbox,
 
 ### Settled points
 
-These are not choices. Each has the citation in section 5 of the spike report.
+These are not choices. Each has the citation in section 5 of the spike report. Points 3 and 4 were proposed as settled there (no project rule names them) and are confirmed by accepting this ADR.
 
-1. **Exporters and dashboards stay out of `WithEncina()`.** A library depends on the OpenTelemetry API; the application chooses the SDK, configuration and exporters (OpenTelemetry library guidelines; pay-for-what-you-use, [AGENTS.md](../../../AGENTS.md) section 1). Exporter work is [#1043](https://github.com/dlrivada/Encina/issues/1043) and [#1048](https://github.com/dlrivada/Encina/issues/1048), dashboards [#187](https://github.com/dlrivada/Encina/issues/187). No telemetry is sent to the maintainer or the project ([SPEC-000](../../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md), [SPEC-002](../../specifications/SPEC-002-eu-regulatory-readiness.md) DEC-010).
+1. **Exporters and dashboards stay out of `WithEncina()`.** A library depends on the OpenTelemetry API; the application chooses the SDK, configuration and exporters (OpenTelemetry library guidelines; pay-for-what-you-use, [AGENTS.md](../../../AGENTS.md) section 1). Exporter work is [#1043](https://github.com/dlrivada/Encina/issues/1043) and [#1048](https://github.com/dlrivada/Encina/issues/1048) and [#1049](https://github.com/dlrivada/Encina/issues/1049), dashboards [#187](https://github.com/dlrivada/Encina/issues/187). No telemetry is sent to the maintainer or the project ([SPEC-000](../../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md), [SPEC-002](../../specifications/SPEC-002-eu-regulatory-readiness.md) DEC-010).
 2. **Error status carries the code or the type only.** A span marked as error, a tag or an event carries the `EncinaError` code or the exception type name, never `EncinaError.Message` or `Exception.Message` ([AGENTS.md](../../../AGENTS.md) section 3). A `Left` marks the span as error with the code. The remaining leaks are tracked by [#1788](https://github.com/dlrivada/Encina/issues/1788), [#1789](https://github.com/dlrivada/Encina/issues/1789), [#1468](https://github.com/dlrivada/Encina/issues/1468) and [#2474](https://github.com/dlrivada/Encina/issues/2474).
 3. **W3C Trace Context is the wire format.** `traceparent` and `tracestate` are the only propagation fields.
 4. **Instrument names follow the OpenTelemetry metric rules.** Lowercase, dot-separated names; durations in seconds with unit `s`; no `_total` suffix on counters; the unit lives in the metadata, not in the name. This applies to instrument names; the roots of source and meter names are decision D3.
@@ -72,13 +72,13 @@ Version 0.14.0 includes:
 
 Each option and the scenario where it wins is in section 6 of the [spike report](../../engineering/observability-conventions-spike-1791.md).
 
-- **D1, dedicated `TraceParent` and `TraceState` columns (1a)**: rejected. It adds columns to four tables across 10 providers and a second schema change next to #1164; no studied library does it.
-- **D2, link everywhere (2a), child everywhere (2b), a per-message or per-endpoint switch (2c as offered)**: rejected. 2a loses the single waterfall for `Send`; 2b breaks for batches and fan-out; a switch adds two code paths to document and test on every transport.
-- **D3, lowercase `encina.*` roots (3b), one root `Encina` (3c)**: rejected. 3b matches no studied .NET library; 3c prevents toggling one package. Staying on the v1.24.0 messaging names (3ii) or emitting both (3iii): rejected in favour of pinning the latest names behind one constants class.
+- **D1, dedicated `TraceParent` and `TraceState` columns (1a)**: rejected. It adds columns to four tables across 10 providers and a second schema change next to #1164; no precedent was found among the libraries read.
+- **D2, link everywhere (2a), child everywhere (2b), a link default with a per-message or per-endpoint switch (2c as offered)**: rejected. 2a gives two traces to follow for single-message flows; 2b breaks for batches and fan-out; a switch adds two code paths and an option to document and test on every transport.
+- **D3, lowercase `encina.*` roots (3b), one root `Encina` (3c)**: rejected. 3b matches no studied .NET library; 3c prevents toggling one package. Staying on the v1.24.0 messaging names (3ii) or emitting both (3iii): not chosen; the maintainer chose to pin the latest names behind one constants class.
 - **D4, tenant as span attribute only (4a), propagating baggage as opt-in (4c)**: rejected. 4a would break AC-044 for metrics; 4c sends context to brokers and third parties.
 - **D5, conventions and shape only (5a), plus transports only (5b)**: rejected. Traces would still break at the broker, and the propagation API would be designed late.
-- **D6, metrics only by default with spans opt-in (6a), spans on every call (6b), decorators of today only (6c as written)**: rejected. 6c as written leaves caches, locks and MongoDB dark; 6b duplicates driver instrumentation and risks leaking query text.
-- **Issue options A (W3C context in the outbox only) and C (B plus exporters, dashboards and a test framework)**: rejected as settled points 1 and 5.
+- **D6, metrics only by default with spans opt-in (6a), spans on every call (6b), decorators of today only (6c as written)**: not chosen. 6a gives no per-call trace; 6c as written leaves caches, locks and MongoDB dark; 6b duplicates driver instrumentation and risks leaking query text.
+- **Issue options A (W3C context in the outbox only) and C (B plus exporters, dashboards and a test framework)**: rejected as settled points 5 and 1.
 
 ## Consequences
 
@@ -86,16 +86,18 @@ Each option and the scenario where it wins is in section 6 of the [spike report]
 
 - One trace follows a request across the dispatcher, the stores and the transports, with a fixed rule for parent against link.
 - Every instrument can be found by one convention, and a host subscribes to all of Encina with one wildcard.
-- The telemetry carries no baggage, no query text and no data-bearing cache keys, which keeps it inside the data-minimisation reading of the GDPR.
+- The telemetry carries no baggage, no query text and no data-bearing cache keys, which follows the data-minimisation reading of GDPR Art. 5(1)(c) and Art. 25 (spike report section 4.4; not legal advice).
 
 ### Negative
 
 - The #1164 envelope becomes a prerequisite of the trace work, so its delivery order matters.
 - Trace context is not queryable by SQL without parsing the envelope column.
-- The tenant metric tag has unbounded cardinality in deployments with many tenants; the guide documents it.
+- The tenant metric tag grows cardinality with the number of tenants; the guide documents it.
 - The work spans 10 transports, 10 database providers, 8 caches and 5 lock providers.
 
 ### What each point implies for the code
+
+The owners are proposed follow-ups, to be confirmed when the issues are updated.
 
 | Implication | Owner |
 | --- | --- |
