@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.EntityFrameworkCore.Benchmarks.ScheduledMessageStoreEFBenchmarks-20261022-110952</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 4.33GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  InvocationCount=1  IterationCount=3  
+LaunchCount=1  UnrollFactor=1  WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method             </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>GetDueMessagesAsync</td><td>829.06 &mu;s</td><td>293.98 &mu;s</td><td>16.114 &mu;s</td><td>823.27 &mu;s</td><td>1.00</td><td>0.02</td><td>349.13 KB</td><td>1.000</td>
+</tr><tr><td>AddAsync</td><td>35.71 &mu;s</td><td>113.05 &mu;s</td><td>6.197 &mu;s</td><td>32.69 &mu;s</td><td>0.04</td><td>0.01</td><td>3.42 KB</td><td>0.010</td>
+</tr><tr><td>RescheduleRecurringAsync</td><td>171.62 &mu;s</td><td>952.62 &mu;s</td><td>52.216 &mu;s</td><td>144.26 &mu;s</td><td>0.21</td><td>0.05</td><td>13.13 KB</td><td>0.038</td>
+</tr><tr><td>MarkAsFailedAsync</td><td>167.02 &mu;s</td><td>1,952.78 &mu;s</td><td>107.038 &mu;s</td><td>115.50 &mu;s</td><td>0.20</td><td>0.11</td><td>13.03 KB</td><td>0.037</td>
+</tr><tr><td>GetRecurringMessagesAsync</td><td>456.80 &mu;s</td><td>425.78 &mu;s</td><td>23.339 &mu;s</td><td>444.41 &mu;s</td><td>0.55</td><td>0.03</td><td>166.55 KB</td><td>0.477</td>
+</tr></tbody></table>
+</body>
+</html>
