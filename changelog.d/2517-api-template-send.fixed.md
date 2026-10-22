@@ -1,0 +1,1 @@
+- **Fixed the `api` template of `encina new` so the generated sample endpoint compiles** (#2517). The scaffold called `encina.Send<SampleCommand, SampleResponse>(command)`, which does not exist on `IEncina`; it now calls `encina.Send(command)` and a Roslyn compilation test covers the `api`, `worker` and `console` templates.
