@@ -21,7 +21,7 @@ $existing = Get-GhRepoLabelNames -Repo $Repo
 foreach ($k in $labels.Keys) {
     $l = $labels[$k]
     if ($existing -notcontains $l.name) {
-        if (-not $DryRun) { gh label create $l.name --repo $Repo --color $l.color --description $l.desc | Out-Null }
+        if (-not $DryRun) { gh api -X POST "repos/$Repo/labels" -f "name=$($l.name)" -f "color=$($l.color)" -f "description=$($l.desc)" | Out-Null }   # REST (#2661)
         Write-Output "label created: $($l.name)"
     }
 }
@@ -41,7 +41,7 @@ $done = 0; $failed = @()
 foreach ($f in ($final | Where-Object priority -ne '')) {
     $label = $labels[$f.priority].name
     if ($DryRun) { continue }
-    $r = gh issue edit $f.number --repo $Repo --add-label $label 2>&1
+    $r = gh api -X POST "repos/$Repo/issues/$($f.number)/labels" -f "labels[]=$label" 2>&1   # REST (#2661)
     if ($LASTEXITCODE -ne 0) { $failed += "#$($f.number): $r" } else { $done++ }
     if ($done % 50 -eq 0 -and $done -gt 0) { Write-Output "applied $done" }
 }
