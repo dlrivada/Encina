@@ -1,0 +1,3 @@
+- The coverage report and the coverage dashboard now show target attainment for each file and test flag: the measured coverage against the file's justified target, the gap in points and the lines still to cover (#2542).
+- The coverage report and the coverage dashboard also show aggregates beside the obligations figure: targets met, line-weighted attainment, mean gap and lines to cover (#2542).
+- The coverage history records these aggregates for trend charts (#2542).
