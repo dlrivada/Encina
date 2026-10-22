@@ -10,6 +10,8 @@ This page is for the maintainer, who has to choose the open points of Encina's o
 
 **Status:** evidence gathered and verified against the worktree at fd19613e1 on 2026-10-22. **Issue:** [#1791](https://github.com/dlrivada/Encina/issues/1791). **Reserved ADR:** 054 (observability conventions and cross-boundary trace propagation), "Reserved, ADR not written". **Source assessment:** [Observability assessment, 2026-10-05](assessments/2026-10-05-observability.md).
 
+**Outcome:** the maintainer decided D1 to D6 on 2026-10-22 (comments on [#1791](https://github.com/dlrivada/Encina/issues/1791)). The decisions are recorded in [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md); this page keeps the evidence and the options as they stood before the decision.
+
 Pre-1.0, backward compatibility and breaking-change cost are not criteria ([AGENTS.md](../../AGENTS.md) section 1). Where the issue weighs "breaking change" or "backward-compatible if nullable" as a pro or con, that criterion does not apply and is left out below.
 
 ## 1. Question
