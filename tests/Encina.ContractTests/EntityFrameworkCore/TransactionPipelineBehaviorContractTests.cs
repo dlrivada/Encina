@@ -3,6 +3,7 @@ using Encina.EntityFrameworkCore.Inbox;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.EntityFrameworkCore.Scheduling;
+using Encina.EntityFrameworkCore.Transactions;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -50,7 +51,7 @@ public sealed class TransactionPipelineBehaviorContractTests : IDisposable
         // Exercises: constructor lines 59-68 (ArgumentNullException guards + field assignment)
         var logger = NullLoggerFactory.Instance.CreateLogger<TransactionPipelineBehavior<TransactionalTestCommand, string>>();
 
-        var behavior = new TransactionPipelineBehavior<TransactionalTestCommand, string>(_dbContext, logger);
+        var behavior = new TransactionPipelineBehavior<TransactionalTestCommand, string>(new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), logger);
 
         behavior.ShouldNotBeNull();
     }
@@ -71,7 +72,7 @@ public sealed class TransactionPipelineBehaviorContractTests : IDisposable
         // Exercises: line 64 ArgumentNullException.ThrowIfNull(logger)
         Should.Throw<ArgumentNullException>(() =>
             new TransactionPipelineBehavior<TransactionalTestCommand, string>(
-                _dbContext,
+                new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance),
                 null!));
     }
 
@@ -80,7 +81,7 @@ public sealed class TransactionPipelineBehaviorContractTests : IDisposable
     {
         // Exercises: lines 77-83 (null checks + RequiresTransaction returning false + passthrough)
         var logger = NullLoggerFactory.Instance.CreateLogger<TransactionPipelineBehavior<NonTransactionalTestCommand, string>>();
-        var behavior = new TransactionPipelineBehavior<NonTransactionalTestCommand, string>(_dbContext, logger);
+        var behavior = new TransactionPipelineBehavior<NonTransactionalTestCommand, string>(new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), logger);
         var request = new NonTransactionalTestCommand("test");
         var context = RequestContext.Create();
 
@@ -105,7 +106,7 @@ public sealed class TransactionPipelineBehaviorContractTests : IDisposable
         // InMemory provider throws on BeginTransactionAsync, so the exception catch path
         // at lines 134-142 is exercised (rollback + return EncinaErrors.FromException).
         var logger = NullLoggerFactory.Instance.CreateLogger<TransactionPipelineBehavior<TransactionalTestCommand, string>>();
-        var behavior = new TransactionPipelineBehavior<TransactionalTestCommand, string>(_dbContext, logger);
+        var behavior = new TransactionPipelineBehavior<TransactionalTestCommand, string>(new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), logger);
         var request = new TransactionalTestCommand("transaction-test");
         var context = RequestContext.Create();
 
@@ -128,7 +129,7 @@ public sealed class TransactionPipelineBehaviorContractTests : IDisposable
         // and lines 162-168 (GetIsolationLevel with no isolation level set).
         // Like the marker interface test, InMemory triggers the exception path.
         var logger = NullLoggerFactory.Instance.CreateLogger<TransactionPipelineBehavior<AttributeTransactionalCommand, string>>();
-        var behavior = new TransactionPipelineBehavior<AttributeTransactionalCommand, string>(_dbContext, logger);
+        var behavior = new TransactionPipelineBehavior<AttributeTransactionalCommand, string>(new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), logger);
         var request = new AttributeTransactionalCommand("attribute-test");
         var context = RequestContext.Create();
 
@@ -148,7 +149,7 @@ public sealed class TransactionPipelineBehaviorContractTests : IDisposable
     {
         // Exercises: line 77 ArgumentNullException.ThrowIfNull(request)
         var logger = NullLoggerFactory.Instance.CreateLogger<TransactionPipelineBehavior<TransactionalTestCommand, string>>();
-        var behavior = new TransactionPipelineBehavior<TransactionalTestCommand, string>(_dbContext, logger);
+        var behavior = new TransactionPipelineBehavior<TransactionalTestCommand, string>(new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), logger);
 
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await behavior.Handle(
@@ -163,7 +164,7 @@ public sealed class TransactionPipelineBehaviorContractTests : IDisposable
     {
         // Exercises: line 78 ArgumentNullException.ThrowIfNull(context)
         var logger = NullLoggerFactory.Instance.CreateLogger<TransactionPipelineBehavior<TransactionalTestCommand, string>>();
-        var behavior = new TransactionPipelineBehavior<TransactionalTestCommand, string>(_dbContext, logger);
+        var behavior = new TransactionPipelineBehavior<TransactionalTestCommand, string>(new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), logger);
 
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await behavior.Handle(
@@ -178,7 +179,7 @@ public sealed class TransactionPipelineBehaviorContractTests : IDisposable
     {
         // Exercises: line 79 ArgumentNullException.ThrowIfNull(nextStep)
         var logger = NullLoggerFactory.Instance.CreateLogger<TransactionPipelineBehavior<TransactionalTestCommand, string>>();
-        var behavior = new TransactionPipelineBehavior<TransactionalTestCommand, string>(_dbContext, logger);
+        var behavior = new TransactionPipelineBehavior<TransactionalTestCommand, string>(new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), logger);
 
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await behavior.Handle(

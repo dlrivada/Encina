@@ -1,9 +1,11 @@
 using Encina;
 using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.Transactions;
 using Encina.EntityFrameworkCore.UnitOfWork;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -35,7 +37,7 @@ public class UnitOfWorkEFTests : IAsyncLifetime
 
         _dbContext = new TestDbContext(options);
         _serviceProvider = Substitute.For<IServiceProvider>();
-        _unitOfWork = new UnitOfWorkEF(_dbContext, _serviceProvider);
+        _unitOfWork = new UnitOfWorkEF(_dbContext, new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), _serviceProvider);
     }
 
     public ValueTask InitializeAsync() => ValueTask.CompletedTask;
@@ -53,7 +55,7 @@ public class UnitOfWorkEFTests : IAsyncLifetime
     {
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new UnitOfWorkEF(null!, _serviceProvider));
+            new UnitOfWorkEF(null!, new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), _serviceProvider));
     }
 
     [Fact]
@@ -61,7 +63,7 @@ public class UnitOfWorkEFTests : IAsyncLifetime
     {
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new UnitOfWorkEF(_dbContext, null!));
+            new UnitOfWorkEF(_dbContext, new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), null!));
     }
 
     #endregion
@@ -176,7 +178,7 @@ public class UnitOfWorkEFTests : IAsyncLifetime
 
         var dbContext = new TestDbContext(options);
         var serviceProvider = NSubstitute.Substitute.For<IServiceProvider>();
-        var unitOfWork = new UnitOfWorkEF(dbContext, serviceProvider);
+        var unitOfWork = new UnitOfWorkEF(dbContext, new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance), serviceProvider);
 
         // Dispose the unit of work first
         await unitOfWork.DisposeAsync();
@@ -237,7 +239,7 @@ public class UnitOfWorkEFTests : IAsyncLifetime
 
         var dbContext = new TestDbContext(options);
         var serviceProvider = NSubstitute.Substitute.For<IServiceProvider>();
-        var unitOfWork = new UnitOfWorkEF(dbContext, serviceProvider);
+        var unitOfWork = new UnitOfWorkEF(dbContext, new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance), serviceProvider);
 
         // Dispose the unit of work first
         await unitOfWork.DisposeAsync();
@@ -293,7 +295,7 @@ public class UnitOfWorkEFTests : IAsyncLifetime
 
         var dbContext = new TestDbContext(options);
         var serviceProvider = NSubstitute.Substitute.For<IServiceProvider>();
-        var unitOfWork = new UnitOfWorkEF(dbContext, serviceProvider);
+        var unitOfWork = new UnitOfWorkEF(dbContext, new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance), serviceProvider);
 
         // Dispose the unit of work first
         await unitOfWork.DisposeAsync();
@@ -340,7 +342,7 @@ public class UnitOfWorkEFTests : IAsyncLifetime
 
         var dbContext = new TestDbContext(options);
         var serviceProvider = NSubstitute.Substitute.For<IServiceProvider>();
-        var unitOfWork = new UnitOfWorkEF(dbContext, serviceProvider);
+        var unitOfWork = new UnitOfWorkEF(dbContext, new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance), serviceProvider);
 
         // Dispose the unit of work first
         await unitOfWork.DisposeAsync();

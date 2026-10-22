@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Health;
+using Encina.EntityFrameworkCore.Transactions;
 using Encina.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,7 +43,7 @@ public sealed class TransactionPipelineBehaviorTests
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new TransactionPipelineBehavior<TestCommand, string>(dbContext, null!));
+            new TransactionPipelineBehavior<TestCommand, string>(new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance), null!));
     }
 
     [Fact]
@@ -53,7 +54,7 @@ public sealed class TransactionPipelineBehaviorTests
         var logger = NullLogger<TransactionPipelineBehavior<TestCommand, string>>.Instance;
 
         // Act
-        var behavior = new TransactionPipelineBehavior<TestCommand, string>(dbContext, logger);
+        var behavior = new TransactionPipelineBehavior<TestCommand, string>(new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance), logger);
 
         // Assert
         behavior.ShouldNotBeNull();

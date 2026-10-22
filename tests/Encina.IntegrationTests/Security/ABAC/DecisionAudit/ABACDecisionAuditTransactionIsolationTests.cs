@@ -4,6 +4,7 @@ using System.Transactions;
 
 using Encina.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Auditing;
+using Encina.EntityFrameworkCore.Transactions;
 using Encina.IntegrationTests.Security.Audit.EFCore;
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.DecisionAudit;
@@ -148,7 +149,8 @@ public sealed class ABACDecisionAuditTransactionIsolationTests(EFCoreSqlServerFi
         var outerContext = requestScope.ServiceProvider.GetRequiredService<AuditTestDbContext>();
         var outerStore = requestScope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
         var transaction = new TransactionPipelineBehavior<DenyingCommand, string>(
-            outerContext, NullLogger<TransactionPipelineBehavior<DenyingCommand, string>>.Instance);
+            new DbContextTransactionAccessor(outerContext, NullLogger<DbContextTransactionAccessor>.Instance),
+            NullLogger<TransactionPipelineBehavior<DenyingCommand, string>>.Instance);
         var pep = NewPep();
         var context = TestRequestContext.For(TestIdentity.User("alice"), correlationId: correlationId);
 
