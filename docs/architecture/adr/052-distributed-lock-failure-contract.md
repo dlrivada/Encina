@@ -43,13 +43,14 @@ flowchart TD
 
 - `TryAcquireAsync` returns `Either<EncinaError, Option<ILockHandle>>`. Acquired is `Right(Some(handle))`. Contention or timeout is `Right(None)`. An infrastructure fault is `Left`.
 - `AcquireAsync` returns `Either<EncinaError, ILockHandle>`.
-- `IsLockedAsync` and `ExtendAsync` on the provider return `Either<EncinaError, bool>`, as in [#2667](https://github.com/dlrivada/Encina/issues/2667): a fault is `Left`; "not locked" or "not held" is `Right(false)`.
-- The methods return `ILockHandle`, not `IAsyncDisposable`, so `ExtendAsync` and `ExpiresAtUtc` are reachable without a cast.
+- The methods return `ILockHandle`, not `IAsyncDisposable`, so `ExtendAsync` and `ExpiresAtUtc` are reachable without a cast. This comes from option D as written in the spike report, section 3.7, and is part of the option the maintainer chose.
 - `OperationCanceledException` still propagates, the same rule as `EitherHelpers.TryAsync`. Cancellation is not an error.
 - `LockAcquisitionException` is removed. No shim, alias or compatibility layer is left.
 - A new `LockErrorCodes` class holds the codes of the `Left` cases. An error never carries the raw exception message ([AGENTS.md](../../../AGENTS.md) section 3).
 - A documented `Match` pattern or helper extension keeps `await using` usable with the `Either` result. The exact form is decided in the implementation.
 - The decision applies to all five SPEC-000 providers. InMemory, Redis and SQL Server are changed; PostgreSQL (#207) and MySQL (#208) are written to this contract. Contract tests run the same scenarios over all five (AC-027).
+
+`IsLockedAsync` and `ExtendAsync` on the provider return `Either<EncinaError, bool>`: a fault is `Left`; "not locked" or "not held" is `Right(false)`. This is a consequence the orchestrator derived from the decision, not wording of the maintainer's comment, because only one shape complies. Both methods reach Redis or SQL Server; ADR-001 (lines 222-226) classifies connection, timeout and network failures as `Left`; and the principle of option D is that a fault is never collapsed into a normal result such as `false`. A `Task<bool>` would therefore either throw or hide a fault. It is recorded in [#2667](https://github.com/dlrivada/Encina/issues/2667).
 
 Target contract, illustrative and **not existing code** (the current signatures are in the table above):
 
@@ -109,7 +110,7 @@ The two lock libraries the spike read (madelson/DistributedLock, RedLock.net) re
 - [#2667](https://github.com/dlrivada/Encina/issues/2667) implements the contract: the interface and `ILockHandle`, `LockErrorCodes`, the `await using` helper, removal of `LockAcquisitionException`, `PublicAPI` lines, the three existing providers, and the unit, guard, property, integration and contract tests, NBomber scenarios, benchmarks and README. No production caller in `src/` changes, because there is none.
 - SQL Server classifies the `sp_getapplock` result: contention and timeout stay `Right(None)`; a fault becomes a `Left` with a `LockErrorCodes` code instead of `null`.
 - [#207](https://github.com/dlrivada/Encina/issues/207) (PostgreSQL) and [#208](https://github.com/dlrivada/Encina/issues/208) (MySQL) are written to this contract, and a lock feature is complete for 1.0 only when contract tests cover all five providers.
-- Logging and OpenTelemetry count `Right(None)` as contention, not as a failure (the cross-cutting check of [ADR-018](018-cross-cutting-integration-principle.md)).
+- Logging and OpenTelemetry do not count `Right(None)` as a failure, only as contention (the cross-cutting check of [ADR-018](018-cross-cutting-integration-principle.md)). This comes from option D in the spike report, section 3.7, and is part of the option the maintainer chose.
 - Related defects stay in their own issues: [#2654](https://github.com/dlrivada/Encina/issues/2654) (SQL Server wraps `OperationCanceledException`, Redis ignores the token, "Redlock" wording), [#2653](https://github.com/dlrivada/Encina/issues/2653) (duplicate providers in the caching packages, which must follow this contract whatever it decides) and [#2405](https://github.com/dlrivada/Encina/issues/2405) (SQL Server `ExtendAsync` is a no-op).
 - [#1795](https://github.com/dlrivada/Encina/issues/1795), the ROP architecture rule, can enforce this afterwards. No exemption entry is needed for locks.
 - [#1800](https://github.com/dlrivada/Encina/issues/1800) (reconciling ADR-001 and ADR-006) is open; this decision rests on ADR-001's runtime-failure rule and on AGENTS.md section 3, not on any exemption category.

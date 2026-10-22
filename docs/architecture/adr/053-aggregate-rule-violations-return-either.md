@@ -92,12 +92,11 @@ Marten, Wolverine and Axon throw inside decision code and translate at the bound
 
 ## Consequences
 
-- [#2668](https://github.com/dlrivada/Encina/issues/2668) implements it as one PR per package: the shared rule-code catalogue and the adapter in core first, then Consent, Retention, BreachNotification with DataSubjectRights, DataResidency with LawfulBasis, CrossBorderTransfer, and ProcessorAgreements with DPIA. The per-package state-transition factories are removed at the end.
+- [#2668](https://github.com/dlrivada/Encina/issues/2668) implements it; its order and plan are decided there.
 - About 200 `Should.Throw<InvalidOperationException>` assertions in the compliance unit and guard tests (spike report, section 4.6) are rewritten to assert the `Left` code of each rule. The service tests that modelled "database down" as `InvalidOperationException` start to distinguish a rule violation from an infrastructure fault.
 - The aggregate keeps two failure paths by design: a `Left` for rules and exceptions for argument guards.
-- Resolved when implemented: [#1591](https://github.com/dlrivada/Encina/issues/1591) for the compliance services (verify the other packages before closing it) and [#2655](https://github.com/dlrivada/Encina/issues/2655).
+- [#2668](https://github.com/dlrivada/Encina/issues/2668) is expected to resolve [#1591](https://github.com/dlrivada/Encina/issues/1591) and [#2655](https://github.com/dlrivada/Encina/issues/2655); their closure is decided there.
 - [#1795](https://github.com/dlrivada/Encina/issues/1795), the ROP architecture rule, can then enforce "no `InvalidOperationException` on aggregate rule paths". [#1800](https://github.com/dlrivada/Encina/issues/1800) is open and concerns the wording of ADR-001 and ADR-006; this decision rests on ADR-001 line 218 and AGENTS.md section 3.
-- The `AggregateBase<TId>` test support in `Encina.Testing` (`AggregateTestBase`) is exception-based and applies to other aggregates; it matters only if this decision is later extended to them (spike report, section 4.6).
 - [ADR-019](019-compliance-event-sourcing-marten.md) carries a note that its throwing sample is superseded; the implementation corrects the sample.
 
 ## Related
