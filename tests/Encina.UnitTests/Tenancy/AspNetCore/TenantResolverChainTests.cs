@@ -10,222 +10,213 @@ public class TenantResolverChainTests
     [Fact]
     public void Constructor_NullResolvers_ThrowsArgumentNullException()
     {
-        // Act & Assert
-        Should.Throw<ArgumentNullException>(() =>
-            new TenantResolverChain(null!));
+        Should.Throw<ArgumentNullException>(() => new TenantResolverChain(null!));
     }
 
     [Fact]
     public void Constructor_EmptyResolvers_CreatesEmptyChain()
     {
-        // Act
-        var chain = new TenantResolverChain([]);
-
-        // Assert
-        chain.Count.ShouldBe(0);
+        new TenantResolverChain([]).Count.ShouldBe(0);
     }
 
     [Fact]
-    public void Constructor_OrdersByPriority()
+    public void Constructor_CountsBothGroups()
     {
-        // Arrange
-        var lowPriority = new TestResolver(100, "low");
-        var highPriority = new TestResolver(10, "high");
-        var mediumPriority = new TestResolver(50, "medium");
+        var chain = new TenantResolverChain([new TestResolver(100, "a"), new TestResolver(10, "b", authoritative: true)]);
 
-        // Act
-        var chain = new TenantResolverChain([lowPriority, highPriority, mediumPriority]);
-
-        // Assert
-        chain.Count.ShouldBe(3);
+        chain.Count.ShouldBe(2);
     }
 
     [Fact]
     public async Task ResolveAsync_NullContext_ThrowsArgumentNullException()
     {
-        // Arrange
         var chain = new TenantResolverChain([]);
 
-        // Act & Assert
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await chain.ResolveAsync(null!));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await chain.ResolveAsync(null!));
     }
 
     [Fact]
-    public async Task ResolveAsync_EmptyChain_ReturnsNull()
+    public async Task ResolveAsync_EmptyChain_ReturnsNone()
     {
-        // Arrange
-        var chain = new TenantResolverChain([]);
-        var context = new DefaultHttpContext();
+        var result = await new TenantResolverChain([]).ResolveAsync(new DefaultHttpContext());
 
-        // Act
-        var result = await chain.ResolveAsync(context);
-
-        // Assert
-        result.ShouldBeNull();
+        result.ShouldBe(TenantResolution.None);
+        result.TenantId.ShouldBeNull();
+        result.IsMismatch.ShouldBeFalse();
     }
 
     [Fact]
-    public async Task ResolveAsync_FirstResolverReturnsValue_ReturnsValue()
+    public async Task ResolveAsync_NoAuthoritative_FirstNonEmptyByPriorityWins()
     {
-        // Arrange
-        var resolver1 = new TestResolver(10, "tenant-from-first");
-        var resolver2 = new TestResolver(20, "tenant-from-second");
+        var chain = new TenantResolverChain([new TestResolver(20, "second"), new TestResolver(10, "first")]);
 
-        var chain = new TenantResolverChain([resolver1, resolver2]);
-        var context = new DefaultHttpContext();
+        var result = await chain.ResolveAsync(new DefaultHttpContext());
 
-        // Act
-        var result = await chain.ResolveAsync(context);
+        result.TenantId.ShouldBe("first");
+        result.AuthoritativeResolver.ShouldBeNull();
+        result.IsMismatch.ShouldBeFalse();
+    }
 
-        // Assert
-        result.ShouldBe("tenant-from-first");
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ResolveAsync_NoAuthoritative_SkipsEmptyValues(string? empty)
+    {
+        var chain = new TenantResolverChain([new TestResolver(10, empty), new TestResolver(20, "second")]);
+
+        var result = await chain.ResolveAsync(new DefaultHttpContext());
+
+        result.TenantId.ShouldBe("second");
     }
 
     [Fact]
-    public async Task ResolveAsync_FirstResolverReturnsNull_TrysSecond()
+    public async Task ResolveAsync_NoAuthoritative_AllEmpty_ReturnsNone()
     {
-        // Arrange
-        var resolver1 = new TestResolver(10, null);
-        var resolver2 = new TestResolver(20, "tenant-from-second");
+        var chain = new TenantResolverChain([new TestResolver(10, null), new TestResolver(20, null)]);
 
-        var chain = new TenantResolverChain([resolver1, resolver2]);
-        var context = new DefaultHttpContext();
+        var result = await chain.ResolveAsync(new DefaultHttpContext());
 
-        // Act
-        var result = await chain.ResolveAsync(context);
-
-        // Assert
-        result.ShouldBe("tenant-from-second");
+        result.ShouldBe(TenantResolution.None);
     }
 
     [Fact]
-    public async Task ResolveAsync_AllResolversReturnNull_ReturnsNull()
+    public async Task ResolveAsync_NoAuthoritative_DisagreeingOthers_IsNotAMismatch()
     {
-        // Arrange
-        var resolver1 = new TestResolver(10, null);
-        var resolver2 = new TestResolver(20, null);
+        var chain = new TenantResolverChain([new TestResolver(10, "A"), new TestResolver(20, "B")]);
 
-        var chain = new TenantResolverChain([resolver1, resolver2]);
-        var context = new DefaultHttpContext();
+        var result = await chain.ResolveAsync(new DefaultHttpContext());
 
-        // Act
-        var result = await chain.ResolveAsync(context);
-
-        // Assert
-        result.ShouldBeNull();
+        result.TenantId.ShouldBe("A");
+        result.IsMismatch.ShouldBeFalse();
     }
 
     [Fact]
-    public async Task ResolveAsync_ResolverReturnsEmpty_TrysNext()
+    public async Task ResolveAsync_NoAuthoritative_StopsAtFirstValue()
     {
-        // Arrange
-        var resolver1 = new TestResolver(10, "");
-        var resolver2 = new TestResolver(20, "tenant-from-second");
+        var order = new List<int>();
+        var chain = new TenantResolverChain(
+        [
+            new TrackingResolver(10, null, order),
+            new TrackingResolver(20, "found", order),
+            new TrackingResolver(30, "not-reached", order),
+        ]);
 
-        var chain = new TenantResolverChain([resolver1, resolver2]);
-        var context = new DefaultHttpContext();
+        await chain.ResolveAsync(new DefaultHttpContext());
 
-        // Act
-        var result = await chain.ResolveAsync(context);
-
-        // Assert
-        result.ShouldBe("tenant-from-second");
+        order.ShouldBe([10, 20]);
     }
 
     [Fact]
-    public async Task ResolveAsync_ResolverReturnsWhitespace_TrysNext()
+    public async Task ResolveAsync_AuthoritativeBeatsLowerPriorityNonAuthoritative_WhenValuesAgree()
     {
-        // Arrange
-        var resolver1 = new TestResolver(10, "   ");
-        var resolver2 = new TestResolver(20, "tenant-from-second");
+        // The header-like resolver has the lower priority number (runs "first" in the old chain)
+        var chain = new TenantResolverChain([new TestResolver(100, "A"), new TestResolver(110, "A", authoritative: true)]);
 
-        var chain = new TenantResolverChain([resolver1, resolver2]);
-        var context = new DefaultHttpContext();
+        var result = await chain.ResolveAsync(new DefaultHttpContext());
 
-        // Act
-        var result = await chain.ResolveAsync(context);
-
-        // Assert
-        result.ShouldBe("tenant-from-second");
+        result.TenantId.ShouldBe("A");
+        result.AuthoritativeResolver.ShouldBe(nameof(TestResolver));
+        result.IsMismatch.ShouldBeFalse();
     }
 
     [Fact]
-    public async Task ResolveAsync_ExecutesInPriorityOrder()
+    public async Task ResolveAsync_AuthoritativeOnly_ReturnsItsTenant()
     {
-        // Arrange - all resolvers return null so the chain continues to the end
-        var executionOrder = new List<int>();
-        var resolver1 = new TrackingResolver(100, null, executionOrder);
-        var resolver2 = new TrackingResolver(10, null, executionOrder);
-        var resolver3 = new TrackingResolver(50, null, executionOrder);
+        var chain = new TenantResolverChain([new TestResolver(110, "A", authoritative: true), new TestResolver(100, null)]);
 
-        var chain = new TenantResolverChain([resolver1, resolver2, resolver3]);
-        var context = new DefaultHttpContext();
+        var result = await chain.ResolveAsync(new DefaultHttpContext());
 
-        // Act
-        await chain.ResolveAsync(context);
-
-        // Assert - executed in priority order (low number first)
-        executionOrder.ShouldBe([10, 50, 100]);
+        result.TenantId.ShouldBe("A");
+        result.IsMismatch.ShouldBeFalse();
     }
 
     [Fact]
-    public async Task ResolveAsync_StopsOnFirstNonNullResult()
+    public async Task ResolveAsync_ClaimAndDifferingHeader_IsMismatchWithoutTenant()
     {
-        // Arrange
-        var executionOrder = new List<int>();
-        var resolver1 = new TrackingResolver(10, null, executionOrder);
-        var resolver2 = new TrackingResolver(20, "found", executionOrder);
-        var resolver3 = new TrackingResolver(30, "not-reached", executionOrder);
+        var chain = new TenantResolverChain([new TestResolver(100, "B"), new TestResolver(110, "A", authoritative: true)]);
 
-        var chain = new TenantResolverChain([resolver1, resolver2, resolver3]);
-        var context = new DefaultHttpContext();
+        var result = await chain.ResolveAsync(new DefaultHttpContext());
 
-        // Act
-        var result = await chain.ResolveAsync(context);
-
-        // Assert
-        result.ShouldBe("found");
-        executionOrder.ShouldBe([10, 20]);
-        executionOrder.ShouldNotContain(30);
+        result.IsMismatch.ShouldBeTrue();
+        result.TenantId.ShouldBeNull();
+        result.AuthoritativeResolver.ShouldBe(nameof(TestResolver));
+        result.ConflictingResolver.ShouldBe(nameof(TestResolver));
     }
 
-    private sealed class TestResolver : ITenantResolver
+    [Fact]
+    public async Task ResolveAsync_ValuesDifferOnlyByCase_IsMismatch()
     {
-        private readonly string? _tenantId;
+        var chain = new TenantResolverChain([new TestResolver(100, "acme"), new TestResolver(110, "ACME", authoritative: true)]);
 
-        public TestResolver(int priority, string? tenantId)
-        {
-            Priority = priority;
-            _tenantId = tenantId;
-        }
+        var result = await chain.ResolveAsync(new DefaultHttpContext());
 
-        public int Priority { get; }
+        result.IsMismatch.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task ResolveAsync_AuthoritativeOrderedByPriorityAmongThemselves()
+    {
+        var chain = new TenantResolverChain(
+        [
+            new TestResolver(30, "late", authoritative: true),
+            new TestResolver(10, "early", authoritative: true),
+        ]);
+
+        var result = await chain.ResolveAsync(new DefaultHttpContext());
+
+        result.TenantId.ShouldBe("early");
+    }
+
+    [Fact]
+    public async Task ResolveAsync_EmptyAuthoritative_FallsBackToOthers()
+    {
+        var chain = new TenantResolverChain([new TestResolver(110, null, authoritative: true), new TestResolver(100, "B")]);
+
+        var result = await chain.ResolveAsync(new DefaultHttpContext());
+
+        result.TenantId.ShouldBe("B");
+        result.IsMismatch.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task ResolveAsync_WithAuthoritative_EveryNonAuthoritativeStillRuns()
+    {
+        var order = new List<int>();
+        var chain = new TenantResolverChain(
+        [
+            new TrackingResolver(10, null, order),
+            new TrackingResolver(20, "A", order),
+            new TrackingResolver(30, null, order),
+            new TrackingResolver(5, "A", order, authoritative: true),
+        ]);
+
+        var result = await chain.ResolveAsync(new DefaultHttpContext());
+
+        result.TenantId.ShouldBe("A");
+        order.ShouldBe([5, 10, 20, 30]);
+    }
+
+    private sealed class TestResolver(int priority, string? tenantId, bool authoritative = false) : ITenantResolver
+    {
+        public int Priority { get; } = priority;
+
+        public bool IsAuthoritative { get; } = authoritative;
+
+        public ValueTask<string?> ResolveAsync(HttpContext context, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(tenantId);
+    }
+
+    private sealed class TrackingResolver(int priority, string? tenantId, List<int> order, bool authoritative = false) : ITenantResolver
+    {
+        public int Priority { get; } = priority;
+
+        public bool IsAuthoritative { get; } = authoritative;
 
         public ValueTask<string?> ResolveAsync(HttpContext context, CancellationToken cancellationToken = default)
         {
-            return ValueTask.FromResult(_tenantId);
-        }
-    }
-
-    private sealed class TrackingResolver : ITenantResolver
-    {
-        private readonly string? _tenantId;
-        private readonly List<int> _executionOrder;
-
-        public TrackingResolver(int priority, string? tenantId, List<int> executionOrder)
-        {
-            Priority = priority;
-            _tenantId = tenantId;
-            _executionOrder = executionOrder;
-        }
-
-        public int Priority { get; }
-
-        public ValueTask<string?> ResolveAsync(HttpContext context, CancellationToken cancellationToken = default)
-        {
-            _executionOrder.Add(Priority);
-            return ValueTask.FromResult(_tenantId);
+            order.Add(Priority);
+            return ValueTask.FromResult(tenantId);
         }
     }
 }

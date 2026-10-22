@@ -11,8 +11,9 @@ namespace Encina.AzureFunctions;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This middleware automatically extracts and sets correlation ID, user ID, and tenant ID
-/// from HTTP request headers and claims, making them available throughout the function execution.
+/// This middleware sets the correlation ID on the function context, making it available throughout
+/// the function execution. The tenant is resolved per request by
+/// <see cref="FunctionContextExtensions.ResolveTenantId(FunctionContext, Microsoft.Azure.Functions.Worker.Http.HttpRequestData, EncinaAzureFunctionsOptions, ILogger)"/>.
 /// </para>
 /// <para>
 /// The middleware integrates with <see cref="FunctionContextExtensions"/> to provide consistent
@@ -34,7 +35,6 @@ public sealed class EncinaFunctionMiddleware : IFunctionsWorkerMiddleware
 {
     internal const string CorrelationIdKey = "Encina.CorrelationId";
     internal const string UserIdKey = "Encina.UserId";
-    internal const string TenantIdKey = "Encina.TenantId";
 
     private readonly EncinaAzureFunctionsOptions _options;
     private readonly ILogger<EncinaFunctionMiddleware> _logger;

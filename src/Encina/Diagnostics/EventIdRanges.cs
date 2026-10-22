@@ -174,6 +174,9 @@ public static class EventIdRanges
     /// <summary>Encina.DistributedLock.SqlServer — SQL Server lock provider.</summary>
     public static readonly (int Min, int Max) DistributedLockSqlServer = (3800, 3849);
 
+    /// <summary>Encina.Tenancy.AspNetCore — tenant resolution middleware and resolvers.</summary>
+    public static readonly (int Min, int Max) TenancyAspNetCore = (3850, 3899);
+
     // ═══════════════════════════════════════════════════════════════════════
     // Resilience and scheduling adapters (3900-4099)
     // ═══════════════════════════════════════════════════════════════════════

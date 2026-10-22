@@ -115,6 +115,7 @@ public sealed class EncinaEventIdAllocationTests
             ["Encina.Security.Secrets.HashiCorpVault"] = [nameof(EventIdRanges.SecuritySecretsHashiCorpVault)],
             ["Encina.SignalR"] = [nameof(EventIdRanges.SignalR)],
             ["Encina.Tenancy"] = [nameof(EventIdRanges.Tenancy)],
+            ["Encina.Tenancy.AspNetCore"] = [nameof(EventIdRanges.TenancyAspNetCore)],
             ["Encina.Testing"] = [nameof(EventIdRanges.Testing)],
         };
 

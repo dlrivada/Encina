@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Amazon.Lambda.APIGatewayEvents;
 using Amazon.Lambda.Core;
+using LanguageExt;
+using Microsoft.Extensions.Logging;
 
 namespace Encina.AwsLambda;
 
@@ -72,47 +74,110 @@ public static class LambdaContextExtensions
     }
 
     /// <summary>
-    /// Gets the tenant ID from the API Gateway request headers or JWT claims.
+    /// The error code of a tenant mismatch: the tenant header disagrees with the verified tenant claim.
+    /// </summary>
+    public const string TenantMismatchErrorCode = "tenancy.tenant_mismatch";
+
+    /// <summary>
+    /// Resolves the tenant ID of an API Gateway request: the verified claim wins, a header is a
+    /// trusted fallback only when <see cref="EncinaAwsLambdaOptions.TrustTenantIdHeader"/> is set.
     /// </summary>
     /// <param name="context">The Lambda context.</param>
-    /// <param name="request">The API Gateway request.</param>
-    /// <param name="options">Optional configuration options.</param>
-    /// <returns>The tenant ID if found, otherwise null.</returns>
-    public static string? GetTenantId(
+    /// <param name="request">The API Gateway request; <c>null</c> yields no tenant.</param>
+    /// <param name="options">The configuration options.</param>
+    /// <param name="logger">The logger used for the mismatch and the trusted-header notices.</param>
+    /// <returns>
+    /// <c>Right(Some(tenant))</c> when a tenant was found, <c>Right(None)</c> when the request carries none
+    /// (or only an untrusted header), and <c>Left</c> with <see cref="TenantMismatchErrorCode"/> when the
+    /// header disagrees with the claim.
+    /// </returns>
+    /// <remarks>
+    /// <para>The rules, in order:</para>
+    /// <list type="number">
+    /// <item><description>A claim (the authorizer <c>claims</c> object, then the authorizer entry) is the verified tenant.</description></item>
+    /// <item><description>A claim plus a different header is a mismatch (<c>Left</c>, logged as a Warning with the code only).</description></item>
+    /// <item><description>No claim, a header and <see cref="EncinaAwsLambdaOptions.TrustTenantIdHeader"/>: the header is the tenant (the opt-out is logged as a Warning).</description></item>
+    /// <item><description>No claim, a header that is not trusted: ignored (logged at Debug).</description></item>
+    /// </list>
+    /// <para>No log entry carries a tenant value.</para>
+    /// </remarks>
+    public static Either<EncinaError, Option<string>> ResolveTenantId(
         this ILambdaContext context,
-        APIGatewayProxyRequest? request = null,
-        EncinaAwsLambdaOptions? options = null)
+        APIGatewayProxyRequest? request,
+        EncinaAwsLambdaOptions options,
+        ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
 
-        if (request is null) return null;
-
-        var headerName = options?.TenantIdHeader ?? "X-Tenant-ID";
-        var claimType = options?.TenantIdClaimType ?? "tenant_id";
-
-        // Try to get from headers
-        if (request.Headers?.TryGetValue(headerName, out var tenantId) is true &&
-            !string.IsNullOrEmpty(tenantId))
+        if (request is null)
         {
-            return tenantId;
+            return Option<string>.None;
         }
 
-        // Try to get from authorizer claims (API Gateway authorizer)
-        if (request.RequestContext?.Authorizer?.TryGetValue("claims", out var claimsObj) is true &&
+        var claim = ReadAuthorizerValue(request, options.TenantIdClaimType);
+        var header = ReadHeader(request, options.TenantIdHeader);
+
+        if (claim is not null)
+        {
+            return header is not null && !string.Equals(header, claim, StringComparison.Ordinal)
+                ? TenantMismatch(logger)
+                : Option<string>.Some(claim);
+        }
+
+        return header is null ? Option<string>.None : ResolveHeaderOnly(header, options, logger);
+    }
+
+    private static Either<EncinaError, Option<string>> TenantMismatch(ILogger logger)
+    {
+        Log.TenantMismatch(logger, TenantMismatchErrorCode);
+        return EncinaErrors.Create(
+            TenantMismatchErrorCode,
+            "The tenant supplied by the request does not match the authenticated tenant.");
+    }
+
+    private static Either<EncinaError, Option<string>> ResolveHeaderOnly(string header, EncinaAwsLambdaOptions options, ILogger logger)
+    {
+        if (!options.TrustTenantIdHeader)
+        {
+            Log.TenantHeaderIgnored(logger, options.TenantIdHeader);
+            return Option<string>.None;
+        }
+
+        Log.TenantHeaderTrusted(logger, options.TenantIdHeader);
+        return Option<string>.Some(header);
+    }
+
+    private static string? ReadHeader(APIGatewayProxyRequest request, string headerName) =>
+        request.Headers?.TryGetValue(headerName, out var value) is true && !string.IsNullOrEmpty(value)
+            ? value
+            : null;
+
+    private static string? ReadAuthorizerValue(APIGatewayProxyRequest request, string claimType)
+    {
+        var authorizer = request.RequestContext?.Authorizer;
+        if (authorizer is null)
+        {
+            return null;
+        }
+
+        // Authorizer claims object (JWT authorizer), then the authorizer entry itself
+        if (authorizer.TryGetValue("claims", out var claimsObj) &&
             claimsObj is JsonElement claims &&
-            claims.TryGetProperty(claimType, out var tenantClaim))
+            claims.ValueKind == JsonValueKind.Object &&
+            claims.TryGetProperty(claimType, out var tenantClaim) &&
+            tenantClaim.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrEmpty(tenantClaim.GetString()))
         {
             return tenantClaim.GetString();
         }
 
-        // Try to get from authorizer claims as dictionary
-        if (request.RequestContext?.Authorizer?.TryGetValue(claimType, out var tenantFromAuth) is true &&
-            tenantFromAuth is string tenantStr)
-        {
-            return tenantStr;
-        }
-
-        return null;
+        return authorizer.TryGetValue(claimType, out var tenantFromAuth) &&
+               tenantFromAuth is string tenantStr &&
+               !string.IsNullOrEmpty(tenantStr)
+            ? tenantStr
+            : null;
     }
 
     /// <summary>

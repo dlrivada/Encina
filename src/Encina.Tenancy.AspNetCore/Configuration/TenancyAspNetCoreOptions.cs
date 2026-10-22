@@ -10,7 +10,6 @@ namespace Encina.Tenancy.AspNetCore;
 /// <code>
 /// services.AddEncinaTenancyAspNetCore(options =>
 /// {
-///     options.HeaderResolver.HeaderName = "X-Organization-ID";
 ///     options.ClaimResolver.Enabled = true;
 ///     options.SubdomainResolver.BaseDomain = "example.com";
 /// });
@@ -55,8 +54,20 @@ public sealed class HeaderResolverOptions
     /// <summary>
     /// Gets or sets a value indicating whether this resolver is enabled.
     /// </summary>
-    /// <value>The default is <c>true</c>.</value>
-    public bool Enabled { get; set; } = true;
+    /// <value>The default is <c>false</c>.</value>
+    /// <remarks>
+    /// <para>
+    /// A tenant header is chosen by the client, so it is off by default. Enabling it requires an
+    /// explicit trust decision: list the gateways that set the header in <see cref="TrustedProxies"/>,
+    /// or opt out with <see cref="TrustAnyPeer"/>. Startup fails when the resolver is enabled with
+    /// neither setting.
+    /// </para>
+    /// <para>
+    /// The header never overrides a verified claim: when the claim and the header disagree the
+    /// request is denied (403 Forbidden), and the header is used only when no claim exists.
+    /// </para>
+    /// </remarks>
+    public bool Enabled { get; set; }
 
     /// <summary>
     /// Gets or sets the HTTP header name to read the tenant ID from.
@@ -68,7 +79,41 @@ public sealed class HeaderResolverOptions
     /// Gets or sets the priority of this resolver.
     /// </summary>
     /// <value>The default is 100.</value>
+    /// <remarks>
+    /// The priority orders this resolver only among the non-authoritative resolvers (route, subdomain,
+    /// custom ones that report <see cref="ITenantResolver.IsAuthoritative"/> as <c>false</c>).
+    /// </remarks>
     public int Priority { get; set; } = HeaderTenantResolver.DefaultPriority;
+
+    /// <summary>
+    /// Gets the networks whose peers are allowed to supply the tenant header (typically the gateway
+    /// or reverse proxy that sets it).
+    /// </summary>
+    /// <value>An empty list by default: no peer is trusted.</value>
+    /// <remarks>
+    /// The check uses the peer address seen when the middleware runs, normalized when it is an
+    /// IPv4-mapped IPv6 address. After <c>UseForwardedHeaders</c> that address is the forwarded client
+    /// address, not the proxy, so list the gateway accordingly (or place the middleware before the
+    /// forwarded-headers middleware), or use <see cref="TrustAnyPeer"/> only behind network isolation.
+    /// A request with no peer address is never trusted through this list.
+    /// </remarks>
+    public IList<System.Net.IPNetwork> TrustedProxies { get; } = [];
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the tenant header is honored from any peer.
+    /// </summary>
+    /// <value>The default is <c>false</c>.</value>
+    /// <remarks>
+    /// <para>
+    /// This is an explicit opt-out of the trusted-proxy check. Use it only when the application is
+    /// reachable solely through network isolation (a private network, a service mesh). A Warning is
+    /// logged when the middleware is created with this option on.
+    /// </para>
+    /// <para>
+    /// See <see cref="TrustedProxies"/> for the address the check would otherwise use.
+    /// </para>
+    /// </remarks>
+    public bool TrustAnyPeer { get; set; }
 }
 
 /// <summary>
@@ -92,6 +137,11 @@ public sealed class ClaimResolverOptions
     /// Gets or sets the priority of this resolver.
     /// </summary>
     /// <value>The default is 110.</value>
+    /// <remarks>
+    /// The claim resolver is authoritative: it always runs before the non-authoritative resolvers and
+    /// its value wins whatever the priority values are. The priority orders it only among the
+    /// authoritative resolvers.
+    /// </remarks>
     public int Priority { get; set; } = ClaimTenantResolver.DefaultPriority;
 }
 

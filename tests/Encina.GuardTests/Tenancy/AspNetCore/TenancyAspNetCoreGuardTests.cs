@@ -2,6 +2,7 @@ using Encina.Tenancy.AspNetCore;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 using NSubstitute;
@@ -47,20 +48,27 @@ public sealed class TenancyAspNetCoreGuardTests
     public void HeaderTenantResolver_NullOptions_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new HeaderTenantResolver(null!));
+            new HeaderTenantResolver(null!, NullLogger<HeaderTenantResolver>.Instance));
+    }
+
+    [Fact]
+    public void HeaderTenantResolver_NullLogger_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+            new HeaderTenantResolver(Options.Create(new TenancyAspNetCoreOptions()), null!));
     }
 
     [Fact]
     public void HeaderTenantResolver_ValidOptions_Constructs()
     {
-        var sut = new HeaderTenantResolver(Options.Create(new TenancyAspNetCoreOptions()));
+        var sut = new HeaderTenantResolver(Options.Create(new TenancyAspNetCoreOptions()), NullLogger<HeaderTenantResolver>.Instance);
         sut.ShouldNotBeNull();
     }
 
     [Fact]
     public async Task HeaderTenantResolver_NullContext_Throws()
     {
-        var sut = new HeaderTenantResolver(Options.Create(new TenancyAspNetCoreOptions()));
+        var sut = new HeaderTenantResolver(Options.Create(new TenancyAspNetCoreOptions()), NullLogger<HeaderTenantResolver>.Instance);
         await Should.ThrowAsync<ArgumentNullException>(
             () => sut.ResolveAsync(null!).AsTask());
     }
@@ -216,7 +224,7 @@ public sealed class TenancyAspNetCoreGuardTests
         options.ShouldNotBeNull();
         options.Return400WhenTenantRequired.ShouldBeTrue();
         options.HeaderResolver.ShouldNotBeNull();
-        options.HeaderResolver.Enabled.ShouldBeTrue();
+        options.HeaderResolver.Enabled.ShouldBeFalse();
         options.ClaimResolver.ShouldNotBeNull();
         options.ClaimResolver.Enabled.ShouldBeTrue();
         options.RouteResolver.ShouldNotBeNull();

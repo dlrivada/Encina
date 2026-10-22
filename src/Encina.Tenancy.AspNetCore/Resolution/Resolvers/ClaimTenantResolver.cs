@@ -63,6 +63,10 @@ public sealed class ClaimTenantResolver : ITenantResolver
     public int Priority => _options.ClaimResolver.Priority;
 
     /// <inheritdoc />
+    /// <remarks>The claim of an authenticated principal is verified, so it always wins.</remarks>
+    public bool IsAuthoritative => true;
+
+    /// <inheritdoc />
     public ValueTask<string?> ResolveAsync(HttpContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);

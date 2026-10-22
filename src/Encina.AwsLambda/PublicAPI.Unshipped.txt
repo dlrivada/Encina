@@ -31,11 +31,14 @@ static Encina.AwsLambda.ApiGatewayResponseExtensions.ToHttpApiResponse<T>(this L
 Encina.AwsLambda.LambdaContextExtensions
 static Encina.AwsLambda.LambdaContextExtensions.GetCorrelationId(this Amazon.Lambda.Core.ILambdaContext! context, Amazon.Lambda.APIGatewayEvents.APIGatewayProxyRequest? request = null, Encina.AwsLambda.EncinaAwsLambdaOptions? options = null) -> string!
 static Encina.AwsLambda.LambdaContextExtensions.GetCorrelationId(this Amazon.Lambda.Core.ILambdaContext! context, Amazon.Lambda.APIGatewayEvents.APIGatewayHttpApiV2ProxyRequest? request, Encina.AwsLambda.EncinaAwsLambdaOptions? options = null) -> string!
-static Encina.AwsLambda.LambdaContextExtensions.GetTenantId(this Amazon.Lambda.Core.ILambdaContext! context, Amazon.Lambda.APIGatewayEvents.APIGatewayProxyRequest? request = null, Encina.AwsLambda.EncinaAwsLambdaOptions? options = null) -> string?
 static Encina.AwsLambda.LambdaContextExtensions.GetUserId(this Amazon.Lambda.Core.ILambdaContext! context, Amazon.Lambda.APIGatewayEvents.APIGatewayProxyRequest? request = null, Encina.AwsLambda.EncinaAwsLambdaOptions? options = null) -> string?
 static Encina.AwsLambda.LambdaContextExtensions.GetAwsRequestId(this Amazon.Lambda.Core.ILambdaContext! context) -> string!
 static Encina.AwsLambda.LambdaContextExtensions.GetFunctionName(this Amazon.Lambda.Core.ILambdaContext! context) -> string!
 static Encina.AwsLambda.LambdaContextExtensions.GetRemainingTimeMs(this Amazon.Lambda.Core.ILambdaContext! context) -> int
+static Encina.AwsLambda.LambdaContextExtensions.ResolveTenantId(this Amazon.Lambda.Core.ILambdaContext! context, Amazon.Lambda.APIGatewayEvents.APIGatewayProxyRequest? request, Encina.AwsLambda.EncinaAwsLambdaOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<string!>>
+const Encina.AwsLambda.LambdaContextExtensions.TenantMismatchErrorCode = "tenancy.tenant_mismatch" -> string!
+Encina.AwsLambda.EncinaAwsLambdaOptions.TrustTenantIdHeader.get -> bool
+Encina.AwsLambda.EncinaAwsLambdaOptions.TrustTenantIdHeader.set -> void
 Encina.AwsLambda.SqsMessageHandler
 static Encina.AwsLambda.SqsMessageHandler.ProcessBatchAsync<T>(Amazon.Lambda.SQSEvents.SQSEvent! sqsEvent, System.Func<Amazon.Lambda.SQSEvents.SQSEvent.SQSMessage!, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!>! processMessage, Microsoft.Extensions.Logging.ILogger? logger = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Amazon.Lambda.SQSEvents.SQSBatchResponse!>!
 static Encina.AwsLambda.SqsMessageHandler.ProcessBatchAsync<TMessage, TResult>(Amazon.Lambda.SQSEvents.SQSEvent! sqsEvent, System.Func<TMessage, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TResult>>!>! processMessage, Microsoft.Extensions.Logging.ILogger? logger = null, System.Text.Json.JsonSerializerOptions? jsonOptions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Amazon.Lambda.SQSEvents.SQSBatchResponse!>!

@@ -62,6 +62,10 @@ public sealed class RouteTenantResolver : ITenantResolver
     public int Priority => _options.RouteResolver.Priority;
 
     /// <inheritdoc />
+    /// <remarks>A route value is client supplied: it never overrides a verified claim.</remarks>
+    public bool IsAuthoritative => false;
+
+    /// <inheritdoc />
     public ValueTask<string?> ResolveAsync(HttpContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);

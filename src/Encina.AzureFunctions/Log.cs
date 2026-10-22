@@ -53,4 +53,28 @@ internal static partial class Log
     public static partial void HealthCheckCompleted(
         ILogger logger,
         string status);
+
+    [LoggerMessage(
+        EventId = 4755,
+        Level = LogLevel.Warning,
+        Message = "Tenant header disagrees with the verified tenant claim; request rejected ({ErrorCode})")]
+    public static partial void TenantMismatch(
+        ILogger logger,
+        string errorCode);
+
+    [LoggerMessage(
+        EventId = 4756,
+        Level = LogLevel.Warning,
+        Message = "Tenant taken from header {HeaderName} because no claim exists and TrustTenantIdHeader is enabled")]
+    public static partial void TenantHeaderTrusted(
+        ILogger logger,
+        string headerName);
+
+    [LoggerMessage(
+        EventId = 4757,
+        Level = LogLevel.Debug,
+        Message = "Tenant header {HeaderName} ignored: no tenant claim and TrustTenantIdHeader is disabled")]
+    public static partial void TenantHeaderIgnored(
+        ILogger logger,
+        string headerName);
 }

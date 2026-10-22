@@ -4,6 +4,7 @@ using Encina.Tenancy.AspNetCore;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 
@@ -47,6 +48,7 @@ public sealed class TenantResolutionMiddlewareTests
     }
 
     private readonly FakeTenantStore _tenantStore = new();
+    private readonly FakeLogger<TenantResolutionMiddleware> _logger = new();
 
     private TenantResolutionMiddleware CreateMiddleware(
         IEnumerable<ITenantResolver>? resolvers = null,
@@ -54,7 +56,7 @@ public sealed class TenantResolutionMiddlewareTests
         TenancyAspNetCoreOptions? aspNetCoreOptions = null)
     {
         resolvers ??= Enumerable.Empty<ITenantResolver>();
-        tenancyOptions ??= new TenancyOptions();
+        tenancyOptions ??= new TenancyOptions { RequireTenant = false };
         aspNetCoreOptions ??= new TenancyAspNetCoreOptions();
 
         return new TenantResolutionMiddleware(
@@ -66,7 +68,8 @@ public sealed class TenantResolutionMiddlewareTests
             resolvers,
             Options.Create(tenancyOptions),
             Options.Create(aspNetCoreOptions),
-            _tenantStore);
+            _tenantStore,
+            _logger);
     }
 
     private static DefaultHttpContext CreateHttpContext()
@@ -215,7 +218,8 @@ public sealed class TenantResolutionMiddlewareTests
             [ResolverOf("tenant-abc")],
             Options.Create(new TenancyOptions()),
             Options.Create(new TenancyAspNetCoreOptions()),
-            _tenantStore);
+            _tenantStore,
+            _logger);
 
         await host.InInboundScope(global::Encina.Testing.Identity.TestIdentity.Principal("alice"), async _ =>
         {
@@ -405,7 +409,8 @@ public sealed class TenantResolutionMiddlewareTests
             [resolver],
             Options.Create(new TenancyOptions()),
             Options.Create(new TenancyAspNetCoreOptions()),
-            _tenantStore);
+            _tenantStore,
+            _logger);
         var context = CreateHttpContext();
         context.TraceIdentifier = "trace-42";
 
@@ -434,9 +439,10 @@ public sealed class TenantResolutionMiddlewareTests
                 return Task.CompletedTask;
             },
             [],
-            Options.Create(new TenancyOptions()),
+            Options.Create(new TenancyOptions { RequireTenant = false }),
             Options.Create(new TenancyAspNetCoreOptions()),
-            _tenantStore);
+            _tenantStore,
+            _logger);
 
         // Act
         await middleware.InvokeAsync(CreateHttpContext(), accessor, TimeProvider.System);
