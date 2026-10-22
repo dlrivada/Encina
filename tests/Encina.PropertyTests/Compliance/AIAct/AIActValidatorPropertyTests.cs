@@ -90,7 +90,7 @@ public sealed class AIActValidatorPropertyTests
         var time = new FakeTimeProvider();
         var sut = new DefaultDataQualityValidator(time);
 
-        var result = sut.ValidateTrainingDataAsync(datasetId.Get).AsTask().Result;
+        var result = sut.ValidateTrainingDataAsync(datasetId.Get).AsTask().GetAwaiter().GetResult();
 
         return result.Match(
             Right: report => report.DatasetId == datasetId.Get
@@ -112,7 +112,7 @@ public sealed class AIActValidatorPropertyTests
         var sut = new DefaultDataQualityValidator(time);
         IReadOnlyList<string> protectedAttributes = [.. attributes.Select(a => a.Get)];
 
-        var result = sut.DetectBiasAsync(datasetId.Get, protectedAttributes).AsTask().Result;
+        var result = sut.DetectBiasAsync(datasetId.Get, protectedAttributes).AsTask().GetAwaiter().GetResult();
 
         return result.Match(
             Right: report => report.DatasetId == datasetId.Get
@@ -130,7 +130,7 @@ public sealed class AIActValidatorPropertyTests
         var sut = new DefaultDataQualityValidator(time);
 
         time.Advance(TimeSpan.FromSeconds(seconds.Get));
-        var result = sut.ValidateTrainingDataAsync("ds").AsTask().Result;
+        var result = sut.ValidateTrainingDataAsync("ds").AsTask().GetAwaiter().GetResult();
 
         return result.Match(Right: r => r.EvaluatedAtUtc == time.GetUtcNow(), Left: _ => false);
     }
@@ -149,7 +149,7 @@ public sealed class AIActValidatorPropertyTests
         var systemId = $"unregistered-{n.Get}";
 
         var result = CreateComplianceValidator(registry, time)
-            .ValidateAsync(new object(), systemId).AsTask().Result;
+            .ValidateAsync(new object(), systemId).AsTask().GetAwaiter().GetResult();
 
         return result.Match(
             Right: r => r.SystemId == systemId
@@ -176,10 +176,10 @@ public sealed class AIActValidatorPropertyTests
             Category = AISystemCategory.EmploymentWorkersManagement,
             RiskLevel = riskLevel,
             RegisteredAtUtc = time.GetUtcNow()
-        }).AsTask().Result.IsRight.ShouldBeTrue();
+        }).AsTask().GetAwaiter().GetResult().IsRight.ShouldBeTrue();
 
         var result = CreateComplianceValidator(registry, time)
-            .ValidateAsync(new object(), "registered").AsTask().Result;
+            .ValidateAsync(new object(), "registered").AsTask().GetAwaiter().GetResult();
 
         return result.Match(
             Right: r => r.RiskLevel == riskLevel
@@ -205,10 +205,10 @@ public sealed class AIActValidatorPropertyTests
             RiskLevel = AIRiskLevel.HighRisk,
             RegisteredAtUtc = time.GetUtcNow(),
             ProhibitedPractices = [.. practices.Take(count)]
-        }).AsTask().Result.IsRight.ShouldBeTrue();
+        }).AsTask().GetAwaiter().GetResult().IsRight.ShouldBeTrue();
 
         var result = CreateComplianceValidator(registry, time)
-            .ValidateAsync(new object(), "banned").AsTask().Result;
+            .ValidateAsync(new object(), "banned").AsTask().GetAwaiter().GetResult();
 
         return result.Match(
             Right: r => r.IsProhibited
