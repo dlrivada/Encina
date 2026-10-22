@@ -356,11 +356,13 @@ internal sealed class OutboxBatchProcessor
             return OutcomeNotRecorded(DeadLetterCaptureOperation, message, captured);
         }
 
-        var exhaustedMark = await _store.MarkAsFailedAsync(message.Id, failure.Reason, nextRetryAtUtc: null, cancellationToken)
+        // The store raises RetryCount to MaxRetries in the same update, so the message is not fetched again whatever
+        // its count was (an above-ceiling Retry-After exhausts a message that still had retries left).
+        var exhaustedMark = await _store.MarkAsExhaustedAsync(message.Id, failure.Reason, _options.MaxRetries, cancellationToken)
             .ConfigureAwait(false);
         if (exhaustedMark.IsLeft)
         {
-            return OutcomeNotRecorded(nameof(IOutboxStore.MarkAsFailedAsync), message, exhaustedMark);
+            return OutcomeNotRecorded(nameof(IOutboxStore.MarkAsExhaustedAsync), message, exhaustedMark);
         }
 
         MessagingLog.OutboxMessageRetriesExhausted(

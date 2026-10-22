@@ -39,7 +39,8 @@ public class RetryAfterCeilingProperties
         public bool IsDeadLettered(int maxRetries) => RetryCount >= maxRetries && !IsProcessed;
     }
 
-    private static (DateTime? NextRetryAtUtc, bool Marked) Run(TimeSpan retryAfter, TimeSpan ceiling)
+    // Marked: the store recorded a retry time; Exhausted: the store recorded the exhausted state instead.
+    private static (DateTime? NextRetryAtUtc, bool Marked, bool Exhausted) Run(TimeSpan retryAfter, TimeSpan ceiling)
     {
         var store = Substitute.For<IOutboxStore>();
         store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
@@ -52,6 +53,14 @@ public class RetryAfterCeilingProperties
             {
                 captured = call.ArgAt<DateTime?>(2);
                 marked = true;
+                return Right<EncinaError, Unit>(Unit.Default);
+            });
+
+        var exhausted = false;
+        store.MarkAsExhaustedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                exhausted = true;
                 return Right<EncinaError, Unit>(Unit.Default);
             });
 
@@ -72,7 +81,7 @@ public class RetryAfterCeilingProperties
         processor.ProcessAsync((_, _, _) => ValueTask.FromResult(Left<EncinaError, Unit>(error)), CancellationToken.None)
             .GetAwaiter().GetResult();
 
-        return (captured, marked);
+        return (captured, marked, exhausted);
     }
 
     [FsCheck.Xunit.Property]
@@ -81,14 +90,15 @@ public class RetryAfterCeilingProperties
         {
             var retryAfter = TimeSpan.FromSeconds(seconds.Get);
             var ceiling = TimeSpan.FromSeconds(ceilingSeconds.Get);
-            var (next, marked) = Run(retryAfter, ceiling);
+            var (next, marked, exhausted) = Run(retryAfter, ceiling);
 
             if (retryAfter > ceiling)
             {
-                return (marked && next is null).ToProperty();
+                // Nothing is scheduled: no retry time is recorded, the exhausted state is.
+                return (exhausted && !marked && next is null).ToProperty();
             }
 
             var expected = Now.UtcDateTime + (retryAfter > Backoff ? retryAfter : Backoff);
-            return (marked && next == expected).ToProperty();
+            return (marked && !exhausted && next == expected).ToProperty();
         });
 }

@@ -32,6 +32,8 @@ public sealed class OutboxRetryAfterCeilingTests
     {
         _store.MarkAsFailedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, Unit>(Unit.Default));
+        _store.MarkAsExhaustedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
     }
 
     [Fact]
@@ -85,8 +87,9 @@ public sealed class OutboxRetryAfterCeilingTests
         var result = await sut.ProcessAsync((_, _, _) => Limited(TimeSpan.FromMinutes(61)), CancellationToken.None);
 
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 0, 1, 0));
-        await _store.Received(1).MarkAsFailedAsync(
-            message.Id, RecoverabilityErrorCodes.RetryAfterExceedsCeiling, null, Arg.Any<CancellationToken>());
+        await _store.Received(1).MarkAsExhaustedAsync(
+            message.Id, RecoverabilityErrorCodes.RetryAfterExceedsCeiling, 10, Arg.Any<CancellationToken>());
+        await _store.DidNotReceiveWithAnyArgs().MarkAsFailedAsync(default, default!, default, default);
 
         var entry = _logger.Collector.GetSnapshot().Single(e => e.Id.Id == 5456);
         entry.Level.ShouldBe(LogLevel.Warning);
@@ -111,10 +114,10 @@ public sealed class OutboxRetryAfterCeilingTests
         var result = await sut.ProcessAsync((_, _, _) => Limited(TimeSpan.FromMinutes(2)), CancellationToken.None);
 
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 0, 2, 0));
-        await _store.Received(1).MarkAsFailedAsync(
-            first.Id, RecoverabilityErrorCodes.RetryAfterExceedsCeiling, null, Arg.Any<CancellationToken>());
-        await _store.Received(1).MarkAsFailedAsync(
-            last.Id, RecoverabilityErrorCodes.RetryAfterExceedsCeiling, null, Arg.Any<CancellationToken>());
+        await _store.Received(1).MarkAsExhaustedAsync(
+            first.Id, RecoverabilityErrorCodes.RetryAfterExceedsCeiling, 10, Arg.Any<CancellationToken>());
+        await _store.Received(1).MarkAsExhaustedAsync(
+            last.Id, RecoverabilityErrorCodes.RetryAfterExceedsCeiling, 10, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -128,8 +131,8 @@ public sealed class OutboxRetryAfterCeilingTests
 
         var exhausted = Pending(retryCount: 0);
         await sut.ProcessAsync((_, _, _) => Limited(TimeSpan.FromHours(25)), CancellationToken.None);
-        await _store.Received(1).MarkAsFailedAsync(
-            exhausted.Id, RecoverabilityErrorCodes.RetryAfterExceedsCeiling, null, Arg.Any<CancellationToken>());
+        await _store.Received(1).MarkAsExhaustedAsync(
+            exhausted.Id, RecoverabilityErrorCodes.RetryAfterExceedsCeiling, 10, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -162,8 +165,43 @@ public sealed class OutboxRetryAfterCeilingTests
         // The exhausted state is not recorded, the message is delivered again later, and nothing is counted twice.
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 0, 0, 1));
         await _store.DidNotReceiveWithAnyArgs().MarkAsFailedAsync(default, default!, default, default);
+        await _store.DidNotReceiveWithAnyArgs().MarkAsExhaustedAsync(default, default!, default, default);
         _logger.Collector.GetSnapshot().ShouldNotContain(e => e.Id.Id == 5456);
         metrics.Tags("encina.retry.skipped_total", nameof(TestNotification)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task RetryAfterAboveTheCeiling_OnARealStoreSemantic_ExhaustsOnceAndTheSecondCycleFindsNothing()
+    {
+        // Arrange - the fake store models RetryCount++ and the pending filter like the real stores
+        using var metrics = new MetricCapture("encina.retry.skipped_total");
+        var fakeStore = new global::Encina.Testing.Fakes.Stores.FakeOutboxStore(_timeProvider);
+        var message = CreateMessage(retryCount: 0);
+        await fakeStore.AddAsync(message);
+        var options = Options(ceiling: TimeSpan.FromHours(1));
+        var sut = new OutboxBatchProcessor(fakeStore, options, _logger, serializer: null, _timeProvider);
+        var publishes = 0;
+
+        ValueTask<Either<EncinaError, Unit>> Publish(IOutboxMessage m, Type t, object n)
+        {
+            publishes++;
+            return Limited(TimeSpan.FromHours(25));
+        }
+
+        // Act
+        var first = await sut.ProcessAsync(Publish, CancellationToken.None);
+        var second = await sut.ProcessAsync(Publish, CancellationToken.None);
+
+        // Assert - exhausted at once: RetryCount raised to MaxRetries, no next retry, not fetched again
+        Outcome(first).ShouldBe(new OutboxBatchResult(0, 0, 1, 0));
+        Outcome(second).Total.ShouldBe(0);
+        publishes.ShouldBe(1);
+        var stored = fakeStore.GetMessages().Single();
+        stored.RetryCount.ShouldBe(options.MaxRetries);
+        stored.NextRetryAtUtc.ShouldBeNull();
+        (await fakeStore.GetExhaustedCountAsync(options.MaxRetries)).RightToArray()[0].ShouldBe(1);
+        _logger.Collector.GetSnapshot().Count(e => e.Id.Id == 5456).ShouldBe(1);
+        metrics.Tags("encina.retry.skipped_total", nameof(TestNotification)).Count.ShouldBe(1);
     }
 
     private OutboxBatchProcessor CreateSut(OutboxOptions options, DeadLetterSourceCapture? capture = null)

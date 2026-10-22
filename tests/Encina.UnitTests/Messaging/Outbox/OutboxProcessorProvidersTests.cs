@@ -58,7 +58,8 @@ public sealed class OutboxProcessorProvidersTests
 
         await harness.RunOneFailureAsync(provider, Options(maxRetries: 3));
 
-        await harness.Store.Received(1).MarkAsFailedAsync(message.Id, "handler.rejected", null, Arg.Any<CancellationToken>());
+        await harness.Store.Received(1).MarkAsExhaustedAsync(message.Id, "handler.rejected", 3, Arg.Any<CancellationToken>());
+        await harness.Store.DidNotReceiveWithAnyArgs().MarkAsFailedAsync(default, default!, default, default);
         await harness.Store.DidNotReceiveWithAnyArgs().MarkAsProcessedAsync(default, default);
     }
 
@@ -110,6 +111,9 @@ public sealed class OutboxProcessorProvidersTests
             Store.MarkAsProcessedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
                 .Returns(Right<EncinaError, Unit>(Unit.Default));
             Store.MarkAsFailedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+                .Returns(Right<EncinaError, Unit>(Unit.Default))
+                .AndDoes(_ => _failed.TrySetResult());
+            Store.MarkAsExhaustedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
                 .Returns(Right<EncinaError, Unit>(Unit.Default))
                 .AndDoes(_ => _failed.TrySetResult());
             Store.SaveChangesAsync(Arg.Any<CancellationToken>())
