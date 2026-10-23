@@ -29,7 +29,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 10,
+        "property": 70,
+        "unit": 90
+      },
+      "justifications": {
+        "unit": "Unit tests cover encrypt/decrypt round trips including the empty-string case and the authentication-failure paths (measured 91%); the remaining lines are defensive exception catch paths that need a failing crypto primitive.",
+        "property": "Round-trip property tests exercise encryption and decryption over generated inputs (measured 75%); error catch paths are not reachable from generated valid inputs.",
+        "guard": "Guard tests only exercise null-argument checks on the public methods (measured 12%), so a low target reflects that the rest of the file is behavior covered by unit and property flags."
+      }
     },
     "Attributes/DecryptOnReceiveAttribute.cs": {
       "defaultTests": [
