@@ -1,5 +1,6 @@
 using Encina.Diagnostics;
 using Encina.Messaging.DeadLetter;
+using Encina.Messaging.Recoverability;
 using Encina.Messaging.Serialization;
 using Encina.Recoverability;
 using LanguageExt;
@@ -240,20 +241,27 @@ internal sealed class OutboxBatchProcessor
     // delay the API asked for (http.retry_after), which the next attempt never undercuts.
     private readonly record struct Failure(string Reason, string ErrorCode, Exception? Exception = null, TimeSpan? RetryAfter = null);
 
-    private async Task<MessageOutcome> FailAsync(
+    private Task<MessageOutcome> FailAsync(
         IOutboxMessage message,
         Failure failure,
         CancellationToken cancellationToken)
     {
         var retryCount = message.RetryCount + 1;
-        var failureReason = failure.Reason;
-        var exception = failure.Exception;
 
-        if (retryCount >= _options.MaxRetries)
+        // A Retry-After above the ceiling schedules nothing: the message is exhausted at once, whatever its retry count.
+        if (failure.RetryAfter is { } requested && requested > _options.MaxRetryAfter)
         {
-            return await ExhaustAsync(message, failure, retryCount, cancellationToken).ConfigureAwait(false);
+            return ExhaustAboveCeilingAsync(message, failure, requested, retryCount, cancellationToken);
         }
 
+        return retryCount >= _options.MaxRetries
+            ? ExhaustAsync(message, failure, retryCount, cancellationToken)
+            : ScheduleRetryAsync(message, failure, retryCount, cancellationToken);
+    }
+
+    // The next attempt: the capped exponential backoff, never earlier than the Retry-After the API asked for.
+    private DateTime NextRetryAtUtc(IOutboxMessage message, Failure failure)
+    {
         var delay = OutboxRetryBackoff.ComputeDelay(
             message.RetryCount,
             _options.BaseRetryDelay,
@@ -265,7 +273,18 @@ internal sealed class OutboxBatchProcessor
             delay = retryAfter;
         }
 
-        var nextRetryAtUtc = SaturatingTime.AddSaturating(_timeProvider.GetUtcNow().UtcDateTime, delay);
+        return SaturatingTime.AddSaturating(_timeProvider.GetUtcNow().UtcDateTime, delay);
+    }
+
+    private async Task<MessageOutcome> ScheduleRetryAsync(
+        IOutboxMessage message,
+        Failure failure,
+        int retryCount,
+        CancellationToken cancellationToken)
+    {
+        var failureReason = failure.Reason;
+        var exception = failure.Exception;
+        var nextRetryAtUtc = NextRetryAtUtc(message, failure);
 
         var failedMark = await _store.MarkAsFailedAsync(message.Id, failureReason, nextRetryAtUtc, cancellationToken)
             .ConfigureAwait(false);
@@ -286,6 +305,40 @@ internal sealed class OutboxBatchProcessor
         return MessageOutcome.Failure;
     }
 
+    // The ceiling's failure carries its own code and reason; the original code stays in the warning and the metric.
+    // They are recorded once the exhausted state is, so a retried dead letter capture does not count twice.
+    private async Task<MessageOutcome> ExhaustAboveCeilingAsync(
+        IOutboxMessage message,
+        Failure original,
+        TimeSpan retryAfter,
+        int retryCount,
+        CancellationToken cancellationToken)
+    {
+        var ceilingFailure = new Failure(
+            RecoverabilityErrorCodes.RetryAfterExceedsCeiling,
+            RecoverabilityErrorCodes.RetryAfterExceedsCeiling,
+            original.Exception);
+
+        var outcome = await ExhaustAsync(message, ceilingFailure, retryCount, cancellationToken).ConfigureAwait(false);
+        if (outcome == MessageOutcome.Exhausted)
+        {
+            RetryMetrics.RecordSkipped(
+                RetryMetrics.ReasonRetryAfterExceedsCeiling,
+                DelayedRetryProcessor.SimpleRequestName(message.NotificationType),
+                original.ErrorCode,
+                tenantId: null);
+            MessagingLog.OutboxRetryAfterExceedsCeiling(
+                _logger,
+                message.Id,
+                message.NotificationType,
+                original.ErrorCode,
+                retryAfter,
+                _options.MaxRetryAfter);
+        }
+
+        return outcome;
+    }
+
     // The failure that uses up MaxRetries. The dead letter is captured before the exhausted state is recorded:
     // when the capture fails the message keeps its state and is delivered (and captured) again, instead of
     // ending exhausted without its dead letter. The capture is idempotent on the message id.
@@ -303,11 +356,13 @@ internal sealed class OutboxBatchProcessor
             return OutcomeNotRecorded(DeadLetterCaptureOperation, message, captured);
         }
 
-        var exhaustedMark = await _store.MarkAsFailedAsync(message.Id, failure.Reason, nextRetryAtUtc: null, cancellationToken)
+        // The store raises RetryCount to MaxRetries in the same update, so the message is not fetched again whatever
+        // its count was (an above-ceiling Retry-After exhausts a message that still had retries left).
+        var exhaustedMark = await _store.MarkAsExhaustedAsync(message.Id, failure.Reason, _options.MaxRetries, cancellationToken)
             .ConfigureAwait(false);
         if (exhaustedMark.IsLeft)
         {
-            return OutcomeNotRecorded(nameof(IOutboxStore.MarkAsFailedAsync), message, exhaustedMark);
+            return OutcomeNotRecorded(nameof(IOutboxStore.MarkAsExhaustedAsync), message, exhaustedMark);
         }
 
         MessagingLog.OutboxMessageRetriesExhausted(

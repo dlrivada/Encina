@@ -116,6 +116,22 @@ public sealed class InstrumentedStoreMethodGuardTests
     }
 
     [Fact]
+    public async Task OutboxStore_MarkAsExhaustedAsync_DelegatesToInner()
+    {
+        var inner = Substitute.For<IOutboxStore>();
+        var id = Guid.NewGuid();
+        inner.MarkAsExhaustedAsync(id, "err", 10, Arg.Any<CancellationToken>())
+            .Returns(Prelude.Right<EncinaError, Unit>(Unit.Default));
+
+        var sut = new InstrumentedOutboxStore(inner);
+
+        var result = await sut.MarkAsExhaustedAsync(id, "err", 10);
+
+        result.IsRight.ShouldBeTrue();
+        await inner.Received(1).MarkAsExhaustedAsync(id, "err", 10, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task OutboxStore_SaveChangesAsync_DelegatesToInner()
     {
         var inner = Substitute.For<IOutboxStore>();

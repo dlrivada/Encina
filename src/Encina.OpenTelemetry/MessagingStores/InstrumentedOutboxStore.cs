@@ -90,6 +90,21 @@ internal sealed class InstrumentedOutboxStore : IOutboxStore
     }
 
     /// <inheritdoc />
+    public async Task<Either<EncinaError, Unit>> MarkAsExhaustedAsync(
+        Guid messageId,
+        string errorMessage,
+        int maxRetries,
+        CancellationToken cancellationToken = default)
+    {
+        using var activity = StartMarkFailed(messageId.ToString());
+        var result = await _inner.MarkAsExhaustedAsync(messageId, errorMessage, maxRetries, cancellationToken)
+            .ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, ActivityStatusDescriptions.ForError(err)));
+        return result;
+    }
+
+    /// <inheritdoc />
     public Task<Either<EncinaError, int>> GetPendingCountAsync(int maxRetries, CancellationToken cancellationToken = default)
         => _inner.GetPendingCountAsync(maxRetries, cancellationToken);
 

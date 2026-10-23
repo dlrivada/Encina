@@ -160,6 +160,42 @@ public sealed class OutboxStoreDapper : IOutboxStore
     }
 
     /// <inheritdoc />
+    public async Task<Either<EncinaError, Unit>> MarkAsExhaustedAsync(
+        Guid messageId,
+        string errorMessage,
+        int maxRetries,
+        CancellationToken cancellationToken = default)
+    {
+        if (messageId == Guid.Empty)
+            throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmpty, nameof(messageId));
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxRetries);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                UPDATE {_tableName}
+                SET ErrorMessage = @ErrorMessage,
+                    RetryCount = CASE WHEN RetryCount + 1 > @MaxRetries THEN RetryCount + 1 ELSE @MaxRetries END,
+                    NextRetryAtUtc = NULL
+                WHERE Id = @MessageId";
+
+            using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
+            await lease.Connection.ExecuteAsync(
+                new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        MessageId = messageId,
+                        ErrorMessage = errorMessage,
+                        MaxRetries = maxRetries
+                    },
+                    lease.Transaction,
+                    cancellationToken: cancellationToken));
+        }, "outbox.mark_exhausted_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<Either<EncinaError, int>> GetPendingCountAsync(
         int maxRetries,
         CancellationToken cancellationToken = default)

@@ -542,7 +542,15 @@
         "integration"
       ],
       "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
+      "reason": "EF Core store — needs real DbContext",
+      "targets": { "unit": 95, "guard": 50, "contract": 45, "property": 40, "integration": 92 },
+      "justifications": {
+        "unit": "Unit tests run every store method on an in-memory context including MarkAsExhaustedAsync (measured 98%).",
+        "guard": "Guard tests cover the argument checks of the store methods (measured 57%).",
+        "contract": "Store implementation contract tests exercise the common operations (measured 48%).",
+        "property": "Property tests cover the retry-count invariants (measured 43%).",
+        "integration": "The shared outbox scenarios run every method against real SQL Server and PostgreSQL (measured 95%)."
+      }
     },
     "ProcessingActivity/ProcessingActivityEntityConfiguration.cs": {
       "defaultTests": [

@@ -51,4 +51,11 @@ public sealed class OutboxStoreEFMySqlTests : IAsyncLifetime
         Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 (EF Core 10 compatible).");
         await Task.CompletedTask;
     }
+
+    [Fact]
+    public async Task MarkAsExhausted_RaisesRetryCountToMaxRetries_AndTheMessageIsNeverFetchedAgain()
+    {
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 (EF Core 10 compatible).");
+        await Task.CompletedTask;
+    }
 }

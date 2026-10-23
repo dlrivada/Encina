@@ -409,6 +409,10 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
     public Task RequeueExhausted_All_ReturnsEveryExhaustedMessageToPending()
         => OutboxRetryScenarios.RequeueAllExhaustedAsync(CreateStore(), new OutboxMessageFactory());
 
+    [Fact]
+    public Task MarkAsExhausted_RaisesRetryCountToMaxRetries_AndTheMessageIsNeverFetchedAgain()
+        => OutboxRetryScenarios.MarkAsExhaustedRaisesRetryCountAndIsNeverFetchedAgainAsync(CreateStore(), new OutboxMessageFactory());
+
     private OutboxStoreMongoDB CreateStore()
     {
         return new OutboxStoreMongoDB(
