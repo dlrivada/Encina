@@ -152,19 +152,55 @@ public class LambdaResolveTenantIdTests
         Tenant(_context.ResolveTenantId(request, _options, _logger)).ShouldBe(NoTenant);
     }
 
-    [Fact]
-    public void NonStringClaimInClaimsObject_IsIgnored()
+    [Theory]
+    [InlineData("""{"tenant_id":42}""", true)]
+    [InlineData("""{"tenant_id":{"a":1}}""", true)]
+    [InlineData("""{"tenant_id":null}""", true)]
+    [InlineData("""{"tenant_id":""}""", true)]
+    [InlineData("""{"tenant_id":42}""", false)]
+    public void UnreadableClaimInClaimsObject_IsALeftWithTheInvalidClaimCode_NeverTheHeader(string claims, bool withTrustedHeader)
     {
+        _options.TrustTenantIdHeader = withTrustedHeader;
         var authorizer = new APIGatewayCustomAuthorizerContext
         {
-            ["claims"] = JsonDocument.Parse("""{"tenant_id":42}""").RootElement,
+            ["claims"] = JsonDocument.Parse(claims).RootElement,
         };
         var request = new APIGatewayProxyRequest
         {
+            Headers = new Dictionary<string, string> { ["X-Tenant-ID"] = "tenant-b" },
             RequestContext = new APIGatewayProxyRequest.ProxyRequestContext { Authorizer = authorizer },
         };
 
-        Tenant(_context.ResolveTenantId(request, _options, _logger)).ShouldBe(NoTenant);
+        var result = _context.ResolveTenantId(request, _options, _logger);
+
+        AssertInvalidClaim(result);
+    }
+
+    [Fact]
+    public void UnreadableClaimInAuthorizerEntry_IsALeftWithTheInvalidClaimCode()
+    {
+        _options.TrustTenantIdHeader = true;
+        var authorizer = new APIGatewayCustomAuthorizerContext { ["tenant_id"] = 42 };
+        var request = new APIGatewayProxyRequest
+        {
+            Headers = new Dictionary<string, string> { ["X-Tenant-ID"] = "tenant-b" },
+            RequestContext = new APIGatewayProxyRequest.ProxyRequestContext { Authorizer = authorizer },
+        };
+
+        AssertInvalidClaim(_context.ResolveTenantId(request, _options, _logger));
+    }
+
+    private void AssertInvalidClaim(Either<EncinaError, Option<string>> result)
+    {
+        result.IsLeft.ShouldBeTrue();
+        var error = result.Match(Right: _ => default, Left: e => e);
+        error.GetCode().IfNone(string.Empty).ShouldBe(LambdaContextExtensions.InvalidTenantClaimErrorCode);
+        LambdaContextExtensions.InvalidTenantClaimErrorCode.ShouldBe("tenancy.invalid_tenant_claim");
+        var record = _logger.Collector.GetSnapshot().ShouldHaveSingleItem();
+        record.Level.ShouldBe(Microsoft.Extensions.Logging.LogLevel.Warning);
+        record.Id.Id.ShouldBe(4710);
+        record.Message.ShouldContain("tenancy.invalid_tenant_claim");
+        record.Message.ShouldNotContain("tenant-b");
     }
 
     [Fact]

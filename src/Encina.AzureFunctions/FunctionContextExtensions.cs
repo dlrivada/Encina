@@ -91,6 +91,12 @@ public static class FunctionContextExtensions
     public const string TenantMismatchErrorCode = "tenancy.tenant_mismatch";
 
     /// <summary>
+    /// The error code of an unreadable tenant claim: the claim exists but has no non-empty value, so the
+    /// request is denied instead of falling back to a client-supplied header.
+    /// </summary>
+    public const string InvalidTenantClaimErrorCode = "tenancy.invalid_tenant_claim";
+
+    /// <summary>
     /// Resolves the tenant ID of an HTTP request: the verified claim wins, a header is a trusted
     /// fallback only when <see cref="EncinaAzureFunctionsOptions.TrustTenantIdHeader"/> is set.
     /// </summary>
@@ -124,7 +130,13 @@ public static class FunctionContextExtensions
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
-        var claim = ReadClaim(httpRequest, options.TenantIdClaimType);
+        var claimRead = ReadClaim(httpRequest, options.TenantIdClaimType);
+        if (claimRead.Present && claimRead.Value is null)
+        {
+            return InvalidTenantClaim(logger);
+        }
+
+        var claim = claimRead.Value;
         var header = ReadHeader(httpRequest, options.TenantIdHeader);
 
         if (claim is not null)
@@ -137,10 +149,31 @@ public static class FunctionContextExtensions
         return header is null ? Option<string>.None : ResolveHeaderOnly(header, options, logger);
     }
 
-    private static string? ReadClaim(HttpRequestData httpRequest, string claimType) =>
-        httpRequest.Identities
+    /// <summary>
+    /// What the request identities say about the tenant claim: <see cref="Present"/> is true when a claim of
+    /// the type exists, and <see cref="Value"/> is null when none of them has a non-empty value (unreadable).
+    /// </summary>
+    private readonly record struct ClaimRead(bool Present, string? Value);
+
+    private static ClaimRead ReadClaim(HttpRequestData httpRequest, string claimType)
+    {
+        var matching = httpRequest.Identities
             .SelectMany(i => i.Claims)
-            .FirstOrDefault(c => c.Type == claimType && !string.IsNullOrEmpty(c.Value))?.Value;
+            .Where(c => c.Type == claimType)
+            .ToList();
+
+        return new ClaimRead(
+            matching.Count > 0,
+            matching.Select(c => c.Value).FirstOrDefault(v => !string.IsNullOrEmpty(v)));
+    }
+
+    private static Either<EncinaError, Option<string>> InvalidTenantClaim(ILogger logger)
+    {
+        Log.InvalidTenantClaim(logger, InvalidTenantClaimErrorCode);
+        return EncinaErrors.Create(
+            InvalidTenantClaimErrorCode,
+            "The authenticated tenant claim is present but is not a non-empty string.");
+    }
 
     private static string? ReadHeader(HttpRequestData httpRequest, string headerName)
     {

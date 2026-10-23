@@ -77,4 +77,12 @@ internal static partial class Log
     public static partial void TenantHeaderIgnored(
         ILogger logger,
         string headerName);
+
+    [LoggerMessage(
+        EventId = 4758,
+        Level = LogLevel.Warning,
+        Message = "Tenant claim is present but not a non-empty string; request rejected ({ErrorCode})")]
+    public static partial void InvalidTenantClaim(
+        ILogger logger,
+        string errorCode);
 }

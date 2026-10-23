@@ -115,13 +115,43 @@ public class FunctionResolveTenantIdTests
     }
 
     [Fact]
-    public void EmptyClaimAndEmptyHeader_AreTreatedAsAbsent()
+    public void EmptyHeader_IsTreatedAsAbsent()
     {
         _options.TrustTenantIdHeader = true;
 
-        var result = _context.ResolveTenantId(Request(header: "", claim: ""), _options, _logger);
+        var result = _context.ResolveTenantId(Request(header: ""), _options, _logger);
 
         Tenant(result).ShouldBe(NoTenant);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EmptyClaim_IsALeftWithTheInvalidClaimCode_NeverTheHeader(bool trust)
+    {
+        _options.TrustTenantIdHeader = trust;
+
+        var result = _context.ResolveTenantId(Request(header: "tenant-b", claim: ""), _options, _logger);
+
+        result.IsLeft.ShouldBeTrue();
+        var error = result.Match(Right: _ => default, Left: e => e);
+        error.GetCode().IfNone(string.Empty).ShouldBe(EncinaExtensions.InvalidTenantClaimErrorCode);
+        EncinaExtensions.InvalidTenantClaimErrorCode.ShouldBe("tenancy.invalid_tenant_claim");
+        var record = _logger.Collector.GetSnapshot().ShouldHaveSingleItem();
+        record.Level.ShouldBe(LogLevel.Warning);
+        record.Id.Id.ShouldBe(4758);
+        record.Message.ShouldContain("tenancy.invalid_tenant_claim");
+        record.Message.ShouldNotContain("tenant-b");
+    }
+
+    [Fact]
+    public void EmptyClaimNextToAValidOne_UsesTheValidClaim()
+    {
+        var request = Request(claim: "");
+        request.Identities.Returns([new System.Security.Claims.ClaimsIdentity(
+            [new System.Security.Claims.Claim("tenant_id", ""), new System.Security.Claims.Claim("tenant_id", "tenant-a")])]);
+
+        Tenant(_context.ResolveTenantId(request, _options, _logger)).ShouldBe("tenant-a");
     }
 
     [Fact]

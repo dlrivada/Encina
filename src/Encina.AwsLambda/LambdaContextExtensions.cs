@@ -79,6 +79,12 @@ public static class LambdaContextExtensions
     public const string TenantMismatchErrorCode = "tenancy.tenant_mismatch";
 
     /// <summary>
+    /// The error code of an unreadable tenant claim: the claim exists but is not a non-empty string, so the
+    /// request is denied instead of falling back to a client-supplied header.
+    /// </summary>
+    public const string InvalidTenantClaimErrorCode = "tenancy.invalid_tenant_claim";
+
+    /// <summary>
     /// Resolves the tenant ID of an API Gateway request: the verified claim wins, a header is a
     /// trusted fallback only when <see cref="EncinaAwsLambdaOptions.TrustTenantIdHeader"/> is set.
     /// </summary>
@@ -116,7 +122,13 @@ public static class LambdaContextExtensions
             return Option<string>.None;
         }
 
-        var claim = ReadAuthorizerValue(request, options.TenantIdClaimType);
+        var claimRead = ReadAuthorizerValue(request, options.TenantIdClaimType);
+        if (claimRead.Present && claimRead.Value is null)
+        {
+            return InvalidTenantClaim(logger);
+        }
+
+        var claim = claimRead.Value;
         var header = ReadHeader(request, options.TenantIdHeader);
 
         if (claim is not null)
@@ -127,6 +139,14 @@ public static class LambdaContextExtensions
         }
 
         return header is null ? Option<string>.None : ResolveHeaderOnly(header, options, logger);
+    }
+
+    private static Either<EncinaError, Option<string>> InvalidTenantClaim(ILogger logger)
+    {
+        Log.InvalidTenantClaim(logger, InvalidTenantClaimErrorCode);
+        return EncinaErrors.Create(
+            InvalidTenantClaimErrorCode,
+            "The authenticated tenant claim is present but is not a non-empty string.");
     }
 
     private static Either<EncinaError, Option<string>> TenantMismatch(ILogger logger)
@@ -154,42 +174,48 @@ public static class LambdaContextExtensions
             ? value
             : null;
 
-    private static string? ReadAuthorizerValue(APIGatewayProxyRequest request, string claimType)
+    /// <summary>
+    /// What the authorizer says about the tenant claim: <see cref="Present"/> is true when the claim exists
+    /// at all, and <see cref="Value"/> is null when it exists but is not a non-empty string (unreadable).
+    /// </summary>
+    private readonly record struct ClaimRead(bool Present, string? Value);
+
+    private static ClaimRead ReadAuthorizerValue(APIGatewayProxyRequest request, string claimType)
     {
         var authorizer = request.RequestContext?.Authorizer;
         if (authorizer is null)
         {
-            return null;
+            return default;
         }
 
         // Authorizer claims object (JWT authorizer), then the authorizer entry itself
-        return ReadClaimsObject(authorizer, claimType) ?? ReadAuthorizerEntry(authorizer, claimType);
+        var fromClaims = ReadClaimsObject(authorizer, claimType);
+        return fromClaims.Present ? fromClaims : ReadAuthorizerEntry(authorizer, claimType);
     }
 
-    private static string? ReadClaimsObject(Amazon.Lambda.APIGatewayEvents.APIGatewayCustomAuthorizerContext authorizer, string claimType)
+    private static ClaimRead ReadClaimsObject(Amazon.Lambda.APIGatewayEvents.APIGatewayCustomAuthorizerContext authorizer, string claimType)
     {
         return authorizer.TryGetValue("claims", out var claimsObj) &&
                claimsObj is JsonElement { ValueKind: JsonValueKind.Object } claims
             ? ReadStringProperty(claims, claimType)
-            : null;
+            : default;
     }
 
-    private static string? ReadStringProperty(JsonElement claims, string name)
+    private static ClaimRead ReadStringProperty(JsonElement claims, string name)
     {
-        if (!claims.TryGetProperty(name, out var property) || property.ValueKind != JsonValueKind.String)
+        if (!claims.TryGetProperty(name, out var property))
         {
-            return null;
+            return default;
         }
 
-        var value = property.GetString();
-        return string.IsNullOrEmpty(value) ? null : value;
+        var value = property.ValueKind == JsonValueKind.String ? property.GetString() : null;
+        return new ClaimRead(true, string.IsNullOrEmpty(value) ? null : value);
     }
 
-    private static string? ReadAuthorizerEntry(Amazon.Lambda.APIGatewayEvents.APIGatewayCustomAuthorizerContext authorizer, string claimType) =>
-        authorizer.TryGetValue(claimType, out var tenantFromAuth) &&
-        tenantFromAuth is string { Length: > 0 } tenantStr
-            ? tenantStr
-            : null;
+    private static ClaimRead ReadAuthorizerEntry(Amazon.Lambda.APIGatewayEvents.APIGatewayCustomAuthorizerContext authorizer, string claimType) =>
+        authorizer.TryGetValue(claimType, out var tenantFromAuth)
+            ? new ClaimRead(true, tenantFromAuth is string { Length: > 0 } tenantStr ? tenantStr : null)
+            : default;
 
     /// <summary>
     /// Gets the user ID from the API Gateway request JWT claims.
