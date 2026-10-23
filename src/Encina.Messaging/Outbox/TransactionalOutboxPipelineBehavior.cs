@@ -104,7 +104,15 @@ public sealed class TransactionalOutboxPipelineBehavior<TRequest, TResponse> : I
         }
 
         await using var lease = begun.RequireLease();
+        return await RunInLeaseAsync(lease, request, nextStep, cancellationToken).ConfigureAwait(false);
+    }
 
+    private async ValueTask<Either<EncinaError, TResponse>> RunInLeaseAsync(
+        ITransactionLease lease,
+        IHasNotifications request,
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var result = await nextStep().ConfigureAwait(false);
@@ -114,29 +122,8 @@ public sealed class TransactionalOutboxPipelineBehavior<TRequest, TResponse> : I
                 return result;
             }
 
-            // The transaction ended while the handler ran (for example an application-begun transaction that a
-            // nested participant rolled back): an outbox row written now would autocommit for a failed request.
-            if (!_transactionSource.HasActiveTransaction)
-            {
-                await lease.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-                return TransactionErrors.RollbackOnly();
-            }
-
-            var written = await WriteNotificationsAsync(request, cancellationToken).ConfigureAwait(false);
-            if (written.IsLeft)
-            {
-                await lease.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-                return (EncinaError)written;
-            }
-
-            // The commit is cleanup: it runs to completion even when the caller cancels.
-            var committed = await lease.CommitAsync(CancellationToken.None).ConfigureAwait(false);
-            if (committed.IsLeft)
-            {
-                return (EncinaError)committed;
-            }
-
-            return result;
+            var finished = await PersistAndCommitAsync(lease, request, cancellationToken).ConfigureAwait(false);
+            return finished.IsLeft ? (EncinaError)finished : result;
         }
         catch (Exception)
         {
@@ -145,6 +132,32 @@ public sealed class TransactionalOutboxPipelineBehavior<TRequest, TResponse> : I
             await lease.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             throw;
         }
+    }
+
+    // Writes the notifications and commits; any Left rolls the lease back first. The caller already has the
+    // handler's response, so only the failure travels back.
+    private async ValueTask<Either<EncinaError, Unit>> PersistAndCommitAsync(
+        ITransactionLease lease,
+        IHasNotifications request,
+        CancellationToken cancellationToken)
+    {
+        // The transaction ended while the handler ran (for example an application-begun transaction that a
+        // nested participant rolled back): an outbox row written now would autocommit for a failed request.
+        if (!_transactionSource.HasActiveTransaction)
+        {
+            await lease.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            return TransactionErrors.RollbackOnly();
+        }
+
+        var written = await WriteNotificationsAsync(request, cancellationToken).ConfigureAwait(false);
+        if (written.IsLeft)
+        {
+            await lease.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            return (EncinaError)written;
+        }
+
+        // The commit is cleanup: it runs to completion even when the caller cancels.
+        return await lease.CommitAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
     private async ValueTask<Either<EncinaError, int>> WriteNotificationsAsync(
