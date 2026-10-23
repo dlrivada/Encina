@@ -74,7 +74,9 @@ foreach ($n in $Issues) {
     # REST (#2661): the issue and its comments; field names are mapped so the text below is unchanged.
     $rv = gh api "repos/dlrivada/Encina/issues/$n" 2>$null | ConvertFrom-Json
     if (-not $rv -or [string]$rv.state -ne 'closed') { continue }
-    $rc = @(gh api "repos/dlrivada/Encina/issues/$n/comments" --paginate --slurp 2>$null | ConvertFrom-Json | ForEach-Object { $_ } | ForEach-Object { $_ })
+    $rcJson = gh api "repos/dlrivada/Encina/issues/$n/comments" --paginate --slurp 2>$null
+    if ($LASTEXITCODE -ne 0) { Write-Warning "qwen-predraft: reading the comments of #$n failed (exit $LASTEXITCODE); #$n is skipped so no predraft is built without its comments"; continue }
+    $rc = @($rcJson | ConvertFrom-Json | ForEach-Object { $_ } | ForEach-Object { $_ })
     $v = [pscustomobject]@{
         number   = $rv.number
         title    = $rv.title

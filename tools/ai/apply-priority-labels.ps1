@@ -21,7 +21,10 @@ $existing = Get-GhRepoLabelNames -Repo $Repo
 foreach ($k in $labels.Keys) {
     $l = $labels[$k]
     if ($existing -notcontains $l.name) {
-        if (-not $DryRun) { gh api -X POST "repos/$Repo/labels" -f "name=$($l.name)" -f "color=$($l.color)" -f "description=$($l.desc)" | Out-Null }   # REST (#2661)
+        if (-not $DryRun) {
+            gh api -X POST "repos/$Repo/labels" -f "name=$($l.name)" -f "color=$($l.color)" -f "description=$($l.desc)" | Out-Null   # REST (#2661)
+            if ($LASTEXITCODE -ne 0) { throw "apply-priority-labels: creating label $($l.name) failed (exit $LASTEXITCODE); no issue was labelled" }
+        }
         Write-Output "label created: $($l.name)"
     }
 }
