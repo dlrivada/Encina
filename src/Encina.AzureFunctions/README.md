@@ -7,7 +7,7 @@ Azure Functions integration for Encina with Railway Oriented Programming support
 - ✅ HTTP Trigger integration with automatic result-to-response conversion
 - ✅ Queue Trigger support for message processing
 - ✅ Timer Trigger support for scheduled operations
-- ✅ Request context enrichment (correlation ID, user ID, tenant ID)
+- ✅ Request context enrichment (correlation ID, user ID; the tenant is resolved per request with `ResolveTenantId`)
 - ✅ RFC 7807 Problem Details for error responses
 - ✅ Health check for monitoring
 - ✅ Middleware for request context propagation
@@ -147,6 +147,10 @@ services.AddEncinaAzureFunctions(options =>
     options.CorrelationIdHeader = "X-Request-ID";
     options.TenantIdHeader = "X-Tenant-ID";
 
+    // The header is ignored unless this is true (default: false). Enable it only when a
+    // trusted gateway is the only party that can set it; it never overrides a verified claim.
+    options.TrustTenantIdHeader = false;
+
     // Claims configuration
     options.UserIdClaimType = "sub";
     options.TenantIdClaimType = "tid";
@@ -224,9 +228,16 @@ public async Task MyFunction(FunctionContext context)
 {
     var correlationId = context.GetCorrelationId();
     var userId = context.GetUserId();
-    var tenantId = context.GetTenantId();
     var invocationId = context.GetInvocationId();
 }
+```
+
+The tenant is never stored on the function context. An HTTP-triggered function resolves it from the request. The claim named by `TenantIdClaimType` wins; a different `TenantIdHeader` value yields a `Left` with the code `tenancy.tenant_mismatch` (`FunctionContextExtensions.TenantMismatchErrorCode`); with no claim, the header is used only when `TrustTenantIdHeader` is `true` (each use logs a Warning), otherwise it is ignored.
+
+```csharp
+// req: HttpRequestData, options: EncinaAzureFunctionsOptions, logger: ILogger (injected)
+// Either<EncinaError, Option<string>>: Left is a tenant mismatch, Right(None) means no tenant
+var tenant = context.ResolveTenantId(req, options, logger);
 ```
 
 ## Middleware
@@ -235,7 +246,7 @@ The Encina middleware provides:
 
 - **Automatic correlation ID extraction/generation**
 - **User ID extraction from claims**
-- **Tenant ID extraction from headers or claims**
+- **Tenant ID is not set by the middleware**: HTTP functions call `ResolveTenantId` (see Context Extraction)
 - **Structured logging for function execution**
 
 Enable it in your configuration:
