@@ -1,5 +1,6 @@
 #pragma warning disable CA2012 // ValueTask instances used in NSubstitute mock setup
 
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
@@ -433,32 +434,31 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
     [Fact]
     public async Task PipelineBehavior_EmitsActivityAndMetricsWhenEnabled()
     {
-        var activities = new List<Activity>();
+        // The listeners are process-wide: keep only this test's request type and use thread-safe collections.
+        var requestType = nameof(ContractTelemetryOkCommand);
+        var activities = new ConcurrentBag<Activity>();
         using var activityListener = new ActivityListener
         {
             ShouldListenTo = s => s.Name == EncryptionDiagnostics.SourceName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-            ActivityStopped = activities.Add
-        };
-        ActivitySource.AddActivityListener(activityListener);
-        var measurements = new List<string>();
-        using var meterListener = new MeterListener();
-        meterListener.InstrumentPublished = (instrument, l) =>
-        {
-            if (instrument.Meter.Name == EncryptionDiagnostics.SourceName)
+            ActivityStopped = a =>
             {
-                l.EnableMeasurementEvents(instrument);
+                if (Equals(a.GetTagItem(EncryptionDiagnostics.TagRequestType), requestType))
+                {
+                    activities.Add(a);
+                }
             }
         };
-        meterListener.SetMeasurementEventCallback<long>((i, _, _, _) => measurements.Add(i.Name));
-        meterListener.Start();
-        var behavior = new EncryptionPipelineBehavior<ContractCommand, Unit>(
+        ActivitySource.AddActivityListener(activityListener);
+        var measurements = new ConcurrentBag<string>();
+        using var meterListener = CreateMeterListener(requestType, measurements);
+        var behavior = new EncryptionPipelineBehavior<ContractTelemetryOkCommand, Unit>(
             _orchestrator,
             Options.Create(new EncryptionOptions { EnableTracing = true, EnableMetrics = true }),
-            NullLogger<EncryptionPipelineBehavior<ContractCommand, Unit>>.Instance);
+            NullLogger<EncryptionPipelineBehavior<ContractTelemetryOkCommand, Unit>>.Instance);
 
         await behavior.Handle(
-            new ContractCommand { Email = "a@b.c" },
+            new ContractTelemetryOkCommand { Email = "a@b.c" },
             _requestContext,
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default),
             CancellationToken.None);
@@ -472,25 +472,16 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
     public async Task PipelineBehavior_FailedEncryption_RecordsFailureTelemetryAndSkipsHandler()
     {
         _keys.Clear();
-        var failures = new List<string>();
-        using var meterListener = new MeterListener();
-        meterListener.InstrumentPublished = (instrument, l) =>
-        {
-            if (instrument.Meter.Name == EncryptionDiagnostics.SourceName)
-            {
-                l.EnableMeasurementEvents(instrument);
-            }
-        };
-        meterListener.SetMeasurementEventCallback<long>((i, _, _, _) => failures.Add(i.Name));
-        meterListener.Start();
-        var behavior = new EncryptionPipelineBehavior<ContractCommand, Unit>(
+        var failures = new ConcurrentBag<string>();
+        using var meterListener = CreateMeterListener(nameof(ContractTelemetryFailCommand), failures);
+        var behavior = new EncryptionPipelineBehavior<ContractTelemetryFailCommand, Unit>(
             _orchestrator,
             Options.Create(new EncryptionOptions { EnableTracing = true, EnableMetrics = true }),
-            NullLogger<EncryptionPipelineBehavior<ContractCommand, Unit>>.Instance);
+            NullLogger<EncryptionPipelineBehavior<ContractTelemetryFailCommand, Unit>>.Instance);
         var handlerRan = false;
 
         var result = await behavior.Handle(
-            new ContractCommand { Email = "a@b.c" },
+            new ContractTelemetryFailCommand { Email = "a@b.c" },
             _requestContext,
             () =>
             {
@@ -733,6 +724,31 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
     private static string? ErrorCode<T>(Either<EncinaError, T> result) =>
         result.Match(Right: _ => null, Left: e => e.GetCode().IfNone("none"));
 
+    private static MeterListener CreateMeterListener(string requestType, ConcurrentBag<string> instruments)
+    {
+        var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Meter.Name == EncryptionDiagnostics.SourceName)
+            {
+                l.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, _, tags, _) =>
+        {
+            foreach (var tag in tags)
+            {
+                if (tag.Key == EncryptionDiagnostics.TagRequestType && Equals(tag.Value, requestType))
+                {
+                    instruments.Add(instrument.Name);
+                    return;
+                }
+            }
+        });
+        listener.Start();
+        return listener;
+    }
+
     private static EncryptedValue StubValue() =>
         new()
         {
@@ -796,6 +812,18 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
     public sealed class ContractPlain
     {
         public string? Name { get; set; }
+    }
+
+    public sealed class ContractTelemetryOkCommand : IRequest<Unit>
+    {
+        [Encrypt]
+        public string? Email { get; set; }
+    }
+
+    public sealed class ContractTelemetryFailCommand : IRequest<Unit>
+    {
+        [Encrypt]
+        public string? Email { get; set; }
     }
 
     public sealed class ContractCommand : IRequest<Unit>
