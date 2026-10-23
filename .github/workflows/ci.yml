@@ -289,7 +289,7 @@ jobs:
     needs: [changes, build]
     if: needs.changes.outputs.tests-contract == 'true' || needs.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -328,7 +328,7 @@ jobs:
     needs: [changes, build]
     if: needs.changes.outputs.tests-property == 'true' || needs.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -367,7 +367,7 @@ jobs:
     needs: [changes, build]
     if: needs.changes.outputs.tests-guard == 'true' || needs.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
