@@ -72,17 +72,6 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RecoverabilityPipelineBehavior{TRequest, TResponse}"/> class
-    /// with a configurable jitter source.
-    /// </summary>
-    /// <param name="options">The recoverability options.</param>
-    /// <param name="logger">The logger.</param>
-    /// <param name="delayedRetryScheduler">Optional scheduler for delayed retries.</param>
-    /// <param name="timeProvider">Optional time provider for testability.</param>
-    /// <param name="deadLetterCapture">Optional dead letter capture.</param>
-    /// <param name="errorClassifier">Optional classifier registered in DI.</param>
-    /// <param name="jitterSource">A source of values in [0, 1), allowing tests to pin the jitter.</param>
     internal RecoverabilityPipelineBehavior(
         RecoverabilityOptions options,
         ILogger<RecoverabilityPipelineBehavior<TRequest, TResponse>> logger,
