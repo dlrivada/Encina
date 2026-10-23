@@ -105,7 +105,7 @@
       },
       "justifications": {
         "unit": "Unit tests run the real EncryptedPropertyCache store and lookup paths, leaving uncovered only the rare eviction and concurrency branches.",
-        "guard": "Guard tests instantiate the real EncryptedPropertyCache and assert argument rejection on its public methods, leaving uncovered the cache paths that only unit tests reach.",
+        "guard": "Guard tests call the static GetProperties with a null type and with real annotated and read-only types, so discovery and the descriptor accessors run.",
         "contract": "Contract tests run the real EncryptedPropertyCache and pin its lookup semantics for cached and missing entries, leaving uncovered the internal eviction branches."
       }
     },
@@ -154,7 +154,7 @@
       },
       "justifications": {
         "unit": "Unit tests call the real EncryptionErrors factory methods and assert their error codes and messages, leaving uncovered only the rare defensive branches.",
-        "guard": "Guard tests call the real EncryptionErrors factories with null inputs and assert ArgumentNullException, leaving uncovered the factories that only unit tests reach.",
+        "guard": "Guard tests reach the error factories incidentally through the fail-closed paths of the real encryptor, key provider and orchestrator; the factories have no argument checks of their own.",
         "contract": "Contract tests call the real EncryptionErrors factories and pin the error codes they produce, leaving uncovered the internal branches."
       }
     },
