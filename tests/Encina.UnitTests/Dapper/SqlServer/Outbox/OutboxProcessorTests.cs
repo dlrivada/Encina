@@ -486,6 +486,12 @@ public sealed class OutboxProcessorTests
                 tcs.TrySetResult();
                 return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
             });
+        store.MarkAsExhaustedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                tcs.TrySetResult();
+                return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+            });
         store.SaveChangesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
 
@@ -525,12 +531,9 @@ public sealed class OutboxProcessorTests
             await processor.StopAsync(CancellationToken.None);
         }
 
-        // Assert - nextRetryAtUtc should be null (exhausted retries)
-        await store.Received().MarkAsFailedAsync(
-            messageId,
-            Arg.Any<string>(),
-            Arg.Is<DateTime?>(d => d == null),
-            Arg.Any<CancellationToken>());
+        // Assert - the message is recorded as exhausted
+        await store.Received().MarkAsExhaustedAsync(messageId, Arg.Any<string>(), 3, Arg.Any<CancellationToken>());
+        await store.DidNotReceiveWithAnyArgs().MarkAsFailedAsync(default, default!, default, default);
     }
 
     [Fact]

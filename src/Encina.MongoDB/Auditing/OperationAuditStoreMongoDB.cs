@@ -70,7 +70,7 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
         catch (Exception ex)
         {
             Log.FailedToRecordAuditEntry(_logger, ex.ForLogging(), entry.Id);
-            return Left(EncinaError.New($"Failed to record audit entry: {ex.Message}"));
+            return Left(OperationAuditErrors.StoreError("Record", ex));
         }
     }
 
@@ -105,7 +105,7 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
         {
             Log.FailedToQueryAuditEntriesByEntity(_logger, ex.ForLogging(), entityType);
             return Left<EncinaError, IReadOnlyList<OperationAuditEntry>>(
-                EncinaError.New($"Failed to query audit entries: {ex.Message}"));
+                OperationAuditErrors.StoreError("GetByEntity", ex));
         }
     }
 
@@ -146,7 +146,7 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
         {
             Log.FailedToQueryAuditEntriesByUser(_logger, ex.ForLogging(), userId);
             return Left<EncinaError, IReadOnlyList<OperationAuditEntry>>(
-                EncinaError.New($"Failed to query audit entries: {ex.Message}"));
+                OperationAuditErrors.StoreError("GetByUser", ex));
         }
     }
 
@@ -174,7 +174,7 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
         {
             Log.FailedToQueryAuditEntriesByCorrelationId(_logger, ex.ForLogging(), correlationId);
             return Left<EncinaError, IReadOnlyList<OperationAuditEntry>>(
-                EncinaError.New($"Failed to query audit entries: {ex.Message}"));
+                OperationAuditErrors.StoreError("GetByCorrelationId", ex));
         }
     }
 
@@ -204,7 +204,7 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
         {
             Log.FailedToExecuteAuditQuery(_logger, ex.ForLogging());
             return Left<EncinaError, PagedResult<OperationAuditEntry>>(
-                EncinaError.New($"Failed to query audit entries: {ex.Message}"));
+                OperationAuditErrors.StoreError("Query", ex));
         }
     }
 
@@ -267,7 +267,7 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
         {
             Log.FailedToPurgeAuditEntries(_logger, ex.ForLogging(), olderThanUtc);
             return Left<EncinaError, int>(
-                EncinaError.New($"Failed to purge audit entries: {ex.Message}"));
+                OperationAuditErrors.StoreError("PurgeEntries", ex));
         }
     }
 

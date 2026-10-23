@@ -70,6 +70,37 @@ internal static class OutboxRetryScenarios
     }
 
     /// <summary>
+    /// <see cref="IOutboxStore.MarkAsExhaustedAsync"/> raises <c>RetryCount</c> to <c>maxRetries</c> in one update, clears
+    /// the next retry, and the store never returns the message for that retry limit again (#2588): a message with
+    /// retries left is exhausted at once, and one already past the limit keeps counting up.
+    /// </summary>
+    public static async Task MarkAsExhaustedRaisesRetryCountAndIsNeverFetchedAgainAsync(IOutboxStore store, IOutboxMessageFactory factory)
+    {
+        const int maxRetries = 10;
+        var exhaustedBefore = (await store.GetExhaustedCountAsync(maxRetries)).ShouldBeRight();
+        var freshId = await AddMessageAsync(store, factory);
+        var pastLimitId = await AddMessageAsync(store, factory);
+        await FailAsync(store, pastLimitId, times: maxRetries + 2);
+
+        (await store.MarkAsExhaustedAsync(freshId, "recoverability.retry_after_exceeds_ceiling", maxRetries)).ShouldBeRight();
+        (await store.MarkAsExhaustedAsync(pastLimitId, "recoverability.retry_after_exceeds_ceiling", maxRetries)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
+
+        var pending = (await store.GetPendingMessagesAsync(100, maxRetries)).ShouldBeRight();
+        pending.ShouldNotContain(m => m.Id == freshId);
+        pending.ShouldNotContain(m => m.Id == pastLimitId);
+
+        var unrestricted = (await store.GetPendingMessagesAsync(100, int.MaxValue)).ShouldBeRight().ToList();
+        var fresh = unrestricted.Single(m => m.Id == freshId);
+        fresh.ProcessedAtUtc.ShouldBeNull();
+        fresh.RetryCount.ShouldBe(maxRetries);
+        fresh.NextRetryAtUtc.ShouldBeNull();
+        fresh.ErrorMessage.ShouldBe("recoverability.retry_after_exceeds_ceiling");
+        unrestricted.Single(m => m.Id == pastLimitId).RetryCount.ShouldBe(maxRetries + 3);
+        (await store.GetExhaustedCountAsync(maxRetries)).ShouldBeRight().ShouldBe(exhaustedBefore + 2);
+    }
+
+    /// <summary>
     /// The pending count includes messages scheduled for a later retry, the exhausted count includes the
     /// messages whose retries are used up, and neither includes processed messages (#1150).
     /// </summary>

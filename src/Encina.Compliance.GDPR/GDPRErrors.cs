@@ -1,3 +1,5 @@
+using Encina.Diagnostics;
+
 namespace Encina.Compliance.GDPR;
 
 /// <summary>
@@ -293,17 +295,27 @@ public static class GDPRErrors
     /// Creates an error when a processing activity store operation fails.
     /// </summary>
     /// <param name="operation">The store operation that failed (e.g., "Register", "GetAll").</param>
-    /// <param name="message">The error message describing the failure.</param>
+    /// <param name="exception">
+    /// The exception that caused the failure. It is attached to the error and its type name appears in the
+    /// message; its message text never does, because it can carry personal data.
+    /// </param>
     /// <returns>An error indicating a processing activity store failure.</returns>
-    public static EncinaError ProcessingActivityStoreError(string operation, string message) =>
-        EncinaErrors.Create(
+    /// <exception cref="ArgumentNullException"><paramref name="operation"/> or <paramref name="exception"/> is <c>null</c>.</exception>
+    public static EncinaError ProcessingActivityStoreError(string operation, Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(exception);
+
+        return EncinaErrors.Create(
             code: ProcessingActivityStoreErrorCode,
-            message: $"Processing activity store operation '{operation}' failed: {message}",
+            message: $"Processing activity store operation '{operation}' failed ({ActivityStatusDescriptions.ForException(exception)}).",
+            exception: exception,
             details: new Dictionary<string, object?>
             {
                 ["operation"] = operation,
                 [MetadataKeyStage] = MetadataStageGDPR
             });
+    }
 
     /// <summary>
     /// Creates an error when a duplicate processing activity is detected during registration.

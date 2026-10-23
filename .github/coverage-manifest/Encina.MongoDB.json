@@ -63,7 +63,17 @@
         "integration"
       ],
       "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "reason": "MongoDB store — needs real MongoDB",
+      "targets": {
+        "unit": 35,
+        "guard": 27,
+        "integration": 40
+      },
+      "justifications": {
+        "unit": "Unit tests drive the failing-replace path with a substituted collection and assert the error carries the exception type and never its message (measured 37.3%).",
+        "guard": "Guard tests cover the argument checks of the store methods (measured 27.1%).",
+        "integration": "The MongoDB token mapping integration tests exercise store, read and delete against a real server (measured 42.4%); the uncovered lines are the catch blocks and the bulk paths."
+      }
     },
     "Auditing/OperationAuditEntryDocument.cs": {
       "defaultTests": [
@@ -375,7 +385,15 @@
         "integration"
       ],
       "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "reason": "MongoDB store — needs real MongoDB",
+      "targets": { "unit": 0, "guard": 10, "contract": 0, "property": 0, "integration": 92 },
+      "justifications": {
+        "unit": "A MongoDB store is meaningful only against a real server; a mocked driver would assert nothing (a 0 with this reason).",
+        "guard": "Guard tests reject the invalid arguments of MarkAsExhaustedAsync before any driver call (measured 13%).",
+        "contract": "Internal behavior is covered by the integration flag; there is no separate public contract beyond IOutboxStore (a 0 with this reason).",
+        "property": "No numeric invariants beyond the integration scenarios (a 0 with this reason).",
+        "integration": "The shared outbox scenarios run every method against a real MongoDB container (measured 98%)."
+      }
     },
     "ProcessingActivity/ProcessingActivityDocument.cs": {
       "defaultTests": [

@@ -71,8 +71,21 @@ foreach ($n in $Issues) {
     $dst = Join-Path $out "$n.md"
     if ((Test-Path $dst) -and -not $Force) { continue }
     $in = Join-Path $raw "$n.txt"
-    $v = gh issue view $n --repo dlrivada/Encina --json number,title,state,closedAt,labels,body,comments 2>$null | ConvertFrom-Json
-    if (-not $v -or $v.state -ne 'CLOSED') { continue }
+    # REST (#2661): the issue and its comments; field names are mapped so the text below is unchanged.
+    $rv = gh api "repos/dlrivada/Encina/issues/$n" 2>$null | ConvertFrom-Json
+    if (-not $rv -or [string]$rv.state -ne 'closed') { continue }
+    $rcJson = gh api "repos/dlrivada/Encina/issues/$n/comments" --paginate --slurp 2>$null
+    if ($LASTEXITCODE -ne 0) { Write-Warning "qwen-predraft: reading the comments of #$n failed (exit $LASTEXITCODE); #$n is skipped so no predraft is built without its comments"; continue }
+    $rc = @($rcJson | ConvertFrom-Json | ForEach-Object { $_ } | ForEach-Object { $_ })
+    $v = [pscustomobject]@{
+        number   = $rv.number
+        title    = $rv.title
+        state    = 'CLOSED'
+        closedAt = $rv.closed_at
+        labels   = @($rv.labels | ForEach-Object { [pscustomobject]@{ name = [string]$_.name } })
+        body     = $rv.body
+        comments = @($rc | ForEach-Object { [pscustomobject]@{ author = [pscustomobject]@{ login = [string]$_.user.login }; body = [string]$_.body } })
+    }
     $sb = [System.Text.StringBuilder]::new()
     [void]$sb.AppendLine("ISSUE #$($v.number): $($v.title)`nclosed_at: $($v.closedAt)`nlabels: $(($v.labels | ForEach-Object name) -join ', ')`n`nBODY:`n$($v.body)`n")
     foreach ($c in $v.comments) { if ($c.author.login -notmatch 'bot|coderabbit') { $b = $c.body; if ($b.Length -gt 3000) { $b = $b.Substring(0, 3000) + ' [...]' }; [void]$sb.AppendLine("COMMENT by $($c.author.login):`n$b`n") } }

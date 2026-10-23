@@ -190,6 +190,46 @@ public sealed class FakeOutboxStoreTests
         _sut.GetFailedMessageIds().ShouldContain(message.Id);
     }
 
+    [Theory]
+    [InlineData(0, 10, 10)]
+    [InlineData(3, 10, 10)]
+    [InlineData(9, 10, 10)]
+    [InlineData(10, 10, 11)]
+    public async Task MarkAsExhaustedAsync_RaisesRetryCountToAtLeastMaxRetries_AndClearsTheNextRetry(
+        int retryCount, int maxRetries, int expected)
+    {
+        // Arrange
+        var message = new FakeOutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            NotificationType = "TestNotification",
+            Content = "{}",
+            RetryCount = retryCount,
+            NextRetryAtUtc = DateTime.UtcNow.AddMinutes(5)
+        };
+        await _sut.AddAsync(message);
+
+        // Act
+        var result = await _sut.MarkAsExhaustedAsync(message.Id, "Test error", maxRetries);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        var updated = _sut.GetMessage(message.Id)!;
+        updated.ErrorMessage.ShouldBe("Test error");
+        updated.RetryCount.ShouldBe(expected);
+        updated.NextRetryAtUtc.ShouldBeNull();
+        (await _sut.GetPendingMessagesAsync(10, maxRetries)).RightToArray()[0].ShouldBeEmpty();
+        (await _sut.GetExhaustedCountAsync(maxRetries)).RightToArray()[0].ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task MarkAsExhaustedAsync_NonExistentId_DoesNotThrow()
+    {
+        var result = await _sut.MarkAsExhaustedAsync(Guid.NewGuid(), "error", 3);
+
+        result.IsRight.ShouldBeTrue();
+    }
+
     [Fact]
     public async Task SaveChangesAsync_IncrementsSaveCount()
     {

@@ -31,11 +31,6 @@ namespace Encina.EntityFrameworkCore.Auditing;
 /// </remarks>
 public sealed class OperationAuditStoreEF : IOperationAuditStore
 {
-    /// <summary>
-    /// Error code of the failures returned by <see cref="OperationAuditStoreEF"/> when a database write fails.
-    /// </summary>
-    internal const string StoreErrorCode = "audit.store_error";
-
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -72,7 +67,7 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
         }
         catch (DbUpdateException ex)
         {
-            return Left(StoreError("Record", "Failed to record audit entry", ex));
+            return Left(OperationAuditErrors.StoreError("Record", ex));
         }
         catch (OperationCanceledException)
         {
@@ -289,33 +284,19 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
         }
         catch (DbUpdateException ex)
         {
-            return Left<EncinaError, int>(StoreError("PurgeEntries", "Failed to purge audit entries", ex));
+            return Left<EncinaError, int>(OperationAuditErrors.StoreError("PurgeEntries", ex));
         }
         catch (DbException ex)
         {
             // ExecuteDeleteAsync issues the DELETE directly, without EF Core's DbUpdateException wrapper,
             // so the provider's own DbException (e.g. a missing table or a constraint violation) surfaces here (#1128).
-            return Left<EncinaError, int>(StoreError("PurgeEntries", "Failed to purge audit entries", ex));
+            return Left<EncinaError, int>(OperationAuditErrors.StoreError("PurgeEntries", ex));
         }
         catch (OperationCanceledException)
         {
             return Left<EncinaError, int>(EncinaError.New("Operation was cancelled"));
         }
     }
-
-    /// <summary>
-    /// Builds the error returned when a database write fails, keeping the exception and the message of its root cause.
-    /// </summary>
-    /// <param name="operation">The store operation that failed.</param>
-    /// <param name="message">The failure summary.</param>
-    /// <param name="exception">The exception thrown by EF Core.</param>
-    /// <returns>An error with code <see cref="StoreErrorCode"/> that carries <paramref name="exception"/>.</returns>
-    internal static EncinaError StoreError(string operation, string message, Exception exception) =>
-        EncinaErrors.FromException(
-            StoreErrorCode,
-            exception,
-            $"{message}: {StoreExceptionMessages.Describe(exception)}",
-            new Dictionary<string, object?> { ["operation"] = operation });
 
     /// <summary>
     /// Maps an <see cref="OperationAuditEntry"/> record to an <see cref="OperationAuditEntryEntity"/>.

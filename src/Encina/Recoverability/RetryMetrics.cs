@@ -23,6 +23,9 @@ public static class RetryMetrics
     /// <summary>Reason tag of a retry skipped in process because <c>Retry-After</c> exceeds the maximum delay.</summary>
     public const string ReasonRetryAfterExceedsMax = "retry_after_exceeds_max";
 
+    /// <summary>Reason tag of a retry skipped in a messaging layer because <c>Retry-After</c> exceeds the configured ceiling and the message is dead-lettered.</summary>
+    public const string ReasonRetryAfterExceedsCeiling = "retry_after_exceeds_ceiling";
+
     private static readonly Meter Meter = new("Encina", "1.0");
 
     private static readonly Counter<long> Attempts = Meter.CreateCounter<long>(
@@ -52,7 +55,10 @@ public static class RetryMetrics
     /// <summary>
     /// Counts one retry that was not performed.
     /// </summary>
-    /// <param name="reason">One of <see cref="ReasonPermanent"/>, <see cref="ReasonNonIdempotent"/> and <see cref="ReasonRetryAfterExceedsMax"/>.</param>
+    /// <param name="reason">
+    /// One of <see cref="ReasonPermanent"/>, <see cref="ReasonNonIdempotent"/>, <see cref="ReasonRetryAfterExceedsMax"/>
+    /// and <see cref="ReasonRetryAfterExceedsCeiling"/>.
+    /// </param>
     /// <param name="requestName">The request type name.</param>
     /// <param name="errorCode">The code of the error that was not retried.</param>
     /// <param name="tenantId">The tenant of the call, or <see langword="null"/>.</param>

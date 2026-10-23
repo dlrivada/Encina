@@ -45,27 +45,45 @@ public class ReadAuditErrorsTests
     #region StoreError Tests
 
     [Fact]
-    public void StoreError_ShouldIncludeOperationInMessage()
+    public void StoreError_ShouldIncludeOperationAndExceptionTypeButNotExceptionMessage()
     {
+        // Arrange
+        var exception = new InvalidOperationException("SECRET-42");
+
         // Act
-        var error = ReadAuditErrors.StoreError("LogRead", "Connection failed");
+        var error = ReadAuditErrors.StoreError("LogRead", exception);
 
         // Assert
         error.Message.ShouldContain("LogRead");
-        error.Message.ShouldContain("Connection failed");
+        error.Message.ShouldContain(nameof(InvalidOperationException));
+        error.Message.ShouldNotContain("SECRET-42");
+        error.GetCode().IfNone(string.Empty).ShouldBe(ReadAuditErrors.StoreErrorCode);
     }
 
     [Fact]
-    public void StoreError_WithException_ShouldIncludeException()
+    public void StoreError_ShouldCarryTheOperationAndTheReadAuditStageInItsDetails()
+    {
+        // Act
+        var error = ReadAuditErrors.StoreError("LogRead", new InvalidOperationException("boom"));
+
+        // Assert: the stage key holds the stage name, not the key name
+        var details = error.GetDetails();
+        details["operation"].ShouldBe("LogRead");
+        details["stage"].ShouldBe("read_audit");
+    }
+
+    [Fact]
+    public void StoreError_ShouldAttachTheException()
     {
         // Arrange
-        var exception = new InvalidOperationException("test exception");
+        var exception = new InvalidOperationException("SECRET-42");
 
         // Act
-        var error = ReadAuditErrors.StoreError("Query", "Failed", exception);
+        var error = ReadAuditErrors.StoreError("Query", exception);
 
         // Assert
         error.Exception.IsSome.ShouldBeTrue();
+        error.Exception.IfSome(ex => ex.ShouldBeSameAs(exception));
     }
 
     #endregion
@@ -102,26 +120,32 @@ public class ReadAuditErrorsTests
     #region PurgeFailed Tests
 
     [Fact]
-    public void PurgeFailed_ShouldIncludeReason()
+    public void PurgeFailed_ShouldIncludeExceptionTypeButNotExceptionMessage()
     {
+        // Arrange
+        var exception = new TimeoutException("SECRET-42");
+
         // Act
-        var error = ReadAuditErrors.PurgeFailed("Timeout exceeded");
+        var error = ReadAuditErrors.PurgeFailed(exception);
 
         // Assert
-        error.Message.ShouldContain("Timeout exceeded");
+        error.Message.ShouldContain(nameof(TimeoutException));
+        error.Message.ShouldNotContain("SECRET-42");
+        error.GetCode().IfNone(string.Empty).ShouldBe(ReadAuditErrors.PurgeFailedCode);
     }
 
     [Fact]
-    public void PurgeFailed_WithException_ShouldIncludeException()
+    public void PurgeFailed_ShouldAttachTheException()
     {
         // Arrange
-        var exception = new TimeoutException("db timeout");
+        var exception = new TimeoutException("SECRET-42");
 
         // Act
-        var error = ReadAuditErrors.PurgeFailed("Timeout", exception);
+        var error = ReadAuditErrors.PurgeFailed(exception);
 
         // Assert
         error.Exception.IsSome.ShouldBeTrue();
+        error.Exception.IfSome(ex => ex.ShouldBeSameAs(exception));
     }
 
     #endregion

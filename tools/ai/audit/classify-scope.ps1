@@ -16,8 +16,16 @@ if (Test-Path -LiteralPath $raw) {
         git -C $root show --name-only --format= $m.Groups[1].Value 2>$null | Where-Object { $_ } | ForEach-Object { [void]$files.Add($_) }
     }
     foreach ($m in [regex]::Matches((Get-Content -Raw $raw), 'LINKED PR #(\d+):.*\(state closed\)')) {
-        $pr = gh pr view $m.Groups[1].Value --repo dlrivada/Encina --json mergedAt,files 2>$null | ConvertFrom-Json
-        if ($pr -and $pr.mergedAt) { $pr.files | ForEach-Object { [void]$files.Add($_.path) } }
+        # REST (#2661): the PR and its files (paginated, so no 100-file truncation).
+        $prNumber = $m.Groups[1].Value
+        $prJson = gh api "repos/dlrivada/Encina/pulls/$prNumber" 2>$null
+        if ($LASTEXITCODE -ne 0) { Write-Error "classify-scope: reading PR #$prNumber failed (exit $LASTEXITCODE); the scope is not classified on partial data"; exit 1 }
+        $pr = $prJson | ConvertFrom-Json
+        if ($pr.merged_at) {
+            $prFiles = gh api "repos/dlrivada/Encina/pulls/$prNumber/files" --paginate --jq '.[].filename' 2>$null
+            if ($LASTEXITCODE -ne 0) { Write-Error "classify-scope: reading the files of PR #$prNumber failed (exit $LASTEXITCODE); the scope is not classified on partial data"; exit 1 }
+            @($prFiles) | Where-Object { $_ } | ForEach-Object { [void]$files.Add($_) }
+        }
     }
 }
 # Closing comments often list commit hashes ("Completed in commits: - 760e27c: ...").

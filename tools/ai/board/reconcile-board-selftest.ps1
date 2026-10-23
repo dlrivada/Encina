@@ -39,17 +39,33 @@ $global:mergedPrs = @(
     @{ number = 231; title = 'One of two'; headRefName = 'fix/one-108'; body = 'Fixes #108'; mergedAt = '2026-09-20T09:00:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() },
     @{ number = 220; title = 'Merged flow'; headRefName = 'fix/f-400'; body = 'Fixes #400'; mergedAt = '2026-10-05T10:30:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() }
 )
+# The REST form (#2661) of a fixture written in gh's GraphQL JSON shape.
+function ConvertTo-RestPrFixture($P, [string]$State) {
+    $merged = $P.ContainsKey('mergedAt') -and $P.mergedAt
+    @{
+        number = $P.number; title = $P.title; head = @{ ref = $P.headRefName }; body = $P.body
+        draft = [bool]$P.isDraft; created_at = $P.createdAt
+        merged_at = $(if ($merged) { $P.mergedAt } else { $null }); updated_at = $(if ($merged) { $P.mergedAt } else { $P.createdAt })
+        state = $State
+        user = @{ login = $P.author.login; type = $(if ($P.author.is_bot) { 'Bot' } else { 'User' }) }
+    }
+}
 function gh {
     $a = $args -join ' '
     $global:LASTEXITCODE = 0
-    if ($a -match '^pr list .*--state open') { return ConvertTo-Json -InputObject $global:openPrs -Depth 8 }
-    if ($a -match '^pr list .*--state merged') { return ConvertTo-Json -InputObject $global:mergedPrs -Depth 8 }
-    if ($a -match '^issue list .*--state closed') { return '[{"number":402,"closedAt":"2026-10-04T12:00:00Z","stateReason":"COMPLETED"}]' }
-    if ($a -match '^issue view 404 .*--json state') { return '{"state":"CLOSED","stateReason":"NOT_PLANNED","closedAt":"2026-06-01T00:00:00Z"}' }
-    if ($a -match '^issue view \d+ .*--json state') { return '{"state":"OPEN","stateReason":null,"closedAt":null}' }
-    if ($a -match '^pr view 232 ') { return '{"number":232,"title":"Abandoned","headRefName":"x","body":"Fixes #405","state":"CLOSED","mergedAt":null,"createdAt":"2026-10-01T00:00:00Z","author":{"login":"dlrivada"},"closingIssuesReferences":[]}' }
-    if ($a -match '^pr view 204 ') { return '{"number":204,"title":"Older","headRefName":"x","body":"Fixes #104","state":"MERGED","mergedAt":"2026-09-01T00:00:00Z","createdAt":"2026-08-30T00:00:00Z","author":{"login":"dlrivada"},"closingIssuesReferences":[]}' }
-    if ($a -match '^issue view (\d+) ') { return "{`"title`":`"Issue $($Matches[1]) title`"}" }
+    if ($a -match '^api repos/[^/]+/[^/]+/pulls\?state=open') { return ConvertTo-Json -InputObject @(, @($global:openPrs | ForEach-Object { ConvertTo-RestPrFixture $_ 'open' })) -Depth 8 }
+    if ($a -match '^api repos/[^/]+/[^/]+/pulls\?state=closed.*&page=1$') { return ConvertTo-Json -InputObject @($global:mergedPrs | ForEach-Object { ConvertTo-RestPrFixture $_ 'closed' }) -Depth 8 }
+    if ($a -match '^api repos/[^/]+/[^/]+/pulls\?state=closed') { return '[]' }
+    if ($a -match '^api repos/[^/]+/[^/]+/issues\?state=closed') { return '[[{"number":402,"closed_at":"2026-10-04T12:00:00Z","state":"closed","state_reason":"completed"},{"number":9999,"closed_at":"2026-10-04T12:00:00Z","state":"closed","pull_request":{}}]]' }
+    # A single PR the window did not list (older than the window): served from the fixtures by number.
+    if ($a -match '^api repos/[^/]+/[^/]+/pulls/(\d+)$' -and @($global:mergedPrs + $global:openPrs | Where-Object { $_.number -eq [int]$Matches[1] }).Count -gt 0) {
+        $hit = @($global:mergedPrs + $global:openPrs | Where-Object { $_.number -eq [int]$Matches[1] })[0]
+        return ConvertTo-Json -InputObject (ConvertTo-RestPrFixture $hit $(if ($hit.ContainsKey('mergedAt')) { 'closed' } else { 'open' })) -Depth 8
+    }
+    if ($a -match '^api repos/[^/]+/[^/]+/issues/404$') { return '{"state":"closed","state_reason":"not_planned","closed_at":"2026-06-01T00:00:00Z","title":"Issue 404 title"}' }
+    if ($a -match '^api repos/[^/]+/[^/]+/pulls/232$') { return '{"number":232,"title":"Abandoned","head":{"ref":"x"},"body":"Fixes #405","state":"closed","merged_at":null,"created_at":"2026-10-01T00:00:00Z","user":{"login":"dlrivada","type":"User"}}' }
+    if ($a -match '^api repos/[^/]+/[^/]+/pulls/204$') { return '{"number":204,"title":"Older","head":{"ref":"x"},"body":"Fixes #104","state":"closed","merged_at":"2026-09-01T00:00:00Z","created_at":"2026-08-30T00:00:00Z","user":{"login":"dlrivada","type":"User"}}' }
+    if ($a -match '^api repos/[^/]+/[^/]+/issues/(\d+)$') { return "{`"state`":`"open`",`"state_reason`":null,`"closed_at`":null,`"title`":`"Issue $($Matches[1]) title`"}" }
     $global:LASTEXITCODE = 1
     return "unexpected gh call: $a"
 }

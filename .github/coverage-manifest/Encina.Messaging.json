@@ -755,7 +755,7 @@
         "integration": 80
       },
       "justifications": {
-        "unit": "Unit tests drive delivery, every failure kind, exhaustion with and without the dead letter capture, store errors and cancellation (measured 100%).",
+        "unit": "Unit tests drive delivery, every failure kind, the Retry-After ceiling, exhaustion with and without the dead letter capture, store errors and cancellation (measured 100%).",
         "guard": "The processor is internal; guard tests reach it only through the orchestrator's argument checks (measured 19%).",
         "integration": "Real outbox stores run the batch to exhaustion and dead-lettering; the cancellation branches stay unit-only (measured 82%)."
       }
@@ -765,7 +765,12 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": { "unit": 95, "guard": 40 },
+      "justifications": {
+        "unit": "Unit tests assert the defaults and the rejected values of every setter, including MaxRetryAfter (measured 100%).",
+        "guard": "Guard tests reject zero and negative values of MaxRetryAfter; the other setters are covered by the unit flag."
+      }
     },
     "Outbox/OutboxOrchestrator.cs": {
       "defaultTests": [
@@ -983,7 +988,7 @@
       "reason": "Default: assume testable with mocks",
       "targets": { "unit": 90, "guard": 5 },
       "justifications": {
-        "unit": "Retry-After and non-idempotent chain tests in DelayedRetryChainTests; the reflection scheduling fallbacks for an unresolvable type stay uncovered.",
+        "unit": "Retry-After, ceiling and non-idempotent chain tests in DelayedRetryChainTests; the reflection scheduling fallbacks for an unresolvable type stay uncovered (measured 95%).",
         "guard": "Only the constructor guards exist for this type; the processing loop takes no caller parameters (measured 6%)."
       }
     },
@@ -1060,8 +1065,8 @@
       "reason": "Configuration POCO with defaults and validation",
       "targets": { "unit": 95, "guard": 95 },
       "justifications": {
-        "unit": "namespace-only change in #1223",
-        "guard": "namespace-only change in #1223"
+        "unit": "Unit tests assert the defaults and the MaxRetryAfter rule (measured 100%).",
+        "guard": "Guard tests reject zero and negative MaxRetryAfter values (measured 100%)."
       }
     },
     "Recoverability/RecoverabilityPipelineBehavior.cs": {
@@ -1074,7 +1079,7 @@
       "reason": "Mediator pipeline with mockeable next delegate",
       "targets": { "unit": 95, "guard": 5, "contract": 65 },
       "justifications": {
-        "unit": "Unit tests cover immediate retries, delayed scheduling, permanent failure and the re-dispatch marker (measured 100%).",
+        "unit": "Unit tests cover immediate retries, delayed scheduling, permanent failure, the re-dispatch marker and the Retry-After ceiling (measured 100%).",
         "guard": "Only constructor guards exist (measured 6%); Handle takes the pipeline-supplied arguments.",
         "contract": "Contract tests cover the pipeline behavior contract (measured 67%)."
       }

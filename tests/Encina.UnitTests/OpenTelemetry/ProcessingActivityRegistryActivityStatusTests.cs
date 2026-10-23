@@ -81,7 +81,7 @@ public sealed partial class ProcessingActivityRegistryActivityStatusTests
     {
         var registered = await registry.RegisterActivityAsync(NewActivity());
         registered.IsLeft.ShouldBeTrue();
-        registered.IfLeft(error => error.Message.ShouldContain(secret));
+        registered.IfLeft(error => error.Message.ShouldNotContain(secret));
 
         await ExerciseReadAndUpdateOperationsAsync(registry, secret);
     }
@@ -90,15 +90,15 @@ public sealed partial class ProcessingActivityRegistryActivityStatusTests
     {
         var all = await registry.GetAllActivitiesAsync();
         all.IsLeft.ShouldBeTrue();
-        all.IfLeft(error => error.Message.ShouldContain(secret));
+        all.IfLeft(error => error.Message.ShouldNotContain(secret));
 
         var byType = await registry.GetActivityByRequestTypeAsync(typeof(RegistryTestRequest));
         byType.IsLeft.ShouldBeTrue();
-        byType.IfLeft(error => error.Message.ShouldContain(secret));
+        byType.IfLeft(error => error.Message.ShouldNotContain(secret));
 
         var updated = await registry.UpdateActivityAsync(NewActivity());
         updated.IsLeft.ShouldBeTrue();
-        updated.IfLeft(error => error.Message.ShouldContain(secret));
+        updated.IfLeft(error => error.Message.ShouldNotContain(secret));
     }
 
     private static void AssertOnlyExceptionTypesReachedTheActivities(

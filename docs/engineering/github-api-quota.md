@@ -4,7 +4,7 @@ nav_exclude: true
 
 # GitHub API quota: GraphQL versus REST
 
-**Status:** reference note for the maintainer and for contributors of `tools/ai`. **Issue:** #2568.
+**Status:** reference note for the maintainer and for contributors of `tools/ai`. **Issues:** #2568, #2661.
 
 The maintainer account has one GraphQL budget of 5000 points per hour, shared by every Claude session, watcher and script. On 2026-10-21 it reached `remaining 0` while REST still had 4995 of 5000, and every `gh pr`, `gh issue` and `gh label` call failed. This page lists what spends GraphQL, what the repository tools do about it, and how to check.
 
@@ -14,9 +14,9 @@ Rule: an operation with a REST equivalent uses REST (`gh api repos/...`), always
 
 | API | Operations |
 | --- | --- |
-| REST | List and read issues, pull requests, labels, checks (check runs and commit status), comments, reviews, milestones and sub-issues; create issues and pull requests (possible over REST; `open-remediation` still calls `gh issue create`, see "What is left") |
+| REST | List and read issues, pull requests, labels, checks (check runs and commit status), comments, reviews, milestones and sub-issues; create issues and pull requests, add labels, create labels, search issues by title (`search/issues`, 30 requests per minute) |
 | GraphQL-backed `gh` commands (avoid) | `gh pr view`, `gh pr checks`, `gh pr list`, `gh issue view`, `gh issue list`, `gh label list`, `gh project ...` |
-| GraphQL only | Review threads (`isResolved`) and `resolveReviewThread`, `enablePullRequestAutoMerge`, Projects v2, the bulk query of `collect-issues` |
+| GraphQL only | Review threads (`isResolved`) and `resolveReviewThread`, `enablePullRequestAutoMerge`, Projects v2 (every `gh project` call), the bulk query of `collect-issues`, the bulk closed-issue reads with comments of `fetch-closed-issue-data` and `historian-extract-closed` (REST would need one extra call per issue), and `closedByPullRequestsReferences` |
 
 The GraphQL-only operations go through the shared helper below.
 
@@ -73,6 +73,10 @@ From the measured cost of 1 point per call.
 | Label listings (`audit-draft-remediation -Prepare`, `open-remediation`, `apply-priority-labels`) | per run | 3 per run; failed at 0 | 0 (REST) | per run |
 | `audit-draft-remediation` duplicate search and issue reads | per run | 1 per search or read | 0 (REST; the search API has its own limit of 30 requests per minute) | per run |
 | `score-issues -Issue` | per run | 1 | 0 (REST) | per run |
+| `audit-next -Issue`, `classify-scope`, `qwen-predraft`, `audit-done` pull request creation and lookup, `open-remediation` issue creation and title search | per run | 1 per call; failed at 0 | 0 (REST) | per run |
+| `build-board-stats`, `reconcile-board` windows | per run | `pr list --search` and `issue list --search`: 3 to 6 per run | 0 (REST list endpoints, newest first, paged until the window start; search is not used because it caps at 1000 results) | per run |
+| `fetch-closed-issue-data`, `historian-extract-closed` bulk reads | per run | 1 per page of issues with comments | unchanged (bulk GraphQL), behind `Wait-GhGraphQLQuota` and `Write-GhQuotaUsage` | 0 |
+| `gh project` calls of `open-remediation` and `check-project-membership` | per run | 1 each | unchanged (Projects v2 has no REST API), behind the helper with `-NoWait`: a low quota fails the add with the retry command and never blocks issue creation | 0 |
 | `collect-issues` | per run | 1 per page | 1 per page, behind `Wait-GhGraphQLQuota` and `Write-GhQuotaUsage` | 0 |
 
 The watchers read check runs and commit status only when the head sha changed or the previous read had pending or failed checks (a failed job can be re-run on the same sha); reviews and the comment lists are read every poll (the comment lists with `since`; reviews are filtered by `submitted_at`). Limit: a re-run of a job that passed on the same sha is not seen until the sha changes; failed and pending checks are re-read every poll. REST has its own budget of 5000 requests per hour, shared like GraphQL, so several watchers on the same PR should not run at once.
@@ -81,7 +85,9 @@ The only GraphQL polling left is the review-thread read of `watch-open-prs.ps1`.
 
 ## What is left
 
-The scripts not yet migrated are `fetch-closed-issue-data`, `historian-*`, `build-board-stats`, `reconcile-board`, `check-project-membership`, `open-remediation` beyond labels, `qwen-predraft`, `classify-scope` and `audit-next`. They are tracked in a follow-up issue.
+None: every remaining GraphQL call is behind the helper (`Wait-GhGraphQLQuota` before, `Write-GhQuotaUsage` after). They are the review-thread read of `watch-open-prs`, the bulk query of `collect-issues`, the bulk closed-issue reads of `fetch-closed-issue-data` and `historian-extract-closed`, `closedByPullRequestsReferences`, and the `gh project` calls.
+
+Known limit: REST has no `closingIssuesReferences`, so `reconcile-board.ps1` finds the issues a pull request closes only from the `Fixes #n` / `Closes #n` text of its body; a link made only from the Development sidebar is not seen (the reconciler is paused, #2661).
 
 ## How to prove it
 

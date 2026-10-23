@@ -239,9 +239,11 @@ try {
     if ($n -eq 0) { Write-Error "audit-next: every pending issue overlaps an open audit ($openText); close one with audit-done.ps1 first."; exit 1 }
 
     if ($Issue) {
-        $stateOutput = & gh issue view $Issue --repo dlrivada/Encina --json state --jq '.state' 2>&1
-        if ($LASTEXITCODE -ne 0) { Write-Error "audit-next: gh issue view #$Issue failed: $stateOutput"; exit 1 }
-        if (([string]$stateOutput).Trim() -ne 'CLOSED') {
+        # REST (#2661): REST reports "open"/"closed"; the comparison below uses the GraphQL spelling.
+        $stateOutput = & gh api "repos/dlrivada/Encina/issues/$Issue" --jq '.state' 2>&1
+        if ($LASTEXITCODE -ne 0) { Write-Error "audit-next: reading issue #$Issue over REST failed: $stateOutput"; exit 1 }
+        $stateOutput = ([string]$stateOutput).Trim().ToUpperInvariant()
+        if ($stateOutput -ne 'CLOSED') {
             Write-Error "audit-next: issue #$Issue is not CLOSED (gh reports '$stateOutput')."
             exit 1
         }

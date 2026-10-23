@@ -29,6 +29,8 @@ public sealed class OutboxBatchProcessorTests
             .Returns(Right<EncinaError, Unit>(Unit.Default));
         _store.MarkAsFailedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, Unit>(Unit.Default));
+        _store.MarkAsExhaustedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
     }
 
     [Fact]
@@ -126,7 +128,8 @@ public sealed class OutboxBatchProcessorTests
         var result = await sut.ProcessAsync((_, _, _) => Rejected(), CancellationToken.None);
 
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 0, 1, 0));
-        await _store.Received(1).MarkAsFailedAsync(message.Id, "handler.rejected", null, Arg.Any<CancellationToken>());
+        await _store.Received(1).MarkAsExhaustedAsync(message.Id, "handler.rejected", 3, Arg.Any<CancellationToken>());
+        await _store.DidNotReceiveWithAnyArgs().MarkAsFailedAsync(default, default!, default, default);
         await _store.DidNotReceiveWithAnyArgs().MarkAsProcessedAsync(default, default);
         var entry = _logger.Entries.Single(e => e.EventId == 2958);
         entry.Level.ShouldBe(LogLevel.Error);
@@ -338,14 +341,14 @@ public sealed class OutboxBatchProcessorTests
     public async Task ProcessAsync_ExhaustedMarkReturnsLeft_DoesNotReportTheMessageAsExhausted()
     {
         var message = Pending(retryCount: 2);
-        _store.MarkAsFailedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+        _store.MarkAsExhaustedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, Unit>(StoreError));
         var sut = CreateSut(Options(maxRetries: 3));
 
         var result = await sut.ProcessAsync((_, _, _) => Rejected(), CancellationToken.None);
 
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 0, 0, 1));
-        await _store.Received(1).MarkAsFailedAsync(message.Id, "handler.rejected", null, Arg.Any<CancellationToken>());
+        await _store.Received(1).MarkAsExhaustedAsync(message.Id, "handler.rejected", 3, Arg.Any<CancellationToken>());
         _logger.EventIds.ShouldNotContain(2958);
         _logger.EventIds.ShouldContain(2961);
     }

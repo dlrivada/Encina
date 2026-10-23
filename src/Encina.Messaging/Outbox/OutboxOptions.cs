@@ -96,6 +96,34 @@ public sealed class OutboxOptions
     } = TimeSpan.FromHours(1);
 
     /// <summary>
+    /// Gets or sets the ceiling of a <c>Retry-After</c> that the outbox honours.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A <c>Retry-After</c> at or below the ceiling still sets the next attempt to at least now plus the header.
+    /// A <c>Retry-After</c> strictly above it schedules nothing: the message is exhausted at once, whatever its
+    /// <see cref="IOutboxMessage.RetryCount"/> (the store raises it to <see cref="MaxRetries"/> through
+    /// <see cref="IOutboxStore.MarkAsExhaustedAsync"/>), dead-lettered with the error code
+    /// <see cref="Recoverability.RecoverabilityErrorCodes.RetryAfterExceedsCeiling"/>, and a warning (EventId 5456)
+    /// is logged. It can be requeued like any exhausted message.
+    /// </para>
+    /// <para>
+    /// A positive <see cref="TimeSpan.MaxValue"/> is the explicit "no ceiling" choice.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: 24 hours.</value>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the value is zero or negative.</exception>
+    public TimeSpan MaxRetryAfter
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero);
+            field = value;
+        }
+    } = TimeSpan.FromHours(24);
+
+    /// <summary>
     /// Gets or sets the fraction of the retry delay that is randomised, so that messages that
     /// failed together do not retry together.
     /// </summary>

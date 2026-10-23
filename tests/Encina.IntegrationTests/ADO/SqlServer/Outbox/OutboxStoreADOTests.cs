@@ -712,5 +712,12 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
     public Task RequeueExhausted_All_ReturnsEveryExhaustedMessageToPending()
         => OutboxRetryScenarios.RequeueAllExhaustedAsync(_store, new OutboxMessageFactory());
 
+    /// <summary>
+    /// Marking a message exhausted raises its retry count to the limit, and the store never fetches it again for that limit.
+    /// </summary>
+    [Fact]
+    public Task MarkAsExhausted_RaisesRetryCountToMaxRetries_AndTheMessageIsNeverFetchedAgain()
+        => OutboxRetryScenarios.MarkAsExhaustedRaisesRetryCountAndIsNeverFetchedAgainAsync(_store, new OutboxMessageFactory());
+
     #endregion
 }

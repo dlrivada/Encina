@@ -21,7 +21,17 @@
         "integration"
       ],
       "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
+      "reason": "Dapper store with raw SQL — needs real database",
+      "targets": {
+        "unit": 90,
+        "guard": 12,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "Unit tests run every method against a fake data reader and against a failing connection, covering the happy paths and the error paths (measured 93.1%).",
+        "guard": "Guard tests cover the argument checks of the store methods (measured 12.6%).",
+        "integration": "No Dapper token mapping integration tests exist yet, so the measured 0% is a known gap tracked by #2684; the zero target is explicit until they land."
+      }
     },
     "Auditing/AuditLogStoreDapper.cs": {
       "defaultTests": [

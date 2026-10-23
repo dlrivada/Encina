@@ -126,6 +126,34 @@ public sealed class RecoverabilityOptions
     public int MaxJitterPercent { get; set; } = 20;
 
     /// <summary>
+    /// Gets or sets the ceiling of a <c>Retry-After</c> that a delayed retry honours.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A <c>Retry-After</c> at or below the ceiling replaces the configured delay of the next delayed retry and is
+    /// never shortened. A <c>Retry-After</c> strictly above it schedules nothing: the message is dead-lettered
+    /// through the permanent-failure path with the error code
+    /// <see cref="RecoverabilityErrorCodes.RetryAfterExceedsCeiling"/>, a warning (EventIds 5454 and 5455) is
+    /// logged and the <c>encina.retry.skipped_total</c> counter records the reason
+    /// <see cref="RetryMetrics.ReasonRetryAfterExceedsCeiling"/>.
+    /// </para>
+    /// <para>
+    /// A positive <see cref="TimeSpan.MaxValue"/> is the explicit "no ceiling" choice.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: 24 hours.</value>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the value is zero or negative.</exception>
+    public TimeSpan MaxRetryAfter
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero);
+            field = value;
+        }
+    } = TimeSpan.FromHours(24);
+
+    /// <summary>
     /// Gets the total number of retry attempts (immediate + delayed).
     /// </summary>
     public int TotalRetryAttempts => ImmediateRetries + (EnableDelayedRetries ? DelayedRetries.Length : 0);

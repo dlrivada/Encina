@@ -12,6 +12,7 @@ param([switch]$Add)
 
 $ErrorActionPreference = 'Stop'
 $repoName = 'dlrivada/Encina'
+. (Join-Path $PSScriptRoot '..\gh-quota.ps1')
 
 $savedG = $env:GITHUB_TOKEN; $savedH = $env:GH_TOKEN
 try {
@@ -19,12 +20,21 @@ try {
     Remove-Item Env:\GITHUB_TOKEN, Env:\GH_TOKEN -ErrorAction SilentlyContinue
 
     try {
-    $openJson = & gh issue list --repo $repoName --state open --limit 5000 --json number,title,url
-    if ($LASTEXITCODE -ne 0) { Write-Host "check-project-membership: gh issue list failed (exit $LASTEXITCODE)"; exit 2 }
-    $open = @("$($openJson -join "`n")" | ConvertFrom-Json)
+    # REST (#2661): the issues endpoint also returns pull requests (they carry a pull_request member): dropped.
+    $openJson = & gh api "repos/$repoName/issues?state=open&per_page=100" --paginate --slurp
+    if ($LASTEXITCODE -ne 0) { Write-Host "check-project-membership: reading the open issues over REST failed (exit $LASTEXITCODE)"; exit 2 }
+    $open = @(("$($openJson -join "`n")" | ConvertFrom-Json) | ForEach-Object { $_ } |
+            Where-Object { -not $_.pull_request } | ForEach-Object { [pscustomobject]@{ number = $_.number; title = $_.title; url = $_.html_url } })
 
+    # Projects v2 has no REST API: GraphQL only, behind the shared quota helper. A low quota means nothing was checked.
+    if (-not (Wait-GhGraphQLQuota -Caller 'check-project-membership' -NoWait)) {
+        Write-Host "check-project-membership: the GraphQL quota is below its threshold (see artifacts/gh-quota/graphql-ratelimit.json); gh project item-list was not called, nothing was checked"
+        exit 2
+    }
     $itemsJson = & gh project item-list 1 --owner dlrivada --limit 5000 --format json
-    if ($LASTEXITCODE -ne 0) { Write-Host "check-project-membership: gh project item-list failed (exit $LASTEXITCODE); the keyring token needs the project scope"; exit 2 }
+    $listExit = $LASTEXITCODE
+    Write-GhQuotaUsage -Caller 'check-project-membership' -Operation 'project item-list'
+    if ($listExit -ne 0) { Write-Host "check-project-membership: gh project item-list failed (exit $listExit); the keyring token needs the project scope"; exit 2 }
     $items = @(("$($itemsJson -join "`n")" | ConvertFrom-Json).items)
     $onProject = [System.Collections.Generic.HashSet[int]]::new()
     foreach ($i in $items) {
@@ -37,8 +47,15 @@ try {
     $failed = 0
     foreach ($m in $missing) {
         if ($Add) {
-            $out = & gh project item-add 1 --owner dlrivada --url $m.url 2>&1
-            if ($LASTEXITCODE -ne 0) { $failed++; Write-Host "FAILED  #$($m.number) $($m.title): $($out -join ' ')" }
+            if (-not (Wait-GhGraphQLQuota -Caller 'check-project-membership' -NoWait)) {
+                $out = 'the GraphQL quota is below its threshold; the call was not made'; $addExit = 1
+            }
+            else {
+                $out = & gh project item-add 1 --owner dlrivada --url $m.url 2>&1
+                $addExit = $LASTEXITCODE
+                Write-GhQuotaUsage -Caller 'check-project-membership' -Operation 'project item-add'
+            }
+            if ($addExit -ne 0) { $failed++; Write-Host "FAILED  #$($m.number) $($m.title): $($out -join ' ')" }
             else { Write-Host "ADDED   #$($m.number) $($m.title)" }
         }
         else { Write-Host "#$($m.number) $($m.title)" }

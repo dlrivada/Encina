@@ -338,27 +338,28 @@ public class AnonymizationErrorsTests
     [Fact]
     public void StoreError_ShouldReturnCorrectCode()
     {
-        var error = AnonymizationErrors.StoreError("AddEntry", "Connection timeout");
+        var error = AnonymizationErrors.StoreError("AddEntry", new TimeoutException("Connection timeout"));
         error.GetCode().Match(
             Some: code => code.ShouldBe(AnonymizationErrors.StoreErrorCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
     [Fact]
-    public void StoreError_ShouldIncludeOperationInMessage()
+    public void StoreError_ShouldIncludeOperationAndExceptionTypeButNotExceptionMessage()
     {
-        var error = AnonymizationErrors.StoreError("AddEntry", "Connection timeout");
+        var error = AnonymizationErrors.StoreError("AddEntry", new InvalidOperationException("SECRET-42"));
         error.Message.ShouldContain("AddEntry");
+        error.Message.ShouldContain(nameof(InvalidOperationException));
+        error.Message.ShouldNotContain("SECRET-42");
     }
 
     [Fact]
-    public void StoreError_WithException_ShouldReturnCorrectCode()
+    public void StoreError_ShouldAttachTheException()
     {
-        var innerException = new InvalidOperationException("Deadlock");
-        var error = AnonymizationErrors.StoreError("AddEntry", "Connection timeout", innerException);
-        error.GetCode().Match(
-            Some: code => code.ShouldBe(AnonymizationErrors.StoreErrorCode),
-            None: () => Assert.Fail("Expected error code"));
+        var innerException = new InvalidOperationException("SECRET-42");
+        var error = AnonymizationErrors.StoreError("AddEntry", innerException);
+        error.Exception.IsSome.ShouldBeTrue();
+        error.Exception.IfSome(ex => ex.ShouldBeSameAs(innerException));
     }
 
     #endregion

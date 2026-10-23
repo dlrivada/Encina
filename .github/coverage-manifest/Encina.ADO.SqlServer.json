@@ -21,7 +21,17 @@
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL — needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database",
+      "targets": {
+        "unit": 35,
+        "guard": 8,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "Unit tests drive every method into the connection-failure path and assert the error carries the exception type and never its message (measured 37.7%); the happy paths need a real database.",
+        "guard": "Guard tests cover the argument checks of the store methods (measured 8.5%).",
+        "integration": "No ADO.NET token mapping integration tests exist yet, so the measured 0% is a known gap tracked by #2684; the zero target is explicit until they land."
+      }
     },
     "Auditing/AuditLogStoreADO.cs": {
       "defaultTests": [

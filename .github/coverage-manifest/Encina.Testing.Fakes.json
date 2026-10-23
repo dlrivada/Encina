@@ -154,7 +154,14 @@
         "guard"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": { "unit": 98, "guard": 38, "property": 40, "contract": 0 },
+      "justifications": {
+        "unit": "Unit tests cover every fake store method including MarkAsExhaustedAsync (measured 100%).",
+        "guard": "Guard tests construct the fake and call its methods (measured 40%).",
+        "property": "Property tests reuse the fake as the outbox store (measured 43%).",
+        "contract": "The fake has no contract of its own beyond IOutboxStore, which the real-store contract tests cover (a 0 with this reason)."
+      }
     },
     "Stores/FakeSagaStore.cs": {
       "defaultTests": [

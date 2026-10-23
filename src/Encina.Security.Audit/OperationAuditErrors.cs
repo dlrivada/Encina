@@ -1,3 +1,5 @@
+using Encina.Diagnostics;
+
 namespace Encina.Security.Audit;
 
 /// <summary>
@@ -17,6 +19,37 @@ public static class OperationAuditErrors
     /// Nothing is stored in that case.
     /// </summary>
     public const string MaskingFailedCode = "audit.masking_failed";
+
+    /// <summary>
+    /// Error code of an operation audit store operation that failed in the store itself (a database or
+    /// provider failure), as opposed to a request whose audit entry was dropped by the pipeline.
+    /// </summary>
+    public const string StoreErrorCode = "audit.store_error";
+
+    /// <summary>
+    /// Creates the error returned when an operation audit store operation fails.
+    /// </summary>
+    /// <param name="operation">The store operation that failed (for example <c>Record</c> or <c>Query</c>).</param>
+    /// <param name="exception">
+    /// The exception that caused the failure. It is attached to the error and its type name appears in the
+    /// message; its message text never does, because it can carry personal data.
+    /// </param>
+    /// <returns>An error carrying <see cref="StoreErrorCode"/> and <paramref name="exception"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="operation"/> or <paramref name="exception"/> is <c>null</c>.</exception>
+    public static EncinaError StoreError(string operation, Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(exception);
+
+        return EncinaErrors.Create(
+            code: StoreErrorCode,
+            message: $"Operation audit store operation '{operation}' failed ({ActivityStatusDescriptions.ForException(exception)}).",
+            exception: exception,
+            details: new Dictionary<string, object?>
+            {
+                ["operation"] = operation
+            });
+    }
 
     /// <summary>
     /// Creates the error returned when the payload of a request could not be masked for its audit entry.

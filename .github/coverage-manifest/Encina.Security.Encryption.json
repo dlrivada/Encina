@@ -31,14 +31,16 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "guard": 8,
-        "property": 70,
-        "unit": 95
+        "unit": 85,
+        "guard": 85,
+        "contract": 85,
+        "property": 70
       },
       "justifications": {
-        "unit": "Unit tests cover encrypt/decrypt round trips including the empty-string case, the authentication-failure paths and the decrypt failure branches (default nonce or tag, unknown key id, wrong-length key) (measured 96%); the remaining lines are defensive exception catch paths that need a failing crypto primitive.",
-        "property": "Round-trip property tests exercise encryption and decryption over generated inputs (measured 82%); error catch paths are not reachable from generated valid inputs.",
-        "guard": "Guard tests only exercise null-argument checks on the public methods (measured 8%), so a low target reflects that the rest of the file is behavior covered by unit and property flags."
+        "unit": "Unit tests run the real AesGcmFieldEncryptor string and byte round trips with the 12-byte nonce, 16-byte tag and 32-byte key checks, leaving uncovered the CryptographicException catch blocks.",
+        "guard": "Guard tests assert ArgumentNullException with the parameter name on every public method of the real AesGcmFieldEncryptor and fail-closed results for missing, wrong-length and unsupported keys, leaving uncovered the CryptographicException catch blocks.",
+        "contract": "Contract tests run the real AesGcmFieldEncryptor through IFieldEncryptor for round trips, tampered ciphertext, tag and associated data (DecryptionFailed), missing keys and unsupported algorithms, leaving uncovered the CryptographicException catch blocks.",
+        "property": "Property tests run the real AesGcmFieldEncryptor with FsCheck payloads for round-trip identity, 12-byte nonces, 16-byte tags, distinct ciphertext for equal plaintext and failure on tampering, leaving uncovered the fixed-input error branches and the CryptographicException catch blocks."
       }
     },
     "Attributes/DecryptOnReceiveAttribute.cs": {
@@ -95,7 +97,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 85,
+        "guard": 85,
+        "contract": 80
+      },
+      "justifications": {
+        "unit": "Unit tests run the real EncryptedPropertyCache discovery, compiled setter and getter, read-only skipping, per-type caching and ClearCache, leaving uncovered the expression-tree compile-failure catch block.",
+        "guard": "Guard tests assert ArgumentNullException for a null type and run GetProperties on read-only, annotated and repeated lookups, leaving uncovered the compile-failure catch block.",
+        "contract": "Contract tests run the real EncryptedPropertyCache and pin that each type yields stable descriptors, leaving uncovered the compile-failure catch block and about 15 percent of lines the measurement does not itemise."
+      }
     },
     "EncryptedPropertyInfo.cs": {
       "defaultTests": [
@@ -134,7 +146,17 @@
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods",
+      "targets": {
+        "unit": 95,
+        "guard": 75,
+        "contract": 95
+      },
+      "justifications": {
+        "unit": "Unit tests call each real EncryptionErrors factory and assert its error code and message, measured at 100 percent with no uncovered lines.",
+        "guard": "Guard tests reach the factories only incidentally through the fail-closed paths of the real encryptor, key provider and orchestrator, since the factories take no arguments to check, so this file has no rejection assertions and 17 percent of its lines are left uncovered.",
+        "contract": "Contract tests pin the five error codes, their shared prefix and the metadata each factory carries, measured at 100 percent with no uncovered lines."
+      }
     },
     "EncryptionOptions.cs": {
       "defaultTests": [
@@ -149,7 +171,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 75,
+        "guard": 60,
+        "contract": 85
+      },
+      "justifications": {
+        "unit": "Unit tests run the real EncryptionOrchestrator over property discovery, FailOnError handling and the ENC:v1 envelope, leaving uncovered some of the warning-log branches on the FailOnError=false and malformed-envelope paths.",
+        "guard": "Guard tests assert ArgumentNullException with the parameter name on EncryptAsync and DecryptAsync, plus cancelled-token results and both FailOnError outcomes, leaving uncovered about 34 percent of lines, mostly the orchestration and logging branches.",
+        "contract": "Contract tests run the real EncryptionOrchestrator through IEncryptionOrchestrator for encrypt-then-decrypt identity, fail-closed tampered and malformed envelopes, FailOnError=false leaving values unchanged and purpose, key ID and tenant reaching the field encryptor, leaving uncovered some warning-log lines."
+      }
     },
     "EncryptionPipelineBehavior.cs": {
       "defaultTests": [
@@ -161,13 +193,13 @@
       "reason": "Mediator pipeline with mockeable next delegate",
       "targets": {
         "unit": 95,
-        "guard": 5,
-        "contract": 0
+        "guard": 90,
+        "contract": 70
       },
       "justifications": {
-        "unit": "Unit tests drive the encrypt and decrypt paths and their error results with a mocked next delegate.",
-        "guard": "Guard tests only assert argument checks; the remaining lines are driven by unit and integration tests.",
-        "contract": "Contract tests pin public interfaces; this internal pipeline behavior has no public interface of its own."
+        "unit": "Unit tests drive the real behavior's encrypt, decrypt-on-receive and response-encryption paths and their error results with a delegate standing in for next, measured at 99.3 percent.",
+        "guard": "Guard tests assert ArgumentNullException for the constructor and Handle arguments and fail-closed results before the next step on the real behavior and orchestrator, leaving uncovered about 4 percent of lines that the measurement does not itemise.",
+        "contract": "Contract tests run the real behavior and pin that the handler runs only after successful encryption, that failed encryption skips the handler, and the tracing and metrics output, leaving uncovered about 23 percent of lines that the measurement does not itemise."
       }
     },
     "Health/EncryptionHealthCheck.cs": {
@@ -176,12 +208,38 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "unit": 95,
+        "guard": 85,
+        "contract": 85
+      },
+      "justifications": {
+        "unit": "Unit tests run the real EncryptionHealthCheck status mapping for each probe step and failure, and the measured 100 percent leaves no line uncovered.",
+        "guard": "Guard tests assert ArgumentNullException for a null service provider and run the real CheckHealthAsync with missing services, a throwing encryptor (no message leak) and a healthy registration, leaving uncovered about 10 percent of lines that the measurement does not itemise.",
+        "contract": "Contract tests run the real EncryptionHealthCheck through IHealthCheck for healthy round trips and for missing key, encrypt-phase, decrypt-phase and mismatched round trips, leaving uncovered the catch-all exception mapping that only the guard tests trigger."
+      }
     },
     "InMemoryKeyProvider.cs": {
-      "defaultTests": [],
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
       "defaultRule": "*Provider.cs",
-      "reason": "Interface — no implementation"
+      "reason": "Concrete in-memory key store with real behavior",
+      "targets": {
+        "unit": 90,
+        "guard": 90,
+        "contract": 90,
+        "property": 55
+      },
+      "justifications": {
+        "unit": "Unit tests run the real InMemoryKeyProvider for key storage, current-key selection, rotation to a new 32-byte key and cancelled-token results, leaving uncovered the RotateKeyAsync catch block.",
+        "guard": "Guard tests assert ArgumentNullException for null keyId and key on AddKey, SetCurrentKey and GetKeyAsync and ArgumentException for blank key IDs, leaving uncovered the key storage and rotation paths that only the unit tests reach.",
+        "contract": "Contract tests run the real InMemoryKeyProvider through IKeyProvider for retrieval, unknown and missing-current-key results, cancellation, rotation and Clear, leaving uncovered the RotateKeyAsync catch block.",
+        "property": "Property tests run the real InMemoryKeyProvider with FsCheck to check that an added key is returned unchanged and that rotation returns a new key ID, leaving uncovered the fixed-input branches (unknown key, no current key) and the RotateKeyAsync catch block."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -189,7 +247,17 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 95,
+        "guard": 95,
+        "contract": 80
+      },
+      "justifications": {
+        "unit": "Unit tests inspect the service descriptors that the real AddEncinaEncryption overloads register, measured at 100 percent with no uncovered lines.",
+        "guard": "Guard tests assert ArgumentNullException with the parameter name 'services' for both AddEncinaEncryption overloads and build a ValidateOnBuild and ValidateScopes provider for the default registration, measured at 100 percent.",
+        "contract": "Contract tests build the real service provider from the extensions and resolve the documented service surface and application key-provider precedence, leaving uncovered about 17 percent of lines that the measurement does not itemise."
+      }
     }
   }
 }
