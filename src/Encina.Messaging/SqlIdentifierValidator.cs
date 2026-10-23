@@ -13,9 +13,20 @@ public static partial class SqlIdentifierValidator
     /// </summary>
     private const int MaxSqlIdentifierLength = 128;
 
-    // Valid SQL identifier: starts with letter or underscore, contains only letters, digits, underscores
-    // Also allows schema-qualified names like "dbo.TableName" or "[schema].[table]"
-    [GeneratedRegex(@"^(\[?[a-zA-Z_][a-zA-Z0-9_]*\]?\.)?(\[?[a-zA-Z_][a-zA-Z0-9_]*\]?)$", RegexOptions.Compiled)]
+    private static readonly string TooLongMessage =
+        $"Table name exceeds maximum length of {MaxSqlIdentifierLength} characters.";
+
+    // The name is not echoed: it may carry control characters that would forge log lines.
+    private const string InvalidCharactersMessage =
+        "Table name contains invalid characters. " +
+        "Only letters, digits, underscores, and an optional schema prefix are allowed.";
+
+    // Valid SQL identifier: one or two dot-separated parts (optional schema, then name). Each part is
+    // either bare or fully bracketed, starts with an ASCII letter or underscore and continues with ASCII
+    // letters, digits or underscores. \A and \z anchor the whole input ($ would accept a trailing newline).
+    [GeneratedRegex(
+        @"\A(?:(?:[a-zA-Z_][a-zA-Z0-9_]*|\[[a-zA-Z_][a-zA-Z0-9_]*\])\.)?(?:[a-zA-Z_][a-zA-Z0-9_]*|\[[a-zA-Z_][a-zA-Z0-9_]*\])\z",
+        RegexOptions.CultureInvariant)]
     private static partial Regex ValidIdentifierRegex();
 
     /// <summary>
@@ -26,35 +37,29 @@ public static partial class SqlIdentifierValidator
     /// <param name="paramName">The parameter name for error messages.</param>
     /// <returns>The validated table name.</returns>
     /// <exception cref="ArgumentException">
-    /// Thrown when the table name is null, empty, whitespace, or contains invalid characters.
+    /// Thrown when the table name is null, empty, whitespace, longer than 128 characters, or not a valid identifier.
     /// </exception>
     /// <remarks>
-    /// This method prevents SQL injection by ensuring table names only contain:
+    /// The name is one identifier, or a schema identifier and a name identifier separated by a dot.
+    /// Each part is either bare (<c>Users</c>) or fully bracketed (<c>[Users]</c>), so mixed forms such as
+    /// <c>dbo.[Users]</c> are accepted. A part starts with an ASCII letter or an underscore and continues
+    /// with ASCII letters, digits or underscores. Everything else is rejected:
     /// <list type="bullet">
-    /// <item>Letters (a-z, A-Z)</item>
-    /// <item>Digits (0-9, but not at the start)</item>
-    /// <item>Underscores (_)</item>
-    /// <item>Optional schema prefix (schema.table or [schema].[table])</item>
-    /// <item>Optional bracket delimiters ([])</item>
+    /// <item>Control characters anywhere, including a trailing newline</item>
+    /// <item>Half-delimited, empty or nested brackets</item>
+    /// <item>Backtick and double-quote delimiters (the stores quote names themselves)</item>
+    /// <item>Non-ASCII letters, spaces and punctuation</item>
+    /// <item>More than two parts, or an empty part</item>
     /// </list>
     /// </remarks>
     public static string ValidateTableName(string tableName, string paramName = "tableName")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName, paramName);
 
-        if (tableName.Length > MaxSqlIdentifierLength)
+        var problem = FindProblem(tableName);
+        if (problem is not null)
         {
-            throw new ArgumentException(
-                $"Table name exceeds maximum length of {MaxSqlIdentifierLength} characters.",
-                paramName);
-        }
-
-        if (!ValidIdentifierRegex().IsMatch(tableName))
-        {
-            throw new ArgumentException(
-                $"Table name '{tableName}' contains invalid characters. " +
-                "Only letters, digits, underscores, and optional schema prefix are allowed.",
-                paramName);
+            throw new ArgumentException(problem, paramName);
         }
 
         return tableName;
@@ -65,14 +70,30 @@ public static partial class SqlIdentifierValidator
     /// </summary>
     /// <param name="tableName">The table name to check.</param>
     /// <returns>True if the table name is valid, false otherwise.</returns>
+    /// <remarks>
+    /// Applies the same rules as <see cref="ValidateTableName"/>.
+    /// </remarks>
     public static bool IsValidTableName(string? tableName)
     {
         if (string.IsNullOrWhiteSpace(tableName))
             return false;
 
-        if (tableName.Length > MaxSqlIdentifierLength)
-            return false;
+        return FindProblem(tableName) is null;
+    }
 
-        return ValidIdentifierRegex().IsMatch(tableName);
+    private static string? FindProblem(string tableName)
+    {
+        if (tableName.Length > MaxSqlIdentifierLength)
+            return TooLongMessage;
+
+        // Defence in depth (#2028): the anchored regex already excludes control characters, but this
+        // explicit check keeps their rejection independent of the pattern.
+        foreach (var c in tableName)
+        {
+            if (char.IsControl(c))
+                return InvalidCharactersMessage;
+        }
+
+        return ValidIdentifierRegex().IsMatch(tableName) ? null : InvalidCharactersMessage;
     }
 }

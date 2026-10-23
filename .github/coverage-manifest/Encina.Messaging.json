@@ -1557,7 +1557,19 @@
         "property"
       ],
       "defaultRule": "*Validator.cs",
-      "reason": "Validation logic with invariants"
+      "reason": "Validation logic with invariants",
+      "targets": {
+        "unit": 100,
+        "guard": 75,
+        "property": 100,
+        "contract": 0
+      },
+      "justifications": {
+        "unit": "Unit theories drive every branch of both methods (length, control characters, regex accept and reject), measured 100% line coverage.",
+        "guard": "Guard tests reach the null, empty and whitespace checks of both methods and only that part of the shared helper; the length, control-character and regex lines are covered by the unit and property flags (measured 78.6%).",
+        "property": "FsCheck properties generate accepted shapes, control characters, over-long names and injection fragments, so every line runs (measured 100%).",
+        "contract": "The class is a static validator with no interface or abstract contract to pin, so there is nothing for a contract test to cover (no data)."
+      }
     },
     "StoreValidationMessages.cs": {
       "defaultTests": [
