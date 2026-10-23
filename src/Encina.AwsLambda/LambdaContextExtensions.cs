@@ -122,16 +122,21 @@ public static class LambdaContextExtensions
             return Option<string>.None;
         }
 
-        var claimRead = ReadAuthorizerValue(request, options.TenantIdClaimType);
+        return Decide(
+            ReadAuthorizerValue(request, options.TenantIdClaimType),
+            ReadHeader(request, options.TenantIdHeader),
+            options,
+            logger);
+    }
+
+    private static Either<EncinaError, Option<string>> Decide(ClaimRead claimRead, string? header, EncinaAwsLambdaOptions options, ILogger logger)
+    {
         if (claimRead.Present && claimRead.Value is null)
         {
             return InvalidTenantClaim(logger);
         }
 
-        var claim = claimRead.Value;
-        var header = ReadHeader(request, options.TenantIdHeader);
-
-        if (claim is not null)
+        if (claimRead.Value is { } claim)
         {
             return header is not null && !string.Equals(header, claim, StringComparison.Ordinal)
                 ? TenantMismatch(logger)

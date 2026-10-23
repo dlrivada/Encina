@@ -130,16 +130,21 @@ public static class FunctionContextExtensions
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
-        var claimRead = ReadClaim(httpRequest, options.TenantIdClaimType);
+        return Decide(
+            ReadClaim(httpRequest, options.TenantIdClaimType),
+            ReadHeader(httpRequest, options.TenantIdHeader),
+            options,
+            logger);
+    }
+
+    private static Either<EncinaError, Option<string>> Decide(ClaimRead claimRead, string? header, EncinaAzureFunctionsOptions options, ILogger logger)
+    {
         if (claimRead.Present && claimRead.Value is null)
         {
             return InvalidTenantClaim(logger);
         }
 
-        var claim = claimRead.Value;
-        var header = ReadHeader(httpRequest, options.TenantIdHeader);
-
-        if (claim is not null)
+        if (claimRead.Value is { } claim)
         {
             return header is not null && !string.Equals(header, claim, StringComparison.Ordinal)
                 ? TenantMismatch(logger)
