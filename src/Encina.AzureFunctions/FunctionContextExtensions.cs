@@ -124,16 +124,8 @@ public static class FunctionContextExtensions
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
-        var claim = httpRequest.Identities
-            .SelectMany(i => i.Claims)
-            .FirstOrDefault(c => c.Type == options.TenantIdClaimType && !string.IsNullOrEmpty(c.Value))?.Value;
-
-        string? header = null;
-        if (httpRequest.Headers.TryGetValues(options.TenantIdHeader, out var values))
-        {
-            var first = values.FirstOrDefault();
-            header = string.IsNullOrEmpty(first) ? null : first;
-        }
+        var claim = ReadClaim(httpRequest, options.TenantIdClaimType);
+        var header = ReadHeader(httpRequest, options.TenantIdHeader);
 
         if (claim is not null)
         {
@@ -143,6 +135,22 @@ public static class FunctionContextExtensions
         }
 
         return header is null ? Option<string>.None : ResolveHeaderOnly(header, options, logger);
+    }
+
+    private static string? ReadClaim(HttpRequestData httpRequest, string claimType) =>
+        httpRequest.Identities
+            .SelectMany(i => i.Claims)
+            .FirstOrDefault(c => c.Type == claimType && !string.IsNullOrEmpty(c.Value))?.Value;
+
+    private static string? ReadHeader(HttpRequestData httpRequest, string headerName)
+    {
+        if (!httpRequest.Headers.TryGetValues(headerName, out var values))
+        {
+            return null;
+        }
+
+        var first = values.FirstOrDefault();
+        return string.IsNullOrEmpty(first) ? null : first;
     }
 
     private static Either<EncinaError, Option<string>> TenantMismatch(ILogger logger)

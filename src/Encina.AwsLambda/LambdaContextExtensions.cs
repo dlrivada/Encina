@@ -163,22 +163,28 @@ public static class LambdaContextExtensions
         }
 
         // Authorizer claims object (JWT authorizer), then the authorizer entry itself
-        if (authorizer.TryGetValue("claims", out var claimsObj) &&
-            claimsObj is JsonElement claims &&
-            claims.ValueKind == JsonValueKind.Object &&
-            claims.TryGetProperty(claimType, out var tenantClaim) &&
-            tenantClaim.ValueKind == JsonValueKind.String &&
-            !string.IsNullOrEmpty(tenantClaim.GetString()))
+        return ReadClaimsObject(authorizer, claimType) ?? ReadAuthorizerEntry(authorizer, claimType);
+    }
+
+    private static string? ReadClaimsObject(Amazon.Lambda.APIGatewayEvents.APIGatewayCustomAuthorizerContext authorizer, string claimType)
+    {
+        if (!authorizer.TryGetValue("claims", out var claimsObj) ||
+            claimsObj is not JsonElement { ValueKind: JsonValueKind.Object } claims ||
+            !claims.TryGetProperty(claimType, out var tenantClaim) ||
+            tenantClaim.ValueKind != JsonValueKind.String)
         {
-            return tenantClaim.GetString();
+            return null;
         }
 
-        return authorizer.TryGetValue(claimType, out var tenantFromAuth) &&
-               tenantFromAuth is string tenantStr &&
-               !string.IsNullOrEmpty(tenantStr)
+        var value = tenantClaim.GetString();
+        return string.IsNullOrEmpty(value) ? null : value;
+    }
+
+    private static string? ReadAuthorizerEntry(Amazon.Lambda.APIGatewayEvents.APIGatewayCustomAuthorizerContext authorizer, string claimType) =>
+        authorizer.TryGetValue(claimType, out var tenantFromAuth) &&
+        tenantFromAuth is string { Length: > 0 } tenantStr
             ? tenantStr
             : null;
-    }
 
     /// <summary>
     /// Gets the user ID from the API Gateway request JWT claims.
