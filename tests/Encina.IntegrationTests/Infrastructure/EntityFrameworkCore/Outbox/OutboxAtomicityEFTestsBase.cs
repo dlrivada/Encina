@@ -148,7 +148,14 @@ public abstract class OutboxAtomicityEFTestsBase<TContext> : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public async ValueTask DisposeAsync()
+    {
+        // Other classes of the shared collection assume empty tables when they start.
+        if (SkipReason is null)
+        {
+            await Fixture.ClearAllDataAsync();
+        }
+    }
 
     [Theory]
     [InlineData(false, 1)]
