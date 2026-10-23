@@ -13,7 +13,8 @@ namespace Encina.Security.Audit;
 /// </remarks>
 public static class ReadAuditErrors
 {
-    private const string MetadataKeyStage = "read_audit";
+    private const string MetadataKeyStage = "stage";
+    private const string MetadataStageReadAudit = "read_audit";
 
     // --- Error codes ---
 
@@ -56,7 +57,7 @@ public static class ReadAuditErrors
             details: new Dictionary<string, object?>
             {
                 ["operation"] = operation,
-                [MetadataKeyStage] = MetadataKeyStage
+                [MetadataKeyStage] = MetadataStageReadAudit
             });
     }
 
@@ -74,7 +75,7 @@ public static class ReadAuditErrors
             {
                 ["entityType"] = entityType,
                 ["entityId"] = entityId,
-                [MetadataKeyStage] = MetadataKeyStage
+                [MetadataKeyStage] = MetadataStageReadAudit
             });
 
     /// <summary>
@@ -88,7 +89,7 @@ public static class ReadAuditErrors
             message: $"Invalid read audit query: {reason}",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeyStage] = MetadataKeyStage
+                [MetadataKeyStage] = MetadataStageReadAudit
             });
 
     /// <summary>
@@ -110,7 +111,7 @@ public static class ReadAuditErrors
             exception: exception,
             details: new Dictionary<string, object?>
             {
-                [MetadataKeyStage] = MetadataKeyStage
+                [MetadataKeyStage] = MetadataStageReadAudit
             });
     }
 
@@ -133,7 +134,7 @@ public static class ReadAuditErrors
             {
                 ["entityType"] = entityType,
                 ["userId"] = userId,
-                [MetadataKeyStage] = MetadataKeyStage,
+                [MetadataKeyStage] = MetadataStageReadAudit,
                 ["requirement"] = "gdpr_article_15_purpose"
             });
 }

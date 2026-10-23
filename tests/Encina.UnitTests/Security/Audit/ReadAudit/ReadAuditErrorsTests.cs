@@ -61,6 +61,18 @@ public class ReadAuditErrorsTests
     }
 
     [Fact]
+    public void StoreError_ShouldCarryTheOperationAndTheReadAuditStageInItsDetails()
+    {
+        // Act
+        var error = ReadAuditErrors.StoreError("LogRead", new InvalidOperationException("boom"));
+
+        // Assert: the stage key holds the stage name, not the key name
+        var details = error.GetDetails();
+        details["operation"].ShouldBe("LogRead");
+        details["stage"].ShouldBe("read_audit");
+    }
+
+    [Fact]
     public void StoreError_ShouldAttachTheException()
     {
         // Arrange

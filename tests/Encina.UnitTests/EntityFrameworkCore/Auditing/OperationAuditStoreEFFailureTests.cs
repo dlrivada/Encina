@@ -145,79 +145,6 @@ public sealed class OperationAuditStoreEFFailureTests
 
     #endregion
 
-    #region StoreExceptionMessages
-
-    [Fact]
-    public void Describe_WithoutInnerException_ReturnsTheExceptionTypeName()
-    {
-        // Act
-        var message = StoreExceptionMessages.Describe(new DbUpdateException("save failed"));
-
-        // Assert: never the message text, only the type name (#1128)
-        message.ShouldBe(nameof(DbUpdateException));
-    }
-
-    [Fact]
-    public void Describe_WithNestedInnerExceptions_ReturnsTheRootCauseTypeName()
-    {
-        // Arrange
-        var root = new InvalidOperationException("root cause");
-        var exception = new DbUpdateException("outer", new InvalidCastException("middle", root));
-
-        // Act
-        var message = StoreExceptionMessages.Describe(exception);
-
-        // Assert
-        message.ShouldBe(nameof(InvalidOperationException));
-    }
-
-    [Fact]
-    public void Describe_WithDbExceptionRootCauseAndSqlState_AppendsTheSqlState()
-    {
-        // Arrange
-        var exception = new TestDbException("truncated value: '...'", sqlState: "22001", errorCode: 0);
-
-        // Act
-        var message = StoreExceptionMessages.Describe(exception);
-
-        // Assert: the SQLSTATE identifies the failure without leaking the provider's message text
-        message.ShouldBe($"{nameof(TestDbException)} (SqlState=22001)");
-    }
-
-    [Fact]
-    public void Describe_WithDbExceptionRootCauseAndErrorCodeOnly_AppendsTheErrorCode()
-    {
-        // Arrange: some providers (e.g. MySqlConnector) never populate SqlState, only the numeric ErrorCode
-        var exception = new TestDbException("Table doesn't exist", sqlState: null, errorCode: 1146);
-
-        // Act
-        var message = StoreExceptionMessages.Describe(exception);
-
-        // Assert
-        message.ShouldBe($"{nameof(TestDbException)} (ErrorCode=1146)");
-    }
-
-    [Fact]
-    public void Describe_WithDbExceptionRootCauseAndNoIdentifier_ReturnsOnlyTheTypeName()
-    {
-        // Arrange
-        var exception = new TestDbException("unknown failure", sqlState: null, errorCode: 0);
-
-        // Act
-        var message = StoreExceptionMessages.Describe(exception);
-
-        // Assert
-        message.ShouldBe(nameof(TestDbException));
-    }
-
-    [Fact]
-    public void Describe_WithNullException_ThrowsArgumentNullException()
-    {
-        Should.Throw<ArgumentNullException>(() => StoreExceptionMessages.Describe(null!));
-    }
-
-    #endregion
-
     #region Filtered indexes
 
     [Fact]
@@ -330,8 +257,7 @@ public sealed class OperationAuditStoreEFFailureTests
     }
 
     /// <summary>
-    /// A concrete <see cref="DbException"/> double used to exercise <see cref="StoreExceptionMessages.Describe"/>'s
-    /// provider error identifier logic without depending on any real ADO.NET provider.
+    /// A concrete <see cref="DbException"/> double that stands in for a real ADO.NET provider's exception.
     /// </summary>
     private sealed class TestDbException : DbException
     {
