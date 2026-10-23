@@ -52,6 +52,31 @@ reviews:
           TenantId/ModuleId, a new background service lacks distributed locking, a new external
           integration has no resilience, or a new provider has no OpenTelemetry instrumentation.
 
+    - path: "src/Encina.DistributedLock*/**"
+      instructions: |
+        - Lock failure contract (ADR-052, docs/architecture/adr/052-distributed-lock-failure-contract.md):
+          lock acquisition returns Either (TryAcquireAsync -> Either<EncinaError, Option<ILockHandle>>)
+        - Contention or timeout is Right(None); infrastructure faults are Left with LockErrorCodes;
+          OperationCanceledException propagates
+        - Flag any new exception type for lock failures and any fault mapped to None or null
+
+    - path: "src/Encina.Compliance.*/**"
+      instructions: |
+        - Aggregate rule violations (ADR-053, docs/architecture/adr/053-aggregate-rule-violations-return-either.md):
+          aggregate command methods return Either<EncinaError, Unit> and factories return
+          Either<EncinaError, TAggregate>
+        - A rule violation is a Left with a rule code decided before RaiseEvent
+        - Flag new `throw new InvalidOperationException` on rule paths in aggregates and any
+          `catch (InvalidOperationException)` in compliance services
+        - Argument guards (ThrowIf*) remain exceptions
+
+    - path: "src/Encina.DomainModeling/**"
+      instructions: |
+        - Aggregate rule violations (ADR-053, docs/architecture/adr/053-aggregate-rule-violations-return-either.md):
+          the IBusinessRule/Check support is the base for aggregate rule violations returning Either
+        - The adapter from a rule violation to EncinaError must carry a rule code and never copy an
+          exception message into EncinaError.Message
+
     - path: "tests/**/*.cs"
       instructions: |
         - Tests should follow AAA pattern (Arrange, Act, Assert)

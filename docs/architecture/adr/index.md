@@ -49,6 +49,8 @@ has_children: true
 | [048](048-inbox-record-vs-business-transaction.md) | The Inbox Record and the Business Transaction: Enlisted and Independent Writes |
 | [050](050-modules-may-require-modules.md) | A Module May Require Other Modules When It Needs Them for Its Guarantees |
 | [051](051-languageext-version-for-1-0.md) | Which LanguageExt Version Encina 1.0 Ships On (Accepted) |
+| [052](052-distributed-lock-failure-contract.md) | Distributed Lock Providers Report Outcomes Through Either; Contention Is Not an Error (Accepted) |
+| [053](053-aggregate-rule-violations-return-either.md) | Compliance Aggregate Rule Violations Are a Left, Not an Exception (Accepted) |
 | [054](054-observability-conventions-and-trace-propagation.md) | Observability Conventions and Cross-Boundary Trace Propagation (Accepted) |
 
 ## Reserved numbers
@@ -69,5 +71,3 @@ An ADR takes the next number that is neither used nor reserved. A plan or spike 
 | 044 | [aiact-marten-event-sourcing-implementation-plan-847.md](../../plans/aiact-marten-event-sourcing-implementation-plan-847.md) (#847) | Deterministic natural-key stream identity for compliance aggregates | Reserved, ADR not written |
 | 045 | [special-category-conditions-implementation-plan-1196.md](../../plans/special-category-conditions-implementation-plan-1196.md) (#1196) | Legal grounds: Art. 6 basis and Art. 9(2) condition as one model | Reserved, ADR not written |
 | 049 | [pipeline-execution-order-implementation-plan-2184.md](../../plans/pipeline-execution-order-implementation-plan-2184.md) (#2184) | Pipeline behavior execution-order contract (named stages) | Reserved, ADR not written |
-| 052 | [rop-exceptions-locks-aggregates-spike-1799-1798.md](../../engineering/rop-exceptions-locks-aggregates-spike-1799-1798.md) (#1799) | Distributed lock provider failure contract | Reserved, ADR not written |
-| 053 | [rop-exceptions-locks-aggregates-spike-1799-1798.md](../../engineering/rop-exceptions-locks-aggregates-spike-1799-1798.md) (#1798) | Aggregate rule violations and ROP | Reserved, ADR not written |

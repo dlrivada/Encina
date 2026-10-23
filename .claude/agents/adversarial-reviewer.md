@@ -43,6 +43,14 @@ Known failure patterns to check (project history — check every diff against th
 - Errors swallowed in background infrastructure: a `Left` from `IEncina.Send`/`Publish` or from a store inside a processor, adapter, orchestrator or job must fail the operation, not report success (#1150, #1151, #1152, #1153, #1184).
 - Compliance/security gates failing open: missing context (no `HttpContext`, no tenant, no principal) or a failed lookup must deny, not allow, with a logged, explicit opt-out only (#1143, #1145, #1148, #1155, #1161).
 - `EncinaError.Message` leaking into logs, activity tags, health-check results or plaintext storage instead of only the error code or exception type (#1168, #1173, #1259, #1274).
+- Lock failure contract (`docs/architecture/adr/052-distributed-lock-failure-contract.md`): `TryAcquireAsync`
+  returns `Either<EncinaError, Option<ILockHandle>>`; contention or timeout is `Right(None)`, infrastructure
+  faults are `Left` with `LockErrorCodes`, `OperationCanceledException` propagates. Flag a new exception type
+  for lock failures or a fault mapped to `None`/null.
+- Aggregate rule violations (`docs/architecture/adr/053-aggregate-rule-violations-return-either.md`): aggregate
+  commands return `Either<EncinaError, Unit>` (factories `Either<EncinaError, TAggregate>`), a violation is a
+  `Left` with a rule code decided before `RaiseEvent`. Flag a new `throw new InvalidOperationException` on a rule
+  path or a `catch (InvalidOperationException)` in compliance services; `ThrowIf*` argument guards stay.
 
 Decision register pass (#2470). When the prompt hands you a decision register (`artifacts/decisions/<issue>.md`, a plan's Design Choices or an issue comment "Decision register"), try to break every Settled and Trivial entry: open its citation and check it exists and says what the entry claims, then look for a credible concrete scenario where another option wins. Report per entry `holds` or `Dilemma` (with the scenario and the citation you opened); an entry without a verifiable citation is a Dilemma. You are read-only: the orchestrator writes "Verified: adversarial-reviewer <yyyy-MM-dd>" for the entries you confirm.
 
