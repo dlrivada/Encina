@@ -22,8 +22,9 @@ namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.PostgreSQL.
 /// <summary>
 /// End-to-end check of the path the #1168 fix changed, on EF Core over a real PostgreSQL:
 /// a request implementing <see cref="IHasNotifications"/> is sent through <see cref="IEncina"/>
-/// with <c>AddEncinaMessageEncryption</c> registered; <see cref="OutboxPostProcessor{TRequest, TResponse}"/>
-/// writes the notification encrypted (AES-256-GCM, real key provider) into the raw
+/// with <c>AddEncinaMessageEncryption</c> registered; <see cref="TransactionalOutboxPipelineBehavior{TRequest, TResponse}"/>
+/// (EF Core writes through it since #718, inside the request's transaction, serializing through the encrypting
+/// <c>IMessageSerializer</c>) writes the notification encrypted (AES-256-GCM, real key provider) into the raw
 /// <c>Content</c> column, and the EF Core outbox processor publishes the decrypted notification.
 /// </summary>
 [Trait("Category", "Integration")]
