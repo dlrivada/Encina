@@ -314,18 +314,15 @@ public abstract class OutboxAtomicityEFTestsBase<TContext> : IAsyncLifetime
     public async Task ApplicationTransaction_IsJoinedAndNotCommittedByEncina()
     {
         Guard();
-        await using var provider = Build(transactions: false);
-        await using var scope = provider.CreateAsyncScope();
-        var context = scope.ServiceProvider.GetRequiredService<TContext>();
-        await using var applicationTransaction = await context.Database.BeginTransactionAsync();
+        var state = new ApplicationTransactionState();
+        await using var provider = Build(transactions: false, customize: services => services.AddSingleton(state));
 
-        var result = await scope.ServiceProvider.GetRequiredService<IEncina>()
-            .Send(new PlaceOrder(Guid.NewGuid(), 2, Mode.Commit));
+        var result = await SendOrderAsync(provider, false, 2, Mode.Commit);
 
         result.ShouldBeRight();
-        context.Database.CurrentTransaction.ShouldBeSameAs(applicationTransaction);
-
-        await applicationTransaction.CommitAsync();
+        // Encina neither committed nor rolled back the application's transaction: it was still current when the
+        // application's own behavior got control back, and the application committed it.
+        state.StillCurrentAfterRequest.ShouldBeTrue();
         (await CountRowsAsync()).ShouldBe((1L, 2L));
     }
 
@@ -334,21 +331,21 @@ public abstract class OutboxAtomicityEFTestsBase<TContext> : IAsyncLifetime
     {
         Guard();
         var fixedId = Guid.NewGuid();
+        var state = new ApplicationTransactionState();
         await using var provider = Build(
             transactions: false,
-            customize: services => services.AddScoped<IOutboxMessageFactory>(
-                _ => new FixedIdOutboxMessageFactory(new OutboxMessageFactory(), fixedId)));
-        await using var scope = provider.CreateAsyncScope();
-        var context = scope.ServiceProvider.GetRequiredService<TContext>();
-        await using var applicationTransaction = await context.Database.BeginTransactionAsync();
+            customize: services =>
+            {
+                services.AddSingleton(state);
+                services.AddScoped<IOutboxMessageFactory>(
+                    _ => new FixedIdOutboxMessageFactory(new OutboxMessageFactory(), fixedId));
+            });
 
-        var result = await scope.ServiceProvider.GetRequiredService<IEncina>()
-            .Send(new PlaceOrder(Guid.NewGuid(), 2, Mode.Commit));
+        var result = await SendOrderAsync(provider, false, 2, Mode.Commit);
 
         result.IsLeft.ShouldBeTrue();
-        // OPEN (#718 worker B): fails today on SqlServer and PostgreSQL. The write Left reaches the caller, but the
-        // application's transaction is still current afterwards (ExternalLease.RollbackAsync did not roll it back).
-        context.Database.CurrentTransaction.ShouldBeNull();
+        // The failed outbox write rolled the application's transaction back (fail closed).
+        state.StillCurrentAfterRequest.ShouldBeFalse();
         (await CountRowsAsync()).ShouldBe((0L, 0L));
     }
 
@@ -356,13 +353,10 @@ public abstract class OutboxAtomicityEFTestsBase<TContext> : IAsyncLifetime
     public async Task TransactionEndedDuringTheHandler_FailsWithRollbackOnlyAndNoOutboxRowAutocommits()
     {
         Guard();
-        await using var provider = Build(transactions: false);
-        await using var scope = provider.CreateAsyncScope();
-        var context = scope.ServiceProvider.GetRequiredService<TContext>();
-        await using var applicationTransaction = await context.Database.BeginTransactionAsync();
+        var state = new ApplicationTransactionState();
+        await using var provider = Build(transactions: false, customize: services => services.AddSingleton(state));
 
-        var result = await scope.ServiceProvider.GetRequiredService<IEncina>()
-            .Send(new PlaceOrder(Guid.NewGuid(), 2, Mode.RollBackAmbientTransaction));
+        var result = await SendOrderAsync(provider, false, 2, Mode.RollBackAmbientTransaction);
 
         result.ShouldBeErrorWithCode(TransactionErrors.RollbackOnlyCode);
         (await CountRowsAsync()).ShouldBe((0L, 0L));
@@ -429,6 +423,8 @@ public abstract class OutboxAtomicityEFTestsBase<TContext> : IAsyncLifetime
         services.AddScoped<IRequestHandler<PlaceTransactionalOrder, int>, PlaceTransactionalOrderHandler>();
         services.AddScoped<IRequestHandler<PlaceIdempotentOrder, int>, PlaceIdempotentOrderHandler>();
         services.AddDbContext<TContext>(o => UseDatabase(o, retryOnFailure));
+        // Registered before Encina's behaviors: the application's behavior is the outermost one.
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ApplicationTransactionBehavior<,>));
         services.AddEncinaEntityFrameworkCore<TContext>(config =>
         {
             config.UseOutbox = true;
