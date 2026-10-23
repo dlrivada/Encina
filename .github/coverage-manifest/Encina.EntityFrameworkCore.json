@@ -370,7 +370,15 @@
         "guard"
       ],
       "defaultRule": "*Interceptor.cs",
-      "reason": "EF interceptor with mockeable context"
+      "reason": "EF interceptor with mockeable context",
+      "targets": { "unit": 88, "guard": 4, "contract": 0, "property": 0, "integration": 0 },
+      "justifications": {
+        "unit": "Dispatch behaviour is unchanged in this slice and the unit tests drive it (measured 88%).",
+        "guard": "Only the constructor argument checks are guard-reachable (measured 4%).",
+        "contract": "Only the XML docs changed in this slice; the dispatch behaviour is unchanged and unit tested.",
+        "property": "Only the XML docs changed in this slice; the dispatch behaviour is unchanged and unit tested.",
+        "integration": "Only the XML docs changed in this slice; the dispatch behaviour is unchanged and unit tested."
+      }
     },
     "DomainEvents/DomainEventDispatcherOptions.cs": {
       "defaultTests": [
@@ -798,11 +806,13 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 50, "guard": 53, "integration": 30 },
+      "targets": { "unit": 62, "guard": 60, "integration": 40, "contract": 0, "property": 0 },
       "justifications": {
-        "unit": "Registration paths are DI-tested and the tests resolve the dead letter path, but provider-specific branches need real contexts and other features are covered by their own tests.",
+        "unit": "Registration paths are DI-tested with ValidateOnBuild and ValidateScopes, but provider-specific branches need real contexts and other features are covered by their own tests.",
         "guard": "Argument checks of the public registration methods are covered by the guard tests, while the remaining registrations belong to other features.",
-        "integration": "Real-database pipeline runs register the messaging stack; the remaining branches (tenancy, sharding, read-write routing) are exercised by their own suites."
+        "integration": "Real-database pipeline runs register the messaging stack; the remaining branches (tenancy, sharding, read-write routing) are exercised by their own suites.",
+        "contract": "Registration only, with no public contract beyond the DI container, which the DI tests prove.",
+        "property": "Registration only; there is no invariant to generate."
       }
     },
     "Sharding/FunctionalShardedRepositoryEF.cs": {
@@ -959,6 +969,25 @@
       "defaultRule": "*Factory.cs",
       "reason": "Factory with creation logic"
     },
+    "Transactions/DbContextTransactionAccessor.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Scoped owner of the EF Core request transaction: begin or join, commit, rollback, rollback-only",
+      "targets": { "unit": 85, "guard": 3, "contract": 75, "property": 55, "integration": 75 },
+      "justifications": {
+        "unit": "A real accessor over in-memory SQLite covers owner, joiner, rollback-only, external transaction, retrying strategy and cancellation.",
+        "guard": "Only the constructor null checks are guardable; every other line needs a transaction.",
+        "contract": "The ITransactionLeaseSource contract tests run against this accessor.",
+        "property": "The commit-iff-owner-commits invariant is property-tested on this accessor.",
+        "integration": "Real SQL Server and PostgreSQL runs exercise the accessor end to end."
+      }
+    },
     "TransactionAttribute.cs": {
       "defaultTests": [
         "unit",
@@ -974,7 +1003,15 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 95, "guard": 18, "contract": 40, "property": 0, "integration": 85 },
+      "justifications": {
+        "unit": "Commit, rollback, commit Left, exception, cancellation and begin-failure branches use substitute leases.",
+        "guard": "Only the argument checks are guard-reachable.",
+        "contract": "The behavior contract tests drive commit, rollback and exception paths over the real accessor.",
+        "property": "The commit-iff-owner invariant is property-tested on the accessor, not on this behavior.",
+        "integration": "Real database request runs cover commit and rollback on SQL Server and PostgreSQL."
+      }
     },
     "UnitOfWork/UnitOfWorkEF.cs": {
       "defaultTests": [
@@ -982,7 +1019,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 60, "guard": 10, "contract": 0, "property": 0, "integration": 60 },
+      "justifications": {
+        "unit": "Unit tests drive the unit-of-work delegation and save paths against substitute contexts.",
+        "guard": "Only the constructor and argument checks are guard-reachable.",
+        "contract": "The IUnitOfWork contract is covered through the accessor lease contract and the unit and integration tests.",
+        "property": "No pure invariant; the class delegates to the transaction lease.",
+        "integration": "Real database runs cover the save and transaction paths."
+      }
     },
     "UnitOfWork/UnitOfWorkRepositoryEF.cs": {
       "defaultTests": [
