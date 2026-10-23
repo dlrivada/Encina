@@ -12,6 +12,7 @@ using Encina.Security.Encryption.Diagnostics;
 using Encina.Security.Encryption.Health;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -79,8 +80,8 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
         var a = Unwrap(await _encryptor.EncryptStringAsync("same", new EncryptionContext()));
         var b = Unwrap(await _encryptor.EncryptStringAsync("same", new EncryptionContext()));
 
-        a.Nonce.ShouldNotBe(b.Nonce);
-        a.Ciphertext.ShouldNotBe(b.Ciphertext);
+        a.Nonce.AsSpan().SequenceEqual(b.Nonce.AsSpan()).ShouldBeFalse();
+        a.Ciphertext.AsSpan().SequenceEqual(b.Ciphertext.AsSpan()).ShouldBeFalse();
     }
 
     [Theory]
@@ -617,6 +618,35 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
     }
 
     [Fact]
+    public void AddEncinaEncryption_ApplicationKeyProviderRegisteredAfterWins()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaEncryption();
+        var custom = new InMemoryKeyProvider();
+        services.Replace(ServiceDescriptor.Singleton<IKeyProvider>(custom));
+
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<IKeyProvider>().ShouldBeSameAs(custom);
+    }
+
+    [Fact]
+    public void AddEncinaEncryption_PipelineBehaviorResolvesAsClosedGeneric()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaEncryption();
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateScopes = true });
+        using var scope = provider.CreateScope();
+
+        var behavior = scope.ServiceProvider.GetServices<IPipelineBehavior<ContractCommand, Unit>>();
+
+        behavior.ShouldContain(b => b is EncryptionPipelineBehavior<ContractCommand, Unit>);
+    }
+
+    [Fact]
     public void EncryptionErrors_CarryCodeStageAndRelevantMetadata()
     {
         var notFound = EncryptionErrors.KeyNotFound("k1");
@@ -640,14 +670,16 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
     }
 
     [Fact]
-    public void EncryptedValue_IsValueEqualAndTagDefaultsToEmpty()
+    public void EncryptedValue_TagDefaultsToEmptyAndWithCopiesFields()
     {
         var a = new EncryptedValue { Ciphertext = [1, 2], Nonce = [3], Algorithm = EncryptionAlgorithm.Aes256Gcm, KeyId = "k" };
 
         a.Tag.IsEmpty.ShouldBeTrue();
         a.KeyId.ShouldBe("k");
         a.Algorithm.ShouldBe(EncryptionAlgorithm.Aes256Gcm);
-        (a with { KeyId = "k" }).KeyId.ShouldBe(a.KeyId);
+        var copy = a with { KeyId = "other" };
+        copy.KeyId.ShouldBe("other");
+        copy.Ciphertext.ShouldBe(a.Ciphertext);
     }
 
     [Fact]

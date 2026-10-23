@@ -35,6 +35,96 @@ public sealed class EncryptionGuardBehaviorTests : IDisposable
         EncryptedPropertyCache.ClearCache();
     }
 
+    #region Null-argument rejection on the real implementations
+
+    [Fact]
+    public async Task AesGcmFieldEncryptor_NullArguments_AreRejectedWithTheParameterName()
+    {
+        var ctx = new EncryptionContext();
+        var value = new EncryptedValue
+        {
+            Ciphertext = [1],
+            Nonce = [2],
+            Tag = [3],
+            Algorithm = EncryptionAlgorithm.Aes256Gcm,
+            KeyId = "guard-key"
+        };
+
+        (await Should.ThrowAsync<ArgumentNullException>(async () => await _encryptor.EncryptStringAsync(null!, ctx)))
+            .ParamName.ShouldBe("plaintext");
+        (await Should.ThrowAsync<ArgumentNullException>(async () => await _encryptor.EncryptStringAsync("x", null!)))
+            .ParamName.ShouldBe("context");
+        (await Should.ThrowAsync<ArgumentNullException>(async () => await _encryptor.DecryptStringAsync(value, null!)))
+            .ParamName.ShouldBe("context");
+        (await Should.ThrowAsync<ArgumentNullException>(async () => await _encryptor.EncryptBytesAsync(new byte[1], null!)))
+            .ParamName.ShouldBe("context");
+        (await Should.ThrowAsync<ArgumentNullException>(async () => await _encryptor.DecryptBytesAsync(value, null!)))
+            .ParamName.ShouldBe("context");
+    }
+
+    [Fact]
+    public async Task EncryptionOrchestrator_NullArguments_AreRejectedWithTheParameterName()
+    {
+        var instance = new GuardPayload { Secret = "x" };
+
+        (await Should.ThrowAsync<ArgumentNullException>(async () => await _orchestrator.EncryptAsync<GuardPayload>(null!, _requestContext)))
+            .ParamName.ShouldBe("instance");
+        (await Should.ThrowAsync<ArgumentNullException>(async () => await _orchestrator.EncryptAsync(instance, null!)))
+            .ParamName.ShouldBe("context");
+        (await Should.ThrowAsync<ArgumentNullException>(async () => await _orchestrator.DecryptAsync<GuardPayload>(null!, _requestContext)))
+            .ParamName.ShouldBe("instance");
+        (await Should.ThrowAsync<ArgumentNullException>(async () => await _orchestrator.DecryptAsync(instance, null!)))
+            .ParamName.ShouldBe("context");
+        instance.Secret.ShouldBe("x");
+    }
+
+    [Fact]
+    public void EncryptionPipelineBehavior_NullConstructorArguments_AreRejected()
+    {
+        var options = Options.Create(new EncryptionOptions());
+        var logger = NullLogger<EncryptionPipelineBehavior<GuardPlain, Unit>>.Instance;
+
+        Should.Throw<ArgumentNullException>(() => new EncryptionPipelineBehavior<GuardPlain, Unit>(null!, options, logger))
+            .ParamName.ShouldBe("orchestrator");
+        Should.Throw<ArgumentNullException>(() => new EncryptionPipelineBehavior<GuardPlain, Unit>(_orchestrator, null!, logger))
+            .ParamName.ShouldBe("options");
+        Should.Throw<ArgumentNullException>(() => new EncryptionPipelineBehavior<GuardPlain, Unit>(_orchestrator, options, null!))
+            .ParamName.ShouldBe("logger");
+    }
+
+    [Fact]
+    public void AddEncinaEncryption_NullServices_IsRejected()
+    {
+        IServiceCollection services = null!;
+
+        Should.Throw<ArgumentNullException>(() => services.AddEncinaEncryption()).ParamName.ShouldBe("services");
+        Should.Throw<ArgumentNullException>(() => services.AddEncinaEncryption<GuardKeyProvider>()).ParamName.ShouldBe("services");
+    }
+
+    [Fact]
+    public void Constructors_NullDependencies_AreRejected()
+    {
+        Should.Throw<ArgumentNullException>(() => new AesGcmFieldEncryptor(null!)).ParamName.ShouldBe("keyProvider");
+        Should.Throw<ArgumentNullException>(() => new EncryptionHealthCheck(null!)).ParamName.ShouldBe("serviceProvider");
+        Should.Throw<ArgumentNullException>(() => new EncryptionOrchestrator(null!, NullLogger<EncryptionOrchestrator>.Instance))
+            .ParamName.ShouldBe("fieldEncryptor");
+        Should.Throw<ArgumentNullException>(() => new EncryptionOrchestrator(_encryptor, null!))
+            .ParamName.ShouldBe("logger");
+    }
+
+    [Fact]
+    public void InMemoryKeyProvider_NullArguments_AreRejected()
+    {
+        var provider = new InMemoryKeyProvider();
+
+        Should.Throw<ArgumentNullException>(() => provider.AddKey(null!, new byte[32])).ParamName.ShouldBe("keyId");
+        Should.Throw<ArgumentNullException>(() => provider.AddKey("k", null!)).ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => provider.SetCurrentKey(null!)).ParamName.ShouldBe("keyId");
+        provider.Count.ShouldBe(0);
+    }
+
+    #endregion
+
     #region AesGcmFieldEncryptor
 
     [Fact]
@@ -476,6 +566,7 @@ public sealed class EncryptionGuardBehaviorTests : IDisposable
     {
         var behavior = CreateBehavior<GuardResponseRequest, GuardResponse>();
         var error = EncinaError.New("handler failed");
+        var response = new GuardResponse { Secret = "untouched" };
 
         var result = await behavior.Handle(
             new GuardResponseRequest(),
@@ -483,7 +574,8 @@ public sealed class EncryptionGuardBehaviorTests : IDisposable
             () => ValueTask.FromResult(Prelude.Left<EncinaError, GuardResponse>(error)),
             CancellationToken.None);
 
-        result.IsLeft.ShouldBeTrue();
+        result.Match(Right: _ => "right", Left: e => e.Message).ShouldBe("handler failed");
+        response.Secret.ShouldBe("untouched");
     }
 
     #endregion
