@@ -43,7 +43,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     private readonly IDelayedRetryScheduler? _delayedRetryScheduler;
     private readonly TimeProvider _timeProvider;
     private readonly DeadLetter.DeadLetterSourceCapture? _deadLetterCapture;
-    private static readonly Random Jitter = new();
+    private readonly Func<double> _jitterSource;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RecoverabilityPipelineBehavior{TRequest, TResponse}"/> class.
@@ -68,6 +68,29 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         TimeProvider? timeProvider = null,
         DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null,
         IErrorClassifier? errorClassifier = null)
+        : this(options, logger, delayedRetryScheduler, timeProvider, deadLetterCapture, errorClassifier, jitterSource: null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RecoverabilityPipelineBehavior{TRequest, TResponse}"/> class
+    /// with a configurable jitter source.
+    /// </summary>
+    /// <param name="options">The recoverability options.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="delayedRetryScheduler">Optional scheduler for delayed retries.</param>
+    /// <param name="timeProvider">Optional time provider for testability.</param>
+    /// <param name="deadLetterCapture">Optional dead letter capture.</param>
+    /// <param name="errorClassifier">Optional classifier registered in DI.</param>
+    /// <param name="jitterSource">A source of values in [0, 1), allowing tests to pin the jitter.</param>
+    internal RecoverabilityPipelineBehavior(
+        RecoverabilityOptions options,
+        ILogger<RecoverabilityPipelineBehavior<TRequest, TResponse>> logger,
+        IDelayedRetryScheduler? delayedRetryScheduler,
+        TimeProvider? timeProvider,
+        DeadLetter.DeadLetterSourceCapture? deadLetterCapture,
+        IErrorClassifier? errorClassifier,
+        Func<double>? jitterSource)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -78,6 +101,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         _delayedRetryScheduler = delayedRetryScheduler;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _deadLetterCapture = deadLetterCapture;
+        _jitterSource = jitterSource ?? Random.Shared.NextDouble;
     }
 
     /// <inheritdoc />
@@ -508,7 +532,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         }
 
         // Add ±jitter%
-        var jitterFraction = (Jitter.NextDouble() * 2 - 1) * (_options.MaxJitterPercent / 100.0);
+        var jitterFraction = (_jitterSource() * 2 - 1) * (_options.MaxJitterPercent / 100.0);
         var jitteredTicks = (long)(baseDelay.Ticks * (1 + jitterFraction));
         return TimeSpan.FromTicks(Math.Max(0, jitteredTicks));
     }

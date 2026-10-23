@@ -1,5 +1,6 @@
 using Encina.Messaging.Recoverability;
 using Encina.Recoverability;
+using Encina.UnitTests.Recoverability;
 
 using LanguageExt;
 
@@ -522,57 +523,206 @@ public sealed class RecoverabilityPipelineBehaviorTests
     #region Handle - Jitter
 
     [Fact]
-    public async Task Handle_WithJitter_AddsRandomVariation()
+    public async Task Handle_JitterSourceZero_SchedulesBaseMinusMaxJitter()
     {
         // Arrange
+        var scheduledDelay = TimeSpan.MinValue;
+        var scheduler = CreateScheduler(delay => scheduledDelay = delay);
         var options = new RecoverabilityOptions
         {
-            ImmediateRetries = 1,
-            ImmediateRetryDelay = TimeSpan.FromMilliseconds(50),
+            ImmediateRetries = 0,
+            EnableDelayedRetries = true,
+            DelayedRetries = [TimeSpan.FromSeconds(10)],
             UseJitter = true,
-            MaxJitterPercent = 25,
-            EnableDelayedRetries = false
+            MaxJitterPercent = 20
         };
-        var behavior = CreateBehavior(options);
-        var request = new TestRequest { Value = 42 };
-        var context = CreateContext();
+        var behavior = CreateBehavior(options, scheduler, () => 0.0);
 
         RequestHandlerCallback<TestResponse> nextStep = () =>
             ValueTask.FromResult(
                 Either<EncinaError, TestResponse>.Left(EncinaError.New("Transient error")));
 
-        // Act - should not throw
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
+        // Act
+        await behavior.Handle(new TestRequest { Value = 42 }, CreateContext(), nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        scheduledDelay.ShouldBe(TimeSpan.FromSeconds(8));
     }
 
     [Fact]
-    public async Task Handle_WithZeroMaxJitter_NoJitterApplied()
+    public async Task Handle_JitterSourceHalf_SchedulesBaseDelay()
     {
         // Arrange
+        var scheduledDelay = TimeSpan.MinValue;
+        var scheduler = CreateScheduler(delay => scheduledDelay = delay);
         var options = new RecoverabilityOptions
         {
-            ImmediateRetries = 1,
-            ImmediateRetryDelay = TimeSpan.FromMilliseconds(10),
-            UseJitter = true,
-            MaxJitterPercent = 0,
-            EnableDelayedRetries = false
+            ImmediateRetries = 0,
+            EnableDelayedRetries = true,
+            DelayedRetries = [TimeSpan.FromSeconds(10)],
+            MaxJitterPercent = 20
         };
-        var behavior = CreateBehavior(options);
-        var request = new TestRequest { Value = 42 };
-        var context = CreateContext();
+        var behavior = CreateBehavior(options, scheduler, () => 0.5);
 
         RequestHandlerCallback<TestResponse> nextStep = () =>
             ValueTask.FromResult(
                 Either<EncinaError, TestResponse>.Left(EncinaError.New("Transient error")));
 
-        // Act - should not throw
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
+        // Act
+        await behavior.Handle(new TestRequest { Value = 42 }, CreateContext(), nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        scheduledDelay.ShouldBe(TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public async Task Handle_JitterSourceThreeQuarters_SchedulesBasePlusHalfMaxJitter()
+    {
+        // Arrange
+        var scheduledDelay = TimeSpan.MinValue;
+        var scheduler = CreateScheduler(delay => scheduledDelay = delay);
+        var options = new RecoverabilityOptions
+        {
+            ImmediateRetries = 0,
+            EnableDelayedRetries = true,
+            DelayedRetries = [TimeSpan.FromSeconds(10)],
+            MaxJitterPercent = 20
+        };
+        var behavior = CreateBehavior(options, scheduler, () => 0.75);
+
+        RequestHandlerCallback<TestResponse> nextStep = () =>
+            ValueTask.FromResult(
+                Either<EncinaError, TestResponse>.Left(EncinaError.New("Transient error")));
+
+        // Act
+        await behavior.Handle(new TestRequest { Value = 42 }, CreateContext(), nextStep, CancellationToken.None);
+
+        // Assert
+        scheduledDelay.ShouldBe(TimeSpan.FromSeconds(11));
+    }
+
+    [Fact]
+    public async Task Handle_JitterAboveHundredPercent_FloorsDelayAtZero()
+    {
+        // Arrange
+        var scheduledDelay = TimeSpan.MinValue;
+        var scheduler = CreateScheduler(delay => scheduledDelay = delay);
+        var options = new RecoverabilityOptions
+        {
+            ImmediateRetries = 0,
+            EnableDelayedRetries = true,
+            DelayedRetries = [TimeSpan.FromSeconds(10)],
+            MaxJitterPercent = 150
+        };
+        var behavior = CreateBehavior(options, scheduler, () => 0.0);
+
+        RequestHandlerCallback<TestResponse> nextStep = () =>
+            ValueTask.FromResult(
+                Either<EncinaError, TestResponse>.Left(EncinaError.New("Transient error")));
+
+        // Act
+        await behavior.Handle(new TestRequest { Value = 42 }, CreateContext(), nextStep, CancellationToken.None);
+
+        // Assert
+        scheduledDelay.ShouldBe(TimeSpan.Zero);
+    }
+
+    [Theory]
+    [InlineData(false, 20)]
+    [InlineData(true, 0)]
+    public async Task Handle_JitterDisabled_DoesNotDrawFromSource(bool useJitter, int maxJitterPercent)
+    {
+        // Arrange
+        var sourceCalls = 0;
+        var scheduledDelay = TimeSpan.MinValue;
+        var scheduler = CreateScheduler(delay => scheduledDelay = delay);
+        var options = new RecoverabilityOptions
+        {
+            ImmediateRetries = 0,
+            EnableDelayedRetries = true,
+            DelayedRetries = [TimeSpan.FromSeconds(10)],
+            UseJitter = useJitter,
+            MaxJitterPercent = maxJitterPercent
+        };
+        var behavior = CreateBehavior(options, scheduler, () =>
+        {
+            sourceCalls++;
+            return 0.0;
+        });
+
+        RequestHandlerCallback<TestResponse> nextStep = () =>
+            ValueTask.FromResult(
+                Either<EncinaError, TestResponse>.Left(EncinaError.New("Transient error")));
+
+        // Act
+        await behavior.Handle(new TestRequest { Value = 42 }, CreateContext(), nextStep, CancellationToken.None);
+
+        // Assert
+        sourceCalls.ShouldBe(0);
+        scheduledDelay.ShouldBe(TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public async Task Handle_RetryAfterError_DoesNotDrawFromSource()
+    {
+        // Arrange
+        var sourceCalls = 0;
+        var scheduledDelay = TimeSpan.MinValue;
+        var scheduler = CreateScheduler(delay => scheduledDelay = delay);
+        var options = new RecoverabilityOptions
+        {
+            ImmediateRetries = 0,
+            EnableDelayedRetries = true,
+            DelayedRetries = [TimeSpan.FromSeconds(10)]
+        };
+        var behavior = CreateBehavior(options, scheduler, () =>
+        {
+            sourceCalls++;
+            return 0.0;
+        });
+
+        var error = OutboundTestSupport.Outbound(
+            OutboundErrorCodes.RateLimited,
+            transient: true,
+            status: 429,
+            retryAfter: TimeSpan.FromSeconds(5));
+        RequestHandlerCallback<TestResponse> nextStep = () =>
+            ValueTask.FromResult(Either<EncinaError, TestResponse>.Left(error));
+
+        // Act
+        await behavior.Handle(new TestRequest { Value = 42 }, CreateContext(), nextStep, CancellationToken.None);
+
+        // Assert
+        sourceCalls.ShouldBe(0);
+        scheduledDelay.ShouldBe(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task Handle_ImmediateRetries_DrawOncePerRetry()
+    {
+        // Arrange
+        var sourceCalls = 0;
+        var options = new RecoverabilityOptions
+        {
+            ImmediateRetries = 2,
+            ImmediateRetryDelay = TimeSpan.Zero,
+            EnableDelayedRetries = false
+        };
+        var behavior = CreateBehavior(options, jitterSource: () =>
+        {
+            sourceCalls++;
+            return 0.5;
+        });
+
+        RequestHandlerCallback<TestResponse> nextStep = () =>
+            ValueTask.FromResult(
+                Either<EncinaError, TestResponse>.Left(EncinaError.New("Transient error")));
+
+        // Act
+        await behavior.Handle(new TestRequest { Value = 42 }, CreateContext(), nextStep, CancellationToken.None);
+
+        // Assert
+        sourceCalls.ShouldBe(2);
     }
 
     #endregion
@@ -581,7 +731,8 @@ public sealed class RecoverabilityPipelineBehaviorTests
 
     private static RecoverabilityPipelineBehavior<TestRequest, TestResponse> CreateBehavior(
         RecoverabilityOptions? options = null,
-        IDelayedRetryScheduler? scheduler = null)
+        IDelayedRetryScheduler? scheduler = null,
+        Func<double>? jitterSource = null)
     {
         var opts = options ?? new RecoverabilityOptions
         {
@@ -590,7 +741,25 @@ public sealed class RecoverabilityPipelineBehaviorTests
         };
         var logger = NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance;
 
-        return new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(opts, logger, scheduler);
+        return new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(
+            opts, logger, scheduler, timeProvider: null, deadLetterCapture: null, errorClassifier: null, jitterSource);
+    }
+
+    private static IDelayedRetryScheduler CreateScheduler(Action<TimeSpan> captureDelay)
+    {
+        var scheduler = Substitute.For<IDelayedRetryScheduler>();
+        scheduler.ScheduleRetryAsync(
+            Arg.Any<TestRequest>(),
+            Arg.Any<RecoverabilityContext>(),
+            Arg.Any<TimeSpan>(),
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                captureDelay(callInfo.ArgAt<TimeSpan>(2));
+                return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+            });
+        return scheduler;
     }
 
     private static IRequestContext CreateContext(string correlationId = "test-correlation")

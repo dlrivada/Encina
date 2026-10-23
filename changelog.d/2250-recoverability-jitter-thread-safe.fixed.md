@@ -1,0 +1,1 @@
+- **Recoverability retry jitter is thread-safe** (#2250). `RecoverabilityPipelineBehavior` draws its jitter from `Random.Shared` instead of a static `Random` instance shared by every concurrent request of the same request type, which could corrupt the generator and remove the jitter that `UseJitter` and `MaxJitterPercent` promise.
