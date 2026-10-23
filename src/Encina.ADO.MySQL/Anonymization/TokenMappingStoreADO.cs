@@ -70,7 +70,7 @@ public sealed class TokenMappingStoreADO : ITokenMappingStore
         }
         catch (Exception ex)
         {
-            return Left(AnonymizationErrors.StoreError("Store", ex.Message));
+            return Left(AnonymizationErrors.StoreError("Store", ex));
         }
     }
 
@@ -106,7 +106,7 @@ public sealed class TokenMappingStoreADO : ITokenMappingStore
         }
         catch (Exception ex)
         {
-            return Left(AnonymizationErrors.StoreError("GetByToken", ex.Message));
+            return Left(AnonymizationErrors.StoreError("GetByToken", ex));
         }
     }
 
@@ -142,7 +142,7 @@ public sealed class TokenMappingStoreADO : ITokenMappingStore
         }
         catch (Exception ex)
         {
-            return Left(AnonymizationErrors.StoreError("GetByOriginalValueHash", ex.Message));
+            return Left(AnonymizationErrors.StoreError("GetByOriginalValueHash", ex));
         }
     }
 
@@ -169,7 +169,7 @@ public sealed class TokenMappingStoreADO : ITokenMappingStore
         }
         catch (Exception ex)
         {
-            return Left(AnonymizationErrors.StoreError("DeleteByKeyId", ex.Message));
+            return Left(AnonymizationErrors.StoreError("DeleteByKeyId", ex));
         }
     }
 
@@ -200,7 +200,7 @@ public sealed class TokenMappingStoreADO : ITokenMappingStore
         }
         catch (Exception ex)
         {
-            return Left(AnonymizationErrors.StoreError("GetAll", ex.Message));
+            return Left(AnonymizationErrors.StoreError("GetAll", ex));
         }
     }
 

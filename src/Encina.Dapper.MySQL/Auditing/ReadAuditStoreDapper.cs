@@ -109,7 +109,7 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
         }
         catch (Exception ex)
         {
-            return Left(ReadAuditErrors.StoreError("LogRead", ex.Message, ex));
+            return Left(ReadAuditErrors.StoreError("LogRead", ex));
         }
     }
 
@@ -134,7 +134,7 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
         catch (Exception ex)
         {
             return Left<EncinaError, IReadOnlyList<ReadAuditEntry>>(
-                ReadAuditErrors.StoreError("GetAccessHistory", ex.Message, ex));
+                ReadAuditErrors.StoreError("GetAccessHistory", ex));
         }
     }
 
@@ -159,7 +159,7 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
         catch (Exception ex)
         {
             return Left<EncinaError, IReadOnlyList<ReadAuditEntry>>(
-                ReadAuditErrors.StoreError("GetUserAccessHistory", ex.Message, ex));
+                ReadAuditErrors.StoreError("GetUserAccessHistory", ex));
         }
     }
 
@@ -208,7 +208,7 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
         catch (Exception ex)
         {
             return Left<EncinaError, PagedResult<ReadAuditEntry>>(
-                ReadAuditErrors.StoreError("Query", ex.Message, ex));
+                ReadAuditErrors.StoreError("Query", ex));
         }
     }
 
@@ -289,7 +289,7 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
         catch (Exception ex)
         {
             return Left<EncinaError, int>(
-                ReadAuditErrors.PurgeFailed(ex.Message, ex));
+                ReadAuditErrors.PurgeFailed(ex));
         }
     }
 }

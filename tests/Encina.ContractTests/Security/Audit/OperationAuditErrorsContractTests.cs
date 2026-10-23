@@ -33,6 +33,21 @@ public class OperationAuditErrorsContractTests
     }
 
     [Fact]
+    public void StoreError_CarriesTheStableCodeTheExceptionTypeAndNeverItsMessage()
+    {
+        var exception = new InvalidOperationException("SECRET-42");
+
+        var error = OperationAuditErrors.StoreError("Record", exception);
+
+        OperationAuditErrors.StoreErrorCode.ShouldBe("audit.store_error");
+        error.GetCode().IfNone(string.Empty).ShouldBe(OperationAuditErrors.StoreErrorCode);
+        error.GetDetails()["operation"].ShouldBe("Record");
+        error.Message.ShouldContain(nameof(InvalidOperationException));
+        error.Message.ShouldNotContain("SECRET-42");
+        error.Exception.IsSome.ShouldBeTrue();
+    }
+
+    [Fact]
     public void MaskingFailedAndWriteFailed_UseDistinctCodes()
     {
         OperationAuditErrors.MaskingFailedCode.ShouldNotBe(OperationAuditErrors.WriteFailedCode);

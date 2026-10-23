@@ -1,3 +1,5 @@
+using Encina.Diagnostics;
+
 namespace Encina.Security.Audit;
 
 /// <summary>
@@ -11,7 +13,8 @@ namespace Encina.Security.Audit;
 /// </remarks>
 public static class ReadAuditErrors
 {
-    private const string MetadataKeyStage = "read_audit";
+    private const string MetadataKeyStage = "stage";
+    private const string MetadataStageReadAudit = "read_audit";
 
     // --- Error codes ---
 
@@ -36,19 +39,27 @@ public static class ReadAuditErrors
     /// Creates an error when a read audit store operation fails.
     /// </summary>
     /// <param name="operation">The store operation that failed (e.g., "LogRead", "Query", "GetAccessHistory").</param>
-    /// <param name="message">The error message describing the failure.</param>
-    /// <param name="exception">The optional inner exception that caused the failure.</param>
+    /// <param name="exception">
+    /// The exception that caused the failure. It is attached to the error and its type name appears in the
+    /// message; its message text never does, because it can carry personal data.
+    /// </param>
     /// <returns>An error indicating a store operation failure.</returns>
-    public static EncinaError StoreError(string operation, string message, Exception? exception = null) =>
-        EncinaErrors.Create(
+    /// <exception cref="ArgumentNullException"><paramref name="operation"/> or <paramref name="exception"/> is <c>null</c>.</exception>
+    public static EncinaError StoreError(string operation, Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(exception);
+
+        return EncinaErrors.Create(
             code: StoreErrorCode,
-            message: $"Read audit store operation '{operation}' failed: {message}",
+            message: $"Read audit store operation '{operation}' failed ({ActivityStatusDescriptions.ForException(exception)}).",
             exception: exception,
             details: new Dictionary<string, object?>
             {
                 ["operation"] = operation,
-                [MetadataKeyStage] = MetadataKeyStage
+                [MetadataKeyStage] = MetadataStageReadAudit
             });
+    }
 
     /// <summary>
     /// Creates an error when a read audit entry is not found.
@@ -64,7 +75,7 @@ public static class ReadAuditErrors
             {
                 ["entityType"] = entityType,
                 ["entityId"] = entityId,
-                [MetadataKeyStage] = MetadataKeyStage
+                [MetadataKeyStage] = MetadataStageReadAudit
             });
 
     /// <summary>
@@ -78,24 +89,31 @@ public static class ReadAuditErrors
             message: $"Invalid read audit query: {reason}",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeyStage] = MetadataKeyStage
+                [MetadataKeyStage] = MetadataStageReadAudit
             });
 
     /// <summary>
     /// Creates an error when purging read audit entries fails.
     /// </summary>
-    /// <param name="reason">Description of why the purge failed.</param>
-    /// <param name="exception">The optional inner exception that caused the failure.</param>
+    /// <param name="exception">
+    /// The exception that caused the failure. It is attached to the error and its type name appears in the
+    /// message; its message text never does, because it can carry personal data.
+    /// </param>
     /// <returns>An error indicating the purge operation failed.</returns>
-    public static EncinaError PurgeFailed(string reason, Exception? exception = null) =>
-        EncinaErrors.Create(
+    /// <exception cref="ArgumentNullException"><paramref name="exception"/> is <c>null</c>.</exception>
+    public static EncinaError PurgeFailed(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        return EncinaErrors.Create(
             code: PurgeFailedCode,
-            message: $"Failed to purge read audit entries: {reason}",
+            message: $"Failed to purge read audit entries ({ActivityStatusDescriptions.ForException(exception)}).",
             exception: exception,
             details: new Dictionary<string, object?>
             {
-                [MetadataKeyStage] = MetadataKeyStage
+                [MetadataKeyStage] = MetadataStageReadAudit
             });
+    }
 
     /// <summary>
     /// Creates an error when a required access purpose is not provided.
@@ -116,7 +134,7 @@ public static class ReadAuditErrors
             {
                 ["entityType"] = entityType,
                 ["userId"] = userId,
-                [MetadataKeyStage] = MetadataKeyStage,
+                [MetadataKeyStage] = MetadataStageReadAudit,
                 ["requirement"] = "gdpr_article_15_purpose"
             });
 }

@@ -59,11 +59,11 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
         }
         catch (DbUpdateException ex)
         {
-            return Left(ReadAuditErrors.StoreError("LogRead", StoreExceptionMessages.Describe(ex), ex));
+            return Left(ReadAuditErrors.StoreError("LogRead", ex));
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
-            return Left(ReadAuditErrors.StoreError("LogRead", "Operation was cancelled"));
+            return Left(ReadAuditErrors.StoreError("LogRead", ex));
         }
     }
 
@@ -86,10 +86,10 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
             var entries = entities.Select(ReadAuditEntryMapper.MapToRecord).ToList();
             return Right<EncinaError, IReadOnlyList<ReadAuditEntry>>(entries);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
             return Left<EncinaError, IReadOnlyList<ReadAuditEntry>>(
-                ReadAuditErrors.StoreError("GetAccessHistory", "Operation was cancelled"));
+                ReadAuditErrors.StoreError("GetAccessHistory", ex));
         }
     }
 
@@ -114,10 +114,10 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
             var entries = entities.Select(ReadAuditEntryMapper.MapToRecord).ToList();
             return Right<EncinaError, IReadOnlyList<ReadAuditEntry>>(entries);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
             return Left<EncinaError, IReadOnlyList<ReadAuditEntry>>(
-                ReadAuditErrors.StoreError("GetUserAccessHistory", "Operation was cancelled"));
+                ReadAuditErrors.StoreError("GetUserAccessHistory", ex));
         }
     }
 
@@ -151,10 +151,10 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
             var items = entities.Select(ReadAuditEntryMapper.MapToRecord).ToList();
             return Right(PagedResult<ReadAuditEntry>.Create(items, totalCount, pageNumber, pageSize));
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
             return Left<EncinaError, PagedResult<ReadAuditEntry>>(
-                ReadAuditErrors.StoreError("Query", "Operation was cancelled"));
+                ReadAuditErrors.StoreError("Query", ex));
         }
     }
 
@@ -235,19 +235,19 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
         catch (DbUpdateException ex)
         {
             return Left<EncinaError, int>(
-                ReadAuditErrors.PurgeFailed(StoreExceptionMessages.Describe(ex), ex));
+                ReadAuditErrors.PurgeFailed(ex));
         }
         catch (DbException ex)
         {
             // ExecuteDeleteAsync issues the DELETE directly, without EF Core's DbUpdateException wrapper,
             // so the provider's own DbException (e.g. a missing table or a constraint violation) surfaces here (#1128).
             return Left<EncinaError, int>(
-                ReadAuditErrors.PurgeFailed(StoreExceptionMessages.Describe(ex), ex));
+                ReadAuditErrors.PurgeFailed(ex));
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
             return Left<EncinaError, int>(
-                ReadAuditErrors.StoreError("PurgeEntries", "Operation was cancelled"));
+                ReadAuditErrors.StoreError("PurgeEntries", ex));
         }
     }
 }

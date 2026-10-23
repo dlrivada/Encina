@@ -136,7 +136,7 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
         }
         catch (Exception ex)
         {
-            return Left(EncinaError.New($"Failed to record audit entry: {ex.Message}"));
+            return Left(OperationAuditErrors.StoreError("Record", ex));
         }
     }
 
@@ -171,7 +171,7 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
         catch (Exception ex)
         {
             return Left<EncinaError, IReadOnlyList<OperationAuditEntry>>(
-                EncinaError.New($"Failed to query audit entries: {ex.Message}"));
+                OperationAuditErrors.StoreError("GetByEntity", ex));
         }
     }
 
@@ -208,7 +208,7 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
         catch (Exception ex)
         {
             return Left<EncinaError, IReadOnlyList<OperationAuditEntry>>(
-                EncinaError.New($"Failed to query audit entries: {ex.Message}"));
+                OperationAuditErrors.StoreError("GetByUser", ex));
         }
     }
 
@@ -241,7 +241,7 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
         catch (Exception ex)
         {
             return Left<EncinaError, IReadOnlyList<OperationAuditEntry>>(
-                EncinaError.New($"Failed to query audit entries: {ex.Message}"));
+                OperationAuditErrors.StoreError("GetByCorrelationId", ex));
         }
     }
 
@@ -274,7 +274,7 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
         catch (Exception ex)
         {
             return Left<EncinaError, PagedResult<OperationAuditEntry>>(
-                EncinaError.New($"Failed to query audit entries: {ex.Message}"));
+                OperationAuditErrors.StoreError("Query", ex));
         }
     }
 
@@ -376,7 +376,7 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
         catch (Exception ex)
         {
             return Left<EncinaError, int>(
-                EncinaError.New($"Failed to purge audit entries: {ex.Message}"));
+                OperationAuditErrors.StoreError("PurgeEntries", ex));
         }
     }
 

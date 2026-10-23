@@ -94,6 +94,8 @@ const Encina.Security.Audit.OperationAuditErrors.WriteFailedCode = "audit.write_
 static Encina.Security.Audit.OperationAuditErrors.WriteFailed(string! requestType, string! causeCode) -> Encina.EncinaError
 const Encina.Security.Audit.OperationAuditErrors.MaskingFailedCode = "audit.masking_failed" -> string!
 static Encina.Security.Audit.OperationAuditErrors.MaskingFailed(string! requestType, string! causeCode) -> Encina.EncinaError
+const Encina.Security.Audit.OperationAuditErrors.StoreErrorCode = "audit.store_error" -> string!
+static Encina.Security.Audit.OperationAuditErrors.StoreError(string! operation, System.Exception! exception) -> Encina.EncinaError
 Encina.Security.Audit.AuditOutcome
 Encina.Security.Audit.AuditOutcome.Denied = 2 -> Encina.Security.Audit.AuditOutcome
 Encina.Security.Audit.AuditOutcome.Error = 3 -> Encina.Security.Audit.AuditOutcome
@@ -257,10 +259,10 @@ const Encina.Security.Audit.ReadAuditErrors.NotFoundCode = "read_audit.not_found
 const Encina.Security.Audit.ReadAuditErrors.InvalidQueryCode = "read_audit.invalid_query" -> string!
 const Encina.Security.Audit.ReadAuditErrors.PurgeFailedCode = "read_audit.purge_failed" -> string!
 const Encina.Security.Audit.ReadAuditErrors.PurposeRequiredCode = "read_audit.purpose_required" -> string!
-static Encina.Security.Audit.ReadAuditErrors.StoreError(string! operation, string! message, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Security.Audit.ReadAuditErrors.StoreError(string! operation, System.Exception! exception) -> Encina.EncinaError
 static Encina.Security.Audit.ReadAuditErrors.NotFound(string! entityType, string! entityId) -> Encina.EncinaError
 static Encina.Security.Audit.ReadAuditErrors.InvalidQuery(string! reason) -> Encina.EncinaError
-static Encina.Security.Audit.ReadAuditErrors.PurgeFailed(string! reason, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Security.Audit.ReadAuditErrors.PurgeFailed(System.Exception! exception) -> Encina.EncinaError
 static Encina.Security.Audit.ReadAuditErrors.PurposeRequired(string! entityType, string? userId) -> Encina.EncinaError
 Encina.Security.Audit.ReadAuditOptions
 Encina.Security.Audit.ReadAuditOptions.ReadAuditOptions() -> void

@@ -1,0 +1,1 @@
+- The operation audit, read audit, anonymization token mapping and GDPR processing activity stores of every provider (ADO.NET, Dapper, EF Core, MongoDB) no longer put the exception message into the returned `EncinaError`; the error carries a fixed message, the exception type name, a stable code and the exception itself (#1322, #2445).

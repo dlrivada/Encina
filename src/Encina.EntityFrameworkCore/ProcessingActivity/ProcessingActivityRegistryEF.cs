@@ -64,10 +64,10 @@ public sealed class ProcessingActivityRegistryEF : IProcessingActivityRegistry
             ProcessingActivityDiagnostics.RecordFailure(trace, "register", "duplicate");
             return Left(GDPRErrors.ProcessingActivityDuplicate(activity.RequestType.AssemblyQualifiedName!));
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
             ProcessingActivityDiagnostics.RecordFailure(trace, "register", "cancelled");
-            return Left(GDPRErrors.ProcessingActivityStoreError("RegisterActivity", "Operation was cancelled"));
+            return Left(GDPRErrors.ProcessingActivityStoreError("RegisterActivity", ex));
         }
     }
 
@@ -100,7 +100,7 @@ public sealed class ProcessingActivityRegistryEF : IProcessingActivityRegistry
         catch (Exception ex)
         {
             ProcessingActivityDiagnostics.RecordFailure(trace, "get_all", ActivityStatusDescriptions.ForException(ex));
-            return Left(GDPRErrors.ProcessingActivityStoreError("GetAllActivities", ex.Message));
+            return Left(GDPRErrors.ProcessingActivityStoreError("GetAllActivities", ex));
         }
     }
 
@@ -137,7 +137,7 @@ public sealed class ProcessingActivityRegistryEF : IProcessingActivityRegistry
         catch (Exception ex)
         {
             ProcessingActivityDiagnostics.RecordFailure(trace, "get_by_request_type", ActivityStatusDescriptions.ForException(ex));
-            return Left(GDPRErrors.ProcessingActivityStoreError("GetActivityByRequestType", ex.Message));
+            return Left(GDPRErrors.ProcessingActivityStoreError("GetActivityByRequestType", ex));
         }
     }
 
@@ -183,15 +183,15 @@ public sealed class ProcessingActivityRegistryEF : IProcessingActivityRegistry
             ProcessingActivityDiagnostics.RecordSuccess(trace, "update");
             return Right(Unit.Default);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
             ProcessingActivityDiagnostics.RecordFailure(trace, "update", "cancelled");
-            return Left(GDPRErrors.ProcessingActivityStoreError("UpdateActivity", "Operation was cancelled"));
+            return Left(GDPRErrors.ProcessingActivityStoreError("UpdateActivity", ex));
         }
         catch (Exception ex)
         {
             ProcessingActivityDiagnostics.RecordFailure(trace, "update", ActivityStatusDescriptions.ForException(ex));
-            return Left(GDPRErrors.ProcessingActivityStoreError("UpdateActivity", ex.Message));
+            return Left(GDPRErrors.ProcessingActivityStoreError("UpdateActivity", ex));
         }
     }
 }
