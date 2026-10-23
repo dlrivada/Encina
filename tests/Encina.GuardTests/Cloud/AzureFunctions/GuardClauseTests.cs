@@ -2,6 +2,7 @@ using Encina.AzureFunctions;
 using Encina.AzureFunctions.Health;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using Xunit;
@@ -103,5 +104,61 @@ public class GuardClauseTests
         // Assert
         var ex = Should.Throw<ArgumentNullException>(action);
         ex.ParamName.ShouldBe("builder");
+    }
+
+    [Fact]
+    public void FunctionContextExtensions_ResolveTenantId_ThrowsOnNullContext()
+    {
+        // Arrange
+        FunctionContext context = null!;
+        var functionContext = Substitute.For<FunctionContext>();
+        var request = Substitute.For<Microsoft.Azure.Functions.Worker.Http.HttpRequestData>(functionContext);
+
+        // Act
+        Action action = () => context.ResolveTenantId(request, new EncinaAzureFunctionsOptions(), NullLogger.Instance);
+
+        // Assert
+        Should.Throw<ArgumentNullException>(action).ParamName.ShouldBe("context");
+    }
+
+    [Fact]
+    public void FunctionContextExtensions_ResolveTenantId_ThrowsOnNullRequest()
+    {
+        // Arrange
+        var context = Substitute.For<FunctionContext>();
+
+        // Act
+        Action action = () => context.ResolveTenantId(null!, new EncinaAzureFunctionsOptions(), NullLogger.Instance);
+
+        // Assert
+        Should.Throw<ArgumentNullException>(action).ParamName.ShouldBe("httpRequest");
+    }
+
+    [Fact]
+    public void FunctionContextExtensions_ResolveTenantId_ThrowsOnNullOptions()
+    {
+        // Arrange
+        var context = Substitute.For<FunctionContext>();
+        var request = Substitute.For<Microsoft.Azure.Functions.Worker.Http.HttpRequestData>(context);
+
+        // Act
+        Action action = () => context.ResolveTenantId(request, null!, NullLogger.Instance);
+
+        // Assert
+        Should.Throw<ArgumentNullException>(action).ParamName.ShouldBe("options");
+    }
+
+    [Fact]
+    public void FunctionContextExtensions_ResolveTenantId_ThrowsOnNullLogger()
+    {
+        // Arrange
+        var context = Substitute.For<FunctionContext>();
+        var request = Substitute.For<Microsoft.Azure.Functions.Worker.Http.HttpRequestData>(context);
+
+        // Act
+        Action action = () => context.ResolveTenantId(request, new EncinaAzureFunctionsOptions(), null!);
+
+        // Assert
+        Should.Throw<ArgumentNullException>(action).ParamName.ShouldBe("logger");
     }
 }

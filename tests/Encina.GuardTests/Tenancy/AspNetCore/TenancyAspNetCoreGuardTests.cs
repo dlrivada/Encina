@@ -1,3 +1,4 @@
+using Encina.Tenancy;
 using Encina.Tenancy.AspNetCore;
 
 using Microsoft.AspNetCore.Http;
@@ -128,6 +129,44 @@ public sealed class TenancyAspNetCoreGuardTests
     {
         Should.Throw<ArgumentNullException>(() =>
             ApplicationBuilderExtensions.UseTenantResolution(null!));
+    }
+
+    // ─── TenantResolutionMiddleware guards ───
+
+    private static TenantResolutionMiddleware CreateMiddleware() =>
+        new(
+            _ => Task.CompletedTask,
+            [],
+            Options.Create(new TenancyOptions()),
+            Options.Create(new TenancyAspNetCoreOptions()),
+            Substitute.For<ITenantStore>(),
+            NullLogger<TenantResolutionMiddleware>.Instance);
+
+    [Fact]
+    public async Task TenantResolutionMiddleware_InvokeAsync_NullContext_Throws()
+    {
+        var sut = CreateMiddleware();
+
+        await Should.ThrowAsync<ArgumentNullException>(() =>
+            sut.InvokeAsync(null!, Substitute.For<IRequestContextAccessor>(), TimeProvider.System));
+    }
+
+    [Fact]
+    public async Task TenantResolutionMiddleware_InvokeAsync_NullAccessor_Throws()
+    {
+        var sut = CreateMiddleware();
+
+        await Should.ThrowAsync<ArgumentNullException>(() =>
+            sut.InvokeAsync(new DefaultHttpContext(), null!, TimeProvider.System));
+    }
+
+    [Fact]
+    public async Task TenantResolutionMiddleware_InvokeAsync_NullTimeProvider_Throws()
+    {
+        var sut = CreateMiddleware();
+
+        await Should.ThrowAsync<ArgumentNullException>(() =>
+            sut.InvokeAsync(new DefaultHttpContext(), Substitute.For<IRequestContextAccessor>(), null!));
     }
 
     // ─── HealthCheckBuilderExtensions guard ───
