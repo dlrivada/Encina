@@ -609,5 +609,42 @@ public sealed class FakeTimeProviderTests
         callCount.ShouldBe(50);
     }
 
+    [Fact]
+    public async Task ConcurrentAdvanceAndDelayCancellation_ShouldCompleteWithoutDeadlock()
+    {
+        // Arrange
+        const int delayCount = 256;
+        const int advanceCount = 2_000;
+        var provider = new FakeTimeProvider(new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        using var cancellationSource = new CancellationTokenSource();
+        var delays = Enumerable
+            .Range(0, delayCount)
+            .Select(_ => Task.Delay(TimeSpan.FromDays(1), provider, cancellationSource.Token))
+            .ToArray();
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var advancing = Task.Run(async () =>
+        {
+            await start.Task;
+            for (var i = 0; i < advanceCount; i++)
+            {
+                provider.Advance(TimeSpan.FromTicks(1));
+            }
+        });
+        var cancelling = Task.Run(async () =>
+        {
+            await start.Task;
+            cancellationSource.Cancel();
+        });
+
+        // Act
+        start.SetResult();
+        await Task.WhenAll(advancing, cancelling).WaitAsync(TimeSpan.FromSeconds(10));
+
+        // Assert
+        delays.ShouldAllBe(delay => delay.IsCanceled);
+        provider.ActiveTimerCount.ShouldBe(0);
+    }
+
     #endregion
 }

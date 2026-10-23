@@ -258,15 +258,23 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": { "unit": 90, "guard": 1 },
+      "justifications": {
+        "unit": "Time advancement, timer lifecycle and concurrent cancellation are exercised by the unit tests.",
+        "guard": "CreateTimer nullable callback validation is guard-tested; timer behavior is covered by unit tests."
+      }
     },
     "Time/FakeTimer.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Internal timer implementation exercised through FakeTimeProvider.",
+      "targets": { "unit": 90 },
+      "justifications": {
+        "unit": "Timer lifecycle and firing behavior are exercised by FakeTimeProvider unit tests."
+      }
     }
   }
 }

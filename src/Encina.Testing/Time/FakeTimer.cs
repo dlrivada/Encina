@@ -113,6 +113,11 @@ internal sealed class FakeTimer : ITimer
     /// <inheritdoc />
     public bool Change(TimeSpan dueTime, TimeSpan period)
     {
+        return _provider.ChangeTimer(this, dueTime, period);
+    }
+
+    internal bool ChangeCore(TimeSpan dueTime, TimeSpan period, DateTimeOffset currentTime)
+    {
         lock (_lock)
         {
             if (_disposed)
@@ -130,7 +135,7 @@ internal sealed class FakeTimer : ITimer
             else
             {
                 _isActive = true;
-                _dueTime = _provider.GetUtcNow().Add(dueTime);
+                _dueTime = currentTime.Add(dueTime);
             }
 
             return true;
@@ -149,14 +154,23 @@ internal sealed class FakeTimer : ITimer
     /// </summary>
     public void Dispose()
     {
+        var shouldRemove = false;
+
         lock (_lock)
         {
             if (!_disposed)
             {
                 _disposed = true;
                 _isActive = false;
-                _provider.RemoveTimer(this);
+                shouldRemove = true;
             }
+        }
+
+        // Do not acquire the provider lock while holding the timer lock. Advance acquires
+        // those locks in the opposite order while processing due timers.
+        if (shouldRemove)
+        {
+            _provider.RemoveTimer(this);
         }
     }
 

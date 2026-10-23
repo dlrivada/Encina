@@ -243,6 +243,14 @@ public sealed class FakeTimeProvider : TimeProvider
         }
     }
 
+    internal bool ChangeTimer(FakeTimer timer, TimeSpan dueTime, TimeSpan period)
+    {
+        lock (_lock)
+        {
+            return timer.ChangeCore(dueTime, period, _utcNow);
+        }
+    }
+
     private sealed class FrozenTimeScope : IDisposable
     {
         private readonly FakeTimeProvider _provider;
