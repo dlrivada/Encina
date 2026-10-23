@@ -74,7 +74,12 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": { "unit": 100, "guard": 80 },
+      "justifications": {
+        "unit": "Every option property is read and set in tests, including its defaults.",
+        "guard": "Guard tests cover the null checks of the setters, the only logic besides the defaults."
+      }
     },
     "EncinaFunctionMiddleware.cs": {
       "defaultTests": [
@@ -82,7 +87,12 @@
         "guard"
       ],
       "defaultRule": "*Middleware.cs",
-      "reason": "Middleware with mockeable HttpContext"
+      "reason": "Middleware with mockeable HttpContext",
+      "targets": { "unit": 100, "guard": 15 },
+      "justifications": {
+        "unit": "Every pipeline branch of the middleware, including success and error responses, is unit-tested with a mocked function context.",
+        "guard": "Guard tests cover only the null checks of the middleware entry point."
+      }
     },
     "FunctionContextExtensions.cs": {
       "defaultTests": [
@@ -90,7 +100,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 100, "guard": 10 },
+      "justifications": {
+        "unit": "Every tenant and context lookup rule of the function context extensions is unit-tested.",
+        "guard": "Guard tests cover only the null checks of the public parameters."
+      }
     },
     "FunctionsWorkerApplicationBuilderExtensions.cs": {
       "defaultTests": [
@@ -129,7 +144,12 @@
     "Log.cs": {
       "defaultTests": [],
       "defaultRule": "Log.cs",
-      "reason": "Source-generated [LoggerMessage] delegates, no logic"
+      "reason": "Source-generated [LoggerMessage] delegates, no logic",
+      "targets": { "unit": 0, "guard": 0 },
+      "justifications": {
+        "unit": "Source-generated [LoggerMessage] partials are not measured as hand-written lines; they are asserted via a fake logger in the middleware unit tests.",
+        "guard": "Source-generated [LoggerMessage] partials have no parameters to guard."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
