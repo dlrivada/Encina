@@ -168,15 +168,20 @@ public static class LambdaContextExtensions
 
     private static string? ReadClaimsObject(Amazon.Lambda.APIGatewayEvents.APIGatewayCustomAuthorizerContext authorizer, string claimType)
     {
-        if (!authorizer.TryGetValue("claims", out var claimsObj) ||
-            claimsObj is not JsonElement { ValueKind: JsonValueKind.Object } claims ||
-            !claims.TryGetProperty(claimType, out var tenantClaim) ||
-            tenantClaim.ValueKind != JsonValueKind.String)
+        return authorizer.TryGetValue("claims", out var claimsObj) &&
+               claimsObj is JsonElement { ValueKind: JsonValueKind.Object } claims
+            ? ReadStringProperty(claims, claimType)
+            : null;
+    }
+
+    private static string? ReadStringProperty(JsonElement claims, string name)
+    {
+        if (!claims.TryGetProperty(name, out var property) || property.ValueKind != JsonValueKind.String)
         {
             return null;
         }
 
-        var value = tenantClaim.GetString();
+        var value = property.GetString();
         return string.IsNullOrEmpty(value) ? null : value;
     }
 
