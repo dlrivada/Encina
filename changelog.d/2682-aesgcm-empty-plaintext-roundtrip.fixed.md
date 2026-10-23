@@ -1,0 +1,1 @@
+- `AesGcmFieldEncryptor` now decrypts an empty plaintext it encrypted: a zero-length ciphertext is accepted when the nonce and tag are present, so `[Encrypt]` properties holding an empty string round-trip instead of failing with `encryption.invalid_ciphertext` (#2682).

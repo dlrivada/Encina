@@ -199,7 +199,8 @@ internal sealed class AesGcmFieldEncryptor : IFieldEncryptor
                 EncryptionErrors.AlgorithmNotSupported(encryptedValue.Algorithm));
         }
 
-        if (encryptedValue.Ciphertext.IsDefaultOrEmpty ||
+        // A zero-length ciphertext is valid: AES-GCM authenticates an empty plaintext through the tag.
+        if (encryptedValue.Ciphertext.IsDefault ||
             encryptedValue.Nonce.IsDefaultOrEmpty ||
             encryptedValue.Tag.IsDefaultOrEmpty)
         {
