@@ -193,19 +193,10 @@ internal sealed class AesGcmFieldEncryptor : IFieldEncryptor
         EncryptionContext context,
         CancellationToken cancellationToken)
     {
-        if (encryptedValue.Algorithm != EncryptionAlgorithm.Aes256Gcm)
+        var validationError = ValidateEncryptedValue(encryptedValue);
+        if (validationError is not null)
         {
-            return Left<EncinaError, byte[]>(
-                EncryptionErrors.AlgorithmNotSupported(encryptedValue.Algorithm));
-        }
-
-        // A zero-length ciphertext is valid: AES-GCM authenticates an empty plaintext through the tag.
-        if (encryptedValue.Ciphertext.IsDefault ||
-            encryptedValue.Nonce.IsDefaultOrEmpty ||
-            encryptedValue.Tag.IsDefaultOrEmpty)
-        {
-            return Left<EncinaError, byte[]>(
-                EncryptionErrors.InvalidCiphertext());
+            return Left<EncinaError, byte[]>(validationError.Value);
         }
 
         var keyId = encryptedValue.KeyId;
@@ -225,6 +216,34 @@ internal sealed class AesGcmFieldEncryptor : IFieldEncryptor
             return Left<EncinaError, byte[]>(
                 EncryptionErrors.KeyNotFound(keyId));
         }
+
+        return DecryptWithKey(key, encryptedValue, context);
+    }
+
+    private static EncinaError? ValidateEncryptedValue(EncryptedValue encryptedValue)
+    {
+        if (encryptedValue.Algorithm != EncryptionAlgorithm.Aes256Gcm)
+        {
+            return EncryptionErrors.AlgorithmNotSupported(encryptedValue.Algorithm);
+        }
+
+        // A zero-length ciphertext is valid: AES-GCM authenticates an empty plaintext through the tag.
+        if (encryptedValue.Ciphertext.IsDefault ||
+            encryptedValue.Nonce.IsDefaultOrEmpty ||
+            encryptedValue.Tag.IsDefaultOrEmpty)
+        {
+            return EncryptionErrors.InvalidCiphertext();
+        }
+
+        return null;
+    }
+
+    private static Either<EncinaError, byte[]> DecryptWithKey(
+        byte[] key,
+        EncryptedValue encryptedValue,
+        EncryptionContext context)
+    {
+        var keyId = encryptedValue.KeyId;
 
         try
         {
