@@ -51,6 +51,7 @@ has_children: true
 | [051](051-languageext-version-for-1-0.md) | Which LanguageExt Version Encina 1.0 Ships On (Accepted) |
 | [052](052-distributed-lock-failure-contract.md) | Distributed Lock Providers Report Outcomes Through Either; Contention Is Not an Error (Accepted) |
 | [053](053-aggregate-rule-violations-return-either.md) | Compliance Aggregate Rule Violations Are a Left, Not an Exception (Accepted) |
+| [054](054-observability-conventions-and-trace-propagation.md) | Observability Conventions and Cross-Boundary Trace Propagation (Accepted) |
 
 ## Reserved numbers
 

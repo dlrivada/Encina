@@ -106,6 +106,65 @@ public sealed class SqlIdentifierValidatorTests
         ex.Message.ShouldContain("invalid characters");
     }
 
+    [Theory]
+    [InlineData("Orders\n")]
+    [InlineData("Orders\r\n")]
+    [InlineData("\nOrders")]
+    [InlineData("Orders\t")]
+    [InlineData("Orders\0")]
+    [InlineData("[abc")]
+    [InlineData("abc]")]
+    [InlineData("[a].b]")]
+    [InlineData("a.[b")]
+    [InlineData("[a]b")]
+    [InlineData("a[b]")]
+    [InlineData("[[a]]")]
+    [InlineData("[]")]
+    [InlineData("a..b")]
+    [InlineData(".a")]
+    [InlineData("a.")]
+    [InlineData("a.b.c")]
+    [InlineData("`Users`")]
+    [InlineData("\"Users\"")]
+    [InlineData("Usérs")]
+    [InlineData("Users; DROP TABLE x")]
+    [InlineData("a]; --")]
+    public void ValidateTableName_MalformedOrMaliciousNames_ThrowsArgumentException(string tableName)
+    {
+        // Act
+        var act = () => SqlIdentifierValidator.ValidateTableName(tableName);
+
+        // Assert
+        var ex = act.ShouldThrow<ArgumentException>();
+        ex.Message.ShouldContain("invalid characters");
+        ex.ParamName.ShouldBe("tableName");
+    }
+
+    [Fact]
+    public void ValidateTableName_ControlCharacterInName_DoesNotEchoItInMessage()
+    {
+        // Act
+        var act = () => SqlIdentifierValidator.ValidateTableName("Orders\r\nINJECTED");
+
+        // Assert
+        var ex = act.ShouldThrow<ArgumentException>();
+        ex.Message.ShouldNotContain("\r");
+        ex.Message.ShouldNotContain("INJECTED");
+    }
+
+    [Theory]
+    [InlineData("dbo.[Users]")]
+    [InlineData("[dbo].Users")]
+    [InlineData("_t1")]
+    public void ValidateTableName_MixedAndUnderscoreForms_ReturnsName(string tableName)
+    {
+        // Act
+        var result = SqlIdentifierValidator.ValidateTableName(tableName);
+
+        // Assert
+        result.ShouldBe(tableName);
+    }
+
     [Fact]
     public void ValidateTableName_CustomParamName_UsesInException()
     {
@@ -178,6 +237,51 @@ public sealed class SqlIdentifierValidatorTests
 
         // Assert
         result.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("Orders\n")]
+    [InlineData("Orders\r\n")]
+    [InlineData("\nOrders")]
+    [InlineData("Orders\t")]
+    [InlineData("Orders\0")]
+    [InlineData("[abc")]
+    [InlineData("abc]")]
+    [InlineData("[a].b]")]
+    [InlineData("a.[b")]
+    [InlineData("[a]b")]
+    [InlineData("a[b]")]
+    [InlineData("[[a]]")]
+    [InlineData("[]")]
+    [InlineData("a..b")]
+    [InlineData(".a")]
+    [InlineData("a.")]
+    [InlineData("a.b.c")]
+    [InlineData("`Users`")]
+    [InlineData("\"Users\"")]
+    [InlineData("Usérs")]
+    [InlineData("Users; DROP TABLE x")]
+    [InlineData("a]; --")]
+    public void IsValidTableName_MalformedOrMaliciousNames_ReturnsFalse(string tableName)
+    {
+        // Act
+        var result = SqlIdentifierValidator.IsValidTableName(tableName);
+
+        // Assert
+        result.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("dbo.[Users]")]
+    [InlineData("[dbo].Users")]
+    [InlineData("_t1")]
+    public void IsValidTableName_MixedAndUnderscoreForms_ReturnsTrue(string tableName)
+    {
+        // Act
+        var result = SqlIdentifierValidator.IsValidTableName(tableName);
+
+        // Assert
+        result.ShouldBeTrue();
     }
 
     #endregion

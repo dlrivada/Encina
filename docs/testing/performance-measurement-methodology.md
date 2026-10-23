@@ -119,7 +119,7 @@ The 3% and 10% thresholds are starting points. After one month of data the team 
 Some benchmarks measure operations whose variance is a **property of what they measure** rather than a flaw in the benchmark design:
 
 - **Lock / semaphore contention**: `Polly.BulkheadBenchmarks.GetMetrics` repeatedly reads a `SemaphoreSlim` counter under concurrent updates — the CoV is inherently high and no amount of extra iterations will settle it.
-- **Multi-key concurrent writes**: `Caching.CacheInvalidationBenchmarks.Invalidation_MultipleKeys(keyCount=25)` races on a shared `ConcurrentDictionary`; each run sees different collision patterns.
+- **Multi-key concurrent writes**: `Caching.CacheInvalidationMultipleKeysBenchmarks.Invalidation_MultipleKeys(keyCount=25)` races on a shared `ConcurrentDictionary`; each run sees different collision patterns.
 - **Sub-nanosecond jitter**: `Encina.Benchmarks.CacheOptimizationBenchmarks.TypeCheck_Direct` measures a single `is` pattern at < 1 ns, where normal CPU jitter dominates the measurement.
 - **Async-scheduler variance**: `Refit.RestApiRequestHandlerBenchmarks.*` go through the task scheduler, which on a shared runner has real variance unrelated to Refit itself.
 
@@ -129,7 +129,7 @@ Marking these methods as Unstable would pollute the headline stability percentag
 "stabilityOverrides": {
   "$comment": "Keys match 'ClassName.Method' or 'ClassName.Method(Params)'.",
   "CacheOptimizationBenchmarks.TypeCheck_Direct": "Sub-nanosecond type check dominated by CPU jitter; CoV ~93% even at N=26.",
-  "CacheInvalidationBenchmarks.Invalidation_MultipleKeys(keyCount=25)": "Multi-key cache invalidation races on the underlying ConcurrentDictionary; CoV 28-41% at N=30."
+  "CacheInvalidationMultipleKeysBenchmarks.Invalidation_MultipleKeys(keyCount=25)": "Multi-key cache invalidation races on the underlying ConcurrentDictionary; CoV 28-41% at N=30."
 }
 ```
 

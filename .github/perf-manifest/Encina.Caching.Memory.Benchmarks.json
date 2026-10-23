@@ -1,7 +1,7 @@
 {
   "project": "Encina.Caching.Memory.Benchmarks",
   "generated": "2026-04-14T00:00:00.0000000Z",
-  "totalClasses": 1,
+  "totalClasses": 3,
   "totalMethods": 9,
   "targets": {
     "$comment": "Baselines captured 2026-04-14 on i9-13900KS (Windows) via --job short. Targets apply ~3x headroom on mean and ~1.5x on allocated bytes to absorb ubuntu-latest runner slowdown. Revisit after first CI run.",
@@ -26,11 +26,22 @@
   },
   "stabilityOverrides": {
     "$comment": "Keys are matched as 'ClassName.Method' or 'ClassName.Method(Params)'. Matching entries are excluded from the stable/unstable headline ratio and from regression detection.",
-    "MemoryCacheProviderBenchmarks.SetWithSlidingExpirationAsync": "Timer-backed sliding expiration introduces real scheduler noise; CoV ~13% at N=20 does not settle with more iterations.",
-    "MemoryCacheProviderBenchmarks.SetAsync": "MemoryCache write path is bimodal on BDN MultimodalDistribution detector; CoV ~14% at N=20 is inherent to allocation pressure on shared CI runner.",
-    "MemoryCacheProviderBenchmarks.GetOrSetAsync_CacheMiss": "Factory-invocation + cache population is bimodal (BDN MultimodalDistribution); CoV ~14% at N=20 does not stabilize."
+    "MemoryCacheWriteBenchmarks.SetWithSlidingExpirationAsync": "Timer-backed sliding expiration introduces real scheduler noise; CoV ~13% at N=20 does not settle with more iterations.",
+    "MemoryCacheWriteBenchmarks.SetAsync": "MemoryCache write path is bimodal on BDN MultimodalDistribution detector; CoV ~14% at N=20 is inherent to allocation pressure on shared CI runner.",
+    "MemoryCacheGetOrSetBenchmarks.GetOrSetAsync_CacheMiss": "Factory-invocation + cache population is bimodal (BDN MultimodalDistribution); CoV ~14% at N=20 does not stabilize."
   },
   "classes": [
+    {
+      "name": "MemoryCacheGetOrSetBenchmarks",
+      "namespace": "Encina.Caching.Memory.Benchmarks.Benchmarks",
+      "fullName": "Encina.Caching.Memory.Benchmarks.Benchmarks.MemoryCacheGetOrSetBenchmarks",
+      "file": "MemoryCacheGetOrSetBenchmarks.cs",
+      "hasMemoryDiagnoser": true,
+      "methods": [
+        { "name": "GetOrSetAsync_CacheHit", "docRef": "bench:caching-memory/getorset-hit" },
+        { "name": "GetOrSetAsync_CacheMiss", "docRef": "bench:caching-memory/getorset-miss" }
+      ]
+    },
     {
       "name": "MemoryCacheProviderBenchmarks",
       "namespace": "Encina.Caching.Memory.Benchmarks.Benchmarks",
@@ -41,9 +52,16 @@
         { "name": "ExistsAsync_False", "docRef": "bench:caching-memory/exists-false" },
         { "name": "ExistsAsync_True", "docRef": "bench:caching-memory/exists-true" },
         { "name": "GetAsync_CacheHit", "docRef": "bench:caching-memory/get-hit" },
-        { "name": "GetAsync_CacheMiss", "docRef": "bench:caching-memory/get-miss" },
-        { "name": "GetOrSetAsync_CacheHit", "docRef": "bench:caching-memory/getorset-hit" },
-        { "name": "GetOrSetAsync_CacheMiss", "docRef": "bench:caching-memory/getorset-miss" },
+        { "name": "GetAsync_CacheMiss", "docRef": "bench:caching-memory/get-miss" }
+      ]
+    },
+    {
+      "name": "MemoryCacheWriteBenchmarks",
+      "namespace": "Encina.Caching.Memory.Benchmarks.Benchmarks",
+      "fullName": "Encina.Caching.Memory.Benchmarks.Benchmarks.MemoryCacheWriteBenchmarks",
+      "file": "MemoryCacheWriteBenchmarks.cs",
+      "hasMemoryDiagnoser": true,
+      "methods": [
         { "name": "RemoveAsync", "docRef": "bench:caching-memory/remove" },
         { "name": "SetAsync", "docRef": "bench:caching-memory/set" },
         { "name": "SetWithSlidingExpirationAsync", "docRef": "bench:caching-memory/set-sliding" }
