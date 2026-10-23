@@ -87,6 +87,8 @@ The only GraphQL polling left is the review-thread read of `watch-open-prs.ps1`.
 
 None: every remaining GraphQL call is behind the helper (`Wait-GhGraphQLQuota` before, `Write-GhQuotaUsage` after). They are the review-thread read of `watch-open-prs`, the bulk query of `collect-issues`, the bulk closed-issue reads of `fetch-closed-issue-data` and `historian-extract-closed`, `closedByPullRequestsReferences`, and the `gh project` calls.
 
+Known limit: REST has no `closingIssuesReferences`, so `reconcile-board.ps1` finds the issues a pull request closes only from the `Fixes #n` / `Closes #n` text of its body; a link made only from the Development sidebar is not seen (the reconciler is paused, #2661).
+
 ## How to prove it
 
 ```powershell

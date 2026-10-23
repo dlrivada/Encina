@@ -26,7 +26,7 @@ Writes a single JSON object (`{ generatedUtc, since, sessions: [...], days: [...
 
 ## `build-board-stats.ps1`
 
-Runs `session-stats.cs`, collects GitHub activity (`gh pr list` / `gh issue list`, created or
+Runs `session-stats.cs`, collects GitHub activity (`gh api repos/dlrivada/Encina/pulls` / `gh api repos/dlrivada/Encina/issues`, created or
 closed since `-Since`) and every `artifacts/local-ai/ledger.csv` under the main checkout and its
 `.claude/worktrees/*`, and merges them into the three files the board reads:
 
@@ -155,7 +155,7 @@ New documents carry no version.
 | `running` worker card with no worktree and no PR | Card `stopped`, with a note. Only when its startedUtc is more than 2 hours old; a freshly spawned worker may not have a worktree yet. |
 | PR closed without merging | Card `stopped`, with a note. |
 | Card that groups several issues | Finished only by a PR that closes all of them. |
-| PR older than the window | Resolved with `gh pr view`. |
+| PR older than the window | Resolved with `gh api repos/dlrivada/Encina/pulls/<n>`. |
 | Flow front whose issue closed with no PR | Flow `closed`, stage `close-out`. |
 | Open, non-bot PR that closes an issue and has no card | New card (id = the issue number). |
 | `progress.csv` row `done` | Audit `closed` / `done`. |
