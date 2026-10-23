@@ -43,7 +43,17 @@
         "integration"
       ],
       "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
+      "reason": "EF Core store — needs real DbContext",
+      "targets": {
+        "unit": 35,
+        "guard": 11,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "Unit tests drive the failing-context path of the store and assert the error carries the exception type and never its message (measured 37.3%); the query paths need a real provider.",
+        "guard": "Guard tests cover the argument checks of the store methods (measured 11.9%).",
+        "integration": "No EF Core token mapping integration tests exist yet, so the measured 0% is a known gap tracked by #2684; the zero target is explicit until they land."
+      }
     },
     "Auditing/OperationAuditEntryEntity.cs": {
       "defaultTests": [

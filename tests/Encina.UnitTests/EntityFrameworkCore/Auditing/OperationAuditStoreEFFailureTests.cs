@@ -39,7 +39,7 @@ public sealed class OperationAuditStoreEFFailureTests
     }
 
     [Fact]
-    public async Task RecordAsync_WhenSaveChangesFails_MessageIncludesTheRootCauseTypeButNotItsText()
+    public async Task RecordAsync_WhenSaveChangesFails_MessageIncludesTheExceptionTypeButNotItsText()
     {
         // Arrange
         var store = new OperationAuditStoreEF(CreateFailingContext<OperationAuditEntryEntity>(CreateDbUpdateException()));
@@ -47,11 +47,11 @@ public sealed class OperationAuditStoreEFFailureTests
         // Act
         var result = await store.RecordAsync(CreateAuditEntry());
 
-        // Assert: the root cause's type is reported, but never its message text - provider messages can embed
-        // column values (e.g. SQL Server 2628 "Truncated value: '...'"), i.e. personal data (#1128).
+        // Assert: the exception's type is reported, but never its message text or its inner exception's text - provider
+        // messages can embed column values (e.g. SQL Server 2628 "Truncated value: '...'"), i.e. personal data (#1128, #1322).
         var error = result.LeftToSeq().Single();
-        error.Message.ShouldStartWith("Failed to record audit entry: ");
-        error.Message.ShouldContain(nameof(InvalidOperationException));
+        error.Message.ShouldContain("Record");
+        error.Message.ShouldContain(nameof(DbUpdateException));
         error.Message.ShouldNotContain(RootCauseMessage);
     }
 
@@ -66,7 +66,7 @@ public sealed class OperationAuditStoreEFFailureTests
 
         // Assert
         var error = result.LeftToSeq().Single();
-        error.GetCode().IfNone(string.Empty).ShouldBe(OperationAuditStoreEF.StoreErrorCode);
+        error.GetCode().IfNone(string.Empty).ShouldBe(OperationAuditErrors.StoreErrorCode);
         error.GetDetails()["operation"].ShouldBe("Record");
     }
 
@@ -90,10 +90,10 @@ public sealed class OperationAuditStoreEFFailureTests
         var error = result.LeftToSeq().Single();
         error.Exception.IsSome.ShouldBeTrue();
         error.Exception.IfSome(ex => ex.ShouldBeSameAs(failure));
-        error.GetCode().IfNone(string.Empty).ShouldBe(OperationAuditStoreEF.StoreErrorCode);
+        error.GetCode().IfNone(string.Empty).ShouldBe(OperationAuditErrors.StoreErrorCode);
         error.GetDetails()["operation"].ShouldBe("PurgeEntries");
         error.Message.ShouldContain(nameof(TestDbException));
-        error.Message.ShouldContain("SqlState=42P01");
+        error.Message.ShouldNotContain("relation");
     }
 
     #endregion
@@ -114,7 +114,7 @@ public sealed class OperationAuditStoreEFFailureTests
         var error = result.LeftToSeq().Single();
         error.Exception.IfSome(ex => ex.ShouldBeSameAs(failure));
         error.Exception.IsSome.ShouldBeTrue();
-        error.Message.ShouldContain(nameof(InvalidOperationException));
+        error.Message.ShouldContain(nameof(DbUpdateException));
         error.Message.ShouldNotContain(RootCauseMessage);
         error.GetCode().IfNone(string.Empty).ShouldBe(ReadAuditErrors.StoreErrorCode);
     }
@@ -140,7 +140,7 @@ public sealed class OperationAuditStoreEFFailureTests
         error.Exception.IfSome(ex => ex.ShouldBeSameAs(failure));
         error.GetCode().IfNone(string.Empty).ShouldBe(ReadAuditErrors.PurgeFailedCode);
         error.Message.ShouldContain(nameof(TestDbException));
-        error.Message.ShouldContain("ErrorCode=1146");
+        error.Message.ShouldNotContain("relation does not exist");
     }
 
     #endregion

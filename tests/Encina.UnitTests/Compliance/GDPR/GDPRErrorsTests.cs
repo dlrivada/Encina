@@ -171,11 +171,16 @@ public class GDPRErrorsTests
     // -- Processing Activity errors --
 
     [Fact]
-    public void ProcessingActivityStoreError_ShouldContainOperationAndMessage()
+    public void ProcessingActivityStoreError_ShouldContainOperationAndExceptionTypeButNotExceptionMessage()
     {
-        var error = GDPRErrors.ProcessingActivityStoreError("GetAll", "Connection refused");
+        var exception = new InvalidOperationException("SECRET-42");
+        var error = GDPRErrors.ProcessingActivityStoreError("GetAll", exception);
         error.GetCode().IfNone("").ShouldBe(GDPRErrors.ProcessingActivityStoreErrorCode);
         error.Message.ShouldContain("GetAll");
+        error.Message.ShouldContain(nameof(InvalidOperationException));
+        error.Message.ShouldNotContain("SECRET-42");
+        error.Exception.IsSome.ShouldBeTrue();
+        error.Exception.IfSome(ex => ex.ShouldBeSameAs(exception));
     }
 
     [Fact]

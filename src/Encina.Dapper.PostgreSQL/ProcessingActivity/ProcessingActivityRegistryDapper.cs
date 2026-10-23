@@ -104,7 +104,7 @@ public sealed class ProcessingActivityRegistryDapper : IProcessingActivityRegist
         catch (Exception ex)
         {
             ProcessingActivityDiagnostics.RecordFailure(trace, "register", ActivityStatusDescriptions.ForException(ex));
-            return Left(GDPRErrors.ProcessingActivityStoreError("RegisterActivity", ex.Message));
+            return Left(GDPRErrors.ProcessingActivityStoreError("RegisterActivity", ex));
         }
     }
 
@@ -142,7 +142,7 @@ public sealed class ProcessingActivityRegistryDapper : IProcessingActivityRegist
         catch (Exception ex)
         {
             ProcessingActivityDiagnostics.RecordFailure(trace, "get_all", ActivityStatusDescriptions.ForException(ex));
-            return Left(GDPRErrors.ProcessingActivityStoreError("GetAllActivities", ex.Message));
+            return Left(GDPRErrors.ProcessingActivityStoreError("GetAllActivities", ex));
         }
     }
 
@@ -184,7 +184,7 @@ public sealed class ProcessingActivityRegistryDapper : IProcessingActivityRegist
         catch (Exception ex)
         {
             ProcessingActivityDiagnostics.RecordFailure(trace, "get_by_request_type", ActivityStatusDescriptions.ForException(ex));
-            return Left(GDPRErrors.ProcessingActivityStoreError("GetActivityByRequestType", ex.Message));
+            return Left(GDPRErrors.ProcessingActivityStoreError("GetActivityByRequestType", ex));
         }
     }
 
@@ -248,7 +248,7 @@ public sealed class ProcessingActivityRegistryDapper : IProcessingActivityRegist
         catch (Exception ex)
         {
             ProcessingActivityDiagnostics.RecordFailure(trace, "update", ActivityStatusDescriptions.ForException(ex));
-            return Left(GDPRErrors.ProcessingActivityStoreError("UpdateActivity", ex.Message));
+            return Left(GDPRErrors.ProcessingActivityStoreError("UpdateActivity", ex));
         }
     }
 }

@@ -63,7 +63,17 @@
         "integration"
       ],
       "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "reason": "MongoDB store — needs real MongoDB",
+      "targets": {
+        "unit": 35,
+        "guard": 27,
+        "integration": 40
+      },
+      "justifications": {
+        "unit": "Unit tests drive the failing-replace path with a substituted collection and assert the error carries the exception type and never its message (measured 37.3%).",
+        "guard": "Guard tests cover the argument checks of the store methods (measured 27.1%).",
+        "integration": "The MongoDB token mapping integration tests exercise store, read and delete against a real server (measured 42.4%); the uncovered lines are the catch blocks and the bulk paths."
+      }
     },
     "Auditing/OperationAuditEntryDocument.cs": {
       "defaultTests": [

@@ -51,7 +51,7 @@ public sealed class TokenMappingStoreEF : ITokenMappingStore
         }
         catch (DbUpdateException ex)
         {
-            return Left(AnonymizationErrors.StoreError("Store", ex.Message));
+            return Left(AnonymizationErrors.StoreError("Store", ex));
         }
         catch (OperationCanceledException)
         {
@@ -59,7 +59,7 @@ public sealed class TokenMappingStoreEF : ITokenMappingStore
         }
         catch (Exception ex)
         {
-            return Left(AnonymizationErrors.StoreError("Store", ex.Message));
+            return Left(AnonymizationErrors.StoreError("Store", ex));
         }
     }
 
@@ -87,7 +87,7 @@ public sealed class TokenMappingStoreEF : ITokenMappingStore
         }
         catch (Exception ex)
         {
-            return Left(AnonymizationErrors.StoreError("GetByToken", ex.Message));
+            return Left(AnonymizationErrors.StoreError("GetByToken", ex));
         }
     }
 
@@ -115,7 +115,7 @@ public sealed class TokenMappingStoreEF : ITokenMappingStore
         }
         catch (Exception ex)
         {
-            return Left(AnonymizationErrors.StoreError("GetByOriginalValueHash", ex.Message));
+            return Left(AnonymizationErrors.StoreError("GetByOriginalValueHash", ex));
         }
     }
 
@@ -142,7 +142,7 @@ public sealed class TokenMappingStoreEF : ITokenMappingStore
         }
         catch (DbUpdateException ex)
         {
-            return Left(AnonymizationErrors.StoreError("DeleteByKeyId", ex.Message));
+            return Left(AnonymizationErrors.StoreError("DeleteByKeyId", ex));
         }
         catch (OperationCanceledException)
         {
@@ -150,7 +150,7 @@ public sealed class TokenMappingStoreEF : ITokenMappingStore
         }
         catch (Exception ex)
         {
-            return Left(AnonymizationErrors.StoreError("DeleteByKeyId", ex.Message));
+            return Left(AnonymizationErrors.StoreError("DeleteByKeyId", ex));
         }
     }
 
@@ -176,7 +176,7 @@ public sealed class TokenMappingStoreEF : ITokenMappingStore
         }
         catch (Exception ex)
         {
-            return Left(AnonymizationErrors.StoreError("GetAll", ex.Message));
+            return Left(AnonymizationErrors.StoreError("GetAll", ex));
         }
     }
 }
