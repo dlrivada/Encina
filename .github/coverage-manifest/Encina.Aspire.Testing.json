@@ -21,7 +21,7 @@
         "unit": "Unit tests build a real DistributedApplication over a never-started host with the real fake stores and run every assertion, getter and wait helper, including timeout and cancellation paths.",
         "guard": "Guard tests pass a null app and invalid arguments to each method, which covers the ThrowIfNull checks and the argument validation, not the polling bodies."
       },
-      "reason": "Extension methods on DistributedApplication with 17+ ThrowIfNull guards — guards testable without real Aspire host by passing null. Integration tests deferred (require Aspire host)."
+      "reason": "Extension methods on DistributedApplication; unit tests run them against a real DistributedApplication over a never-started host with the real Encina.Testing.Fakes stores, guard tests cover ThrowIfNull and argument validation."
     },
     "DistributedApplicationTestingBuilderExtensions.cs": {
       "defaultTests": [
@@ -33,7 +33,7 @@
         "guard": 10
       },
       "justifications": {
-        "unit": "Only the null-builder guard is reachable without an AppHost project; the registration path needs a real IDistributedApplicationTestingBuilder, which Aspire creates only from an AppHost assembly.",
+        "unit": "Only the null-builder guard and its argument check are reachable; the registration path needs an IDistributedApplicationTestingBuilder, and both NSubstitute (Castle proxy fails on the interface) and DistributedApplicationTestingBuilder.Create (requires an AppHost assembly) were tried and cannot produce one in a unit test.",
         "guard": "The guard test passes a null builder to WithEncinaTestSupport, the only guard this file has."
       },
       "reason": "Extension methods on IDistributedApplicationTestingBuilder with ThrowIfNull guard — guard testable without real builder."
@@ -55,7 +55,8 @@
     },
     "EncinaTestSupportOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "targets": {
         "unit": 95,
