@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Compliance.ProcessorAgreements.ProcessorAgreementServiceBenchmarks-20261023-130140</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                             </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;HasValidDPA (pipeline hot-path)&#39;</td><td>1,164.4 ns</td><td>336.4 ns</td><td>18.44 ns</td><td>1.00</td><td>0.02</td><td>1</td><td>0.0210</td><td>0.0191</td><td>352 B</td><td>1.00</td>
+</tr><tr><td>&#39;ValidateDPA (detailed compliance check)&#39;</td><td>1,208.3 ns</td><td>521.6 ns</td><td>28.59 ns</td><td>1.04</td><td>0.03</td><td>1</td><td>0.0248</td><td>0.0229</td><td>424 B</td><td>1.20</td>
+</tr><tr><td>&#39;GetDPA by ID (cached read)&#39;</td><td>1,038.5 ns</td><td>424.8 ns</td><td>23.28 ns</td><td>0.89</td><td>0.02</td><td>1</td><td>0.0248</td><td>0.0229</td><td>424 B</td><td>1.20</td>
+</tr><tr><td>&#39;GetActiveDPA by processor ID&#39;</td><td>1,043.9 ns</td><td>568.4 ns</td><td>31.16 ns</td><td>0.90</td><td>0.03</td><td>1</td><td>0.0248</td><td>0.0229</td><td>424 B</td><td>1.20</td>
+</tr><tr><td>&#39;GetExpiringDPAs (filtered scan)&#39;</td><td>878.4 ns</td><td>261.7 ns</td><td>14.34 ns</td><td>0.75</td><td>0.01</td><td>1</td><td>0.0229</td><td>0.0219</td><td>400 B</td><td>1.14</td>
+</tr></tbody></table>
+</body>
+</html>
