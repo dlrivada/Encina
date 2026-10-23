@@ -177,6 +177,22 @@ public class LambdaResolveTenantIdTests
     }
 
     [Fact]
+    public void ClaimsObjectWithoutTheTenantClaim_FallsBackToTheAuthorizerEntry()
+    {
+        var authorizer = new APIGatewayCustomAuthorizerContext
+        {
+            ["claims"] = JsonDocument.Parse("""{"sub":"user-1"}""").RootElement,
+            ["tenant_id"] = "tenant-a",
+        };
+        var request = new APIGatewayProxyRequest
+        {
+            RequestContext = new APIGatewayProxyRequest.ProxyRequestContext { Authorizer = authorizer },
+        };
+
+        Tenant(_context.ResolveTenantId(request, _options, _logger)).ShouldBe("tenant-a");
+    }
+
+    [Fact]
     public void UnreadableClaimInAuthorizerEntry_IsALeftWithTheInvalidClaimCode()
     {
         _options.TrustTenantIdHeader = true;
