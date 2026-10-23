@@ -307,7 +307,7 @@ public static partial class MessagingLog
     /// <summary>
     /// Logs when the outbox store fails to record the outcome of one message.
     /// </summary>
-    /// <remarks><paramref name="operation"/> is <c>MarkAsProcessedAsync</c> or <c>MarkAsFailedAsync</c>.</remarks>
+    /// <remarks><paramref name="operation"/> is <c>MarkAsProcessedAsync</c>, <c>MarkAsFailedAsync</c>, <c>MarkAsExhaustedAsync</c> or <c>DeadLetterCapture</c>.</remarks>
     [LoggerMessage(
         EventId = 2961,
         Level = LogLevel.Error,

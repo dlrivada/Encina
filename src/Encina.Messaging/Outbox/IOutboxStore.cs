@@ -71,8 +71,8 @@ public interface IOutboxStore
     /// <remarks>
     /// <c>RetryCount</c> becomes <c>max(RetryCount + 1, maxRetries)</c> and <c>NextRetryAtUtc</c> becomes
     /// <see langword="null"/>, in one atomic update, so the message is counted by <see cref="GetExhaustedCountAsync"/>
-    /// whatever its retry count was. Stores with a unit of work (EF Core) record the change on their context, and it
-    /// is persisted by <see cref="SaveChangesAsync"/>.
+    /// whatever its retry count was. The SQL and MongoDB stores apply it in one atomic statement; EF Core records the
+    /// change on its context (like <see cref="MarkAsFailedAsync"/>) and it is persisted by <see cref="SaveChangesAsync"/>.
     /// </remarks>
     /// <param name="messageId">The message ID.</param>
     /// <param name="errorMessage">The error message (an error code or exception type, never <c>EncinaError.Message</c>).</param>
