@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.IdGeneration.Benchmarks.IdGenerationComparisonBenchmarks-20261023-101410</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method      </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Snowflake</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>242.6 ns</td><td>0.12 ns</td><td>0.07 ns</td><td>1.00</td><td>0.00</td><td>1</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>Ulid</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>705.2 ns</td><td>22.54 ns</td><td>14.91 ns</td><td>2.91</td><td>0.06</td><td>3</td><td>0.0019</td><td>40 B</td><td>NA</td>
+</tr><tr><td>UuidV7</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>675.1 ns</td><td>7.50 ns</td><td>4.96 ns</td><td>2.78</td><td>0.02</td><td>3</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>ShardPrefixed</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>890.6 ns</td><td>31.23 ns</td><td>18.58 ns</td><td>3.67</td><td>0.07</td><td>4</td><td>0.0124</td><td>216 B</td><td>NA</td>
+</tr><tr><td>DotNet_GuidNewGuid</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>427.9 ns</td><td>11.85 ns</td><td>7.83 ns</td><td>1.76</td><td>0.03</td><td>2</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>Snowflake</td><td>ShortRun</td><td>3</td><td>1</td><td>242.7 ns</td><td>1.20 ns</td><td>0.07 ns</td><td>1.00</td><td>0.00</td><td>1</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>Ulid</td><td>ShortRun</td><td>3</td><td>1</td><td>736.0 ns</td><td>970.50 ns</td><td>53.20 ns</td><td>3.03</td><td>0.19</td><td>3</td><td>0.0019</td><td>40 B</td><td>NA</td>
+</tr><tr><td>UuidV7</td><td>ShortRun</td><td>3</td><td>1</td><td>708.9 ns</td><td>443.53 ns</td><td>24.31 ns</td><td>2.92</td><td>0.09</td><td>3</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>ShardPrefixed</td><td>ShortRun</td><td>3</td><td>1</td><td>871.7 ns</td><td>201.12 ns</td><td>11.02 ns</td><td>3.59</td><td>0.04</td><td>4</td><td>0.0124</td><td>216 B</td><td>NA</td>
+</tr><tr><td>DotNet_GuidNewGuid</td><td>ShortRun</td><td>3</td><td>1</td><td>429.1 ns</td><td>100.57 ns</td><td>5.51 ns</td><td>1.77</td><td>0.02</td><td>2</td><td>-</td><td>-</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>
