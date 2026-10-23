@@ -75,11 +75,11 @@ exit $LASTEXITCODE
 '@
     Write-Text (Join-Path $stubs 'gh-stub.ps1') @'
 Add-Content -LiteralPath $env:AUDIT_STUB_LOG -Value ('gh ' + ($args -join ' '))
-if ($args[0] -eq 'issue' -and $args[1] -eq 'view') { 'CLOSED'; exit 0 }
-if ($args[0] -eq 'label') { 'technical-debt'; 'area-testing'; 'bug'; 'p0-mandatory'; 'p1-recommended'; 'p2-post-1.0'; exit 0 }
+if ($args[0] -eq 'api' -and $args[1] -match '^repos/[^/]+/[^/]+/issues/\d+$') { 'closed'; exit 0 }   # REST issue state (#2661)
 if ($args[0] -eq 'api' -and $args[1] -like 'repos/*/labels*') { 'technical-debt'; 'area-testing'; 'bug'; 'p0-mandatory'; 'p1-recommended'; 'p2-post-1.0'; exit 0 }
-if ($args[0] -eq 'api') { "v0.14.0 $([char]0x2014) Hardening"; "v0.19.0 $([char]0x2014) Providers & Testing"; "v0.21.0 $([char]0x2014) Documentation"; exit 0 }
-if ($args[0] -eq 'issue' -and $args[1] -eq 'create') {
+if ($args[0] -eq 'api' -and $args -contains 'search/issues') { '[]'; exit 0 }
+if ($args[0] -eq 'api' -and $args -notcontains 'POST') { "14`tv0.14.0 $([char]0x2014) Hardening"; "19`tv0.19.0 $([char]0x2014) Providers & Testing"; "21`tv0.21.0 $([char]0x2014) Documentation"; exit 0 }
+if ($args[0] -eq 'api' -and $args -contains 'POST' -and $args[3] -eq 'repos/dlrivada/Encina/issues') {
     # The concurrency case (section 5b) widens the create and counts every create in its own file.
     if ($env:AUDIT_STUB_CREATE_DELAY_MS) { Start-Sleep -Milliseconds ([int]$env:AUDIT_STUB_CREATE_DELAY_MS) }
     if ($env:AUDIT_STUB_CREATES) { New-Item -ItemType File -Path (Join-Path $env:AUDIT_STUB_CREATES ([guid]::NewGuid().ToString('N'))) | Out-Null }
@@ -232,10 +232,10 @@ exit 0
     Assert-That 'open-remediation of #12 refuses a draft that duplicates an opened draft of the concurrent audit #10 (exit code)' ($r.Exit -ne 0) "exit $($r.Exit)"
     # The CI runner renders the error record with ANSI colour codes; strip them and the wrap gutter before comparing.
     Assert-That 'the refusal names both drafts and the opened issue' (($r.Text -replace '\x1b\[[0-9;]*m', '' -replace '[\s|]+', '') -like '*12-code-2-widget-retry.mdduplicates10-code-1-widget-retry.mdoftheconcurrentaudit#10*issues/6001*') $r.Text
-    Assert-That 'the refusal opens nothing' (-not ($r.Log | Where-Object { $_ -like 'gh issue create*' })) ($r.Log -join ' || ')
+    Assert-That 'the refusal opens nothing' (-not ($r.Log | Where-Object { $_ -like 'gh api -X POST repos/dlrivada/Encina/issues *' })) ($r.Log -join ' || ')
     Remove-Item -Force (Join-Path $remDir 'opened.csv')
     $r = Invoke-Script 'open-remediation.ps1' @('-Issue', '12')
-    Assert-That 'against an unopened draft it only warns, and #12 opens first' ($r.Exit -eq 0 -and $r.Text -like '*matches 10-code-1-widget-retry.md of the concurrent audit #10, not opened yet*' -and @($r.Log | Where-Object { $_ -like 'gh issue create*' }).Count -eq 1) $r.Text
+    Assert-That 'against an unopened draft it only warns, and #12 opens first' ($r.Exit -eq 0 -and $r.Text -like '*matches 10-code-1-widget-retry.md of the concurrent audit #10, not opened yet*' -and @($r.Log | Where-Object { $_ -like 'gh api -X POST repos/dlrivada/Encina/issues *' }).Count -eq 1) $r.Text
     Remove-Item -Force $draft10
 
     # --- 5b. two audits open matching drafts at the same time (CodeRabbit on PR #2243) ---------------------------------

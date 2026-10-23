@@ -21,7 +21,7 @@
 # issue -> v0.19.0 Providers & Testing; a draft header milestone wins) and one priority label from the draft's own
 # Priority section (High p0-mandatory, Medium p1-recommended, Low p2-post-1.0; a consolidated issue takes the
 # highest of its drafts); only a draft without a Priority section gets its route's default (Hardening
-# p0-mandatory, Documentation and Providers & Testing p1-recommended). Right after each `gh issue create` the issue is
+# p0-mandatory, Documentation and Providers & Testing p1-recommended). Right after each issue creation the issue is
 # added to project 1 with the local keyring credentials (GITHUB_TOKEN/GH_TOKEN cleared for that call; no workflow
 # secret is involved, #1987). A failed project add is reported as a warning naming the issue and the retry command;
 # it does not undo the created issue and does not fail the run (the row is already written, so a re-run does not
@@ -47,9 +47,16 @@ catch { Write-Error "open-remediation: the REST label listing failed ($($_.Excep
 # The milestone titles hold an em dash: decode gh's output as UTF-8 whatever the console code page is.
 $savedEncoding = [Console]::OutputEncoding
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
-try { $ms = gh api repos/dlrivada/Encina/milestones --paginate --jq '.[].title' }
+try { $msRaw = gh api repos/dlrivada/Encina/milestones --paginate --jq '.[] | "\(.number)\t\(.title)"' }
 finally { [Console]::OutputEncoding = $savedEncoding }
 if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh api milestones failed (exit $LASTEXITCODE); refusing to open issues without the milestone list"; exit 1 }
+# Title -> number: the REST issue create takes the milestone by number (#2661).
+$msNumber = @{}
+foreach ($line in @($msRaw)) {
+    $parts = "$line" -split "`t", 2
+    if ($parts.Count -eq 2 -and $parts[0] -match '^\d+$') { $msNumber[$parts[1].Trim()] = [int]$parts[0] }
+}
+$ms = @($msNumber.Keys)
 
 # An issue is opened complete or not at all (#1926): every issue carries a milestone and one priority label,
 # derived from its route; a milestone in the draft header wins. The real titles use an em dash (U+2014);
@@ -104,7 +111,18 @@ function Add-ToProject([string]$Url) {
     try {
         $env:GITHUB_TOKEN = $null; $env:GH_TOKEN = $null
         Remove-Item Env:\GITHUB_TOKEN, Env:\GH_TOKEN -ErrorAction SilentlyContinue
-        $out = try { & gh project item-add 1 --owner dlrivada --url $Url 2>&1 } catch { $global:LASTEXITCODE = 1; $_.Exception.Message }
+        # Projects v2 has no REST API: GraphQL only, behind the shared quota helper (#2661). -NoWait: a low quota
+        # fails this add (warning with the retry command) and never blocks issue creation.
+        if (-not (Wait-GhGraphQLQuota -Caller 'open-remediation' -NoWait)) {
+            $global:LASTEXITCODE = 1
+            $out = 'the GraphQL quota is below its threshold (see artifacts/gh-quota/graphql-ratelimit.json); the call was not made'
+        }
+        else {
+            $out = try { & gh project item-add 1 --owner dlrivada --url $Url 2>&1 } catch { $global:LASTEXITCODE = 1; $_.Exception.Message }
+            $addExit = $LASTEXITCODE
+            Write-GhQuotaUsage -Caller 'open-remediation' -Operation 'project item-add'   # runs git: it resets $LASTEXITCODE
+            $global:LASTEXITCODE = $addExit
+        }
         if ($LASTEXITCODE -ne 0) { Write-Warning "open-remediation: gh project item-add failed for $Url (exit $LASTEXITCODE): $($out -join ' '). The issue exists; add it to project 1 with: gh project item-add 1 --owner dlrivada --url $Url"; $global:LASTEXITCODE = 0 }
     }
     finally {
@@ -142,18 +160,22 @@ function Get-Draft([System.IO.FileInfo]$File) {
 # Creates one issue; returns its URL or exits 1.
 function New-Issue([string]$Title, [string]$Body, [string[]]$Lab, [string]$Milestone, [string]$Name) {
     $bf = Join-Path $env:TEMP "rem-$Name.md"; Set-Content $bf $Body -Encoding utf8
-    $a = @('issue', 'create', '--repo', 'dlrivada/Encina', '--title', $Title, '--body-file', $bf)
-    if ($Milestone) { $a += @('--milestone', $Milestone) }
-    foreach ($l in $Lab) { $a += @('--label', $l) }
+    # REST (#2661): the gh issue creation subcommand is GraphQL-backed; the milestone is sent by number, the URL is .html_url.
+    $a = @('api', '-X', 'POST', 'repos/dlrivada/Encina/issues', '-f', "title=$Title", '-F', "body=@$bf", '--jq', '.html_url')
+    if ($Milestone) {
+        if (-not $msNumber.ContainsKey($Milestone)) { Write-Error "open-remediation: milestone '$Milestone' of $Name has no number in the REST milestone list; nothing was created"; exit 1 }
+        $a += @('-F', "milestone=$($msNumber[$Milestone])")
+    }
+    foreach ($l in $Lab) { $a += @('-f', "labels[]=$l") }
     $url = & gh @a
     if ($LASTEXITCODE -ne 0 -or -not $url -or $url -notmatch '^https://github.com/') {
-        Write-Error "open-remediation: gh issue create failed for $Name (exit $LASTEXITCODE, url: '$url')"
+        Write-Error "open-remediation: creating the issue over REST failed for $Name (exit $LASTEXITCODE, url: '$url')"
         exit 1
     }
     return "$url".Trim()
 }
 
-# #2234 (CodeRabbit on PR #2243): the re-check, the `gh issue create` and the opened.csv row of one draft happen
+# #2234 (CodeRabbit on PR #2243): the re-check, the issue creation and the opened.csv row of one draft happen
 # under the shared open-audits lock, so two runs (two audits opening drafts that duplicate each other, or the same
 # audit opened twice) can never both create an issue: the second one sees the first one's row.
 function Open-Draft($Draft) {
@@ -429,8 +451,9 @@ function Open-ConsolidatedLocked($plan) {
     $rows = [System.Collections.Generic.List[string]]::new()
     foreach ($p in $plan) {
         # Reuse an issue with the exact same title instead of creating a duplicate.
-        $json = & gh issue list --repo dlrivada/Encina --state all --search "$($p.Title) in:title" --json number,title --limit 100
-        if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh issue list failed (exit $LASTEXITCODE)"; exit 1 }
+        # REST search (#2661): the gh issue search subcommand is GraphQL-backed.
+        $json = & gh api -X GET search/issues -f "q=repo:dlrivada/Encina is:issue in:title $($p.Title)" -f per_page=100 --jq '[.items[] | {number, title}]'
+        if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: the REST title search failed (exit $LASTEXITCODE)"; exit 1 }
         $found = @(("$($json -join "`n")" | ConvertFrom-Json) | Where-Object { $_.title -ceq $p.Title }) | Select-Object -First 1
         if ($found) {
             $url = "https://github.com/dlrivada/Encina/issues/$($found.number)"

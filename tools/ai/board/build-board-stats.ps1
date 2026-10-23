@@ -84,19 +84,46 @@ if ($LASTEXITCODE -ne 0) { throw "session-stats.cs failed with exit code $LASTEX
 # a gh argument is copied to a plain variable first (a gh argument built from an expression such
 # as "$($Since)..." is a known PowerShell/gh parsing trap).
 $repoSlug = 'dlrivada/Encina'
-$searchCreatedSince = "created:>=$Since"
-$searchClosedSince = "closed:>=$Since"
+$sinceInstant = [DateTimeOffset]::Parse($sinceIsoUtc, [System.Globalization.CultureInfo]::InvariantCulture)
 
-$prsRaw = gh pr list --repo $repoSlug --state all --search $searchCreatedSince --json number,createdAt,mergedAt,state --limit 500 | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0) { throw "gh pr list failed with exit code $LASTEXITCODE" }
-$issuesOpenedRaw = gh issue list --repo $repoSlug --state all --search $searchCreatedSince --json number,createdAt,state --limit 500 | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0) { throw "gh issue list (opened) failed with exit code $LASTEXITCODE" }
-$issuesClosedRaw = gh issue list --repo $repoSlug --state closed --search $searchClosedSince --json number,closedAt --limit 500 | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0) { throw "gh issue list (closed) failed with exit code $LASTEXITCODE" }
+# REST list endpoints (#2661), not `gh pr|issue list --search`: those are GraphQL-backed and fail when the shared
+# GraphQL quota is exhausted, and the search API caps at 1000 results with a 30/min limit. Each window pages a
+# newest-first list with `&page=N` and stops at the first page that reaches before -Since, instead of paging all history.
+function Get-GhRestWindow([string]$PathAndQuery, [string]$DateField, [string]$What) {
+    $kept = [System.Collections.Generic.List[object]]::new()
+    for ($page = 1; ; $page++) {
+        $raw = gh api "$PathAndQuery&per_page=100&page=$page"
+        if ($LASTEXITCODE -ne 0) { throw "gh api $What failed with exit code $LASTEXITCODE" }
+        $batch = @(($raw -join "`n") | ConvertFrom-Json)
+        if ($batch.Count -eq 0) { break }
+        $reachedBefore = $false
+        foreach ($item in $batch) {
+            if ([DateTimeOffset]$item.$DateField -ge $sinceInstant) { $kept.Add($item) } else { $reachedBefore = $true }
+        }
+        if ($reachedBefore -or $batch.Count -lt 100) { break }
+    }
+    return $kept.ToArray()
+}
 
-$prs = @($prsRaw | ForEach-Object { [ordered]@{ number = $_.number; at = $_.createdAt; merged = $_.mergedAt; state = $_.state } })
-$issuesOpened = @($issuesOpenedRaw | ForEach-Object { [ordered]@{ number = $_.number; at = $_.createdAt; state = $_.state } })
-$issuesClosed = @($issuesClosedRaw | ForEach-Object { [ordered]@{ number = $_.number; at = $_.closedAt } })
+# PRs created since -Since (every state, newest first).
+$prsRaw = Get-GhRestWindow "repos/$repoSlug/pulls?state=all&sort=created&direction=desc" 'created_at' 'pulls (created)'
+# Issues opened since -Since: the issues endpoint also returns pull requests, which carry a pull_request member.
+$issuesOpenedRaw = @(Get-GhRestWindow "repos/$repoSlug/issues?state=all&sort=created&direction=desc" 'created_at' 'issues (opened)' | Where-Object { -not $_.pull_request })
+# Issues closed since -Since: `since` filters by update time, so closed_at is checked again; every page is needed.
+$issuesClosedRaw = @()
+for ($page = 1; ; $page++) {
+    $raw = gh api "repos/$repoSlug/issues?state=closed&since=$sinceIsoUtc&per_page=100&page=$page"
+    if ($LASTEXITCODE -ne 0) { throw "gh api issues (closed) failed with exit code $LASTEXITCODE" }
+    $batch = @(($raw -join "`n") | ConvertFrom-Json)
+    if ($batch.Count -eq 0) { break }
+    $issuesClosedRaw += @($batch | Where-Object { -not $_.pull_request -and $_.closed_at -and [DateTimeOffset]$_.closed_at -ge $sinceInstant })
+    if ($batch.Count -lt 100) { break }
+}
+
+# gh's GraphQL spelling is kept in the output: MERGED/OPEN/CLOSED for PRs, OPEN/CLOSED for issues.
+$prs = @($prsRaw | ForEach-Object { [ordered]@{ number = $_.number; at = $_.created_at; merged = $_.merged_at; state = $(if ($_.merged_at) { 'MERGED' } else { ([string]$_.state).ToUpperInvariant() }) } })
+$issuesOpened = @($issuesOpenedRaw | ForEach-Object { [ordered]@{ number = $_.number; at = $_.created_at; state = ([string]$_.state).ToUpperInvariant() } })
+$issuesClosed = @($issuesClosedRaw | ForEach-Object { [ordered]@{ number = $_.number; at = $_.closed_at } })
 
 $github = [ordered]@{ prs = $prs; issuesOpened = $issuesOpened; issuesClosed = $issuesClosed }
 $githubPath = Join-Path $OutDir 'github.json'

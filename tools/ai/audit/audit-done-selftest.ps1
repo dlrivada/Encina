@@ -56,7 +56,7 @@ exit $LASTEXITCODE
 '@
     Write-Text (Join-Path $stubs 'gh-stub.ps1') @'
 Add-Content -LiteralPath $env:AUDIT_STUB_LOG -Value ('gh ' + ($args -join ' '))
-if ($args -contains 'list') { exit 0 }
+if (($args -join ' ') -match ' -X GET ') { exit 0 }
 'https://github.com/dlrivada/Encina/pull/9999'
 exit 0
 '@
@@ -151,7 +151,7 @@ exit 0
     $result = (Git -C $main show "knowledge/audit-${issue}:docs/knowledge/audits/issue-$issue.md") -join "`n"
     Assert-That 'the missing audit result was generated (verdict, passes, remediation issue, record link)' ($result -like '*Verdict: PASS*' -and $result -like '*1 pass(es)*' -and $result -like '*issues/1234*' -and $result -like '*(../issues/99.md)*') $result
     Assert-That 'the commit message names the audit' ((Git -C $main log -1 --format=%s "knowledge/audit-$issue") -ceq "docs(knowledge): SPEC-003 audit of #$issue")
-    Assert-That 'NoPublish shows the push and gh pr create commands' (($r1.Text -like "*push -u origin knowledge/audit-$issue*") -and ($r1.Text -like '*pr create*--head knowledge/audit-99*--body Refs #1345*')) $r1.Text
+    Assert-That 'NoPublish shows the push and gh pr create commands' (($r1.Text -like "*push -u origin knowledge/audit-$issue*") -and ($r1.Text -like '*api -X POST repos/*/pulls*head=knowledge/audit-99*body=Refs #1345*')) $r1.Text
     Assert-That 'NoPublish never ran push or gh' (-not ($r1.Log | Where-Object { $_ -match ' push ' -or $_ -match '^gh ' }))
     Assert-That 'NoPublish keeps the audit open' ((Test-Path $wt) -and (Test-Path $currentAudit) -and (Git -C $main branch --list "audit/$issue"))
     Assert-That 'NoPublish removed its temporary worktree' (-not ((Git -C $main worktree list) -match 'audit-publish-'))
@@ -161,7 +161,7 @@ exit 0
     Write-Text $unopened "<!-- issue`ntitle: [DEBT] unopened`n-->`nbody`n"
     $r2 = Invoke-AuditDone @()
     Assert-That 'an unopened remediation draft makes audit-done refuse' ($r2.Exit -eq 1 -and $r2.Text -like '*not opened yet*open-remediation.ps1*') $r2.Text
-    Assert-That 'the refusal pushes nothing and keeps the audit' (-not ($r2.Log | Where-Object { $_ -match ' push ' -or $_ -match '^gh pr create' }) -and (Test-Path $wt) -and (Test-Path $currentAudit))
+    Assert-That 'the refusal pushes nothing and keeps the audit' (-not ($r2.Log | Where-Object { $_ -match ' push ' -or $_ -match '^gh api -X POST repos/\S+/pulls' }) -and (Test-Path $wt) -and (Test-Path $currentAudit))
     Remove-Item $unopened -Force
 
     # --- 3. publish with a failing push -----------------------------------------------------------------------
@@ -169,16 +169,16 @@ exit 0
     $r3 = Invoke-AuditDone @()
     Assert-That 'a failed push exits 1' ($r3.Exit -eq 1) $r3.Text
     Assert-That 'a failed push keeps the audit worktree, branch and its open-audits state file' ((Test-Path $wt) -and (Test-Path $currentAudit) -and (Git -C $main branch --list "audit/$issue")) $r3.Text
-    Assert-That 'a failed push opens no pull request and deletes no audit branch' (-not ($r3.Log | Where-Object { $_ -match '^gh pr create' -or $_ -match 'branch -D audit/' }))
+    Assert-That 'a failed push opens no pull request and deletes no audit branch' (-not ($r3.Log | Where-Object { $_ -match '^gh api -X POST repos/\S+/pulls' -or $_ -match 'branch -D audit/' }))
     Assert-That 'a failed push changed nothing local' (-not (Test-Path (Join-Path $main 'artifacts\knowledge\progress.csv')))
 
     # --- 4. successful publish (the retry) -------------------------------------------------------------------
     $env:AUDIT_STUB_FAIL_PUSH = '0'
     $r4 = Invoke-AuditDone @()
     Assert-That 'the retry exits 0' ($r4.Exit -eq 0) $r4.Text
-    $prIndex = [array]::FindIndex($r4.Log, [Predicate[string]] { param($l) $l -match '^gh pr create' })
+    $prIndex = [array]::FindIndex($r4.Log, [Predicate[string]] { param($l) $l -match '^gh api -X POST repos/\S+/pulls' })
     $delIndex = [array]::FindIndex($r4.Log, [Predicate[string]] { param($l) $l -match 'branch -D audit/99' })
-    Assert-That 'gh pr create ran with Refs #1345 before the audit branch was deleted' ($prIndex -ge 0 -and $delIndex -gt $prIndex -and $r4.Log[$prIndex] -like '*--body Refs #1345*' -and $r4.Log[$prIndex] -notlike '*Fixes*') ($r4.Log -join "`n")
+    Assert-That 'gh pr create ran with Refs #1345 before the audit branch was deleted' ($prIndex -ge 0 -and $delIndex -gt $prIndex -and $r4.Log[$prIndex] -like '*body=Refs #1345*' -and $r4.Log[$prIndex] -notlike '*Fixes*') ($r4.Log -join "`n")
     Assert-That 'the audit is closed' ((-not (Test-Path $wt)) -and (-not (Test-Path $currentAudit)) -and (-not (Git -C $main branch --list "audit/$issue")))
     Assert-That 'the local knowledge branch is deleted after publishing' (-not (Git -C $main branch --list "knowledge/audit-$issue"))
     Assert-That 'progress.csv records the audit' ((Test-Path (Join-Path $main 'artifacts\knowledge\progress.csv')) -and ((Get-Content (Join-Path $main 'artifacts\knowledge\progress.csv')) -match "^$issue,done"))
@@ -194,7 +194,7 @@ exit 0
     Git -C $main push -q origin "knowledge/audit-${issue}:main" | Out-Null   # the "merge": origin/main now holds the publication
     $r5 = Invoke-AuditDone @()
     Assert-That 'a retry after the merge exits 0' ($r5.Exit -eq 0) $r5.Text
-    Assert-That 'nothing to commit pushes nothing and opens no pull request' (-not ($r5.Log | Where-Object { $_ -match ' push ' -or $_ -match '^gh pr create' })) ($r5.Log -join "`n")
+    Assert-That 'nothing to commit pushes nothing and opens no pull request' (-not ($r5.Log | Where-Object { $_ -match ' push ' -or $_ -match '^gh api -X POST repos/\S+/pulls' })) ($r5.Log -join "`n")
     Assert-That 'nothing to commit still closes the audit' ((-not (Test-Path $wt)) -and (-not (Test-Path $currentAudit)) -and (-not (Git -C $main branch --list "audit/$issue")))
 }
 finally {

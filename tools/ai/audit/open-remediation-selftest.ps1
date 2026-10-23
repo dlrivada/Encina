@@ -177,21 +177,21 @@ try {
 Add-Content -LiteralPath $env:OR_STUB_LOG -Value ('gh ' + ($args -join ' '))
 if ($env:OR_STUB_GRAPHQL_DOWN -and ($args[0] -in 'label', 'issue', 'pr')) { 'GraphQL: API rate limit already exceeded'; $global:LASTEXITCODE = 1; exit 1 }
 if ($args[0] -eq 'api' -and $args[1] -like 'repos/*/labels*') { 'technical-debt'; 'area-testing'; 'bug'; 'p0-mandatory'; 'p1-recommended'; 'p2-post-1.0'; exit 0 }
-if ($args[0] -eq 'api') { "v0.14.0 $([char]0x2014) Hardening"; "v0.19.0 $([char]0x2014) Providers & Testing"; "v0.21.0 $([char]0x2014) Documentation"; exit 0 }
-if ($args[0] -eq 'project') {
-    Add-Content -LiteralPath $env:OR_STUB_LOG -Value ('TOKENS:[' + $env:GITHUB_TOKEN + $env:GH_TOKEN + ']')
-    if ($env:OR_STUB_PROJECT_FAIL) { 'project scope missing'; $global:LASTEXITCODE = 1; exit 1 }
+if ($args[0] -eq 'api' -and $args -contains 'POST' -and $args[3] -eq 'repos/dlrivada/Encina/issues') {
+    $n = @(Get-Content -LiteralPath $env:OR_STUB_LOG | Where-Object { $_ -like 'gh api -X POST repos/dlrivada/Encina/issues *' }).Count
+    $bf = ($args | Where-Object { "$_".StartsWith('body=@') } | Select-Object -First 1).Substring(6)
+    Copy-Item -LiteralPath $bf -Destination (Join-Path $env:OR_STUB_BODIES "$n.md") -Force
+    "https://github.com/dlrivada/Encina/issues/$(1000 + $n)"
     exit 0
 }
-if ($args[0] -eq 'issue' -and $args[1] -eq 'list') {
+if ($args[0] -eq 'api' -and $args -contains 'search/issues') {
     if ($env:OR_STUB_EXISTING) { $env:OR_STUB_EXISTING } else { '[]' }
     exit 0
 }
-if ($args[0] -eq 'issue' -and $args[1] -eq 'create') {
-    $n = @(Get-Content -LiteralPath $env:OR_STUB_LOG | Where-Object { $_ -like 'gh issue create*' }).Count
-    $bf = $args[([array]::IndexOf($args, '--body-file') + 1)]
-    Copy-Item -LiteralPath $bf -Destination (Join-Path $env:OR_STUB_BODIES "$n.md") -Force
-    "https://github.com/dlrivada/Encina/issues/$(1000 + $n)"
+if ($args[0] -eq 'api') { "14`tv0.14.0 $([char]0x2014) Hardening"; "19`tv0.19.0 $([char]0x2014) Providers & Testing"; "21`tv0.21.0 $([char]0x2014) Documentation"; exit 0 }
+if ($args[0] -eq 'project') {
+    Add-Content -LiteralPath $env:OR_STUB_LOG -Value ('TOKENS:[' + $env:GITHUB_TOKEN + $env:GH_TOKEN + ']')
+    if ($env:OR_STUB_PROJECT_FAIL) { 'project scope missing'; $global:LASTEXITCODE = 1; exit 1 }
     exit 0
 }
 exit 0
@@ -209,7 +209,7 @@ exit 0
         Get-ChildItem $bodies -File -ErrorAction SilentlyContinue | Remove-Item -Force
         $command = "function gh { & '$stubs\gh-stub.ps1' @args }; & '$script' -Issue $IssueNo $ExtraArgs; exit `$LASTEXITCODE"
         $out = & pwsh -NoProfile -Command $command 2>&1 | ForEach-Object { "$_" }
-        $creates = if (Test-Path $log) { @(Get-Content $log | Where-Object { $_ -like 'gh issue create*' }) } else { @() }
+        $creates = if (Test-Path $log) { @(Get-Content $log | Where-Object { $_ -like 'gh api -X POST repos/dlrivada/Encina/issues *' }) } else { @() }
         return @{ Exit = $LASTEXITCODE; Text = ($out -join "`n"); Creates = @($creates) }
     }
 
@@ -224,9 +224,9 @@ exit 0
     Assert-That 'consolidate exits 0' ($r1.Exit -eq 0) $r1.Text
     Assert-That 'exactly one gh issue create' ($r1.Creates.Count -eq 1) ($r1.Creates -join ' | ')
     $create = [string]($r1.Creates | Select-Object -First 1)
-    Assert-That 'title' ($create.Contains('--title [DEBT] Delta re-audit (rules-2026-10) of #2: 3 findings (docs and coverage obligations) --body-file')) $create
-    Assert-That 'labels are technical-debt and area-testing' ($create.Contains('--label technical-debt') -and $create.Contains('--label area-testing')) $create
-    Assert-That 'tests route: v0.19.0 milestone; priority is the highest draft priority (High -> p0-mandatory)' ($create.Contains("--milestone v0.19.0 $([char]0x2014) Providers & Testing") -and $create.Contains('--label p0-mandatory') -and -not $create.Contains('p1-recommended')) $create
+    Assert-That 'title' ($create.Contains('-f title=[DEBT] Delta re-audit (rules-2026-10) of #2: 3 findings (docs and coverage obligations) -F body=@')) $create
+    Assert-That 'labels are technical-debt and area-testing' ($create.Contains('-f labels[]=technical-debt') -and $create.Contains('-f labels[]=area-testing')) $create
+    Assert-That 'tests route: v0.19.0 milestone (number 19 over REST); priority is the highest draft priority (High -> p0-mandatory)' ($create.Contains('-F milestone=19') -and $create.Contains('-f labels[]=p0-mandatory') -and -not $create.Contains('p1-recommended')) $create
     $projCalls = @(Get-Content $log | Where-Object { $_ -like 'gh project item-add 1 --owner dlrivada --url https://github.com/dlrivada/Encina/issues/1001' })
     Assert-That 'the issue is added to project 1 with the keyring token (GITHUB_TOKEN and GH_TOKEN cleared)' ($projCalls.Count -eq 1 -and @(Get-Content $log | Where-Object { $_ -eq 'TOKENS:[]' }).Count -eq 1) ((Get-Content $log) -join ' | ')
     $body = if (Test-Path (Join-Path $bodies '1.md')) { Get-Content -Raw (Join-Path $bodies '1.md') } else { '' }
@@ -270,8 +270,8 @@ exit 0
     # --- 3b. a bug goes to its own issue, the consolidated issue stays alone -----------------------------------
     Write-Text (Join-Path $rem '2-delta-bug-d.md') $bugDraft
     $r3b = Invoke-Open '-Consolidate'
-    $bugCreate = @($r3b.Creates | Where-Object { $_.Contains('--title [BUG] Something is wrong') })
-    Assert-That -Name 'bug is its own issue with the Hardening milestone' -Condition ($r3b.Exit -eq 0 -and $r3b.Creates.Count -eq 1 -and $bugCreate.Count -eq 1 -and $bugCreate[0].Contains('--milestone v0.14.0') -and $bugCreate[0].Contains('--label bug')) -Detail ($r3b.Creates -join ' | ')
+    $bugCreate = @($r3b.Creates | Where-Object { $_.Contains('-f title=[BUG] Something is wrong') })
+    Assert-That -Name 'bug is its own issue with the Hardening milestone' -Condition ($r3b.Exit -eq 0 -and $r3b.Creates.Count -eq 1 -and $bugCreate.Count -eq 1 -and $bugCreate[0].Contains('-F milestone=14') -and $bugCreate[0].Contains('-f labels[]=bug')) -Detail ($r3b.Creates -join ' | ')
     $rows3b = @(Get-Content $csv)
     $bugUrl = (($rows3b | Where-Object { $_ -like '2-delta-bug-d.md,*' }) -split ',')[1]
     Assert-That -Name 'opened.csv has 4 rows, the bug row carries its own issue URL' -Condition ($rows3b.Count -eq 4 -and $bugUrl -like 'https://github.com/*') -Detail ($rows3b -join ' | ')
@@ -317,7 +317,7 @@ exit 0
     Write-Text (Join-Path $rem '3-delta-docs-b.md') (New-DocsDraft '[DEBT] Small B' 'docs/sb.md' 'Low' 'Small' '')
     $r8a = Invoke-Open '-Consolidate' 3
     $rows8a = @(Get-Content $csv | Where-Object { $_ -like '3-delta-*' })
-    Assert-That -Name 'under the limit: one issue, no part suffix, both rows on its URL' -Condition ($r8a.Exit -eq 0 -and $r8a.Creates.Count -eq 1 -and $r8a.Creates[0].Contains('of #3: 2 findings (docs and coverage obligations) --body-file') -and -not $r8a.Creates[0].Contains('(part ') -and $rows8a.Count -eq 2 -and (& $urlOf '3-delta-docs-a.md' $rows8a) -eq (& $urlOf '3-delta-docs-b.md' $rows8a)) -Detail ($r8a.Text + ' | ' + ($rows8a -join ' | '))
+    Assert-That -Name 'under the limit: one issue, no part suffix, both rows on its URL' -Condition ($r8a.Exit -eq 0 -and $r8a.Creates.Count -eq 1 -and $r8a.Creates[0].Contains('of #3: 2 findings (docs and coverage obligations) -F body=@') -and -not $r8a.Creates[0].Contains('(part ') -and $rows8a.Count -eq 2 -and (& $urlOf '3-delta-docs-a.md' $rows8a) -eq (& $urlOf '3-delta-docs-b.md' $rows8a)) -Detail ($r8a.Text + ' | ' + ($rows8a -join ' | '))
 
     # 8b. over the limit: docs A and B (about 25k each) and the test draft (25k) cannot share one body -> two parts.
     Write-Text (Join-Path $rem '4-delta-docs-a.md') (New-BigDraft (New-DocsDraft '[DEBT] Big A' 'docs/ba.md' 'Low' 'Small' '') 'DESCRIPTION of docs/ba.md.' 25000)
@@ -327,7 +327,7 @@ exit 0
     $rows8b = @(Get-Content $csv | Where-Object { $_ -like '4-delta-*' })
     $b1 = if (Test-Path (Join-Path $bodies '1.md')) { Get-Content -Raw (Join-Path $bodies '1.md') } else { '' }
     $b2 = if (Test-Path (Join-Path $bodies '2.md')) { Get-Content -Raw (Join-Path $bodies '2.md') } else { '' }
-    Assert-That -Name 'over the limit: two parts titled (part k/2) with their own counts, each body under 65,000' -Condition ($r8b.Exit -eq 0 -and $r8b.Creates.Count -eq 2 -and $r8b.Creates[0].Contains('of #4: 2 findings (docs and coverage obligations) (part 1/2) --body-file') -and $r8b.Creates[1].Contains('of #4: 1 finding (docs and coverage obligations) (part 2/2) --body-file') -and $b1.Length -gt 0 -and $b1.Length -le 65000 -and $b2.Length -gt 0 -and $b2.Length -le 65000) -Detail ($r8b.Text + ' | ' + ($r8b.Creates -join ' | ') + " | $($b1.Length) $($b2.Length)")
+    Assert-That -Name 'over the limit: two parts titled (part k/2) with their own counts, each body under 65,000' -Condition ($r8b.Exit -eq 0 -and $r8b.Creates.Count -eq 2 -and $r8b.Creates[0].Contains('of #4: 2 findings (docs and coverage obligations) (part 1/2) -F body=@') -and $r8b.Creates[1].Contains('of #4: 1 finding (docs and coverage obligations) (part 2/2) -F body=@') -and $b1.Length -gt 0 -and $b1.Length -le 65000 -and $b2.Length -gt 0 -and $b2.Length -le 65000) -Detail ($r8b.Text + ' | ' + ($r8b.Creates -join ' | ') + " | $($b1.Length) $($b2.Length)")
     Assert-That -Name 'over the limit: each draft whole in its part (docs first, tests last) and the part note present' -Condition ($b1.Contains('Big A') -and $b1.Contains('Big B') -and -not $b1.Contains('TEST DESCRIPTION.') -and $b2.Contains('TEST DESCRIPTION.') -and -not $b2.Contains('Big A') -and $b1.Contains('Part 1 of 2 of the delta re-audit') -and $b2.Contains('Part 2 of 2 of the delta re-audit') -and $b1.Contains('x' * 25000) -and $b2.Contains('x' * 25000)) -Detail "$($b1.Length) $($b2.Length)"
     Assert-That -Name 'over the limit: each row points at the part holding the draft' -Condition ($rows8b.Count -eq 3 -and (& $urlOf '4-delta-docs-a.md' $rows8b) -eq 'https://github.com/dlrivada/Encina/issues/1001' -and (& $urlOf '4-delta-docs-b.md' $rows8b) -eq 'https://github.com/dlrivada/Encina/issues/1001' -and (& $urlOf '4-delta-test-c.md' $rows8b) -eq 'https://github.com/dlrivada/Encina/issues/1002') -Detail ($rows8b -join ' | ')
     $items8b = @(Get-Content $log | Where-Object { $_ -like 'gh project item-add 1 --owner dlrivada --url *' })
@@ -369,7 +369,7 @@ exit 0
     Write-Text (Join-Path $rem '6-delta-docs-a.md') (New-DocsDraft '[DEBT] Docs only A' 'docs/oa.md' 'Low' 'Small' '')
     Write-Text (Join-Path $rem '6-delta-docs-b.md') (New-DocsDraft '[DEBT] Docs only B' 'docs/ob.md' 'Low' 'Small' '')
     $r9a = Invoke-Open '-Consolidate' 6
-    Assert-That -Name 'docs-only consolidated: Documentation milestone and the drafts own priority (Low -> p2-post-1.0)' -Condition ($r9a.Exit -eq 0 -and $r9a.Creates.Count -eq 1 -and $r9a.Creates[0].Contains("--milestone $docsMs") -and $r9a.Creates[0].Contains('--label p2-post-1.0')) -Detail ($r9a.Text + ' | ' + ($r9a.Creates -join ' | '))
+    Assert-That -Name 'docs-only consolidated: Documentation milestone and the drafts own priority (Low -> p2-post-1.0)' -Condition ($r9a.Exit -eq 0 -and $r9a.Creates.Count -eq 1 -and $r9a.Creates[0].Contains('-F milestone=21') -and $r9a.Creates[0].Contains('-f labels[]=p2-post-1.0')) -Detail ($r9a.Text + ' | ' + ($r9a.Creates -join ' | '))
 
     # 9b. per-draft routes: docs, code debt, tests and a header milestone that wins.
     Write-Text (Join-Path $rem '7-docs.md') (New-DocsDraft '[DEBT] Route docs' 'docs/r1.md' 'Low' 'Small' '')
@@ -380,15 +380,15 @@ exit 0
     Write-Text (Join-Path $rem '7-nop.md') ([regex]::Replace((New-DocsDraft '[DEBT] Route no priority' 'src/r4.cs' 'Low' 'Small' '').Replace('kind: docs', 'kind: code'), '(?s)## Priority.*?(?=## Effort)', ''))
     $r9b = Invoke-Open '' 7
     $c = @{}; foreach ($line in $r9b.Creates) { foreach ($t in 'Route docs', 'Route code', 'Raise the unit target', 'Route header wins', 'Route no priority') { if ($line.Contains($t)) { $c[$t] = $line } } }
-    Assert-That -Name 'per-draft routes: docs Low -> Documentation/p2, code Medium -> Hardening/p1, test (no priority) -> Providers & Testing/p1, header milestone wins with High -> p0' -Condition ($r9b.Exit -eq 0 -and $r9b.Creates.Count -eq 5 -and $c['Route docs'].Contains("--milestone $docsMs") -and $c['Route docs'].Contains('--label p2-post-1.0') -and $c['Route code'].Contains("--milestone $hardMs") -and $c['Route code'].Contains('--label p1-recommended') -and $c['Raise the unit target'].Contains("--milestone $testsMs") -and $c['Raise the unit target'].Contains('--label p1-recommended') -and $c['Route header wins'].Contains("--milestone $testsMs") -and $c['Route header wins'].Contains('--label p0-mandatory')) -Detail ($r9b.Text + ' | ' + ($r9b.Creates -join ' | '))
-    Assert-That -Name 'a code draft without a Priority section gets the route default (Hardening, p0-mandatory)' -Condition ($c['Route no priority'].Contains("--milestone $hardMs") -and $c['Route no priority'].Contains('--label p0-mandatory')) -Detail ($c['Route no priority'])
+    Assert-That -Name 'per-draft routes: docs Low -> Documentation/p2, code Medium -> Hardening/p1, test (no priority) -> Providers & Testing/p1, header milestone wins with High -> p0' -Condition ($r9b.Exit -eq 0 -and $r9b.Creates.Count -eq 5 -and $c['Route docs'].Contains('-F milestone=21') -and $c['Route docs'].Contains('-f labels[]=p2-post-1.0') -and $c['Route code'].Contains('-F milestone=14') -and $c['Route code'].Contains('-f labels[]=p1-recommended') -and $c['Raise the unit target'].Contains('-F milestone=19') -and $c['Raise the unit target'].Contains('-f labels[]=p1-recommended') -and $c['Route header wins'].Contains('-F milestone=19') -and $c['Route header wins'].Contains('-f labels[]=p0-mandatory')) -Detail ($r9b.Text + ' | ' + ($r9b.Creates -join ' | '))
+    Assert-That -Name 'a code draft without a Priority section gets the route default (Hardening, p0-mandatory)' -Condition ($c['Route no priority'].Contains('-F milestone=14') -and $c['Route no priority'].Contains('-f labels[]=p0-mandatory')) -Detail ($c['Route no priority'])
     Assert-That -Name 'every created issue is added to project 1' -Condition (@(Get-Content $log | Where-Object { $_ -like 'gh project item-add 1 --owner dlrivada --url *' }).Count -eq 5) -Detail ((Get-Content $log) -join ' | ')
 
     # 9b2. a mixed code + docs consolidation goes to Hardening (never Documentation), with the highest priority.
     Write-Text (Join-Path $rem '9-delta-docs-a.md') (New-DocsDraft '[DEBT] Mixed docs' 'docs/m1.md' 'Low' 'Small' '')
     Write-Text (Join-Path $rem '9-delta-code-b.md') ((New-DocsDraft '[DEBT] Mixed code' 'src/m2.cs' 'Medium' 'Small' '').Replace('kind: docs', 'kind: code'))
     $r9m = Invoke-Open '-Consolidate' 9
-    Assert-That -Name 'mixed code + docs consolidation: Hardening milestone and the highest draft priority (Medium -> p1)' -Condition ($r9m.Exit -eq 0 -and $r9m.Creates.Count -eq 1 -and $r9m.Creates[0].Contains("--milestone $hardMs") -and $r9m.Creates[0].Contains('--label p1-recommended') -and -not $r9m.Creates[0].Contains($docsMs)) -Detail ($r9m.Text + ' | ' + ($r9m.Creates -join ' | '))
+    Assert-That -Name 'mixed code + docs consolidation: Hardening milestone and the highest draft priority (Medium -> p1)' -Condition ($r9m.Exit -eq 0 -and $r9m.Creates.Count -eq 1 -and $r9m.Creates[0].Contains('-F milestone=14') -and $r9m.Creates[0].Contains('-f labels[]=p1-recommended') -and -not $r9m.Creates[0].Contains('-F milestone=21')) -Detail ($r9m.Text + ' | ' + ($r9m.Creates -join ' | '))
 
     # 9c. a project failure is a loud warning (the issue URL and the retry command), never an undone issue or a
     # failed run (#1987); the row is written, so a re-run never duplicates.

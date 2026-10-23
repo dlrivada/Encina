@@ -18,12 +18,16 @@ function Assert-That([string]$Name, [bool]$Condition, [string]$Detail = '') {
 
 Set-Content -LiteralPath (Join-Path $tmp 'gh-stub.ps1') -Encoding utf8 @'
 Add-Content -LiteralPath $env:CPM_LOG -Value ('gh ' + ($args -join ' '))
-if ($env:CPM_LIST_FAIL -and $args[0] -eq 'issue') { $global:LASTEXITCODE = 1; exit 1 }
-if ($env:CPM_BAD_JSON -and $args[0] -eq 'issue') { 'not json <html>'; exit 0 }
-if ($args[0] -eq 'issue') {
-    $all = @(1, 2, 3) | ForEach-Object { @{ number = $_; title = "Issue $_"; url = "https://github.com/dlrivada/Encina/issues/$_" } }
-    $all | ConvertTo-Json -AsArray; exit 0
+$isIssues = $args[0] -eq 'api' -and ($args -join ' ') -like '*issues?state=open*'
+if ($env:CPM_LIST_FAIL -and $isIssues) { $global:LASTEXITCODE = 1; exit 1 }
+if ($env:CPM_BAD_JSON -and $isIssues) { 'not json <html>'; exit 0 }
+if ($isIssues) {
+    # REST, --paginate --slurp: an array of pages; a pull request (pull_request member) must be dropped.
+    $all = @(1, 2, 3) | ForEach-Object { @{ number = $_; title = "Issue $_"; html_url = "https://github.com/dlrivada/Encina/issues/$_" } }
+    $all += @{ number = 4; title = 'A pull request'; html_url = 'https://github.com/dlrivada/Encina/pull/4'; pull_request = @{ url = 'x' } }
+    ConvertTo-Json -InputObject @(, $all) -Depth 5; exit 0
 }
+if ($args[0] -eq 'api') { exit 0 }   # the GraphQL rate-limit probe: unknown quota, calls proceed
 if ($args[0] -eq 'project' -and $args[1] -eq 'item-list') {
     $nums = @($env:CPM_ON -split ',' | Where-Object { $_ })
     $items = @($nums | ForEach-Object { @{ content = @{ number = [int]$_; repository = 'dlrivada/Encina' } } })
@@ -42,6 +46,7 @@ function Invoke-Check([string]$On, [string]$ExtraArgs = '', [string]$AddFail = '
     if (Test-Path $log) { Remove-Item $log -Force }
     $env:CPM_LOG = $log; $env:CPM_ON = $On; $env:CPM_ADD_FAIL = $AddFail
     $env:GITHUB_TOKEN = 'must-be-cleared'; $env:GH_TOKEN = 'must-be-cleared'
+    $env:ENCINA_GH_QUOTA_ROOT = $tmp   # the quota cache and usage.csv stay inside the fixture
     $cmd = "function gh { & '$tmp\gh-stub.ps1' @args }; & '$script' $ExtraArgs; exit `$LASTEXITCODE"
     $out = & pwsh -NoProfile -Command $cmd 2>&1 | ForEach-Object { "$_" }
     $code = $LASTEXITCODE
@@ -76,7 +81,7 @@ try {
 }
 finally {
     $env:GITHUB_TOKEN = $savedG; $env:GH_TOKEN = $savedH
-    $env:CPM_LOG = $null; $env:CPM_ON = $null; $env:CPM_ADD_FAIL = $null; $env:CPM_LIST_FAIL = $null; $env:CPM_BAD_JSON = $null
+    $env:ENCINA_GH_QUOTA_ROOT = $null; $env:CPM_LOG = $null; $env:CPM_ON = $null; $env:CPM_ADD_FAIL = $null; $env:CPM_LIST_FAIL = $null; $env:CPM_BAD_JSON = $null
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }
 

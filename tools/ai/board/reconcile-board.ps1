@@ -71,12 +71,46 @@ function Copy-Data($Data) { (ConvertTo-Json $Data -Depth 20 -Compress) | Convert
 
 function Get-Utc([datetime]$When) { $When.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'") }
 
-function Invoke-GhJson([string[]]$GhArguments) {
+# REST reads (#2661): `gh pr|issue list|view` are GraphQL-backed and fail when the shared GraphQL quota is exhausted.
+# -Paginate reads every page (gh api --paginate --slurp) and returns the flattened items.
+function Invoke-GhRest([string]$Path, [switch]$Paginate) {
     $global:LASTEXITCODE = 0
-    $text = (gh @GhArguments) -join "`n"
-    if ($LASTEXITCODE -ne 0) { throw "gh $($GhArguments -join ' ') failed (exit $LASTEXITCODE)" }
-    if ([string]::IsNullOrWhiteSpace($text)) { return @() }
-    return , @($text | ConvertFrom-Json -AsHashtable)
+    $ghArguments = @('api', $Path)
+    if ($Paginate) { $ghArguments += @('--paginate', '--slurp') }
+    $text = (gh @ghArguments) -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw "gh $($ghArguments -join ' ') failed (exit $LASTEXITCODE)" }
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+    $parsed = $text | ConvertFrom-Json -AsHashtable -DateKind String
+    if ($Paginate) { $parsed | ForEach-Object { $_ } }   # the pages, flattened into the items
+    else { $parsed }
+}
+
+# A page-by-page read of a newest-first list that stops at the first page reaching before $SinceInstant (the date
+# member $DateField is compared), instead of reading all history. Returns the items on or after $SinceInstant.
+function Get-GhRestWindow([string]$PathAndQuery, [string]$DateField, [DateTimeOffset]$SinceInstant) {
+    $kept = [System.Collections.Generic.List[object]]::new()
+    for ($page = 1; ; $page++) {
+        $batch = @(Invoke-GhRest "$PathAndQuery&per_page=100&page=$page")
+        if ($batch.Count -eq 0) { break }
+        $reachedBefore = $false
+        foreach ($item in $batch) {
+            if ([DateTimeOffset]::Parse([string]$item[$DateField], [cultureinfo]::InvariantCulture) -ge $SinceInstant) { $kept.Add($item) } else { $reachedBefore = $true }
+        }
+        if ($reachedBefore -or $batch.Count -lt 100) { break }
+    }
+    return $kept.ToArray()
+}
+
+# The REST pull request in the member names the rules were written for (gh's GraphQL JSON). closingIssuesReferences
+# has no REST equivalent: the "Fixes #n" references in the body (Get-ClosedIssues) are the closing links.
+function ConvertFrom-RestPr($P) {
+    @{
+        number = $P.number; title = $P.title; headRefName = $P.head.ref; body = $P.body
+        isDraft = [bool]$P.draft; createdAt = $P.created_at; mergedAt = $P.merged_at
+        state = $(if ($P.merged_at) { 'MERGED' } else { ([string]$P.state).ToUpperInvariant() })
+        author = @{ login = $P.user.login; is_bot = ([string]$P.user.type -eq 'Bot') }
+        closingIssuesReferences = @()
+    }
 }
 
 function Get-ClosedIssues($Pr) {
@@ -123,9 +157,15 @@ function Test-CardTerminal($Card) { [string]$Card.status -in 'merged', 'done' }
 
 function Get-BoardFacts($Docs, [string]$Repo, [string]$MainRoot, [datetime]$Now, [int]$MergedDays) {
     $since = $Now.AddDays(-$MergedDays).ToString('yyyy-MM-dd')
-    $openRaw = Invoke-GhJson @('pr', 'list', '--repo', $Repo, '--state', 'open', '--limit', '300', '--json', 'number,title,headRefName,body,isDraft,createdAt,author,closingIssuesReferences')
-    $mergedRaw = Invoke-GhJson @('pr', 'list', '--repo', $Repo, '--state', 'merged', '--search', "merged:>=$since", '--limit', '300', '--json', 'number,title,headRefName,body,mergedAt,author,closingIssuesReferences')
-    $closedRaw = Invoke-GhJson @('issue', 'list', '--repo', $Repo, '--state', 'closed', '--search', "closed:>=$since", '--limit', '300', '--json', 'number,closedAt,stateReason')
+    $sinceInstant = [DateTimeOffset]::Parse("${since}T00:00:00Z", [cultureinfo]::InvariantCulture)
+    $openRaw = @(Invoke-GhRest "repos/$Repo/pulls?state=open&per_page=100" -Paginate | ForEach-Object { ConvertFrom-RestPr $_ })
+    # Merged since: closed PRs by update time (merged_at <= updated_at, so stopping at the first older page is safe).
+    $mergedRaw = @(Get-GhRestWindow "repos/$Repo/pulls?state=closed&sort=updated&direction=desc" 'updated_at' $sinceInstant |
+            Where-Object { $_.merged_at -and [DateTimeOffset]::Parse([string]$_.merged_at, [cultureinfo]::InvariantCulture) -ge $sinceInstant } | ForEach-Object { ConvertFrom-RestPr $_ })
+    # Closed since: `since` filters by update time, so closed_at is checked again; the issues list also holds PRs.
+    $closedRaw = @(Invoke-GhRest "repos/$Repo/issues?state=closed&since=${since}T00:00:00Z&per_page=100" -Paginate |
+            Where-Object { -not $_.pull_request -and $_.closed_at -and [DateTimeOffset]::Parse([string]$_.closed_at, [cultureinfo]::InvariantCulture) -ge $sinceInstant } |
+            ForEach-Object { @{ number = $_.number; closedAt = $_.closed_at; stateReason = ([string]$_.state_reason).ToUpperInvariant() } })
     $open = @($openRaw | ForEach-Object { $f = ConvertTo-PrFact $_; $f.state = 'OPEN'; $f })
     $merged = @($mergedRaw | ForEach-Object { $f = ConvertTo-PrFact $_; $f.state = 'MERGED'; $f })
     $closedIssues = @{}
@@ -134,8 +174,8 @@ function Get-BoardFacts($Docs, [string]$Repo, [string]$MainRoot, [datetime]$Now,
     foreach ($d in $Docs.Values | Where-Object { $_.Collection -eq 'flow' -and [string]$_.Data.status -notin 'merged', 'closed' -and $_.Data.issue }) {
         $n = [string]$d.Data.issue
         if ($closedIssues.ContainsKey($n)) { continue }
-        $v = (Invoke-GhJson @('issue', 'view', $n, '--repo', $Repo, '--json', 'state,stateReason,closedAt'))[0]
-        if ($v -and [string]$v.state -eq 'CLOSED') { $closedIssues[$n] = @{ closedAt = [string]$v.closedAt; reason = [string]$v.stateReason } }
+        $v = Invoke-GhRest "repos/$Repo/issues/$n"
+        if ($v -and [string]$v.state -eq 'closed') { $closedIssues[$n] = @{ closedAt = [string]$v.closed_at; reason = ([string]$v.state_reason).ToUpperInvariant() } }
     }
 
     # Cards and fronts that name a PR which is in neither list (older than the window, or closed unmerged).
@@ -149,8 +189,8 @@ function Get-BoardFacts($Docs, [string]$Repo, [string]$MainRoot, [datetime]$Now,
         if ([int]$d.Data.pr -notin $known) { [void]$wanted.Add([int]$d.Data.pr) }
     }
     foreach ($n in $wanted) {
-        $p = (Invoke-GhJson @('pr', 'view', "$n", '--repo', $Repo, '--json', 'number,title,headRefName,body,isDraft,createdAt,mergedAt,state,author,closingIssuesReferences'))[0]
-        if ($p) { $extra[[string]$n] = ConvertTo-PrFact $p }
+        $p = Invoke-GhRest "repos/$Repo/pulls/$n"
+        if ($p) { $extra[[string]$n] = ConvertTo-PrFact (ConvertFrom-RestPr $p) }
     }
 
     # Worktrees under .claude/worktrees with the commits they hold ahead of origin/main.
@@ -204,7 +244,7 @@ function Get-BoardFacts($Docs, [string]$Repo, [string]$MainRoot, [datetime]$Now,
     $needTitle = @(@($progress | Where-Object { $_.status -eq 'done' } | ForEach-Object { [int]$_.issue }) + @($openAudits | ForEach-Object { [int]$_.issue }) |
             Where-Object { $_ -and -not $Docs.ContainsKey("audits/$_") } | Select-Object -Unique)
     foreach ($n in $needTitle) {
-        $t = (Invoke-GhJson @('issue', 'view', "$n", '--repo', $Repo, '--json', 'title'))[0]
+        $t = Invoke-GhRest "repos/$Repo/issues/$n"
         if ($t) { $titles[[string]$n] = [string]$t.title }
     }
 

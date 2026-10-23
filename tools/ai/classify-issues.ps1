@@ -6,7 +6,7 @@ param(
 )
 
 # Drives the local AI through the P0-P3 classification of every open issue, one bounded batch per request.
-# Inputs : artifacts/local-ai/issues/open-issues.json (gh issue list export), briefs/classify-issues-rules.md
+# Inputs : artifacts/local-ai/issues/open-issues.json (issue list export), briefs/classify-issues-rules.md
 # Outputs: artifacts/local-ai/issues/batch-NN.md (input), out/classify-NN.md (raw reply), issues/classify-NN.json
 #          (validated), and issues/classification.csv (merged). Token usage lands in the usual ledger.csv.
 

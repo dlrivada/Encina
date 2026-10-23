@@ -21,7 +21,13 @@ function Clean([string]$t, [int]$max) {
 }
 $searchArgs = @()
 if ($Since) { $searchArgs = @('--search', "closed:>$Since") }
-$closed = gh issue list --repo $Repo --state closed --limit 1000 @searchArgs --json number,title,labels,milestone,createdAt,closedAt,body,comments,stateReason | ConvertFrom-Json
+# Bulk GraphQL stays GraphQL (#2661): closed issues WITH comments over REST would need one extra call per issue.
+# It runs behind the shared quota helper: it waits until resetAt when the quota is low.
+. (Join-Path $PSScriptRoot 'gh-quota.ps1')
+[void](Wait-GhGraphQLQuota -Caller 'historian-extract-closed' -MinRemaining 200)
+$closedJson = gh issue list --repo $Repo --state closed --limit 1000 @searchArgs --json number,title,labels,milestone,createdAt,closedAt,body,comments,stateReason
+Write-GhQuotaUsage -Caller 'historian-extract-closed' -Operation 'issue list (bulk, with comments)'
+$closed = $closedJson | ConvertFrom-Json
 if ($Numbers.Count -gt 0) { $closed = @($closed | Where-Object { $Numbers -contains [int]$_.number }) }
 Write-Output "closed issues: $($closed.Count)"
 $results = New-Object System.Collections.Generic.List[object]
