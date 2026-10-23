@@ -1,7 +1,7 @@
 using System.Security.Claims;
+using LanguageExt;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
-using LanguageExt;
 using Microsoft.Extensions.Logging;
 
 namespace Encina.AzureFunctions;
