@@ -146,13 +146,16 @@ public static class FunctionContextExtensions
 
         if (claimRead.Value is { } claim)
         {
-            return header is not null && !string.Equals(header, claim, StringComparison.Ordinal)
-                ? TenantMismatch(logger)
-                : Option<string>.Some(claim);
+            return ResolveWithClaim(claim, header, logger);
         }
 
         return header is null ? Option<string>.None : ResolveHeaderOnly(header, options, logger);
     }
+
+    private static Either<EncinaError, Option<string>> ResolveWithClaim(string claim, string? header, ILogger logger) =>
+        header is not null && !string.Equals(header, claim, StringComparison.Ordinal)
+            ? TenantMismatch(logger)
+            : Option<string>.Some(claim);
 
     /// <summary>
     /// What the request identities say about the tenant claim: <see cref="Present"/> is true when a claim of
