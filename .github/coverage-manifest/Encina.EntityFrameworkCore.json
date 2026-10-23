@@ -375,9 +375,9 @@
       "justifications": {
         "unit": "Dispatch behaviour is unchanged in this slice and the unit tests drive it (measured 88%).",
         "guard": "Only the constructor argument checks are guard-reachable (measured 4%).",
-        "contract": "Only the XML docs changed in this slice; the dispatch behaviour is unchanged and unit tested.",
-        "property": "Only the XML docs changed in this slice; the dispatch behaviour is unchanged and unit tested.",
-        "integration": "Only the XML docs changed in this slice; the dispatch behaviour is unchanged and unit tested."
+        "contract": "The interceptor implements no Encina provider contract shared across implementations, so no contract suite targets it.",
+        "property": "Dispatch is a fixed sequence over the change tracker with no generated-input invariant to state.",
+        "integration": "Dispatch does not depend on a real database; the change tracker drives it and the unit tests exercise it."
       }
     },
     "DomainEvents/DomainEventDispatcherOptions.cs": {
@@ -1009,7 +1009,7 @@
         "unit": "Commit, rollback, commit Left, exception, cancellation and begin-failure branches use substitute leases.",
         "guard": "Only the argument checks are guard-reachable.",
         "contract": "The behavior contract tests drive commit, rollback and exception paths over the real accessor.",
-        "property": "The commit-iff-owner invariant is property-tested on the accessor, not on this behavior.",
+        "property": "The behavior only delegates the outcome to the lease; it has no input-dependent invariant beyond the accessor's.",
         "integration": "Real database request runs cover commit and rollback on SQL Server and PostgreSQL."
       }
     },
@@ -1024,7 +1024,7 @@
       "justifications": {
         "unit": "Unit tests drive the unit-of-work delegation and save paths against substitute contexts.",
         "guard": "Only the constructor and argument checks are guard-reachable.",
-        "contract": "The IUnitOfWork contract is covered through the accessor lease contract and the unit and integration tests.",
+        "contract": "IUnitOfWork has a single EF Core implementation in this package, so there is no cross-implementation contract suite.",
         "property": "No pure invariant; the class delegates to the transaction lease.",
         "integration": "Real database runs cover the save and transaction paths."
       }

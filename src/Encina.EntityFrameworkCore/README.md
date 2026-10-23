@@ -150,7 +150,7 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Order
 **How it works:**
 
 1. `TransactionalOutboxPipelineBehavior` runs for a request that implements `IHasNotifications` and joins (or begins) the request's transaction, shared through `DbContextTransactionAccessor`
-2. After the handler returns, it serializes the notifications to the `OutboxMessages` table and, when it owns the transaction, commits (otherwise the owner commits); a failed write or commit fails the request and rolls the business change back
+2. After the handler returns, it serializes the notifications to the `OutboxMessages` table and, when it owns the transaction, commits (otherwise the owner commits); a failed write fails the request and rolls the business change back, and a failed commit fails the request after a best-effort rollback (its outcome may be unknown to the caller)
 3. Background `OutboxProcessor` polls for pending messages
 4. Publishes messages and marks them as processed
 5. Automatic retry with exponential backoff on failures

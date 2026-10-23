@@ -154,7 +154,7 @@ public sealed class PlaceOrderHandler(AppDbContext db) : IRequestHandler<PlaceOr
 
 | You enable | Who owns the transaction | Result |
 | --- | --- | --- |
-| `UseOutbox` only | the outbox behavior | a request with notifications runs in one transaction; a failed outbox write or commit fails the request and rolls the business change back |
+| `UseOutbox` only | the outbox behavior | a request with notifications runs in one transaction; a failed outbox write fails the request and rolls the business change back; a failed commit fails the request after a best-effort rollback, and its outcome may be unknown |
 | `UseTransactions` (a request with `[Transaction]` or `ITransactionalCommand`) and `UseOutbox` | EF `TransactionPipelineBehavior<,>` | the outbox behavior joins; the transaction behavior commits once |
 | either of the above, and a handler that calls `IUnitOfWork.BeginTransactionAsync` | whoever began first | `UnitOfWorkEF` joins; its commit is a no-op, its rollback makes the owner's commit fail with `transaction.rollback_only` |
 | a transaction you began on the scope's `DbContext` | you | Encina joins it and never commits it (see below) |
@@ -164,20 +164,20 @@ public sealed class PlaceOrderHandler(AppDbContext db) : IRequestHandler<PlaceOr
 With a retrying execution strategy (`EnableRetryOnFailure`) and a transaction that Encina would open itself, `BeginOrJoinAsync` returns `Left` with `transaction.not_supported`. This is checked per request, not at startup, and the handler is never wrapped in `strategy.ExecuteAsync`, because re-running a business handler is the application's decision (maintainer decision D2=A, 2026-10-22, [ADR-037](../architecture/adr/037-transactional-outbox.md)). Choose one:
 
 - Disable the retrying strategy for the contexts that use the transactional outbox.
-- Begin the transaction yourself inside the request scope. Joining an external transaction is allowed under a retrying strategy.
+- Begin the transaction in an outer pipeline behavior in the request scope, before the outbox behavior runs. Joining it is allowed under a retrying strategy. Wrapping the pipeline in `strategy.ExecuteAsync` re-runs the handler, which is the application's decision.
 
 ### A transaction you began yourself
 
 If the application began `Database.CurrentTransaction` on the request scope's `DbContext`, Encina joins it and never commits it. A failing outbox write, or a participant that rolls back, really rolls it back (fail closed). If that transaction ended during the handler, the request fails with `transaction.rollback_only` and no outbox row is written.
 
-Encina dispatches every request in its own DI scope. A transaction begun on a `DbContext` of the caller's scope is therefore not visible to the request. Share it from application code that runs inside the request pipeline (for example an outermost pipeline behavior) or from the handler.
+Encina dispatches every request in its own DI scope. A transaction begun on a `DbContext` of the caller's scope is therefore not visible to the request. Share it from application code that runs inside the request pipeline (for example an outermost pipeline behavior). Encina opens its transaction before the handler runs, so a transaction begun in the handler is not seen.
 
 ## Errors you can get
 
 | Code | When |
 | --- | --- |
 | `transaction.rollback_only` | a participant rolled back; the owner's commit rolled the transaction back instead |
-| `transaction.commit_failed` | the commit itself failed; the transaction was rolled back |
+| `transaction.commit_failed` | the commit itself failed; a rollback was attempted, but the commit may have completed, so the outcome may be unknown and an automatic retry is not safe |
 | `transaction.begin_failed` | the connection could not open or the transaction could not begin |
 | `transaction.isolation_level_mismatch` | a joiner asked for another isolation level than the active one |
 | `transaction.not_supported` | the scope's connection is not a `System.Data.Common.DbConnection` |
