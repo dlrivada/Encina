@@ -49,6 +49,7 @@ has_children: true
 | [048](048-inbox-record-vs-business-transaction.md) | The Inbox Record and the Business Transaction: Enlisted and Independent Writes |
 | [050](050-modules-may-require-modules.md) | A Module May Require Other Modules When It Needs Them for Its Guarantees |
 | [051](051-languageext-version-for-1-0.md) | Which LanguageExt Version Encina 1.0 Ships On (Accepted) |
+| [054](054-observability-conventions-and-trace-propagation.md) | Observability Conventions and Cross-Boundary Trace Propagation (Accepted) |
 
 ## Reserved numbers
 
