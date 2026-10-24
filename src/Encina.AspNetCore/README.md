@@ -222,12 +222,14 @@ builder.Services.AddEncinaRequestIdentity(options =>
 
 **Server-sent events (opt-in).** Call `RunInboundAsync(context.CreateInboundRequestInfo(), ...)` on `IRequestContextScopeFactory` around one event or one dispatch, never around the whole stream. A tenant resolved from the route or the subdomain is lost on this path. `HttpContext` is pooled: call `CreateInboundRequestInfo` while the request is active and never capture the `HttpContext`.
 
+**Authorization.** `[Authorize]` (`AuthorizationPipelineBehavior`, registered by `AddEncinaAuthorization`) evaluates `IRequestContext.Identity`. An anonymous identity is denied with `encina.authorization.unauthenticated`.
+
 #### Tenant resolution
 
 The verified tenant claim always wins. The tenant header (`TenantIdHeader`, default `X-Tenant-ID`) is ignored by default; it chooses the tenant only when the principal has no tenant claim and `TrustTenantIdHeader` is `true`.
 
 | Request | Result |
-|---|---|
+| --- | --- |
 | Principal has a tenant claim, no header | The claim is the tenant |
 | Principal has no tenant claim, `TrustTenantIdHeader = false` (default) | The header is ignored (logged at Debug, EventId 176, no values); no tenant |
 | Principal has no tenant claim, `TrustTenantIdHeader = true` | The header is the tenant |
@@ -246,8 +248,6 @@ builder.Services.AddEncinaAspNetCore(options =>
 ```
 
 `MapDPIAEndpoints` no longer reads `X-Tenant-Id`, and the `DPIAEndpointExtensions.TenantIdHeader` constant is removed: the tenant is the one `UseEncinaContext()` bound (the claim, or the trusted header). `X-Module-Id` is unchanged.
-
-**Authorization.** `[Authorize]` (`AuthorizationPipelineBehavior`, registered by `AddEncinaAuthorization`) evaluates `IRequestContext.Identity`. An anonymous identity is denied with `encina.authorization.unauthenticated`.
 
 ### 3. Authorization Behavior
 
