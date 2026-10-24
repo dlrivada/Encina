@@ -71,7 +71,7 @@ Look for issues labeled [`good first issue`](https://github.com/dlrivada/Encina/
 ### Before You Start
 
 1. **Check for existing work** — search open PRs and issues to avoid duplication.
-2. **Comment on the issue** — if you plan to work on an existing issue, leave a comment so others know.
+2. **Claim the issue and wait for the assignment** — if you are an external contributor, comment on the issue to claim it, then wait until the maintainer assigns it to you. Open the pull request only after that. A pull request for an issue that is not assigned to its author, or without a linked issue, is closed without review. Work the maintainer owns is exempt from this rule.
 3. **Design first for large changes** — open a `[SPIKE]` issue or Discussion before investing significant effort in new features or architectural changes.
 
 ### Prerequisites
@@ -93,6 +93,7 @@ Before opening a PR, make sure:
 
 ### PR Checklist
 
+- [ ] The linked issue is assigned to me (external contributors)
 - [ ] Formatting and analyzers pass locally
 - [ ] Tests pass in Release configuration
 - [ ] Coverage does not drop below the CI threshold (90% lines)
@@ -112,6 +113,8 @@ Your PR will be validated by:
 | `codeql.yml` | Security analysis |
 | `sbom.yml` | Supply chain verification |
 | `benchmarks.yml` | Performance regression detection |
+
+GitHub Actions workflows of pull requests from forks run only after the maintainer approves them (the repository requires approval for all external contributors), so your checks may stay pending until then.
 
 All checks must pass before merge.
 
