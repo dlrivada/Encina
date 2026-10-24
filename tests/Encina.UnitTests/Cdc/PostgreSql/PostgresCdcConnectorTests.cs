@@ -3,9 +3,9 @@ using Encina.Cdc.Abstractions;
 using Encina.Cdc.PostgreSql;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
-using NSubstitute;
 using Npgsql;
 using NpgsqlTypes;
+using NSubstitute;
 using Shouldly;
 
 namespace Encina.UnitTests.Cdc.PostgreSql;

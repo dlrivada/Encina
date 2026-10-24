@@ -58,15 +58,15 @@ public sealed class PostgresCdcConnectorIntegrationTests : IAsyncLifetime
         bool createPublication = true,
         bool createSlot = true,
         string[]? tables = null) => new()
-    {
-        ConnectionString = _fixture.ConnectionString,
-        PublicationName = PublicationName,
-        CreatePublicationIfNotExists = createPublication,
-        CreateSlotIfNotExists = createSlot,
-        // Empty means ALL TABLES: the connector emits invalid SQL for an explicit table list (#2777),
-        // so streaming tests rely on the ALL TABLES publication.
-        PublicationTables = tables ?? [],
-    };
+        {
+            ConnectionString = _fixture.ConnectionString,
+            PublicationName = PublicationName,
+            CreatePublicationIfNotExists = createPublication,
+            CreateSlotIfNotExists = createSlot,
+            // Empty means ALL TABLES: the connector emits invalid SQL for an explicit table list (#2777),
+            // so streaming tests rely on the ALL TABLES publication.
+            PublicationTables = tables ?? [],
+        };
 
     private static PostgresCdcConnector CreateConnector(PostgresCdcOptions options, ICdcPositionStore? store = null)
     {

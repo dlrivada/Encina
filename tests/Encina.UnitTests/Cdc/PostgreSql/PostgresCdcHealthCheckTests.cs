@@ -3,8 +3,8 @@ using Encina.Cdc.PostgreSql;
 using Encina.Cdc.PostgreSql.Health;
 using Encina.Messaging.Health;
 using LanguageExt;
-using NSubstitute;
 using NpgsqlTypes;
+using NSubstitute;
 using Shouldly;
 
 namespace Encina.UnitTests.Cdc.PostgreSql;
