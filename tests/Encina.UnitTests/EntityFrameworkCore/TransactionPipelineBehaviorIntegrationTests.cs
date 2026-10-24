@@ -1,4 +1,5 @@
 using Encina.EntityFrameworkCore;
+using Encina.EntityFrameworkCore.Transactions;
 using Encina.Testing;
 using LanguageExt;
 using Microsoft.Data.Sqlite;
@@ -44,13 +45,13 @@ public sealed class TransactionPipelineBehaviorIntegrationTests : IDisposable
         _dbContext.Database.EnsureCreated();
 
         var logger = NullLogger<TransactionPipelineBehavior<TestTransactionalCommand, string>>.Instance;
-        _behavior = new TransactionPipelineBehavior<TestTransactionalCommand, string>(_dbContext, logger);
+        _behavior = new TransactionPipelineBehavior<TestTransactionalCommand, string>(new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), logger);
 
         var nonTransactionalLogger = NullLogger<TransactionPipelineBehavior<TestNonTransactionalCommand, string>>.Instance;
-        _nonTransactionalBehavior = new TransactionPipelineBehavior<TestNonTransactionalCommand, string>(_dbContext, nonTransactionalLogger);
+        _nonTransactionalBehavior = new TransactionPipelineBehavior<TestNonTransactionalCommand, string>(new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), nonTransactionalLogger);
 
         var attributeLogger = NullLogger<TransactionPipelineBehavior<TestTransactionalAttributeCommand, string>>.Instance;
-        _attributeBehavior = new TransactionPipelineBehavior<TestTransactionalAttributeCommand, string>(_dbContext, attributeLogger);
+        _attributeBehavior = new TransactionPipelineBehavior<TestTransactionalAttributeCommand, string>(new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), attributeLogger);
 
         _context = Substitute.For<IRequestContext>();
         _context.CorrelationId.Returns(Guid.NewGuid().ToString());
@@ -315,7 +316,7 @@ public sealed class TransactionPipelineBehaviorIntegrationTests : IDisposable
         const string sentinel = "SENTINEL-do-not-log-4f2a";
         var error = EncinaErrors.Create("test.rollback.error", $"Rollback failed: {sentinel}");
         var logger = new FakeLogger<TransactionPipelineBehavior<TestTransactionalCommand, string>>();
-        var behavior = new TransactionPipelineBehavior<TestTransactionalCommand, string>(_dbContext, logger);
+        var behavior = new TransactionPipelineBehavior<TestTransactionalCommand, string>(new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), logger);
         var command = new TestTransactionalCommand();
 
         // Act

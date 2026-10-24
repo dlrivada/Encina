@@ -1,6 +1,8 @@
 using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.Transactions;
 using Encina.EntityFrameworkCore.UnitOfWork;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 namespace Encina.UnitTests.EntityFrameworkCore.UnitOfWork;
@@ -24,7 +26,7 @@ public class UnitOfWorkEFUpdateImmutableTests : IAsyncLifetime
 
         _dbContext = new TestDbContext(options);
         _serviceProvider = Substitute.For<IServiceProvider>();
-        _unitOfWork = new UnitOfWorkEF(_dbContext, _serviceProvider);
+        _unitOfWork = new UnitOfWorkEF(_dbContext, new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), _serviceProvider);
     }
 
     public ValueTask InitializeAsync() => ValueTask.CompletedTask;
@@ -169,7 +171,7 @@ public class UnitOfWorkEFUpdateImmutableTests : IAsyncLifetime
 
         await using var dbContext = new TestDbContext(options);
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var unitOfWork = new UnitOfWorkEF(dbContext, serviceProvider);
+        var unitOfWork = new UnitOfWorkEF(dbContext, new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance), serviceProvider);
 
         // Add and save entity before disposal
         var id = Guid.NewGuid();
@@ -305,7 +307,7 @@ public class UnitOfWorkEFUpdateImmutableTests : IAsyncLifetime
 
         await using var dbContext = new TestDbContext(options);
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var unitOfWork = new UnitOfWorkEF(dbContext, serviceProvider);
+        var unitOfWork = new UnitOfWorkEF(dbContext, new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance), serviceProvider);
 
         var id = Guid.NewGuid();
         var original = new TestUoWEntity { Id = id, Name = "Original" };

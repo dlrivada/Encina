@@ -38,6 +38,7 @@ public sealed class TransactionalOutboxPipelineBehaviorTests
     public TransactionalOutboxPipelineBehaviorTests()
     {
         _lease.IsOwner.Returns(true);
+        _source.HasActiveTransaction.Returns(true);
         _lease.CommitAsync(Arg.Any<CancellationToken>()).Returns(new ValueTask<Either<EncinaError, Unit>>(Unit.Default));
         _source.BeginOrJoinAsync(Arg.Any<CancellationToken>()).Returns(
             new ValueTask<Either<EncinaError, ITransactionLease>>(Either<EncinaError, ITransactionLease>.Right(_lease)));
@@ -130,6 +131,24 @@ public sealed class TransactionalOutboxPipelineBehaviorTests
         result.IsRight.ShouldBeTrue();
         await _store.DidNotReceive().AddAsync(Arg.Any<IOutboxMessage>(), Arg.Any<CancellationToken>());
         await _lease.Received(1).CommitAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Handle_TransactionEndedDuringTheHandler_FailsWithRollbackOnlyAndWritesNothing()
+    {
+        RequestHandlerCallback<string> next = () =>
+        {
+            _source.HasActiveTransaction.Returns(false);
+            return ValueTask.FromResult<Either<EncinaError, string>>("done");
+        };
+
+        var result = await Create<WithNotifications>().Handle(
+            new WithNotifications(new Note("a")), _context, next, CancellationToken.None);
+
+        Code(result).ShouldBe(TransactionErrors.RollbackOnlyCode);
+        await _store.DidNotReceive().AddAsync(Arg.Any<IOutboxMessage>(), Arg.Any<CancellationToken>());
+        await _lease.Received(1).RollbackAsync(CancellationToken.None);
+        await _lease.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]

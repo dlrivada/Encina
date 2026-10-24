@@ -1,8 +1,9 @@
+using System.Data;
 using Encina.Diagnostics;
+using Encina.Messaging.Transactions;
 using LanguageExt;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
+using static LanguageExt.Prelude;
 
 namespace Encina.EntityFrameworkCore;
 
@@ -19,11 +20,16 @@ namespace Encina.EntityFrameworkCore;
 /// <para>
 /// <b>Transaction Lifecycle</b>:
 /// <list type="number">
-/// <item><description>Begin transaction before handler execution</description></item>
+/// <item><description>Take a lease on the scope's shared transaction (begin it, or join the one already active)</description></item>
 /// <item><description>Execute handler and pipeline</description></item>
-/// <item><description>Commit if result is <c>Right</c>, rollback if <c>Left</c> or exception</description></item>
-/// <item><description>Dispose transaction</description></item>
+/// <item><description>Commit if result is <c>Right</c>, rollback if <c>Left</c> or exception; only the owner of the transaction commits</description></item>
+/// <item><description>Dispose the lease</description></item>
 /// </list>
+/// </para>
+/// <para>
+/// The transaction is shared with the unit of work and the transactional outbox through
+/// <see cref="IDbTransactionAccessor"/>, so they commit or roll back together. A context whose execution
+/// strategy retries on failure cannot take part: the request fails with <c>transaction.not_supported</c>.
 /// </para>
 /// <para>
 /// <b>Isolation Level</b>: Uses the database's default isolation level unless overridden
@@ -48,23 +54,34 @@ namespace Encina.EntityFrameworkCore;
 public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
-    private readonly DbContext _dbContext;
+    // Both answers depend only on the request type, so they are computed once per closed generic type.
+    private static readonly TransactionAttribute? s_attribute = typeof(TRequest)
+        .GetCustomAttributes(typeof(TransactionAttribute), inherit: true)
+        .OfType<TransactionAttribute>()
+        .FirstOrDefault();
+
+    private static readonly bool s_requiresTransaction =
+        s_attribute is not null || typeof(ITransactionalCommand).IsAssignableFrom(typeof(TRequest));
+
+    private static readonly IsolationLevel? s_isolationLevel = s_attribute?.IsolationLevel;
+
+    private readonly IDbTransactionAccessor _transactionAccessor;
     private readonly ILogger<TransactionPipelineBehavior<TRequest, TResponse>> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
-    /// <param name="dbContext">The database context.</param>
+    /// <param name="transactionAccessor">The scope's transaction accessor, shared with the unit of work and the outbox.</param>
     /// <param name="logger">The logger.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="dbContext"/> or <paramref name="logger"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="transactionAccessor"/> or <paramref name="logger"/> is null.</exception>
     public TransactionPipelineBehavior(
-        DbContext dbContext,
+        IDbTransactionAccessor transactionAccessor,
         ILogger<TransactionPipelineBehavior<TRequest, TResponse>> logger)
     {
-        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(transactionAccessor);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _dbContext = dbContext;
+        _transactionAccessor = transactionAccessor;
         _logger = logger;
     }
 
@@ -79,133 +96,95 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(nextStep);
 
-        // Check if request requires transaction
-        if (!RequiresTransaction(request))
+        if (!s_requiresTransaction)
         {
             return await nextStep();
         }
 
-        // Check if already in transaction (nested transaction scenario)
-        if (_dbContext.Database.CurrentTransaction != null)
-        {
-            Log.ReusingExistingTransaction(_logger, typeof(TRequest).Name, context.CorrelationId);
-
-            return await nextStep();
-        }
-
-        return await ExecuteInNewTransactionAsync(context, nextStep, cancellationToken)
+        var begun = await _transactionAccessor
+            .BeginOrJoinAsync(s_isolationLevel, cancellationToken)
             .ConfigureAwait(false);
+
+        return await begun.Match(
+            Right: lease => RunInTransactionAsync(lease, context, nextStep, cancellationToken),
+            Left: error => ValueTask.FromResult(Left<EncinaError, TResponse>(error))).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Begins a new database transaction, runs the pipeline inside it, and commits or rolls
-    /// back based on the outcome (or on an exception).
+    /// Runs the pipeline inside the leased transaction, then commits or rolls back based on the outcome
+    /// (or on an exception). Only the owner of the transaction commits.
     /// </summary>
-    private async ValueTask<Either<EncinaError, TResponse>> ExecuteInNewTransactionAsync(
+    private async ValueTask<Either<EncinaError, TResponse>> RunInTransactionAsync(
+        IDbTransactionLease lease,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
     {
-        // Get isolation level from attribute or use default
-        var isolationLevel = GetIsolationLevel();
-
-        Log.BeginningTransaction(_logger, typeof(TRequest).Name, isolationLevel, context.CorrelationId);
-
-        IDbContextTransaction? transaction = null;
-
-        try
+        await using (lease.ConfigureAwait(false))
         {
-            // Begin transaction
-            transaction = isolationLevel.HasValue
-                ? await _dbContext.Database.BeginTransactionAsync(isolationLevel.Value, cancellationToken)
-                : await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+            if (lease.IsOwner)
+            {
+                Log.BeginningTransaction(_logger, typeof(TRequest).Name, s_isolationLevel, context.CorrelationId);
+            }
+            else
+            {
+                Log.ReusingExistingTransaction(_logger, typeof(TRequest).Name, context.CorrelationId);
+            }
 
-            // Execute pipeline
-            var result = await nextStep();
+            Either<EncinaError, TResponse> result;
 
-            // Commit or rollback based on result
-            await CommitOrRollbackAsync(transaction, result, context, cancellationToken)
-                .ConfigureAwait(false);
+            try
+            {
+                result = await nextStep();
+            }
+            catch (OperationCanceledException)
+            {
+                await lease.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
 
-            return result;
-        }
-        catch (OperationCanceledException)
-        {
-            await RollbackIfActiveAsync(transaction, cancellationToken).ConfigureAwait(false);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Log.RollingBackTransactionDueToException(_logger, ex.ForLogging(), typeof(TRequest).Name, context.CorrelationId);
 
-            throw;
-        }
-        catch (Exception ex)
-        {
-            Log.RollingBackTransactionDueToException(_logger, ex.ForLogging(), typeof(TRequest).Name, context.CorrelationId);
+                await lease.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
 
-            await RollbackIfActiveAsync(transaction, cancellationToken).ConfigureAwait(false);
+                return EncinaErrors.FromException("transaction.failed", ex);
+            }
 
-            return EncinaErrors.FromException("transaction.failed", ex);
-        }
-        finally
-        {
-            transaction?.Dispose();
+            return await CommitOrRollbackAsync(lease, result, context, cancellationToken).ConfigureAwait(false);
         }
     }
 
     /// <summary>
-    /// Commits the transaction when the pipeline succeeded, or rolls it back and logs only the
-    /// error code (never <see cref="EncinaError.Message"/>) when it failed.
+    /// Commits the transaction when the pipeline succeeded (a commit failure replaces the response), or rolls
+    /// it back and logs only the error code (never <see cref="EncinaError.Message"/>) when it failed.
     /// </summary>
-    private async ValueTask CommitOrRollbackAsync(
-        IDbContextTransaction transaction,
+    private async ValueTask<Either<EncinaError, TResponse>> CommitOrRollbackAsync(
+        IDbTransactionLease lease,
         Either<EncinaError, TResponse> result,
         IRequestContext context,
         CancellationToken cancellationToken)
     {
-        await result.Match(
-            Right: async _ =>
-            {
-                Log.CommittingTransaction(_logger, typeof(TRequest).Name, context.CorrelationId);
-
-                await transaction.CommitAsync(cancellationToken);
-            },
-            Left: async error =>
-            {
-                Log.RollingBackTransactionDueToError(_logger, typeof(TRequest).Name, error.GetEncinaCode(), context.CorrelationId);
-
-                await transaction.RollbackAsync(cancellationToken);
-            });
-    }
-
-    /// <summary>
-    /// Rolls back the transaction if one was successfully started before the failure.
-    /// </summary>
-    private static async ValueTask RollbackIfActiveAsync(
-        IDbContextTransaction? transaction,
-        CancellationToken cancellationToken)
-    {
-        if (transaction != null)
+        if (result.IsLeft)
         {
-            await transaction.RollbackAsync(cancellationToken);
+            var code = result.Match(Right: _ => string.Empty, Left: error => error.GetEncinaCode());
+            Log.RollingBackTransactionDueToError(_logger, typeof(TRequest).Name, code, context.CorrelationId);
+
+            await lease.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+
+            return result;
         }
-    }
 
-    private static bool RequiresTransaction(TRequest request)
-    {
-        // Check for marker interface
-        if (request is ITransactionalCommand)
-            return true;
+        if (lease.IsOwner)
+        {
+            Log.CommittingTransaction(_logger, typeof(TRequest).Name, context.CorrelationId);
+        }
 
-        // Check for attribute
-        var attribute = typeof(TRequest).GetCustomAttributes(typeof(TransactionAttribute), inherit: true)
-            .FirstOrDefault();
+        var committed = await lease.CommitAsync(cancellationToken).ConfigureAwait(false);
 
-        return attribute != null;
-    }
-
-    private static System.Data.IsolationLevel? GetIsolationLevel()
-    {
-        var attribute = typeof(TRequest).GetCustomAttributes(typeof(TransactionAttribute), inherit: true)
-            .OfType<TransactionAttribute>()
-            .FirstOrDefault();
-
-        return attribute?.IsolationLevel;
+        return committed.Match(
+            Right: _ => result,
+            Left: error => Left<EncinaError, TResponse>(error));
     }
 }

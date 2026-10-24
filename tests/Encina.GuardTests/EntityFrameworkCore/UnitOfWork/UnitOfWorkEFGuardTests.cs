@@ -1,6 +1,9 @@
 using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.Transactions;
 using Encina.EntityFrameworkCore.UnitOfWork;
+using Encina.Messaging.Transactions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 
@@ -21,10 +24,11 @@ public sealed class UnitOfWorkEFGuardTests
         // Arrange
         DbContext dbContext = null!;
         var serviceProvider = Substitute.For<IServiceProvider>();
+        var transactionAccessor = Substitute.For<IDbTransactionAccessor>();
 
         // Act & Assert
         var ex = Should.Throw<ArgumentNullException>(() =>
-            new UnitOfWorkEF(dbContext, serviceProvider));
+            new UnitOfWorkEF(dbContext, transactionAccessor, serviceProvider));
         ex.ParamName.ShouldBe("dbContext");
     }
 
@@ -37,10 +41,11 @@ public sealed class UnitOfWorkEFGuardTests
             .Options;
         using var dbContext = new TestUoWDbContext(options);
         IServiceProvider serviceProvider = null!;
+        var transactionAccessor = new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance);
 
         // Act & Assert
         var ex = Should.Throw<ArgumentNullException>(() =>
-            new UnitOfWorkEF(dbContext, serviceProvider));
+            new UnitOfWorkEF(dbContext, transactionAccessor, serviceProvider));
         ex.ParamName.ShouldBe("serviceProvider");
     }
 
@@ -57,7 +62,7 @@ public sealed class UnitOfWorkEFGuardTests
             .Options;
         using var dbContext = new TestUoWDbContext(options);
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var unitOfWork = new UnitOfWorkEF(dbContext, serviceProvider);
+        var unitOfWork = new UnitOfWorkEF(dbContext, new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance), serviceProvider);
         TestUoWAggregateRoot modified = null!;
 
         // Act & Assert
@@ -79,7 +84,7 @@ public sealed class UnitOfWorkEFGuardTests
             .Options;
         using var dbContext = new TestUoWDbContext(options);
         var serviceProvider = Substitute.For<IServiceProvider>();
-        var unitOfWork = new UnitOfWorkEF(dbContext, serviceProvider);
+        var unitOfWork = new UnitOfWorkEF(dbContext, new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance), serviceProvider);
         TestUoWAggregateRoot modified = null!;
 
         // Act & Assert

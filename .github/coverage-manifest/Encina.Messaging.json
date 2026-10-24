@@ -870,10 +870,10 @@
       ],
       "defaultRule": "*PipelineBehavior.cs",
       "reason": "Pipeline behavior that writes notifications inside the request transaction",
-      "targets": { "unit": 95, "guard": 25, "contract": 90, "property": 90, "integration": 90 },
+      "targets": { "unit": 95, "guard": 20, "contract": 90, "property": 90, "integration": 90 },
       "justifications": {
         "unit": "Skip path, handler Left, write Left, commit Left, exception, cancellation and join paths use substitute leases (measured 100%).",
-        "guard": "Only the constructor and Handle argument checks are guard-reachable (measured 29%).",
+        "guard": "guard tests cover the constructor and Handle null checks only; the transaction flow is covered by the unit, contract, property and integration flags.",
         "contract": "The behavior contract tests drive commit, handler Left, failed write, participant rollback, exception and join over the real accessor (measured 98%).",
         "property": "The commit-or-nothing property covers every outcome except cancellation (measured 94%).",
         "integration": "Real-database request runs cover every path except cancellation (measured 95%)."

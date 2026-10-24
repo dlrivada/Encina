@@ -1,7 +1,10 @@
 using global::Encina.EntityFrameworkCore;
+using global::Encina.EntityFrameworkCore.Transactions;
+using global::Encina.Messaging.Transactions;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using EfTransactionPipelineBehavior = global::Encina.EntityFrameworkCore.TransactionPipelineBehavior<Encina.GuardTests.Infrastructure.EntityFrameworkCore.TransactionPipelineBehaviorGuardsTests.TestRequest, string>;
 
 namespace Encina.GuardTests.Infrastructure.EntityFrameworkCore;
@@ -18,13 +21,13 @@ public class TransactionPipelineBehaviorGuardsTests
     public void Constructor_NullDbContext_ThrowsArgumentNullException()
     {
         // Arrange
-        DbContext dbContext = null!;
+        IDbTransactionAccessor transactionAccessor = null!;
         var logger = Substitute.For<ILogger<EfTransactionPipelineBehavior>>();
 
         // Act & Assert
-        var act = () => new EfTransactionPipelineBehavior(dbContext, logger);
+        var act = () => new EfTransactionPipelineBehavior(transactionAccessor, logger);
         var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("dbContext");
+        ex.ParamName.ShouldBe("transactionAccessor");
     }
 
     /// <summary>
@@ -41,7 +44,7 @@ public class TransactionPipelineBehaviorGuardsTests
         ILogger<EfTransactionPipelineBehavior> logger = null!;
 
         // Act & Assert
-        var act = () => new EfTransactionPipelineBehavior(dbContext, logger);
+        var act = () => new EfTransactionPipelineBehavior(new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance), logger);
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("logger");
     }
@@ -58,7 +61,7 @@ public class TransactionPipelineBehaviorGuardsTests
             .Options;
         using var dbContext = new TestDbContext(options);
         var logger = Substitute.For<ILogger<EfTransactionPipelineBehavior>>();
-        var behavior = new EfTransactionPipelineBehavior(dbContext, logger);
+        var behavior = new EfTransactionPipelineBehavior(new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance), logger);
 
         TestRequest request = null!;
         var context = Substitute.For<IRequestContext>();
@@ -82,7 +85,7 @@ public class TransactionPipelineBehaviorGuardsTests
             .Options;
         using var dbContext = new TestDbContext(options);
         var logger = Substitute.For<ILogger<EfTransactionPipelineBehavior>>();
-        var behavior = new EfTransactionPipelineBehavior(dbContext, logger);
+        var behavior = new EfTransactionPipelineBehavior(new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance), logger);
 
         var request = new TestRequest();
         IRequestContext context = null!;
@@ -106,7 +109,7 @@ public class TransactionPipelineBehaviorGuardsTests
             .Options;
         using var dbContext = new TestDbContext(options);
         var logger = Substitute.For<ILogger<EfTransactionPipelineBehavior>>();
-        var behavior = new EfTransactionPipelineBehavior(dbContext, logger);
+        var behavior = new EfTransactionPipelineBehavior(new DbContextTransactionAccessor(dbContext, NullLogger<DbContextTransactionAccessor>.Instance), logger);
 
         var request = new TestRequest();
         var context = Substitute.For<IRequestContext>();

@@ -116,8 +116,15 @@ Ensures reliable event publishing by storing events in the database within the s
 ```csharp
 public class OrderPlacedNotification : INotification
 {
-    public Guid OrderId { get; init; }
-    public decimal TotalAmount { get; init; }
+    public Guid CustomerId { get; init; }
+}
+
+public sealed record PlaceOrderCommand(Guid CustomerId, List<OrderItem> Items)
+    : IRequest<Order>, IHasNotifications
+{
+    // Read by the outbox behavior after the handler returns
+    public IEnumerable<INotification> GetNotifications() =>
+        [new OrderPlacedNotification { CustomerId = CustomerId }];
 }
 
 public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Order>
@@ -131,8 +138,8 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Order
         var order = new Order(request.CustomerId, request.Items);
         _dbContext.Orders.Add(order);
 
-        // Event will be stored in outbox table automatically
-        // via OutboxPostProcessor and published later by OutboxProcessor
+        // The notifications of the command are stored in the outbox table in this
+        // request's transaction and published later by OutboxProcessor
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return order;
@@ -142,11 +149,13 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Order
 
 **How it works:**
 
-1. `OutboxPostProcessor` intercepts successful request results
-2. Serializes notifications to `OutboxMessages` table
+1. `TransactionalOutboxPipelineBehavior` runs for a request that implements `IHasNotifications` and joins (or begins) the request's transaction, shared through `DbContextTransactionAccessor`
+2. After the handler returns, it serializes the notifications to the `OutboxMessages` table and, when it owns the transaction, commits (otherwise the owner commits); a failed write fails the request and rolls the business change back, and a failed commit fails the request after a best-effort rollback (its outcome may be unknown to the caller)
 3. Background `OutboxProcessor` polls for pending messages
 4. Publishes messages and marks them as processed
 5. Automatic retry with exponential backoff on failures
+
+With a retrying execution strategy (`EnableRetryOnFailure`) Encina refuses to begin the transaction itself (`transaction.not_supported`); see [How to write the outbox inside the request's transaction](../../docs/features/transactional-outbox.md) for the options and the limits.
 
 **Configuration:**
 
