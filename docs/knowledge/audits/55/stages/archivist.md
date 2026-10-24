@@ -1,6 +1,6 @@
 ## Scope
 
-Closing commit 7e50983ed (timeline `closed` event commit_id; the issue was closed manually 2025-12-27T11:31:05Z, created 2025-12-24T13:29:41Z; no linked PR). Surviving today:
+Closing commit 7e50983ed (timeline `closed` event commit_id; the issue was closed on 2025-12-27 11:31:05Z by commit 7e50983ed (`Fixes #55`, pushed without a pull request), created 2025-12-24T13:29:41Z; no linked PR). Surviving today:
 
 - `src/Encina.DistributedLock/` (IDistributedLockProvider.cs, ILockHandle.cs, DistributedLockOptions.cs, LockAcquisitionException.cs, ServiceCollectionExtensions.cs, README.md)
 - `src/Encina.DistributedLock.InMemory/InMemoryDistributedLockProvider.cs`
