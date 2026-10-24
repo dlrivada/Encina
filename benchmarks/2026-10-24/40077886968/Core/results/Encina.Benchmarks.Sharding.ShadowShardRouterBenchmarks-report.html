@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks-20261024-101834</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  InvocationCount=1  IterationCount=3  
+LaunchCount=1  UnrollFactor=1  WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                            </th><th>ShardCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Bare HashRouter&#39;</td><td>3</td><td>1.627 &mu;s</td><td>20.701 &mu;s</td><td>1.1347 &mu;s</td><td>1.367 &mu;s</td><td>1.43</td><td>1.32</td><td>1</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>&#39;Decorated GetShardId (production path)&#39;</td><td>3</td><td>1.881 &mu;s</td><td>29.079 &mu;s</td><td>1.5939 &mu;s</td><td>1.267 &mu;s</td><td>1.65</td><td>1.71</td><td>1</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>&#39;Decorated CompareAsync&#39;</td><td>3</td><td>2.102 &mu;s</td><td>27.707 &mu;s</td><td>1.5187 &mu;s</td><td>1.627 &mu;s</td><td>1.84</td><td>1.73</td><td>1</td><td>320 B</td><td>5.71</td>
+</tr><tr><td>&#39;Decorated GetAllShardIds&#39;</td><td>3</td><td>2.981 &mu;s</td><td>16.833 &mu;s</td><td>0.9227 &mu;s</td><td>2.683 &mu;s</td><td>2.61</td><td>1.78</td><td>2</td><td>104 B</td><td>1.86</td>
+</tr><tr><td>&#39;Decorated GetShardConnectionString&#39;</td><td>3</td><td>1.827 &mu;s</td><td>25.104 &mu;s</td><td>1.3760 &mu;s</td><td>1.296 &mu;s</td><td>1.60</td><td>1.55</td><td>1</td><td>64 B</td><td>1.14</td>
+</tr><tr><td>&#39;Bare HashRouter&#39;</td><td>50</td><td>2.474 &mu;s</td><td>34.264 &mu;s</td><td>1.8781 &mu;s</td><td>1.623 &mu;s</td><td>1.39</td><td>1.22</td><td>1</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>&#39;Decorated GetShardId (production path)&#39;</td><td>50</td><td>2.768 &mu;s</td><td>39.201 &mu;s</td><td>2.1487 &mu;s</td><td>1.552 &mu;s</td><td>1.55</td><td>1.39</td><td>1</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>&#39;Decorated CompareAsync&#39;</td><td>50</td><td>4.910 &mu;s</td><td>27.216 &mu;s</td><td>1.4918 &mu;s</td><td>5.638 &mu;s</td><td>2.76</td><td>1.59</td><td>3</td><td>320 B</td><td>5.71</td>
+</tr><tr><td>&#39;Decorated GetAllShardIds&#39;</td><td>50</td><td>2.518 &mu;s</td><td>26.190 &mu;s</td><td>1.4356 &mu;s</td><td>1.887 &mu;s</td><td>1.41</td><td>1.04</td><td>1</td><td>480 B</td><td>8.57</td>
+</tr><tr><td>&#39;Decorated GetShardConnectionString&#39;</td><td>50</td><td>3.369 &mu;s</td><td>55.279 &mu;s</td><td>3.0300 &mu;s</td><td>2.374 &mu;s</td><td>1.89</td><td>1.88</td><td>2</td><td>64 B</td><td>1.14</td>
+</tr></tbody></table>
+</body>
+</html>

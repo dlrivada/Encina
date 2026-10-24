@@ -1,0 +1,23 @@
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+
+Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+
+ Method                                    | ShardCount | Mean         | Error         | StdDev       | Ratio | RatioSD | Rank | Gen0    | Gen1    | Allocated | Alloc Ratio |
+------------------------------------------ |----------- |-------------:|--------------:|-------------:|------:|--------:|-----:|--------:|--------:|----------:|------------:|
+ **'Scatter-gather all shards (sync result)'** | **3**          |  **1,995.70 ns** |    **323.398 ns** |    **17.727 ns** |  **1.00** |    **0.01** |    **3** |  **0.2174** |       **-** |    **3648 B** |        **1.00** |
+ 'Scatter-gather subset (3 shards)'        | 3          |  1,888.68 ns |    301.808 ns |    16.543 ns |  0.95 |    0.01 |    3 |  0.2213 |       - |    3704 B |        1.02 |
+ 'Scatter-gather with large results'       | 3          | 11,177.47 ns |  4,629.164 ns |   253.740 ns |  5.60 |    0.12 |    4 |  1.7090 |  0.2289 |   28704 B |        7.87 |
+ 'Scatter-gather single shard'             | 3          |  1,214.89 ns |    479.981 ns |    26.309 ns |  0.61 |    0.01 |    2 |  0.1373 |       - |    2328 B |        0.64 |
+ 'Topology lookup all shards'              | 3          |     72.29 ns |      7.506 ns |     0.411 ns |  0.04 |    0.00 |    1 |  0.0062 |       - |     104 B |        0.03 |
+                                           |            |              |               |              |       |         |      |         |         |           |             |
+ **'Scatter-gather all shards (sync result)'** | **25**         |  **8,333.56 ns** |  **5,420.326 ns** |   **297.106 ns** |  **1.00** |    **0.04** |    **4** |  **1.1597** |  **0.0305** |   **19464 B** |        **1.00** |
+ 'Scatter-gather subset (3 shards)'        | 25         |  1,954.39 ns |     42.503 ns |     2.330 ns |  0.23 |    0.01 |    3 |  0.2289 |       - |    3880 B |        0.20 |
+ 'Scatter-gather with large results'       | 25         | 85,124.22 ns | 19,816.494 ns | 1,086.209 ns | 10.22 |    0.33 |    5 | 14.4043 | 10.3760 |  242952 B |       12.48 |
+ 'Scatter-gather single shard'             | 25         |  1,171.28 ns |    309.342 ns |    16.956 ns |  0.14 |    0.00 |    2 |  0.1488 |       - |    2504 B |        0.13 |
+ 'Topology lookup all shards'              | 25         |     83.65 ns |      6.028 ns |     0.330 ns |  0.01 |    0.00 |    1 |  0.0167 |       - |     280 B |        0.01 |
