@@ -191,6 +191,8 @@ public class TenancyAspNetCoreServiceCollectionExtensionsTests
     {
         public int Priority => 0;
 
+        public bool IsAuthoritative => false;
+
         public ValueTask<string?> ResolveAsync(
             Microsoft.AspNetCore.Http.HttpContext context,
             CancellationToken cancellationToken = default)

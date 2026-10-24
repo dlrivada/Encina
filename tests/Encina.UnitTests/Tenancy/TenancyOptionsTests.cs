@@ -17,7 +17,7 @@ public class TenancyOptionsTests
 
         // Assert
         options.DefaultStrategy.ShouldBe(TenantIsolationStrategy.SharedSchema);
-        options.RequireTenant.ShouldBeFalse();
+        options.RequireTenant.ShouldBeTrue();
         options.TenantIdPropertyName.ShouldBe("TenantId");
         options.DefaultConnectionString.ShouldBeNull();
         options.DefaultSchemaName.ShouldBe("dbo");

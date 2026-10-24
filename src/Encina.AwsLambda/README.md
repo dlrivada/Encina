@@ -8,7 +8,7 @@ AWS Lambda integration for the Encina library, providing seamless serverless fun
 - **SQS Trigger Support**: Process SQS messages with batch failure handling
 - **EventBridge Integration**: Handle EventBridge (CloudWatch Events) with automatic deserialization
 - **RFC 7807 Problem Details**: Standardized error responses
-- **Context Enrichment**: Extract correlation ID, user ID, and tenant ID from Lambda context
+- **Context Enrichment**: Extract correlation ID and user ID from Lambda context, and resolve the tenant ID with `ResolveTenantId`
 - **Health Checks**: Built-in health check implementation
 
 ## Installation
@@ -129,9 +129,10 @@ var serviceProvider = services.BuildServiceProvider();
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `EnableRequestContextEnrichment` | Auto-enrich context with correlation ID, user ID, tenant ID | `true` |
+| `EnableRequestContextEnrichment` | Auto-enrich context with correlation ID and user ID | `true` |
 | `CorrelationIdHeader` | Header name for correlation ID | `X-Correlation-ID` |
-| `TenantIdHeader` | Header name for tenant ID | `X-Tenant-ID` |
+| `TenantIdHeader` | Header name for tenant ID, read only when `TrustTenantIdHeader` is `true` | `X-Tenant-ID` |
+| `TrustTenantIdHeader` | Let the header supply the tenant when the request has no verified claim; each use logs a Warning | `false` |
 | `UserIdClaimType` | JWT claim type for user ID | `sub` |
 | `TenantIdClaimType` | JWT claim type for tenant ID | `tenant_id` |
 | `IncludeExceptionDetailsInResponse` | Include exception details in errors | `false` |
@@ -199,8 +200,11 @@ public async Task<APIGatewayProxyResponse> MyHandler(
     // Get user ID from JWT claims
     var userId = context.GetUserId(request);
 
-    // Get tenant ID from header or claims
-    var tenantId = context.GetTenantId(request);
+    // Resolve the tenant: the authorizer claim wins; a different header is a Left
+    // (tenancy.tenant_mismatch); the header alone counts only with TrustTenantIdHeader
+    // options: EncinaAwsLambdaOptions, logger: ILogger (both injected)
+    Either<EncinaError, Option<string>> tenant =
+        context.ResolveTenantId(request, options, logger);
 
     // Get remaining execution time
     var remainingMs = context.GetRemainingTimeMs();

@@ -25,7 +25,12 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": { "unit": 100, "guard": 65 },
+      "justifications": {
+        "unit": "Every option property is read and set in tests, including its defaults.",
+        "guard": "The options are auto-properties with no setter logic; guard tests execute the file only by instantiating the options while guarding the consuming APIs (the Lambda context extensions and handlers), so the target covers those lines."
+      }
     },
     "EventBridgeHandler.cs": {
       "defaultTests": [
@@ -54,12 +59,22 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 94, "guard": 8 },
+      "justifications": {
+        "unit": "Every ResolveTenantId rule is unit-tested, with the logger asserted through a fake.",
+        "guard": "Guard tests cover only the null checks of the public parameters."
+      }
     },
     "Log.cs": {
       "defaultTests": [],
       "defaultRule": "Log.cs",
-      "reason": "Source-generated [LoggerMessage] delegates, no logic"
+      "reason": "Source-generated [LoggerMessage] delegates, no logic",
+      "targets": { "unit": 0, "guard": 0 },
+      "justifications": {
+        "unit": "Source-generated [LoggerMessage] partials are not measured as hand-written lines; the events are asserted via a fake logger in LambdaResolveTenantIdTests.",
+        "guard": "Source-generated [LoggerMessage] partials have no parameters to guard."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [

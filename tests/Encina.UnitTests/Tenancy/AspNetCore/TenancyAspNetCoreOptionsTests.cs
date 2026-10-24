@@ -22,7 +22,9 @@ public class TenancyAspNetCoreOptionsTests
         var options = new HeaderResolverOptions();
 
         // Assert
-        options.Enabled.ShouldBeTrue();
+        options.Enabled.ShouldBeFalse();
+        options.TrustAnyPeer.ShouldBeFalse();
+        options.TrustedProxies.ShouldBeEmpty();
         options.HeaderName.ShouldBe("X-Tenant-ID");
         options.Priority.ShouldBe(100);
     }

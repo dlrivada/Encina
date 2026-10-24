@@ -158,7 +158,7 @@ public sealed class ServiceCollectionExtensionsExtendedTests
         var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TenancyOptions>>();
         options.Value.DefaultStrategy.ShouldBe(TenantIsolationStrategy.SharedSchema);
-        options.Value.RequireTenant.ShouldBeFalse();
+        options.Value.RequireTenant.ShouldBeTrue();
     }
 
     [Fact]

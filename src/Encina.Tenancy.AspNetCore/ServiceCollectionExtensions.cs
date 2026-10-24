@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Tenancy.AspNetCore;
 
@@ -20,8 +21,9 @@ public static class ServiceCollectionExtensions
     /// <para>
     /// This method registers:
     /// <list type="bullet">
-    /// <item>Default tenant resolvers (header, claim, route, subdomain)</item>
-    /// <item><see cref="TenancyAspNetCoreOptions"/> configuration</item>
+    /// <item>Default tenant resolvers (header, claim, route, subdomain); the header resolver is disabled by default</item>
+    /// <item><see cref="TenancyAspNetCoreOptions"/> configuration, validated on start: enabling
+    /// the header resolver without <c>TrustedProxies</c> or <c>TrustAnyPeer</c> fails startup</item>
     /// </list>
     /// </para>
     /// <para>
@@ -55,7 +57,9 @@ public static class ServiceCollectionExtensions
     /// services.AddEncinaTenancy();
     /// services.AddEncinaTenancyAspNetCore(options =>
     /// {
+    ///     options.HeaderResolver.Enabled = true;
     ///     options.HeaderResolver.HeaderName = "X-Organization-ID";
+    ///     options.HeaderResolver.TrustedProxies.Add(IPNetwork.Parse("10.0.0.0/24")); // the gateway
     ///     options.SubdomainResolver.Enabled = true;
     ///     options.SubdomainResolver.BaseDomain = "example.com";
     /// });
@@ -70,6 +74,13 @@ public static class ServiceCollectionExtensions
 
         // Configure options
         services.Configure(configure);
+
+        // Startup fails when the header resolver is enabled with no trust decision
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<TenancyAspNetCoreOptions>, TenancyAspNetCoreOptionsValidator>());
+        services.AddOptions<TenancyAspNetCoreOptions>().ValidateOnStart();
+
+        // The header resolver and the middleware log through ILogger<T>
+        services.AddLogging();
 
         // TenantResolutionMiddleware stamps the contexts it creates with the injected clock.
         services.TryAddSingleton(TimeProvider.System);

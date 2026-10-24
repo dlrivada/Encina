@@ -49,7 +49,12 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": { "unit": 100, "guard": 85 },
+      "justifications": {
+        "unit": "Every property is read and set in tests, including the RequireTenant default of true.",
+        "guard": "The options are auto-properties with no setter logic; guard tests execute the file only by instantiating the options while guarding the consuming APIs, so the target covers those lines."
+      }
     },
     "Core/DefaultTenantProvider.cs": {
       "defaultTests": [
