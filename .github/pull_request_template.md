@@ -13,6 +13,7 @@ Brief description of what this PR does.
 
 ## Checklist
 
+- [ ] The linked issue is assigned to me (external contributors)
 - [ ] Code follows the project's coding standards
 - [ ] `dotnet format` passes locally (no warnings)
 - [ ] `dotnet build` passes with `TreatWarningsAsErrors`
