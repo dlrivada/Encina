@@ -183,6 +183,18 @@ public sealed class TenantResolutionMiddlewareClaimWinsTests
     }
 
     [Fact]
+    public void RequireTenantDisabled_LogsAWarningAtConstruction()
+    {
+        _tenancyOptions.RequireTenant = false;
+
+        Create();
+
+        var record = _middlewareLogger.Collector.GetSnapshot().ShouldHaveSingleItem();
+        record.Level.ShouldBe(LogLevel.Warning);
+        record.Id.Id.ShouldBe(3853);
+    }
+
+    [Fact]
     public void TrustAnyPeerWithHeaderDisabled_LogsNothing()
     {
         _aspNetCoreOptions.HeaderResolver.Enabled = false;

@@ -219,6 +219,38 @@ public class LambdaResolveTenantIdTests
         record.Message.ShouldNotContain("tenant-b");
     }
 
+    private static APIGatewayProxyRequest RequestWithAuthorizerElement(string json)
+    {
+        var authorizer = new APIGatewayCustomAuthorizerContext
+        {
+            ["tenant_id"] = JsonDocument.Parse(json).RootElement.Clone(),
+        };
+        return new APIGatewayProxyRequest
+        {
+            RequestContext = new APIGatewayProxyRequest.ProxyRequestContext { Authorizer = authorizer },
+        };
+    }
+
+    [Fact]
+    public void AuthorizerEntryAsJsonElementString_IsAValidClaim()
+    {
+        var result = _context.ResolveTenantId(RequestWithAuthorizerElement("\"tenant-a\""), _options, _logger);
+
+        Tenant(result).ShouldBe("tenant-a");
+    }
+
+    [Theory]
+    [InlineData("42")]
+    [InlineData("\"\"")]
+    public void AuthorizerEntryAsJsonElementNotANonEmptyString_IsAnInvalidClaim(string json)
+    {
+        var result = _context.ResolveTenantId(RequestWithAuthorizerElement(json), _options, _logger);
+
+        result.IsLeft.ShouldBeTrue();
+        result.Match(Right: _ => default, Left: e => e).GetCode().IfNone(string.Empty)
+            .ShouldBe(LambdaContextExtensions.InvalidTenantClaimErrorCode);
+    }
+
     [Fact]
     public void CustomClaimType_IsUsed()
     {

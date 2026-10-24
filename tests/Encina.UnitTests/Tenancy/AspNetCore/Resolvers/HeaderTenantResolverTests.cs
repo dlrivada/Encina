@@ -167,6 +167,20 @@ public class HeaderTenantResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsync_UntrustedPeerAndNoHeader_ReturnsNullWithoutLogging()
+    {
+        _options.HeaderResolver.TrustAnyPeer = false;
+        _options.HeaderResolver.TrustedProxies.Add(IPNetwork.Parse("10.0.0.0/24"));
+        var context = new DefaultHttpContext();
+        context.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.9");
+
+        var result = await _resolver.ResolveAsync(context);
+
+        result.ShouldBeNull();
+        _logger.Collector.Count.ShouldBe(0);
+    }
+
+    [Fact]
     public async Task ResolveAsync_NoPeerAddressAndNothingTrusted_FailsClosed()
     {
         _options.HeaderResolver.TrustAnyPeer = false;

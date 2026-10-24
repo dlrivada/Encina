@@ -92,23 +92,19 @@ public sealed class HeaderTenantResolver : ITenantResolver
             return ValueTask.FromResult<string?>(null);
         }
 
+        if (!context.Request.Headers.TryGetValue(headerOptions.HeaderName, out var headerValue))
+        {
+            return ValueTask.FromResult<string?>(null);
+        }
+
         if (!IsTrustedPeer(context, headerOptions))
         {
             TenancyAspNetCoreLogMessages.HeaderIgnoredUntrustedPeer(_logger, headerOptions.HeaderName);
             return ValueTask.FromResult<string?>(null);
         }
 
-        if (context.Request.Headers.TryGetValue(headerOptions.HeaderName, out var headerValue))
-        {
-            var tenantId = headerValue.ToString();
-
-            if (!string.IsNullOrWhiteSpace(tenantId))
-            {
-                return ValueTask.FromResult<string?>(tenantId);
-            }
-        }
-
-        return ValueTask.FromResult<string?>(null);
+        var tenantId = headerValue.ToString();
+        return ValueTask.FromResult<string?>(string.IsNullOrWhiteSpace(tenantId) ? null : tenantId);
     }
 
     private static bool IsTrustedPeer(HttpContext context, HeaderResolverOptions headerOptions)

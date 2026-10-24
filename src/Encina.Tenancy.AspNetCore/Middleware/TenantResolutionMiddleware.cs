@@ -69,9 +69,10 @@ public sealed class TenantResolutionMiddleware
     /// <param name="tenantStore">The tenant store for validation.</param>
     /// <param name="logger">The logger.</param>
     /// <remarks>
-    /// Logs a Warning once when the header resolver is enabled with
-    /// <see cref="HeaderResolverOptions.TrustAnyPeer"/>, the explicit opt-out of the trusted-proxy check.
+    /// Logs a Warning once for each explicit opt-out: the header resolver enabled with
+    /// <see cref="HeaderResolverOptions.TrustAnyPeer"/>, and <see cref="TenancyOptions.RequireTenant"/> set to <c>false</c>.
     /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
     public TenantResolutionMiddleware(
         RequestDelegate next,
         IEnumerable<ITenantResolver> resolvers,
@@ -80,6 +81,13 @@ public sealed class TenantResolutionMiddleware
         ITenantStore tenantStore,
         ILogger<TenantResolutionMiddleware> logger)
     {
+        ArgumentNullException.ThrowIfNull(next);
+        ArgumentNullException.ThrowIfNull(resolvers);
+        ArgumentNullException.ThrowIfNull(tenancyOptions);
+        ArgumentNullException.ThrowIfNull(aspNetCoreOptions);
+        ArgumentNullException.ThrowIfNull(tenantStore);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _next = next;
         _resolverChain = new TenantResolverChain(resolvers);
         _tenancyOptions = tenancyOptions.Value;
@@ -87,10 +95,20 @@ public sealed class TenantResolutionMiddleware
         _tenantStore = tenantStore;
         _logger = logger;
 
+        LogExplicitOptOuts();
+    }
+
+    private void LogExplicitOptOuts()
+    {
         var header = _aspNetCoreOptions.HeaderResolver;
         if (header.Enabled && header.TrustAnyPeer)
         {
             TenancyAspNetCoreLogMessages.HeaderTrustAnyPeerEnabled(_logger, header.HeaderName);
+        }
+
+        if (!_tenancyOptions.RequireTenant)
+        {
+            TenancyAspNetCoreLogMessages.TenantNotRequired(_logger);
         }
     }
 

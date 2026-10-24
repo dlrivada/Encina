@@ -91,11 +91,19 @@ public sealed class HeaderResolverOptions
     /// </summary>
     /// <value>An empty list by default: no peer is trusted.</value>
     /// <remarks>
+    /// <para>
     /// The check uses the peer address seen when the middleware runs, normalized when it is an
-    /// IPv4-mapped IPv6 address. After <c>UseForwardedHeaders</c> that address is the forwarded client
-    /// address, not the proxy, so list the gateway accordingly (or place the middleware before the
-    /// forwarded-headers middleware), or use <see cref="TrustAnyPeer"/> only behind network isolation.
+    /// IPv4-mapped IPv6 address. When <c>UseForwardedHeaders()</c> runs before <c>UseTenantResolution()</c>,
+    /// that address is the forwarded client address, not the gateway, so a list holding only the gateway
+    /// does not match. To trust a gateway by its address, run <c>UseTenantResolution()</c> before
+    /// <c>UseForwardedHeaders()</c>; note that <c>UseEncinaContext()</c> needs the forwarded headers first
+    /// to read the client IP, so that ordering is a trade-off to decide for the pipeline.
+    /// </para>
+    /// <para>
+    /// Never add client addresses to this list: any client in it could choose its own tenant. When the
+    /// gateway cannot be matched by address, use <see cref="TrustAnyPeer"/> only behind network isolation.
     /// A request with no peer address is never trusted through this list.
+    /// </para>
     /// </remarks>
     public IList<System.Net.IPNetwork> TrustedProxies { get; } = [];
 

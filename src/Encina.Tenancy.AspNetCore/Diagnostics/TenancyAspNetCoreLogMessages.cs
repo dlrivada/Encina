@@ -8,7 +8,7 @@ namespace Encina.Tenancy.AspNetCore.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Event IDs: 3850-3852 (see <c>EventIdRanges.TenancyAspNetCore</c>, range 3850-3899).
+/// Event IDs: 3850-3853 (see <c>EventIdRanges.TenancyAspNetCore</c>, range 3850-3899).
 /// </para>
 /// <para>
 /// No message carries a tenant value or an <c>EncinaError.Message</c>: only resolver type names
@@ -51,4 +51,14 @@ internal static partial class TenancyAspNetCoreLogMessages
         Level = LogLevel.Warning,
         Message = "Tenant header {HeaderName} is honored from any peer (HeaderResolver.TrustAnyPeer is enabled): only safe behind network isolation")]
     public static partial void HeaderTrustAnyPeerEnabled(ILogger logger, string headerName);
+
+    /// <summary>
+    /// Logs that tenant resolution does not require a tenant, an explicit opt-out of the default.
+    /// </summary>
+    /// <param name="logger">The logger instance.</param>
+    [LoggerMessage(
+        EventId = 3853,
+        Level = LogLevel.Warning,
+        Message = "TenancyOptions.RequireTenant is disabled: requests without a resolved tenant proceed without tenant isolation")]
+    public static partial void TenantNotRequired(ILogger logger);
 }

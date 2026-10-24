@@ -143,6 +143,23 @@ public sealed class TenancyAspNetCoreGuardTests
             NullLogger<TenantResolutionMiddleware>.Instance);
 
     [Fact]
+    public void TenantResolutionMiddleware_Constructor_NullParameter_Throws()
+    {
+        RequestDelegate next = _ => Task.CompletedTask;
+        var tenancy = Options.Create(new TenancyOptions());
+        var aspNetCore = Options.Create(new TenancyAspNetCoreOptions());
+        var store = Substitute.For<ITenantStore>();
+        var logger = NullLogger<TenantResolutionMiddleware>.Instance;
+
+        Should.Throw<ArgumentNullException>(() => new TenantResolutionMiddleware(null!, [], tenancy, aspNetCore, store, logger));
+        Should.Throw<ArgumentNullException>(() => new TenantResolutionMiddleware(next, null!, tenancy, aspNetCore, store, logger));
+        Should.Throw<ArgumentNullException>(() => new TenantResolutionMiddleware(next, [], null!, aspNetCore, store, logger));
+        Should.Throw<ArgumentNullException>(() => new TenantResolutionMiddleware(next, [], tenancy, null!, store, logger));
+        Should.Throw<ArgumentNullException>(() => new TenantResolutionMiddleware(next, [], tenancy, aspNetCore, null!, logger));
+        Should.Throw<ArgumentNullException>(() => new TenantResolutionMiddleware(next, [], tenancy, aspNetCore, store, null!));
+    }
+
+    [Fact]
     public async Task TenantResolutionMiddleware_InvokeAsync_NullContext_Throws()
     {
         var sut = CreateMiddleware();

@@ -107,7 +107,8 @@ public static class FunctionContextExtensions
     /// <returns>
     /// <c>Right(Some(tenant))</c> when a tenant was found, <c>Right(None)</c> when the request carries none
     /// (or only an untrusted header), and <c>Left</c> with <see cref="TenantMismatchErrorCode"/> when the
-    /// header disagrees with the claim.
+    /// header disagrees with the claim, or with <see cref="InvalidTenantClaimErrorCode"/> when the claim exists
+    /// but has no non-empty value.
     /// </returns>
     /// <remarks>
     /// <para>The rules, in order:</para>

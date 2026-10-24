@@ -95,7 +95,8 @@ public static class LambdaContextExtensions
     /// <returns>
     /// <c>Right(Some(tenant))</c> when a tenant was found, <c>Right(None)</c> when the request carries none
     /// (or only an untrusted header), and <c>Left</c> with <see cref="TenantMismatchErrorCode"/> when the
-    /// header disagrees with the claim.
+    /// header disagrees with the claim, or with <see cref="InvalidTenantClaimErrorCode"/> when the claim exists
+    /// but is not a non-empty string.
     /// </returns>
     /// <remarks>
     /// <para>The rules, in order:</para>
@@ -222,8 +223,22 @@ public static class LambdaContextExtensions
 
     private static ClaimRead ReadAuthorizerEntry(Amazon.Lambda.APIGatewayEvents.APIGatewayCustomAuthorizerContext authorizer, string claimType) =>
         authorizer.TryGetValue(claimType, out var tenantFromAuth)
-            ? new ClaimRead(true, tenantFromAuth is string { Length: > 0 } tenantStr ? tenantStr : null)
+            ? new ClaimRead(true, AsNonEmptyString(tenantFromAuth))
             : default;
+
+    // The authorizer dictionary holds plain strings, or JsonElements when DefaultLambdaJsonSerializer
+    // deserialized the event; only a non-empty string (or JSON string) is a valid claim.
+    private static string? AsNonEmptyString(object? value)
+    {
+        var text = value switch
+        {
+            string s => s,
+            JsonElement { ValueKind: JsonValueKind.String } element => element.GetString(),
+            _ => null
+        };
+
+        return string.IsNullOrEmpty(text) ? null : text;
+    }
 
     /// <summary>
     /// Gets the user ID from the API Gateway request JWT claims.
