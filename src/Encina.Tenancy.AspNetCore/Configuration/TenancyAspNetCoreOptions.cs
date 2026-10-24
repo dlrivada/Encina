@@ -96,8 +96,12 @@ public sealed class HeaderResolverOptions
     /// IPv4-mapped IPv6 address. When <c>UseForwardedHeaders()</c> runs before <c>UseTenantResolution()</c>,
     /// that address is the forwarded client address, not the gateway, so a list holding only the gateway
     /// does not match. To trust a gateway by its address, run <c>UseTenantResolution()</c> before
-    /// <c>UseForwardedHeaders()</c>; note that <c>UseEncinaContext()</c> needs the forwarded headers first
-    /// to read the client IP, so that ordering is a trade-off to decide for the pipeline.
+    /// <c>UseForwardedHeaders()</c>. That ordering has a cost when <c>UseEncinaContext()</c> is used: it needs
+    /// the forwarded headers first to read the client IP, and when it runs after <c>UseTenantResolution()</c>
+    /// it builds a new request context that does not carry the resolved tenant (the tenant comes only from
+    /// the principal claim or the raw tenant header). With <c>UseEncinaContext()</c> in the pipeline, keep
+    /// the forwarded headers and <c>UseEncinaContext()</c> first and use <see cref="TrustAnyPeer"/> behind
+    /// network isolation instead.
     /// </para>
     /// <para>
     /// Never add client addresses to this list: any client in it could choose its own tenant. When the

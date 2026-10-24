@@ -496,7 +496,7 @@ The header is honored only when `HttpContext.Connection.RemoteIpAddress` is insi
 
 - The address checked is the one seen when `UseTenantResolution()` runs.
 - When `UseForwardedHeaders()` runs before `UseTenantResolution()`, that address is the forwarded client address, so a list holding only the gateway does not match.
-- To trust a gateway by its address, run `UseTenantResolution()` before `UseForwardedHeaders()`.
+- To trust a gateway by its address, when you do not use `UseEncinaContext()`, run `UseTenantResolution()` before `UseForwardedHeaders()`.
 - That ordering puts `UseEncinaContext()` after `UseTenantResolution()`. `UseEncinaContext()` then builds a new request context that does not carry the resolved tenant; its tenant comes only from the principal claim or the raw tenant header.
 - When you use `UseEncinaContext()`, keep `UseForwardedHeaders()` and `UseEncinaContext()` first and set `TrustAnyPeer` only behind network isolation. Listing the gateway in `TrustedProxies` works only in pipelines without `UseEncinaContext()` after `UseTenantResolution()`.
 - Never put client addresses in `TrustedProxies`: any client in the list could choose its tenant.
@@ -504,7 +504,7 @@ The header is honored only when `HttpContext.Connection.RemoteIpAddress` is insi
 
 The decision is recorded in [#2399](https://github.com/dlrivada/Encina/issues/2399); the Cloud row of [ADR-050](../architecture/adr/050-modules-may-require-modules.md) forbids ranking the header above the verified claim.
 
-`UseTenantResolution()` sets the resolved tenant on the ambient `IRequestContext` held by `IRequestContextAccessor`, which `IEncina.Send`, `Publish` and `Stream` use to seed the pipeline. When `UseEncinaContext()` runs first, the tenant is added to its context; without it, the middleware creates a context holding the tenant and the request's correlation id, so the tenant always reaches the handlers.
+`UseTenantResolution()` sets the resolved tenant on the ambient `IRequestContext` held by `IRequestContextAccessor`, which `IEncina.Send`, `Publish` and `Stream` use to seed the pipeline. When `UseEncinaContext()` runs first, the tenant is added to its context; without it, the middleware creates a context holding the tenant and the request's correlation id, so the tenant reaches the handlers. The exception is `UseEncinaContext()` running after `UseTenantResolution()`, described above.
 
 ### Custom Tenant Resolver
 
