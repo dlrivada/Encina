@@ -292,6 +292,9 @@ public sealed class RequestContextPropagationTests
                 {
                     services.AddLogging();
                     services.AddEncinaAspNetCore();
+
+                    // The stand-in principal has no tenant claim: the tenant header is the tenant source under test (#2686).
+                    services.Configure<EncinaAspNetCoreOptions>(options => options.TrustTenantIdHeader = true);
                     services.AddEncina();
                     configureServices(services);
                 });

@@ -205,29 +205,38 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
         }
 
         var headerTenant = InboundRequestNormalizer.Id(request.TenantHeaderValue);
-        if (claimTenant is not null)
+        if (claimTenant is null)
         {
-            tenantId = claimTenant;
-            return headerTenant is not null && !string.Equals(headerTenant, claimTenant, StringComparison.Ordinal)
-                ? RequestIdentityErrors.InboundTenantConflict()
-                : (EncinaError?)null;
+            tenantId = TenantFromHeader(headerTenant, request.TenantHeaderTrusted);
+            return null;
         }
 
+        tenantId = claimTenant;
+        if (HeaderDisagrees(headerTenant, claimTenant))
+        {
+            return RequestIdentityErrors.InboundTenantConflict();
+        }
+
+        return null;
+    }
+
+    private static bool HeaderDisagrees(string? headerTenant, string claimTenant) =>
+        headerTenant is not null && !string.Equals(headerTenant, claimTenant, StringComparison.Ordinal);
+
+    // With no claim the header chooses the tenant only when the application trusts it.
+    private string? TenantFromHeader(string? headerTenant, bool trusted)
+    {
         if (headerTenant is null)
         {
             return null;
         }
 
-        if (request.TenantHeaderTrusted)
-        {
-            tenantId = headerTenant;
-        }
-        else
+        if (!trusted)
         {
             RequestIdentityLog.UntrustedTenantHeaderIgnored(_logger);
         }
 
-        return null;
+        return trusted ? headerTenant : null;
     }
 
     /// <inheritdoc />
