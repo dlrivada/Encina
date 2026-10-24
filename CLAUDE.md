@@ -13,7 +13,7 @@ Before starting work, read the plan of your area and continue from where the las
 | Test Consolidation | `docs/plans/test-consolidation-plan.md` | 🟡 In Progress |
 | Performance Measurement Infrastructure | `docs/plans/performance-infrastructure-plan.md` | 🟢 Phase 4 implemented (ADR-025) |
 | Encina 1.0 — Phase 0 baseline | `docs/engineering/PHASE0-BASELINE.md` | 🟢 Diagnostic done 2026-09-21; next: #1088 (build) |
-| SPEC-000 — 1.0 Baseline and Release Scope | `docs/specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md` | 🟢 APPROVED 2026-09-21 — the 1.0 boundary; six decisions recorded |
+| SPEC-000 — 1.0 Baseline and Release Scope | `docs/specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md` | 🟢 APPROVED 2026-09-21 — the 1.0 boundary; amended 2026-10-23 (DEC-009, #2692): scope widened; SPEC-000 §6 is the complete list of exclusions (AI/LLM, cloud services without a free local emulator, and the technical exclusions) |
 | AI development model (SDD, agents, routing) | `docs/engineering/AI-DEVELOPMENT-MODEL.md` | 🟢 Reference |
 
 ## Orchestration and delegation
