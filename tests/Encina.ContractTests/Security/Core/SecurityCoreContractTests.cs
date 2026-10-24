@@ -246,6 +246,24 @@ public sealed class SecurityCoreContractTests
     }
 
     [Fact]
+    public async Task Pipeline_MissingContext_WithRequireAuthenticatedByDefaultOnly_IsDeniedAsAnonymous()
+    {
+        var result = await Run<Unsecured>(
+            new FixedAccessor(null), new SecurityOptions { RequireAuthenticatedByDefault = true });
+
+        var error = AssertDenied(result, EncinaErrorCodes.AuthorizationUnauthenticated);
+        error.GetDetails()["requirement"].ShouldBe("authenticated");
+    }
+
+    [Fact]
+    public async Task Pipeline_MissingContext_WithClaimRequirement_IsDenied()
+    {
+        var result = await Run<SecuredByClaim>(new FixedAccessor(null), new SecurityOptions());
+
+        AssertDenied(result, EncinaErrorCodes.AuthorizationClaimMissing);
+    }
+
+    [Fact]
     public async Task Pipeline_AllowAnonymousRequest_PassesWithoutContext()
     {
         var result = await Run<OpenRequest>(new FixedAccessor(null), new SecurityOptions { RequireAuthenticatedByDefault = true });
@@ -413,6 +431,9 @@ public sealed class SecurityCoreContractTests
     {
         public string OwnerId { get; init; } = "someone";
     }
+
+    [RequireClaim("flag", "on")]
+    private sealed class SecuredByClaim : ICommand<Unit>;
 
     private sealed class Unsecured : ICommand<Unit>;
 

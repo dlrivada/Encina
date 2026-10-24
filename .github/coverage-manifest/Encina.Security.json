@@ -120,7 +120,7 @@
         "contract": 95
       },
       "justifications": {
-        "guard": "Guard tests assert the null context, null resource and blank property name guards of the real IsOwnerAsync and an anonymous denial, leaving uncovered the property-match branch that needs an authenticated owner (measured about 89%).",
+        "guard": "Guard tests assert the null context, null resource and blank property name guards of the real IsOwnerAsync, an anonymous denial and a matching owner through the pipeline, leaving uncovered only the unknown-property denial (measured about 89%).",
         "contract": "Contract tests run the real evaluator for the missing-user denial, exact ordinal match, null property value and unknown property cases (measured 100%)."
       }
     },
@@ -203,7 +203,7 @@
       },
       "justifications": {
         "unit": "Every factory is tested (measured 100%).",
-        "guard": "Guard tests call the real role, permission and ownership error factories with empty collections and a null user id, leaving uncovered the claim and missing-context factories (measured about 86%).",
+        "guard": "Guard tests call the real role, permission and ownership factories with empty collections and a null user id, and reach the unauthenticated and claim factories through the pipeline, leaving uncovered only MissingContext (measured about 86%).",
         "contract": "Contract tests call every real error factory and assert the stable error code, the security stage and the request type metadata plus the any/all requirement markers (measured 100%)."
       }
     },
@@ -229,7 +229,7 @@
       },
       "justifications": {
         "unit": "Mediator pipeline with mockeable next; remaining lines are guarded logging/diagnostic branches (measured 93.5%).",
-        "guard": "Guard tests run the real behavior with a null request and with anonymous and authenticated callers for every attribute kind, leaving uncovered the allowed-path branches that need richer claim and permission setups (measured about 79%).",
+        "guard": "Guard tests run the real behavior with a null request, anonymous callers and an authenticated caller for each of the seven attribute kinds, leaving uncovered the AllowAnonymous bypass, RequireAuthenticatedByDefault, the throw-on-missing-context option, multi-attribute ordering and the failure branches of all-roles, claim and require-all permissions (measured about 79%).",
         "contract": "Contract tests run the real behavior with a missing security context and assert it denies for role, permission, ownership and deny-anonymous requirements and honours ThrowOnMissingSecurityContext, RequireAuthenticatedByDefault and AllowAnonymous, leaving uncovered the claim and all-roles evaluators (measured about 69%)."
       }
     },
@@ -245,7 +245,7 @@
         "contract": 95
       },
       "justifications": {
-        "guard": "Guard tests assert the ArgumentNullException for a null services collection and a valid registration with the optional health check, leaving uncovered the resolution of the health check registration (measured about 88%).",
+        "guard": "Guard tests assert the ArgumentNullException for a null services collection and a registration with the optional health check, leaving uncovered the branch that registers default options when no configure delegate is passed (measured about 88%).",
         "contract": "Contract tests build a provider with ValidateOnBuild and ValidateScopes and assert the default services, the pipeline behavior and that an application-registered evaluator wins (measured 100%)."
       }
     }

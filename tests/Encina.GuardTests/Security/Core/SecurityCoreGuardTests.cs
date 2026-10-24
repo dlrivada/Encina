@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Encina.Security;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Shouldly;
@@ -238,9 +239,12 @@ public sealed class SecurityCoreGuardTests
     [Fact]
     public void SecurityErrors_AcceptEmptyCollectionsAndNullUser()
     {
-        SecurityErrors.InsufficientRoles(typeof(RoleCommand), [], null).GetCode().IsSome.ShouldBeTrue();
-        SecurityErrors.PermissionDenied(typeof(PermissionCommand), [], null, requireAll: true).GetCode().IsSome.ShouldBeTrue();
-        SecurityErrors.NotOwner(typeof(OwnershipCommand), "OwnerId", null).GetCode().IsSome.ShouldBeTrue();
+        SecurityErrors.InsufficientRoles(typeof(RoleCommand), [], null).GetCode().IfNone("")
+            .ShouldBe(EncinaErrorCodes.AuthorizationInsufficientRoles);
+        SecurityErrors.PermissionDenied(typeof(PermissionCommand), [], null, requireAll: true).GetCode().IfNone("")
+            .ShouldBe(EncinaErrorCodes.AuthorizationPermissionDenied);
+        SecurityErrors.NotOwner(typeof(OwnershipCommand), "OwnerId", null).GetCode().IfNone("")
+            .ShouldBe(EncinaErrorCodes.AuthorizationNotOwner);
     }
 
     [Fact]
@@ -254,6 +258,7 @@ public sealed class SecurityCoreGuardTests
         services.ShouldContain(d => d.ServiceType == typeof(IPermissionEvaluator));
         services.ShouldContain(d => d.ServiceType == typeof(IResourceOwnershipEvaluator));
         services.ShouldContain(d => d.ServiceType == typeof(ISecurityContextAccessor));
+        services.ShouldContain(d => d.ServiceType == typeof(IConfigureOptions<HealthCheckServiceOptions>));
     }
 
     private static ValueTask<Either<EncinaError, Unit>> Next() => new(Unit.Default);
