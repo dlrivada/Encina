@@ -105,6 +105,7 @@ internal static class BreakTheGlassSubjectIdConversion
         && type.Assembly != typeof(object).Assembly
         && (ValuePropertyCache.GetOrAdd(type, ResolveValueProperty) is not null || typeof(IFormattable).IsAssignableFrom(type));
 
+    // crap-exempt: single-question switch — classifies a value as one of the primitive subject-id shapes
     private static bool TryConvertPrimitive(object value, out string? result)
     {
         switch (value)

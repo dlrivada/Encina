@@ -206,24 +206,26 @@ public sealed class DefaultBreakTheGlassService : IBreakTheGlassService
     private bool TryGetCaller(out Caller caller, out EncinaError refusal)
     {
         var context = _contextAccessor.RequestContext;
-        if (context?.Identity is { IsAuthenticated: true, UserId: { } userId } identity)
+        caller = default;
+        if (context?.Identity is not { IsAuthenticated: true, UserId: { } userId } identity)
         {
-            if (_options.Value.RequireTenant && string.IsNullOrWhiteSpace(context.TenantId))
-            {
-                caller = default;
-                refusal = BreakTheGlassErrors.TenantRequired();
-                return false;
-            }
-
-            caller = new Caller(context, identity, userId);
-            refusal = default;
-            return true;
+            refusal = EncinaErrors.Unauthenticated();
+            return false;
         }
 
-        caller = default;
-        refusal = EncinaErrors.Unauthenticated();
-        return false;
+        if (IsTenantMissing(context))
+        {
+            refusal = BreakTheGlassErrors.TenantRequired();
+            return false;
+        }
+
+        caller = new Caller(context, identity, userId);
+        refusal = default;
+        return true;
     }
+
+    private bool IsTenantMissing(IRequestContext context) =>
+        _options.Value.RequireTenant && string.IsNullOrWhiteSpace(context.TenantId);
 
     private bool IsReviewer(RequestIdentity identity) =>
         identity.Kind == IdentityKind.User && _options.Value.ReviewerRoles.Overlaps(identity.Roles);

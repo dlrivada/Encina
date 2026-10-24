@@ -68,9 +68,7 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
 
         // The identity can change between reads (its scope may end): read it once so every decision agrees.
         var identity = context.Identity;
-        var eligibility = Candidate<TRequest>(identity, denial);
-        var subjectId = eligibility?.GetSubjectId(request);
-        if (eligibility is null || string.IsNullOrWhiteSpace(subjectId) || identity.UserId is not { } userId)
+        if (!TryResolve(request, identity, denial, out var eligibility, out var subjectId, out var userId))
         {
             return Option<AccessElevation>.None;
         }
@@ -89,6 +87,24 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
     // A grant held by an earlier gate of the same request is reused only while it is still in force.
     private bool TryReuse(string correlationId, Type requestType, string subjectId, out AccessElevation held) =>
         _grants.TryGet(correlationId, requestType, subjectId, out held) && held.ExpiresAtUtc > _timeProvider.GetUtcNow();
+
+    // Steps 1 to 4 and the subject: false when the denial stays.
+    private bool TryResolve<TRequest>(
+        TRequest request,
+        RequestIdentity identity,
+        EncinaError denial,
+        out BreakTheGlassEligibilityInfo<TRequest> eligibility,
+        out string subjectId,
+        out string userId)
+        where TRequest : notnull
+    {
+        var candidate = Candidate<TRequest>(identity, denial);
+        var subject = candidate?.GetSubjectId(request);
+        eligibility = candidate!;
+        subjectId = subject!;
+        userId = identity.UserId!;
+        return candidate is not null && !string.IsNullOrWhiteSpace(subject);
+    }
 
     // Steps 1 to 4: null when the denial cannot be offered or the type or caller is not eligible.
     private BreakTheGlassEligibilityInfo<TRequest>? Candidate<TRequest>(RequestIdentity identity, EncinaError denial)
