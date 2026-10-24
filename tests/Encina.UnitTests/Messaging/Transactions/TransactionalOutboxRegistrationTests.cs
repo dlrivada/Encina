@@ -49,7 +49,8 @@ public sealed class TransactionalOutboxRegistrationTests
             foreach (var family in new[]
                      {
                          Family.AdoSqlServer, Family.AdoPostgreSql, Family.AdoMySql,
-                         Family.DapperSqlServer, Family.DapperPostgreSql, Family.DapperMySql
+                         Family.DapperSqlServer, Family.DapperPostgreSql, Family.DapperMySql,
+                         Family.EntityFrameworkCore
                      })
             {
                 data.Add(family, true, false);
@@ -84,17 +85,23 @@ public sealed class TransactionalOutboxRegistrationTests
         sp.GetRequiredService<IDbTransactionAccessor>().ShouldBeSameAs(accessor);
 
         var behaviors = sp.GetServices<IPipelineBehavior<ProbeRequest, string>>().ToList();
-        (behaviors.Any(b => b is TransactionPipelineBehavior<ProbeRequest, string>)).ShouldBe(useTransactions);
+        // EF Core's own behavior does not close over the probe request; its registration is asserted in
+        // SharedTransactionTests.
+        if (family != Family.EntityFrameworkCore)
+        {
+            (behaviors.Any(b => b is TransactionPipelineBehavior<ProbeRequest, string>)).ShouldBe(useTransactions);
+        }
+
         (behaviors.Any(b => b is TransactionalOutboxPipelineBehavior<ProbeRequest, string>)).ShouldBe(useOutbox);
         sp.GetServices<IRequestPostProcessor<ProbeRequest, string>>()
             .ShouldNotContain(p => p is OutboxPostProcessor<ProbeRequest, string>);
     }
 
-    [Theory]
-    [MemberData(nameof(NonRelationalFamilies))]
-    public void EfCoreAndMongoDb_RegisterNoAccessor_AndStillBuildWithValidation(Family family)
+    // MongoDB stays on the interim post-processor (#718): no accessor, still builds, still resolves it.
+    [Fact]
+    public void MongoDb_RegistersNoAccessor_AndStillBuilds()
     {
-        var services = Register(family);
+        var services = Register(Family.MongoDB);
 
         services.ShouldNotContain(d => d.ServiceType == typeof(IDbTransactionAccessor));
         services.ShouldNotContain(d => d.ServiceType == typeof(ITransactionLeaseSource));
@@ -324,7 +331,7 @@ public sealed class TransactionalOutboxRegistrationTests
             case Family.EntityFrameworkCore:
                 services.AddDbContext<ProbeDbContext>(o => o.UseInMemoryDatabase($"tx-registration-{Guid.NewGuid():N}"));
                 global::Encina.EntityFrameworkCore.ServiceCollectionExtensions.AddEncinaEntityFrameworkCore<ProbeDbContext>(
-                    services, config => config.UseOutbox = true);
+                    services, OutboxAndTransactions);
                 break;
             default:
                 global::Encina.MongoDB.ServiceCollectionExtensions.AddEncinaMongoDB(services, options =>

@@ -18,11 +18,14 @@ Encina.AzureFunctions.EncinaAzureFunctionsOptions.ProviderHealthCheck.set -> voi
 Encina.AzureFunctions.FunctionContextExtensions
 static Encina.AzureFunctions.FunctionContextExtensions.GetCorrelationId(this Microsoft.Azure.Functions.Worker.FunctionContext! context) -> string?
 static Encina.AzureFunctions.FunctionContextExtensions.GetCorrelationId(this Microsoft.Azure.Functions.Worker.FunctionContext! context, Microsoft.Azure.Functions.Worker.Http.HttpRequestData! httpRequest, Encina.AzureFunctions.EncinaAzureFunctionsOptions? options = null) -> string?
-static Encina.AzureFunctions.FunctionContextExtensions.GetTenantId(this Microsoft.Azure.Functions.Worker.FunctionContext! context) -> string?
-static Encina.AzureFunctions.FunctionContextExtensions.GetTenantId(this Microsoft.Azure.Functions.Worker.FunctionContext! context, Microsoft.Azure.Functions.Worker.Http.HttpRequestData! httpRequest, Encina.AzureFunctions.EncinaAzureFunctionsOptions? options = null) -> string?
 static Encina.AzureFunctions.FunctionContextExtensions.GetUserId(this Microsoft.Azure.Functions.Worker.FunctionContext! context) -> string?
 static Encina.AzureFunctions.FunctionContextExtensions.GetUserId(this Microsoft.Azure.Functions.Worker.FunctionContext! context, Microsoft.Azure.Functions.Worker.Http.HttpRequestData! httpRequest, Encina.AzureFunctions.EncinaAzureFunctionsOptions? options = null) -> string?
 static Encina.AzureFunctions.FunctionContextExtensions.GetInvocationId(this Microsoft.Azure.Functions.Worker.FunctionContext! context) -> string!
+static Encina.AzureFunctions.FunctionContextExtensions.ResolveTenantId(this Microsoft.Azure.Functions.Worker.FunctionContext! context, Microsoft.Azure.Functions.Worker.Http.HttpRequestData! httpRequest, Encina.AzureFunctions.EncinaAzureFunctionsOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<string!>>
+const Encina.AzureFunctions.FunctionContextExtensions.TenantMismatchErrorCode = "tenancy.tenant_mismatch" -> string!
+const Encina.AzureFunctions.FunctionContextExtensions.InvalidTenantClaimErrorCode = "tenancy.invalid_tenant_claim" -> string!
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.TrustTenantIdHeader.get -> bool
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.TrustTenantIdHeader.set -> void
 Encina.AzureFunctions.HttpResponseDataExtensions
 static Encina.AzureFunctions.HttpResponseDataExtensions.ToHttpResponseData<T>(this LanguageExt.Either<Encina.EncinaError, T> result, Microsoft.Azure.Functions.Worker.Http.HttpRequestData! request, int successStatusCode = 200, int? errorStatusCode = null) -> System.Threading.Tasks.ValueTask<Microsoft.Azure.Functions.Worker.Http.HttpResponseData!>
 static Encina.AzureFunctions.HttpResponseDataExtensions.ToProblemDetailsResponse(this Encina.EncinaError error, Microsoft.Azure.Functions.Worker.Http.HttpRequestData! request, int? statusCode = null) -> System.Threading.Tasks.ValueTask<Microsoft.Azure.Functions.Worker.Http.HttpResponseData!>

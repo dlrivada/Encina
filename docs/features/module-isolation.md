@@ -889,9 +889,12 @@ services.AddEncinaModuleIsolation(isolation =>
         b.WithDatabaseUser("orders_user"));
 });
 
+// The verified tenant claim resolver is on by default and always wins.
+// The header resolver is off by default; enable it only behind a gateway you trust.
 services.AddEncinaTenancyAspNetCore(options =>
 {
     options.HeaderResolver.Enabled = true;
+    options.HeaderResolver.TrustedProxies.Add(System.Net.IPNetwork.Parse("10.0.0.0/8"));
 });
 ```
 

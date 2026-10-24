@@ -42,12 +42,29 @@ public sealed class EncinaAwsLambdaOptions
     public string CorrelationIdHeader { get; set; } = "X-Correlation-ID";
 
     /// <summary>
-    /// Gets or sets the HTTP header name used to extract the tenant ID.
+    /// Gets or sets the HTTP header name used to extract the tenant ID when
+    /// <see cref="TrustTenantIdHeader"/> is enabled.
     /// </summary>
     /// <value>
     /// The header name for tenant ID. Default is "X-Tenant-ID".
     /// </value>
     public string TenantIdHeader { get; set; } = "X-Tenant-ID";
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the tenant header may supply the tenant when the request
+    /// carries no verified tenant claim.
+    /// </summary>
+    /// <value>
+    /// <c>true</c> to honor the header when no claim exists; otherwise, <c>false</c>. Default is <c>false</c>.
+    /// </value>
+    /// <remarks>
+    /// <para>
+    /// The verified claim always wins, whatever this value is: a header that disagrees with the claim is
+    /// rejected. A header is client controlled, so enable this only when a trusted gateway or authorizer
+    /// is the only party that can set it. Each use is logged as a Warning (without the tenant value).
+    /// </para>
+    /// </remarks>
+    public bool TrustTenantIdHeader { get; set; }
 
     /// <summary>
     /// Gets or sets the claim type used to extract the user ID from JWT claims.

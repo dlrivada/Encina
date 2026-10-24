@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using LanguageExt;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Logging;
 
 namespace Encina.AzureFunctions;
 
@@ -11,8 +13,9 @@ namespace Encina.AzureFunctions;
 /// <para>
 /// These extension methods provide convenient access to common context values that are
 /// typically set by the <see cref="EncinaFunctionMiddleware"/>. The middleware enriches
-/// the function context with correlation IDs, tenant IDs, and user IDs extracted from
-/// HTTP headers and claims.
+/// the function context with correlation IDs and user IDs. The tenant is never stored on the
+/// context: HTTP-triggered functions resolve it with
+/// <see cref="ResolveTenantId(FunctionContext, HttpRequestData, EncinaAzureFunctionsOptions, ILogger)"/>.
 /// </para>
 /// <para>
 /// For HTTP-triggered functions, you can also pass the <see cref="HttpRequestData"/>
@@ -83,68 +86,133 @@ public static class FunctionContextExtensions
     }
 
     /// <summary>
-    /// Gets the tenant ID from the function context.
+    /// The error code of a tenant mismatch: the tenant header disagrees with the verified tenant claim.
     /// </summary>
-    /// <param name="context">The function context.</param>
-    /// <returns>The tenant ID if found, otherwise null.</returns>
-    /// <remarks>
-    /// The tenant ID should be set by <see cref="EncinaFunctionMiddleware"/> during
-    /// request processing. Use <see cref="GetTenantId(FunctionContext, HttpRequestData, EncinaAzureFunctionsOptions?)"/>
-    /// for HTTP-triggered functions to extract from headers or claims directly.
-    /// </remarks>
-    public static string? GetTenantId(this FunctionContext context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-
-        if (context.Items.TryGetValue(EncinaFunctionMiddleware.TenantIdKey, out var contextValue) &&
-            contextValue is string tenantId)
-        {
-            return tenantId;
-        }
-
-        return null;
-    }
+    public const string TenantMismatchErrorCode = "tenancy.tenant_mismatch";
 
     /// <summary>
-    /// Gets the tenant ID from the HTTP request headers, claims, or function context.
+    /// The error code of an unreadable tenant claim: the claim exists but has no non-empty value, so the
+    /// request is denied instead of falling back to a client-supplied header.
+    /// </summary>
+    public const string InvalidTenantClaimErrorCode = "tenancy.invalid_tenant_claim";
+
+    /// <summary>
+    /// Resolves the tenant ID of an HTTP request: the verified claim wins, a header is a trusted
+    /// fallback only when <see cref="EncinaAzureFunctionsOptions.TrustTenantIdHeader"/> is set.
     /// </summary>
     /// <param name="context">The function context.</param>
     /// <param name="httpRequest">The HTTP request data.</param>
-    /// <param name="options">Optional configuration options.</param>
-    /// <returns>The tenant ID if found, otherwise null.</returns>
-    public static string? GetTenantId(
+    /// <param name="options">The configuration options.</param>
+    /// <param name="logger">The logger used for the mismatch and the trusted-header notices.</param>
+    /// <returns>
+    /// <c>Right(Some(tenant))</c> when a tenant was found, <c>Right(None)</c> when the request carries none
+    /// (or only an untrusted header), and <c>Left</c> with <see cref="TenantMismatchErrorCode"/> when the
+    /// header disagrees with the claim, or with <see cref="InvalidTenantClaimErrorCode"/> when the claim exists
+    /// but has no non-empty value.
+    /// </returns>
+    /// <remarks>
+    /// <para>The rules, in order:</para>
+    /// <list type="number">
+    /// <item><description>A claim of the request identities is the verified tenant.</description></item>
+    /// <item><description>A claim plus a different header is a mismatch (<c>Left</c>, logged as a Warning with the code only).</description></item>
+    /// <item><description>No claim, a header and <see cref="EncinaAzureFunctionsOptions.TrustTenantIdHeader"/>: the header is the tenant (the opt-out is logged as a Warning).</description></item>
+    /// <item><description>No claim, a header that is not trusted: ignored (logged at Debug).</description></item>
+    /// </list>
+    /// <para>No log entry carries a tenant value.</para>
+    /// </remarks>
+    public static Either<EncinaError, Option<string>> ResolveTenantId(
         this FunctionContext context,
         HttpRequestData httpRequest,
-        EncinaAzureFunctionsOptions? options = null)
+        EncinaAzureFunctionsOptions options,
+        ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(httpRequest);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
 
-        var headerName = options?.TenantIdHeader ?? "X-Tenant-ID";
-        var claimType = options?.TenantIdClaimType ?? "tenant_id";
+        return Decide(
+            ReadClaim(httpRequest, options.TenantIdClaimType),
+            ReadHeader(httpRequest, options.TenantIdHeader),
+            options,
+            logger);
+    }
 
-        // Try to get from HTTP request headers
-        if (httpRequest.Headers.TryGetValues(headerName, out var values))
+    private static Either<EncinaError, Option<string>> Decide(ClaimRead claimRead, string? header, EncinaAzureFunctionsOptions options, ILogger logger)
+    {
+        if (claimRead.Present && claimRead.Value is null)
         {
-            var tenantId = values.FirstOrDefault();
-            if (!string.IsNullOrEmpty(tenantId))
-            {
-                return tenantId;
-            }
+            return InvalidTenantClaim(logger);
         }
 
-        // Try to get from claims
-        var tenantClaim = httpRequest.Identities
+        if (claimRead.Value is { } claim)
+        {
+            return ResolveWithClaim(claim, header, logger);
+        }
+
+        return header is null ? Option<string>.None : ResolveHeaderOnly(header, options, logger);
+    }
+
+    private static Either<EncinaError, Option<string>> ResolveWithClaim(string claim, string? header, ILogger logger) =>
+        header is not null && !string.Equals(header, claim, StringComparison.Ordinal)
+            ? TenantMismatch(logger)
+            : Option<string>.Some(claim);
+
+    /// <summary>
+    /// What the request identities say about the tenant claim: <see cref="Present"/> is true when a claim of
+    /// the type exists, and <see cref="Value"/> is null when none of them has a non-empty value (unreadable).
+    /// </summary>
+    private readonly record struct ClaimRead(bool Present, string? Value);
+
+    private static ClaimRead ReadClaim(HttpRequestData httpRequest, string claimType)
+    {
+        var matching = httpRequest.Identities
             .SelectMany(i => i.Claims)
-            .FirstOrDefault(c => c.Type == claimType);
+            .Where(c => c.Type == claimType)
+            .ToList();
 
-        if (tenantClaim is not null && !string.IsNullOrEmpty(tenantClaim.Value))
+        return new ClaimRead(
+            matching.Count > 0,
+            matching.Select(c => c.Value).FirstOrDefault(v => !string.IsNullOrEmpty(v)));
+    }
+
+    private static Either<EncinaError, Option<string>> InvalidTenantClaim(ILogger logger)
+    {
+        Log.InvalidTenantClaim(logger, InvalidTenantClaimErrorCode);
+        return EncinaErrors.Create(
+            InvalidTenantClaimErrorCode,
+            "The authenticated tenant claim is present but is not a non-empty string.");
+    }
+
+    private static string? ReadHeader(HttpRequestData httpRequest, string headerName)
+    {
+        if (!httpRequest.Headers.TryGetValues(headerName, out var values))
         {
-            return tenantClaim.Value;
+            return null;
         }
 
-        // Fall back to context items
-        return context.GetTenantId();
+        var first = values.FirstOrDefault();
+        return string.IsNullOrEmpty(first) ? null : first;
+    }
+
+    private static Either<EncinaError, Option<string>> TenantMismatch(ILogger logger)
+    {
+        Log.TenantMismatch(logger, TenantMismatchErrorCode);
+        return EncinaErrors.Create(
+            TenantMismatchErrorCode,
+            "The tenant supplied by the request does not match the authenticated tenant.");
+    }
+
+    private static Either<EncinaError, Option<string>> ResolveHeaderOnly(string header, EncinaAzureFunctionsOptions options, ILogger logger)
+    {
+        if (!options.TrustTenantIdHeader)
+        {
+            Log.TenantHeaderIgnored(logger, options.TenantIdHeader);
+            return Option<string>.None;
+        }
+
+        Log.TenantHeaderTrusted(logger, options.TenantIdHeader);
+        return Option<string>.Some(header);
     }
 
     /// <summary>

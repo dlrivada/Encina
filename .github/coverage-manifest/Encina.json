@@ -1,7 +1,7 @@
 {
   "package": "Encina",
   "generated": "2026-10-06T08:27:25Z",
-  "totalFiles": 328,
+  "totalFiles": 332,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -203,6 +203,57 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
+    },
+    "Authorization/AccessElevation.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Access elevation model with pure decision logic",
+      "targets": { "unit": 100, "guard": 0, "property": 100 },
+      "justifications": {
+        "unit": "The elevation model members are asserted by the unit tests (measured 100%).",
+        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "property": "Covered incidentally by the FsCheck gate property BreakTheGlassGateProperties, which grants only while the elevation is Active and before ExpiresAtUtc; no generated elevations are checked here (measured 100%)."
+      }
+    },
+    "Authorization/AccessElevationDenials.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Denial reasons of the access elevation gate",
+      "targets": { "unit": 100, "guard": 0, "property": 100 },
+      "justifications": {
+        "unit": "Every denial reason and its code are asserted by the unit tests (measured 100%).",
+        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "property": "Covered incidentally by the FsCheck gate property BreakTheGlassGateProperties, which uses a fixed Forbidden denial; no generated denials are checked here (measured 100%)."
+      }
+    },
+    "Authorization/IAccessElevationGate.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Authorization/NoAccessElevationGate.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*Gate.cs",
+      "reason": "No-op gate used when no elevation is configured",
+      "targets": { "unit": 100, "guard": 0, "contract": 100, "property": 0 },
+      "justifications": {
+        "unit": "The no-op gate returns its fixed decision and is asserted by the unit tests (measured 100%).",
+        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "contract": "The contract tests run the no-op gate through IAccessElevationGate (measured 100%).",
+        "property": "No FsCheck property covers this file; it is covered by example-based unit tests (measured 0%)."
+      }
     },
     "Core/AmbientRequestContext.cs": {
       "defaultTests": [

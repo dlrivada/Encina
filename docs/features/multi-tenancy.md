@@ -215,7 +215,7 @@ sequenceDiagram
 
     Client->>Middleware: HTTP Request
     Middleware->>Resolver: Resolve Tenant
-    Resolver->>Resolver: Header → Claim → Route → Subdomain
+    Resolver->>Resolver: Claim first, then Header (trusted peer only) → Route → Subdomain
     Resolver-->>Middleware: tenant-123
     Middleware->>Context: Set TenantId
     Middleware->>Client: Continue Pipeline
@@ -243,7 +243,7 @@ services.AddEncinaTenancy(options =>
     // Default isolation strategy for all tenants
     options.Strategy = TenantIsolationStrategy.SharedSchema;
 
-    // Require tenant context for all operations (recommended)
+    // Require tenant context for all operations (the default is true; set false to opt out)
     options.RequireTenant = true;
 
     // Custom property name for tenant ID (default: "TenantId")
@@ -432,14 +432,22 @@ services.AddTenantAwareRepository<Order, Guid>(mapping =>
 
 ### Available Resolvers
 
-Encina provides four built-in tenant resolvers that execute in priority order:
+Encina provides four built-in tenant resolvers. The verified claim always wins; the others are client-controlled values:
 
-| Resolver | Priority | Source | Example |
-|----------|----------|--------|---------|
-| **HeaderTenantResolver** | 100 | HTTP Header | `X-Tenant-Id: acme` |
-| **ClaimTenantResolver** | 110 | JWT Claim | `tenant_id: acme` |
-| **RouteTenantResolver** | 120 | Route Parameter | `/api/{tenant}/orders` |
-| **SubdomainTenantResolver** | 130 | Subdomain | `acme.example.com` |
+| Resolver | Priority | Authoritative | Enabled by default | Source | Example |
+| -------- | -------- | :-----------: | :----------------: | ------ | ------- |
+| **ClaimTenantResolver** | 110 | yes | yes | JWT Claim | `tenant_id: acme` |
+| **HeaderTenantResolver** | 100 | no | no | HTTP Header | `X-Tenant-ID: acme` |
+| **RouteTenantResolver** | 120 | no | no | Route Parameter | `/api/{tenant}/orders` |
+| **SubdomainTenantResolver** | 130 | no | no | Subdomain | `acme.example.com` |
+
+How the `TenantResolverChain` combines them (`ITenantResolver.IsAuthoritative`):
+
+1. Authoritative resolvers run first, ordered by priority among themselves. The first non-empty value is the tenant.
+2. Every non-authoritative resolver still runs. A non-empty value that differs from the authoritative tenant is a tenant mismatch, and `TenantResolutionMiddleware` answers `403 Forbidden` (`application/problem+json`, title "Tenant mismatch", no tenant values) without calling the rest of the pipeline.
+3. With no claim, the first non-empty non-authoritative value by priority is the tenant.
+
+The priority of a resolver therefore orders it only within its own group (authoritative or not); it never lets a header outrank a claim. When no tenant is resolved and `TenancyOptions.RequireTenant` is `true` (the default), the middleware answers `400 Bad Request` unless `TenancyAspNetCoreOptions.Return400WhenTenantRequired` is turned off.
 
 ### Configuration
 
@@ -447,9 +455,15 @@ Encina provides four built-in tenant resolvers that execute in priority order:
 // Configure ASP.NET Core tenant resolution
 services.AddEncinaTenancyAspNetCore(options =>
 {
-    // Header-based resolution (API clients)
+    // Header-based resolution (off by default: the client chooses the header).
+    // Enabling it requires a trust decision, otherwise startup fails
+    // (OptionsValidationException): list the gateways that set the header...
     options.HeaderResolver.Enabled = true;
-    options.HeaderResolver.HeaderName = "X-Tenant-Id";
+    options.HeaderResolver.HeaderName = "X-Tenant-ID";
+    options.HeaderResolver.TrustedProxies.Add(System.Net.IPNetwork.Parse("10.0.0.0/8"));
+    // ...or, only behind network isolation (private network, service mesh),
+    // opt out explicitly; a Warning is logged at startup:
+    // options.HeaderResolver.TrustAnyPeer = true;
     options.HeaderResolver.Priority = 100;
 
     // Claim-based resolution (authenticated users)
@@ -478,7 +492,19 @@ app.UseTenantResolution();   // adds the tenant to the ambient request context
 app.UseAuthorization();
 ```
 
-`UseTenantResolution()` sets the resolved tenant on the ambient `IRequestContext` held by `IRequestContextAccessor`, which `IEncina.Send`, `Publish` and `Stream` use to seed the pipeline. When `UseEncinaContext()` runs first, the tenant is added to its context; without it, the middleware creates a context holding the tenant and the request's correlation id, so the tenant always reaches the handlers.
+The header is honored only when `HttpContext.Connection.RemoteIpAddress` is inside `HeaderResolver.TrustedProxies` or `HeaderResolver.TrustAnyPeer` is `true`; otherwise it is ignored.
+
+- The address checked is the one seen when `UseTenantResolution()` runs.
+- When `UseForwardedHeaders()` runs before `UseTenantResolution()`, that address is the forwarded client address, so a list holding only the gateway does not match.
+- To trust a gateway by its address, when you do not use `UseEncinaContext()`, run `UseTenantResolution()` before `UseForwardedHeaders()`.
+- That ordering puts `UseEncinaContext()` after `UseTenantResolution()`. `UseEncinaContext()` then builds a new request context that does not carry the resolved tenant; its tenant comes only from the principal claim or the raw tenant header.
+- When you use `UseEncinaContext()`, keep `UseForwardedHeaders()` and `UseEncinaContext()` first and set `TrustAnyPeer` only behind network isolation. Listing the gateway in `TrustedProxies` works only in pipelines without `UseEncinaContext()` after `UseTenantResolution()`.
+- Never put client addresses in `TrustedProxies`: any client in the list could choose its tenant.
+- `TrustAnyPeer` is the explicit opt-out of the check; use it only behind network isolation.
+
+The decision is recorded in [#2399](https://github.com/dlrivada/Encina/issues/2399); the Cloud row of [ADR-050](../architecture/adr/050-modules-may-require-modules.md) forbids ranking the header above the verified claim.
+
+`UseTenantResolution()` sets the resolved tenant on the ambient `IRequestContext` held by `IRequestContextAccessor`, which `IEncina.Send`, `Publish` and `Stream` use to seed the pipeline. When `UseEncinaContext()` runs first, the tenant is added to its context; without it, the middleware creates a context holding the tenant and the request's correlation id, so the tenant reaches the handlers. The exception is `UseEncinaContext()` running after `UseTenantResolution()`, described above.
 
 ### Custom Tenant Resolver
 
@@ -493,8 +519,11 @@ public class CookieTenantResolver : ITenantResolver
         _options = options;
     }
 
-    // Lower number = higher priority
+    // Lower number = higher priority (within the authoritative or non-authoritative group)
     public int Priority => 90;
+
+    // A cookie is client supplied; return true only for a value the server has verified
+    public bool IsAuthoritative => false;
 
     public ValueTask<string?> ResolveAsync(
         HttpContext context,
@@ -765,7 +794,7 @@ Use a bypass mechanism for system operations:
 // Option 1: Disable tenant requirement for specific operations
 services.AddEncinaTenancy(options =>
 {
-    options.RequireTenant = false;  // Don't throw if missing
+    options.RequireTenant = false;  // Explicit opt-out; the default is true
 });
 
 // Option 2: Use a system tenant

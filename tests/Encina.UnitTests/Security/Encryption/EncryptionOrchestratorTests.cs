@@ -107,6 +107,20 @@ public sealed class EncryptionOrchestratorTests : IDisposable
     #region DecryptAsync
 
     [Fact]
+    public async Task DecryptAsync_EmptyStringProperty_RoundtripsToEmptyString()
+    {
+        var command = new TestEncryptCommand { Email = string.Empty, Name = "John" };
+
+        var encryptResult = await _sut.EncryptAsync(command, _context);
+        var decryptResult = await _sut.DecryptAsync(command, _context);
+
+        encryptResult.IsRight.ShouldBeTrue();
+        decryptResult.IsRight.ShouldBeTrue();
+        command.Email.ShouldBe(string.Empty);
+        command.Name.ShouldBe("John");
+    }
+
+    [Fact]
     public async Task DecryptAsync_AfterEncrypt_ReturnsOriginalValues()
     {
         var command = new TestEncryptCommand { Email = "user@test.com", Name = "John" };

@@ -6,6 +6,7 @@ using Encina.AwsLambda;
 using Encina.AwsLambda.Health;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -257,17 +258,45 @@ public class GuardClauseTests
     }
 
     [Fact]
-    public void LambdaContextExtensions_GetTenantId_ThrowsOnNullContext()
+    public void LambdaContextExtensions_ResolveTenantId_ThrowsOnNullContext()
     {
         // Arrange
         ILambdaContext context = null!;
 
         // Act
-        var action = () => context.GetTenantId();
+        Action action = () => context.ResolveTenantId(null, new EncinaAwsLambdaOptions(), NullLogger.Instance);
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(action);
         ex.ParamName.ShouldBe("context");
+    }
+
+    [Fact]
+    public void LambdaContextExtensions_ResolveTenantId_ThrowsOnNullOptions()
+    {
+        // Arrange
+        var context = Substitute.For<ILambdaContext>();
+
+        // Act
+        Action action = () => context.ResolveTenantId(null, null!, NullLogger.Instance);
+
+        // Assert
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("options");
+    }
+
+    [Fact]
+    public void LambdaContextExtensions_ResolveTenantId_ThrowsOnNullLogger()
+    {
+        // Arrange
+        var context = Substitute.For<ILambdaContext>();
+
+        // Act
+        Action action = () => context.ResolveTenantId(null, new EncinaAwsLambdaOptions(), null!);
+
+        // Assert
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]

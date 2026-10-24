@@ -1,0 +1,1 @@
+- On Entity Framework Core (SqlServer, PostgreSQL, MySQL), the outbox rows of a request that implements IHasNotifications are now saved inside the request's single database transaction, so they commit or roll back together with the business changes; a failed outbox write or commit now fails the request instead of being reported as success (#718).

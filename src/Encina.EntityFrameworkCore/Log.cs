@@ -101,4 +101,11 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 3047, Level = LogLevel.Debug, Message = "Pre-save event collection: {EventCount} domain events collected from change tracker")]
     public static partial void PreSaveEventCollected(ILogger logger, int eventCount);
+
+    // Shared transaction accessor (3061-3062, #718)
+    [LoggerMessage(EventId = 3061, Level = LogLevel.Warning, Message = "The transaction was refused because the context uses a retrying execution strategy ({StrategyType}); disable EnableRetryOnFailure for contexts that use the transactional outbox, or begin the transaction yourself")]
+    public static partial void ExecutionStrategyRejectsTransaction(ILogger logger, string strategyType);
+
+    [LoggerMessage(EventId = 3062, Level = LogLevel.Debug, Message = "Joined a transaction the application began (isolation level {IsolationLevel}); Encina will not commit it")]
+    public static partial void ExternalTransactionJoined(ILogger logger, System.Data.IsolationLevel isolationLevel);
 }

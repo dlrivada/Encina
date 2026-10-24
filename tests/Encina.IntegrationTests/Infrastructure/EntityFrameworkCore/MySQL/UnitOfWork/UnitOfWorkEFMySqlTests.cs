@@ -1,6 +1,8 @@
+using Encina.EntityFrameworkCore.Transactions;
 using Encina.EntityFrameworkCore.UnitOfWork;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Xunit;
 
@@ -39,7 +41,7 @@ public sealed class UnitOfWorkEFMySqlTests : IAsyncLifetime
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
         await context.Database.EnsureCreatedAsync();
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
-        await using var unitOfWork = new UnitOfWorkEF(context, serviceProvider);
+        await using var unitOfWork = new UnitOfWorkEF(context, new DbContextTransactionAccessor(context, NullLogger<DbContextTransactionAccessor>.Instance), serviceProvider);
 
         var entity1 = CreateTestEntity("Entity 1");
         var entity2 = CreateTestEntity("Entity 2");
@@ -72,7 +74,7 @@ public sealed class UnitOfWorkEFMySqlTests : IAsyncLifetime
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
         await context.Database.EnsureCreatedAsync();
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
-        await using var unitOfWork = new UnitOfWorkEF(context, serviceProvider);
+        await using var unitOfWork = new UnitOfWorkEF(context, new DbContextTransactionAccessor(context, NullLogger<DbContextTransactionAccessor>.Instance), serviceProvider);
 
         var entity = CreateTestEntity("Should Not Persist");
 
@@ -101,7 +103,7 @@ public sealed class UnitOfWorkEFMySqlTests : IAsyncLifetime
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
         await context.Database.EnsureCreatedAsync();
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
-        await using var unitOfWork = new UnitOfWorkEF(context, serviceProvider);
+        await using var unitOfWork = new UnitOfWorkEF(context, new DbContextTransactionAccessor(context, NullLogger<DbContextTransactionAccessor>.Instance), serviceProvider);
 
         context.Set<TestRepositoryEntity>().Add(CreateTestEntity("Entity 1"));
         context.Set<TestRepositoryEntity>().Add(CreateTestEntity("Entity 2"));
@@ -123,7 +125,7 @@ public sealed class UnitOfWorkEFMySqlTests : IAsyncLifetime
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
         await context.Database.EnsureCreatedAsync();
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
-        await using var unitOfWork = new UnitOfWorkEF(context, serviceProvider);
+        await using var unitOfWork = new UnitOfWorkEF(context, new DbContextTransactionAccessor(context, NullLogger<DbContextTransactionAccessor>.Instance), serviceProvider);
 
         unitOfWork.HasActiveTransaction.ShouldBeFalse();
 
@@ -144,7 +146,7 @@ public sealed class UnitOfWorkEFMySqlTests : IAsyncLifetime
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
         await context.Database.EnsureCreatedAsync();
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
-        await using var unitOfWork = new UnitOfWorkEF(context, serviceProvider);
+        await using var unitOfWork = new UnitOfWorkEF(context, new DbContextTransactionAccessor(context, NullLogger<DbContextTransactionAccessor>.Instance), serviceProvider);
 
         await unitOfWork.BeginTransactionAsync();
         unitOfWork.HasActiveTransaction.ShouldBeTrue();

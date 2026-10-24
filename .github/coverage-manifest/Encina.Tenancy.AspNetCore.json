@@ -1,7 +1,7 @@
 {
   "package": "Encina.Tenancy.AspNetCore",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 13,
+  "totalFiles": 16,
   "targets": {
     "guard": 15,
     "unit": 60
@@ -20,7 +20,34 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": { "unit": 100, "guard": 85 },
+      "justifications": {
+        "unit": "Every property is read and set in tests, including the RequireTenant default of true.",
+        "guard": "The options are auto-properties with no setter logic; guard tests execute the file only by instantiating the options while guarding the consuming APIs (middleware and resolvers), so the target covers those lines."
+      }
+    },
+    "Configuration/TenancyAspNetCoreOptionsValidator.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Validator.cs",
+      "reason": "Options validator with a single null check",
+      "targets": { "unit": 100, "guard": 0 },
+      "justifications": {
+        "unit": "Unit tests exercise every validation outcome of the options validator.",
+        "guard": "The class is internal and its single null check is exercised by the unit tests."
+      }
+    },
+    "Diagnostics/TenancyAspNetCoreLogMessages.cs": {
+      "defaultTests": [],
+      "defaultRule": "*LogMessages.cs",
+      "reason": "Source-generated [LoggerMessage] delegates, no logic",
+      "targets": { "unit": 0, "guard": 0 },
+      "justifications": {
+        "unit": "Source-generated [LoggerMessage] partials are not measured as hand-written lines; the call sites are asserted with a fake logger in the middleware unit tests.",
+        "guard": "Source-generated [LoggerMessage] partials have no parameters to guard."
+      }
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
@@ -48,13 +75,15 @@
     },
     "Middleware/TenantResolutionMiddleware.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Middleware.cs",
       "reason": "Middleware with mockeable HttpContext; guards are covered by unit tests",
-      "targets": { "unit": 95 },
+      "targets": { "unit": 95, "guard": 20 },
       "justifications": {
-        "unit": "Resolution, validation, 400, connection skip and context write have unit tests (measured 100%)."
+        "unit": "Resolution, mismatch 403, the opt-out log and every pipeline branch are unit-tested with a fake logger.",
+        "guard": "Guard tests cover the three null checks of InvokeAsync."
       }
     },
     "Resolution/ITenantResolver.cs": {
@@ -68,7 +97,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 25 },
+      "justifications": {
+        "unit": "Every claim lookup and tenant-id extraction rule is unit-tested.",
+        "guard": "Guard tests cover only the null checks of the public constructor and resolve parameters."
+      }
     },
     "Resolution/Resolvers/HeaderTenantResolver.cs": {
       "defaultTests": [
@@ -76,7 +110,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 20 },
+      "justifications": {
+        "unit": "The trusted-peer and IPv4-mapped address logic is fully unit-tested, including every header case.",
+        "guard": "Guard tests cover only the null checks of the public constructor and resolve parameters."
+      }
     },
     "Resolution/Resolvers/RouteTenantResolver.cs": {
       "defaultTests": [
@@ -84,7 +123,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 30 },
+      "justifications": {
+        "unit": "Every route value lookup and missing-value case is unit-tested.",
+        "guard": "Guard tests cover the null checks of the public constructor and resolve parameters, and the route lookup helpers."
+      }
     },
     "Resolution/Resolvers/SubdomainTenantResolver.cs": {
       "defaultTests": [
@@ -92,7 +136,24 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 18 },
+      "justifications": {
+        "unit": "Host parsing, the excluded-subdomain rules and the no-subdomain case are unit-tested.",
+        "guard": "Guard tests cover only the null checks of the public constructor and resolve parameters."
+      }
+    },
+    "Resolution/TenantResolution.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Readonly record struct value type",
+      "targets": { "unit": 100, "guard": 0 },
+      "justifications": {
+        "unit": "Every resolved and unresolved construction path of the record struct is unit-tested.",
+        "guard": "The readonly record struct has no parameter checks to guard."
+      }
     },
     "Resolution/TenantResolverChain.cs": {
       "defaultTests": [
@@ -100,7 +161,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 0 },
+      "justifications": {
+        "unit": "Every resolver ordering and first-match outcome of the chain is unit-tested.",
+        "guard": "The class is internal and its two null checks are exercised by the unit tests."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [

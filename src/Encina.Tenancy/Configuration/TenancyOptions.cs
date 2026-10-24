@@ -33,7 +33,7 @@ public sealed class TenancyOptions
     /// <summary>
     /// Gets or sets a value indicating whether a tenant context is required for all requests.
     /// </summary>
-    /// <value>The default is <c>false</c>.</value>
+    /// <value>The default is <c>true</c> (fail closed: a request without a tenant is rejected).</value>
     /// <remarks>
     /// <para>
     /// When <c>true</c>:
@@ -44,7 +44,7 @@ public sealed class TenancyOptions
     /// </list>
     /// </para>
     /// <para>
-    /// When <c>false</c>:
+    /// When <c>false</c> (an explicit opt-out):
     /// <list type="bullet">
     /// <item>Requests without tenant context are allowed</item>
     /// <item>Useful for applications with both tenant-scoped and global data</item>
@@ -52,7 +52,7 @@ public sealed class TenancyOptions
     /// </list>
     /// </para>
     /// </remarks>
-    public bool RequireTenant { get; set; }
+    public bool RequireTenant { get; set; } = true;
 
     /// <summary>
     /// Gets or sets the property name used for tenant identification in entities.

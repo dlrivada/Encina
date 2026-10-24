@@ -57,7 +57,7 @@ A clinician who is not the treating professional sometimes needs a patient's rec
 | **B) Everything in `Encina.Security.Audit`** (the issue's "Affected packages") | No new package; the audit stores are next door | `Encina.Security` references only core (`src/Encina.Security/Encina.Security.csproj`), so `SecurityPipelineBehavior` cannot see the contract; mixes access control into an audit package whose stores ADR-036 scoped to three audit purposes |
 | **C) Everything in `Encina.Security`** | Lives with the attribute gate | `Encina.AspNetCore` does not reference `Encina.Security` and would gain the dependency; bloats the base security package with a store, a sweeper and provider flags |
 
-### Chosen Option: **A — New `Encina.Security.BreakTheGlass` package, gate contract in core** (recommended, pending the maintainer)
+### Chosen Option: **A — New `Encina.Security.BreakTheGlass` package, gate contract in core** (chosen 2026-10-17)
 
 ### Rationale
 
@@ -78,7 +78,7 @@ A clinician who is not the treating professional sometimes needs a patient's rec
 | **B) Event-sourced `BreakTheGlassAggregate` on Marten (ADR-019 pattern, like `ConsentAggregate`)** | Full history by construction; matches the compliance modules; one implementation | Marten (PostgreSQL) becomes mandatory for break-glass; ADR-019 scopes Marten to compliance modules, and break-glass is an access-control mechanism; no InMemory store (AGENTS.md §3), so every unit test mocks `IAggregateRepository` |
 | **C) No store: elevations are operation-audit entries, the active check and the queue query `IOperationAuditStore`** (what the issue's "no provider-specific code" implies) | No new table or store; the evidence is the state | `OperationAuditQuery` (`src/Encina.Security.Audit/OperationAuditQuery.cs:33-161`) has no subject or scope filter and no "not yet reviewed" anti-join, so the queue becomes an in-memory join over a date window; operation-audit retention can purge an open elevation; status changes become appends that every reader must fold |
 
-### Chosen Option: **A — `IBreakTheGlassStore` on the 10 database providers** (recommended, pending the maintainer)
+### Chosen Option: **A — `IBreakTheGlassStore` on the 10 database providers** (chosen 2026-10-17)
 
 ### Rationale
 
@@ -100,7 +100,7 @@ A clinician who is not the treating professional sometimes needs a patient's rec
 | **B) A `BreakTheGlassPipelineBehavior` placed before the gates resolves the elevation and stamps the context; the gates read the stamp** | One lookup per request; gates do not call a service | Depends on behavior order (#1678 open); a lookup on every eligible request, also when the gate would have allowed; context metadata is application-writable, so the stamp must be an unforgeable internal type |
 | **C) ABAC only: an attribute provider contributes `break_glass.active`; policies decide** | XACML-native (break-glass as a policy with obligations) | Applications on `[Authorize]` or the Security attributes get nothing; whether an elevation permits depends on every policy author remembering the rule |
 
-### Chosen Option: **A — Consult on a definite denial, inside each gate** (recommended, pending the maintainer)
+### Chosen Option: **A — Consult on a definite denial, inside each gate** (chosen 2026-10-17)
 
 ### Rationale
 
@@ -122,7 +122,7 @@ A clinician who is not the treating professional sometimes needs a patient's rec
 | **B) User + scope, no subject** | No subject extraction | Opens every patient of the scope: contradicts art. 46 and "access to a subject's data" in REQ-051 |
 | **C) User + subject, every request type eligible** | No attribute | Opens deletes, exports and administrative commands for that subject |
 
-### Chosen Option: **A — One subject, one named scope, declared by the request type** (recommended, pending the maintainer)
+### Chosen Option: **A — One subject, one named scope, declared by the request type** (chosen 2026-10-17)
 
 ### Rationale
 
@@ -144,7 +144,7 @@ A clinician who is not the treating professional sometimes needs a patient's rec
 | **B) A new `ElevationId` column on `ReadAuditEntry` on the 10 providers and Marten; no operation audit per access** | Typed, indexable link | Schema change on 11 stores; requests that write rather than read leave no trace |
 | **C) Only a log line and a metric per access** | Cheapest | Not evidence (AC-039 asks for an audited access) |
 
-### Chosen Option: **A — Write-ahead operation audit plus read-audit purpose and metadata** (recommended, pending the maintainer)
+### Chosen Option: **A — Write-ahead operation audit plus read-audit purpose and metadata** (chosen 2026-10-17)
 
 ### Rationale
 
@@ -166,7 +166,7 @@ A clinician who is not the treating professional sometimes needs a patient's rec
 | **B) Lazy expiry only; no expiry event** | No background work | The issue's "expiry … audited" is not met; the queue cannot tell expired from active without recomputing |
 | **C) Schedule an expiry message per elevation through Encina scheduling** | Exact expiry time | Requires the scheduling store and processor; the message can be lost or late, so the check-time comparison is needed anyway |
 
-### Chosen Option: **A — Check-time expiry, idempotent sweeper, four-eyes review** (recommended, pending the maintainer)
+### Chosen Option: **A — Check-time expiry, idempotent sweeper, four-eyes review** (chosen 2026-10-17)
 
 ### Rationale
 
@@ -188,7 +188,7 @@ A clinician who is not the treating professional sometimes needs a patient's rec
 | **B) Any authenticated user may open; the review is the only control** | No configuration | A receptionist can open a clinical record; review after the fact does not prevent the disclosure |
 | **C) Open through an application command that the application protects with `[Authorize]` or ABAC** | Reuses the application's own gates | The service could still be called directly; the library cannot guarantee that the open is protected |
 
-### Chosen Option: **A — Pluggable authorizer with a fail-closed default** (recommended, pending the maintainer)
+### Chosen Option: **A — Pluggable authorizer with a fail-closed default** (chosen 2026-10-17)
 
 ### Rationale
 
@@ -279,7 +279,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. `Abstractions/IBreakTheGlassStore.cs` (all `ValueTask<Either<EncinaError, T>>`, every method takes `CancellationToken`):
-   - `AddAsync(BreakTheGlassElevation elevation, ct)`
+   - `AddAsync(BreakTheGlassElevation elevation, ct)`: the atomic conditional add. It inserts only when no effective elevation (Status Active and `ExpiresAtUtc` later than the new elevation's `OpenedAtUtc`) exists for the same tenant, user, subject and scope; otherwise it returns `Left(break_glass.already_active)` without writing.
    - `GetByIdAsync(string? tenantId, Guid elevationId, ct)` → `Option<BreakTheGlassElevation>`
    - `FindEffectiveAsync(string? tenantId, string userId, string subjectId, string scope, DateTimeOffset nowUtc, ct)` → `Option<BreakTheGlassElevation>`
    - `TryCloseAsync(string? tenantId, Guid elevationId, BreakTheGlassStatus newStatus, string reason, DateTimeOffset closedAtUtc, ct)` → `bool` (only from `Active`)
@@ -293,7 +293,7 @@ REFERENCE FILES:
 3. `Abstractions/IBreakTheGlassOpenAuthorizer.cs`: `ValueTask<Either<EncinaError, Unit>> AuthorizeOpenAsync(RequestIdentity identity, string scope, ct)` and `AuthorizeReviewAsync(RequestIdentity identity, BreakTheGlassElevation elevation, ct)`; default `RoleBreakTheGlassAuthorizer` (opener roles or permissions per scope; reviewer roles; `Kind == Service` refused; reviewer user id must differ from `elevation.UserId`).
 4. `Validation/BreakTheGlassRequestValidator.cs`: Design Choice 7 limits; returns `Either<EncinaError, BreakTheGlassRequest>` with the normalised (trimmed) request.
 5. `Services/DefaultBreakTheGlassService.cs` (scoped). Ctor: `IBreakTheGlassStore`, `IOperationAuditStore`, `IRequestContextAccessor`, `IBreakTheGlassOpenAuthorizer`, `BreakTheGlassRequestValidator`, `IEncina` (notifications), `IOptions<BreakTheGlassOptions>`, `TimeProvider`, `ILogger<DefaultBreakTheGlassService>`.
-   - `OpenAsync`: identity authenticated → authorizer → validator → tenant rule → `FindEffectiveAsync` (refuse `already_active`) → new `ElevationId` (`Guid.CreateVersion7(timeProvider.GetUtcNow())`) → write-ahead audit `break_glass.opened` → `AddAsync` (on `Left`: audit `break_glass.open_failed`, return `Left`) → publish `BreakTheGlassOpenedNotification` → `Right(elevation)`.
+   - `OpenAsync`: identity authenticated → authorizer → validator → tenant rule → `FindEffectiveAsync` (refuse `already_active`) → new `ElevationId` (`Guid.CreateVersion7(timeProvider.GetUtcNow())`) → write-ahead audit `break_glass.opened` → `AddAsync` (on `Left`: audit `break_glass.open_failed`, return `Left`; an `already_active` from `AddAsync` is authoritative: audit `open_failed` with reason `already_active`, return that `Left`) → publish `BreakTheGlassOpenedNotification` → `Right(elevation)`.
    - `RevokeAsync`: opener or reviewer role; `TryCloseAsync(Revoked)`; audit `break_glass.revoked`.
    - `ReviewAsync`: authorizer → `TryRecordReviewAsync` (refuse `already_reviewed`) → audit `break_glass.reviewed` (outcome in metadata) → `Unjustified` and still active: `TryCloseAsync(Revoked, "review_unjustified")` + audit → publish `BreakTheGlassReviewedNotification`.
    - `GetReviewQueueAsync`: reviewer role required; tenant from the context.
@@ -461,6 +461,8 @@ REFERENCE FILES:
 4. Conditional updates: `UPDATE … SET Status = @new, ClosedAtUtc = @at, CloseReason = @r WHERE ElevationId = @id AND (TenantId = @t OR (@t IS NULL AND TenantId IS NULL)) AND Status = 0`, result = rows affected = 1; review likewise with `ReviewOutcome IS NULL`.
 5. SQL dialects per AGENTS.md §5 (`TOP (@n)` vs `LIMIT @n`, `bit` vs `true/false` vs `0/1`, provider quoting); parameters only.
 6. Every method returns `Left(break_glass.store_failed)` on provider exceptions (the #1135 pattern).
+
+Cross-provider rule (applies to 5a-5d): every provider MUST guarantee `AddAsync` as an atomic conditional insert (the mechanism per provider, for example a unique constraint or atomic upsert, is decided in the Phase 5 brief).
 
 #### 5c. EF Core (`BreakTheGlass/BreakTheGlassElevationEntity.cs`, `BreakTheGlassElevationEntityConfiguration.cs`, `BreakTheGlassStoreEF.cs`)
 
@@ -866,3 +868,13 @@ REFERENCE FILES:
 3. Open the deferred issue drafted in `artifacts/issues/plan-1244-breach-event-on-unjustified-review.md`.
 4. Link this plan from #1244 and start Phase 1 once #1705 phase 4 is scheduled (Phases 1-2 do not wait for it).
 5. Each phase is a self-contained commit; the final PR references `Fixes #1244`.
+
+## Maintainer Decisions
+
+1. 2026-10-17 — Option A, settled by elimination: new Encina.Security.BreakTheGlass package with a small gate contract in core (the only option that lets all three gates honour an elevation given the package graph).
+2. 2026-10-17 — Option A, settled by elimination: IBreakTheGlassStore on the 10 providers (a Marten aggregate would force PostgreSQL on a security package; the audit-derived option needs new members on all audit stores anyway).
+3. 2026-10-17 — Option A, settled by elimination: each gate consults only on a definite denial.
+4. 2026-10-17 — Option A, settled by elimination: elevation bound to tenant, user, subject and named scope.
+5. 2026-10-17 — Option A, settled by elimination: write-ahead fail-closed audit per access.
+6. 2026-10-17 — Option A, settled by elimination: check-time expiry with an idempotent sweeper and four-eyes review.
+7. 2026-10-17 — Option A, settled by elimination: pluggable authorizer with a fail-closed default (DEC-006).

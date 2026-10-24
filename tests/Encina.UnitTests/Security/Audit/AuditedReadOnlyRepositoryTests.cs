@@ -141,6 +141,26 @@ public sealed class AuditedReadOnlyRepositoryTests
     // ── GetByIdAsync ────────────────────────────────────────────────────
 
     [Fact]
+    public async Task GetByIdAsync_ContextMetadata_IsCopiedIntoEntryAndMethodKeyWins()
+    {
+        var h = new Harness(samplingRate: 1.0);
+        var id = Guid.NewGuid();
+        h.AuditContext.Metadata.Returns(new Dictionary<string, string>
+        {
+            ["elevation_id"] = "e-1",
+            ["method"] = "forged"
+        });
+        h.Inner.GetByIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns(Option<ReadOnlyAuditedTestEntity>.Some(new ReadOnlyAuditedTestEntity { Id = id }));
+
+        await h.Create().GetByIdAsync(id);
+
+        var entry = h.LoggedEntries.ShouldHaveSingleItem();
+        entry.Metadata["elevation_id"].ShouldBe("e-1");
+        entry.Metadata["method"].ShouldBe("GetById");
+    }
+
+    [Fact]
     public async Task GetByIdAsync_Found_AuditsWithEntityCountOne()
     {
         var h = new Harness(samplingRate: 1.0);

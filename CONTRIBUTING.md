@@ -1,6 +1,6 @@
 # Contributing to Encina
 
-Thank you for your interest in contributing to Encina. This is a public repository — anyone can open issues, submit pull requests (via fork), and participate in discussions. This guide covers all ways to get involved. Before your first pull request, read the [contributor onboarding guide](docs/contributing/README.md): machine setup, repository map, how the pieces relate, the path from an idea to `main`, and the rules that will otherwise bite.
+Thank you for your interest in contributing to Encina. This is a public repository — anyone can open issues, submit pull requests (via fork) for issues assigned to them, and participate in discussions. This guide covers all ways to get involved. Before your first pull request, read the [contributor onboarding guide](docs/contributing/README.md): machine setup, repository map, how the pieces relate, the path from an idea to `main`, and the rules that will otherwise bite.
 
 ## Code of Conduct
 
@@ -64,14 +64,14 @@ Good discussion topics:
 
 ### Finding Something to Work On
 
-Look for issues labeled [`good first issue`](https://github.com/dlrivada/Encina/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or [`help wanted`](https://github.com/dlrivada/Encina/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) if you're looking for a place to start.
+Look for issues labeled [`good first issue`](https://github.com/dlrivada/Encina/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or [`help wanted`](https://github.com/dlrivada/Encina/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) if you're looking for a place to start. Claim the issue first, as described in [Before You Start](#before-you-start).
 
 ## Submitting Pull Requests
 
 ### Before You Start
 
 1. **Check for existing work** — search open PRs and issues to avoid duplication.
-2. **Comment on the issue** — if you plan to work on an existing issue, leave a comment so others know.
+2. **Claim the issue and wait for the assignment** — if you are an external contributor, comment on the issue to claim it, then wait until the maintainer assigns it to you. Open the pull request only after that, and link the issue in its description (`Fixes #N`). A pull request for an issue that is not assigned to its author, or without a linked issue, is closed without review. Work the maintainer owns is exempt from this rule. If no issue exists yet, open one with the matching template and claim it the same way.
 3. **Design first for large changes** — open a `[SPIKE]` issue or Discussion before investing significant effort in new features or architectural changes.
 
 ### Prerequisites
@@ -93,6 +93,7 @@ Before opening a PR, make sure:
 
 ### PR Checklist
 
+- [ ] The linked issue is assigned to me (external contributors)
 - [ ] Formatting and analyzers pass locally
 - [ ] Tests pass in Release configuration
 - [ ] Coverage does not drop below the CI threshold (90% lines)
@@ -112,6 +113,8 @@ Your PR will be validated by:
 | `codeql.yml` | Security analysis |
 | `sbom.yml` | Supply chain verification |
 | `benchmarks.yml` | Performance regression detection |
+
+GitHub Actions workflows of pull requests from forks run only after the maintainer approves them (the repository requires approval for all external contributors), so your checks may stay pending until then.
 
 All checks must pass before merge.
 

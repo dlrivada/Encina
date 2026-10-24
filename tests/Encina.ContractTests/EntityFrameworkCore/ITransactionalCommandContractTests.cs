@@ -133,17 +133,17 @@ public sealed class ITransactionalCommandContractTests
     }
 
     [Fact]
-    public void TransactionPipelineBehavior_Constructor_ShouldRequireDbContextAndLogger()
+    public void TransactionPipelineBehavior_Constructor_ShouldRequireTransactionAccessorAndLogger()
     {
         var constructor = PipelineBehaviorType.GetConstructors(BindingFlags.Public | BindingFlags.Instance)[0];
         var parameters = constructor.GetParameters();
 
         parameters.Length.ShouldBe(2,
-            "Constructor should have 2 parameters: DbContext, ILogger");
+            "Constructor should have 2 parameters: IDbTransactionAccessor, ILogger");
 
         parameters[0].ParameterType.FullName.ShouldBe(
-            "Microsoft.EntityFrameworkCore.DbContext",
-            "First parameter should be DbContext");
+            "Encina.Messaging.Transactions.IDbTransactionAccessor",
+            "First parameter should be IDbTransactionAccessor");
 
         parameters[1].ParameterType.Name.ShouldStartWith("ILogger");
     }

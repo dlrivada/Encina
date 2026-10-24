@@ -117,88 +117,6 @@ public class LambdaContextExtensionsTests
     }
 
     [Fact]
-    public void GetTenantId_WithHeaderPresent_ReturnsHeaderValue()
-    {
-        // Arrange
-        var request = new APIGatewayProxyRequest
-        {
-            Headers = new Dictionary<string, string>
-            {
-                ["X-Tenant-ID"] = "tenant-123"
-            }
-        };
-
-        // Act
-        var tenantId = _context.GetTenantId(request);
-
-        // Assert
-        tenantId.ShouldBe("tenant-123");
-    }
-
-    [Fact]
-    public void GetTenantId_WithCustomHeader_ReturnsHeaderValue()
-    {
-        // Arrange
-        var options = new EncinaAwsLambdaOptions { TenantIdHeader = "X-Organization-ID" };
-        var request = new APIGatewayProxyRequest
-        {
-            Headers = new Dictionary<string, string>
-            {
-                ["X-Organization-ID"] = "org-456"
-            }
-        };
-
-        // Act
-        var tenantId = _context.GetTenantId(request, options);
-
-        // Assert
-        tenantId.ShouldBe("org-456");
-    }
-
-    [Fact]
-    public void GetTenantId_WithNoHeader_ReturnsNull()
-    {
-        // Arrange
-        var request = new APIGatewayProxyRequest
-        {
-            Headers = new Dictionary<string, string>()
-        };
-
-        // Act
-        var tenantId = _context.GetTenantId(request);
-
-        // Assert
-        tenantId.ShouldBeNull();
-    }
-
-    [Fact]
-    public void GetTenantId_WithNullRequest_ReturnsNull()
-    {
-        // Act
-        var tenantId = _context.GetTenantId(null);
-
-        // Assert
-        tenantId.ShouldBeNull();
-    }
-
-    [Fact]
-    public void GetTenantId_WithNoAuthorizerClaims_ReturnsNull()
-    {
-        // Arrange - Request without authorizer
-        var request = new APIGatewayProxyRequest
-        {
-            Headers = new Dictionary<string, string>(),
-            RequestContext = new APIGatewayProxyRequest.ProxyRequestContext()
-        };
-
-        // Act
-        var tenantId = _context.GetTenantId(request);
-
-        // Assert
-        tenantId.ShouldBeNull();
-    }
-
-    [Fact]
     public void GetUserId_WithNoAuthorizerClaims_ReturnsNull()
     {
         // Arrange - Request without authorizer
@@ -298,20 +216,6 @@ public class LambdaContextExtensionsTests
 
         // Act
         var action = () => nullContext.GetCorrelationId();
-
-        // Assert
-        var ex = Should.Throw<ArgumentNullException>(action);
-        ex.ParamName.ShouldBe("context");
-    }
-
-    [Fact]
-    public void GetTenantId_WithNullContext_ThrowsArgumentNullException()
-    {
-        // Arrange
-        ILambdaContext nullContext = null!;
-
-        // Act
-        var action = () => nullContext.GetTenantId();
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(action);

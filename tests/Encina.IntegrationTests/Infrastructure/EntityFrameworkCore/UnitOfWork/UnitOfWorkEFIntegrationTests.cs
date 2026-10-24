@@ -1,7 +1,9 @@
 using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.Transactions;
 using Encina.EntityFrameworkCore.UnitOfWork;
 using Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.Repository;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Xunit;
 
@@ -31,7 +33,7 @@ public class UnitOfWorkEFIntegrationTests : IAsyncLifetime
         await _fixture.ClearDataAsync();
         _dbContext = _fixture.CreateDbContext();
         _serviceProvider = new ServiceCollection().BuildServiceProvider();
-        _unitOfWork = new UnitOfWorkEF(_dbContext, _serviceProvider);
+        _unitOfWork = new UnitOfWorkEF(_dbContext, new DbContextTransactionAccessor(_dbContext, NullLogger<DbContextTransactionAccessor>.Instance), _serviceProvider);
     }
 
     public async ValueTask DisposeAsync()
@@ -379,7 +381,7 @@ public class UnitOfWorkEFIntegrationTests : IAsyncLifetime
 
         // Create UnitOfWork with fresh context
         using var testContext = _fixture.CreateDbContext();
-        await using var testUnitOfWork = new UnitOfWorkEF(testContext, _serviceProvider);
+        await using var testUnitOfWork = new UnitOfWorkEF(testContext, new DbContextTransactionAccessor(testContext, NullLogger<DbContextTransactionAccessor>.Instance), _serviceProvider);
 
         // Act - Retrieve and modify using with-expression pattern
         var trackedOriginal = await testContext.ImmutableAggregates.FindAsync(id);
@@ -413,7 +415,7 @@ public class UnitOfWorkEFIntegrationTests : IAsyncLifetime
 
         // Create UnitOfWork with fresh context
         using var testContext = _fixture.CreateDbContext();
-        await using var testUnitOfWork = new UnitOfWorkEF(testContext, _serviceProvider);
+        await using var testUnitOfWork = new UnitOfWorkEF(testContext, new DbContextTransactionAccessor(testContext, NullLogger<DbContextTransactionAccessor>.Instance), _serviceProvider);
 
         // Act - Retrieve and modify using with-expression pattern
         var trackedOriginal = await testContext.ImmutableAggregates.FindAsync(id);
@@ -447,7 +449,7 @@ public class UnitOfWorkEFIntegrationTests : IAsyncLifetime
 
         // Create UnitOfWork with fresh context
         using var testContext = _fixture.CreateDbContext();
-        await using var testUnitOfWork = new UnitOfWorkEF(testContext, _serviceProvider);
+        await using var testUnitOfWork = new UnitOfWorkEF(testContext, new DbContextTransactionAccessor(testContext, NullLogger<DbContextTransactionAccessor>.Instance), _serviceProvider);
 
         // Act - Start transaction, modify, rollback
         var beginResult = await testUnitOfWork.BeginTransactionAsync();
@@ -487,7 +489,7 @@ public class UnitOfWorkEFIntegrationTests : IAsyncLifetime
 
         // Create UnitOfWork with fresh context
         using var testContext = _fixture.CreateDbContext();
-        await using var testUnitOfWork = new UnitOfWorkEF(testContext, _serviceProvider);
+        await using var testUnitOfWork = new UnitOfWorkEF(testContext, new DbContextTransactionAccessor(testContext, NullLogger<DbContextTransactionAccessor>.Instance), _serviceProvider);
 
         // Act - Start transaction, modify, commit
         var beginResult = await testUnitOfWork.BeginTransactionAsync();

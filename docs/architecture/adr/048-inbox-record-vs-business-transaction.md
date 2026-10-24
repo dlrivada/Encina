@@ -5,6 +5,8 @@
 **Accepted** - 2026-10-09, issue [#2084](https://github.com/dlrivada/Encina/issues/2084).
 
 > **Amendment 2026-10-20 ([#718](https://github.com/dlrivada/Encina/issues/718), [ADR-037](037-transactional-outbox.md)):** on the three ADO.NET providers (SqlServer, PostgreSQL, MySQL) `IDbTransactionAccessor` is no longer a plain holder written by `TransactionPipelineBehavior`. It is the scoped owner of the transaction: `TransactionPipelineBehavior`, `UnitOfWorkADO` and the transactional outbox behavior take a lease on it (`BeginOrJoinAsync`), and `DbLease` reads the same transaction through `IDbTransactionAccessor.Current`. An explicit `IUnitOfWork` transaction of `UnitOfWorkADO` is therefore visible to the inbox, and a unit of work opened inside a `TransactionPipelineBehavior` request joins its transaction instead of failing. The statement under Consequences that the `UnitOfWork` is not visible to the inbox held for the Dapper providers until the Dapper slice of [#719](https://github.com/dlrivada/Encina/issues/719), delivered on 2026-10-21: `UnitOfWorkDapper` now takes a lease on the same accessor, so its transaction is visible to the inbox too. The decision (enlisted and independent writes) is unchanged.
+>
+> **Amendment 2026-10-23 ([#718](https://github.com/dlrivada/Encina/issues/718), [ADR-037](037-transactional-outbox.md)):** on EF Core, `DbContextTransactionAccessor` is the scoped owner of the `DbContext`'s transaction, shared by `TransactionPipelineBehavior<,>`, `UnitOfWorkEF` and `TransactionalOutboxPipelineBehavior<,>`. A request that implements `IHasNotifications` now runs in the outbox behavior's transaction even when it has neither `ITransactionalCommand` nor `[Transaction]`. The statement that an EF Core request outside the Transaction pattern has no atomic processed mark when the outbox is on is therefore no longer true (see Condition and Consequences). The independent writes of `InboxStoreEF` keep their isolated context. The decision is unchanged.
 
 ## Context
 
@@ -37,7 +39,7 @@ A third requirement is that the behavior is the same on all 10 database provider
 
 **Consequence of the split.** A business commit that fails after a successful handler rolls back the processed mark. The message stays unprocessed and the redelivery runs the handler again. The entry and the failure records are never lost.
 
-**Condition.** The processed mark is atomic with the business effect only when the request runs inside the Transaction pattern. EF Core wraps only requests that implement `ITransactionalCommand` or carry `[Transaction]` (`RequiresTransaction` in `Encina.EntityFrameworkCore.TransactionPipelineBehavior`); the ADO.NET and Dapper `Encina.Messaging.TransactionPipelineBehavior` wraps every request when `UseTransactions` is on; MongoDB has no pipeline transaction. For an unwrapped request `MarkAsProcessedAsync` is an immediate write, separate from the handler's own writes, so a crash between the two re-runs the handler.
+**Condition.** The processed mark is atomic with the business effect only when the request runs inside the Transaction pattern. EF Core wraps requests that implement `ITransactionalCommand` or carry `[Transaction]` (`RequiresTransaction` in `Encina.EntityFrameworkCore.TransactionPipelineBehavior`), and, when the outbox is on, also requests that implement `IHasNotifications`, in the transactional outbox behavior's transaction (ADR-037); the ADO.NET and Dapper `Encina.Messaging.TransactionPipelineBehavior` wraps every request when `UseTransactions` is on; MongoDB has no pipeline transaction. For an unwrapped request `MarkAsProcessedAsync` is an immediate write, separate from the handler's own writes, so a crash between the two re-runs the handler.
 
 ### Mechanisms per family
 
@@ -62,7 +64,8 @@ EF Core requirements: the context type has a public constructor taking `DbContex
   - While a business transaction is open, each independent write uses a second pooled connection, so size the connection pool for it.
   - Under a repeatable-read or serializable `[Transaction]`, the lock taken by the lookup on the business connection can block an independent write until the command timeout.
   - The ADO.NET `UnitOfWorkADO` is visible to the inbox since the amendment of 2026-10-20, and the Dapper `UnitOfWorkDapper` since 2026-10-21 (see the note under Status).
-  - A request outside the Transaction pattern (an EF Core request with neither `ITransactionalCommand` nor `[Transaction]`, or any MongoDB request) has no atomic processed mark: a crash between the handler's writes and `MarkAsProcessedAsync` re-runs the handler.
+  - A request outside every transaction (an EF Core request that has neither `ITransactionalCommand`, `[Transaction]` nor `IHasNotifications` with the outbox on, or any MongoDB request) has no atomic processed mark: a crash between the handler's writes and `MarkAsProcessedAsync` re-runs the handler.
+  - The pool-size and repeatable-read limits above apply to every EF Core outbox request too, because it now runs in a transaction.
   - Concurrent redeliveries of one message are not serialized; `MaxRetries` holds for sequential deliveries.
 
 ## Related

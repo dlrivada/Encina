@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using Encina.Tenancy.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Encina.Tenancy.AspNetCore;
@@ -29,7 +31,13 @@ namespace Encina.Tenancy.AspNetCore;
 /// instead of being replaced by it.
 /// </para>
 /// <para>
-/// When <see cref="TenancyOptions.RequireTenant"/> is <c>true</c> and no tenant can be
+/// The verified tenant claim always wins. When a client-supplied value (a header, a route value, the
+/// subdomain) disagrees with it, the middleware answers 403 Forbidden with a problem+json body and
+/// does not call the next middleware; the tenant store is not consulted. A tenant header is honored
+/// only with no claim and from a trusted source (see <see cref="HeaderResolverOptions"/>).
+/// </para>
+/// <para>
+/// When <see cref="TenancyOptions.RequireTenant"/> is <c>true</c> (the default) and no tenant can be
 /// resolved, the middleware returns a 400 Bad Request response.
 /// </para>
 /// </remarks>
@@ -49,6 +57,7 @@ public sealed class TenantResolutionMiddleware
     private readonly TenancyOptions _tenancyOptions;
     private readonly TenancyAspNetCoreOptions _aspNetCoreOptions;
     private readonly ITenantStore _tenantStore;
+    private readonly ILogger<TenantResolutionMiddleware> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TenantResolutionMiddleware"/> class.
@@ -58,18 +67,49 @@ public sealed class TenantResolutionMiddleware
     /// <param name="tenancyOptions">The core tenancy options.</param>
     /// <param name="aspNetCoreOptions">The ASP.NET Core tenancy options.</param>
     /// <param name="tenantStore">The tenant store for validation.</param>
+    /// <param name="logger">The logger.</param>
+    /// <remarks>
+    /// Logs a Warning once for each explicit opt-out: the header resolver enabled with
+    /// <see cref="HeaderResolverOptions.TrustAnyPeer"/>, and <see cref="TenancyOptions.RequireTenant"/> set to <c>false</c>.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
     public TenantResolutionMiddleware(
         RequestDelegate next,
         IEnumerable<ITenantResolver> resolvers,
         IOptions<TenancyOptions> tenancyOptions,
         IOptions<TenancyAspNetCoreOptions> aspNetCoreOptions,
-        ITenantStore tenantStore)
+        ITenantStore tenantStore,
+        ILogger<TenantResolutionMiddleware> logger)
     {
+        ArgumentNullException.ThrowIfNull(next);
+        ArgumentNullException.ThrowIfNull(resolvers);
+        ArgumentNullException.ThrowIfNull(tenancyOptions);
+        ArgumentNullException.ThrowIfNull(aspNetCoreOptions);
+        ArgumentNullException.ThrowIfNull(tenantStore);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _next = next;
         _resolverChain = new TenantResolverChain(resolvers);
         _tenancyOptions = tenancyOptions.Value;
         _aspNetCoreOptions = aspNetCoreOptions.Value;
         _tenantStore = tenantStore;
+        _logger = logger;
+
+        LogExplicitOptOuts();
+    }
+
+    private void LogExplicitOptOuts()
+    {
+        var header = _aspNetCoreOptions.HeaderResolver;
+        if (header.Enabled && header.TrustAnyPeer)
+        {
+            TenancyAspNetCoreLogMessages.HeaderTrustAnyPeerEnabled(_logger, header.HeaderName);
+        }
+
+        if (!_tenancyOptions.RequireTenant)
+        {
+            TenancyAspNetCoreLogMessages.TenantNotRequired(_logger);
+        }
     }
 
     /// <summary>
@@ -93,8 +133,17 @@ public sealed class TenantResolutionMiddleware
 
         var cancellationToken = context.RequestAborted;
 
-        // Resolve and validate the tenant (an unknown tenant counts as no tenant).
-        var tenantId = await ResolveValidTenantAsync(context, cancellationToken);
+        var resolution = await _resolverChain.ResolveAsync(context, cancellationToken);
+
+        // A client-supplied tenant that disagrees with the verified one is denied before the tenant store is consulted.
+        if (resolution.IsMismatch)
+        {
+            await WriteMismatchAsync(context, resolution, cancellationToken);
+            return;
+        }
+
+        // Validate the tenant (an unknown tenant counts as no tenant).
+        var tenantId = await ValidateTenantAsync(resolution.TenantId, cancellationToken);
 
         // Check if tenant is required but not resolved
         if (_tenancyOptions.RequireTenant && string.IsNullOrWhiteSpace(tenantId) && _aspNetCoreOptions.Return400WhenTenantRequired)
@@ -113,9 +162,20 @@ public sealed class TenantResolutionMiddleware
         await _next(context);
     }
 
-    private async Task<string?> ResolveValidTenantAsync(HttpContext context, CancellationToken cancellationToken)
+    private async Task WriteMismatchAsync(HttpContext context, TenantResolution resolution, CancellationToken cancellationToken)
     {
-        var tenantId = await _resolverChain.ResolveAsync(context, cancellationToken);
+        TenancyAspNetCoreLogMessages.TenantMismatch(_logger, resolution.AuthoritativeResolver!, resolution.ConflictingResolver!);
+
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        context.Response.ContentType = "application/problem+json";
+
+        await context.Response.WriteAsync(
+            """{"type":"https://tools.ietf.org/html/rfc9110#name-403-forbidden","title":"Tenant mismatch","status":403,"detail":"The tenant supplied by the request does not match the authenticated tenant."}""",
+            cancellationToken);
+    }
+
+    private async Task<string?> ValidateTenantAsync(string? tenantId, CancellationToken cancellationToken)
+    {
         if (!_tenancyOptions.ValidateTenantOnRequest || string.IsNullOrWhiteSpace(tenantId))
         {
             return tenantId;

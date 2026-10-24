@@ -38,10 +38,21 @@ public sealed class EncinaAzureFunctionsOptions
     public string CorrelationIdHeader { get; set; } = "X-Correlation-ID";
 
     /// <summary>
-    /// HTTP header name for tenant ID.
+    /// HTTP header name for tenant ID, read only when <see cref="TrustTenantIdHeader"/> is enabled.
     /// </summary>
     /// <value>Default: "X-Tenant-ID"</value>
     public string TenantIdHeader { get; set; } = "X-Tenant-ID";
+
+    /// <summary>
+    /// Whether the tenant header may supply the tenant when the request carries no verified tenant claim.
+    /// </summary>
+    /// <value>Default: false</value>
+    /// <remarks>
+    /// The verified claim always wins, whatever this value is: a header that disagrees with the claim
+    /// is rejected. A header is client controlled, so enable this only when a trusted gateway is the
+    /// only party that can set it. Each use is logged as a Warning (without the tenant value).
+    /// </remarks>
+    public bool TrustTenantIdHeader { get; set; }
 
     /// <summary>
     /// Claim type for user ID extraction from identity.
