@@ -52,6 +52,7 @@ has_children: true
 | [052](052-distributed-lock-failure-contract.md) | Distributed Lock Providers Report Outcomes Through Either; Contention Is Not an Error (Accepted) |
 | [053](053-aggregate-rule-violations-return-either.md) | Compliance Aggregate Rule Violations Are a Left, Not an Exception (Accepted) |
 | [054](054-observability-conventions-and-trace-propagation.md) | Observability Conventions and Cross-Boundary Trace Propagation (Accepted) |
+| [055](055-resilience-family.md) | The Resilience Family: One Package, One Engine, One Retry Owner (Accepted) |
 
 ## Reserved numbers
 
