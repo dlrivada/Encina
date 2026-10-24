@@ -257,7 +257,7 @@ public sealed class EncryptionGuardBehaviorTests : IDisposable
     }
 
     [Fact]
-    public async Task DecryptStringAsync_WrongAssociatedData_FailsClosedWithDecryptionFailed()
+    public async Task DecryptStringAsync_WrongAssociatedData_FailsClosedWithInvalidCiphertext()
     {
         var encrypted = await _encryptor.EncryptStringAsync(
             "secret", new EncryptionContext { AssociatedData = [.. "a"u8.ToArray()] });
@@ -266,7 +266,7 @@ public sealed class EncryptionGuardBehaviorTests : IDisposable
         var result = await _encryptor.DecryptStringAsync(
             value, new EncryptionContext { AssociatedData = [.. "b"u8.ToArray()] });
 
-        ErrorCodeOf(result).ShouldBe(EncryptionErrors.DecryptionFailedCode);
+        ErrorCodeOf(result).ShouldBe(EncryptionErrors.InvalidCiphertextCode);
     }
 
     #endregion

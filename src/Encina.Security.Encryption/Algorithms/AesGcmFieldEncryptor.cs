@@ -251,8 +251,6 @@ internal sealed class AesGcmFieldEncryptor : IFieldEncryptor
         EncryptedValue encryptedValue,
         EncryptionContext context)
     {
-        var keyId = encryptedValue.KeyId;
-
         try
         {
             var plaintext = new byte[encryptedValue.Ciphertext.Length];
@@ -272,10 +270,11 @@ internal sealed class AesGcmFieldEncryptor : IFieldEncryptor
 
             return Right<EncinaError, byte[]>(plaintext);
         }
-        catch (CryptographicException ex)
+        catch (CryptographicException)
         {
-            return Left<EncinaError, byte[]>(
-                EncryptionErrors.DecryptionFailed(keyId, exception: ex));
+            // Tag verification failures, wrong keys and tampered ciphertext are indistinguishable
+            // by design: one generic error with no key id and no exception, so callers get no oracle.
+            return Left<EncinaError, byte[]>(EncryptionErrors.InvalidCiphertext());
         }
     }
 

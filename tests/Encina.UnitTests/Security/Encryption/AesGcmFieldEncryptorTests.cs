@@ -242,6 +242,66 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
     }
 
     [Fact]
+    public async Task Decrypt_EveryCiphertextOrKeyFailure_ReturnsIdenticalGenericInvalidCiphertext()
+    {
+        var context = new EncryptionContext { Purpose = "test" };
+        var good = (await _sut.EncryptStringAsync("secret", context)).Match(Right: v => v, Left: _ => default);
+
+        byte[] Flip(ImmutableArray<byte> source)
+        {
+            var copy = source.ToArray();
+            copy[0] ^= 0xFF;
+            return copy;
+        }
+
+        var otherKeyProvider = new InMemoryKeyProvider();
+        var otherKey = new byte[32];
+        RandomNumberGenerator.Fill(otherKey);
+        otherKeyProvider.AddKey(TestKeyId, otherKey);
+        var wrongKeySut = new AesGcmFieldEncryptor(otherKeyProvider);
+
+        var cases = new List<(AesGcmFieldEncryptor Sut, EncryptedValue Value)>
+        {
+            (_sut, good with { Nonce = [.. new byte[5]] }),
+            (_sut, good with { Nonce = [.. new byte[11]] }),
+            (_sut, good with { Nonce = [.. new byte[13]] }),
+            (_sut, good with { Tag = [.. new byte[15]] }),
+            (_sut, good with { Tag = [.. new byte[17]] }),
+            (_sut, good with { Tag = [.. Flip(good.Tag)] }),
+            (_sut, good with { Ciphertext = [.. Flip(good.Ciphertext)] }),
+            (wrongKeySut, good),
+        };
+
+        var errors = new List<EncinaError>();
+        foreach (var (sut, value) in cases)
+        {
+            var stringResult = await sut.DecryptStringAsync(value, context);
+            var bytesResult = await sut.DecryptBytesAsync(value, context);
+            errors.Add(stringResult.Match(Right: _ => throw new InvalidOperationException("Expected Left"), Left: e => e));
+            errors.Add(bytesResult.Match(Right: _ => throw new InvalidOperationException("Expected Left"), Left: e => e));
+        }
+
+        var first = errors[0];
+        foreach (var error in errors)
+        {
+            error.GetCode().IfNone("").ShouldBe(EncryptionErrors.InvalidCiphertextCode);
+            error.Message.ShouldBe(first.Message);
+            error.Message.ShouldNotContain(TestKeyId);
+            error.GetCause().IsNone.ShouldBeTrue();
+            var details = error.GetDetails();
+            var firstDetails = first.GetDetails();
+            details.Count.ShouldBe(firstDetails.Count);
+            foreach (var pair in firstDetails)
+            {
+                details.ShouldContainKey(pair.Key);
+                details[pair.Key].ShouldBe(pair.Value);
+            }
+
+            details.ShouldNotContainKey("keyId");
+        }
+    }
+
+    [Fact]
     public async Task DecryptStringAsync_UnknownKeyId_ReturnsError()
     {
         var context = new EncryptionContext { Purpose = "test" };
