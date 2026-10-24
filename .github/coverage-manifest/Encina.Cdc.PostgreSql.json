@@ -37,7 +37,7 @@
         "unit": 28
       },
       "justifications": {
-        "unit": "Unit tests run the constructor guards, ConnectorId, the GetCurrentPositionAsync failure path and cancellation against a refused local port, and the StreamChangesAsync position-restore and publication-failure branches; the Npgsql replication messages have no public constructors, so the replication loop, message mapping, tuple reading and slot creation are only reachable with a live server (about 71 percent of the 183 coverable lines), and are measured by the integration flag.",
+        "unit": "Unit tests run the constructor guards, ConnectorId, the GetCurrentPositionAsync failure path and cancellation against a refused local port, and the StreamChangesAsync position-restore and publication-failure branches; the Npgsql replication messages have no public constructors, so the replication loop, message mapping, tuple reading and slot creation are only reachable with a live server (about 71 percent of the 183 coverable lines), and are measured by the integration flag. A seam between the Npgsql replication types and the change-event mapping that would allow a higher unit target is tracked in #2781.",
         "integration": "Integration tests run the real connector against a PostgreSQL 17 container with wal_level=logical: GetCurrentPositionAsync, fresh and pre-existing slot and publication, insert, delete and default-identity update events, truncate skipping, restoring a saved position, cancellation and the publication failure; left uncovered are the update-with-old-image mapping (its test is skipped because of a connector defect tracked in a follow-up issue), the null LSN branch and the generic catch blocks."
       }
     },
