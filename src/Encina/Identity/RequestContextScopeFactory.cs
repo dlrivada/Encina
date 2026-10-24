@@ -48,7 +48,7 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
     /// <param name="identityFactory">The claim mapper.</param>
     /// <param name="options">The claim map.</param>
     /// <param name="timeProvider">The clock that stamps every scope context.</param>
-    /// <param name="logger">The logger (EventIds 166-175); none by default.</param>
+    /// <param name="logger">The logger (EventIds 166-176); none by default.</param>
     public RequestContextScopeFactory(
         IRequestContextAccessor accessor,
         IServiceIdentityCatalog catalog,
@@ -161,11 +161,14 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(work);
 
-        // Client-controlled members are normalized below, never refused: the only refusals are host
-        // or transport conditions. A connection marker permits one inbound scope per activity.
+        // Client-controlled members are normalized below, never refused: the refusals are host or
+        // transport conditions and one tenant ambiguity (a header that disagrees with the tenant claim,
+        // or conflicting tenant claims). A connection marker permits one inbound scope per activity.
         var requestedKind = RequestedKindOf(request.Principal);
         var refusal = Precheck(cancellationToken)
             ?? CheckChain(requestedKind, inboundOptIn: false, out _, connectionPermitted: true);
+        string? tenantId = null;
+        refusal ??= ResolveInboundTenant(request, out tenantId);
         if (refusal is not null)
         {
             return Refuse<T>(refusal, requestedKind);
@@ -174,7 +177,6 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
         var ambient = _accessor.RequestContext;
         var issuer = new IdentityIssuer();
         var identity = _identityFactory.Create(request.Principal, issuer);
-        var tenantId = _identityFactory.ResolveTenantId(request.Principal) ?? InboundRequestNormalizer.Id(request.TenantHeaderValue);
         var context = NewContext(identity, InboundRequestNormalizer.CorrelationId(request.CorrelationId), tenantId, RequestOrigin.Inbound,
                 InboundRequestNormalizer.IdempotencyKey(request.IdempotencyKey))
             .WithMetadataItems(InboundRequestNormalizer.Metadata(request));
@@ -190,6 +192,51 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
         }
 
         return Open(context, work, cancellationToken);
+    }
+
+    // The verified claim always wins. The header chooses the tenant only when there is no claim and the
+    // application trusts it; a header that disagrees with the claim, or conflicting claims, refuse the scope.
+    private EncinaError? ResolveInboundTenant(InboundRequestInfo request, out string? tenantId)
+    {
+        tenantId = null;
+        if (!_identityFactory.TryResolveTenantId(request.Principal, out var claimTenant))
+        {
+            return RequestIdentityErrors.InboundTenantConflict();
+        }
+
+        var headerTenant = InboundRequestNormalizer.Id(request.TenantHeaderValue);
+        if (claimTenant is null)
+        {
+            tenantId = TenantFromHeader(headerTenant, request.TenantHeaderTrusted);
+            return null;
+        }
+
+        tenantId = claimTenant;
+        if (HeaderDisagrees(headerTenant, claimTenant))
+        {
+            return RequestIdentityErrors.InboundTenantConflict();
+        }
+
+        return null;
+    }
+
+    private static bool HeaderDisagrees(string? headerTenant, string claimTenant) =>
+        headerTenant is not null && !string.Equals(headerTenant, claimTenant, StringComparison.Ordinal);
+
+    // With no claim the header chooses the tenant only when the application trusts it.
+    private string? TenantFromHeader(string? headerTenant, bool trusted)
+    {
+        if (headerTenant is null)
+        {
+            return null;
+        }
+
+        if (!trusted)
+        {
+            RequestIdentityLog.UntrustedTenantHeaderIgnored(_logger);
+        }
+
+        return trusted ? headerTenant : null;
     }
 
     /// <inheritdoc />

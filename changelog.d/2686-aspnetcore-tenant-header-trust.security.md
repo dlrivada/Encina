@@ -1,0 +1,3 @@
+- Encina.AspNetCore no longer lets the tenant header choose the tenant by default: the header is ignored unless the application sets `EncinaAspNetCoreOptions.TrustTenantIdHeader` (default false, logged once at startup) and the caller has no tenant claim. The verified tenant claim always wins. (#2686)
+- A tenant header that disagrees with the caller's tenant claim, or a principal with conflicting tenant claims, is now refused with 403 (`encina.identity.inbound_tenant_conflict`) by `UseEncinaContext()` and by `IRequestContextScopeFactory.RunInboundAsync`. (#2686)
+- The DPIA endpoints take the tenant from the request context instead of reading `X-Tenant-Id`; the public constant `DPIAEndpointExtensions.TenantIdHeader` is removed. (#2686)

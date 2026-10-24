@@ -58,6 +58,16 @@ public static class RequestIdentityErrors
             details: Kinds(ambientKind, requestedKind));
 
     /// <summary>
+    /// Creates the error returned when an inbound request names a tenant that disagrees with its
+    /// principal, or when the principal's identities carry different tenant claims.
+    /// </summary>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="RequestIdentityErrorCodes.InboundTenantConflict"/>.</returns>
+    public static EncinaError InboundTenantConflict()
+        => EncinaErrors.Create(
+            RequestIdentityErrorCodes.InboundTenantConflict,
+            "The tenant of the request is ambiguous: it disagrees with the tenant of the caller; the request is refused.");
+
+    /// <summary>
     /// Creates the error returned when the registered accessor is not the default one.
     /// </summary>
     /// <returns>An <see cref="EncinaError"/> with code <see cref="RequestIdentityErrorCodes.UnsupportedAccessor"/>.</returns>

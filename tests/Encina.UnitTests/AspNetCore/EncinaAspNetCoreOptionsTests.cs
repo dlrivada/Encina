@@ -15,6 +15,15 @@ public sealed class EncinaAspNetCoreOptionsTests
         options.DataRegionHeaderName.ShouldBe("X-Data-Region");
         options.IncludeRequestPathInProblemDetails.ShouldBeFalse();
         options.IncludeExceptionDetails.ShouldBeFalse();
+        options.TrustTenantIdHeader.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void TrustTenantIdHeader_CanBeEnabled()
+    {
+        var options = new EncinaAspNetCoreOptions { TrustTenantIdHeader = true };
+
+        options.TrustTenantIdHeader.ShouldBeTrue();
     }
 
     [Fact]

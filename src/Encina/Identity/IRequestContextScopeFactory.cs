@@ -118,11 +118,14 @@ public interface IRequestContextScopeFactory
     /// <returns>
     /// The result of <paramref name="work"/>, or one of the host conditions
     /// <see cref="RequestIdentityErrorCodes.UnsupportedAccessor"/>, <see cref="EncinaErrorCodes.RequestCancelled"/>
-    /// and <see cref="RequestIdentityErrorCodes.ScopeConflict"/>. Client-controlled input is
-    /// normalized, never refused (see <see cref="InboundRequestInfo"/>).
+    /// and <see cref="RequestIdentityErrorCodes.ScopeConflict"/>, or
+    /// <see cref="RequestIdentityErrorCodes.InboundTenantConflict"/> when the tenant header disagrees
+    /// with the principal's tenant claim or the principal carries conflicting tenant claims. All other
+    /// client-controlled input is normalized, never refused (see <see cref="InboundRequestInfo"/>).
     /// </returns>
     /// <remarks>
-    /// The tenant is the principal's tenant claim, otherwise the normalized tenant header value.
+    /// The tenant is the principal's tenant claim; with no claim, the normalized tenant header value
+    /// only when <see cref="InboundRequestInfo.TenantHeaderTrusted"/> is set, otherwise none.
     /// The context is marked as inbound, so service and principal scopes opened inside it need
     /// <see cref="IdentityScopeOptions.AllowOverInbound"/>. Each call is logged at Information
     /// (EventId 175) as an application binding path.

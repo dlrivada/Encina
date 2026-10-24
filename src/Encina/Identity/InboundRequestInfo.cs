@@ -9,15 +9,19 @@ namespace Encina;
 /// </summary>
 /// <param name="Principal">The authenticated principal, validated by the authentication handler, or <see langword="null"/>.</param>
 /// <param name="CorrelationId">The caller's correlation id, if any.</param>
-/// <param name="TenantHeaderValue">The tenant header value, used only when the principal has no tenant claim.</param>
+/// <param name="TenantHeaderValue">The tenant header value. It chooses the tenant only when the principal has no tenant claim and <paramref name="TenantHeaderTrusted"/> is <see langword="true"/>; when the principal has a tenant claim and the value differs, the scope is refused.</param>
 /// <param name="IdempotencyKey">The caller's idempotency key, if any.</param>
 /// <param name="IpAddress">The caller's IP address, if any.</param>
 /// <param name="UserAgent">The caller's user agent, if any.</param>
 /// <param name="DataRegion">The caller's data region hint, if any.</param>
+/// <param name="TenantHeaderTrusted">Whether the application explicitly trusts the tenant header (a gateway sets or strips it); <see langword="false"/> by default, so the header never chooses the tenant.</param>
 /// <remarks>
 /// <para>
 /// Every member except <paramref name="Principal"/> is client-controlled. The scope factory
-/// <b>normalizes</b> them and never refuses a scope because of them:
+/// <b>normalizes</b> them and never refuses a scope because of them, with one exception: a tenant
+/// header that disagrees with the principal's tenant claim (trusted or not), or a principal whose
+/// identities carry conflicting tenant claims, is refused with
+/// <see cref="RequestIdentityErrorCodes.InboundTenantConflict"/>.
 /// </para>
 /// <list type="bullet">
 /// <item><description>a correlation id that is blank, longer than <see cref="MaxIdLength"/> or has
@@ -50,7 +54,8 @@ public sealed record InboundRequestInfo(
     string? IdempotencyKey = null,
     string? IpAddress = null,
     string? UserAgent = null,
-    string? DataRegion = null)
+    string? DataRegion = null,
+    bool TenantHeaderTrusted = false)
 {
     /// <summary>
     /// The maximum length of a correlation id (and of the activity id used in its place) and of a

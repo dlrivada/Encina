@@ -81,6 +81,10 @@ internal sealed class ClaimsRequestIdentityFactory : IRequestIdentityFactory
     public string? ResolveTenantId(ClaimsPrincipal? principal) =>
         TryResolveTenant(AuthenticatedIdentities(principal), out var tenantId) ? tenantId : null;
 
+    /// <inheritdoc />
+    public bool TryResolveTenantId(ClaimsPrincipal? principal, out string? tenantId) =>
+        TryResolveTenant(AuthenticatedIdentities(principal), out tenantId);
+
     private static List<ClaimsIdentity> AuthenticatedIdentities(ClaimsPrincipal? principal) =>
         principal is null
             ? []
