@@ -4,8 +4,9 @@
   "totalFiles": 5,
   "targets": {
     "guard": 15,
+    "integration": 80,
     "property": 10,
-    "unit": 50
+    "unit": 43
   },
   "files": {
     "Health/PostgresCdcHealthCheck.cs": {
@@ -14,21 +15,44 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "guard": 50,
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "Unit tests construct the real PostgresCdcHealthCheck and run CheckHealthAsync against substituted connector and position store for the healthy, connector-failure (error code only in the data) and position-store-failure (degraded) branches, covering all four lines.",
+        "guard": "Guard tests assert ArgumentNullException for the null connector and position store, which the base CdcHealthCheck constructor throws; they run the constructor but not the static tag initializer or the health check body, so about half of the four lines."
+      }
     },
     "PostgresCdcConnector.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "integration"
       ],
       "defaultRule": "*CdcConnector.cs",
-      "reason": "CDC connector requires PostgreSQL with wal_level=logical — integration tests not feasible without specialized config (see tests/Encina.IntegrationTests/Cdc/PostgreSql/PostgreSql.md). Unit tests cover DI and configuration paths."
+      "reason": "CDC connector over PostgreSQL logical replication. Unit tests run the paths that need no server (constructor guards, ConnectorId, failure paths against a refused local port, cancellation, position restore); the integration tests run the rest against a PostgreSQL container started with wal_level=logical (tests/Encina.IntegrationTests/Cdc/PostgreSql).",
+      "targets": {
+        "integration": 85,
+        "unit": 30
+      },
+      "justifications": {
+        "unit": "Unit tests run the constructor guards, ConnectorId, the GetCurrentPositionAsync failure path and cancellation against a refused local port, and the StreamChangesAsync position-restore and publication-failure branches; the Npgsql replication messages have no public constructors, so the replication loop, message mapping, tuple reading and slot creation are only reachable with a live server (about 70 percent of the lines), and are measured by the integration flag.",
+        "integration": "Integration tests run the real connector against a PostgreSQL 17 container with wal_level=logical: GetCurrentPositionAsync, fresh and pre-existing slot and publication, insert, delete and default-identity update events, truncate skipping, saved-position resume, cancellation and the publication failure; left uncovered are the update-with-old-image mapping (blocked by a connector defect tracked in a follow-up issue), the null LSN branch and the generic catch blocks."
+      }
     },
     "PostgresCdcOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults — no guard clauses"
+      "reason": "Configuration POCO with defaults — no guard clauses",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "Unit tests read every default and setter of the options POCO and its ToString, which covers all seven lines."
+      }
     },
     "PostgresCdcPosition.cs": {
       "defaultTests": [
@@ -37,7 +61,17 @@
         "property"
       ],
       "defaultRule": "*CdcPosition.cs",
-      "reason": "Position with ToBytes/FromBytes serialization round-trip invariant and CompareTo antisymmetry"
+      "reason": "Position with ToBytes/FromBytes serialization round-trip invariant and CompareTo antisymmetry",
+      "targets": {
+        "guard": 15,
+        "property": 75,
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "Unit tests run the real PostgresCdcPosition constructor, ToBytes, FromBytes, CompareTo and ToString including the invalid-length and non-Postgres comparison branches, covering all thirty lines.",
+        "guard": "Guard tests assert ArgumentNullException and ArgumentException on FromBytes and CompareTo; they reach only the guard lines of those two methods, about one sixth of the file.",
+        "property": "Property tests run the ToBytes/FromBytes round trip and CompareTo antisymmetry over random LSNs, leaving uncovered the guard-throwing branches and ToString."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -45,7 +79,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with ThrowIfNull guard"
+      "reason": "ServiceCollection extensions with ThrowIfNull guard",
+      "targets": {
+        "guard": 25,
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "Unit tests call AddEncinaCdcPostgreSql with real service collections and resolve the registered options, connector and health check, covering all eleven lines.",
+        "guard": "Guard tests assert the ArgumentNullException for a null services collection and a null configure action, which is the first three of the eleven lines."
+      }
     }
   }
 }
