@@ -26,7 +26,11 @@ public static class HttpContextInboundRequestExtensions
     /// <see cref="HttpContext.RequestServices"/> (the defaults when none is registered). The correlation
     /// id is the <see cref="EncinaAspNetCoreOptions.CorrelationIdHeader"/> value, otherwise the current
     /// activity id. Every value except the principal and the IP address is client-controlled: the
-    /// scope factory normalizes them and never refuses a scope because of them.
+    /// scope factory normalizes them and never refuses a scope because of them, except one tenant
+    /// ambiguity. The tenant header is always copied, flagged trusted only when
+    /// <see cref="EncinaAspNetCoreOptions.TrustTenantIdHeader"/> is enabled; the scope factory ignores
+    /// an untrusted header, and refuses (<see cref="RequestIdentityErrorCodes.InboundTenantConflict"/>)
+    /// a header that disagrees with the principal's tenant claim.
     /// </para>
     /// <para>
     /// <b>IP address.</b> It is <see cref="ConnectionInfo.RemoteIpAddress"/> only; the client-controlled
@@ -44,8 +48,8 @@ public static class HttpContextInboundRequestExtensions
     /// is stale (token expiry, revocation).
     /// </para>
     /// <para>
-    /// <b>Limits.</b> The tenant comes from the principal's tenant claim or the
-    /// <see cref="EncinaAspNetCoreOptions.TenantIdHeader"/> value only: a tenant resolved from the
+    /// <b>Limits.</b> The tenant comes from the principal's tenant claim or, when the application
+    /// trusts it, the <see cref="EncinaAspNetCoreOptions.TenantIdHeader"/> value only: a tenant resolved from the
     /// route or the subdomain is lost on this path, because the tenant resolution middleware writes no
     /// context on a connection request. <see cref="HttpContext"/> is pooled and reused once the request
     /// completes: call this method while the request is active and never capture the
@@ -90,7 +94,8 @@ public static class HttpContextInboundRequestExtensions
             IdempotencyKey: Header(headers, options.IdempotencyKeyHeader),
             IpAddress: context.Connection.RemoteIpAddress?.ToString(),
             UserAgent: Header(headers, UserAgentHeader),
-            DataRegion: Header(headers, options.DataRegionHeaderName));
+            DataRegion: Header(headers, options.DataRegionHeaderName),
+            TenantHeaderTrusted: options.TrustTenantIdHeader);
     }
 
     private static string? Header(IHeaderDictionary headers, string name) =>

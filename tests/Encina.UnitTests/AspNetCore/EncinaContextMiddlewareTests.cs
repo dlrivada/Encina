@@ -146,20 +146,154 @@ public sealed class EncinaContextMiddlewareTests
         context.Response.Headers["X-Correlation-ID"].ToString().ShouldBe(_seen.CorrelationId);
     }
 
-    [Fact]
-    public async Task TheTenant_ComesFromTheClaim_ThenFromTheHeader()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TheTenant_ComesFromTheClaim_WhenTheHeaderAgrees(bool trust)
     {
-        var withClaim = new DefaultHttpContext { User = ScopeTestHost.UserPrincipal("alice", tenant: "claim-tenant") };
-        withClaim.Request.Headers["X-Tenant-ID"] = "header-tenant";
+        _options.TrustTenantIdHeader = trust;
+        var context = new DefaultHttpContext { User = ScopeTestHost.UserPrincipal("alice", tenant: "claim-tenant") };
+        context.Request.Headers["X-Tenant-ID"] = "claim-tenant";
+
+        await InvokeAsync(CreateMiddleware(), context);
+
+        _seen!.TenantId.ShouldBe("claim-tenant");
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status200OK);
+    }
+
+    [Fact]
+    public async Task TheTenant_ComesFromTheClaim_WhenThereIsNoHeader()
+    {
+        var context = new DefaultHttpContext { User = ScopeTestHost.UserPrincipal("alice", tenant: "claim-tenant") };
+
+        await InvokeAsync(CreateMiddleware(), context);
+
+        _seen!.TenantId.ShouldBe("claim-tenant");
+    }
+
+    [Fact]
+    public async Task TheTenantHeader_ChoosesTheTenant_OnlyWhenTrusted_AndThereIsNoClaim()
+    {
+        _options.TrustTenantIdHeader = true;
         var anonymous = new DefaultHttpContext();
         anonymous.Request.Headers["X-Tenant-ID"] = "header-tenant";
+        var userWithoutClaim = new DefaultHttpContext { User = ScopeTestHost.UserPrincipal("alice") };
+        userWithoutClaim.Request.Headers["X-Tenant-ID"] = "header-tenant";
 
-        await InvokeAsync(CreateMiddleware(), withClaim);
-        var claimTenant = _seen!.TenantId;
         await InvokeAsync(CreateMiddleware(), anonymous);
+        var anonymousTenant = _seen!.TenantId;
+        await InvokeAsync(CreateMiddleware(), userWithoutClaim);
 
-        claimTenant.ShouldBe("claim-tenant");
+        anonymousTenant.ShouldBe("header-tenant");
         _seen!.TenantId.ShouldBe("header-tenant");
+        _host.EventIds.ShouldNotContain(176);
+    }
+
+    [Fact]
+    public async Task AnUntrustedTenantHeader_IsIgnored_AndLoggedAtDebugOnlyWhenPresent()
+    {
+        var withHeader = new DefaultHttpContext();
+        withHeader.Request.Headers["X-Tenant-ID"] = "header-tenant";
+
+        await InvokeAsync(CreateMiddleware(), new DefaultHttpContext());
+        var withoutHeaderTenant = _seen!.TenantId;
+        var debugBefore = _host.EventIds.Count(static id => id == 176);
+        await InvokeAsync(CreateMiddleware(), withHeader);
+
+        withoutHeaderTenant.ShouldBeNull();
+        debugBefore.ShouldBe(0);
+        _seen!.TenantId.ShouldBeNull();
+        _host.EventIds.Count(static id => id == 176).ShouldBe(1);
+        _host.Logger.Collector.GetSnapshot().Single(static r => r.Id.Id == 176).Level.ShouldBe(LogLevel.Debug);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ATenantHeader_ThatDisagreesWithTheClaim_IsAnswered403ProblemJson_WithoutRunningNext(bool trust)
+    {
+        _options.TrustTenantIdHeader = trust;
+        var context = NewHttpContext();
+        context.User = ScopeTestHost.UserPrincipal("alice", tenant: "claim-tenant");
+        context.Request.Headers["X-Tenant-ID"] = "other-tenant";
+
+        await InvokeAsync(CreateMiddleware(), context);
+
+        await AssertForbiddenProblemAsync(context);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConflictingTenantClaims_AreAnswered403_AndTheHeaderIsNeverConsulted(bool withHeader)
+    {
+        _options.TrustTenantIdHeader = true;
+        var first = new System.Security.Claims.ClaimsIdentity(
+            [new System.Security.Claims.Claim("sub", "alice"), new System.Security.Claims.Claim("tid", "tenant-a")], "test");
+        var second = new System.Security.Claims.ClaimsIdentity(
+            [new System.Security.Claims.Claim("sub", "alice"), new System.Security.Claims.Claim("tid", "tenant-b")], "test");
+        var context = NewHttpContext();
+        context.User = new System.Security.Claims.ClaimsPrincipal([first, second]);
+        if (withHeader)
+        {
+            context.Request.Headers["X-Tenant-ID"] = "tenant-a";
+        }
+
+        await InvokeAsync(CreateMiddleware(), context);
+
+        await AssertForbiddenProblemAsync(context);
+    }
+
+    private static DefaultHttpContext NewHttpContext() => new()
+    {
+        RequestServices = new ServiceCollection().AddLogging().BuildServiceProvider(),
+        Response = { Body = new MemoryStream() }
+    };
+
+    private async Task AssertForbiddenProblemAsync(DefaultHttpContext context)
+    {
+        _nextCalls.ShouldBe(0);
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status403Forbidden);
+        context.Response.ContentType.ShouldNotBeNull().ShouldStartWith("application/problem+json");
+        context.Response.Body.Position = 0;
+        var body = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        body.ShouldContain("403");
+        body.ShouldNotContain("tenant-a");
+        body.ShouldNotContain("tenant-b");
+        body.ShouldNotContain("claim-tenant");
+        body.ShouldNotContain("other-tenant");
+        _host.EventIds.ShouldContain(167);
+        _host.Logger.Collector.GetSnapshot().Single(static r => r.Id.Id == 167).Message
+            .ShouldContain(RequestIdentityErrorCodes.InboundTenantConflict);
+    }
+
+    [Fact]
+    public void TheConstructor_LogsOneWarning_WhenTheTenantHeaderIsTrusted_AndNothingOtherwise()
+    {
+        _ = CreateMiddleware();
+        MiddlewareEventIds.ShouldBeEmpty();
+
+        _options.TrustTenantIdHeader = true;
+        _ = CreateMiddleware();
+
+        MiddlewareEventIds.ShouldBe([204]);
+        _logger.Collector.GetSnapshot().Single().Level.ShouldBe(LogLevel.Warning);
+    }
+
+    [Fact]
+    public void CreateInboundRequestInfo_FlagsTheHeaderTrusted_OnlyWhenTheOptionIsOn()
+    {
+        var off = new DefaultHttpContext();
+        off.Request.Headers["X-Tenant-ID"] = "t";
+        var on = new DefaultHttpContext
+        {
+            RequestServices = new ServiceCollection().Configure<EncinaAspNetCoreOptions>(o => o.TrustTenantIdHeader = true).BuildServiceProvider()
+        };
+        on.Request.Headers["X-Tenant-ID"] = "t";
+
+        off.CreateInboundRequestInfo().TenantHeaderTrusted.ShouldBeFalse();
+        on.CreateInboundRequestInfo().TenantHeaderTrusted.ShouldBeTrue();
+        on.CreateInboundRequestInfo().TenantHeaderValue.ShouldBe("t");
     }
 
     [Fact]

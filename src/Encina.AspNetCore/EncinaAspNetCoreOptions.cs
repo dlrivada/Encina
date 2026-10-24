@@ -17,10 +17,31 @@ public sealed class EncinaAspNetCoreOptions
     public string CorrelationIdHeader { get; set; } = "X-Correlation-ID";
 
     /// <summary>
-    /// HTTP header name for tenant ID, used when the caller is anonymous or its principal carries no tenant claim.
+    /// HTTP header name for tenant ID. The header chooses the tenant only when
+    /// <see cref="TrustTenantIdHeader"/> is enabled and the caller's principal carries no tenant claim.
     /// Default: "X-Tenant-ID"
     /// </summary>
     public string TenantIdHeader { get; set; } = "X-Tenant-ID";
+
+    /// <summary>
+    /// Whether the tenant header may choose the tenant of a request whose principal has no tenant claim.
+    /// Default: false (the header is ignored).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Enable it only when a gateway sets or strips the header and the application is not reachable
+    /// around that gateway: any client can send the header, so a directly reachable application would
+    /// let the caller pick its tenant. The verified tenant claim always wins, and a header that
+    /// disagrees with the claim is refused with 403 whether this option is enabled or not. Enabling
+    /// the option is an explicit opt-out of the default and is logged once at startup.
+    /// </para>
+    /// <para>
+    /// An address-based trust list is not offered: <c>UseEncinaContext()</c> must run after
+    /// <c>UseForwardedHeaders()</c>, so the peer address a check could use is the forwarded client
+    /// address, never the gateway's.
+    /// </para>
+    /// </remarks>
+    public bool TrustTenantIdHeader { get; set; }
 
     /// <summary>
     /// HTTP header name for idempotency key.
