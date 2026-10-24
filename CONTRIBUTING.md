@@ -64,14 +64,14 @@ Good discussion topics:
 
 ### Finding Something to Work On
 
-Look for issues labeled [`good first issue`](https://github.com/dlrivada/Encina/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or [`help wanted`](https://github.com/dlrivada/Encina/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) if you're looking for a place to start.
+Look for issues labeled [`good first issue`](https://github.com/dlrivada/Encina/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or [`help wanted`](https://github.com/dlrivada/Encina/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) if you're looking for a place to start. Claim the issue first, as described in [Before You Start](#before-you-start).
 
 ## Submitting Pull Requests
 
 ### Before You Start
 
 1. **Check for existing work** — search open PRs and issues to avoid duplication.
-2. **Claim the issue and wait for the assignment** — if you are an external contributor, comment on the issue to claim it, then wait until the maintainer assigns it to you. Open the pull request only after that. A pull request for an issue that is not assigned to its author, or without a linked issue, is closed without review. Work the maintainer owns is exempt from this rule.
+2. **Claim the issue and wait for the assignment** — if you are an external contributor, comment on the issue to claim it, then wait until the maintainer assigns it to you. Open the pull request only after that, and link the issue in its description (`Fixes #N`). A pull request for an issue that is not assigned to its author, or without a linked issue, is closed without review. Work the maintainer owns is exempt from this rule.
 3. **Design first for large changes** — open a `[SPIKE]` issue or Discussion before investing significant effort in new features or architectural changes.
 
 ### Prerequisites
