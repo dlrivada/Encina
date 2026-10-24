@@ -38,7 +38,7 @@ builder.Services.AddEncinaAspNetCore(options =>
 {
     // Optional: Customize header names
     options.CorrelationIdHeader = "X-Correlation-ID"; // Default
-    options.TenantIdHeader = "X-Tenant-ID"; // Default
+    options.TenantIdHeader = "X-Tenant-ID"; // Default; ignored unless TrustTenantIdHeader is true
     options.IdempotencyKeyHeader = "X-Idempotency-Key"; // Default
 
     // Optional: Include request path in Problem Details
@@ -136,7 +136,7 @@ public class UsersController : ControllerBase
 
 - **CorrelationId**: From `X-Correlation-ID` header, `Activity.Current.Id`, or auto-generated GUID
 - **UserId**: From the authenticated `ClaimsPrincipal`, through `RequestIdentityOptions.UserIdClaimTypes`
-- **TenantId**: From the principal's tenant claim (`RequestIdentityOptions.TenantIdClaimTypes`) or the `X-Tenant-ID` header
+- **TenantId**: From the principal's tenant claim (`RequestIdentityOptions.TenantIdClaimTypes`). The `X-Tenant-ID` header is ignored unless `TrustTenantIdHeader` is enabled, and then it applies only when the principal has no tenant claim (see [Tenant resolution](#tenant-resolution))
 - **IdempotencyKey**: From `X-Idempotency-Key` header
 - **IpAddress**: From `HttpContext.Connection.RemoteIpAddress` only; `X-Forwarded-For` is never read, because the address feeds the audit trail
 
@@ -221,6 +221,31 @@ builder.Services.AddEncinaRequestIdentity(options =>
 **Streaming POST.** A POST that streams its response (MCP Streamable HTTP) keeps its request identity; the endpoint decides when that principal is stale.
 
 **Server-sent events (opt-in).** Call `RunInboundAsync(context.CreateInboundRequestInfo(), ...)` on `IRequestContextScopeFactory` around one event or one dispatch, never around the whole stream. A tenant resolved from the route or the subdomain is lost on this path. `HttpContext` is pooled: call `CreateInboundRequestInfo` while the request is active and never capture the `HttpContext`.
+
+#### Tenant resolution
+
+The verified tenant claim always wins. The tenant header (`TenantIdHeader`, default `X-Tenant-ID`) is ignored by default; it chooses the tenant only when the principal has no tenant claim and `TrustTenantIdHeader` is `true`.
+
+| Request | Result |
+|---|---|
+| Principal has a tenant claim, no header | The claim is the tenant |
+| Principal has no tenant claim, `TrustTenantIdHeader = false` (default) | The header is ignored (logged at Debug, EventId 176, no values); no tenant |
+| Principal has no tenant claim, `TrustTenantIdHeader = true` | The header is the tenant |
+| Header disagrees with the claim, trusted or not | Refused with 403 |
+| The principal's identities carry different tenant claims | Refused with 403 |
+
+A refused request is answered by `UseEncinaContext()` with 403 `application/problem+json`, without running the rest of the pipeline and without tenant values in the body. The refusal code is `encina.identity.inbound_tenant_conflict` (`RequestIdentityErrorCodes.InboundTenantConflict`), logged as a Warning with the code only. On the server-sent-event path, `IRequestContextScopeFactory.RunInboundAsync` returns the same `Left`; the endpoint maps it to a response itself.
+
+Enable `TrustTenantIdHeader` only when a gateway sets or strips the header and the application is not reachable around the gateway. Enabling it logs one Warning at startup (EventId 204). There is no address-based trust list, because `UseEncinaContext()` must run after `UseForwardedHeaders()`.
+
+```csharp
+builder.Services.AddEncinaAspNetCore(options =>
+{
+    options.TrustTenantIdHeader = true; // default: false
+});
+```
+
+`MapDPIAEndpoints` no longer reads `X-Tenant-Id`, and the `DPIAEndpointExtensions.TenantIdHeader` constant is removed: the tenant is the one `UseEncinaContext()` bound (the claim, or the trusted header). `X-Module-Id` is unchanged.
 
 **Authorization.** `[Authorize]` (`AuthorizationPipelineBehavior`, registered by `AddEncinaAuthorization`) evaluates `IRequestContext.Identity`. An anonymous identity is denied with `encina.authorization.unauthenticated`.
 
@@ -444,8 +469,12 @@ services.AddEncinaAspNetCore(options =>
     // Header name for correlation ID (default: "X-Correlation-ID")
     options.CorrelationIdHeader = "X-Request-ID";
 
-    // Header name for tenant ID (default: "X-Tenant-ID")
+    // Header name for tenant ID (default: "X-Tenant-ID"); ignored unless TrustTenantIdHeader is true
     options.TenantIdHeader = "X-Customer-ID";
+
+    // Let the tenant header choose the tenant when the principal has no tenant claim (default: false).
+    // Enable only behind a gateway that sets or strips the header; see "Tenant resolution".
+    options.TrustTenantIdHeader = false;
 
     // Header name for idempotency key (default: "X-Idempotency-Key")
     options.IdempotencyKeyHeader = "Idempotency-Key";
@@ -479,7 +508,8 @@ app.MapDelete("/api/users/{id}", async (int id, IEncina Encina, HttpContext ctx)
 ## Multi-Tenancy Example
 
 ```csharp
-// The middleware automatically extracts tenant ID from claims or headers
+// The middleware takes the tenant ID from the principal's tenant claim
+// (or from the tenant header only when TrustTenantIdHeader is enabled)
 public class GetOrdersQueryHandler : IQueryHandler<GetOrdersQuery, IEnumerable<Order>>
 {
     private readonly IOrderRepository _repository;
