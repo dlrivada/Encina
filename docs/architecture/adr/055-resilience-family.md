@@ -198,7 +198,8 @@ The owners are the issues below; the scope lines are the new scope of each issue
 | Scope change: resilience telemetry follows R5 | [#728](https://github.com/dlrivada/Encina/issues/728) |
 | Scope change: `Encina.Http` references `Encina.Resilience` (R1) | [#1233](https://github.com/dlrivada/Encina/issues/1233) |
 | Scope change: its retry rules apply to the single engine | [#2411](https://github.com/dlrivada/Encina/issues/2411) |
-| Defects of the removed packages: absorbed by R1 to R3 and closed when the packages are removed | [#2704](https://github.com/dlrivada/Encina/issues/2704), [#2705](https://github.com/dlrivada/Encina/issues/2705) |
+| Defect of a removed package: absorbed by R1 to R3 and closed when `Encina.Extensions.Resilience` is removed | [#2704](https://github.com/dlrivada/Encina/issues/2704) |
+| Scope change: the option lives in core (`DatabaseResilienceOptions`), so removing the packages does not absorb it; whether it is removed or wired is settled when the database circuit breaker moves into the R3 options model of `Encina.Resilience` | [#2705](https://github.com/dlrivada/Encina/issues/2705) |
 | Documentation is written after the implementation | [#904](https://github.com/dlrivada/Encina/issues/904) |
 | The `AGENTS.md` section 5 resilience category row names `Encina.Resilience` | [#2692](https://github.com/dlrivada/Encina/issues/2692) |
 
