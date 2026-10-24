@@ -203,6 +203,41 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
         result.IsLeft.ShouldBeTrue();
     }
 
+    [Theory]
+    [InlineData(5)]
+    [InlineData(11)]
+    [InlineData(13)]
+    public async Task Decrypt_NonceWithWrongLength_ReturnsInvalidCiphertextWithoutThrowing(int nonceLength)
+    {
+        var context = new EncryptionContext { Purpose = "test" };
+        var encrypted = (await _sut.EncryptStringAsync("x", context)).Match(Right: v => v, Left: _ => default);
+        var tampered = encrypted with { Nonce = [.. new byte[nonceLength]] };
+
+        // An escaping ArgumentException would fail the test here.
+        var stringResult = await _sut.DecryptStringAsync(tampered, context);
+        var bytesResult = await _sut.DecryptBytesAsync(tampered, context);
+
+        stringResult.IsLeft.ShouldBeTrue();
+        bytesResult.IsLeft.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(15)]
+    [InlineData(17)]
+    public async Task Decrypt_TagWithWrongLength_ReturnsInvalidCiphertextWithoutThrowing(int tagLength)
+    {
+        var context = new EncryptionContext { Purpose = "test" };
+        var encrypted = (await _sut.EncryptStringAsync("x", context)).Match(Right: v => v, Left: _ => default);
+        var tampered = encrypted with { Tag = [.. new byte[tagLength]] };
+
+        // An escaping ArgumentException would fail the test here.
+        var stringResult = await _sut.DecryptStringAsync(tampered, context);
+        var bytesResult = await _sut.DecryptBytesAsync(tampered, context);
+
+        stringResult.IsLeft.ShouldBeTrue();
+        bytesResult.IsLeft.ShouldBeTrue();
+    }
+
     [Fact]
     public async Task DecryptStringAsync_UnknownKeyId_ReturnsError()
     {

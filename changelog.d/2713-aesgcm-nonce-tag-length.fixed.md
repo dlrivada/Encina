@@ -1,0 +1,1 @@
+- **AES-GCM field decryption rejects wrong-sized nonce and tag** (#2713). `AesGcmFieldEncryptor` now returns `Left(EncryptionErrors.InvalidCiphertext())` for a stored `EncryptedValue` whose nonce is not 12 bytes or whose tag is not 16 bytes, instead of letting `ArgumentException` escape the `Either` API.
