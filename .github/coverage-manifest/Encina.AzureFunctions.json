@@ -78,7 +78,7 @@
       "targets": { "unit": 100, "guard": 80 },
       "justifications": {
         "unit": "Every option property is read and set in tests, including its defaults.",
-        "guard": "Guard tests cover the null checks of the setters, the only logic besides the defaults."
+        "guard": "The options are auto-properties with no setter logic; guard tests execute the file only by instantiating the options while guarding the consuming APIs (middleware, context extensions), so the target covers those lines."
       }
     },
     "EncinaFunctionMiddleware.cs": {
@@ -147,7 +147,7 @@
       "reason": "Source-generated [LoggerMessage] delegates, no logic",
       "targets": { "unit": 0, "guard": 0 },
       "justifications": {
-        "unit": "Source-generated [LoggerMessage] partials are not measured as hand-written lines; they are asserted via a fake logger in the middleware unit tests.",
+        "unit": "Source-generated [LoggerMessage] partials are not measured as hand-written lines; the events are asserted via a fake logger in FunctionResolveTenantIdTests.",
         "guard": "Source-generated [LoggerMessage] partials have no parameters to guard."
       }
     },
