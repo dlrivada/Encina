@@ -27,7 +27,7 @@ These are not choices. Each has a citation in section 5 of the spike report; thi
 | One partitioned rate-limiting core over `PartitionedRateLimiter`, request type by tenant by default and fail-closed without tenant, adaptive throttling as an opt-in decorator that counts transient errors only | [#2414](https://github.com/dlrivada/Encina/issues/2414) D1 = 1a, D2 = 2a, D3 = 3a |
 | Rate limiter and circuit breaker stay independent | [#2278](https://github.com/dlrivada/Encina/issues/2278) decision A |
 | Circuit-breaker state lives in a per-container singleton, never in a static field | #2411 |
-| `Encina.Http` is built on Microsoft.Extensions.Http.Resilience, partitions per client by tenant, and a 429 or 503 with `Retry-After` pauses that partition | #1233 (2026-10-17); SPEC-002 REQ-039, REQ-061 |
+| `Encina.Http` is built on Microsoft.Extensions.Http.Resilience, partitions per client by tenant, and a 429 or 503 with `Retry-After` pauses that partition. The client is the named HTTP client, always known at registration; a call without tenant context is denied unless it opts out explicitly and the opt-out is logged (#2414 D3), never routed to a shared anonymous partition | #1233 (2026-10-17); SPEC-002 REQ-039, REQ-061; #2414 D3 |
 | Telemetry follows [ADR-054](054-observability-conventions-and-trace-propagation.md): one `ActivitySource` and one `Meter` named `Encina.<Package>`, lowercase dotted instrument names, error code or exception type only, tenant tag only when multi-tenancy is on, no cost without a listener | ADR-054 settled points 2, 4, 7 and D3, D4 |
 | No enable or disable switches for telemetry or logging; the enrichment switches proposed in #143 are out | [#2277](https://github.com/dlrivada/Encina/issues/2277), [#728](https://github.com/dlrivada/Encina/issues/728) (2026-10-16) |
 | Time comes from `TimeProvider` | AGENTS.md section 3 |
@@ -62,6 +62,7 @@ Two front-ends produce the same per-type options, which R2 compiles once at star
 
 - **Precedence:** options for a type > that type's attributes > global defaults. A test covers it.
 - Options bind to `IConfiguration` and reload through Polly's registry, so an operator tunes an environment without recompiling and configures request types the user does not own, such as those shipped by Encina packages.
+- Pipeline lifecycle: a type's pipeline is compiled once at startup (R2) and rebuilt only when its bound options change (a configuration change token), never per call; attributes are compile-time and never trigger a rebuild. The registry swaps the pipeline for new executions, executions already started finish on the pipeline they began with, and a rebuild that fails keeps the previous pipeline and is logged (Polly's dynamic-reload behavior, to be confirmed by a test in the implementation).
 - The explicit, logged no-tenant opt-out of #2414 D3 is expressible in both front-ends.
 - The bulkhead is configured like every other strategy, by attribute or by `For<T>()`; this answers #2631.
 - Registration completeness (AGENTS.md section 3): every `AddEncina*` method of the package is proven with `ValidateOnBuild` and `ValidateScopes`.
@@ -121,8 +122,8 @@ Reason: each cache uses its best atomic operation while the `ICacheProvider` con
 ### D5. Polly's jitter formulas as they are; no jitter on delayed retries (option D5a with (i))
 
 - Immediate retries use Polly's own delay types with `UseJitter`: Exponential uses Decorrelated Jitter V2; Constant and Linear use plus or minus 25 % (verified in Polly 8.6.6 `RetryHelper.cs`). There is no Encina-owned jitter formula, and the behavior is the same as `Encina.Http` gets through Http.Resilience.
-- Documentation states that Decorrelated V2's real medians for the first retries are shorter than the configured exponential steps (simulated: about 0.9 s, 1.1 s and 2.0 s for a 1 s base), and that the base, not the median, is what is configured.
-- **(i)** `RecoverabilityOptions.MaxJitterPercent` is removed and no delayed retry gets jitter: the minute-level steps and the polling scheduler already spread them. The test `Handle_JitterAboveHundredPercent_FloorsDelayAtZero` ([#2714](https://github.com/dlrivada/Encina/issues/2714)) goes with the option.
+- Documentation states that Decorrelated V2's real medians for the first retries are shorter than the configured exponential steps, and that the base, not the median, is what is configured.
+- **(i)** `RecoverabilityOptions.MaxJitterPercent` is removed and no delayed retry without `Retry-After` gets jitter: the minute-level steps and the polling scheduler already spread them. When the server sent `Retry-After`, the upward-only jitter of D7b applies instead. The test `Handle_JitterAboveHundredPercent_FloorsDelayAtZero` ([#2714](https://github.com/dlrivada/Encina/issues/2714)) goes with the option.
 
 Reason: it is the formula Polly chose for fewer retry peaks than AWS Full Jitter, it needs no code of ours, and it gives one behavior across the library.
 
