@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Caching.Hybrid.Benchmarks.Benchmarks.HybridCacheGetOrSetBenchmarks-20261024-093324</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method           </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>GetOrSetAsync_CacheHit</td><td>1.452 &mu;s</td><td>0.0681 &mu;s</td><td>0.0037 &mu;s</td><td>1.00</td><td>0.00</td><td>0.0324</td><td>-</td><td>560 B</td><td>1.00</td>
+</tr><tr><td>GetOrSetAsync_CacheMiss</td><td>7.089 &mu;s</td><td>1.7241 &mu;s</td><td>0.0945 &mu;s</td><td>4.88</td><td>0.06</td><td>0.1068</td><td>0.0992</td><td>1792 B</td><td>3.20</td>
+</tr><tr><td>GetOrSetAsync_WithTags</td><td>11.154 &mu;s</td><td>2.8533 &mu;s</td><td>0.1564 &mu;s</td><td>7.68</td><td>0.09</td><td>0.1831</td><td>0.1678</td><td>3420 B</td><td>6.11</td>
+</tr></tbody></table>
+</body>
+</html>
