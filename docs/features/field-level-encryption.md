@@ -539,9 +539,9 @@ mockKeyProvider.GetKeyAsync("test-key", Arg.Any<CancellationToken>())
 2. Check that no string manipulation (trimming, encoding) modified the encrypted value
 3. Ensure the value wasn't partially overwritten
 
-### "Decryption failed" error
+### "Invalid or corrupted ciphertext" error
 
-**Cause**: The ciphertext was encrypted with a different key than the one being used for decryption, or the data was tampered with.
+**Cause**: AES-GCM decryption returned the error "Invalid or corrupted ciphertext." (code `encryption.invalid_ciphertext`). The ciphertext was encrypted with a different key than the one being used for decryption, or the data was tampered with. This error is deliberately the same for a wrong key and for tampered data, so it does not say which.
 
 **Solutions**:
 
