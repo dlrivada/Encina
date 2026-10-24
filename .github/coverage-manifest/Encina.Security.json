@@ -98,7 +98,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 95,
+        "contract": 95
+      },
+      "justifications": {
+        "guard": "Guard tests call the real DefaultPermissionEvaluator and assert ArgumentNullException or ArgumentException with the parameter name on all three methods, plus anonymous-caller denials, leaving nothing uncovered (measured 100%).",
+        "contract": "Contract tests run the real evaluator through IPermissionEvaluator for case-insensitive Has, Any and All semantics and denial for an anonymous context (measured 100%)."
+      }
     },
     "DefaultResourceOwnershipEvaluator.cs": {
       "defaultTests": [
@@ -106,7 +114,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 85,
+        "contract": 95
+      },
+      "justifications": {
+        "guard": "Guard tests assert the null context, null resource and blank property name guards of the real IsOwnerAsync, an anonymous denial and a matching owner through the pipeline, leaving uncovered only the unknown-property denial (measured about 89%).",
+        "contract": "Contract tests run the real evaluator for the missing-user denial, exact ordinal match, null property value and unknown property cases (measured 100%)."
+      }
     },
     "Diagnostics/SecurityDiagnostics.cs": {
       "defaultTests": [
@@ -132,7 +148,15 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "guard": 0,
+        "contract": 95
+      },
+      "justifications": {
+        "guard": "Guard tests do not execute the health check because its constructor and CheckHealthAsync have no argument guards; its probe behavior is covered by the contract flag.",
+        "contract": "Contract tests run the real health check for the healthy, missing-services and throwing-provider cases and assert only the exception type reaches the description (measured 100%)."
+      }
     },
     "SecurityContext.cs": {
       "defaultTests": [
@@ -140,7 +164,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 95,
+        "contract": 95
+      },
+      "justifications": {
+        "guard": "Guard tests construct the real SecurityContext with a null principal and with a principal without claims and assert the empty anonymous state (measured 100%).",
+        "contract": "Contract tests build the real SecurityContext from claims using custom claim types and assert user id, tenant, case-insensitive roles and permissions, the NameIdentifier fallback and the anonymous shape (measured 100%)."
+      }
     },
     "SecurityContextAccessor.cs": {
       "defaultTests": [
@@ -148,7 +180,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 0,
+        "contract": 95
+      },
+      "justifications": {
+        "guard": "The accessor is a one-property AsyncLocal holder with no guarded parameters, so the guard flag has nothing to assert.",
+        "contract": "Contract tests resolve the real accessor from AddEncinaSecurity and assert the empty default, flow to child tasks and no leak back from a child (measured 100%)."
+      }
     },
     "SecurityErrors.cs": {
       "defaultTests": [
@@ -157,10 +197,14 @@
       "defaultRule": "*Errors.cs",
       "reason": "Static error factory methods",
       "targets": {
-        "unit": 95
+        "unit": 95,
+        "guard": 80,
+        "contract": 95
       },
       "justifications": {
-        "unit": "Every factory is tested (measured 100%)."
+        "unit": "Every factory is tested (measured 100%).",
+        "guard": "Guard tests call the real role, permission and ownership factories with empty collections and a null user id, and reach the unauthenticated and claim factories through the pipeline, leaving uncovered only MissingContext (measured about 86%).",
+        "contract": "Contract tests call every real error factory and assert the stable error code, the security stage and the request type metadata plus the any/all requirement markers (measured 100%)."
       }
     },
     "SecurityOptions.cs": {
@@ -179,10 +223,14 @@
       "defaultRule": "*PipelineBehavior.cs",
       "reason": "Mediator pipeline with mockeable next delegate",
       "targets": {
-        "unit": 90
+        "unit": 90,
+        "guard": 70,
+        "contract": 60
       },
       "justifications": {
-        "unit": "Mediator pipeline with mockeable next; remaining lines are guarded logging/diagnostic branches (measured 93.5%)."
+        "unit": "Mediator pipeline with mockeable next; remaining lines are guarded logging/diagnostic branches (measured 93.5%).",
+        "guard": "Guard tests run the real behavior with a null request, anonymous callers and an authenticated caller for each of the seven attribute kinds, leaving uncovered the AllowAnonymous bypass, RequireAuthenticatedByDefault, the throw-on-missing-context option, multi-attribute ordering and the failure branches of all-roles, claim and require-all permissions (measured about 79%).",
+        "contract": "Contract tests run the real behavior with a missing security context and assert it denies for role, permission, ownership and deny-anonymous requirements and honours ThrowOnMissingSecurityContext, RequireAuthenticatedByDefault and AllowAnonymous, leaving uncovered the claim and all-roles evaluators (measured about 69%)."
       }
     },
     "ServiceCollectionExtensions.cs": {
@@ -191,7 +239,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "guard": 80,
+        "contract": 95
+      },
+      "justifications": {
+        "guard": "Guard tests assert the ArgumentNullException for a null services collection and a registration with the optional health check, leaving uncovered the branch that registers default options when no configure delegate is passed (measured about 88%).",
+        "contract": "Contract tests build a provider with ValidateOnBuild and ValidateScopes and assert the default services, the pipeline behavior and that an application-registered evaluator wins (measured 100%)."
+      }
     }
   }
 }
