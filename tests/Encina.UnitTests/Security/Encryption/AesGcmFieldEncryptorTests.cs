@@ -217,9 +217,12 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
         var stringResult = await _sut.DecryptStringAsync(tampered, context);
         var bytesResult = await _sut.DecryptBytesAsync(tampered, context);
 
-        stringResult.IsLeft.ShouldBeTrue();
-        bytesResult.IsLeft.ShouldBeTrue();
+        ErrorCodeOf(stringResult).ShouldBe(EncryptionErrors.InvalidCiphertextCode);
+        ErrorCodeOf(bytesResult).ShouldBe(EncryptionErrors.InvalidCiphertextCode);
     }
+
+    private static string ErrorCodeOf<T>(Either<EncinaError, T> result) =>
+        result.Match(Right: _ => "<right>", Left: e => e.GetCode().IfNone(""));
 
     [Theory]
     [InlineData(15)]
@@ -234,8 +237,8 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
         var stringResult = await _sut.DecryptStringAsync(tampered, context);
         var bytesResult = await _sut.DecryptBytesAsync(tampered, context);
 
-        stringResult.IsLeft.ShouldBeTrue();
-        bytesResult.IsLeft.ShouldBeTrue();
+        ErrorCodeOf(stringResult).ShouldBe(EncryptionErrors.InvalidCiphertextCode);
+        ErrorCodeOf(bytesResult).ShouldBe(EncryptionErrors.InvalidCiphertextCode);
     }
 
     [Fact]
