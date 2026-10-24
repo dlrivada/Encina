@@ -38,7 +38,7 @@ These are not choices. Each has a citation in section 5 of the spike report; thi
 
 ### R1. One package, `Encina.Resilience` (option 1a)
 
-`Encina.Resilience` replaces `Encina.Polly` and `Encina.Extensions.Resilience`, which are removed completely. It holds the engine (Polly v8), the request attributes, the options, the partitioned rate-limiting core of #2414 and every new resilience capability: load shedding, hedging, fallback, chaos and adaptive concurrency. `Encina.Http`, the providers, `Encina.Security.Secrets` and `Encina.Compliance.NIS2` reference `Encina.Resilience` instead of Polly directly. An issue that planned its own package (#138 `Encina.LoadShedding`, or any per-capability package) puts its code here.
+`Encina.Resilience` (planned; it does not exist in `src/` yet, and neither do the `Encina.Http` package, the shared `Retry-After` function and the `DelayGenerator` named below) replaces `Encina.Polly` and `Encina.Extensions.Resilience`, which are removed completely. It holds the engine (Polly v8), the request attributes, the options, the partitioned rate-limiting core of #2414 and every new resilience capability: load shedding, hedging, fallback, chaos and adaptive concurrency. `Encina.Http`, the providers, `Encina.Security.Secrets` and `Encina.Compliance.NIS2` reference `Encina.Resilience` instead of Polly directly. An issue that planned its own package (#138 `Encina.LoadShedding`, or any per-capability package) puts its code here.
 
 Reason: Polly is already a dependency of both current packages, of Secrets, of NIS2 and, through Http.Resilience, of `Encina.Http`, so a split core saves little. One package gives the retry-layer conflict check (R4) and the telemetry (R5) a single owner.
 
@@ -58,7 +58,7 @@ Reason: it is the only option that guarantees the order without relying on the u
 
 ### R3. Attributes and options feed one model (option 3a)
 
-Two front-ends produce the same per-type options, which R2 compiles once at startup. The request attributes are `[Retry]`, `[CircuitBreaker]`, `[Timeout]`, `[RateLimit]`, `[Bulkhead]` and `[Hedging]`, among others. The options are written in code or `appsettings.json` as `AddEncinaResilience(o => o.Default(...).For<T>(...))`. Both are planned names; none exists in `src/` yet.
+Two front-ends produce the same per-type options, which R2 compiles once at startup. The request attributes are `[Retry]`, `[CircuitBreaker]`, `[Timeout]`, `[RateLimit]`, `[Bulkhead]` and `[Hedging]`, among others. The options are written in code or `appsettings.json` as `AddEncinaResilience(o => o.Default(...).For<T>(...))`. `[Retry]`, `[CircuitBreaker]`, `[RateLimit]` and `[Bulkhead]` exist today in `Encina.Polly` and move to `Encina.Resilience`; `[Timeout]`, `[Hedging]` and `AddEncinaResilience` are planned.
 
 - **Precedence:** options for a type > that type's attributes > global defaults. A test covers it.
 - Options bind to `IConfiguration` and reload through Polly's registry, so an operator tunes an environment without recompiling and configures request types the user does not own, such as those shipped by Encina packages.
