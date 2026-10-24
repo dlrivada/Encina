@@ -26,6 +26,7 @@ public sealed class PostgresCdcConnectorIntegrationTests : IAsyncLifetime
 
     private readonly PostgreSqlCdcFixture _fixture;
     private readonly List<CancellationTokenSource> _streams = [];
+    private readonly List<Task> _pumps = [];
 
     public PostgresCdcConnectorIntegrationTests(PostgreSqlCdcFixture fixture)
     {
@@ -37,15 +38,20 @@ public sealed class PostgresCdcConnectorIntegrationTests : IAsyncLifetime
         await _fixture.ResetAsync(PublicationName, TestContext.Current.CancellationToken);
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
+        // Stop every stream and wait for its walsender to detach, so the next test's slot reset cannot race it.
         foreach (var cts in _streams)
         {
-            cts.Cancel();
-            cts.Dispose();
+            await cts.CancelAsync();
         }
 
-        return ValueTask.CompletedTask;
+        await Task.WhenAll(_pumps).WaitAsync(Timeout);
+
+        foreach (var cts in _streams)
+        {
+            cts.Dispose();
+        }
     }
 
     private PostgresCdcOptions CreateOptions(
@@ -104,6 +110,7 @@ public sealed class PostgresCdcConnectorIntegrationTests : IAsyncLifetime
             }
         }, CancellationToken.None);
 
+        _pumps.Add(pump);
         return (channel.Reader, cts, pump);
     }
 
@@ -271,36 +278,30 @@ public sealed class PostgresCdcConnectorIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task StreamChangesAsync_SavedPosition_ResumesAndDeliversLaterChanges()
+    public async Task StreamChangesAsync_SavedPositionBeforeAChange_RestoresItAndDeliversTheChange()
     {
         await _fixture.ExecuteAsync(
             $"CREATE PUBLICATION {PublicationName} FOR TABLE public.cdc_orders",
             TestContext.Current.CancellationToken);
         await _fixture.CreateSlotAsync(TestContext.Current.CancellationToken);
-        await _fixture.ExecuteAsync("INSERT INTO public.cdc_orders (id, name) VALUES (3, 'one')", TestContext.Current.CancellationToken);
 
+        // The saved position is the server's current WAL position, taken before the change, as a
+        // position store would hold it after the previous run.
         var options = CreateOptions(createPublication: false, createSlot: false);
-        var (firstReader, firstCts, firstPump) = StartStreaming(CreateConnector(options));
-        var first = await ReadEventAsync(firstReader);
-        var savedPosition = first.Metadata.Position;
-        await firstCts.CancelAsync();
-        await firstPump.WaitAsync(Timeout, TestContext.Current.CancellationToken);
+        var current = await CreateConnector(options).GetCurrentPositionAsync(TestContext.Current.CancellationToken);
+        var savedPosition = current.Match(p => p, Left: _ => throw new InvalidOperationException("Expected Right"));
+        savedPosition.ShouldBeOfType<PostgresCdcPosition>();
+        await _fixture.ExecuteAsync("INSERT INTO public.cdc_orders (id, name) VALUES (5, 'three')", TestContext.Current.CancellationToken);
 
         var store = Substitute.For<ICdcPositionStore>();
         store.GetPositionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(
                 Prelude.Right<EncinaError, Option<CdcPosition>>(Option<CdcPosition>.Some(savedPosition))));
 
-        await _fixture.ExecuteAsync("INSERT INTO public.cdc_orders (id, name) VALUES (4, 'two')", TestContext.Current.CancellationToken);
+        var (reader, _, _) = StartStreaming(CreateConnector(options, store));
 
-        var (secondReader, _, _) = StartStreaming(CreateConnector(options, store));
-        var seenSecondRow = false;
-        while (!seenSecondRow)
-        {
-            var next = await ReadEventAsync(secondReader);
-            seenSecondRow = Json(next.After).GetProperty("id").GetString() == "4";
-        }
-
+        var first = await ReadEventAsync(reader);
+        Json(first.After).GetProperty("id").GetString().ShouldBe("5");
         await store.Received().GetPositionAsync("encina-cdc-postgresql", Arg.Any<CancellationToken>());
     }
 
