@@ -152,6 +152,99 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
     }
 
     [Fact]
+    public async Task DecryptStringAsync_EmptyPlaintext_RoundtripsToEmptyString()
+    {
+        var context = new EncryptionContext { Purpose = "test" };
+
+        var encryptResult = await _sut.EncryptStringAsync(string.Empty, context);
+        var encrypted = encryptResult.Match(Right: v => v, Left: _ => default);
+
+        var decryptResult = await _sut.DecryptStringAsync(encrypted, context);
+
+        decryptResult.IsRight.ShouldBeTrue();
+        decryptResult.Match(Right: v => v, Left: _ => "unexpected").ShouldBe(string.Empty);
+    }
+
+    [Fact]
+    public async Task DecryptStringAsync_EmptyPlaintextTamperedTag_ReturnsError()
+    {
+        var context = new EncryptionContext { Purpose = "test" };
+
+        var encryptResult = await _sut.EncryptStringAsync(string.Empty, context);
+        var encrypted = encryptResult.Match(Right: v => v, Left: _ => default);
+        var tamperedTag = encrypted.Tag.ToArray();
+        tamperedTag[0] ^= 0xFF;
+
+        var decryptResult = await _sut.DecryptStringAsync(
+            encrypted with { Tag = [.. tamperedTag] }, context);
+
+        decryptResult.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task DecryptStringAsync_DefaultNonce_ReturnsError()
+    {
+        var context = new EncryptionContext { Purpose = "test" };
+        var encrypted = (await _sut.EncryptStringAsync("x", context)).Match(Right: v => v, Left: _ => default);
+
+        var result = await _sut.DecryptStringAsync(encrypted with { Nonce = default }, context);
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task DecryptStringAsync_DefaultTag_ReturnsError()
+    {
+        var context = new EncryptionContext { Purpose = "test" };
+        var encrypted = (await _sut.EncryptStringAsync("x", context)).Match(Right: v => v, Left: _ => default);
+
+        var result = await _sut.DecryptStringAsync(encrypted with { Tag = default }, context);
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task DecryptStringAsync_UnknownKeyId_ReturnsError()
+    {
+        var context = new EncryptionContext { Purpose = "test" };
+        var encrypted = (await _sut.EncryptStringAsync("x", context)).Match(Right: v => v, Left: _ => default);
+
+        var result = await _sut.DecryptStringAsync(encrypted with { KeyId = "missing-key" }, context);
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task DecryptStringAsync_KeyWithWrongLength_ReturnsError()
+    {
+        var context = new EncryptionContext { Purpose = "test" };
+        var encrypted = (await _sut.EncryptStringAsync("x", context)).Match(Right: v => v, Left: _ => default);
+        var shortKeyProvider = Substitute.For<IKeyProvider>();
+#pragma warning disable CA2012 // NSubstitute stub setup, the ValueTask is returned to the substitute, not awaited
+        shortKeyProvider.GetKeyAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, byte[]>>(Right<EncinaError, byte[]>(new byte[16])));
+#pragma warning restore CA2012
+
+        var result = await new AesGcmFieldEncryptor(shortKeyProvider).DecryptStringAsync(encrypted, context);
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task DecryptStringAsync_DefaultCiphertext_ReturnsInvalidCiphertext()
+    {
+        var context = new EncryptionContext { Purpose = "test" };
+
+        var encryptResult = await _sut.EncryptStringAsync("x", context);
+        var encrypted = encryptResult.Match(Right: v => v, Left: _ => default);
+
+        var decryptResult = await _sut.DecryptStringAsync(
+            encrypted with { Ciphertext = default }, context);
+
+        decryptResult.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task DecryptStringAsync_UnicodeContent_RoundtripsCorrectly()
     {
         var context = new EncryptionContext { Purpose = "test" };

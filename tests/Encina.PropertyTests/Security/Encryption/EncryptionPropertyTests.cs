@@ -22,12 +22,14 @@ public sealed class EncryptionPropertyTests
     #region Roundtrip Invariants
 
     [Property(MaxTest = 50)]
-    public bool EncryptThenDecrypt_String_ReturnsOriginal(NonEmptyString value)
+    public bool EncryptThenDecrypt_String_ReturnsOriginal(string? input)
     {
+        if (input is null) return true; // null is rejected by the guard, not a roundtrip case
+
         var (encryptor, _) = CreateEncryptor();
         var context = new EncryptionContext();
 
-        var encryptResult = encryptor.EncryptStringAsync(value.Get, context).AsTask().Result;
+        var encryptResult = encryptor.EncryptStringAsync(input, context).AsTask().Result;
         if (!encryptResult.IsRight) return false;
 
         var encrypted = (EncryptedValue)encryptResult;
@@ -35,13 +37,13 @@ public sealed class EncryptionPropertyTests
         if (!decryptResult.IsRight) return false;
 
         var decrypted = (string)decryptResult;
-        return decrypted == value.Get;
+        return decrypted == input;
     }
 
     [Property(MaxTest = 50)]
     public bool EncryptThenDecrypt_Bytes_ReturnsOriginal(byte[] plaintext)
     {
-        if (plaintext is null || plaintext.Length == 0) return true; // skip trivial
+        if (plaintext is null) return true; // null is rejected by the guard, not a roundtrip case
 
         var (encryptor, _) = CreateEncryptor();
         var context = new EncryptionContext();
