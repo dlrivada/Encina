@@ -202,18 +202,26 @@ public sealed class DefaultBreakTheGlassService : IBreakTheGlassService
         return await LoadAsync(caller, elevationId, cancellationToken).ConfigureAwait(false);
     }
 
-    private bool TryGetCaller(out Caller caller, out EncinaError unauthenticated)
+    // Resolves the caller for every operation; refuses an unauthenticated caller and, when RequireTenant is on, a missing tenant.
+    private bool TryGetCaller(out Caller caller, out EncinaError refusal)
     {
         var context = _contextAccessor.RequestContext;
         if (context?.Identity is { IsAuthenticated: true, UserId: { } userId } identity)
         {
+            if (_options.Value.RequireTenant && string.IsNullOrWhiteSpace(context.TenantId))
+            {
+                caller = default;
+                refusal = BreakTheGlassErrors.TenantRequired();
+                return false;
+            }
+
             caller = new Caller(context, identity, userId);
-            unauthenticated = default;
+            refusal = default;
             return true;
         }
 
         caller = default;
-        unauthenticated = EncinaErrors.Unauthenticated();
+        refusal = EncinaErrors.Unauthenticated();
         return false;
     }
 
@@ -275,25 +283,13 @@ public sealed class DefaultBreakTheGlassService : IBreakTheGlassService
             return authorizationError;
         }
 
-        if (!ValidateOpen(caller, request).TryUnwrap(out var valid, out var validationError))
+        if (!_validator.Validate(request).TryUnwrap(out var valid, out var validationError))
         {
             return validationError;
         }
 
         var conflict = await FindConflictAsync(caller, valid, cancellationToken).ConfigureAwait(false);
         return conflict.Match<Either<EncinaError, BreakTheGlassRequest>>(Some: error => error, None: () => valid);
-    }
-
-    private Either<EncinaError, BreakTheGlassRequest> ValidateOpen(Caller caller, BreakTheGlassRequest request)
-    {
-        if (!_validator.Validate(request).TryUnwrap(out var valid, out var validationError))
-        {
-            return validationError;
-        }
-
-        return _options.Value.RequireTenant && string.IsNullOrWhiteSpace(caller.Context.TenantId)
-            ? BreakTheGlassErrors.TenantRequired()
-            : valid;
     }
 
     // Some(error) when an effective elevation exists or the lookup fails.

@@ -568,6 +568,23 @@ public sealed class DefaultBreakTheGlassServiceTests
         await h.Encina.DidNotReceiveWithAnyArgs().Publish<BreakTheGlassReviewedNotification>(default!, default);
     }
 
+    [Fact]
+    public async Task RequireTenant_MissingTenant_IsRefusedByEveryOperation()
+    {
+        var h = new Harness();
+        h.Options.RequireTenant = true;
+        var id = Guid.NewGuid();
+        var clinician = h.Sut(BreakTheGlassTestKit.Clinician(), tenant: null);
+        var reviewer = h.Sut(BreakTheGlassTestKit.Reviewer(), tenant: null);
+
+        Code(await clinician.OpenAsync(Request(), CancellationToken.None)).ShouldBe(BreakTheGlassErrors.TenantRequiredCode);
+        Code(await clinician.RevokeAsync(id, "reason", CancellationToken.None)).ShouldBe(BreakTheGlassErrors.TenantRequiredCode);
+        Code(await reviewer.ReviewAsync(id, BreakTheGlassReviewOutcome.Justified, null, CancellationToken.None)).ShouldBe(BreakTheGlassErrors.TenantRequiredCode);
+        Code(await reviewer.GetReviewQueueAsync(new BreakTheGlassReviewQuery(), CancellationToken.None)).ShouldBe(BreakTheGlassErrors.TenantRequiredCode);
+        Code(await clinician.GetAsync(id, CancellationToken.None)).ShouldBe(BreakTheGlassErrors.TenantRequiredCode);
+        h.Audit.Count.ShouldBe(0);
+    }
+
     // ── Queue and Get ───────────────────────────────────────────────────
 
     [Fact]

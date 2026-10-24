@@ -33,6 +33,16 @@ public sealed record UnconvertibleGateRequest(object Complex);
 [BreakTheGlassEligible(BreakTheGlassTestKit.Scope, SubjectIdProperty = nameof(Id))]
 public sealed record NullableGuidGateRequest(Guid? Id);
 
+public sealed record PatientId(string Value);
+
+public readonly record struct GuidPatientId(Guid Value);
+
+[BreakTheGlassEligible(BreakTheGlassTestKit.Scope, SubjectIdProperty = nameof(Patient))]
+public sealed record RecordIdGateRequest(PatientId Patient);
+
+[BreakTheGlassEligible(BreakTheGlassTestKit.Scope, SubjectIdProperty = nameof(Patient))]
+public sealed record StructIdGateRequest(GuidPatientId Patient);
+
 /// <summary>Unit tests for <see cref="BreakTheGlassAccessGate"/> (internal; reached through InternalsVisibleTo).</summary>
 [Trait("Category", "Unit")]
 [Trait("Feature", "BreakTheGlass")]
@@ -435,6 +445,61 @@ public sealed class BreakTheGlassAccessGateTests
         await h.OpenAsync(subject: "1234567");
 
         Granted(await h.TryAsync(new IntGateRequest(1234567))).IsSome.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task RecordStronglyTypedId_IsConvertedByItsValue_NotByTheGeneratedToString()
+    {
+        var h = new Harness();
+        await h.OpenAsync(subject: "p-1");
+
+        Granted(await h.TryAsync(new RecordIdGateRequest(new PatientId("p-1")))).IsSome.ShouldBeTrue();
+        Granted(await h.TryAsync(new RecordIdGateRequest(new PatientId("p-2")))).IsNone.ShouldBeTrue();
+        Granted(await h.TryAsync(new RecordIdGateRequest(new PatientId(" ")))).IsNone.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task RecordStructStronglyTypedId_IsConvertedByItsValue()
+    {
+        var h = new Harness();
+        var id = Guid.NewGuid();
+        await h.OpenAsync(subject: id.ToString("D"));
+
+        Granted(await h.TryAsync(new StructIdGateRequest(new GuidPatientId(id)))).IsSome.ShouldBeTrue();
+        Granted(await h.TryAsync(new StructIdGateRequest(default))).IsNone.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task IdentityThatChangesBetweenReads_GivesOneConsistentDecisionAndNoException()
+    {
+        var h = new Harness();
+        await h.OpenAsync();
+        var context = Substitute.For<IRequestContext>();
+        context.Identity.Returns(BreakTheGlassTestKit.Clinician(), RequestIdentity.Anonymous);
+        context.TenantId.Returns("tenant-1");
+        context.CorrelationId.Returns("corr-1");
+
+        var result = await h.Gate().TryElevateAsync(new EligibleGateRequest(Subject), context, EncinaErrors.Forbidden(), CancellationToken.None);
+
+        Granted(result).IsSome.ShouldBeTrue();
+        _ = context.Received(1).Identity;
+        h.Audit.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task IdentityThatIsAnonymousOnTheOnlyRead_KeepsDenial()
+    {
+        var h = new Harness();
+        await h.OpenAsync();
+        var context = Substitute.For<IRequestContext>();
+        context.Identity.Returns(RequestIdentity.Anonymous, BreakTheGlassTestKit.Clinician());
+        context.TenantId.Returns("tenant-1");
+        context.CorrelationId.Returns("corr-1");
+
+        var result = await h.Gate().TryElevateAsync(new EligibleGateRequest(Subject), context, EncinaErrors.Forbidden(), CancellationToken.None);
+
+        Granted(result).IsNone.ShouldBeTrue();
+        h.Audit.Count.ShouldBe(0);
     }
 
     [Fact]

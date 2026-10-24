@@ -66,14 +66,15 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(context);
 
-        var eligibility = Candidate<TRequest>(context, denial);
+        // The identity can change between reads (its scope may end): read it once so every decision agrees.
+        var identity = context.Identity;
+        var eligibility = Candidate<TRequest>(identity, denial);
         var subjectId = eligibility?.GetSubjectId(request);
-        if (eligibility is null || string.IsNullOrWhiteSpace(subjectId))
+        if (eligibility is null || string.IsNullOrWhiteSpace(subjectId) || identity.UserId is not { } userId)
         {
             return Option<AccessElevation>.None;
         }
 
-        var userId = context.Identity.UserId!;
         if (TryReuse(context.CorrelationId, typeof(TRequest), subjectId, out var held))
         {
             return Some(held);
@@ -81,7 +82,7 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
 
         var found = await _store.FindEffectiveAsync(context.TenantId, userId, subjectId, eligibility.Scope, _timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
         return await found.Match(
-            Right: option => GrantAsync(option, typeof(TRequest), subjectId, context, denial, cancellationToken),
+            Right: option => GrantAsync(option, typeof(TRequest), subjectId, userId, context, denial, cancellationToken),
             Left: _ => ValueTask.FromResult<Either<EncinaError, Option<AccessElevation>>>(BreakTheGlassErrors.StoreFailed())).ConfigureAwait(false);
     }
 
@@ -90,11 +91,11 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
         _grants.TryGet(correlationId, requestType, subjectId, out held) && held.ExpiresAtUtc > _timeProvider.GetUtcNow();
 
     // Steps 1 to 4: null when the denial cannot be offered or the type or caller is not eligible.
-    private BreakTheGlassEligibilityInfo<TRequest>? Candidate<TRequest>(IRequestContext context, EncinaError denial)
+    private BreakTheGlassEligibilityInfo<TRequest>? Candidate<TRequest>(RequestIdentity identity, EncinaError denial)
         where TRequest : notnull =>
         _options.Value.Enabled
             && AccessElevationDenials.IsOverridable(denial)
-            && context.Identity is { Kind: IdentityKind.User, UserId: not null }
+            && identity is { Kind: IdentityKind.User, UserId: not null }
             ? BreakTheGlassEligibility<TRequest>.Info
             : null;
 
@@ -102,6 +103,7 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
         Option<BreakTheGlassElevation> found,
         Type requestType,
         string subjectId,
+        string userId,
         IRequestContext context,
         EncinaError denial,
         CancellationToken cancellationToken)
@@ -118,7 +120,7 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
             AuditOutcome.Success,
             elevation.ElevationId,
             context.CorrelationId,
-            context.Identity.UserId,
+            userId,
             context.TenantId,
             now,
             AccessMetadata(requestType, denial));

@@ -32,7 +32,7 @@ internal static class BreakTheGlassEligibility<TRequest>
 
         var property = FindSubjectProperty(attribute.SubjectIdProperty);
 
-        if (!IsConvertible(property.PropertyType))
+        if (!BreakTheGlassSubjectIdConversion.IsSupportedType(property.PropertyType))
         {
             throw new InvalidOperationException(
                 $"The subject id property of '{typeof(TRequest).Name}' has a type that cannot be converted to a subject id.");
@@ -43,10 +43,9 @@ internal static class BreakTheGlassEligibility<TRequest>
             Expression.Convert(Expression.Property(parameter, property), typeof(object)),
             parameter).Compile();
 
-        return new BreakTheGlassEligibilityInfo<TRequest>(attribute.Scope, request => Convert(read(request)));
+        return new BreakTheGlassEligibilityInfo<TRequest>(attribute.Scope, request => BreakTheGlassSubjectIdConversion.ToInvariantString(read(request), property));
     }
 
-    // string, Guid, primitives and strongly typed ids (a type that overrides ToString) convert; the rest do not.
     private static PropertyInfo FindSubjectProperty(string? propertyName)
     {
         var property = string.IsNullOrWhiteSpace(propertyName)
@@ -61,28 +60,6 @@ internal static class BreakTheGlassEligibility<TRequest>
         return property;
     }
 
-    private static bool IsConvertible(Type type)
-    {
-        var underlying = Nullable.GetUnderlyingType(type) ?? type;
-        return IsSimple(underlying) || OverridesToString(underlying);
-    }
-
-    private static bool IsSimple(Type type) => type == typeof(string) || type == typeof(Guid) || type.IsPrimitive;
-
-    private static bool OverridesToString(Type underlying)
-    {
-        var declaring = underlying.GetMethod(nameof(ToString), Type.EmptyTypes)?.DeclaringType;
-        return declaring is not null && declaring != typeof(object) && declaring != typeof(ValueType);
-    }
-
-    private static string? Convert(object? value) => value switch
-    {
-        null => null,
-        string text => text,
-        Guid guid => guid.ToString("D"),
-        IFormattable formattable => formattable.ToString(null, System.Globalization.CultureInfo.InvariantCulture),
-        _ => value.ToString()
-    };
 }
 
 /// <summary>
