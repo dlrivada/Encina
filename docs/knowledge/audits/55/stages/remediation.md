@@ -1,0 +1,55 @@
+Remediation for #55:
+- code 1 (Major): draft 55-code-1-sql-server-waits-longer-than-30-seconds-fail.md
+- code 2 (Major): draft 55-code-2-the-sql-server-provider-reports-a-lock-as.md
+- code 3 (Major): duplicate of #2653
+- code 4 (Major): draft 55-code-4-the-documented-base-lock-configuration-does-nothing-src.md
+- code 5 (Minor): duplicate of #2654 (manual override)
+- code 6 (Minor): duplicate of #2654 (manual override)
+- code 7 (Minor): draft 55-code-7-sql-server-return-codes-are-collapsed-and-islockedasync.md
+- code 8 (Minor): draft 55-code-8-extendasync-replaces-the-expiry-in-every-provider-instead.md
+- code 9 (Minor): draft 55-code-9-no-argument-validation-beyond-null-all-providers-check.md
+- code 10 (Minor): draft 55-code-10-the-two-lock-health-checks-ignore-their-options.md
+- code 11 (Minor): draft 55-code-11-dead-caching-flag-and-project-reference-left-by.md
+- tests 1 (Major): draft 55-tests-1-src-encina-distributedlock-sqlserver-sqlserverdistributedloc.md
+- tests 2 (Major): draft 55-tests-2-src-encina-distributedlock-sqlserver-health-sqlserverdistrib.md
+- tests 3 (Major): draft 55-tests-3-guard-tests-are-missing-for-five-files-whose.md
+- tests 4 (Major): duplicate of #2667 (manual override)
+- tests 5 (Major): draft 55-tests-5-no-test-builds-a-lock-registration-with-validateonbuild.md
+- tests 6 (Minor): draft 55-tests-6-property-and-load-tests-of-the-lock-providers.md
+- tests 7 (Minor): draft 55-tests-7-src-encina-distributedlock-redis-health-redisdistributedlock.md
+- tests 8 (Minor): draft 55-tests-8-two-unit-tests-cannot-fail-on-the-defects.md
+- tests 9 (Minor): draft 55-tests-9-duplicated-test-classes-inflate-the-unit-counts-and.md
+- tests 10 (Minor): draft 55-tests-10-encina-distributedlock-json-core-package-targets-unit-60.md
+- tests 11 (Minor): draft 55-tests-11-encina-distributedlock-inmemory-json-targets-unit-60-guard.md
+- tests 12 (Minor): draft 55-tests-12-encina-distributedlock-redis-json-targets-unit-60-guard.md
+- tests 13 (Minor): draft 55-tests-13-encina-distributedlock-sqlserver-json-targets-unit-60-guard.md
+- docs 1 (Blocker): draft 55-docs-1-src-encina-distributedlock-readme-md-119-129-and.md
+- docs 2 (Major): draft 55-docs-2-src-encina-distributedlock-readme-md-158-168-base.md
+- docs 3 (Major): draft 55-docs-3-src-encina-distributedlock-readme-md-62-and-the.md
+- docs 4 (Major): draft 55-docs-4-rule-a-point-5-the-lock-feature-has.md
+- docs 5 (Minor): draft 55-docs-5-rule-a-point-1-src-encina-distributedlock-readme.md
+- docs 6 (Minor): draft 55-docs-6-src-encina-distributedlock-readme-md-212-218-related.md
+- docs 7 (Minor): draft 55-docs-7-src-encina-distributedlock-readme-md-11-16-and.md
+
+## Lessons for the pipeline
+- (code 8, tests 8) The extend semantics (add versus replace) was left open by the code stage; the code 8 draft holds it as a Dilemma and its labels are exactly `bug`: the orchestrator adds `needs-decision` after opening. Tests 8 waits for that decision for its discriminating pair.
+- (tests 4, tests 6) The consolidation commit hashes and dates are the tests stage's account from the git history; this agent has no shell and could not re-read them.
+- (docs 4) The docs stage says "tutorials and learning paths"; no learning-path page exists under docs/, so the draft names the tutorials index, the guides and the features folders. Count-mode Grep: 0 hits in `docs/tutorials` and `docs/guides`; `docs/features` has 2 hits (`scheduling.md:137`, `time-based-sharding.md:576`), neither a feature page. The draft is independent of #908.
+- (code 9) The error form for rejected arguments follows the open spike #1799; the draft does not pre-decide it.
+- (tests 3) The finding cites #1389 without a title in the manifest; the draft names it without a title claim.
+- code 5: recorded as duplicate of #2654 by manual override
+- code 6: recorded as duplicate of #2654 by manual override
+- tests 1: recorded as not a duplicate and kept out of location merges by manual override
+- (tests 1) The existing `SqlServerDistributedLockIntegrationTests` builds its own `MsSqlContainer` per class (`:19-20`), not a shared collection; the tests 1 draft names `ADO-SqlServer` with `SqlServerFixture` for the new tests. The tests 2 draft says the lock integration tests "already use" a shared SQL Server collection, which is not so; the verifier may want that sentence corrected.
+- (tests 2) The sentence above about the tests 2 draft was corrected in the rewritten draft: it now names `ADO-SqlServer` with `SqlServerFixture` and says the existing class uses its own container.
+- (tests 5) #2653 already asks for ValidateOnBuild tests in both registration orders, so the tests 5 draft keeps only the ValidateOnBuild and ValidateScopes proof of the three lock registrations and the base-options key test, and cites #2653 as partially related.
+- (docs 7) The README line "Lock auto-expires after 5 minutes" (`README.md:55`) is not true for SQL Server (the session lock ignores `expiry`); the docs stage did not report it, so the docs 7 draft adds it. #2654 is cited as partially related (only its Redlock part overlaps).
+- tests 4: recorded as duplicate of #2667 by manual override
+- (pass 2 re-run) The docs 4 lesson above ("independent of #908") and the code 9 lesson above ("follows the open spike #1799") are superseded: the docs 4 draft now cites #908 as partially related (it covers only the feature page) and the code 9 draft takes the error form from #2667 (the maintainer decision recorded on #1799).
+- (tests 1) Line `:274` (`IsReleased`) is executed by the unit run (`SqlServerLockHandleReleaseTests.cs:34`), so the draft lists only 272, 278, 280, 284-285 and 292 of the handle; it cites #2453 as partially related for moving the existing integration class to the shared collection and says only the new tests use `ADO-SqlServer`.
+- (tests 1) Finalize stripped the #2453 line from the tests 1 draft because #2453 is not a manifest partially related candidate (it is only a possibly-related hit); the verifier asked for it, so it is cited as an orchestrator comment instead of in the draft.
+- (code 7) Narrowed to the `IsLockedAsync` probe (`:140-150`); the collapse of negative `sp_getapplock` codes in `TryAcquireAsync` is #2667 and is cited as partially related. (tests 10) `LockAcquisitionException.cs` is left out because #2667 deletes it.
+- (docs 4) The feature page `docs/features/distributed-locking.md` was removed from Expected Behavior and Proposed Fix because it is the deliverable of #908; this agent had to rewrite all five drafts of this run because none was on disk at the start.
+- (pass 3 re-run, docs 4) The docs 4 draft was not on disk at the start and was rewritten: its Description lists every docs-site page that mentions locks in passing (the pages named in docs.md finding 4) and says none teaches the feature, instead of "the only mention". The three missing provider READMEs were checked with a count-mode Grep (0 `.md` files in each provider directory, with the core README as the positive control); `docs/tutorials` has 0 hits for "lock". The manifest carries `partiallyRelated: null` for docs 4, so #908 (the feature page) is cited by the instruction of the re-run and Finalize may strip it.
+- (pass 3 re-run, code 9) The code 9 draft is a `[BUG]` and keeps only bug_report.md headers (the `## Proposed Fix` header is gone; its text is in Additional Context). Expected Behavior says "the error form decided for the lock providers" with no issue number; the manifest carries `partiallyRelated: null` for code 9, so no related issue other than #55 is cited. Redis and SQL Server behaviour for non-positive `expiry`/`wait` was not read from a run and the draft says so.
+- (pass 4 re-run, docs 4) The docs 4 draft was not on disk at the start and was rewritten: the Description presents the pages as examples ("pages that mention locks in passing include ...") with no claim of being exhaustive, adds `docs/architecture/module-dependency-matrix.md:65` and `:92` and `docs/testing/testcontainers-direct-usage.md:22` and `:110-140` (all re-read in the worktree), and Current Behavior says "The pages listed in the Description are examples of passing mentions; none of them teaches locking." Absent-path claims were rechecked with Grep (0 hits for "lock" in `docs/tutorials` and `docs/features/index.md`; `docs/guides` hits are clock-drift text only; the only `README.md` under `src` that names DistributedLock is the core one).
