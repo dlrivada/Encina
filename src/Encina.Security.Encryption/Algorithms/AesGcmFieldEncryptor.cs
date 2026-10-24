@@ -229,8 +229,7 @@ internal sealed class AesGcmFieldEncryptor : IFieldEncryptor
 
         // A zero-length ciphertext is valid: AES-GCM authenticates an empty plaintext through the tag.
         if (encryptedValue.Ciphertext.IsDefault ||
-            encryptedValue.Nonce.IsDefaultOrEmpty ||
-            encryptedValue.Tag.IsDefaultOrEmpty)
+            !HasValidNonceAndTagLength(encryptedValue))
         {
             return EncryptionErrors.InvalidCiphertext();
         }
@@ -238,13 +237,20 @@ internal sealed class AesGcmFieldEncryptor : IFieldEncryptor
         return null;
     }
 
+    // AesGcm.Decrypt throws ArgumentException (not CryptographicException) for a nonce that is
+    // not 12 bytes or a tag that is not 16 bytes; reject them here so the Either API never throws.
+    // Default and empty arrays have length 0 and are rejected too.
+    private static bool HasValidNonceAndTagLength(EncryptedValue encryptedValue) =>
+        !encryptedValue.Nonce.IsDefault &&
+        !encryptedValue.Tag.IsDefault &&
+        encryptedValue.Nonce.Length == NonceSizeInBytes &&
+        encryptedValue.Tag.Length == TagSizeInBytes;
+
     private static Either<EncinaError, byte[]> DecryptWithKey(
         byte[] key,
         EncryptedValue encryptedValue,
         EncryptionContext context)
     {
-        var keyId = encryptedValue.KeyId;
-
         try
         {
             var plaintext = new byte[encryptedValue.Ciphertext.Length];
@@ -264,10 +270,11 @@ internal sealed class AesGcmFieldEncryptor : IFieldEncryptor
 
             return Right<EncinaError, byte[]>(plaintext);
         }
-        catch (CryptographicException ex)
+        catch (CryptographicException)
         {
-            return Left<EncinaError, byte[]>(
-                EncryptionErrors.DecryptionFailed(keyId, exception: ex));
+            // Tag verification failures, wrong keys and tampered ciphertext are indistinguishable
+            // by design: one generic error with no key id and no exception, so callers get no oracle.
+            return Left<EncinaError, byte[]>(EncryptionErrors.InvalidCiphertext());
         }
     }
 

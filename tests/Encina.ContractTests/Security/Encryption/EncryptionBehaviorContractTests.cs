@@ -122,7 +122,7 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
     }
 
     [Fact]
-    public async Task FieldEncryptor_TamperedCiphertext_ReturnsDecryptionFailed()
+    public async Task FieldEncryptor_TamperedCiphertext_ReturnsInvalidCiphertext()
     {
         var encrypted = Unwrap(await _encryptor.EncryptStringAsync("integrity", new EncryptionContext()));
         var bytes = encrypted.Ciphertext.ToArray();
@@ -131,11 +131,11 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
 
         var result = await _encryptor.DecryptStringAsync(tampered, new EncryptionContext());
 
-        ErrorCode(result).ShouldBe(EncryptionErrors.DecryptionFailedCode);
+        ErrorCode(result).ShouldBe(EncryptionErrors.InvalidCiphertextCode);
     }
 
     [Fact]
-    public async Task FieldEncryptor_TamperedTag_ReturnsDecryptionFailed()
+    public async Task FieldEncryptor_TamperedTag_ReturnsInvalidCiphertext()
     {
         var encrypted = Unwrap(await _encryptor.EncryptStringAsync("integrity", new EncryptionContext()));
         var tag = encrypted.Tag.ToArray();
@@ -143,11 +143,11 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
 
         var result = await _encryptor.DecryptStringAsync(encrypted with { Tag = [.. tag] }, new EncryptionContext());
 
-        ErrorCode(result).ShouldBe(EncryptionErrors.DecryptionFailedCode);
+        ErrorCode(result).ShouldBe(EncryptionErrors.InvalidCiphertextCode);
     }
 
     [Fact]
-    public async Task FieldEncryptor_AssociatedDataMismatch_ReturnsDecryptionFailed()
+    public async Task FieldEncryptor_AssociatedDataMismatch_ReturnsInvalidCiphertext()
     {
         var encrypted = Unwrap(await _encryptor.EncryptStringAsync(
             "bound", new EncryptionContext { AssociatedData = [.. "tenant-a"u8.ToArray()] }));
@@ -155,7 +155,7 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
         var result = await _encryptor.DecryptStringAsync(
             encrypted, new EncryptionContext { AssociatedData = [.. "tenant-b"u8.ToArray()] });
 
-        ErrorCode(result).ShouldBe(EncryptionErrors.DecryptionFailedCode);
+        ErrorCode(result).ShouldBe(EncryptionErrors.InvalidCiphertextCode);
     }
 
     [Fact]
@@ -327,7 +327,7 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
 
         var result = await _orchestrator.DecryptAsync(model, _requestContext);
 
-        ErrorCode(result).ShouldBe(EncryptionErrors.DecryptionFailedCode);
+        ErrorCode(result).ShouldBe(EncryptionErrors.InvalidCiphertextCode);
     }
 
     [Theory]
