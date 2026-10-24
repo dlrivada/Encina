@@ -1,0 +1,376 @@
+{
+  "package": "Encina.Security.BreakTheGlass",
+  "generated": "2026-10-22T00:00:00Z",
+  "totalFiles": 23,
+  "targets": {
+    "contract": 15,
+    "guard": 20,
+    "property": 15,
+    "unit": 70
+  },
+  "files": {
+    "Abstractions/IBreakTheGlassOpenAuthorizer.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Abstractions/IBreakTheGlassService.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Abstractions/IBreakTheGlassStore.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Abstractions/RoleBreakTheGlassAuthorizer.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 50,
+        "property": 0,
+        "contract": 0
+      },
+      "justifications": {
+        "unit": "Role eligibility decisions are asserted for every branch of the authorizer (measured 100%).",
+        "guard": "Guard tests reject the null arguments of the authorizer constructor and open check (measured 50%).",
+        "property": "No invariant beyond the gate expiry property; behaviour is covered by example-based unit tests (measured 0%).",
+        "contract": "Contract tests exercise the store and the no-op gate interfaces only, not this authorizer (measured 0%)."
+      }
+    },
+    "Attributes/BreakTheGlassEligibleAttribute.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 30,
+        "property": 100,
+        "contract": 0
+      },
+      "justifications": {
+        "unit": "The attribute properties and defaults are asserted directly and read by the eligibility tests (measured 100%).",
+        "guard": "Guard tests (Attribute_BlankScope) reject a null or blank scope in the attribute constructor, the only argument it validates (measured 33.33%).",
+        "property": "Covered incidentally by BreakTheGlassGateProperties, whose request type carries the attribute and is read by the gate on every generated case; no property targets the attribute itself (measured 100%).",
+        "contract": "Contract tests exercise the store and the no-op gate interfaces only, not the attribute (measured 0%)."
+      }
+    },
+    "BreakTheGlassErrors.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Errors.cs",
+      "reason": "Static error factory methods",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "property": 0
+      },
+      "justifications": {
+        "unit": "Every factory method and its error code are asserted by the error unit tests (measured 100%).",
+        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "property": "No invariant beyond the gate expiry property; behaviour is covered by example-based unit tests (measured 0%)."
+      }
+    },
+    "BreakTheGlassOptions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 100,
+        "guard": 40,
+        "property": 30
+      },
+      "justifications": {
+        "unit": "The option defaults, the elevation duration and the review settings are asserted by the options unit tests (measured 100%).",
+        "guard": "Guard tests (Options_DeclareScope) exercise the argument validation of DeclareScope; the other option properties have no guard test (measured 44.44%).",
+        "property": "Covered incidentally by BreakTheGlassGateProperties, which builds default BreakTheGlassOptions for the gate; no property targets option values or duration bounds (measured 33.33%)."
+      }
+    },
+    "BreakTheGlassReadAudit.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Constants class without executable code",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "The file holds only const strings, so it has no coverable lines."
+      }
+    },
+    "Gate/BreakTheGlassAccessGate.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*Gate.cs",
+      "reason": "Security-critical access gate: elevation checks, fail-closed refusals and audit writes",
+      "targets": {
+        "unit": 100,
+        "guard": 28,
+        "property": 95,
+        "contract": 0
+      },
+      "justifications": {
+        "unit": "Every grant, refusal and fail-closed branch of the gate, including the single read of the request identity, is asserted by the unit tests (measured 100%).",
+        "guard": "Guard tests (Gate_Constructor_RejectsEachNullDependency and Gate_Methods) reject the null constructor and method arguments of the gate (measured 28.95%).",
+        "property": "FsCheck properties over the elevation expiry check the gate outcome for generated instants (measured 95%).",
+        "contract": "Contract tests exercise the store and the no-op gate interfaces only, not this gate (measured 0%)."
+      }
+    },
+    "Gate/BreakTheGlassAudit.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Audit writer for elevation events",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "property": 90
+      },
+      "justifications": {
+        "unit": "Every audit write for open and review events is asserted through a fake audit store (measured 100%).",
+        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "property": "Covered incidentally by BreakTheGlassGateProperties, which builds the gate with an in-memory audit store; no property inspects the audit metadata (measured 90%)."
+      }
+    },
+    "Gate/BreakTheGlassEligibility.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Eligibility rules for break-the-glass requests",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "property": 75
+      },
+      "justifications": {
+        "unit": "The eligibility rules, the subject-id shapes and their refusal branches are driven by the unit tests (measured 100%).",
+        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "property": "Covered incidentally by BreakTheGlassGateProperties, whose request type carries the attribute so the gate builds the eligibility accessor on every case; no property targets the other branches (measured 76.19%)."
+      }
+    },
+    "Gate/BreakTheGlassRequestGrants.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Grant calculation for elevated requests",
+      "targets": {
+        "unit": 100,
+        "guard": 30,
+        "property": 100
+      },
+      "justifications": {
+        "unit": "Every grant calculation branch is asserted by the unit tests (measured 100%).",
+        "guard": "Covered incidentally: Gate_Constructor_RejectsEachNullDependency and Gate_Methods construct the grants as a gate dependency; the class validates no arguments (measured 33.33%).",
+        "property": "Covered incidentally by BreakTheGlassGateProperties, whose gates each use a fresh grants instance; no property targets the grant rules (measured 100%)."
+      }
+    },
+    "Gate/BreakTheGlassSubjectIdConversion.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Subject-id conversion rules copied from the data subject rights extractor",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "property": 15,
+        "contract": 0
+      },
+      "justifications": {
+        "unit": "BreakTheGlassSubjectIdConversionTests run the string, blank, Guid, integer, record, record struct, wrapper, IFormattable and unsupported shapes (measured 100%).",
+        "guard": "The helper validates no arguments; unsupported types throw InvalidOperationException, asserted by the unit tests (measured 0%).",
+        "property": "Covered incidentally by BreakTheGlassGateProperties, whose string subject id runs the string branch of the conversion; no property targets the other shapes (measured 15.25%).",
+        "contract": "An internal static helper with no public contract (measured 0%)."
+      }
+    },
+    "Model/BreakTheGlassElevation.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Elevation data record",
+      "targets": {
+        "unit": 100,
+        "guard": 35,
+        "contract": 85,
+        "property": 55
+      },
+      "justifications": {
+        "unit": "Record equality, with-expressions and the expiry members are asserted by the unit tests (measured 100%).",
+        "guard": "Covered incidentally: InMemoryStore_Methods and Service_Methods in the guard tests build elevations; the record has no argument guards (measured 38.89%).",
+        "contract": "Contract tests store and read elevations through the in-memory store, covering the record members the store uses (measured 85%).",
+        "property": "Covered incidentally by BreakTheGlassGateProperties, which builds generated elevations whose expiry the gate checks through IsEffectiveAt; no property checks record equality (measured 55.56%)."
+      }
+    },
+    "Model/BreakTheGlassRequest.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Elevation request data record",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "property": 0
+      },
+      "justifications": {
+        "unit": "Record members and with-expressions are asserted by the unit tests (measured 100%).",
+        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "property": "No invariant beyond the gate expiry property; behaviour is covered by example-based unit tests (measured 0%)."
+      }
+    },
+    "Model/BreakTheGlassReviewOutcome.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Enum without executable code"
+    },
+    "Model/BreakTheGlassReviewQuery.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*Query.cs",
+      "reason": "Query DTO",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "contract": 100
+      },
+      "justifications": {
+        "unit": "The query members and defaults are asserted by the unit tests (measured 100%).",
+        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "contract": "The contract tests build the query for the review listing and read every member (measured 100%)."
+      }
+    },
+    "Model/BreakTheGlassStatus.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Enum without executable code"
+    },
+    "Notifications/BreakTheGlassOpenedNotification.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Notification.cs",
+      "reason": "Notification record",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "The notification record members are asserted when an elevation opens (measured 100%).",
+        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%)."
+      }
+    },
+    "Notifications/BreakTheGlassReviewedNotification.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Notification.cs",
+      "reason": "Notification record",
+      "targets": {
+        "unit": 65,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "The review notification members are asserted by the review flow tests; the uncovered members are only read by subscribers (measured 65%).",
+        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%)."
+      }
+    },
+    "Services/DefaultBreakTheGlassService.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*Service.cs",
+      "reason": "Service orchestrating open, review and query flows",
+      "targets": {
+        "unit": 98,
+        "guard": 14,
+        "property": 0
+      },
+      "justifications": {
+        "unit": "The open, review, revoke, queue and get flows, the tenant rule of every operation and their refusal branches are asserted with fakes (measured 98.55%).",
+        "guard": "Service_Constructor_RejectsEachNullDependency and Service_Methods reject the null arguments; the flows past those checks are covered by the unit flag (measured 14.01%).",
+        "property": "No FsCheck property covers this file; it is covered by example-based unit tests (measured 0%)."
+      }
+    },
+    "Stores/InMemoryBreakTheGlassStore.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property"
+      ],
+      "defaultRule": "*Store.cs",
+      "reason": "In-memory implementation of IBreakTheGlassStore for development and tests",
+      "targets": {
+        "unit": 100,
+        "guard": 10,
+        "contract": 85,
+        "property": 20
+      },
+      "justifications": {
+        "unit": "Every store method and the pre-cancelled-token early returns are run by the unit tests (measured 100%).",
+        "guard": "Guard tests reject the null arguments of the store methods only; the store bodies are behaviour covered by the unit flag (measured 10%).",
+        "contract": "Contract tests run the store through IBreakTheGlassStore for add, lookup, tenant isolation, conditional updates, review listing and purge (measured 88.78%).",
+        "property": "Covered incidentally by BreakTheGlassGateProperties, which adds generated elevations to the store and reads them back through the gate (measured 23.47%)."
+      }
+    },
+    "Validation/BreakTheGlassRequestValidator.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Validator.cs",
+      "reason": "Validation logic with invariants",
+      "targets": {
+        "unit": 100,
+        "guard": 15,
+        "property": 0
+      },
+      "justifications": {
+        "unit": "Every validation rule and its ValidationError is asserted by the unit tests (measured 100%).",
+        "guard": "Guard tests reject the null request argument only; the rule bodies are behaviour covered by the unit flag (measured 15%).",
+        "property": "No FsCheck property covers this file; it is covered by example-based unit tests (measured 0%)."
+      }
+    }
+  }
+}

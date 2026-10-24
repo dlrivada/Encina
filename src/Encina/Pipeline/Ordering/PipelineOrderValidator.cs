@@ -108,7 +108,7 @@ internal static class PipelineOrderValidator
         "Encina.Messaging.Encryption.AzureKeyVault", "Encina.Messaging.Encryption.DataProtection", "Encina.MiniValidator",
         "Encina.MongoDB", "Encina.MQTT", "Encina.NATS", "Encina.OpenTelemetry", "Encina.Polly", "Encina.Quartz",
         "Encina.RabbitMQ", "Encina.Redis.PubSub", "Encina.Refit", "Encina.Security", "Encina.Security.ABAC",
-        "Encina.Security.ABAC.Analyzers", "Encina.Security.AntiTampering", "Encina.Security.Audit", "Encina.Security.Encryption",
+        "Encina.Security.ABAC.Analyzers", "Encina.Security.AntiTampering", "Encina.Security.Audit", "Encina.Security.BreakTheGlass", "Encina.Security.Encryption",
         "Encina.Security.PII", "Encina.Security.Sanitization", "Encina.Security.Secrets",
         "Encina.Security.Secrets.AwsSecretsManager", "Encina.Security.Secrets.AzureKeyVault",
         "Encina.Security.Secrets.GoogleCloudSecretManager", "Encina.Security.Secrets.HashiCorpVault", "Encina.SignalR",

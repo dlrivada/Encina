@@ -12,14 +12,28 @@ namespace Encina.Security.Audit;
 /// </remarks>
 public sealed class ReadAuditContext : IReadAuditContext
 {
+    private readonly Dictionary<string, string> _metadata = new(StringComparer.Ordinal);
+
     /// <inheritdoc />
     public string? Purpose { get; private set; }
+
+    /// <inheritdoc />
+    public IReadOnlyDictionary<string, string> Metadata => _metadata;
 
     /// <inheritdoc />
     public IReadAuditContext WithPurpose(string purpose)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(purpose);
         Purpose = purpose;
+        return this;
+    }
+
+    /// <inheritdoc />
+    public IReadAuditContext WithMetadata(string key, string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentNullException.ThrowIfNull(value);
+        _metadata[key] = value;
         return this;
     }
 }

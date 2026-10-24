@@ -43,7 +43,13 @@
     "Abstractions/IReadAuditContext.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interfaces have no implementation to test",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "An interface has no executable lines; the read audit context is exercised through ReadAuditContext (measured 0%)."
+      }
     },
     "Abstractions/IReadAuditStore.cs": {
       "defaultTests": [
@@ -71,13 +77,15 @@
       "reason": "Abstract/base repository",
       "targets": {
         "unit": 100,
-        "guard": 15,
-        "contract": 30
+        "guard": 20,
+        "contract": 30,
+        "property": 0
       },
       "justifications": {
-        "unit": "Unit tests drive every decorated read method and the audit record it writes, using a fake read audit store.",
-        "guard": "Guard tests only assert argument checks; the remaining lines are driven by unit and integration tests.",
-        "contract": "Contract tests pin the public repository interface; the decorator's audit internals are driven by unit tests."
+        "unit": "Unit tests drive every decorated read method and the audit record it writes, using a fake read audit store (measured 100%).",
+        "guard": "Guard tests only assert argument checks; the remaining lines are driven by unit and integration tests (measured 20%).",
+        "contract": "Contract tests pin the public repository interface; the decorator's audit internals are driven by unit tests (measured 34.95%).",
+        "property": "No invariant beyond the read audit write itself; behaviour is covered by example-based unit tests (measured 0%)."
       }
     },
     "AuditedRepository.cs": {
@@ -417,7 +425,19 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 40,
+        "property": 90,
+        "contract": 0
+      },
+      "justifications": {
+        "unit": "The read audit context members and their defaults are asserted by the unit tests (measured 100%).",
+        "guard": "Guard tests reject the null and blank context arguments (measured 40%).",
+        "property": "FsCheck properties over generated contexts check the stored values (measured 90%).",
+        "contract": "Contract tests exercise the read audit store and its interfaces only, not this context type (measured 0%)."
+      }
     },
     "ReadAuditEntry.cs": {
       "defaultTests": [
