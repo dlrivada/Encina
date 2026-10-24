@@ -496,7 +496,9 @@ The header is honored only when `HttpContext.Connection.RemoteIpAddress` is insi
 
 - The address checked is the one seen when `UseTenantResolution()` runs.
 - When `UseForwardedHeaders()` runs before `UseTenantResolution()`, that address is the forwarded client address, so a list holding only the gateway does not match.
-- To trust a gateway by its address, run `UseTenantResolution()` before `UseForwardedHeaders()`. `UseEncinaContext()` needs the forwarded headers first to read the client IP, so this ordering is a trade-off to decide per pipeline.
+- To trust a gateway by its address, run `UseTenantResolution()` before `UseForwardedHeaders()`.
+- That ordering puts `UseEncinaContext()` after `UseTenantResolution()`. `UseEncinaContext()` then builds a new request context that does not carry the resolved tenant; its tenant comes only from the principal claim or the raw tenant header.
+- When you use `UseEncinaContext()`, keep `UseForwardedHeaders()` and `UseEncinaContext()` first and set `TrustAnyPeer` only behind network isolation. Listing the gateway in `TrustedProxies` works only in pipelines without `UseEncinaContext()` after `UseTenantResolution()`.
 - Never put client addresses in `TrustedProxies`: any client in the list could choose its tenant.
 - `TrustAnyPeer` is the explicit opt-out of the check; use it only behind network isolation.
 
