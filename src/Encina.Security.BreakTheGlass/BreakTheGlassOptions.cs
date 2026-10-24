@@ -34,7 +34,7 @@ public sealed class BreakTheGlassOptions
     /// <summary>Gets or sets a value indicating whether opening and reviewing publish notifications. Default <see langword="true"/>.</summary>
     public bool PublishNotifications { get; set; } = true;
 
-    /// <summary>Gets or sets a value indicating whether a tenant is required to open, review and query. Default <see langword="false"/>.</summary>
+    /// <summary>Gets or sets a value indicating whether a tenant is required by every service operation (open, revoke, review, review queue and get). Default <see langword="false"/>.</summary>
     public bool RequireTenant { get; set; }
 
     /// <summary>
