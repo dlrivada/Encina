@@ -106,27 +106,18 @@ public class AnonymizationErrorsTests
     [Fact]
     public void DecryptionFailed_ShouldReturnCorrectCode()
     {
-        var error = AnonymizationErrors.DecryptionFailed("key-003");
+        var error = AnonymizationErrors.DecryptionFailed();
         error.GetCode().Match(
             Some: code => code.ShouldBe(AnonymizationErrors.DecryptionFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
     [Fact]
-    public void DecryptionFailed_ShouldIncludeKeyIdInMessage()
+    public void DecryptionFailed_ShouldCarryNoKeyIdAndNoException()
     {
-        var error = AnonymizationErrors.DecryptionFailed("key-003");
-        error.Message.ShouldContain("key-003");
-    }
-
-    [Fact]
-    public void DecryptionFailed_WithException_ShouldReturnCorrectCode()
-    {
-        var innerException = new InvalidOperationException("Tag mismatch");
-        var error = AnonymizationErrors.DecryptionFailed("key-003", innerException);
-        error.GetCode().Match(
-            Some: code => code.ShouldBe(AnonymizationErrors.DecryptionFailedCode),
-            None: () => Assert.Fail("Expected error code"));
+        var error = AnonymizationErrors.DecryptionFailed();
+        error.Exception.IsNone.ShouldBeTrue();
+        error.GetDetails().ShouldNotContainKey("keyId");
     }
 
     #endregion
