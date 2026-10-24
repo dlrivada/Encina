@@ -63,8 +63,8 @@ public sealed class PostgresCdcConnectorIntegrationTests : IAsyncLifetime
         PublicationName = PublicationName,
         CreatePublicationIfNotExists = createPublication,
         CreateSlotIfNotExists = createSlot,
-        // Empty means ALL TABLES: the connector emits invalid SQL for an explicit table list (see the
-        // follow-up bug issue), so streaming tests rely on the ALL TABLES publication.
+        // Empty means ALL TABLES: the connector emits invalid SQL for an explicit table list (#2777),
+        // so streaming tests rely on the ALL TABLES publication.
         PublicationTables = tables ?? [],
     };
 
@@ -198,7 +198,7 @@ public sealed class PostgresCdcConnectorIntegrationTests : IAsyncLifetime
         Json(delete.Before).GetProperty("name").GetString().ShouldBe("first");
     }
 
-    [Fact(Skip = "Blocked by a connector defect (follow-up issue 'cdc-postgresql-update-old-image'): the connector reads " +
+    [Fact(Skip = "Blocked by a connector defect (#2776): the connector reads " +
                  "the new tuple before the old tuple, but pgoutput streams the old tuple first, so every update with " +
                  "REPLICA IDENTITY FULL or a key change yields a StreamInterrupted Left. Enable when the connector is fixed.")]
     public async Task StreamChangesAsync_UpdateWithOldImage_YieldsBeforeAndAfter()

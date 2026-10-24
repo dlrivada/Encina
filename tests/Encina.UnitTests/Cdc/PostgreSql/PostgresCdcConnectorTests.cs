@@ -105,6 +105,10 @@ public sealed class PostgresCdcConnectorTests
 
     #region StreamChangesAsync
 
+    // The three tests below that expect NpgsqlException pin the current behaviour tracked in #2779
+    // (a failure to open the replication connection escapes the iterator instead of yielding a Left);
+    // they must expect a Left when that issue is fixed.
+
     [Fact]
     public async Task StreamChangesAsync_PublicationSetupFails_YieldsSingleLeftAndStops()
     {

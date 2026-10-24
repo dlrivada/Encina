@@ -11,7 +11,7 @@ namespace Encina.IntegrationTests.Cdc.PostgreSql;
 /// </summary>
 public sealed class PostgreSqlCdcFixture : IAsyncLifetime
 {
-    /// <summary>The replication slot the connector always creates (hard-coded in the connector).</summary>
+    /// <summary>The replication slot the connector always creates (hard-coded in the connector, #2778).</summary>
     public const string SlotName = "encina_cdc_slot";
 
     private PostgreSqlContainer? _container;
