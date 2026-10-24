@@ -316,6 +316,11 @@ public sealed class PostgresCdcConnectorIntegrationTests : IAsyncLifetime
 
         await pump.WaitAsync(Timeout, TestContext.Current.CancellationToken);
         pump.IsCompletedSuccessfully.ShouldBeTrue();
+
+        // The pump turns any exception other than cancellation into a faulted channel, so a stream that
+        // ended with an error cannot pass as a clean cancellation.
+        await reader.Completion.WaitAsync(Timeout, TestContext.Current.CancellationToken);
+        reader.Completion.IsCompletedSuccessfully.ShouldBeTrue();
     }
 
     [Fact]
