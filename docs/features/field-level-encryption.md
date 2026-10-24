@@ -408,8 +408,8 @@ All operations return `Either<EncinaError, T>` following Railway Oriented Progra
 | Error Code | When | Metadata |
 |------------|------|----------|
 | `encryption.key_not_found` | Key ID not found in provider | `keyId` |
-| `encryption.decryption_failed` | Cryptographic decryption fails (wrong key, tampered data) | `keyId`, `propertyName` |
-| `encryption.invalid_ciphertext` | Serialized value cannot be parsed | `propertyName` |
+| `encryption.decryption_failed` | The AES-GCM primitive throws while encrypting (it is no longer returned on the decrypt path) | `keyId`, `propertyName` |
+| `encryption.invalid_ciphertext` | Serialized value cannot be parsed, or decryption fails for any reason tied to the stored value or the key (wrong-sized nonce or tag, tag that fails verification, tampered ciphertext, mismatched associated data, wrong key). Always the same generic error, so it is not a decryption oracle | `propertyName` (never the key id) |
 | `encryption.algorithm_not_supported` | Unknown encryption algorithm | `algorithm` |
 | `encryption.key_rotation_failed` | Key rotation operation fails | (exception details) |
 
@@ -539,9 +539,9 @@ mockKeyProvider.GetKeyAsync("test-key", Arg.Any<CancellationToken>())
 2. Check that no string manipulation (trimming, encoding) modified the encrypted value
 3. Ensure the value wasn't partially overwritten
 
-### "Decryption failed" error
+### "Invalid or corrupted ciphertext" error
 
-**Cause**: The ciphertext was encrypted with a different key than the one being used for decryption, or the data was tampered with.
+**Cause**: AES-GCM decryption returned the error "Invalid or corrupted ciphertext." (code `encryption.invalid_ciphertext`). The ciphertext was encrypted with a different key than the one being used for decryption, or the data was tampered with. This error is deliberately the same for a wrong key and for tampered data, so it does not say which.
 
 **Solutions**:
 
