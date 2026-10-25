@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 
 using Encina.Compliance.Anonymization.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -30,9 +31,6 @@ namespace Encina.Compliance.Anonymization;
 /// </remarks>
 public sealed class DefaultTokenizer : ITokenizer
 {
-    private const int NonceSizeBytes = 12;
-    private const int TagSizeBytes = 16;
-
     private readonly ITokenMappingStore _mappingStore;
     private readonly IKeyProvider _keyProvider;
 
@@ -88,11 +86,17 @@ public sealed class DefaultTokenizer : ITokenizer
                                         return Right<EncinaError, string>(existingMapping.Token);
                                     }
 
+                                    if (!AesGcmEnvelope.IsValidKey(key))
+                                    {
+                                        return Left<EncinaError, string>(
+                                            AnonymizationErrors.KeyNotFound(activeKeyId));
+                                    }
+
                                     // Generate new token
                                     var token = GenerateToken(options, value);
 
                                     // Encrypt original value
-                                    var encrypted = EncryptAesGcm(value, key);
+                                    var encrypted = AesGcmEnvelope.Encrypt(value, key);
 
                                     // Store mapping
                                     var mapping = TokenMapping.Create(
@@ -116,8 +120,7 @@ public sealed class DefaultTokenizer : ITokenizer
         }
         catch (Exception ex)
         {
-            return Left<EncinaError, string>(
-                AnonymizationErrors.TokenizationFailed(ex.Message, ex));
+            return Left<EncinaError, string>(Failed(ex));
         }
     }
 
@@ -148,29 +151,32 @@ public sealed class DefaultTokenizer : ITokenizer
                         .ConfigureAwait(false);
 
                     return keyResult.Match(
-                        Right: key =>
-                        {
-                            try
-                            {
-                                var decrypted = DecryptAesGcm(mapping.EncryptedOriginalValue, key);
-                                return Right<EncinaError, string>(decrypted);
-                            }
-                            catch (CryptographicException ex)
-                            {
-                                return Left<EncinaError, string>(
-                                    AnonymizationErrors.DecryptionFailed(mapping.KeyId, ex));
-                            }
-                        },
+                        Right: key => Decrypt(mapping, key),
                         Left: error => Left<EncinaError, string>(error));
                 },
                 Left: error => Left<EncinaError, string>(error)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            return Left<EncinaError, string>(
-                AnonymizationErrors.TokenizationFailed(ex.Message, ex));
+            return Left<EncinaError, string>(Failed(ex));
         }
     }
+
+    private static Either<EncinaError, string> Decrypt(TokenMapping mapping, byte[] key)
+    {
+        if (!AesGcmEnvelope.IsValidKey(key))
+        {
+            return Left<EncinaError, string>(AnonymizationErrors.KeyNotFound(mapping.KeyId));
+        }
+
+        return AesGcmEnvelope.TryDecrypt(mapping.EncryptedOriginalValue, key, out var decrypted)
+            ? Right<EncinaError, string>(decrypted)
+            : Left<EncinaError, string>(AnonymizationErrors.DecryptionFailed());
+    }
+
+    // The message carries only the exception type; the exception is attached redacted (AGENTS.md section 3).
+    private static EncinaError Failed(Exception ex) =>
+        AnonymizationErrors.TokenizationFailed(ex.GetType().Name, ex.ForLogging());
 
     /// <inheritdoc/>
     public async ValueTask<Either<EncinaError, bool>> IsTokenAsync(
@@ -190,8 +196,7 @@ public sealed class DefaultTokenizer : ITokenizer
         }
         catch (Exception ex)
         {
-            return Left<EncinaError, bool>(
-                AnonymizationErrors.TokenizationFailed(ex.Message, ex));
+            return Left<EncinaError, bool>(Failed(ex));
         }
     }
 
@@ -248,44 +253,5 @@ public sealed class DefaultTokenizer : ITokenizer
         var valueBytes = Encoding.UTF8.GetBytes(value);
         var hash = HMACSHA256.HashData(key, valueBytes);
         return Convert.ToBase64String(hash);
-    }
-
-    private static byte[] EncryptAesGcm(string plaintext, byte[] key)
-    {
-        var plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
-        var nonce = new byte[NonceSizeBytes];
-        RandomNumberGenerator.Fill(nonce);
-
-        var ciphertext = new byte[plaintextBytes.Length];
-        var tag = new byte[TagSizeBytes];
-
-        using var aes = new AesGcm(key, TagSizeBytes);
-        aes.Encrypt(nonce, plaintextBytes, ciphertext, tag);
-
-        var result = new byte[NonceSizeBytes + TagSizeBytes + ciphertext.Length];
-        nonce.CopyTo(result, 0);
-        tag.CopyTo(result, NonceSizeBytes);
-        ciphertext.CopyTo(result, NonceSizeBytes + TagSizeBytes);
-
-        return result;
-    }
-
-    private static string DecryptAesGcm(byte[] packed, byte[] key)
-    {
-        if (packed.Length < NonceSizeBytes + TagSizeBytes)
-        {
-            throw new CryptographicException("Invalid ciphertext: too short.");
-        }
-
-        var nonce = packed.AsSpan(0, NonceSizeBytes);
-        var tag = packed.AsSpan(NonceSizeBytes, TagSizeBytes);
-        var ciphertext = packed.AsSpan(NonceSizeBytes + TagSizeBytes);
-
-        var plaintext = new byte[ciphertext.Length];
-
-        using var aes = new AesGcm(key, TagSizeBytes);
-        aes.Decrypt(nonce, ciphertext, tag, plaintext);
-
-        return Encoding.UTF8.GetString(plaintext);
     }
 }

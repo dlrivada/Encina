@@ -155,23 +155,23 @@ public static class AnonymizationErrors
             });
 
     /// <summary>
-    /// Creates an error when decryption fails.
+    /// Creates the generic error returned for every decryption failure caused by the stored
+    /// value or the key.
     /// </summary>
-    /// <param name="keyId">The identifier of the key used for the failed decryption.</param>
-    /// <param name="exception">The optional inner exception that caused the failure.</param>
     /// <returns>An error indicating the decryption operation failed.</returns>
     /// <remarks>
-    /// Decryption failure may indicate key corruption, tampering, or the use of an incorrect key.
-    /// This affects the ability to reverse pseudonymisation as required by Article 4(5).
+    /// A malformed or non-Base64 value, a blob too short for nonce and tag, a tampered
+    /// ciphertext or tag, and a key that does not match all return this same error, with no
+    /// key identifier, no exception and no cause detail, so the response is not an oracle on
+    /// the stored value. This affects the ability to reverse pseudonymisation as required by
+    /// Article 4(5).
     /// </remarks>
-    public static EncinaError DecryptionFailed(string keyId, Exception? exception = null) =>
+    public static EncinaError DecryptionFailed() =>
         EncinaErrors.Create(
             code: DecryptionFailedCode,
-            message: $"Decryption failed using key '{keyId}'.",
-            exception: exception,
+            message: "Decryption failed.",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeyKeyId] = keyId,
                 [MetadataKeyStage] = MetadataKeyStage
             });
 

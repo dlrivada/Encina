@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 
 using Encina.Compliance.Anonymization.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -33,9 +34,6 @@ namespace Encina.Compliance.Anonymization;
 /// </remarks>
 public sealed class DefaultPseudonymizer : IPseudonymizer
 {
-    private const int NonceSizeBytes = 12;
-    private const int TagSizeBytes = 16;
-
     private static readonly ConcurrentDictionary<Type, PropertyInfo[]> PropertyCache = new();
 
     private readonly IKeyProvider _keyProvider;
@@ -68,6 +66,11 @@ public sealed class DefaultPseudonymizer : IPseudonymizer
             return await keyResult.MatchAsync(
                 RightAsync: async key =>
                 {
+                    if (!AesGcmEnvelope.IsValidKey(key))
+                    {
+                        return Left<EncinaError, T>(AnonymizationErrors.KeyNotFound(keyId));
+                    }
+
                     var properties = GetStringProperties(typeof(T));
                     var copy = ShallowCopy(data);
 
@@ -79,7 +82,7 @@ public sealed class DefaultPseudonymizer : IPseudonymizer
                             continue;
                         }
 
-                        var encrypted = EncryptAesGcm(value, key);
+                        var encrypted = AesGcmEnvelope.Encrypt(value, key);
                         property.SetValue(copy, Convert.ToBase64String(encrypted));
                     }
 
@@ -89,8 +92,7 @@ public sealed class DefaultPseudonymizer : IPseudonymizer
         }
         catch (Exception ex)
         {
-            return Left<EncinaError, T>(
-                AnonymizationErrors.PseudonymizationFailed(ex.Message, ex));
+            return Left<EncinaError, T>(PseudonymizationFailed(ex));
         }
     }
 
@@ -111,6 +113,11 @@ public sealed class DefaultPseudonymizer : IPseudonymizer
             return await keyResult.MatchAsync(
                 RightAsync: async key =>
                 {
+                    if (!AesGcmEnvelope.IsValidKey(key))
+                    {
+                        return Left<EncinaError, T>(AnonymizationErrors.KeyNotFound(keyId));
+                    }
+
                     var properties = GetStringProperties(typeof(T));
                     var copy = ShallowCopy(data);
 
@@ -122,21 +129,12 @@ public sealed class DefaultPseudonymizer : IPseudonymizer
                             continue;
                         }
 
-                        try
+                        if (!TryDepseudonymize(value, key, out var decrypted))
                         {
-                            var cipherData = Convert.FromBase64String(value);
-                            var decrypted = DecryptAesGcm(cipherData, key);
-                            property.SetValue(copy, decrypted);
+                            return Left<EncinaError, T>(AnonymizationErrors.DecryptionFailed());
                         }
-                        catch (FormatException)
-                        {
-                            // Not a Base64 string — skip (not pseudonymized)
-                        }
-                        catch (CryptographicException)
-                        {
-                            return Left<EncinaError, T>(
-                                AnonymizationErrors.DecryptionFailed(keyId));
-                        }
+
+                        property.SetValue(copy, decrypted);
                     }
 
                     return Right<EncinaError, T>(copy);
@@ -146,7 +144,7 @@ public sealed class DefaultPseudonymizer : IPseudonymizer
         catch (Exception ex)
         {
             return Left<EncinaError, T>(
-                AnonymizationErrors.DepseudonymizationFailed(ex.Message));
+                AnonymizationErrors.DepseudonymizationFailed(ex.GetType().Name));
         }
     }
 
@@ -170,9 +168,12 @@ public sealed class DefaultPseudonymizer : IPseudonymizer
                 {
                     return algorithm switch
                     {
+                        PseudonymizationAlgorithm.Aes256Gcm when !AesGcmEnvelope.IsValidKey(key) =>
+                            Left<EncinaError, string>(AnonymizationErrors.KeyNotFound(keyId)),
+
                         PseudonymizationAlgorithm.Aes256Gcm =>
                             Right<EncinaError, string>(
-                                Convert.ToBase64String(EncryptAesGcm(value, key))),
+                                Convert.ToBase64String(AesGcmEnvelope.Encrypt(value, key))),
 
                         PseudonymizationAlgorithm.HmacSha256 =>
                             Right<EncinaError, string>(
@@ -187,8 +188,7 @@ public sealed class DefaultPseudonymizer : IPseudonymizer
         }
         catch (Exception ex)
         {
-            return Left<EncinaError, string>(
-                AnonymizationErrors.PseudonymizationFailed(ex.Message, ex));
+            return Left<EncinaError, string>(PseudonymizationFailed(ex));
         }
     }
 
@@ -209,79 +209,39 @@ public sealed class DefaultPseudonymizer : IPseudonymizer
             return keyResult.Match(
                 Right: key =>
                 {
-                    try
+                    if (!AesGcmEnvelope.IsValidKey(key))
                     {
-                        var cipherData = Convert.FromBase64String(pseudonym);
-                        var decrypted = DecryptAesGcm(cipherData, key);
-                        return Right<EncinaError, string>(decrypted);
+                        return Left<EncinaError, string>(AnonymizationErrors.KeyNotFound(keyId));
                     }
-                    catch (FormatException ex)
-                    {
-                        return Left<EncinaError, string>(
-                            AnonymizationErrors.DepseudonymizationFailed(
-                                $"Invalid pseudonym format (not Base64): {ex.Message}"));
-                    }
-                    catch (CryptographicException ex)
-                    {
-                        return Left<EncinaError, string>(
-                            AnonymizationErrors.DecryptionFailed(keyId, ex));
-                    }
+
+                    return TryDepseudonymize(pseudonym, key, out var decrypted)
+                        ? Right<EncinaError, string>(decrypted)
+                        : Left<EncinaError, string>(AnonymizationErrors.DecryptionFailed());
                 },
                 Left: error => Left<EncinaError, string>(error));
         }
         catch (Exception ex)
         {
             return Left<EncinaError, string>(
-                AnonymizationErrors.DepseudonymizationFailed(ex.Message));
+                AnonymizationErrors.DepseudonymizationFailed(ex.GetType().Name));
         }
     }
 
-    /// <summary>
-    /// Encrypts a plaintext string using AES-256-GCM.
-    /// Returns: [nonce (12 bytes)] [tag (16 bytes)] [ciphertext].
-    /// </summary>
-    private static byte[] EncryptAesGcm(string plaintext, byte[] key)
+    // Base64 decode plus AES-GCM decrypt; false for every stored-value failure, with no cause.
+    private static bool TryDepseudonymize(string value, byte[] key, out string plaintext)
     {
-        var plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
-        var nonce = new byte[NonceSizeBytes];
-        RandomNumberGenerator.Fill(nonce);
-
-        var ciphertext = new byte[plaintextBytes.Length];
-        var tag = new byte[TagSizeBytes];
-
-        using var aes = new AesGcm(key, TagSizeBytes);
-        aes.Encrypt(nonce, plaintextBytes, ciphertext, tag);
-
-        // Pack as: nonce + tag + ciphertext
-        var result = new byte[NonceSizeBytes + TagSizeBytes + ciphertext.Length];
-        nonce.CopyTo(result, 0);
-        tag.CopyTo(result, NonceSizeBytes);
-        ciphertext.CopyTo(result, NonceSizeBytes + TagSizeBytes);
-
-        return result;
-    }
-
-    /// <summary>
-    /// Decrypts an AES-256-GCM ciphertext packed as [nonce][tag][ciphertext].
-    /// </summary>
-    private static string DecryptAesGcm(byte[] packed, byte[] key)
-    {
-        if (packed.Length < NonceSizeBytes + TagSizeBytes)
+        if (AesGcmEnvelope.TryDecodeBase64(value, out var cipherData))
         {
-            throw new CryptographicException("Invalid ciphertext: too short.");
+            return AesGcmEnvelope.TryDecrypt(cipherData, key, out plaintext);
         }
 
-        var nonce = packed.AsSpan(0, NonceSizeBytes);
-        var tag = packed.AsSpan(NonceSizeBytes, TagSizeBytes);
-        var ciphertext = packed.AsSpan(NonceSizeBytes + TagSizeBytes);
-
-        var plaintext = new byte[ciphertext.Length];
-
-        using var aes = new AesGcm(key, TagSizeBytes);
-        aes.Decrypt(nonce, ciphertext, tag, plaintext);
-
-        return Encoding.UTF8.GetString(plaintext);
+        plaintext = string.Empty;
+        return false;
     }
+
+    // The message carries only the exception type; the exception is attached redacted (AGENTS.md section 3).
+    private static EncinaError PseudonymizationFailed(Exception ex) =>
+        AnonymizationErrors.PseudonymizationFailed(ex.GetType().Name, ex.ForLogging());
 
     /// <summary>
     /// Computes an HMAC-SHA256 hash of the value using the provided key.
