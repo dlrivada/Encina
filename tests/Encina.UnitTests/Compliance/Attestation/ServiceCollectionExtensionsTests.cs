@@ -188,6 +188,21 @@ public sealed class ServiceCollectionExtensionsTests
         ex.Message.ShouldContain("HashAlgorithm");
     }
 
+    [Fact]
+    public void AddEncinaAttestation_UseHashChain_UnsupportedAlgorithm_FailsStartupValidation()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaAttestation(options => options.UseHashChain(hc =>
+            hc.HashAlgorithm = System.Security.Cryptography.HashAlgorithmName.MD5));
+
+        using var provider = services.BuildServiceProvider();
+
+        Should.Throw<OptionsValidationException>(() =>
+            provider.GetRequiredService<IStartupValidator>().Validate());
+    }
+
     [Theory]
     [InlineData("SHA256")]
     [InlineData("SHA384")]
