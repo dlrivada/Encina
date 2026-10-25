@@ -254,7 +254,10 @@ public sealed class OperationAuditEntryProjectionTests
             Id = "temporal-destroyed:2020-01",
             Period = "2020-01",
             DestroyedAtUtc = DateTimeOffset.UtcNow,
-            KeyVersionsDestroyed = 3
+            KeyVersionsDestroyed = 3,
+            ErasureRequestId = "erasure-1",
+            ErasureRequestedAtUtc = DateTimeOffset.UtcNow,
+            ErasureActor = "dpo"
         };
 
         // Act
