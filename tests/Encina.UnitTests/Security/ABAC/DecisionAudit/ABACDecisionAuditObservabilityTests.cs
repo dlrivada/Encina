@@ -140,6 +140,7 @@ public sealed class ABACDecisionAuditObservabilityTests
             new EELCompiler(),
             Microsoft.Extensions.Options.Options.Create(options),
             recorder,
+            new NoAccessElevationGate(),
             new FakeTimeProvider(new DateTimeOffset(2026, 10, 10, 12, 0, 0, TimeSpan.Zero)),
             logger ?? new FakeLogger<ABACPipelineBehavior<PolicyARequest, string>>());
     }

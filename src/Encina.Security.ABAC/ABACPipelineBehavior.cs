@@ -420,10 +420,11 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         }
 
         var offered = await _elevationGate.TryElevateAsync(request, requestContext, denial, cancellationToken).ConfigureAwait(false);
-        return offered.Match<ABACEnforcementVerdict?>(
+        // MatchUnsafe: null (the gate kept the denial) is a legitimate result here.
+        return offered.MatchUnsafe<ABACEnforcementVerdict?>(
             Left: replacement => ABACEnforcementVerdict.Denied(
                 replacement, telemetry with { Reason = replacement.GetCode().IfNone("encina.unknown") }),
-            Right: elevation => elevation.Match<ABACEnforcementVerdict?>(
+            Right: elevation => elevation.MatchUnsafe<ABACEnforcementVerdict?>(
                 Some: granted => ABACEnforcementVerdict.Elevated(denial, telemetry, granted.ElevationId),
                 None: () => null));
     }

@@ -180,9 +180,10 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
         }
 
         var offered = await _elevationGate.TryElevateAsync(request, context, denial, cancellationToken).ConfigureAwait(false);
-        return offered.Match<EncinaError?>(
+        // MatchUnsafe: null (the request continues) is a legitimate result here.
+        return offered.MatchUnsafe<EncinaError?>(
             Left: replacement => replacement,
-            Right: elevation => elevation.Match<EncinaError?>(
+            Right: elevation => elevation.MatchUnsafe<EncinaError?>(
                 Some: granted =>
                 {
                     AuthorizationElevatedLog.AuthorizationElevated(

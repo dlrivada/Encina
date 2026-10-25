@@ -35,10 +35,11 @@ public class AuthorizationPipelineBehaviorTests
         IRequestContext context,
         IAuthorizationService? authorizationService = null,
         AuthorizationConfiguration? configuration = null,
-        FakeLogger<AuthorizationPipelineBehavior<TRequest, TResponse>>? logger = null)
+        FakeLogger<AuthorizationPipelineBehavior<TRequest, TResponse>>? logger = null,
+        IAccessElevationGate? elevationGate = null)
         where TRequest : IRequest<TResponse>
     {
-        var behavior = CreateBehavior<TRequest, TResponse>(authorizationService, configuration, logger);
+        var behavior = CreateBehavior<TRequest, TResponse>(authorizationService, configuration, logger, elevationGate);
         var nextCalled = false;
         var result = await behavior.Handle(request, context, () =>
         {
@@ -173,6 +174,98 @@ public class AuthorizationPipelineBehaviorTests
         nextCalled.ShouldBeFalse();
         ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationForbidden, "required roles");
         result.IfLeft(error => error.GetDetails()["identityKind"].ShouldBe(nameof(IdentityKind.User)));
+    }
+
+    // ── Emergency elevation gate ─────────────────────────────────────
+
+#pragma warning disable CA2012 // NSubstitute mock setup pattern
+    private static IAccessElevationGate GateReturning(Either<EncinaError, Option<AccessElevation>> answer)
+    {
+        var gate = Substitute.For<IAccessElevationGate>();
+        gate.TryElevateAsync(Arg.Any<AdminOnlyRequest>(), Arg.Any<IRequestContext>(), Arg.Any<EncinaError>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(answer));
+        return gate;
+    }
+
+    [Fact]
+    public async Task Handle_DefiniteDenial_ElevationGranted_ContinuesAndLogsElevationIdOnly()
+    {
+        var elevationId = Guid.NewGuid();
+        var gate = GateReturning(Right<EncinaError, Option<AccessElevation>>(Some(new AccessElevation(elevationId, "scope", DateTimeOffset.UtcNow.AddHours(1)))));
+        var logger = new FakeLogger<AuthorizationPipelineBehavior<AdminOnlyRequest, Unit>>();
+
+        var (result, nextCalled) = await RunAsync<AdminOnlyRequest, Unit>(
+            new AdminOnlyRequest(), UserContext(Sentinel, UserRole), logger: logger, elevationGate: gate);
+
+        nextCalled.ShouldBeTrue();
+        result.ShouldBeSuccess();
+        var entry = logger.Collector.GetSnapshot().Single(e => e.Id.Id == 204);
+        entry.Message.ShouldContain(elevationId.ToString());
+        entry.Message.ShouldNotContain(Sentinel);
+    }
+
+    [Fact]
+    public async Task Handle_DefiniteDenial_GateReturnsNone_KeepsTheDenial()
+    {
+        var gate = GateReturning(Right<EncinaError, Option<AccessElevation>>(Option<AccessElevation>.None));
+
+        var (result, nextCalled) = await RunAsync<AdminOnlyRequest, Unit>(
+            new AdminOnlyRequest(), UserContext(roles: UserRole), elevationGate: gate);
+
+        nextCalled.ShouldBeFalse();
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationForbidden);
+        await gate.Received(1).TryElevateAsync(Arg.Any<AdminOnlyRequest>(), Arg.Any<IRequestContext>(), Arg.Any<EncinaError>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_DefiniteDenial_GateReturnsLeft_ReplacesTheDenial()
+    {
+        var gate = GateReturning(Left<EncinaError, Option<AccessElevation>>(EncinaErrors.Create("break_glass.audit_failed", "audit")));
+
+        var (result, nextCalled) = await RunAsync<AdminOnlyRequest, Unit>(
+            new AdminOnlyRequest(), UserContext(roles: UserRole), elevationGate: gate);
+
+        nextCalled.ShouldBeFalse();
+        ShouldBeDeniedWith(result, "break_glass.audit_failed");
+    }
+
+    [Fact]
+    public async Task Handle_Unauthenticated_NeverCallsTheGate()
+    {
+        var gate = GateReturning(Right<EncinaError, Option<AccessElevation>>(Option<AccessElevation>.None));
+
+        var (result, nextCalled) = await RunAsync<AdminOnlyRequest, Unit>(
+            new AdminOnlyRequest(), TestRequestContext.For(TestIdentity.Anonymous), elevationGate: gate);
+
+        nextCalled.ShouldBeFalse();
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationUnauthenticated);
+        await gate.DidNotReceiveWithAnyArgs().TryElevateAsync<AdminOnlyRequest>(default!, default!, default, default);
+    }
+
+    [Fact]
+    public async Task Handle_AllowedRequest_NeverCallsTheGate()
+    {
+        var gate = GateReturning(Right<EncinaError, Option<AccessElevation>>(Option<AccessElevation>.None));
+
+        var (result, nextCalled) = await RunAsync<AdminOnlyRequest, Unit>(
+            new AdminOnlyRequest(), UserContext(roles: AdminRole), elevationGate: gate);
+
+        nextCalled.ShouldBeTrue();
+        result.ShouldBeSuccess();
+        await gate.DidNotReceiveWithAnyArgs().TryElevateAsync<AdminOnlyRequest>(default!, default!, default, default);
+    }
+
+    [Fact]
+    public async Task Handle_NullElevationGate_Throws()
+    {
+        var act = () => new AuthorizationPipelineBehavior<AdminOnlyRequest, Unit>(
+            new TestAuthorizationService(shouldSucceed: true),
+            Options.Create(new AuthorizationConfiguration()),
+            null!,
+            NullLogger<AuthorizationPipelineBehavior<AdminOnlyRequest, Unit>>.Instance);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("elevationGate");
+        await Task.CompletedTask;
     }
 
     [Fact]
@@ -432,12 +525,14 @@ public class AuthorizationPipelineBehaviorTests
     private static AuthorizationPipelineBehavior<TRequest, TResponse> CreateBehavior<TRequest, TResponse>(
         IAuthorizationService? authorizationService = null,
         AuthorizationConfiguration? configuration = null,
-        FakeLogger<AuthorizationPipelineBehavior<TRequest, TResponse>>? logger = null)
+        FakeLogger<AuthorizationPipelineBehavior<TRequest, TResponse>>? logger = null,
+        IAccessElevationGate? elevationGate = null)
         where TRequest : IRequest<TResponse>
     {
         return new AuthorizationPipelineBehavior<TRequest, TResponse>(
             authorizationService ?? new TestAuthorizationService(shouldSucceed: true),
             Options.Create(configuration ?? new AuthorizationConfiguration()),
+            elevationGate ?? new NoAccessElevationGate(),
             (Microsoft.Extensions.Logging.ILogger<AuthorizationPipelineBehavior<TRequest, TResponse>>?)logger
                 ?? NullLogger<AuthorizationPipelineBehavior<TRequest, TResponse>>.Instance);
     }

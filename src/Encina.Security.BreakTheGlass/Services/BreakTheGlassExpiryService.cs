@@ -98,7 +98,7 @@ internal sealed class BreakTheGlassExpiryService : BackgroundService
         try
         {
             var ran = await _scopes.RunAsBuiltInAsync(ServiceIdentityName, SweepRowsAsync, cancellationToken).ConfigureAwait(false);
-            return ran.Match(Right: completed => completed, Left: ScopeRefused);
+            return ran.Match(Right: completed => completed, Left: error => ScopeRefused(error, cancellationToken));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -112,8 +112,11 @@ internal sealed class BreakTheGlassExpiryService : BackgroundService
         }
     }
 
-    private bool ScopeRefused(EncinaError error)
+    private bool ScopeRefused(EncinaError error, CancellationToken cancellationToken)
     {
+        // The scope factory reports a cancelled token as a refusal: the host is stopping, not failing.
+        cancellationToken.ThrowIfCancellationRequested();
+
         BreakTheGlassLogMessages.ExpirySweepFailed(_logger, error.GetCode().IfNone("encina.unknown"));
         BreakTheGlassDiagnostics.RecordStoreFailure(BreakTheGlassDiagnostics.OperationExpirySweep);
         return false;
