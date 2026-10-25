@@ -1,7 +1,7 @@
 {
   "package": "Encina.Compliance.Attestation",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 22,
+  "totalFiles": 23,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -124,8 +124,8 @@
         "guard": 84
       },
       "justifications": {
-        "unit": "Every hash, HMAC and key-size branch including unsupported algorithms is covered (measured 100%).",
-        "guard": "Guard tests reject null content and unsupported algorithms and run the SHA-256 path through the providers; the SHA-384/SHA-512 hash, HMAC and key-size branches are covered by the unit flag (measured 86%)."
+        "unit": "Every hash, HMAC and key-size branch is covered, including the ArgumentException for unsupported or default algorithm names in ComputeHash, CreateHmac and GetRecommendedKeySize (measured 100%).",
+        "guard": "Guard tests reject null content and unsupported algorithms and run the SHA-256 path through the providers; the SHA-384/SHA-512 hash, HMAC and key-size branches are covered by the unit flag (measured 93%)."
       }
     },
     "Diagnostics/AttestationDiagnostics.cs": {
@@ -159,7 +159,7 @@
         "unit": 98
       },
       "justifications": {
-        "unit": "Defaults are asserted and the options flow through the provider tests (measured 100%)."
+        "unit": "Defaults, ToString redaction of the HMAC key (no content, no length) and JSON exclusion of the key are asserted (measured 100%)."
       }
     },
     "Health/AttestationHealthCheck.cs": {
@@ -251,8 +251,8 @@
         "guard": 60
       },
       "justifications": {
-        "unit": "Attest, idempotency, verify (valid, forged, unknown), chain integrity, SHA-384/512 and the receipt store are covered; the uncovered lines are the double-checked-lock race branch (measured 94%).",
-        "guard": "Guard tests reach the constructor checks and one attest/verify/retrieve round trip; the idempotent-return, forged and unknown receipt verification, VerifyChainIntegrity, SHA-384/512 and explicit store-member bodies are behavior covered by the unit flag, not argument validation (measured 62%)."
+        "unit": "Attest, idempotency, verify (valid, forged, unknown), chain integrity, SHA-384/512 and the receipt store are covered; the uncovered lines are the double-checked-lock race branch (measured 95%).",
+        "guard": "Guard tests reach the constructor checks and one attest/verify/retrieve round trip; the idempotent-return, forged and unknown receipt verification, VerifyChainIntegrity, SHA-384/512 and explicit store-member bodies are behavior covered by the unit flag, not argument validation (measured 64%)."
       }
     },
     "Providers/HttpAttestationProvider.cs": {
@@ -264,11 +264,11 @@
       "reason": "Provider implementation with mockeable deps",
       "targets": {
         "unit": 98,
-        "guard": 8
+        "guard": 7
       },
       "justifications": {
-        "unit": "A stub HttpMessageHandler drives success, non-success status, missing attestation_id, invalid GUID, blank or missing signature, proof-metadata, transport failure, cancellation and timeout paths (measured 100%); malformed-body branches (empty, non-JSON or wrongly typed 2xx bodies) throw today and arrive with #2656.",
-        "guard": "Guard tests reject null constructor and method arguments; the lines after those checks (request building, response parsing, receipt creation, metrics) are HTTP behavior covered by the unit flag, so only the constructor and argument checks count here (measured 9%)."
+        "unit": "A stub HttpMessageHandler drives success, non-success status, missing or wrongly typed attestation_id and signature, empty, non-JSON and unknown-charset bodies, is_valid of the wrong type, wrongly typed failure_reason, proof-metadata, transport failure, cancellation and timeout paths, and asserts the Left messages never carry exception or payload text (measured 100%).",
+        "guard": "Guard tests reject null constructor and method arguments; the lines after those checks (request building, response parsing, receipt creation, metrics) are HTTP behavior covered by the unit flag, so only the constructor and argument checks count here (measured 7%)."
       }
     },
     "Providers/InMemoryAttestationProvider.cs": {
@@ -299,8 +299,27 @@
         "guard": 68
       },
       "justifications": {
-        "unit": "All three provider registrations, health check, behavior registration and validation failures are covered (measured 93%); the rest are defensive branches.",
-        "guard": "Guard tests reject null arguments and build the in-memory and hash-chain registrations; the HTTP provider registration (validator, HttpClient) and the health check registration are registration behavior covered by the unit flag (measured 71%)."
+        "unit": "All three provider registrations, health check, behavior registration, hash-chain algorithm validation and HTTP validation failures are covered (measured 95%); the rest are defensive branches.",
+        "guard": "Guard tests reject null arguments and build the in-memory and hash-chain registrations; the HTTP provider registration (validator, HttpClient) and the health check registration are registration behavior covered by the unit flag (measured 69%)."
+      }
+    },
+    "Validation/HashChainOptionsValidator.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*Validator.cs",
+      "reason": "Validation logic with invariants",
+      "targets": {
+        "unit": 98,
+        "guard": 98,
+        "property": 98
+      },
+      "justifications": {
+        "unit": "Supported algorithms, unsupported algorithms (named in the message) and the default algorithm struct are asserted (measured 100%).",
+        "guard": "Null options, an unsupported algorithm and the default options run through the real validator (measured 100%).",
+        "property": "FsCheck properties over SHA-256/384/512 with arbitrary keys and paths, and over arbitrary other algorithm names that must fail naming the rejected value, execute every line (measured 100%)."
       }
     },
     "Validation/HttpAttestationOptionsValidator.cs": {

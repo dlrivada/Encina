@@ -2,6 +2,7 @@ using Encina.Compliance.Attestation;
 using Encina.Compliance.Attestation.Abstractions;
 using Encina.Compliance.Attestation.Behaviors;
 using Encina.Compliance.Attestation.Providers;
+using Encina.Compliance.Attestation.Validation;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
@@ -165,6 +166,62 @@ public sealed class ServiceCollectionExtensionsTests
         var opts = provider.GetRequiredService<IOptions<HttpAttestationOptions>>();
         opts.Value.ShouldNotBeNull();
     }
+
+    #endregion
+
+    #region Hash chain algorithm validation
+
+    [Fact]
+    public void AddEncinaAttestation_UseHashChain_UnsupportedAlgorithm_OptionsValidationFails()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaAttestation(options => options.UseHashChain(hc =>
+            hc.HashAlgorithm = System.Security.Cryptography.HashAlgorithmName.MD5));
+
+        var provider = services.BuildServiceProvider();
+
+        var ex = Should.Throw<OptionsValidationException>(() =>
+            _ = provider.GetRequiredService<IOptions<HashChainOptions>>().Value);
+        ex.Message.ShouldContain("MD5");
+        ex.Message.ShouldContain("HashAlgorithm");
+    }
+
+    [Theory]
+    [InlineData("SHA256")]
+    [InlineData("SHA384")]
+    [InlineData("SHA512")]
+    public void AddEncinaAttestation_UseHashChain_SupportedAlgorithm_ValidatesAndBuildsWithValidateOnBuild(string name)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaAttestation(options => options.UseHashChain(hc =>
+            hc.HashAlgorithm = new System.Security.Cryptography.HashAlgorithmName(name)));
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+
+        provider.GetRequiredService<IOptions<HashChainOptions>>().Value.HashAlgorithm.Name.ShouldBe(name);
+        provider.GetRequiredService<IAuditAttestationProvider>().ShouldBeOfType<HashChainAttestationProvider>();
+    }
+
+    [Fact]
+    public void HashChainOptionsValidator_DefaultAlgorithmStruct_FailsNamingNone()
+    {
+        var validator = new HashChainOptionsValidator();
+
+        var result = validator.Validate(null, new HashChainOptions { HashAlgorithm = default });
+
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("(none)");
+    }
+
+    [Fact]
+    public void HashChainOptionsValidator_NullOptions_Throws() =>
+        Should.Throw<ArgumentNullException>(() =>
+            new HashChainOptionsValidator().Validate(null, null!));
 
     #endregion
 }

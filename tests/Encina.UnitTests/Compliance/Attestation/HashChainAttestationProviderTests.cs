@@ -26,6 +26,26 @@ public sealed class HashChainAttestationProviderTests
             Options.Create(new HashChainOptions()));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Constructor_UnsupportedAlgorithm_ThrowsArgumentExceptionWithAndWithoutKey(bool withKey)
+    {
+        var options = new HashChainOptions
+        {
+            HashAlgorithm = HashAlgorithmName.MD5,
+            HmacKey = withKey ? new byte[32] : null
+        };
+
+        var ex = Should.Throw<ArgumentException>(() => new HashChainAttestationProvider(
+            _timeProvider,
+            NullLogger<HashChainAttestationProvider>.Instance,
+            Options.Create(options)));
+
+        ex.Message.ShouldContain("MD5");
+        ex.ParamName.ShouldBe("algorithm");
+    }
+
     [Fact]
     public void ProviderName_ShouldBeHashChain()
     {

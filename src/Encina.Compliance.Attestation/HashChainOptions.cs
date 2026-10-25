@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json.Serialization;
 
 namespace Encina.Compliance.Attestation;
 
@@ -22,7 +23,8 @@ public sealed class HashChainOptions
     /// Default is <see cref="HashAlgorithmName.SHA256"/>.
     /// </summary>
     /// <remarks>
-    /// Supported algorithms: SHA-256, SHA-384, SHA-512.
+    /// Supported algorithms: SHA-256, SHA-384, SHA-512. Any other algorithm is rejected at
+    /// startup (options validation) or when the provider is constructed.
     /// The same algorithm is used for both content hashes and HMAC chain signatures.
     /// When no <see cref="HmacKey"/> is provided, the auto-generated key size matches
     /// the algorithm (32 bytes for SHA-256, 48 for SHA-384, 64 for SHA-512).
@@ -37,6 +39,18 @@ public sealed class HashChainOptions
     /// <remarks>
     /// Provide a persistent key to enable chain verification across process restarts.
     /// The key must be kept secret; exposure allows an attacker to forge chain entries.
+    /// This value is excluded from JSON serialization and from <see cref="ToString()"/>
+    /// to prevent accidental exposure in logs or diagnostics endpoints.
     /// </remarks>
+    [JsonIgnore]
     public byte[]? HmacKey { get; set; }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The <see cref="HmacKey"/> is redacted: neither its content nor its length is printed.
+    /// </remarks>
+    public override string ToString() =>
+        $"HashChainOptions {{ HashAlgorithm = {HashAlgorithm.Name ?? "(none)"}, " +
+        $"StoragePath = {StoragePath ?? "null"}, " +
+        $"HmacKey = {(HmacKey is null ? "null" : "[REDACTED]")} }}";
 }

@@ -20,7 +20,9 @@ public sealed class HttpAttestationOptions
     /// <summary>
     /// Gets or sets the optional URL of the verification endpoint (POST).
     /// When null, <see cref="Providers.HttpAttestationProvider.VerifyAsync"/> returns
-    /// <c>IsValid = false</c> with a descriptive failure reason.
+    /// <c>IsValid = false</c> with a descriptive failure reason. When set but the endpoint
+    /// answers with an unusable 2xx response, <c>VerifyAsync</c> returns a
+    /// <c>provider_unavailable</c> error instead.
     /// </summary>
     public Uri? VerifyEndpointUrl { get; set; }
 

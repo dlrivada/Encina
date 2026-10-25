@@ -148,6 +148,35 @@ public sealed class AttestationGuardExtendedTests
             .ParamName.ShouldBe("algorithm");
         Should.Throw<ArgumentException>(() => ContentHasher.CreateHmac([1], HashAlgorithmName.MD5))
             .ParamName.ShouldBe("algorithm");
+        Should.Throw<ArgumentException>(() => ContentHasher.GetRecommendedKeySize(HashAlgorithmName.MD5))
+            .ParamName.ShouldBe("algorithm");
+    }
+
+    [Fact]
+    public void HashChainOptionsValidator_NullOptions_Throws() =>
+        Should.Throw<ArgumentNullException>(() => new HashChainOptionsValidator().Validate(null, null!))
+            .ParamName.ShouldBe("options");
+
+    [Fact]
+    public void HashChainOptionsValidator_UnsupportedAlgorithm_FailsAndSupportedSucceeds()
+    {
+        var validator = new HashChainOptionsValidator();
+
+        validator.Validate(null, new HashChainOptions { HashAlgorithm = HashAlgorithmName.MD5 }).Failed.ShouldBeTrue();
+        validator.Validate(null, new HashChainOptions()).Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void HashChainProvider_UnsupportedAlgorithm_ThrowsArgumentException()
+    {
+        var options = Microsoft.Extensions.Options.Options.Create(
+            new HashChainOptions { HashAlgorithm = HashAlgorithmName.MD5, HmacKey = new byte[16] });
+
+        Should.Throw<ArgumentException>(() => new HashChainAttestationProvider(
+                TimeProvider.System,
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<HashChainAttestationProvider>.Instance,
+                options))
+            .ParamName.ShouldBe("algorithm");
     }
 
     #endregion

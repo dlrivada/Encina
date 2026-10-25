@@ -225,6 +225,129 @@ public sealed class HttpAttestationProviderTests
         LeftCode(result).ShouldBe(AttestationErrors.ProviderUnavailableCode);
     }
 
+    private const string Sentinel = "SENTINEL-payload-text";
+
+    private static HttpResponseMessage Raw(string body, string mediaType) =>
+        new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, mediaType) };
+
+    private static StubHandler RespondRaw(string body, string mediaType = "application/json") =>
+        new((_, _) => Task.FromResult(Raw(body, mediaType)));
+
+    private static EncinaError LeftError<T>(LanguageExt.Either<EncinaError, T> either) =>
+        either.Match(_ => throw new InvalidOperationException("Expected Left"), l => l);
+
+    [Fact]
+    public async Task AttestAsync_EmptyBody_ReturnsProviderUnavailableAndDoesNotThrow()
+    {
+        var sut = Create(RespondRaw(""));
+
+        var result = await sut.AttestAsync(Record());
+
+        LeftCode(result).ShouldBe(AttestationErrors.ProviderUnavailableCode);
+    }
+
+    [Theory]
+    [InlineData("not json", "application/json")]
+    [InlineData("plain text", "text/plain")]
+    [InlineData("<html>gateway error</html>", "text/html")]
+    [InlineData("[1,2,3]", "application/json")]
+    [InlineData("\"just a string\"", "application/json")]
+    public async Task AttestAsync_MalformedSuccessBody_ReturnsProviderUnavailable(string body, string mediaType)
+    {
+        var sut = Create(RespondRaw(body, mediaType));
+
+        var result = await sut.AttestAsync(Record());
+
+        LeftCode(result).ShouldBe(AttestationErrors.ProviderUnavailableCode);
+    }
+
+    [Theory]
+    [InlineData("{\"attestation_id\":123,\"signature\":\"s\"}")]
+    [InlineData("{\"attestation_id\":true,\"signature\":\"s\"}")]
+    [InlineData("{\"attestation_id\":\"00000000-0000-0000-0000-000000000001\",\"signature\":42}")]
+    [InlineData("{\"attestation_id\":\"00000000-0000-0000-0000-000000000001\",\"signature\":{\"a\":1}}")]
+    [InlineData("{\"attestation_id\":null,\"signature\":\"s\"}")]
+    [InlineData("{\"attestation_id\":\"00000000-0000-0000-0000-000000000001\",\"signature\":null}")]
+    public async Task AttestAsync_WrongTypedOrNullFields_ReturnsProviderUnavailable(string json)
+    {
+        var sut = Create(Respond(HttpStatusCode.OK, json));
+
+        var result = await sut.AttestAsync(Record());
+
+        LeftCode(result).ShouldBe(AttestationErrors.ProviderUnavailableCode);
+    }
+
+    [Fact]
+    public async Task AttestAsync_MalformedBody_LeftMessageNamesExceptionTypeButNeverItsMessageOrPayload()
+    {
+        var sut = Create(RespondRaw(Sentinel));
+
+        var error = LeftError(await sut.AttestAsync(Record()));
+
+        error.Message.ShouldContain("JsonException");
+        error.Message.ShouldNotContain(Sentinel);
+        (error.GetDetails()["reason"]?.ToString() ?? "").ShouldNotContain(Sentinel);
+    }
+
+    [Fact]
+    public async Task AttestAsync_UnknownCharset_LeftMessageNamesInvalidOperationException()
+    {
+        var sut = Create(new StubHandler((_, _) => Task.FromResult(UnsupportedCharset())));
+
+        var error = LeftError(await sut.AttestAsync(Record()));
+
+        error.Message.ShouldContain("InvalidOperationException");
+        error.Message.ShouldNotContain(Sentinel);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_UnknownCharset_ReturnsProviderUnavailable()
+    {
+        var sut = Create(new StubHandler((_, _) => Task.FromResult(UnsupportedCharset())));
+
+        var error = LeftError(await sut.VerifyAsync(Receipt()));
+
+        error.GetCode().IfNone("").ShouldBe(AttestationErrors.ProviderUnavailableCode);
+        error.Message.ShouldContain("InvalidOperationException");
+    }
+
+    private static HttpResponseMessage UnsupportedCharset() =>
+        new(HttpStatusCode.OK)
+        {
+            Content = BogusCharsetContent()
+        };
+
+    private static StringContent BogusCharsetContent()
+    {
+        var content = new StringContent(Sentinel, Encoding.UTF8, "application/json");
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")
+        {
+            CharSet = "bogus-charset"
+        };
+        return content;
+    }
+
+    [Fact]
+    public async Task AttestAsync_MalformedBody_IncrementsAttestationFailedAndRecordsFailure()
+    {
+        var failed = new List<long>();
+        using var listener = new System.Diagnostics.Metrics.MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Name == "attestation.attest.failed")
+            {
+                l.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, value, _, _) => failed.Add(value));
+        listener.Start();
+        var sut = Create(RespondRaw(""));
+
+        await sut.AttestAsync(Record());
+
+        failed.ShouldNotBeEmpty();
+    }
+
     [Fact]
     public async Task AttestAsync_TransportFailure_ReturnsProviderUnavailable()
     {
@@ -334,6 +457,49 @@ public sealed class HttpAttestationProviderTests
         var verification = Right(await sut.VerifyAsync(Receipt()));
 
         verification.IsValid.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("not json", "application/json")]
+    [InlineData("", "application/json")]
+    [InlineData("plain text", "text/plain")]
+    [InlineData("[true]", "application/json")]
+    [InlineData("{\"is_valid\":\"true\"}", "application/json")]
+    [InlineData("{\"is_valid\":1}", "application/json")]
+    [InlineData("{\"is_valid\":null}", "application/json")]
+    [InlineData("{\"is_valid\":{}}", "application/json")]
+    public async Task VerifyAsync_UnknowableSuccessBody_ReturnsProviderUnavailable(string body, string mediaType)
+    {
+        var sut = Create(RespondRaw(body, mediaType));
+
+        var result = await sut.VerifyAsync(Receipt());
+
+        LeftCode(result).ShouldBe(AttestationErrors.ProviderUnavailableCode);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_MalformedBody_LeftMessageNeverContainsPayloadOrExceptionMessage()
+    {
+        var sut = Create(RespondRaw(Sentinel));
+
+        var error = LeftError(await sut.VerifyAsync(Receipt()));
+
+        error.Message.ShouldContain("JsonException");
+        error.Message.ShouldNotContain(Sentinel);
+    }
+
+    [Theory]
+    [InlineData("{\"is_valid\":false,\"failure_reason\":42}")]
+    [InlineData("{\"is_valid\":false,\"failure_reason\":null}")]
+    [InlineData("{\"is_valid\":false,\"failure_reason\":{\"a\":1}}")]
+    public async Task VerifyAsync_InvalidWithWrongTypedFailureReason_UsesDefaultReason(string json)
+    {
+        var sut = Create(Respond(HttpStatusCode.OK, json));
+
+        var verification = Right(await sut.VerifyAsync(Receipt()));
+
+        verification.IsValid.ShouldBeFalse();
+        verification.FailureReason.ShouldBe("Remote verification failed.");
     }
 
     [Fact]

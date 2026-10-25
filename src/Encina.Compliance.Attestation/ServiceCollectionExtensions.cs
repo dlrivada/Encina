@@ -110,6 +110,12 @@ public static class ServiceCollectionExtensions
             hc.HashAlgorithm = hashChain.HashAlgorithm;
             hc.HmacKey = hashChain.HmacKey;
         });
+
+        // Reject an unsupported hash algorithm at startup
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<HashChainOptions>, HashChainOptionsValidator>());
+        services.AddOptions<HashChainOptions>().ValidateOnStart();
+
         services.TryAddSingleton<HashChainAttestationProvider>();
         services.TryAddSingleton<IAuditAttestationProvider>(
             sp => sp.GetRequiredService<HashChainAttestationProvider>());
