@@ -179,6 +179,7 @@ public sealed class AmazonSQSPublisherIntegrationTests : IAsyncLifetime
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfNone(string.Empty).ShouldBe("SQS_QUEUE_NOT_CONFIGURED"));
     }
 
     [Fact]

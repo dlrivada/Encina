@@ -13,8 +13,8 @@ namespace Encina.TestInfrastructure.Fixtures;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The image is pinned to <c>localstack/localstack:4.14.0</c>, the newest tag that starts without a
-/// <c>LOCALSTACK_AUTH_TOKEN</c>. No token and no process-global environment variable is involved.
+/// The image is pinned to <c>localstack/localstack:4.14.0</c>, which starts without a
+/// <c>LOCALSTACK_AUTH_TOKEN</c> (issue #2699, decision D2). No token and no process-global environment variable is involved.
 /// </para>
 /// <para>
 /// One container is shared by every test class of the <c>Cloud-LocalStack</c> collection
