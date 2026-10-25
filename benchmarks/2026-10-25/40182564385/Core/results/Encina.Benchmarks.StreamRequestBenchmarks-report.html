@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.StreamRequestBenchmarks-20261025-111937</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                           </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Stream_SmallDataset_10Items</td><td>12.163 &mu;s</td><td>0.2131 &mu;s</td><td>0.0117 &mu;s</td><td>1.00</td><td>0.00</td><td>0.7629</td><td>12864 B</td><td>1.00</td>
+</tr><tr><td>Stream_MediumDataset_100Items</td><td>82.328 &mu;s</td><td>5.6980 &mu;s</td><td>0.3123 &mu;s</td><td>6.77</td><td>0.02</td><td>5.1270</td><td>87025 B</td><td>6.77</td>
+</tr><tr><td>Stream_LargeDataset_1000Items</td><td>767.257 &mu;s</td><td>94.5578 &mu;s</td><td>5.1830 &mu;s</td><td>63.08</td><td>0.37</td><td>48.8281</td><td>828636 B</td><td>64.42</td>
+</tr><tr><td>Stream_WithPipelineBehaviors</td><td>67.684 &mu;s</td><td>2.5181 &mu;s</td><td>0.1380 &mu;s</td><td>5.56</td><td>0.01</td><td>3.0518</td><td>51553 B</td><td>4.01</td>
+</tr><tr><td>Stream_MaterializeToList_100Items</td><td>86.695 &mu;s</td><td>10.2039 &mu;s</td><td>0.5593 &mu;s</td><td>7.13</td><td>0.04</td><td>5.7373</td><td>96841 B</td><td>7.53</td>
+</tr><tr><td>Stream_CountOnly_NoMaterialization</td><td>80.827 &mu;s</td><td>3.8836 &mu;s</td><td>0.2129 &mu;s</td><td>6.65</td><td>0.02</td><td>5.1270</td><td>87025 B</td><td>6.77</td>
+</tr><tr><td>Stream_WithCancellation_EarlyExit</td><td>130.882 &mu;s</td><td>13.1108 &mu;s</td><td>0.7186 &mu;s</td><td>10.76</td><td>0.05</td><td>6.1035</td><td>102801 B</td><td>7.99</td>
+</tr><tr><td>Stream_DirectHandlerInvocation_NoEncina</td><td>4.129 &mu;s</td><td>2.3384 &mu;s</td><td>0.1282 &mu;s</td><td>0.34</td><td>0.01</td><td>0.0229</td><td>400 B</td><td>0.03</td>
+</tr></tbody></table>
+</body>
+</html>
