@@ -1,6 +1,6 @@
 using Encina.Testing.Fakes.Stores;
 using Encina.Testing.Messaging;
-using Encina.Testing.Time;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.GuardTests.Testing.Messaging;
 

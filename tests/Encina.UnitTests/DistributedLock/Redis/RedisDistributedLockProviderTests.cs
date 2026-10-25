@@ -1,8 +1,8 @@
 using Encina.DistributedLock;
 using Encina.DistributedLock.Redis;
-using Encina.Testing.Time;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Testing;
+using Microsoft.Extensions.Time.Testing;
 using StackExchange.Redis;
 
 namespace Encina.UnitTests.DistributedLock.Redis;

@@ -1,5 +1,5 @@
 using Encina.DomainModeling;
-using Encina.Testing.Time;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.GuardTests.DomainModeling;
 

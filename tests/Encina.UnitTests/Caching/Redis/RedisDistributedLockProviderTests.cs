@@ -1,9 +1,9 @@
 using Encina.Caching.Redis;
-using Encina.Testing.Time;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using StackExchange.Redis;
 
 namespace Encina.UnitTests.Caching.Redis;

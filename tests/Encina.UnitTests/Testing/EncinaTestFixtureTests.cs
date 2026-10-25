@@ -1,7 +1,7 @@
 using Encina.Testing;
 using Encina.Testing.Fakes;
 using Encina.Testing.Fakes.Stores;
-using Encina.Testing.Time;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.UnitTests.Testing;
 

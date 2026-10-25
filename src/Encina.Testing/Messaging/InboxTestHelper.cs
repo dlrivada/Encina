@@ -2,8 +2,8 @@ using System.Text.Json;
 using Encina.Messaging.Inbox;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
-using Encina.Testing.Time;
 using LanguageExt;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.Testing.Messaging;
 
@@ -50,10 +50,11 @@ public sealed class InboxTestHelper : IDisposable
     private IInboxMessage? _lastRetrievedMessage;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="InboxTestHelper"/> class.
+    /// Initializes a new instance of the <see cref="InboxTestHelper"/> class, with the fake clock
+    /// starting at the current UTC time.
     /// </summary>
     public InboxTestHelper()
-        : this(new FakeInboxStore(), new FakeTimeProvider())
+        : this(new FakeInboxStore(), new FakeTimeProvider(System.TimeProvider.System.GetUtcNow()))
     {
     }
 

@@ -8,9 +8,9 @@ using Encina.Messaging.Scheduling;
 using Encina.Testing.Fakes;
 using Encina.Testing.Fakes.Factories;
 using Encina.Testing.Fakes.Stores;
-using Encina.Testing.Time;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using AssemblySet = System.Collections.Generic.HashSet<System.Reflection.Assembly>;
 
 namespace Encina.Testing;
@@ -307,7 +307,7 @@ public sealed class EncinaTestFixture : IDisposable, IAsyncDisposable
     /// </remarks>
     public EncinaTestFixture WithFakeTimeProvider()
     {
-        return WithFakeTimeProvider(DateTimeOffset.UtcNow);
+        return WithFakeTimeProvider(System.TimeProvider.System.GetUtcNow());
     }
 
     /// <summary>
@@ -373,7 +373,7 @@ public sealed class EncinaTestFixture : IDisposable, IAsyncDisposable
     /// <returns>This fixture for method chaining.</returns>
     public EncinaTestFixture AdvanceTimeByMinutes(int minutes)
     {
-        TimeProvider.AdvanceMinutes(minutes);
+        TimeProvider.Advance(TimeSpan.FromMinutes(minutes));
         return this;
     }
 

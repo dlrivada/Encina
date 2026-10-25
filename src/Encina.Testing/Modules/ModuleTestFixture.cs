@@ -8,9 +8,9 @@ using Encina.Modules;
 using Encina.Testing.Fakes;
 using Encina.Testing.Fakes.Factories;
 using Encina.Testing.Fakes.Stores;
-using Encina.Testing.Time;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.Testing.Modules;
 
@@ -382,7 +382,7 @@ public sealed class ModuleTestFixture<TModule> : IDisposable, IAsyncDisposable, 
     /// <returns>This fixture for method chaining.</returns>
     public ModuleTestFixture<TModule> WithFakeTimeProvider()
     {
-        return WithFakeTimeProvider(DateTimeOffset.UtcNow);
+        return WithFakeTimeProvider(System.TimeProvider.System.GetUtcNow());
     }
 
     /// <summary>
