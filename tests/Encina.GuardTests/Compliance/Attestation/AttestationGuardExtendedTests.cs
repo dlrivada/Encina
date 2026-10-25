@@ -148,6 +148,63 @@ public sealed class AttestationGuardExtendedTests
             .ParamName.ShouldBe("algorithm");
         Should.Throw<ArgumentException>(() => ContentHasher.CreateHmac([1], HashAlgorithmName.MD5))
             .ParamName.ShouldBe("algorithm");
+        Should.Throw<ArgumentException>(() => ContentHasher.GetRecommendedKeySize(HashAlgorithmName.MD5))
+            .ParamName.ShouldBe("algorithm");
+    }
+
+    [Fact]
+    public async Task InMemoryProvider_AttestAsync_WithActivityListener_StartsAttestationActivity()
+    {
+        var started = new List<string>();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Encina.Compliance.Attestation",
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) =>
+                System.Diagnostics.ActivitySamplingResult.AllData,
+            ActivityStarted = activity => { lock (started) { started.Add(activity.OperationName); } }
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        var provider = new InMemoryAttestationProvider(
+            TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryAttestationProvider>.Instance);
+
+        var result = await provider.AttestAsync(new AuditRecord
+        {
+            RecordId = Guid.NewGuid(),
+            RecordType = "GuardActivity",
+            OccurredAtUtc = DateTimeOffset.UnixEpoch,
+            SerializedContent = "{}"
+        });
+
+        result.IsRight.ShouldBeTrue();
+        lock (started) { started.ShouldContain("Attestation.Attest"); }
+    }
+
+    [Fact]
+    public void HashChainOptionsValidator_NullOptions_Throws() =>
+        Should.Throw<ArgumentNullException>(() => new HashChainOptionsValidator().Validate(null, null!))
+            .ParamName.ShouldBe("options");
+
+    [Fact]
+    public void HashChainOptionsValidator_UnsupportedAlgorithm_FailsAndSupportedSucceeds()
+    {
+        var validator = new HashChainOptionsValidator();
+
+        validator.Validate(null, new HashChainOptions { HashAlgorithm = HashAlgorithmName.MD5 }).Failed.ShouldBeTrue();
+        validator.Validate(null, new HashChainOptions()).Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void HashChainProvider_UnsupportedAlgorithm_ThrowsArgumentException()
+    {
+        var options = Microsoft.Extensions.Options.Options.Create(
+            new HashChainOptions { HashAlgorithm = HashAlgorithmName.MD5, HmacKey = new byte[16] });
+
+        Should.Throw<ArgumentException>(() => new HashChainAttestationProvider(
+                TimeProvider.System,
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<HashChainAttestationProvider>.Instance,
+                options))
+            .ParamName.ShouldBe("algorithm");
     }
 
     #endregion

@@ -463,6 +463,56 @@ public sealed class AttestationSupportTests
     }
 
     [Fact]
+    public void HashChainOptions_ToString_RedactsKeyAndNeverPrintsContentOrLength()
+    {
+        byte[] key = [200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219];
+        var options = new HashChainOptions
+        {
+            HmacKey = key,
+            StoragePath = "/var/chain",
+            HashAlgorithm = HashAlgorithmName.SHA384
+        };
+
+        var text = options.ToString();
+
+        text.ShouldContain("[REDACTED]");
+        text.ShouldContain("SHA384");
+        text.ShouldContain("/var/chain");
+        text.ShouldNotContain(Convert.ToBase64String(key));
+        text.ShouldNotContain(Convert.ToHexString(key), Case.Insensitive);
+        text.ShouldNotContain(string.Join(",", key));
+        text.ShouldNotContain(string.Join(" ", key));
+        text.ShouldNotContain(key.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void HashChainOptions_ToString_WithoutKeyOrPath_ShowsNull()
+    {
+        var text = new HashChainOptions().ToString();
+
+        text.ShouldContain("HmacKey = null");
+        text.ShouldContain("StoragePath = null");
+        text.ShouldContain("SHA256");
+    }
+
+    [Fact]
+    public void HashChainOptions_ToString_DefaultAlgorithmName_PrintsNone() =>
+        new HashChainOptions { HashAlgorithm = default }.ToString().ShouldContain("(none)");
+
+    [Fact]
+    public void HashChainOptions_Serialization_ExcludesHmacKey()
+    {
+        byte[] key = [200, 201, 202, 203, 204, 205, 206, 207];
+        var options = new HashChainOptions { HmacKey = key, StoragePath = "/var/chain" };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(options);
+
+        json.ShouldNotContain("HmacKey");
+        json.ShouldNotContain(Convert.ToBase64String(key));
+        json.ShouldContain("StoragePath");
+    }
+
+    [Fact]
     public void HashChainOptions_Defaults_AreSha256WithoutKeyOrPath()
     {
         var options = new HashChainOptions();

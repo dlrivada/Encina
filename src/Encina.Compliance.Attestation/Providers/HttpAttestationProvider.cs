@@ -25,6 +25,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
 {
     private const int MaxErrorBodyLength = 500;
     private const long MaxResponseContentBytes = 1_048_576; // 1 MB — SEC-7
+    private const string DefaultFailureReason = "Remote verification failed.";
 
     private readonly HttpClient _httpClient;
     private readonly TimeProvider _timeProvider;
@@ -77,78 +78,10 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
 
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, _options.AttestEndpointUrl);
-            request.Content = JsonContent.Create(payload);
-
-            if (!string.IsNullOrWhiteSpace(_options.AuthHeader))
-            {
-                request.Headers.TryAddWithoutValidation("Authorization", _options.AuthHeader);
-            }
-
+            using var request = CreateRequest(_options.AttestEndpointUrl, payload);
             using var response = await _httpClient.SendAsync(request, ct);
 
-            if (!response.IsSuccessStatusCode)
-            {
-                var fullBody = await response.Content.ReadAsStringAsync(ct);
-                var truncatedBody = fullBody.Length > MaxErrorBodyLength
-                    ? fullBody[..MaxErrorBodyLength] + "…"
-                    : fullBody;
-
-                AttestationLogMessages.HttpEndpointError(_logger, _options.AttestEndpointUrl, (int)response.StatusCode);
-                _logger.LogDebug("HTTP attestation error body: {Body}", fullBody);
-
-                AttestationDiagnostics.AttestationFailed.Add(1,
-                    new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
-                AttestationDiagnostics.RecordFailure(activity, $"HTTP {(int)response.StatusCode}");
-                return AttestationErrors.HttpEndpointError(
-                _options.AttestEndpointUrl, (int)response.StatusCode, truncatedBody);
-            }
-
-            var responseJson = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-
-            // SEC-3: reject incomplete responses — fabricated receipts are worse than no receipt
-            if (!responseJson.TryGetProperty("attestation_id", out var aidProp)
-                || !Guid.TryParse(aidProp.GetString(), out var attestationId))
-            {
-                const string msg = "External attestation endpoint returned a response missing 'attestation_id'. "
-                    + "An attestation receipt without a real external identifier provides no compliance value.";
-                AttestationDiagnostics.AttestationFailed.Add(1,
-                    new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
-                AttestationDiagnostics.RecordFailure(activity, "Missing attestation_id");
-                return AttestationErrors.ProviderUnavailable(ProviderName, msg);
-            }
-
-            if (!responseJson.TryGetProperty("signature", out var sigProp)
-                || string.IsNullOrWhiteSpace(sigProp.GetString()))
-            {
-                const string msg = "External attestation endpoint returned a response missing 'signature'. "
-                    + "An attestation receipt without a real external signature provides no compliance value.";
-                AttestationDiagnostics.AttestationFailed.Add(1,
-                    new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
-                AttestationDiagnostics.RecordFailure(activity, "Missing signature");
-                return AttestationErrors.ProviderUnavailable(ProviderName, msg);
-            }
-
-            var receipt = new AttestationReceipt
-            {
-                AttestationId = attestationId,
-                AuditRecordId = record.RecordId,
-                ContentHash = contentHash,
-                AttestedAtUtc = now,
-                ProviderName = ProviderName,
-                Signature = sigProp.GetString()!,
-                CorrelationId = record.CorrelationId,
-                ProofMetadata = ExtractProofMetadata(responseJson)
-            };
-
-            sw.Stop();
-            AttestationDiagnostics.AttestationDuration.Record(sw.Elapsed.TotalMilliseconds,
-                new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
-            AttestationDiagnostics.AttestationSucceeded.Add(1,
-                new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
-            AttestationLogMessages.AttestationCreated(_logger, record.RecordId, ProviderName);
-            AttestationDiagnostics.RecordSuccess(activity);
-            return Right<EncinaError, AttestationReceipt>(receipt);
+            return await ProcessAttestResponseAsync(response, record, contentHash, now, activity, sw, ct);
         }
         catch (HttpRequestException ex)
         {
@@ -173,6 +106,15 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A verdict the endpoint actually gave is a <c>Right</c>: <c>IsValid = true</c>, or
+    /// <c>IsValid = false</c> for a non-2xx status, a 2xx response without <c>is_valid</c>, an
+    /// explicit <c>is_valid: false</c> or a missing <see cref="HttpAttestationOptions.VerifyEndpointUrl"/>.
+    /// When no verdict can be read from a 2xx response (empty body, not JSON, unusable content
+    /// type or charset, a root that is not an object, or an <c>is_valid</c> that is not a JSON
+    /// boolean) the method returns <c>Left</c> with
+    /// <see cref="AttestationErrors.ProviderUnavailableCode"/> because the answer is unknown, not negative.
+    /// </remarks>
     public async ValueTask<Either<EncinaError, AttestationVerification>> VerifyAsync(
         AttestationReceipt receipt, CancellationToken ct = default)
     {
@@ -188,14 +130,8 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
         {
             AttestationDiagnostics.RecordFailure(activity, "Verification endpoint not configured");
 
-            return Right<EncinaError, AttestationVerification>(new AttestationVerification
-            {
-                IsValid = false,
-                VerifiedAtUtc = now,
-                FailureReason = "Verification endpoint not configured. Set VerifyEndpointUrl to enable remote verification.",
-                AttestationId = receipt.AttestationId,
-                ProviderName = ProviderName
-            });
+            return Right<EncinaError, AttestationVerification>(Invalid(receipt, now,
+                "Verification endpoint not configured. Set VerifyEndpointUrl to enable remote verification."));
         }
 
         var payload = new
@@ -208,62 +144,10 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
 
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, _options.VerifyEndpointUrl);
-            request.Content = JsonContent.Create(payload);
-
-            if (!string.IsNullOrWhiteSpace(_options.AuthHeader))
-            {
-                request.Headers.TryAddWithoutValidation("Authorization", _options.AuthHeader);
-            }
-
+            using var request = CreateRequest(_options.VerifyEndpointUrl, payload);
             using var response = await _httpClient.SendAsync(request, ct);
 
-            if (!response.IsSuccessStatusCode)
-            {
-                AttestationDiagnostics.RecordFailure(activity, $"HTTP {(int)response.StatusCode}");
-
-                return Right<EncinaError, AttestationVerification>(new AttestationVerification
-                {
-                    IsValid = false,
-                    VerifiedAtUtc = now,
-                    FailureReason = $"Verification endpoint returned HTTP {(int)response.StatusCode}.",
-                    AttestationId = receipt.AttestationId,
-                    ProviderName = ProviderName
-                });
-            }
-
-            // SEC-7: reject responses that exceed 1 MB to prevent memory exhaustion
-            if (response.Content.Headers.ContentLength is { } contentLength
-                && contentLength > MaxResponseContentBytes)
-            {
-                AttestationDiagnostics.RecordFailure(activity, "Response too large");
-                return AttestationErrors.HttpResponseTooLarge(
-                ProviderName, contentLength, MaxResponseContentBytes);
-            }
-
-            var responseJson = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-            var isValid = responseJson.TryGetProperty("is_valid", out var validProp) && validProp.GetBoolean();
-
-            AttestationLogMessages.VerificationCompleted(_logger, receipt.AuditRecordId, isValid, ProviderName);
-
-            if (isValid)
-                AttestationDiagnostics.RecordSuccess(activity);
-            else
-                AttestationDiagnostics.RecordFailure(activity, "Remote verification failed");
-
-
-            return Right<EncinaError, AttestationVerification>(new AttestationVerification
-            {
-                IsValid = isValid,
-                VerifiedAtUtc = now,
-                FailureReason = isValid
-                    ? null
-                    : responseJson.TryGetProperty("failure_reason", out var frProp)
-                        ? frProp.GetString()
-                        : "Remote verification failed.",
-                AttestationId = receipt.AttestationId,
-                ProviderName = ProviderName
-            });
+            return await ProcessVerifyResponseAsync(response, receipt, now, activity, ct);
         }
         catch (HttpRequestException ex)
         {
@@ -301,6 +185,297 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
         return ValueTask.FromResult(
             Right<EncinaError, IReadOnlyList<AttestationReceipt>>(System.Array.Empty<AttestationReceipt>()));
     }
+
+    private readonly record struct FieldFailure(string ActivityReason, string Message);
+
+    private enum FieldState
+    {
+        Missing,
+        WrongType,
+        Present
+    }
+
+    private HttpRequestMessage CreateRequest(Uri url, object payload)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = JsonContent.Create(payload)
+        };
+
+        if (!string.IsNullOrWhiteSpace(_options.AuthHeader))
+        {
+            request.Headers.TryAddWithoutValidation("Authorization", _options.AuthHeader);
+        }
+
+        return request;
+    }
+
+    private async Task<Either<EncinaError, AttestationReceipt>> ProcessAttestResponseAsync(
+        HttpResponseMessage response,
+        AuditRecord record,
+        string contentHash,
+        DateTimeOffset now,
+        Activity? activity,
+        Stopwatch sw,
+        CancellationToken ct)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            return await FailAttestationStatusAsync(response, activity, ct);
+        }
+
+        var parsed = await ReadJsonObjectAsync(response, ct);
+        var result = ParseReceipt(parsed, record, contentHash, now, activity);
+
+        if (result.IsRight)
+        {
+            sw.Stop();
+            AttestationDiagnostics.AttestationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
+            AttestationDiagnostics.AttestationSucceeded.Add(1,
+                new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
+            AttestationLogMessages.AttestationCreated(_logger, record.RecordId, ProviderName);
+            AttestationDiagnostics.RecordSuccess(activity);
+        }
+
+        return result;
+    }
+
+    private async Task<Either<EncinaError, AttestationReceipt>> FailAttestationStatusAsync(
+        HttpResponseMessage response, Activity? activity, CancellationToken ct)
+    {
+        var fullBody = await response.Content.ReadAsStringAsync(ct);
+        var truncatedBody = fullBody.Length > MaxErrorBodyLength
+            ? fullBody[..MaxErrorBodyLength] + "…"
+            : fullBody;
+
+        AttestationLogMessages.HttpEndpointError(_logger, _options.AttestEndpointUrl, (int)response.StatusCode);
+        _logger.LogDebug("HTTP attestation error body: {Body}", fullBody);
+
+        AttestationDiagnostics.AttestationFailed.Add(1,
+            new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
+        AttestationDiagnostics.RecordFailure(activity, $"HTTP {(int)response.StatusCode}");
+        return AttestationErrors.HttpEndpointError(
+            _options.AttestEndpointUrl, (int)response.StatusCode, truncatedBody);
+    }
+
+    private Either<EncinaError, AttestationReceipt> ParseReceipt(
+        (JsonElement Root, string? Error) parsed,
+        AuditRecord record,
+        string contentHash,
+        DateTimeOffset now,
+        Activity? activity)
+    {
+        if (parsed.Error is not null)
+        {
+            return FailAttestation(activity, "Malformed response", parsed.Error);
+        }
+
+        // SEC-3: reject incomplete responses — fabricated receipts are worse than no receipt
+        if (ReadAttestationId(parsed.Root, out var attestationId) is { } idFailure)
+        {
+            return FailAttestation(activity, idFailure.ActivityReason, idFailure.Message);
+        }
+
+        if (ReadSignature(parsed.Root, out var signature) is { } signatureFailure)
+        {
+            return FailAttestation(activity, signatureFailure.ActivityReason, signatureFailure.Message);
+        }
+
+        return new AttestationReceipt
+        {
+            AttestationId = attestationId,
+            AuditRecordId = record.RecordId,
+            ContentHash = contentHash,
+            AttestedAtUtc = now,
+            ProviderName = ProviderName,
+            Signature = signature,
+            CorrelationId = record.CorrelationId,
+            ProofMetadata = ExtractProofMetadata(parsed.Root)
+        };
+    }
+
+    private async Task<Either<EncinaError, AttestationVerification>> ProcessVerifyResponseAsync(
+        HttpResponseMessage response,
+        AttestationReceipt receipt,
+        DateTimeOffset now,
+        Activity? activity,
+        CancellationToken ct)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            AttestationDiagnostics.RecordFailure(activity, $"HTTP {(int)response.StatusCode}");
+
+            return Right<EncinaError, AttestationVerification>(Invalid(receipt, now,
+                $"Verification endpoint returned HTTP {(int)response.StatusCode}."));
+        }
+
+        // SEC-7: reject responses that exceed 1 MB to prevent memory exhaustion
+        if (response.Content.Headers.ContentLength is { } contentLength
+            && contentLength > MaxResponseContentBytes)
+        {
+            AttestationDiagnostics.RecordFailure(activity, "Response too large");
+            return AttestationErrors.HttpResponseTooLarge(
+                ProviderName, contentLength, MaxResponseContentBytes);
+        }
+
+        var parsed = await ReadJsonObjectAsync(response, ct);
+        return BuildVerification(parsed, receipt, now, activity);
+    }
+
+    private Either<EncinaError, AttestationVerification> BuildVerification(
+        (JsonElement Root, string? Error) parsed,
+        AttestationReceipt receipt,
+        DateTimeOffset now,
+        Activity? activity)
+    {
+        if (parsed.Error is not null)
+        {
+            return FailVerification(activity, parsed.Error);
+        }
+
+        if (!TryReadVerdict(parsed.Root, out var isValid))
+        {
+            return FailVerification(activity, WrongTypeMessage("is_valid"));
+        }
+
+        AttestationLogMessages.VerificationCompleted(_logger, receipt.AuditRecordId, isValid, ProviderName);
+
+        if (isValid)
+            AttestationDiagnostics.RecordSuccess(activity);
+        else
+            AttestationDiagnostics.RecordFailure(activity, "Remote verification failed");
+
+        return Right<EncinaError, AttestationVerification>(new AttestationVerification
+        {
+            IsValid = isValid,
+            VerifiedAtUtc = now,
+            FailureReason = isValid ? null : ReadFailureReason(parsed.Root),
+            AttestationId = receipt.AttestationId,
+            ProviderName = ProviderName
+        });
+    }
+
+    private AttestationVerification Invalid(AttestationReceipt receipt, DateTimeOffset now, string reason) => new()
+    {
+        IsValid = false,
+        VerifiedAtUtc = now,
+        FailureReason = reason,
+        AttestationId = receipt.AttestationId,
+        ProviderName = ProviderName
+    };
+
+    private static string WrongTypeMessage(string field) =>
+        $"Attestation endpoint returned a response whose '{field}' has an unexpected type.";
+
+    private EncinaError FailAttestation(Activity? activity, string activityReason, string message)
+    {
+        AttestationDiagnostics.AttestationFailed.Add(1,
+            new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
+        AttestationDiagnostics.RecordFailure(activity, activityReason);
+        return AttestationErrors.ProviderUnavailable(ProviderName, message);
+    }
+
+    private EncinaError FailVerification(Activity? activity, string message)
+    {
+        AttestationDiagnostics.RecordFailure(activity, "Malformed response");
+        return AttestationErrors.ProviderUnavailable(ProviderName, message);
+    }
+
+    /// <summary>
+    /// Reads the response body as a JSON object. Returns a constant error text (never the
+    /// exception message) when the body is empty, not JSON, undecodable or not an object.
+    /// </summary>
+    private static async Task<(JsonElement Root, string? Error)> ReadJsonObjectAsync(
+        HttpResponseMessage response, CancellationToken ct)
+    {
+        try
+        {
+            var root = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+            return root.ValueKind == JsonValueKind.Object
+                ? (root, null)
+                : (default, "Attestation endpoint returned a response that is not a JSON object.");
+        }
+        // InvalidOperationException: HttpContent rejects an unknown charset in the Content-Type header
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
+        {
+            return (default, $"Attestation endpoint returned a malformed response ({ex.GetType().Name}).");
+        }
+    }
+
+    private static FieldState ReadString(JsonElement root, string name, out string? value)
+    {
+        value = null;
+        if (!root.TryGetProperty(name, out var prop) || prop.ValueKind == JsonValueKind.Null)
+        {
+            return FieldState.Missing;
+        }
+
+        if (prop.ValueKind != JsonValueKind.String)
+        {
+            return FieldState.WrongType;
+        }
+
+        value = prop.GetString();
+        return FieldState.Present;
+    }
+
+    private static FieldFailure? ReadAttestationId(JsonElement root, out Guid attestationId)
+    {
+        attestationId = default;
+        var state = ReadString(root, "attestation_id", out var text);
+        if (state == FieldState.WrongType)
+        {
+            return new FieldFailure("Malformed attestation_id", WrongTypeMessage("attestation_id"));
+        }
+
+        if (state == FieldState.Missing || !Guid.TryParse(text, out attestationId))
+        {
+            return new FieldFailure("Missing attestation_id",
+                "External attestation endpoint returned a response missing 'attestation_id'. "
+                + "An attestation receipt without a real external identifier provides no compliance value.");
+        }
+
+        return null;
+    }
+
+    private static FieldFailure? ReadSignature(JsonElement root, out string signature)
+    {
+        signature = string.Empty;
+        var state = ReadString(root, "signature", out var text);
+        if (state == FieldState.WrongType)
+        {
+            return new FieldFailure("Malformed signature", WrongTypeMessage("signature"));
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return new FieldFailure("Missing signature",
+                "External attestation endpoint returned a response missing 'signature'. "
+                + "An attestation receipt without a real external signature provides no compliance value.");
+        }
+
+        signature = text;
+        return null;
+    }
+
+    // An absent is_valid keeps its documented meaning (not valid); a present value must be a JSON boolean.
+    private static bool TryReadVerdict(JsonElement root, out bool isValid)
+    {
+        isValid = false;
+        if (!root.TryGetProperty("is_valid", out var prop))
+        {
+            return true;
+        }
+
+        isValid = prop.ValueKind == JsonValueKind.True;
+        return isValid || prop.ValueKind == JsonValueKind.False;
+    }
+
+    private static string ReadFailureReason(JsonElement root) =>
+        ReadString(root, "failure_reason", out var reason) == FieldState.Present && reason is not null
+            ? reason
+            : DefaultFailureReason;
 
     private static FrozenDictionary<string, string> ExtractProofMetadata(JsonElement json)
     {

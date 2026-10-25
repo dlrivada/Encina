@@ -69,10 +69,10 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
         _logger = logger;
         _options = options.Value;
         _hashAlgorithm = _options.HashAlgorithm;
-        // Validate algorithm eagerly to fail fast on misconfiguration
-        _ = ContentHasher.GetRecommendedKeySize(_hashAlgorithm);
-        _hmacKey = _options.HmacKey ?? RandomNumberGenerator.GetBytes(
-            ContentHasher.GetRecommendedKeySize(_hashAlgorithm));
+        // Validate algorithm eagerly (even when a key is supplied): an unsupported
+        // algorithm throws ArgumentException here instead of failing on the first attestation.
+        var recommendedKeySize = ContentHasher.GetRecommendedKeySize(_hashAlgorithm);
+        _hmacKey = _options.HmacKey ?? RandomNumberGenerator.GetBytes(recommendedKeySize);
 
         if (_options.HmacKey is null)
         {
