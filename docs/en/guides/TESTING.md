@@ -99,6 +99,49 @@ Reports land under `artifacts/mutation/reports/` (JSON + HTML). The full `**/*.c
 
 The README badge is updated automatically by `.github/scripts/update-mutation-summary.cs`, which is invoked by the publish workflow after each Stryker run.
 
+## Testing Time
+
+This section is for contributors and users who write tests for code that depends on `TimeProvider`: it states the fake-clock convention and the helpers that support it. Production code takes the clock by injection (see `AGENTS.md`, section 3).
+
+### The fake clock
+
+Use `Microsoft.Extensions.Time.Testing.FakeTimeProvider` from the `Microsoft.Extensions.TimeProvider.Testing` package, which `Encina.Testing` depends on. Encina has no clock of its own: the former `FakeTimeProvider`, `FakeTimer` and `FrozenTimeScope` types of `Encina.Testing` were removed in #2774 and no alias remains.
+
+```csharp
+using Microsoft.Extensions.Time.Testing;
+
+var clock = new FakeTimeProvider(new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero));
+
+clock.Advance(TimeSpan.FromMinutes(5));              // move forward and fire due timers
+clock.SetLocalTimeZone(TimeZoneInfo.Utc);            // choose the zone for GetLocalNow()
+```
+
+- Advance with `Advance(TimeSpan.FromMinutes(n))`. Moving the clock backwards throws `ArgumentOutOfRangeException`.
+- Set the zone with `SetLocalTimeZone(TimeZoneInfo)`.
+- The test helpers `EncinaTestFixture`, `EncinaTestContext`, `ModuleTestFixture` and the `Outbox`, `Inbox`, `Saga` and `Scheduling` test helpers expose and register this same type. Their `AdvanceTimeBy*` and `SetTimeTo` methods keep working. The four messaging helpers start their clock at the current UTC time.
+
+### Timer callbacks must not throw
+
+Microsoft's clock stops firing every timer after one callback throws. Therefore:
+
+- Timer callbacks in code under test must not throw.
+- Tests never swallow exceptions thrown from `Advance`; do not wrap the clock in a type that catches them.
+
+### Tests of background services that create timers
+
+A background service usually creates its timer from a background task, and advancing the clock before the timer exists does nothing. Use `TimerSignallingTimeProvider` (`tests/Encina.TestInfrastructure/Time/TimerSignallingTimeProvider.cs`, public sealed, namespace `Encina.TestInfrastructure.Time`) instead of polling or `Task.Delay`:
+
+```csharp
+var clock = new TimerSignallingTimeProvider(DateTimeOffset.UtcNow);
+// ... start the service under test with `clock` ...
+await clock.WaitForTimersAsync(1, TestContext.Current.CancellationToken);
+clock.Advance(TimeSpan.FromMinutes(1));
+```
+
+`WaitForTimersAsync(count, cancellationToken)` waits until `count` timers have been created on the clock. It is bounded to five seconds and then throws `TimeoutException` with the message "expected N timers, saw M".
+
+For the worked example of injecting the clock into a component, see [Audit tracking: testing](../../features/audit-tracking.md#testing).
+
 ## Property-Based Testing Notes
 
 Property tests limit selector list sizes to keep execution time predictable. When extending the suite, prefer shrinking-aware generators and keep assertions free of side effects so FsCheck can explore counterexamples efficiently.
