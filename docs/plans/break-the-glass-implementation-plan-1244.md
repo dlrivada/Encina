@@ -354,9 +354,11 @@ REFERENCE FILES:
 
 1. `src/Encina.AspNetCore/AuthorizationPipelineBehavior.cs`: ctor gains `IAccessElevationGate`; in `Handle` (`:130-150`), when `AuthorizeAsync` returns a denial and `AccessElevationDenials.IsOverridable(denial)`, call `TryElevateAsync`; `Some` → log `AuthorizationElevated` (identity kind and elevation id only) and continue; `Left` → return it; `None` → return the denial. `Unauthenticated` (`:270-283`) is never offered.
 2. `src/Encina.Security/SecurityPipelineBehavior.cs`: same hook at the denial return (`:169-173`); `MissingContext` (`:120-129`) and `Unauthenticated` (`:138-145`) are never offered. Written against the post-#1705-phase-4 shape (identity from `IRequestContext`), not against `ISecurityContextAccessor`.
-3. `src/Encina.Security.ABAC/ABACPipelineBehavior.cs`: in `HandleDenyAsync` after the OnDeny obligations and advice (`:299-319`) and before `ApplyEnforcementAsync` (`:329`), offer `verdict.DenyError ?? AccessDenied`; `HandleIndeterminate` (`:338-358`), the exception path (`:179-196`) and the missing-context path (`:365-379`) never call the gate. Record the elevation on the activity (`abac.break_glass = true`, no ids).
+3. `src/Encina.Security.ABAC/ABACPipelineBehavior.cs`: the gate is consulted inside the decide step (`DecideDenyAsync`, the #751 decide/record/enforce shape) after the OnDeny obligations and advice, only in Block mode and before the decision record is written, offering `verdict.DenyError ?? AccessDenied`; indeterminate, exception, unauthenticated and Warn paths never call the gate. Record the elevation on the activity (`abac.break_glass = true`, no ids).
 4. DI tests for each package keep `ValidateOnBuild` + `ValidateScopes` green without the BreakTheGlass package (the core default resolves).
-5. Coordination note in the XML docs: when #751 merges, the ABAC decision recorder adds `elevation_id` to the recorded Deny.
+5. DeniedElevated + ElevationId on the decision record (D10).
+
+> **Scope note**: the `SecurityPipelineBehavior` integration (task 2) waits for [#1705](https://github.com/dlrivada/Encina/issues/1705) phase 4 and is NOT part of this PR.
 
 </details>
 
@@ -370,7 +372,7 @@ CONTEXT:
 - Contract: src/Encina/Authorization/IAccessElevationGate.cs and AccessElevationDenials.cs (Phase 1).
 - Gates: src/Encina.AspNetCore/AuthorizationPipelineBehavior.cs (Handle at line 130, AuthorizeAsync at 152),
   src/Encina.Security/SecurityPipelineBehavior.cs (denial returned at 169-173),
-  src/Encina.Security.ABAC/ABACPipelineBehavior.cs (HandleDenyAsync 285-330, HandleIndeterminate 338-358).
+  src/Encina.Security.ABAC/ABACPipelineBehavior.cs (DecideDenyAsync, the decide step before the decision record is written).
 - Prerequisite: #1705 phase 4 has moved SecurityPipelineBehavior and ABACPipelineBehavior to IRequestContext.Identity.
 
 TASK:
@@ -409,6 +411,9 @@ REFERENCE FILES:
 4. `ServiceCollectionExtensions.AddEncinaBreakTheGlass(this IServiceCollection, Action<BreakTheGlassOptions>, params Assembly[])`: options + validators; `TryAddSingleton(TimeProvider.System)`; `TryAddSingleton<IBreakTheGlassStore, InMemoryBreakTheGlassStore>()`; scoped service, gate, grant holder, authorizer, validator; **replaces** the core `NoAccessElevationGate` with `BreakTheGlassAccessGate` (`services.Replace`, not `TryAdd`, because core registers the default first); requires `IOperationAuditStore` and `IReadAuditContext` (registers `AddEncinaReadAuditing` defaults with `TryAdd` if missing); hosted `BreakTheGlassExpiryService`; health check.
 5. `Services/BreakTheGlassExpiryService.cs : BackgroundService`: `PeriodicTimer` from `TimeProvider`; per cycle `GetExpiredUnrecordedAsync` → `TryCloseAsync(Expired)` (winner only) → audit `break_glass.expired` → `MarkExpiryRecordedAsync`; then `PurgeAsync(now - RetentionDays)`; a `Left` fails the cycle (log, metric, retried next cycle), never reports success.
 6. `Health/BreakTheGlassHealthCheck.cs` (`DefaultName = "encina-break-the-glass"`, `Tags = ["encina", "security", "break-the-glass", "ready"]`, scoped resolution through `IServiceProvider.CreateScope()`): `ProbeAsync` on the store; Degraded when the sweeper has not completed a cycle within 3 × interval; Degraded with the InMemory store.
+7. `src/Encina/Diagnostics/EventIdRanges.cs`: register `SecurityBreakTheGlass = (9750, 9799)` (reserved; see `docs/architecture/adr/index.md`); add the field to `src/Encina/PublicAPI.Unshipped.txt`.
+8. `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`: add `Encina.Security.BreakTheGlass` to `AssemblyRanges`.
+9. `Diagnostics/BreakTheGlassLogMessages.cs` (`[LoggerMessage]`, EventIds packed sequentially from 9750, XML doc `Event IDs: 9750-9799 (see EventIdRanges.SecurityBreakTheGlass)`). Ids already used by the Phase 4 code: 9750 (gate lookup failed), 9751-9758 (sweeper and purge), 9759-9763 (start-up checks). The remaining events (Opened, OpenRefused, OpenAuditFailed, AccessGranted, AccessAuditFailed, AccessNotEligible, Revoked, Reviewed, SelfReviewRefused, ExpiryRecorded, NotificationFailed) take the next free ids in that order. AspNetCore uses 204 and ABAC uses 9006 in their own ranges; no id is shared.
 
 </details>
 
@@ -569,11 +574,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina/Diagnostics/EventIdRanges.cs`: register `SecurityBreakTheGlass = (9750, 9799)` (reserved; see `docs/architecture/adr/index.md`); add the field to `src/Encina/PublicAPI.Unshipped.txt`.
-2. `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`: add `Encina.Security.BreakTheGlass` to `AssemblyRanges`.
-3. `Diagnostics/BreakTheGlassLogMessages.cs` (`[LoggerMessage]`, EventIds 9750-9764 packed): Opened, OpenRefused (reason code), OpenAuditFailed, AccessGranted (request type, gate), AccessAuditFailed, AccessNotEligible, Revoked, Reviewed (outcome), SelfReviewRefused, ExpirySweepCompleted (count), ExpirySweepFailed (error code), ExpiryRecorded, NotificationFailed (error code), InMemoryStoreInUse, StartupValidationFailed. XML doc `Event IDs: 9750-9764 (see EventIdRanges.SecurityBreakTheGlass)`.
-4. `Diagnostics/BreakTheGlassDiagnostics.cs`: `ActivitySource("Encina.Security.BreakTheGlass")`, spans `encina.break_glass.open`, `encina.break_glass.access`, `encina.break_glass.review`, `encina.break_glass.expiry_sweep`; tags `encina.tenant_id`, `encina.break_glass.scope`, `encina.break_glass.outcome`, `encina.break_glass.gate`.
-5. `Meter("Encina.Security.BreakTheGlass")`: `Counter<long>` `encina.break_glass.opened` (tenant, scope, outcome), `encina.break_glass.accesses` (tenant, scope, gate), `encina.break_glass.reviewed` (tenant, outcome), `encina.break_glass.expired` (tenant), `encina.break_glass.audit_failures` (tenant, action); `ObservableGauge<long>` `encina.break_glass.review_queue_depth` is **not** added (it would query the store per scrape).
+1. `Diagnostics/BreakTheGlassDiagnostics.cs`: `ActivitySource("Encina.Security.BreakTheGlass")`, spans `encina.break_glass.open`, `encina.break_glass.access`, `encina.break_glass.review`, `encina.break_glass.expiry_sweep`; tags `encina.tenant_id`, `encina.break_glass.scope`, `encina.break_glass.outcome`, `encina.break_glass.gate`.
+2. `Meter("Encina.Security.BreakTheGlass")`: `Counter<long>` `encina.break_glass.opened` (tenant, scope, outcome), `encina.break_glass.accesses` (tenant, scope, gate), `encina.break_glass.reviewed` (tenant, outcome), `encina.break_glass.expired` (tenant), `encina.break_glass.audit_failures` (tenant, action); `ObservableGauge<long>` `encina.break_glass.review_queue_depth` is **not** added (it would query the store per scrape).
 
 </details>
 
@@ -589,7 +591,7 @@ CONTEXT:
 - Reference diagnostics: src/Encina.Security.Audit/Diagnostics/ReadAudit{ActivitySource,Meter,Log}.cs.
 
 TASK:
-Register SecurityBreakTheGlass = (9750, 9799), write BreakTheGlassLogMessages (9750-9764, packed), the
+Use the BreakTheGlassLogMessages and the SecurityBreakTheGlass range of Phase 4 (already registered there), write the
 ActivitySource and Meter listed in the Phase 7 tasks, and call them from the service, gate and sweeper.
 
 KEY RULES:
@@ -724,7 +726,7 @@ REFERENCE FILES:
 | SPEC-002 DEC-006, INV-005 | Compliance gates fail closed | Missing context, failed audit write or missing tenant deny |
 | GDPR Art. 5(2), Art. 32 | Accountability; security of processing | Evidence of who opened, why, what was accessed, who reviewed |
 | GDPR Art. 9(2)(c), (h) | Vital interests; health care | The legal grounds an emergency access usually relies on (the application's decision) |
-| EHDS Reg. (EU) 2025/327 Art. 8 | Override of access restrictions in vital-interest cases, logged | The override exists, is logged and is exceptional |
+| EHDS Reg. (EU) 2025/327 Art. 11(5) | Override of access restrictions in vital-interest cases, logged | The override exists, is logged and is exceptional |
 | Ley 41/2002 art. 16 | Access to the clinical history by treating professionals | Normal access stays restricted; the override is the exception |
 | Código Deontológico del Psicólogo art. 46 | Records restricted to the professional | Same; the reason the reference application needs the feature |
 | ISO/IEC 27002:2022 5.18, 8.2, 8.15 | Access rights; privileged access rights; logging | Time-limited privileged access, approved and logged, reviewed |
@@ -878,3 +880,12 @@ REFERENCE FILES:
 5. 2026-10-17 — Option A, settled by elimination: write-ahead fail-closed audit per access.
 6. 2026-10-17 — Option A, settled by elimination: check-time expiry with an idempotent sweeper and four-eyes review.
 7. 2026-10-17 — Option A, settled by elimination: pluggable authorizer with a fail-closed default (DEC-006).
+8. 2026-10-24 — D6, decided by the maintainer: a lookup failure keeps the original denial. The gate returns `None` after a log and a counter; an audit write of an existing elevation still returns a typed `Left`. ([comment](https://github.com/dlrivada/Encina/issues/1244#issuecomment-6383588727))
+9. 2026-10-24 — D10, decided by the maintainer: a new `ABACEnforcedOutcome.DeniedElevated` with a typed `ElevationId`; metadata `abac.elevation_id` and `abac.enforced=false`; audit outcome `Success` with the original denial code as reason; always recorded, whatever `Outcomes` selects; schema `encina.abac.decision/2`. ([comment](https://github.com/dlrivada/Encina/issues/1244#issuecomment-6383615526))
+10. 2026-10-24 — D12, decided by the maintainer: telemetry keeps the `Deny` verdict; boolean tags `security.break_glass` and `abac.break_glass`; counter `encina.break_glass.accesses`; no identifiers. ([comment](https://github.com/dlrivada/Encina/issues/1244#issuecomment-6383643551))
+11. 2026-10-24 — D16, decided by the maintainer: `Enabled=false` stops the gate honouring elevations and skips the scope, opener and reviewer validation and the start-up checks; the safety bounds and the sweeper stay on. ([comment](https://github.com/dlrivada/Encina/issues/1244#issuecomment-6383699524))
+12. 2026-10-24 — D22, decided by the maintainer: no `IOperationAuditStore` fallback. The start-up check fails naming the missing registration, warns for `InMemoryOperationAuditStore`, and health is `Degraded`. ([comment](https://github.com/dlrivada/Encina/issues/1244#issuecomment-6383726514))
+13. 2026-10-24 — D32, decided by the maintainer: purge is opt-in (`EnableAutoPurge` false, `PurgeIntervalHours` 24, `RetentionDays` 2555); it runs on its own daily cadence and is registered only when enabled. ([comment](https://github.com/dlrivada/Encina/issues/1244#issuecomment-6383775637))
+14. 2026-10-24 — D34, decided by the maintainer: health is `Degraded` on a probe `Left`, `Unhealthy` on exceptions and `Degraded` for the in-memory store; the `ready` tag is kept. ([comment](https://github.com/dlrivada/Encina/issues/1244#issuecomment-6383826071))
+15. 2026-10-24 — D17: `RequireTenant` is explicit. Start-up fails when `ITenantProvider` is registered and `RequireTenant` is false, unless an explicit, logged opt-out `AllowMissingTenantRequirement` is set. Settled by AGENTS.md section 3 (compliance and security gates fail closed; errors are never swallowed in background infrastructure). ([issue](https://github.com/dlrivada/Encina/issues/1244))
+16. 2026-10-24 — D30: the sweep continues past per-row audit failures, stops on store failure, and a cycle is never marked completed. Settled by AGENTS.md section 3 (compliance and security gates fail closed; errors are never swallowed in background infrastructure). ([issue](https://github.com/dlrivada/Encina/issues/1244))
