@@ -247,6 +247,8 @@ builder.Services.AddEncinaAspNetCore(options =>
 });
 ```
 
+`TrustTenantIdHeader` and the `Encina.Tenancy.AspNetCore` header resolver (`HeaderResolver.Enabled` with `TrustedProxies` or `TrustAnyPeer`) are independent opt-ins. When both `UseEncinaContext()` and `UseTenantResolution()` run, set them consistently: a header trusted by one layer and not by the other gives each layer a different tenant. A tenant claim that disagrees with the header is refused with 403 either way.
+
 `MapDPIAEndpoints` no longer reads `X-Tenant-Id`, and the `DPIAEndpointExtensions.TenantIdHeader` constant is removed: the tenant is the one `UseEncinaContext()` bound (the claim, or the trusted header). `X-Module-Id` is unchanged.
 
 ### 3. Authorization Behavior
