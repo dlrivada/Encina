@@ -216,7 +216,6 @@ public sealed class ProblemDetailsMessageExposureTests
     public void AddEncinaAspNetCore_RegistersTheStartupWarningOnce_AndBuildsWithValidation()
     {
         var services = new ServiceCollection();
-        services.AddLogging();
 
         services.AddEncinaAspNetCore(o => o.IncludeErrorMessageInProblemDetails = true);
         services.AddEncinaAspNetCore();
