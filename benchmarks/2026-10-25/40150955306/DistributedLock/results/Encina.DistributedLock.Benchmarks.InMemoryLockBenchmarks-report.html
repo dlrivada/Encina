@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.DistributedLock.Benchmarks.InMemoryLockBenchmarks-20261025-020600</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]     : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  MediumRun  : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                        </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean  </th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>AcquireAndRelease_100Iterations</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>119,095.2 ns</td><td>552.53 ns</td><td>328.80 ns</td><td>119,067.5 ns</td><td>95.41</td><td>0.26</td><td>3.4180</td><td>57600 B</td><td>94.74</td>
+</tr><tr><td>IsLockedAsync_LockedResource</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>1,409.0 ns</td><td>3.38 ns</td><td>1.77 ns</td><td>1,409.4 ns</td><td>1.13</td><td>0.00</td><td>0.0420</td><td>704 B</td><td>1.16</td>
+</tr><tr><td>IsLockedAsync_UnlockedResource</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>167.0 ns</td><td>0.17 ns</td><td>0.10 ns</td><td>167.0 ns</td><td>0.13</td><td>0.00</td><td>0.0138</td><td>232 B</td><td>0.38</td>
+</tr><tr><td>ParallelAcquire_10DifferentResources</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>12,902.2 ns</td><td>30.68 ns</td><td>18.26 ns</td><td>12,905.2 ns</td><td>10.34</td><td>0.02</td><td>0.3510</td><td>5984 B</td><td>9.84</td>
+</tr><tr><td>TryAcquireAsync_SingleLock</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>1,248.3 ns</td><td>1.82 ns</td><td>1.08 ns</td><td>1,248.1 ns</td><td>1.00</td><td>0.00</td><td>0.0362</td><td>608 B</td><td>1.00</td>
+</tr><tr><td>AcquireAndRelease_100Iterations</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>117,626.4 ns</td><td>108.08 ns</td><td>151.51 ns</td><td>117,627.3 ns</td><td>93.77</td><td>0.77</td><td>3.4180</td><td>57600 B</td><td>93.51</td>
+</tr><tr><td>IsLockedAsync_LockedResource</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>1,420.4 ns</td><td>3.64 ns</td><td>5.33 ns</td><td>1,419.6 ns</td><td>1.13</td><td>0.01</td><td>0.0420</td><td>720 B</td><td>1.17</td>
+</tr><tr><td>IsLockedAsync_UnlockedResource</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>169.9 ns</td><td>0.23 ns</td><td>0.33 ns</td><td>170.0 ns</td><td>0.14</td><td>0.00</td><td>0.0143</td><td>240 B</td><td>0.39</td>
+</tr><tr><td>ParallelAcquire_10DifferentResources</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>13,012.7 ns</td><td>78.01 ns</td><td>114.34 ns</td><td>13,044.7 ns</td><td>10.37</td><td>0.12</td><td>0.3510</td><td>5984 B</td><td>9.71</td>
+</tr><tr><td>TryAcquireAsync_SingleLock</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>1,254.5 ns</td><td>7.02 ns</td><td>10.29 ns</td><td>1,261.4 ns</td><td>1.00</td><td>0.01</td><td>0.0362</td><td>616 B</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>
