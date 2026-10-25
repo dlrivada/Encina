@@ -404,7 +404,7 @@ public sealed class EncinaTestFixture : IDisposable, IAsyncDisposable
     /// </summary>
     /// <param name="time">The time to set.</param>
     /// <returns>This fixture for method chaining.</returns>
-    /// <exception cref="ArgumentException">Thrown when attempting to move time backwards.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when attempting to move time backwards.</exception>
     public EncinaTestFixture SetTimeTo(DateTimeOffset time)
     {
         TimeProvider.SetUtcNow(time);

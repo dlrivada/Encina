@@ -452,7 +452,7 @@ public sealed class EncinaTestContext<TResponse>
     /// </summary>
     /// <param name="time">The time to set.</param>
     /// <returns>This context for method chaining.</returns>
-    /// <exception cref="ArgumentException">Thrown when attempting to move time backwards.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when attempting to move time backwards.</exception>
     public EncinaTestContext<TResponse> ThenSetTimeTo(DateTimeOffset time)
     {
         GetTimeProvider().SetUtcNow(time);
