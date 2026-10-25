@@ -1,7 +1,7 @@
 {
   "package": "Encina.Testing",
   "generated": "2026-10-05T15:25:36Z",
-  "totalFiles": 32,
+  "totalFiles": 30,
   "targets": {
     "guard": 15,
     "unit": 60
@@ -53,7 +53,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 79, "guard": 21 },
+      "justifications": {
+        "unit": "Unit tests drive the fluent when/then paths and time travel; left uncovered are the failure branches of ShouldSucceed/ShouldFailWith/GetErrorValue and the Outbox and Saga assertion helpers (OutboxShouldContain, SagaShouldBeStarted/Completed/Failed/Compensating/TimedOut), which need a configured fixture with seeded stores and are exercised through the fixture and helper tests instead.",
+        "guard": "The guard flag reaches only the argument checks and the 'fake time provider not configured' guard; every fluent assertion body needs a real fixture and belongs to the unit flag."
+      }
     },
     "EncinaTestFixture.cs": {
       "defaultTests": [
@@ -61,7 +66,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 85, "guard": 25 },
+      "justifications": {
+        "unit": "Unit tests cover registration, fake stores and time control; left uncovered are the lambda bodies of WithSingletonService/WithScopedService/WithValidator configuration callbacks and the ClearStores branch for stores that were never resolved, which only execute when a test builds the provider with those options.",
+        "guard": "Only the null/argument checks of the fluent With* methods are reachable by the guard flag; the service-building and store-clearing bodies are unit-flag code."
+      }
     },
     "EventSourcing/AggregateTestBase.cs": {
       "defaultTests": [
@@ -118,10 +128,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 78, "guard": 28 },
+      "targets": { "unit": 84, "guard": 29 },
       "justifications": {
-        "unit": "Helper logic is exercised by the unit flag with in-memory fakes, covering most of the file.",
-        "guard": "Only the argument checks of the helper methods are guard-reachable."
+        "unit": "Unit tests cover seeding, When/Then and time travel; left uncovered are the failure branches of ThenThrows/ThenNoException, ThenCachedResponseIs and the message-state assertions (ThenMessageWasProcessed/WasFailed/IsNew, ThenInboxHasCount/IsEmpty) that only run when an assertion fails or after a handler ran, which a test would have to force to fail on purpose.",
+        "guard": "Only the constructor and argument checks (null store, null time provider, null message ids) are guard-reachable; the helper's behaviour lives in the unit flag."
       }
     },
     "Messaging/OutboxTestHelper.cs": {
@@ -130,7 +140,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 87, "guard": 28 },
+      "justifications": {
+        "unit": "Unit tests cover seeding, time travel and the happy When/Then paths; left uncovered are the failure branches of ThenThrows and the ThenMessageWasProcessed/WasFailed/ThenOutboxContains assertions plus GetMessage for missing ids, which execute only when an expectation is deliberately violated.",
+        "guard": "Only the constructor and argument checks are guard-reachable; seeding, assertions and the time-travel logic belong to the unit flag."
+      }
     },
     "Messaging/SagaTestHelper.cs": {
       "defaultTests": [
@@ -138,7 +153,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 90, "guard": 22 },
+      "justifications": {
+        "unit": "Unit tests cover saga seeding, step transitions and timeout advance; left uncovered are the assertion helpers' failure branches (ThenSagaStatus, ThenSagaData, ThenSagaIsAtStep, ThenSagaHasError, ThenSagaHasCompletedAt, ThenThrows/ThenNoException) and the When/WhenAsync error capture, which run only for a violated expectation or a throwing action.",
+        "guard": "The guard flag reaches only the constructor and argument checks; the saga seeding and assertion bodies (the bulk of this large helper) are unit-flag code."
+      }
     },
     "Messaging/SchedulingTestHelper.cs": {
       "defaultTests": [
@@ -146,7 +166,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 85, "guard": 11 },
+      "justifications": {
+        "unit": "Unit tests cover scheduling, due/recurring seeding and time advance; left uncovered are the cron, recurring, cancelled, rescheduled and due/not-due assertion helpers' failure branches, GetScheduledMessage for missing ids and the When/WhenAsync error capture, which run only for a violated expectation or a throwing action.",
+        "guard": "Only the constructor and argument checks are guard-reachable, which is a small share of this very large helper; scheduling, assertions and time travel are unit-flag code."
+      }
     },
     "Modules/CircularDependency.cs": {
       "defaultTests": [
@@ -226,7 +251,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 87, "guard": 21 },
+      "justifications": {
+        "unit": "Unit tests cover module registration, mocked modules and time control; left uncovered are the Configure and WithMockedModule/WithService callback bodies and the EnsureBuilt rebuild branch, which run only when a test builds a provider with those options.",
+        "guard": "Only the null and argument checks of the fluent With* methods are guard-reachable; building the provider and running module code is unit-flag code."
+      }
     },
     "Mutations/MutationKillerAttribute.cs": {
       "defaultTests": [
@@ -245,22 +275,6 @@
       "reason": "Default: assume testable with mocks"
     },
     "Sagas/SagaSpecification.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Time/FakeTimeProvider.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
-    },
-    "Time/FakeTimer.cs": {
       "defaultTests": [
         "unit",
         "guard"

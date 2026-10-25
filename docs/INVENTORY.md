@@ -3332,7 +3332,7 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 | ~~#430~~ | ~~Verify Snapshot Testing~~ | ~~Snapshot/approval testing para responses complejas~~ | ✅ Completo |
 | ~~#431~~ | ~~Bogus Generators~~ | ~~Generación de datos realistas con Bogus~~ | ✅ Completo |
 | ~~#432~~ | ~~Architecture Testing~~ | ~~Implementado como Encina.Testing.Architecture~~ | ✅ Completo |
-| ~~#433~~ | ~~FakeTimeProvider~~ | ~~Control de tiempo en tests (.NET 8+ TimeProvider)~~ | ✅ Completo |
+| ~~#433~~ | ~~FakeTimeProvider~~ | ~~Control de tiempo en tests (.NET 8+ TimeProvider)~~ | ✅ Completo (reloj propio sustituido por el de Microsoft en #2774) |
 | ~~#434~~ | ~~BDD Specifications~~ | ~~Implementado como HandlerSpecification, SagaSpecification, Scenario~~ | ✅ Completo |
 | ~~#435~~ | ~~FsCheck Extensions~~ | ~~Property-based testing con arbitraries Encina~~ | ✅ Completo |
 | ~~#436~~ | ~~Pact Contract Testing~~ | ~~Consumer-Driven Contracts para microservicios~~ | ✅ Completo |
@@ -3438,12 +3438,10 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 
 **#433 - FakeTimeProvider** ✅ **COMPLETADO**:
 
-- `FakeTimeProvider : TimeProvider` (.NET 8+ compatible)
-- `SetUtcNow()`, `Advance()`, `AdvanceToNextDay()`, `AdvanceToNextHour()`
-- `AdvanceMinutes()`, `AdvanceSeconds()` convenience methods
-- Timer support via `FakeTimer` para scheduled operations
-- `Freeze()` scope para tests de tiempo aislados
-- Integración con `EncinaFixture` (auto-inject)
+- Implementación original propia (en `Encina.Testing`: `FakeTimeProvider`, `FakeTimer`, `FrozenTimeScope` con `Freeze()`, `AdvanceMinutes()`, etc.) **eliminada en #2774**: ahora se usa `Microsoft.Extensions.Time.Testing.FakeTimeProvider` (paquete `Microsoft.Extensions.TimeProvider.Testing`, dependencia de `Encina.Testing`), sin alias
+- API vigente: `SetUtcNow()`, `Advance(TimeSpan)`, `SetLocalTimeZone(TimeZoneInfo)`; los timers los gestiona el propio reloj de Microsoft
+- Los helpers de `Encina.Testing` (`EncinaTestFixture`, `EncinaTestContext`, `ModuleTestFixture`, `Outbox/Inbox/Saga/SchedulingTestHelper`) exponen y registran el reloj de Microsoft; `AdvanceTimeBy*()` y `SetTimeTo()` se mantienen
+- Convención: [guía de testing](en/guides/TESTING.md#testing-time)
 - Uso de `TimeProvider` en todo código time-dependent de Encina — **completado via #543**: ~205 ocurrencias de `DateTime.UtcNow` reemplazadas en ~112 archivos con inyección de `TimeProvider`
 - **Ubicación**: `Encina.Testing` (core package)
 - **Inspiración**: [.NET 8 TimeProvider](https://learn.microsoft.com/en-us/dotnet/api/system.timeprovider)

@@ -2,7 +2,7 @@ using System.Text.Json;
 using Encina.Messaging.Outbox;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
-using Encina.Testing.Time;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.Testing.Messaging;
 
@@ -49,7 +49,7 @@ public sealed class OutboxTestHelper : IDisposable
     /// Initializes a new instance of the <see cref="OutboxTestHelper"/> class.
     /// </summary>
     public OutboxTestHelper()
-        : this(new FakeOutboxStore(), new FakeTimeProvider())
+        : this(new FakeOutboxStore(), new FakeTimeProvider(System.TimeProvider.System.GetUtcNow()))
     {
     }
 
@@ -579,7 +579,7 @@ public sealed class OutboxTestHelper : IDisposable
     /// <returns>This helper for method chaining.</returns>
     public OutboxTestHelper AdvanceTimeByMinutes(int minutes)
     {
-        _timeProvider.AdvanceMinutes(minutes);
+        _timeProvider.Advance(TimeSpan.FromMinutes(minutes));
         return this;
     }
 

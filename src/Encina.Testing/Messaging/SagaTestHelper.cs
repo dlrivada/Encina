@@ -2,8 +2,8 @@ using System.Text.Json;
 using Encina.Messaging.Sagas;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
-using Encina.Testing.Time;
 using LanguageExt;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.Testing.Messaging;
 
@@ -49,7 +49,7 @@ public sealed class SagaTestHelper : IDisposable
     /// Initializes a new instance of the <see cref="SagaTestHelper"/> class.
     /// </summary>
     public SagaTestHelper()
-        : this(new FakeSagaStore(), new FakeTimeProvider())
+        : this(new FakeSagaStore(), new FakeTimeProvider(System.TimeProvider.System.GetUtcNow()))
     {
     }
 

@@ -1,9 +1,9 @@
 using Encina.DistributedLock;
 using Encina.DistributedLock.InMemory;
-using Encina.Testing.Time;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.UnitTests.DistributedLock;
 

@@ -291,7 +291,7 @@ The `TierTransitionScheduler` is a `BackgroundService` that runs on a configurab
 
 - The scheduler never crashes. Exceptions are caught, logged, and retried on the next tick
 - Each transition is independent: a failure in one shard does not block others
-- The scheduler uses `TimeProvider` for testability (inject `FakeTimeProvider` in tests)
+- The scheduler uses `TimeProvider` for testability (inject `Microsoft.Extensions.Time.Testing.FakeTimeProvider` in tests)
 - Scoped dependencies are resolved fresh on each tick for database context compatibility
 
 **Example log output**:
