@@ -13,11 +13,13 @@ namespace Encina.UnitTests.Tenancy.AspNetCore;
 /// <summary>
 /// UseEncinaContext() followed by UseTenantResolution() on a real pipeline (#2686): the verified claim
 /// wins over the tenant header, and a header that disagrees is answered 403, never the header's tenant.
+/// The two layers have independent opt-ins (<c>HeaderResolver.TrustAnyPeer</c> of Encina.Tenancy.AspNetCore and
+/// <c>EncinaAspNetCoreOptions.TrustTenantIdHeader</c>); each case configures both the same way.
 /// </summary>
 public sealed class TenantHeaderWithEncinaContextPipelineTests
 {
     private static async Task<(HttpStatusCode Status, string? Tenant)> SendAsync(
-        string? claimTenant, string? headerTenant, bool trustEncinaContextHeader)
+        string? claimTenant, string? headerTenant, bool trustHeader)
     {
         string? seenTenant = null;
         using var host = await new HostBuilder()
@@ -28,12 +30,16 @@ public sealed class TenantHeaderWithEncinaContextPipelineTests
                 {
                     services.AddLogging();
                     services.AddEncina();
-                    services.AddEncinaAspNetCore(options => options.TrustTenantIdHeader = trustEncinaContextHeader);
-                    services.AddEncinaTenancy(options => options.ValidateTenantOnRequest = false);
+                    services.AddEncinaAspNetCore(options => options.TrustTenantIdHeader = trustHeader);
+                    services.AddEncinaTenancy(options =>
+                    {
+                        options.ValidateTenantOnRequest = false;
+                        options.RequireTenant = false;
+                    });
                     services.AddEncinaTenancyAspNetCore(options =>
                     {
-                        options.HeaderResolver.Enabled = true;
-                        options.HeaderResolver.TrustAnyPeer = true;
+                        options.HeaderResolver.Enabled = trustHeader;
+                        options.HeaderResolver.TrustAnyPeer = trustHeader;
                     });
                 });
                 web.Configure(app =>
@@ -73,9 +79,9 @@ public sealed class TenantHeaderWithEncinaContextPipelineTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ClaimAWithHeaderB_IsAnswered403_AndNeverRunsAsB(bool trustEncinaContextHeader)
+    public async Task ClaimAWithHeaderB_IsAnswered403_AndNeverRunsAsB(bool trustHeader)
     {
-        var (status, tenant) = await SendAsync("tenant-a", "tenant-b", trustEncinaContextHeader);
+        var (status, tenant) = await SendAsync("tenant-a", "tenant-b", trustHeader);
 
         status.ShouldBe(HttpStatusCode.Forbidden);
         tenant.ShouldBeNull();
@@ -84,7 +90,7 @@ public sealed class TenantHeaderWithEncinaContextPipelineTests
     [Fact]
     public async Task ClaimAWithHeaderA_RunsAsA()
     {
-        var (status, tenant) = await SendAsync("tenant-a", "tenant-a", trustEncinaContextHeader: true);
+        var (status, tenant) = await SendAsync("tenant-a", "tenant-a", trustHeader: true);
 
         status.ShouldBe(HttpStatusCode.OK);
         tenant.ShouldBe("tenant-a");
@@ -93,9 +99,27 @@ public sealed class TenantHeaderWithEncinaContextPipelineTests
     [Fact]
     public async Task ClaimAWithoutHeader_RunsAsA()
     {
-        var (status, tenant) = await SendAsync("tenant-a", null, trustEncinaContextHeader: false);
+        var (status, tenant) = await SendAsync("tenant-a", null, trustHeader: false);
 
         status.ShouldBe(HttpStatusCode.OK);
         tenant.ShouldBe("tenant-a");
+    }
+
+    [Fact]
+    public async Task NoClaimWithTrustedHeaderInBothLayers_RunsAsTheHeaderTenant()
+    {
+        var (status, tenant) = await SendAsync(null, "tenant-b", trustHeader: true);
+
+        status.ShouldBe(HttpStatusCode.OK);
+        tenant.ShouldBe("tenant-b");
+    }
+
+    [Fact]
+    public async Task NoClaimWithHeaderDisabledInBothLayers_NeverReachesTheContext()
+    {
+        var (status, tenant) = await SendAsync(null, "tenant-b", trustHeader: false);
+
+        status.ShouldBe(HttpStatusCode.OK);
+        tenant.ShouldBeNull();
     }
 }

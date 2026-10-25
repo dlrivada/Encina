@@ -68,6 +68,11 @@ public static class HttpContextInboundRequestExtensions
     ///         // One scope per event: the identity ends with the event.
     ///         var result = await scopes.RunInboundAsync(info, (_, token) => encina.Send(new NextEvent(tick), token).AsTask(), ct);
     ///         // A Left with RequestIdentityErrorCodes.InboundTenantConflict means the tenant is ambiguous: stop the stream.
+    ///         if (result.IsLeft)
+    ///         {
+    ///             return;
+    ///         }
+    ///
     ///         await context.Response.WriteAsync($"data: {result.IsRight}\n\n", ct);
     ///     }
     /// });

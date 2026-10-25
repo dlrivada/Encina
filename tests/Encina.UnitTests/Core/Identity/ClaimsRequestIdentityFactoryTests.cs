@@ -247,6 +247,27 @@ public sealed class ClaimsRequestIdentityFactoryTests
     }
 
     [Fact]
+    public void ResolveTenantId_TwoDifferentTenantClaimsInOneIdentity_IsNull_AndTryResolveReportsAConflict()
+    {
+        var principal = Authenticated(new Claim("sub", "alice"), new Claim("tenant_id", "t1"), new Claim("tenant_id", "t2"));
+        var factory = CreateFactory();
+
+        factory.ResolveTenantId(principal).ShouldBeNull();
+        factory.TryResolveTenantId(principal, out var tenantId).ShouldBeFalse();
+        tenantId.ShouldBeNull();
+        factory.Create(principal).ShouldBeSameAs(RequestIdentity.Anonymous);
+    }
+
+    [Fact]
+    public void ResolveTenantId_RepeatedSameTenantClaim_IsNotAConflict()
+    {
+        var principal = Authenticated(new Claim("sub", "alice"), new Claim("tenant_id", "t1"), new Claim("tenant_id", "t1"));
+
+        CreateFactory().TryResolveTenantId(principal, out var tenantId).ShouldBeTrue();
+        tenantId.ShouldBe("t1");
+    }
+
+    [Fact]
     public void ResolveTenantId_IsNull_ForNullOrUnauthenticatedPrincipals()
     {
         var factory = CreateFactory();

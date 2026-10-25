@@ -222,6 +222,27 @@ public sealed class AspNetCoreGuardTests
             DPIAEndpointExtensions.MapDPIAEndpoints(null!));
     }
 
+    [Fact]
+    public void MapDPIAEndpoints_NullPrefix_Throws()
+    {
+        var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder();
+        using var app = builder.Build();
+
+        Should.Throw<ArgumentNullException>(() =>
+            DPIAEndpointExtensions.MapDPIAEndpoints(app, null!));
+    }
+
+    [Fact]
+    public void MapDPIAEndpoints_ValidArguments_ReturnsTheGroup()
+    {
+        var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder();
+        using var app = builder.Build();
+
+        var group = DPIAEndpointExtensions.MapDPIAEndpoints(app, "/custom/dpia");
+
+        group.ShouldNotBeNull();
+    }
+
     // ─── ServiceCollectionExtensions ───
 
     [Fact]
