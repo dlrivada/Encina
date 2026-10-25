@@ -64,9 +64,13 @@ public class AesGcmFailureHandlingTests
         error.Message.ShouldBe(expected.Message);
         error.GetDetails().Keys.OrderBy(k => k).ShouldBe(expected.GetDetails().Keys.OrderBy(k => k));
         error.GetDetails().ShouldNotContainKey("keyId");
-        error.Exception.IsNone.ShouldBeTrue();
+        ShouldCarryNoInnerException(error);
         error.Message.ShouldNotContain(KeyId);
     }
+
+    // EncinaError.Exception is always the EncinaException wrapper; "no exception" means no inner cause.
+    private static void ShouldCarryNoInnerException(EncinaError error) =>
+        error.Exception.Match(ex => ex.InnerException.ShouldBeNull(), () => { });
 
     private static void ShouldBeKeyNotFound(EncinaError error)
     {
@@ -263,6 +267,39 @@ public class AesGcmFailureHandlingTests
         ShouldBeKeyNotFound(Left(await sut.DetokenizeAsync(token)));
         ShouldBeKeyNotFound(Left(await sut.TokenizeAsync(
             "another-value", new TokenizationOptions { Format = TokenFormat.Uuid })));
+    }
+
+    [Fact]
+    public async Task Depseudonymize_NullProperty_IsLeftUnchanged()
+    {
+        var sut = new DefaultPseudonymizer(KeyProvider(GoodKey));
+
+        var result = await sut.DepseudonymizeAsync(new Person { Name = null }, KeyId);
+
+        result.IsRight.ShouldBeTrue();
+        result.Match(Right: p => p.Name is null, Left: _ => false).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task PseudonymizeValue_UnsupportedAlgorithm_ReturnsPseudonymizationFailed()
+    {
+        var sut = new DefaultPseudonymizer(KeyProvider(GoodKey));
+
+        var error = Left(await sut.PseudonymizeValueAsync(Secret, KeyId, (PseudonymizationAlgorithm)99));
+
+        error.GetCode().Match(
+            Some: code => code.ShouldBe(AnonymizationErrors.PseudonymizationFailedCode),
+            None: () => Assert.Fail("Expected error code"));
+    }
+
+    [Fact]
+    public async Task Tokenize_UnknownFormat_FallsBackToUuid()
+    {
+        var sut = new DefaultTokenizer(new InMemoryTokenMappingStore(), KeyProvider(GoodKey));
+
+        var result = await sut.TokenizeAsync(Secret, new TokenizationOptions { Format = (TokenFormat)99 });
+
+        Guid.TryParse(result.Match(Right: t => t, Left: _ => string.Empty), out _).ShouldBeTrue();
     }
 
     [Fact]

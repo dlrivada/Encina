@@ -116,7 +116,7 @@ public class AnonymizationErrorsTests
     public void DecryptionFailed_ShouldCarryNoKeyIdAndNoException()
     {
         var error = AnonymizationErrors.DecryptionFailed();
-        error.Exception.IsNone.ShouldBeTrue();
+        error.Exception.Match(ex => ex.InnerException.ShouldBeNull(), () => { });
         error.GetDetails().ShouldNotContainKey("keyId");
     }
 
