@@ -6,7 +6,7 @@ nav_exclude: true
 
 This page is for the maintainer, who has to decide which guards stop personal data from reaching storage in plaintext around crypto-shredding, and for a contributor who needs the evidence. It consolidates the #1770 investigation (posted as an issue comment on 2026-10-17 at `ad6986bb3`), re-verifies it against `origin/main` at `af3742f54` on 2026-10-25, separates what a rule already settles from what is a real choice, and lists the dilemmas with a recommendation each. The recommendations are input, not decisions: [#2465](https://github.com/dlrivada/Encina/issues/2465) stays open until the maintainer decides, and the decisions then become an ADR that amends [ADR-034](../architecture/adr/034-crypto-shredding-through-the-stj-contract.md).
 
-**Status:** evidence re-verified on 2026-10-25. **Issues:** [#1770](https://github.com/dlrivada/Encina/issues/1770) (investigation), [#2465](https://github.com/dlrivada/Encina/issues/2465) (decision record). **Decision register:** `artifacts/decisions/1770.md` (36 entries, local working file).
+**Status:** evidence re-verified on 2026-10-25. **Issues:** [#1770](https://github.com/dlrivada/Encina/issues/1770) (investigation), [#2465](https://github.com/dlrivada/Encina/issues/2465) (decision record). **Decision register:** `artifacts/decisions/1770.md` (36 entries, a local working file of the orchestration, not in the repository; the D-keys in section 6 refer to it).
 
 Pre-1.0, backward compatibility is not a criterion ([AGENTS.md](../../AGENTS.md) section 1). Nothing in the investigation was run end to end: every Marten finding comes from reading the decompiled Marten 9.38.0 assemblies (the version pinned in `Directory.Packages.props:53`). The proof-of-concept tests of [#2463](https://github.com/dlrivada/Encina/issues/2463) would turn each finding into a failing test.
 
@@ -64,7 +64,7 @@ Severity scale of the #1770 report: **High** personal data stored in plaintext o
 
 | Claim | What the evidence shows |
 | --- | --- |
-| #1770 context: "`StoreOptions.Storage` exposes no public enumeration of all document mappings" | Marten 9.38 exposes `IReadOnlyStoreOptions.AllKnownDocumentTypes()` and `IDocumentType.DuplicatedFields`, `IdMember` and `Indexes` (report, row 2; the names are present in the local `Marten.dll`, visibility not re-checked here). A startup guard for rows 2 and 3 is feasible |
+| #1770 context: "`StoreOptions.Storage` exposes no public enumeration of all document mappings" | Marten 9.38 exposes `IReadOnlyStoreOptions.AllKnownDocumentTypes()` and `IDocumentType.DuplicatedFields`, `IdMember` and `Indexes` (report, row 2; the names are present in the local `Marten.dll`, visibility not re-checked here). If they are public, as the decompiled code indicates, a startup guard for rows 2 and 3 is feasible; #2463 and #2455 confirm it |
 | #2465 comment of 2026-10-17: "Settled by elimination ... A + B + C together; D, E, F rejected" | Written by an agent, not by the maintainer; the same comment sits on #2455, #2456, #2457, #2461 and #2462. Only E is excluded by a rule (as the sole answer, below). The reasons given against D and F are reliability and trade-off arguments from code reading, so they return to the maintainer as dilemmas. The same pattern was overturned for #2414 |
 
 ## 3. What others do
@@ -85,22 +85,22 @@ Severity scale of the #1770 report: **High** personal data stored in plaintext o
 
 ## 5. Settled points
 
-These are not dilemmas; each has a citation and the ADR records them without reopening them. The full register is `artifacts/decisions/1770.md`.
+These are not dilemmas; each has a citation and the ADR records them without reopening them. The full register is `artifacts/decisions/1770.md`. The rows that rest on INV-005 apply it to behaviour Encina's own code performs (its startup gate, its header writer, its outbox serializer): writing `[CryptoShredded]` plaintext there is a compliance-relevant behaviour that does not fail closed, so documentation alone would not satisfy the invariant. That reading is the spike's; the maintainer can veto it, which would turn those rows into dilemmas.
 
 | Point | Settled by |
 | --- | --- |
 | A confirmed plaintext path that Encina can detect (a duplicated field or an identity member over `[CryptoShredded]` data, rows 2 and 3) fails the startup instead of being documented; the only exit is an explicit, logged opt-out | SPEC-002 DEC-006 and INV-005 (`SPEC-002-eu-regulatory-readiness.md:514`), [AGENTS.md](../../AGENTS.md) section 3 (compliance and security gates fail closed); precedent: ADR-034's single classifier rejects every shape that would store plaintext. This reverses ADR-034 line 47 for these paths, which pre-dates the finding that enumeration is possible |
-| The enumeration uses Marten's public API (`AllKnownDocumentTypes()`, `IDocumentType`), never reflection into internals | The #1770 option text ("a supported way") |
+| The enumeration uses Marten's public API (`AllKnownDocumentTypes()`, `IDocumentType`, public according to the decompiled code, to be confirmed by #2455), never reflection into internals | The #1770 option text ("a supported way") |
 | Document types not known at startup are caught by a flag in the shared classifier, so the runtime modifier rejects them at first use | ADR-034 (one classifier used by the modifier, the startup validator and the health check); INV-005 |
 | A header guard exists: Encina's own `EventMetadataEnrichmentService` must not write `[CryptoShredded]` plaintext into headers | INV-005, DEC-006; the code that writes headers is Encina's (`EventMetadataEnrichmentService.cs:95-114`) |
 | The header guard hook lives in `Encina.Marten` and its implementation in `Encina.Marten.GDPR` | `Encina.Marten.GDPR.csproj:12` references `Encina.Marten`, so the reverse is a project cycle; AGENTS.md section 1 (opt-in) |
-| The header guard runs outside the enricher `try/catch` (`EventMetadataEnrichmentService.cs:144-148`), so a rejection fails the append and is never swallowed; it reports the header key and an error code only | AGENTS.md section 3 (errors never swallowed, `EncinaError.Message` never logged, ROP) |
+| The header guard runs outside the enricher `try/catch` (today `EventMetadataEnrichmentService.cs:144-148` catches enricher exceptions, logs them and continues), so a rejection fails the append and is never swallowed; it reports the header key and an error code only | AGENTS.md section 3 (errors never swallowed, `EncinaError.Message` never logged, ROP) |
 | A messaging guard exists: the outbox must not store a domain event that reaches a `[CryptoShredded]` owner in plaintext | INV-005, DEC-006; `OutboxWriter.cs:63` |
 | `Encina.Messaging` never references the GDPR attribute | Project cycle (`Encina.Marten.GDPR.csproj:12`, `Encina.Marten.csproj:31`); AGENTS.md section 3 (no provider-specific code in abstractions) |
 | The messaging guard needs no per-database implementation | It sits on `IMessageSerializer`, which is provider independent; AGENTS.md section 5 |
 | Documentation is never the sole answer for the Encina-owned guardable paths (rows 2, 3, 10, 15), and it is always required for whatever stays residual, stating partial coverage as partial | INV-005; INV-002 (`SPEC-002:511`) |
 | Scope is Marten on PostgreSQL only | SPEC-002 DEC-008 (event-sourced compliance modules are Marten-only in 1.0); AGENTS.md section 5 |
-| Rows 11, 12, 14, 16 and the cached-results note stay on their existing issues (#2423, #2433, #1191) | AGENTS.md section 11 |
+| Rows 11, 12, 14 and 16 stay on their existing issues (#2423, #2433, #1191); cached query results that hold decrypted data and survive erasure until their TTL (adjacent to #1770, not investigated) need their own issue | AGENTS.md section 11 |
 | Proof-of-concept tests (#2463) come before the guards, so each guard has a failing test first | AGENTS.md section 9 (tests first) |
 | New log messages need an EventId range check first: `Encina.Marten.GDPR` owns 8450-8499 and uses up to 8484 | AGENTS.md section 7 |
 
