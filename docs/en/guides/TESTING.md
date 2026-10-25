@@ -122,7 +122,7 @@ clock.SetLocalTimeZone(TimeZoneInfo.Utc);            // choose the zone for GetL
 
 ### Timer callbacks must not throw
 
-Microsoft's clock stops firing every timer after one callback throws. Therefore:
+In `Microsoft.Extensions.TimeProvider.Testing` 10.5.0 and 10.11.0 the clock stopped firing every timer after one callback threw. This is behaviour observed during the #2774 spike, not a guarantee of Microsoft's documentation (the package's XML docs do not mention it). Encina keeps the following convention because of it:
 
 - Timer callbacks in code under test must not throw.
 - Tests never swallow exceptions thrown from `Advance`; do not wrap the clock in a type that catches them.
@@ -138,7 +138,7 @@ await clock.WaitForTimersAsync(1, TestContext.Current.CancellationToken);
 clock.Advance(TimeSpan.FromMinutes(1));
 ```
 
-`WaitForTimersAsync(count, cancellationToken)` waits until `count` timers have been created on the clock. It is bounded to five seconds and then throws `TimeoutException` with the message "expected N timers, saw M".
+`WaitForTimersAsync(count, cancellationToken)` waits until `count` timers have been created on the clock since the previous wait. It is bounded to five seconds and then throws `TimeoutException` with the message "expected N timers, saw M". Signals accumulate for timers created between waits, so a timer created earlier can satisfy a later `WaitForTimersAsync` call; signals consumed before a timeout are lost.
 
 For the worked example of injecting the clock into a component, see [Audit tracking: testing](../../features/audit-tracking.md#testing).
 
