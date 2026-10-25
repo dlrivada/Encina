@@ -1,0 +1,37 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.402
+  [Host]   : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v4
+
+Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+
+```
+| Method                                                | ShardCount | ItemsPerShard | Mean         | Error        | StdDev      | Ratio | RatioSD | Rank | Gen0   | Gen1   | Allocated | Alloc Ratio |
+|------------------------------------------------------ |----------- |-------------- |-------------:|-------------:|------------:|------:|--------:|-----:|-------:|-------:|----------:|------------:|
+| **&#39;MergeAndOrder with ascending ordering&#39;**               | **3**          | **10**            |  **82,557.8 ns** | **92,923.62 ns** | **5,093.46 ns** | **1.002** |    **0.07** |    **2** | **0.3662** | **0.2441** |    **6535 B** |        **1.00** |
+| &#39;MergeAndOrder without ordering&#39;                      | 3          | 10            |     253.3 ns |     23.95 ns |     1.31 ns | 0.003 |    0.00 |    1 | 0.0224 |      - |     376 B |        0.06 |
+| &#39;MergeOrderAndPaginate overfetch (page 1, size 20)&#39;   | 3          | 10            |  80,930.7 ns |  5,526.90 ns |   302.95 ns | 0.983 |    0.05 |    2 | 0.3662 | 0.2441 |    6845 B |        1.05 |
+| &#39;MergeOrderAndPaginate large page (page 2, size 100)&#39; | 3          | 10            |  78,513.9 ns | 10,967.19 ns |   601.15 ns | 0.953 |    0.05 |    2 | 0.3662 | 0.2441 |    6535 B |        1.00 |
+| &#39;MergeAndOrder with descending ordering&#39;              | 3          | 10            |  80,186.2 ns |  4,823.23 ns |   264.38 ns | 0.974 |    0.05 |    2 | 0.3662 | 0.2441 |    6535 B |        1.00 |
+|                                                       |            |               |              |              |             |       |         |      |        |        |           |             |
+| **&#39;MergeAndOrder with ascending ordering&#39;**               | **3**          | **100**           | **115,022.5 ns** | **28,289.88 ns** | **1,550.66 ns** | **1.000** |    **0.02** |    **2** | **1.3428** | **1.2207** |   **22736 B** |        **1.00** |
+| &#39;MergeAndOrder without ordering&#39;                      | 3          | 100           |     368.9 ns |     57.35 ns |     3.14 ns | 0.003 |    0.00 |    1 | 0.1512 | 0.0010 |    2536 B |        0.11 |
+| &#39;MergeOrderAndPaginate overfetch (page 1, size 20)&#39;   | 3          | 100           | 117,235.2 ns | 47,444.25 ns | 2,600.58 ns | 1.019 |    0.02 |    2 | 1.3428 | 1.2207 |   23047 B |        1.01 |
+| &#39;MergeOrderAndPaginate large page (page 2, size 100)&#39; | 3          | 100           | 115,560.3 ns |  1,517.17 ns |    83.16 ns | 1.005 |    0.01 |    2 | 1.3428 | 1.2207 |   23687 B |        1.04 |
+| &#39;MergeAndOrder with descending ordering&#39;              | 3          | 100           | 124,784.6 ns |  8,418.70 ns |   461.46 ns | 1.085 |    0.01 |    2 | 1.2207 | 0.9766 |   22734 B |        1.00 |
+|                                                       |            |               |              |              |             |       |         |      |        |        |           |             |
+| **&#39;MergeAndOrder with ascending ordering&#39;**               | **25**         | **10**            | **103,974.0 ns** |  **4,923.83 ns** |   **269.89 ns** |  **1.00** |    **0.00** |    **2** | **1.0986** | **0.9766** |   **19734 B** |        **1.00** |
+| &#39;MergeAndOrder without ordering&#39;                      | 25         | 10            |   1,202.6 ns |    182.74 ns |    10.02 ns |  0.01 |    0.00 |    1 | 0.1259 |      - |    2136 B |        0.11 |
+| &#39;MergeOrderAndPaginate overfetch (page 1, size 20)&#39;   | 25         | 10            | 105,750.5 ns |  1,997.64 ns |   109.50 ns |  1.02 |    0.00 |    2 | 1.0986 | 0.9766 |   20046 B |        1.02 |
+| &#39;MergeOrderAndPaginate large page (page 2, size 100)&#39; | 25         | 10            | 107,618.4 ns |  6,386.28 ns |   350.05 ns |  1.04 |    0.00 |    2 | 1.2207 | 1.0986 |   20688 B |        1.05 |
+| &#39;MergeAndOrder with descending ordering&#39;              | 25         | 10            | 115,048.8 ns |  5,474.63 ns |   300.08 ns |  1.11 |    0.00 |    2 | 1.0986 | 0.9766 |   19734 B |        1.00 |
+|                                                       |            |               |              |              |             |       |         |      |        |        |           |             |
+| **&#39;MergeAndOrder with ascending ordering&#39;**               | **25**         | **100**           | **496,564.9 ns** | **37,599.67 ns** | **2,060.96 ns** | **1.000** |    **0.01** |    **2** | **8.7891** | **3.9063** |  **154727 B** |        **1.00** |
+| &#39;MergeAndOrder without ordering&#39;                      | 25         | 100           |   1,950.7 ns |    578.55 ns |    31.71 ns | 0.004 |    0.00 |    1 | 1.2016 | 0.0763 |   20136 B |        0.13 |
+| &#39;MergeOrderAndPaginate overfetch (page 1, size 20)&#39;   | 25         | 100           | 502,416.3 ns | 19,495.79 ns | 1,068.63 ns | 1.012 |    0.00 |    2 | 8.7891 | 3.9063 |  155039 B |        1.00 |
+| &#39;MergeOrderAndPaginate large page (page 2, size 100)&#39; | 25         | 100           | 500,392.4 ns | 25,875.14 ns | 1,418.30 ns | 1.008 |    0.00 |    2 | 8.7891 | 3.9063 |  155679 B |        1.01 |
+| &#39;MergeAndOrder with descending ordering&#39;              | 25         | 100           | 731,605.1 ns | 80,221.00 ns | 4,397.18 ns | 1.473 |    0.01 |    3 | 8.7891 | 3.9063 |  154727 B |        1.00 |
