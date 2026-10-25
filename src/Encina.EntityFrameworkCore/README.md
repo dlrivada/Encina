@@ -502,9 +502,9 @@ public class OrderPlacedEventHandler : INotificationHandler<OrderPlacedEvent>
 When publishing an event fails (a `Left` from `IEncina.Publish` or an exception from a handler):
 
 - With `StopOnFirstError = false`: the failure is only logged (event type and event id, plus the error code for a failed publish, or the sanitized exception for a handler exception) and the remaining events are still published. No exception reaches the caller.
-- With `StopOnFirstError = true`: dispatching stops at the first failure, the remaining events are skipped and `DomainEventDispatchException` is thrown from `SavedChangesAsync`, so it surfaces from `SaveChangesAsync`. Events are not cleared from the entities in that case.
+- With `StopOnFirstError = true`: dispatching stops at the first failure, the remaining events are skipped and `DomainEventDispatchException` is thrown from the interceptor's `SavedChanges` and `SavedChangesAsync` overrides, so it surfaces from both `SaveChanges` and `SaveChangesAsync`. Events are not cleared from the entities in that case.
 
-`DomainEventDispatchException` is thrown **after** `SaveChanges` has persisted the changes, because events are dispatched from `SavedChangesAsync`. Without an explicit transaction the data is already committed when you catch it. Inside an explicit transaction (the one `TransactionPipelineBehavior` or `UnitOfWorkEF` opened) it is not committed yet and the transaction can still roll back; the events already published are not recalled. The exception describes a single failed event; there is no dispatch result and no collected list of errors.
+`DomainEventDispatchException` is thrown **after** `SaveChanges` has persisted the changes, because events are dispatched from `SavedChanges` (synchronous) and `SavedChangesAsync`. Without an explicit transaction the data is already committed when you catch it. Inside an explicit transaction (the one `TransactionPipelineBehavior` or `UnitOfWorkEF` opened) it is not committed yet and the transaction can still roll back; the events already published are not recalled. The exception describes a single failed event; there is no dispatch result and no collected list of errors.
 
 ```csharp
 try
