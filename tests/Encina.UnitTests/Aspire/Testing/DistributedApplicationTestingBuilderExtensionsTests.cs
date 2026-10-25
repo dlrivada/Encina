@@ -12,14 +12,10 @@ namespace Encina.UnitTests.Aspire.Testing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// These tests validate the null-check behavior of the extension method.
-/// Full integration testing of WithEncinaTestSupport requires a real
-/// IDistributedApplicationTestingBuilder which is only available through
-/// DistributedApplicationTestingBuilder.CreateAsync() and requires an actual AppHost project.
-/// </para>
-/// <para>
-/// The core registration logic is tested through EncinaFakesServiceCollectionExtensions tests,
-/// as WithEncinaTestSupport delegates to AddEncinaFakes() for service registration.
+/// These tests validate the null-check behavior of the extension method and the
+/// registrations it delegates to. The registration and second-call paths of WithEncinaTestSupport
+/// itself are run in <see cref="WithEncinaTestSupportRegistrationTests"/>, against a hand-written
+/// IDistributedApplicationTestingBuilder double (a real DistributedApplicationTestingBuilder needs an AppHost project).
 /// </para>
 /// </remarks>
 public sealed class DistributedApplicationTestingBuilderExtensionsTests
