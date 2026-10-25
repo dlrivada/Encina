@@ -126,7 +126,7 @@ public sealed class AmazonSQSPublisherIntegrationTests : IAsyncLifetime
 
     // The batch result is not asserted here: with the AWS SDK v4 response, Failed is null when no entry
     // failed, so CollectMessageIds throws and SendBatchAsync returns SQS_BATCH_SEND_FAILED after the
-    // messages were delivered. #2799 tracks it; the test below pins the result.
+    // messages were delivered. #2799 tracks it; the result assertion is in the skipped test below, pending #2799.
     [Fact]
     public async Task SendBatchAsync_DeliversEveryMessageWithItsType()
     {

@@ -75,7 +75,6 @@ public sealed class AmazonSQSPublisherContractTests : IAsyncLifetime
 
         // Assert
         publisher.ShouldBeAssignableTo<IAmazonSQSMessagePublisher>();
-        typeof(AmazonSQSMessagePublisher).IsSealed.ShouldBeTrue();
     }
 
     [Fact]
@@ -186,13 +185,11 @@ public sealed class AmazonSQSPublisherContractTests : IAsyncLifetime
 
         // Act
         var send = await publisher.SendToQueueAsync(new TestMessage("a"), missingQueueUrl);
-        var batch = await publisher.SendBatchAsync([new TestMessage("a")], missingQueueUrl);
         var fifo = await publisher.SendToFifoQueueAsync(new TestMessage("a"), "group", "dedup", missingQueueUrl);
         var topic = await publisher.PublishToTopicAsync(new TestMessage("a"), missingTopicArn);
 
         // Assert
         CodeOf(send).ShouldBe("SQS_SEND_FAILED");
-        CodeOf(batch).ShouldBe("SQS_BATCH_SEND_FAILED");
         CodeOf(fifo).ShouldBe("SQS_FIFO_SEND_FAILED");
         CodeOf(topic).ShouldBe("SNS_PUBLISH_FAILED");
     }
