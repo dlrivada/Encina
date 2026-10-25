@@ -336,7 +336,8 @@ result.Match(
 
 ```csharp
 // Use InMemoryAISystemRegistry for unit tests
-// FakeTimeProvider: Microsoft.Extensions.Time.Testing (package Microsoft.Extensions.TimeProvider.Testing)
+// FakeTimeProvider comes from package Microsoft.Extensions.TimeProvider.Testing
+// using Microsoft.Extensions.Time.Testing;
 var registry = new InMemoryAISystemRegistry(new FakeTimeProvider());
 await registry.RegisterSystemAsync(new AISystemRegistration
 {
