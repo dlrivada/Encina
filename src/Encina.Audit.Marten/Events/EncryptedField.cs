@@ -38,6 +38,10 @@ public sealed record EncryptedField
     /// </summary>
     internal const int TagSizeInBytes = 16;
 
+    private const int KeySizeInBytes = 32;
+
+    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
     private const string EncryptedMarkerPrefix = "{\"__enc\":true";
     private const int FormatVersion = 1;
 
@@ -112,7 +116,13 @@ public sealed record EncryptedField
     /// <param name="keyMaterial">The AES-256 key material (32 bytes) for the temporal period.</param>
     /// <returns>The decrypted plaintext string, or <c>null</c> if the original value was <c>null</c>.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="keyMaterial"/> is null.</exception>
-    /// <exception cref="CryptographicException">Thrown when the ciphertext is tampered or the key is incorrect.</exception>
+    /// <exception cref="EncryptedFieldDecryptionException">
+    /// Thrown (it derives from <see cref="CryptographicException"/>) for every stored-value or key failure: the
+    /// ciphertext or tag is tampered, the key is incorrect or not 32 bytes, the nonce or tag has the wrong size,
+    /// the envelope is malformed, or the value carries no <c>__enc</c> marker. The message is fixed and never
+    /// includes the envelope, a key identifier, plaintext or the message of the underlying exception. Recovery
+    /// steps: <c>docs/features/audit-marten.md</c>, section "Recover from an unreadable audit event".
+    /// </exception>
     /// <example>
     /// <code>
     /// var decrypted = encryptedField.Decrypt(keyMaterial);
@@ -128,16 +138,21 @@ public sealed record EncryptedField
             return null;
         }
 
-        var parsed = TryParseEnvelope(Value);
-        if (parsed is null)
+        var parsed = ParseEnvelope(Value);
+        ValidateSizes(keyMaterial, parsed);
+
+        var plaintext = new byte[parsed.Ciphertext.Length];
+
+        try
         {
-            return Value; // Not an encrypted envelope, return as-is
+            using var aesGcm = new AesGcm(keyMaterial, TagSizeInBytes);
+            aesGcm.Decrypt(parsed.Nonce, parsed.Ciphertext, parsed.Tag, plaintext);
         }
-
-        var plaintext = new byte[parsed.Value.Ciphertext.Length];
-
-        using var aesGcm = new AesGcm(keyMaterial, TagSizeInBytes);
-        aesGcm.Decrypt(parsed.Value.Nonce, parsed.Value.Ciphertext, parsed.Value.Tag, plaintext);
+        catch (CryptographicException)
+        {
+            // Deliberately drops the cause: its message must never reach the daemon logs (AGENTS.md section 3).
+            throw new EncryptedFieldDecryptionException(EncryptedFieldDecryptionFailureReason.IntegrityCheckFailed);
+        }
 
         return Encoding.UTF8.GetString(plaintext);
     }
@@ -157,10 +172,16 @@ public sealed record EncryptedField
     /// if the original value was <c>null</c>.
     /// </returns>
     /// <remarks>
-    /// This method never throws for missing/destroyed keys — it returns the placeholder instead.
-    /// This is the primary decryption method used by projections, which must handle shredded
-    /// entries gracefully.
+    /// This method returns the placeholder only for a legitimately destroyed key (<c>null</c> key material,
+    /// crypto-shredding). Every other failure to read the stored value (tampered, wrong key, malformed or
+    /// unmarked envelope, wrong sizes) is never reported as erasure: it surfaces as
+    /// <see cref="EncryptedFieldDecryptionException"/> so the projection stops (integrity over availability).
+    /// This is the primary decryption method used by projections. Recovery steps:
+    /// <c>docs/features/audit-marten.md</c>, section "Recover from an unreadable audit event".
     /// </remarks>
+    /// <exception cref="EncryptedFieldDecryptionException">
+    /// Thrown when the key material is present but the stored value cannot be read; see <see cref="Decrypt(byte[])"/>.
+    /// </exception>
     public string? DecryptOrPlaceholder(byte[]? keyMaterial, string shreddedPlaceholder = MartenOperationAuditOptions.DefaultShreddedPlaceholder)
     {
         if (Value is null)
@@ -168,19 +189,7 @@ public sealed record EncryptedField
             return null;
         }
 
-        if (keyMaterial is null)
-        {
-            return shreddedPlaceholder;
-        }
-
-        try
-        {
-            return Decrypt(keyMaterial);
-        }
-        catch (CryptographicException)
-        {
-            return shreddedPlaceholder;
-        }
+        return keyMaterial is null ? shreddedPlaceholder : Decrypt(keyMaterial);
     }
 
     /// <summary>
@@ -213,40 +222,62 @@ public sealed record EncryptedField
     }
 
     /// <summary>
-    /// Attempts to parse a JSON string as an encrypted field envelope.
+    /// Parses a stored value as an encrypted field envelope.
     /// </summary>
-    /// <returns>The parsed components, or <c>null</c> if the string is not a valid envelope.</returns>
-    private static ParsedEnvelope? TryParseEnvelope(string json)
+    /// <returns>The parsed components.</returns>
+    /// <exception cref="EncryptedFieldDecryptionException">
+    /// The value has no <c>__enc</c> marker, is not valid JSON, or lacks a Base64 string <c>ct</c>, <c>n</c> or <c>t</c>.
+    /// </exception>
+    private static ParsedEnvelope ParseEnvelope(string json)
     {
         if (!json.StartsWith(EncryptedMarkerPrefix, StringComparison.Ordinal))
         {
-            return null;
+            throw new EncryptedFieldDecryptionException(EncryptedFieldDecryptionFailureReason.NotEncrypted);
         }
 
         try
         {
-            using var document = JsonDocument.Parse(json);
+            using var document = JsonDocument.Parse(StrictUtf8.GetBytes(json));
             var root = document.RootElement;
 
-            if (!root.TryGetProperty("ct", out var ctElement) ||
-                !root.TryGetProperty("n", out var nonceElement) ||
-                !root.TryGetProperty("t", out var tagElement))
-            {
-                return null;
-            }
-
             return new ParsedEnvelope(
-                Ciphertext: ctElement.GetBytesFromBase64(),
-                Nonce: nonceElement.GetBytesFromBase64(),
-                Tag: tagElement.GetBytesFromBase64());
+                Ciphertext: ReadBase64(root, "ct"),
+                Nonce: ReadBase64(root, "n"),
+                Tag: ReadBase64(root, "t"));
         }
         catch (JsonException)
         {
-            return null;
+            throw Malformed();
         }
-        catch (FormatException)
+        catch (EncoderFallbackException)
         {
-            return null;
+            throw Malformed();
+        }
+    }
+
+    private static byte[] ReadBase64(JsonElement root, string name)
+    {
+        if (root.ValueKind == JsonValueKind.Object
+            && root.TryGetProperty(name, out var element)
+            && element.ValueKind == JsonValueKind.String
+            && element.TryGetBytesFromBase64(out var bytes))
+        {
+            return bytes;
+        }
+
+        throw Malformed();
+    }
+
+    private static EncryptedFieldDecryptionException Malformed() =>
+        new(EncryptedFieldDecryptionFailureReason.EnvelopeMalformed);
+
+    private static void ValidateSizes(byte[] keyMaterial, ParsedEnvelope parsed)
+    {
+        if (keyMaterial.Length != KeySizeInBytes
+            || parsed.Nonce.Length != NonceSizeInBytes
+            || parsed.Tag.Length != TagSizeInBytes)
+        {
+            throw new EncryptedFieldDecryptionException(EncryptedFieldDecryptionFailureReason.InvalidKeyOrParameters);
         }
     }
 
