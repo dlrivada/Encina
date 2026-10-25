@@ -397,6 +397,51 @@ public class DomainEventDispatcherInterceptorTests
     }
 
     [Fact]
+    public async Task SavedChangesAsync_StopOnFirstError_ExceptionNeverCarriesErrorMessage()
+    {
+        // Arrange
+        const string sentinel = "SENTINEL-patient-12345";
+        var error = EncinaErrors.Create("TEST_ERROR", sentinel);
+        var encina = Substitute.For<IEncina>();
+        encina.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(error));
+
+        var services = new ServiceCollection();
+        services.AddSingleton(encina);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var options = new DomainEventDispatcherOptions { Enabled = true, StopOnFirstError = true };
+        var logger = Substitute.For<ILogger<DomainEventDispatcherInterceptor>>();
+        var interceptor = new DomainEventDispatcherInterceptor(serviceProvider, options, logger);
+
+        var dbOptions = new DbContextOptionsBuilder<TestDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
+            .Options;
+
+        await using var context = new TestDbContext(dbOptions);
+        var aggregate = new TestAggregate();
+        aggregate.RaiseEvent(new TestNotificationEvent(aggregate.Id));
+        context.TestAggregates.Add(aggregate);
+
+        // Act
+        var exception = await Should.ThrowAsync<DomainEventDispatchException>(async () =>
+            await context.SaveChangesAsync());
+
+        // Assert
+        exception.ErrorCode.ShouldBe("TEST_ERROR");
+        exception.Message.ShouldContain("TEST_ERROR");
+        exception.Message.ShouldNotContain(sentinel);
+        exception.ToString().ShouldNotContain(sentinel);
+        foreach (System.Collections.DictionaryEntry entry in exception.Data)
+        {
+            (entry.Value?.ToString() ?? string.Empty).ShouldNotContain(sentinel);
+        }
+
+        exception.InnerException.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task SavedChangesAsync_DontStopOnFirstError_ShouldContinue()
     {
         // Arrange
@@ -822,20 +867,67 @@ public class DomainEventDispatchExceptionTests
         public DateTime OccurredAtUtc { get; init; } = DateTime.UtcNow;
     }
 
+    private const string Sentinel = "SENTINEL-patient-12345";
+
     [Fact]
-    public void Constructor_WithEncinaError_ShouldSetProperties()
+    public void Constructor_WithEncinaError_ShouldSetPropertiesWithoutErrorMessage()
     {
         // Arrange
         var domainEvent = new TestEvent(Guid.NewGuid());
-        var error = EncinaErrors.Create("CODE", "message");
+        var error = EncinaErrors.Create("CODE", Sentinel);
 
         // Act
-        var exception = new DomainEventDispatchException("Test message", domainEvent, error);
+        var exception = new DomainEventDispatchException(domainEvent, error);
 
         // Assert
-        exception.Message.ShouldBe("Test message");
         exception.DomainEvent.ShouldBe(domainEvent);
-        exception.EncinaError.ShouldBe(error);
+        exception.ErrorCode.ShouldBe("CODE");
+        exception.Message.ShouldContain("TestEvent");
+        exception.Message.ShouldContain("CODE");
+        exception.Message.ShouldNotContain(Sentinel);
+        exception.ToString().ShouldNotContain(Sentinel);
+        exception.Data[DomainEventDispatchException.ErrorCodeDataKey].ShouldBe("CODE");
+        foreach (System.Collections.DictionaryEntry entry in exception.Data)
+        {
+            (entry.Value?.ToString() ?? string.Empty).ShouldNotContain(Sentinel);
+        }
+
+        exception.InnerException.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Constructor_WithEncinaErrorWithoutCode_ShouldUseUnknownCode()
+    {
+        // Arrange
+        var domainEvent = new TestEvent(Guid.NewGuid());
+        var error = EncinaError.New(Sentinel);
+
+        // Act
+        var exception = new DomainEventDispatchException(domainEvent, error);
+
+        // Assert
+        exception.ErrorCode.ShouldBe("Encina.unknown");
+        exception.Message.ShouldContain("Encina.unknown");
+        exception.Message.ShouldNotContain(Sentinel);
+        exception.Data[DomainEventDispatchException.ErrorCodeDataKey].ShouldBe("Encina.unknown");
+    }
+
+    [Fact]
+    public void Constructor_WithEncinaErrorWithCause_ShouldSanitizeInnerException()
+    {
+        // Arrange
+        var domainEvent = new TestEvent(Guid.NewGuid());
+        var cause = new ArgumentException("cause-" + Sentinel);
+        var error = EncinaErrors.Create("CODE", "message", cause);
+
+        // Act
+        var exception = new DomainEventDispatchException(domainEvent, error);
+
+        // Assert
+        var inner = exception.InnerException.ShouldBeOfType<InvalidOperationException>();
+        inner.Message.ShouldBe("Cause type: System.ArgumentException");
+        inner.Message.ShouldNotContain(Sentinel);
+        exception.ToString().ShouldNotContain(Sentinel);
     }
 
     [Fact]
@@ -846,12 +938,13 @@ public class DomainEventDispatchExceptionTests
         var innerException = new InvalidOperationException("Inner");
 
         // Act
-        var exception = new DomainEventDispatchException("Test message", domainEvent, innerException);
+        var exception = new DomainEventDispatchException(domainEvent, innerException);
 
         // Assert
-        exception.Message.ShouldBe("Test message");
+        exception.Message.ShouldBe("Exception while dispatching domain event TestEvent.");
         exception.DomainEvent.ShouldBe(domainEvent);
         exception.InnerException.ShouldBe(innerException);
-        exception.EncinaError.ShouldBeNull();
+        exception.ErrorCode.ShouldBe("Encina.unknown");
+        exception.Data[DomainEventDispatchException.ErrorCodeDataKey].ShouldBe("Encina.unknown");
     }
 }

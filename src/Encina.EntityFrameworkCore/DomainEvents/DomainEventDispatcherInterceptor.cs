@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Encina.Diagnostics;
 using Encina.DomainModeling;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -342,10 +343,7 @@ public sealed class DomainEventDispatcherInterceptor : SaveChangesInterceptor
             if (_options.StopOnFirstError)
             {
                 // ROP boundary: ISaveChangesInterceptor requires exception-based error propagation.
-                throw new DomainEventDispatchException(
-                    $"Exception while dispatching domain event {domainEvent.GetType().Name}",
-                    domainEvent,
-                    ex);
+                throw new DomainEventDispatchException(domainEvent, ex);
             }
         }
     }
@@ -365,10 +363,7 @@ public sealed class DomainEventDispatcherInterceptor : SaveChangesInterceptor
         if (_options.StopOnFirstError)
         {
             // ROP boundary: ISaveChangesInterceptor requires exception-based error propagation.
-            throw new DomainEventDispatchException(
-                $"Failed to dispatch domain event {domainEvent.GetType().Name}: {error.Message}",
-                domainEvent,
-                error);
+            throw new DomainEventDispatchException(domainEvent, error);
         }
     }
 
@@ -393,43 +388,88 @@ public sealed class DomainEventDispatcherInterceptor : SaveChangesInterceptor
 /// Exception thrown when a domain event fails to dispatch.
 /// </summary>
 /// <remarks>
+/// <para>
 /// This exception is only thrown when <see cref="DomainEventDispatcherOptions.StopOnFirstError"/>
 /// is set to <see langword="true"/> and an error occurs during event dispatch.
+/// </para>
+/// <para>
+/// <see cref="Exception.Message"/> and <see cref="Exception.Data"/> carry only the event type name
+/// and the error code (<see cref="ErrorCodeDataKey"/>), never <see cref="EncinaError.Message"/>, which
+/// may contain personal data. When the failing <see cref="EncinaError"/> has a cause,
+/// <see cref="Exception.InnerException"/> is a sanitized exception whose message is only the cause's
+/// type name. When the failure comes from an exception thrown while publishing, that exception is kept
+/// as the <see cref="Exception.InnerException"/> as is.
+/// </para>
 /// </remarks>
+[SuppressMessage("Design", "CA1032:Implement standard exception constructors", Justification = "The exception is only created by the interceptor from a domain event and an error; a message-only constructor would allow a caller to put EncinaError.Message back into the text.")]
 public sealed class DomainEventDispatchException : Exception
 {
+    /// <summary>
+    /// The <see cref="Exception.Data"/> key under which the Encina error code is stored.
+    /// </summary>
+    public const string ErrorCodeDataKey = "Encina.ErrorCode";
+
+    private const string UnknownCode = "Encina.unknown";
+
     /// <summary>
     /// Gets the domain event that failed to dispatch.
     /// </summary>
     public IDomainEvent DomainEvent { get; }
 
     /// <summary>
-    /// Gets the Encina error that caused the failure, if any.
+    /// Gets the Encina error code of the failed publish, or <c>Encina.unknown</c> when the error
+    /// carries no code or the failure was an exception.
     /// </summary>
-    public EncinaError? EncinaError { get; }
+    public string ErrorCode { get; }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DomainEventDispatchException"/> class.
+    /// Initializes a new instance of the <see cref="DomainEventDispatchException"/> class from the
+    /// <see cref="EncinaError"/> returned by the failed publish.
     /// </summary>
-    /// <param name="message">The error message.</param>
     /// <param name="domainEvent">The domain event that failed.</param>
-    /// <param name="encinaError">The Encina error.</param>
-    public DomainEventDispatchException(string message, IDomainEvent domainEvent, EncinaError encinaError)
-        : base(message)
+    /// <param name="error">The Encina error; only its code and its cause's type name are used.</param>
+    public DomainEventDispatchException(IDomainEvent domainEvent, EncinaError error)
+        : base(BuildMessage(RequireEvent(domainEvent), error.GetEncinaCode()), ResolveInnerException(error))
     {
         DomainEvent = domainEvent;
-        EncinaError = encinaError;
+        ErrorCode = error.GetEncinaCode();
+        Data[ErrorCodeDataKey] = ErrorCode;
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DomainEventDispatchException"/> class.
+    /// Initializes a new instance of the <see cref="DomainEventDispatchException"/> class for an
+    /// exception thrown while publishing the event.
     /// </summary>
-    /// <param name="message">The error message.</param>
     /// <param name="domainEvent">The domain event that failed.</param>
-    /// <param name="innerException">The inner exception.</param>
-    public DomainEventDispatchException(string message, IDomainEvent domainEvent, Exception innerException)
-        : base(message, innerException)
+    /// <param name="innerException">The exception thrown while publishing, kept as the inner exception.</param>
+    public DomainEventDispatchException(IDomainEvent domainEvent, Exception innerException)
+        : base(
+            $"Exception while dispatching domain event {RequireEvent(domainEvent).GetType().Name}.",
+            RequireInner(innerException))
     {
         DomainEvent = domainEvent;
+        ErrorCode = UnknownCode;
+        Data[ErrorCodeDataKey] = ErrorCode;
     }
+
+    private static IDomainEvent RequireEvent(IDomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        return domainEvent;
+    }
+
+    private static Exception RequireInner(Exception innerException)
+    {
+        ArgumentNullException.ThrowIfNull(innerException);
+        return innerException;
+    }
+
+    private static string BuildMessage(IDomainEvent domainEvent, string code) =>
+        $"Failed to dispatch domain event {domainEvent.GetType().Name}: error code '{code}'.";
+
+    // Only the cause's type travels, never its Message, which may carry personal data.
+    private static InvalidOperationException? ResolveInnerException(EncinaError error) =>
+        error.GetCause().MatchUnsafe(
+            cause => new InvalidOperationException($"Cause type: {cause.GetType().FullName ?? cause.GetType().Name}"),
+            () => (InvalidOperationException?)null);
 }
