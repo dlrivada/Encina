@@ -2,6 +2,7 @@ using Encina.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace Encina.AspNetCore;
 
@@ -23,6 +24,8 @@ public static class ServiceCollectionExtensions
     /// <see cref="IRequestContextAccessor"/>, the <see cref="RequestIdentityOptions"/> claim map and the
     /// <see cref="IRequestContextScopeFactory"/> that <c>UseEncinaContext()</c> uses;</description></item>
     /// <item><description>the <see cref="EncinaAspNetCoreOptions"/> header names;</description></item>
+    /// <item><description>a hosted service that logs a startup warning when
+    /// <see cref="EncinaAspNetCoreOptions.IncludeErrorMessageInProblemDetails"/> is set;</description></item>
     /// <item><description><see cref="Microsoft.AspNetCore.Http.IHttpContextAccessor"/>, for
     /// <see cref="HttpRegionContextProvider"/>.</description></item>
     /// </list>
@@ -92,6 +95,11 @@ public static class ServiceCollectionExtensions
 
         // HttpRegionContextProvider reads the request through IHttpContextAccessor.
         services.AddHttpContextAccessor();
+
+        // Warns once at startup when IncludeErrorMessageInProblemDetails is set.
+        services.AddLogging();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, ProblemDetailsStartupWarningService>());
 
         return services;
     }

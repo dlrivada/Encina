@@ -56,10 +56,16 @@ public sealed class EncinaAspNetCoreOptions
     public bool IncludeRequestPathInProblemDetails { get; set; }
 
     /// <summary>
-    /// Whether to include exception details in Problem Details (only in Development).
-    /// Default: false (controlled by environment)
+    /// Whether Problem Details responses may carry the error message (<c>detail</c>) and the
+    /// exception type, message and stack trace (<c>exception</c> extension).
+    /// Default: false
     /// </summary>
-    public bool IncludeExceptionDetails { get; set; }
+    /// <remarks>
+    /// The option is honoured only when <c>IHostEnvironment.IsDevelopment()</c> is true. In any other
+    /// environment, or when no host environment can be resolved, it is ignored (fail closed) and a
+    /// warning is logged once at startup.
+    /// </remarks>
+    public bool IncludeErrorMessageInProblemDetails { get; set; }
 
     /// <summary>
     /// HTTP header name for the data region hint used by the data residency module.

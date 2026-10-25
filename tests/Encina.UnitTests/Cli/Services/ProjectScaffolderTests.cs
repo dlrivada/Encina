@@ -61,6 +61,33 @@ public class ProjectScaffolderTests : IDisposable
         programContent.ShouldContain("encina.Send(command)");
     }
 
+    /// <summary>
+    /// Verifies that the API template maps errors through ToProblemDetails and never returns the error message.
+    /// </summary>
+    [Fact]
+    public async Task CreateProjectAsync_WithApiTemplate_MapsErrorsWithToProblemDetails()
+    {
+        // Arrange
+        var outputDir = Path.Combine(_tempDir, "MyApiProblems");
+        var options = new ProjectOptions
+        {
+            Template = "api",
+            Name = "MyApiProblems",
+            OutputDirectory = outputDir
+        };
+
+        // Act
+        var result = await ProjectScaffolder.CreateProjectAsync(options);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        var programContent = await File.ReadAllTextAsync(Path.Combine(outputDir, "Program.cs"));
+        programContent.ShouldContain("IEncina encina, HttpContext httpContext");
+        programContent.ShouldContain("error.ToProblemDetails(httpContext)");
+        programContent.ShouldNotContain("Results.Problem(error.Message)");
+        programContent.ShouldNotContain("error.Message");
+    }
+
     [Fact]
     public async Task CreateProjectAsync_WithWorkerTemplate_GeneratesWorkerProject()
     {

@@ -258,6 +258,28 @@ public sealed class DPIAEndpointExtensionsTests
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability", "CA2012:Use ValueTasks correctly",
+        Justification = "NSubstitute mock setup pattern for ValueTask-returning members.")]
+    [Fact]
+    public async Task EndpointError_ResponseBody_DoesNotCarryTheErrorMessage()
+    {
+        const string secret = "secret-internal-detail-4711";
+        var service = CreateService();
+        service.GetAssessmentAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, DPIAReadModel>>(
+                Left<EncinaError, DPIAReadModel>(EncinaErrors.Create("dpia.not_found", secret))));
+        await using var harness = await CreateHarnessAsync(service);
+
+        using var response = await harness.Client.GetAsync(
+            new Uri($"/api/dpia/assessments/{Guid.NewGuid()}", UriKind.Relative));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        var body = await response.Content.ReadAsStringAsync();
+        body.ShouldNotContain(secret);
+        body.ShouldContain("dpia.not_found");
+    }
+
     [Fact]
     public async Task GetAssessmentById_Found_Returns200()
     {

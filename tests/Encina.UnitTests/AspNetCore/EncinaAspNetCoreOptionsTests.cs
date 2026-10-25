@@ -14,7 +14,7 @@ public sealed class EncinaAspNetCoreOptionsTests
         options.IdempotencyKeyHeader.ShouldBe("X-Idempotency-Key");
         options.DataRegionHeaderName.ShouldBe("X-Data-Region");
         options.IncludeRequestPathInProblemDetails.ShouldBeFalse();
-        options.IncludeExceptionDetails.ShouldBeFalse();
+        options.IncludeErrorMessageInProblemDetails.ShouldBeFalse();
         options.TrustTenantIdHeader.ShouldBeFalse();
     }
 
@@ -36,7 +36,7 @@ public sealed class EncinaAspNetCoreOptionsTests
             IdempotencyKeyHeader = "X-Custom-Idempotency",
             DataRegionHeaderName = "X-Custom-Region",
             IncludeRequestPathInProblemDetails = true,
-            IncludeExceptionDetails = true
+            IncludeErrorMessageInProblemDetails = true
         };
 
         options.CorrelationIdHeader.ShouldBe("X-Custom-Correlation");
@@ -44,6 +44,6 @@ public sealed class EncinaAspNetCoreOptionsTests
         options.IdempotencyKeyHeader.ShouldBe("X-Custom-Idempotency");
         options.DataRegionHeaderName.ShouldBe("X-Custom-Region");
         options.IncludeRequestPathInProblemDetails.ShouldBeTrue();
-        options.IncludeExceptionDetails.ShouldBeTrue();
+        options.IncludeErrorMessageInProblemDetails.ShouldBeTrue();
     }
 }
