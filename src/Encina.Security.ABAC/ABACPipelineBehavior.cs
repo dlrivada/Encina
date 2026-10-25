@@ -364,29 +364,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         var requestTypeName = typeof(TRequest).Name;
         var reason = decision.Reason ?? "Access denied by ABAC policy.";
 
-        // Execute OnDeny obligations (mandatory — per XACML §7.18, obligations
-        // associated with the Deny effect must still be fulfilled)
-        if (decision.Obligations.Count > 0)
-        {
-            var obligationResult = await _obligationExecutor.ExecuteObligationsAsync(
-                decision.Obligations, evaluationContext, cancellationToken)
-                .ConfigureAwait(false);
-
-            obligationResult.Match(
-                Left: error => ABACLogMessages.OnDenyObligationFailed(_logger,
-                    requestTypeName,
-                    error.GetCode().IfNone("encina.unknown")),
-                Right: _ => ABACLogMessages.OnDenyObligationsExecuted(_logger,
-                    requestTypeName));
-        }
-
-        // Execute advice (best-effort)
-        if (decision.Advice.Count > 0)
-        {
-            await _obligationExecutor.ExecuteAdviceAsync(
-                decision.Advice, evaluationContext, cancellationToken)
-                .ConfigureAwait(false);
-        }
+        await RunDenyObligationsAndAdviceAsync(decision, evaluationContext, requestTypeName, cancellationToken).ConfigureAwait(false);
 
         // A missing policy or an unmet condition carries its own error code.
         var error = verdict.DenyError ?? ABACErrors.AccessDenied(typeof(TRequest), decision.PolicyId);
@@ -403,6 +381,36 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         // (DecideAsync), and an indeterminate or failed evaluation never gets here.
         return await OfferToElevationGateAsync(request, requestContext, error, telemetry, cancellationToken).ConfigureAwait(false)
             ?? ApplyEnforcement(error, requestTypeName, telemetry);
+    }
+
+    // OnDeny obligations are mandatory (XACML §7.18: obligations of the Deny effect must still be
+    // fulfilled); advice is best-effort.
+    private async ValueTask RunDenyObligationsAndAdviceAsync(
+        PolicyDecision decision,
+        PolicyEvaluationContext evaluationContext,
+        string requestTypeName,
+        CancellationToken cancellationToken)
+    {
+        if (decision.Obligations.Count > 0)
+        {
+            var obligationResult = await _obligationExecutor.ExecuteObligationsAsync(
+                decision.Obligations, evaluationContext, cancellationToken)
+                .ConfigureAwait(false);
+
+            obligationResult.Match(
+                Left: error => ABACLogMessages.OnDenyObligationFailed(_logger,
+                    requestTypeName,
+                    error.GetCode().IfNone("encina.unknown")),
+                Right: _ => ABACLogMessages.OnDenyObligationsExecuted(_logger,
+                    requestTypeName));
+        }
+
+        if (decision.Advice.Count > 0)
+        {
+            await _obligationExecutor.ExecuteAdviceAsync(
+                decision.Advice, evaluationContext, cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
 
     // None keeps the denial (null); an elevation lets the request proceed (always recorded); an error
@@ -574,8 +582,16 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         if (auditDenied)
         {
             ABACLogMessages.EnforcementDenied(_logger, requestTypeName);
+            return;
         }
-        else if (verdict.Enforced == ABACEnforcedOutcome.Granted)
+
+        LogEnforcedOutcome(verdict, requestTypeName, activity);
+    }
+
+    // The permitted, Warn-mode and elevated logs follow the final outcome.
+    private void LogEnforcedOutcome(ABACEnforcementVerdict verdict, string requestTypeName, Activity? activity)
+    {
+        if (verdict.Enforced == ABACEnforcedOutcome.Granted)
         {
             ABACLogMessages.EvaluationPermitted(_logger, requestTypeName);
         }

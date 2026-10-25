@@ -28,72 +28,63 @@ internal sealed class BreakTheGlassOptionsValidator : IValidateOptions<BreakTheG
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 
+    // Adds the message when the rule does not hold.
+    private static void Require(bool holds, string message, List<string> failures)
+    {
+        if (!holds)
+        {
+            failures.Add(message);
+        }
+    }
+
+    private static bool Within<T>(T value, T min, T max)
+        where T : IComparable<T> =>
+        value.CompareTo(min) >= 0 && value.CompareTo(max) <= 0;
+
     private static void ValidateBounds(BreakTheGlassOptions options, List<string> failures)
     {
-        if (options.MaxDuration <= TimeSpan.Zero || options.MaxDuration > BreakTheGlassOptions.MaxAllowedDuration)
-        {
-            failures.Add($"BreakTheGlassOptions.MaxDuration must be greater than zero and at most {BreakTheGlassOptions.MaxAllowedDuration}.");
-        }
-
-        if (options.MinimumJustificationLength < 1 || options.MinimumJustificationLength > BreakTheGlassOptions.MaxJustificationLength)
-        {
-            failures.Add($"BreakTheGlassOptions.MinimumJustificationLength must be between 1 and {BreakTheGlassOptions.MaxJustificationLength}.");
-        }
-
-        if (options.ExpirySweepInterval < BreakTheGlassOptions.MinExpirySweepInterval)
-        {
-            failures.Add($"BreakTheGlassOptions.ExpirySweepInterval must be at least {BreakTheGlassOptions.MinExpirySweepInterval}.");
-        }
-
-        if (options.ExpirySweepBatchSize < 1 || options.ExpirySweepBatchSize > BreakTheGlassOptions.MaxExpirySweepBatchSize)
-        {
-            failures.Add($"BreakTheGlassOptions.ExpirySweepBatchSize must be between 1 and {BreakTheGlassOptions.MaxExpirySweepBatchSize}.");
-        }
-
-        if (options.RetentionDays < 1)
-        {
-            failures.Add("BreakTheGlassOptions.RetentionDays must be positive.");
-        }
-
-        if (options.PurgeIntervalHours < 1)
-        {
-            failures.Add("BreakTheGlassOptions.PurgeIntervalHours must be positive.");
-        }
+        var maxDuration = BreakTheGlassOptions.MaxAllowedDuration;
+        Require(
+            options.MaxDuration > TimeSpan.Zero && Within(options.MaxDuration, TimeSpan.Zero, maxDuration),
+            $"BreakTheGlassOptions.MaxDuration must be greater than zero and at most {maxDuration}.",
+            failures);
+        Require(
+            Within(options.MinimumJustificationLength, 1, BreakTheGlassOptions.MaxJustificationLength),
+            $"BreakTheGlassOptions.MinimumJustificationLength must be between 1 and {BreakTheGlassOptions.MaxJustificationLength}.",
+            failures);
+        Require(
+            options.ExpirySweepInterval >= BreakTheGlassOptions.MinExpirySweepInterval,
+            $"BreakTheGlassOptions.ExpirySweepInterval must be at least {BreakTheGlassOptions.MinExpirySweepInterval}.",
+            failures);
+        Require(
+            Within(options.ExpirySweepBatchSize, 1, BreakTheGlassOptions.MaxExpirySweepBatchSize),
+            $"BreakTheGlassOptions.ExpirySweepBatchSize must be between 1 and {BreakTheGlassOptions.MaxExpirySweepBatchSize}.",
+            failures);
+        Require(options.RetentionDays >= 1, "BreakTheGlassOptions.RetentionDays must be positive.", failures);
+        Require(options.PurgeIntervalHours >= 1, "BreakTheGlassOptions.PurgeIntervalHours must be positive.", failures);
     }
 
     private static void ValidateFeature(BreakTheGlassOptions options, List<string> failures)
     {
-        if (options.Scopes.Count == 0)
-        {
-            failures.Add("BreakTheGlassOptions.Scopes must declare at least one scope.");
-        }
+        Require(options.Scopes.Count > 0, "BreakTheGlassOptions.Scopes must declare at least one scope.", failures);
+        Require(options.ReviewerRoles.Count > 0, "BreakTheGlassOptions.ReviewerRoles must name at least one reviewer role.", failures);
 
         foreach (var (scopeName, scope) in options.Scopes)
         {
             ValidateScope(scopeName, scope, options.MaxDuration, failures);
         }
-
-        if (options.ReviewerRoles.Count == 0)
-        {
-            failures.Add("BreakTheGlassOptions.ReviewerRoles must name at least one reviewer role.");
-        }
     }
 
     private static void ValidateScope(string scopeName, BreakTheGlassScopeOptions scope, TimeSpan maxDuration, List<string> failures)
     {
-        if (string.IsNullOrWhiteSpace(scopeName))
-        {
-            failures.Add("A break-the-glass scope name must not be blank.");
-        }
-
-        if (scope.OpenerRoles.Count == 0 && scope.OpenerPermissions.Count == 0)
-        {
-            failures.Add($"Break-the-glass scope '{scopeName}' must name an opener role or an opener permission.");
-        }
-
-        if (scope.MaxDuration is { } limit && (limit <= TimeSpan.Zero || limit > maxDuration))
-        {
-            failures.Add($"Break-the-glass scope '{scopeName}' MaxDuration must be greater than zero and at most BreakTheGlassOptions.MaxDuration.");
-        }
+        Require(!string.IsNullOrWhiteSpace(scopeName), "A break-the-glass scope name must not be blank.", failures);
+        Require(
+            scope.OpenerRoles.Count + scope.OpenerPermissions.Count > 0,
+            $"Break-the-glass scope '{scopeName}' must name an opener role or an opener permission.",
+            failures);
+        Require(
+            scope.MaxDuration is null || (scope.MaxDuration > TimeSpan.Zero && scope.MaxDuration <= maxDuration),
+            $"Break-the-glass scope '{scopeName}' MaxDuration must be greater than zero and at most BreakTheGlassOptions.MaxDuration.",
+            failures);
     }
 }

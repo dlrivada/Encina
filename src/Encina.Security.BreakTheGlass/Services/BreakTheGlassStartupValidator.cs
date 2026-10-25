@@ -135,17 +135,26 @@ internal sealed class BreakTheGlassStartupValidator : IHostedService
             failures.Add($"Request type '{type.Name}' is marked [BreakTheGlassEligible] for scope '{attribute.Scope}', which is not declared in BreakTheGlassOptions.Scopes.");
         }
 
+        if (SubjectPropertyFailure(type, attribute) is { } failure)
+        {
+            failures.Add(failure);
+        }
+    }
+
+    // The problem with the subject id property named by the attribute, or null when it is usable.
+    private static string? SubjectPropertyFailure(Type type, BreakTheGlassEligibleAttribute attribute)
+    {
         var property = string.IsNullOrWhiteSpace(attribute.SubjectIdProperty)
             ? null
             : type.GetProperty(attribute.SubjectIdProperty, BindingFlags.Public | BindingFlags.Instance);
         if (property is null || !property.CanRead || property.GetIndexParameters().Length != 0)
         {
-            failures.Add($"Request type '{type.Name}' is marked [BreakTheGlassEligible] but names no readable public instance property in SubjectIdProperty.");
+            return $"Request type '{type.Name}' is marked [BreakTheGlassEligible] but names no readable public instance property in SubjectIdProperty.";
         }
-        else if (!BreakTheGlassSubjectIdConversion.IsSupportedType(property.PropertyType))
-        {
-            failures.Add($"The subject id property of request type '{type.Name}' has a type that cannot be converted to a subject id.");
-        }
+
+        return BreakTheGlassSubjectIdConversion.IsSupportedType(property.PropertyType)
+            ? null
+            : $"The subject id property of request type '{type.Name}' has a type that cannot be converted to a subject id.";
     }
 
     private void CheckStores(BreakTheGlassOptions options, List<string> failures)
