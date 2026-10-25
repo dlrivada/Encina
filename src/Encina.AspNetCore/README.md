@@ -365,7 +365,7 @@ public async Task<IActionResult> Create(CreateOrderCommand cmd)
 }
 ```
 
-`detail` is omitted by default: `EncinaError.Message` never reaches the response, so a 400 validation response does not list field messages. The response carries the status, a generic title, `errorCode`, `traceId` and `correlationId` (when the request carries the correlation header).
+`detail` is omitted by default: `EncinaError.Message` does not reach the response by default (only the Development-only option described under [EncinaAspNetCoreOptions](#encinaaspnetcoreoptions) adds it), so a 400 validation response does not list field messages. The response carries the status, a generic title, `errorCode`, `traceId` and `correlationId` (when the request carries the correlation header).
 
 **Optional Request Path:**
 
@@ -609,13 +609,13 @@ EncinaErrors.Unauthenticated();             // encina.authorization.unauthentica
 
 ### 2. Rich Error Details
 
-Add structured metadata for client consumption:
+Attach structured details to an `EncinaError` so server-side code (handlers, behaviors, logging that records only safe fields) can read them. The details stay on the `EncinaError`; they are not copied into the HTTP response:
 
 ```csharp
 return EncinaErrors.Create(
     code: "validation.failed",
     message: "Request validation failed",
-    metadata: new Dictionary<string, object?>
+    details: new Dictionary<string, object?>
     {
         ["validationErrors"] = new[]
         {
