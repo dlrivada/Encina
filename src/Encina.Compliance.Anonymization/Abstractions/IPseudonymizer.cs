@@ -98,6 +98,11 @@ public interface IPseudonymizer
     /// The key identified by <paramref name="keyId"/> must be the same key used during
     /// the original pseudonymization operation.
     /// </para>
+    /// <para>
+    /// A value that is not a valid pseudonym (not Base64, too short, tampered or encrypted
+    /// with another key) fails the whole operation with one generic decryption error that
+    /// carries no cause detail.
+    /// </para>
     /// </remarks>
     ValueTask<Either<EncinaError, T>> DepseudonymizeAsync<T>(
         T data,

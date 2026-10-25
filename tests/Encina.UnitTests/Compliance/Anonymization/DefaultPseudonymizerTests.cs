@@ -241,7 +241,7 @@ public class DefaultPseudonymizerTests
     }
 
     [Fact]
-    public async Task DepseudonymizeAsync_NonBase64String_SkipsProperty()
+    public async Task DepseudonymizeAsync_NonBase64String_ReturnsGenericDecryptionFailed()
     {
         // Arrange
         var keyProvider = CreateMockKeyProvider();
@@ -253,11 +253,13 @@ public class DefaultPseudonymizerTests
         // Act
         var result = await sut.DepseudonymizeAsync(person, TestKeyId);
 
-        // Assert - Non-Base64 strings are skipped (left unchanged)
-        result.IsRight.ShouldBeTrue();
-        var restored = result.Match(Right: p => p, Left: _ => null!);
-        restored.Name.ShouldBe("Not Base64!!!");
-        restored.Email.ShouldBe("plaintext@email");
+        // Assert - a non-Base64 value is a malformed ciphertext: same generic error, fail closed
+        result.IsLeft.ShouldBeTrue();
+        var error = result.LeftAsEnumerable().First();
+        error.GetCode().Match(
+            Some: code => code.ShouldBe(AnonymizationErrors.DecryptionFailedCode),
+            None: () => Assert.Fail("Expected error code"));
+        error.Message.ShouldBe(AnonymizationErrors.DecryptionFailed().Message);
     }
 
     [Fact]
@@ -511,7 +513,7 @@ public class DefaultPseudonymizerTests
         result.IsLeft.ShouldBeTrue();
         var error = result.LeftAsEnumerable().First();
         error.GetCode().Match(
-            Some: code => code.ShouldBe(AnonymizationErrors.DepseudonymizationFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.DecryptionFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 

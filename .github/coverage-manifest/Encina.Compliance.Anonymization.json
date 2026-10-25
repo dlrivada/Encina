@@ -1,7 +1,7 @@
 {
   "package": "Encina.Compliance.Anonymization",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 48,
+  "totalFiles": 49,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -72,6 +72,19 @@
       ],
       "defaultRule": "*Store.cs",
       "reason": "Abstract/base store with mockeable deps"
+    },
+    "AesGcmEnvelope.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal AES-GCM helper exercised through the tokenizer and pseudonymizer",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "Unit tests exercise encrypt, decrypt, short blob, tampered tag and ciphertext, and Base64 decoding through both public classes (measured 100%)."
+      }
     },
     "AnonymizationAutoRegistrationDescriptor.cs": {
       "defaultTests": [
@@ -175,7 +188,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 8
+      },
+      "justifications": {
+        "unit": "Unit tests drive every AES-GCM, key-length and Base64 failure path; only the unreachable MemberwiseClone fallback of ShallowCopy stays uncovered (measured 96.4%).",
+        "guard": "Guard tests cover the constructor and argument null checks (measured 10.1%)."
+      }
     },
     "DefaultRiskAssessor.cs": {
       "defaultTests": [
@@ -191,7 +212,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 99,
+        "guard": 8
+      },
+      "justifications": {
+        "unit": "Unit tests drive tokenize, detokenize, every failure path and every token format (measured 100%).",
+        "guard": "Guard tests cover the constructor and argument null checks (measured 8.6%)."
+      }
     },
     "Diagnostics/AnonymizationDiagnostics.cs": {
       "defaultTests": [
