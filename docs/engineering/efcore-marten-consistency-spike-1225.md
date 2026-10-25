@@ -1,4 +1,6 @@
 ---
+title: "Application data and compliance aggregates: keeping them consistent (spike #1225)"
+layout: default
 nav_exclude: true
 ---
 
@@ -6,7 +8,7 @@ nav_exclude: true
 
 This page is for the maintainer, who has to decide how an application that keeps its own data in EF Core or Dapper and its compliance records in Marten avoids personal data that no compliance record tracks, and for a contributor who needs the evidence. It records what the code does today at `origin/main` `af3742f54`, what rules and earlier decisions already settle, what other libraries do, and the dilemmas that remain, each with a recommendation. The recommendations are input, not decisions: [#1225](https://github.com/dlrivada/Encina/issues/1225) stays open until the maintainer decides, and the decisions then get an ADR.
 
-**Status:** evidence gathered on 2026-10-25. **Issue:** [#1225](https://github.com/dlrivada/Encina/issues/1225) (v0.17.0; SPEC-002 P-23, priority P0; part of [#1186](https://github.com/dlrivada/Encina/issues/1186)). **Decision register:** `artifacts/decisions/1225.md` (40 entries, a local working file of the orchestration, not in the repository; the D-keys below refer to it).
+**Status:** evidence gathered on 2026-10-25. **Issue:** [#1225](https://github.com/dlrivada/Encina/issues/1225) (v0.17.0; SPEC-002 P-23, priority P0; part of [#1186](https://github.com/dlrivada/Encina/issues/1186)). **Decision register:** `artifacts/decisions/1225.md` (a local working file of the orchestration, not in the repository; the D-keys below refer to it).
 
 Pre-1.0, backward compatibility is not a criterion ([AGENTS.md](../../AGENTS.md) section 1). Nothing was run end to end: the Marten facts come from Marten's documentation, and the proof of concept the issue asks for is part of the work that follows the decisions.
 
@@ -18,10 +20,10 @@ Encina has exactly this shape. The nine event-sourced compliance modules (consen
 
 A concrete story. The psychology practice of the reference application registers a new patient.
 
-1. The handler inserts the patient row with EF Core and commits.
-2. It then calls `IRetentionRecordService.TrackEntityAsync`, which creates the retention aggregate in Marten and commits a second time.
+1. The handler inserts the patient row with EF Core and calls `SaveChangesAsync` itself, so the row commits (an application choice; with Encina's `TransactionPipelineBehavior` the relational commit would instead happen after the whole pipeline).
+2. `RetentionValidationPipelineBehavior` then calls `IRetentionRecordService.TrackEntityAsync` after the handler, which creates the retention aggregate in Marten and commits a second time.
 
-If the process is restarted between 1 and 2, the patient exists with health data (Art. 9) and no retention record. Nothing will ever erase that row when its retention period ends (Art. 5(1)(e)). If the second write was a consent grant, the practice may later be unable to prove consent (Art. 7(1)). SPEC-002 REQ-037 asks for a documented, tested pattern, and reference scenario S19 injects exactly this fault and expects that "both commit or are reconciled" (`SPEC-002-eu-regulatory-readiness.md:222`, `:350-351`, AC-037 at `:488`).
+Whichever order the two commits run in, they are two commits. If the process is restarted between them with the order above, the patient exists with health data (Art. 9) and no retention record. Nothing will ever erase that row when its retention period ends (Art. 5(1)(e)). If the second write was a consent grant, the practice may later be unable to prove consent (Art. 7(1)). SPEC-002 REQ-037 asks for a documented, tested pattern, and reference scenario S19 injects exactly this fault and expects that "both commit or are reconciled" (`SPEC-002-eu-regulatory-readiness.md:222`, `:350-351`, AC-037 at `:488`).
 
 ## 2. What the code does today
 
@@ -40,7 +42,7 @@ Where the compliance modules start their aggregates: consent through `DefaultCon
 
 ### 2.2 A rule already in the way
 
-ADR-050 (with the [#2239](https://github.com/dlrivada/Encina/issues/2239) decision 4) makes Marten together with `TransactionPipelineBehavior` a startup error, because the relational transaction would not cover Marten and would be a false guarantee (ADR-050 line 117, table at line 45). The #2383 implementation plan widens that forbidden set to the `TransactionalOutboxPipelineBehavior` of [#718](https://github.com/dlrivada/Encina/issues/718) "when it lands", and says "Cross-store atomicity stays with #1225" (`docs/plans/es-reliable-delivery-implementation-plan-2383.md:130`, `:661`). #718 has landed (ADR-037). So the outbox bridge of option B, as written, needs a behavior that the planned check forbids in any host that also runs Marten (dilemma K2).
+ADR-050 (with the [#2239](https://github.com/dlrivada/Encina/issues/2239) decision 4) makes Marten together with `TransactionPipelineBehavior` a startup error, because the relational transaction would not cover Marten and would be a false guarantee (ADR-050 line 117, table at line 45). The #2383 implementation plan widens that forbidden set to the `TransactionalOutboxPipelineBehavior` of [#718](https://github.com/dlrivada/Encina/issues/718) "when it lands", and says "Cross-store atomicity stays with #1225" (`docs/plans/es-reliable-delivery-implementation-plan-2383.md:130`, `:661`). That behavior already exists: ADR-037 records the ADO.NET, Dapper and EF Core slices of #718 as delivered, although #718 stays open for MongoDB and the removal of `OutboxPostProcessor`. So the outbox bridge of option B, as written, needs a behavior that the planned check forbids in any host that also runs Marten (dilemma K2).
 
 ### 2.3 Documentation
 
@@ -149,7 +151,7 @@ Register D5, D18, D19, D22. Only relevant if K1 keeps B.
 | Sub-choice | Options | Spike's recommendation |
 | --- | --- | --- |
 | **What the outbox message is** | (a) a domain-event notification handled in process (AGENTS.md: "Outbox for publishing domain events"); (b) an integration event through the mapper ([ADR-028](../architecture/adr/028-domain-events-versus-integration-events.md)), so the compliance side could move to another process; (c) a dedicated, versioned command | (a) for 1.0 |
-| **Idempotency of the handler** | (a) outbox id with per-handler completion (P-18), which lands in v0.18.0, after this spike's v0.17.0; (b) an inbox enlisted in the Marten transaction (needs `InboxStoreMarten`, #2383); (c) a deterministic stream id derived from the business key, so a second start collides and is treated as done | (c) now, because it needs neither P-18 nor #2383; (b) once #2383 lands if two aggregates per key must be possible |
+| **Idempotency of the handler** | (a) outbox id with per-handler completion (P-18), which lands in v0.18.0, after this spike's v0.17.0; (b) an inbox enlisted in the Marten transaction (needs `InboxStoreMarten`, #2383); (c) a deterministic stream id derived from the business key: a second `StartStream` collides (Marten documents `ExistingStreamIdCollisionException` for a non-partitioned store), and the handler then loads the existing aggregate and checks that it matches the command before treating the operation as done, because a collision alone does not prove the earlier start completed with the same data | (c) now, with that load-and-verify step, because it needs neither P-18 nor #2383; (b) once #2383 lands if two aggregates per key must be possible |
 | **A bridge message that never succeeds** | (a) dead letter plus alert, with the reconciliation sweep repairing it; (b) also mark the application row as pending or blocked until the compliance record exists (the fail-closed reading of DEC-006) | (a), since compliance gates already deny without a record (section 5) |
 | **Which failures, and write order** | Cover (a) only personal data without a record, or (b) also a compliance record without personal data (an orphan retention clock, an orphan consent); write the application row first (window of untracked data) or the Marten record first (possible orphans) | (a) with the application row first, as B and C are written; (b) only if orphan consent is judged a real risk |
 
