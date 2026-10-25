@@ -429,7 +429,7 @@ public sealed class DomainEventDispatchException : Exception
     /// <param name="domainEvent">The domain event that failed.</param>
     /// <param name="error">The Encina error; only its code and its cause's type name are used.</param>
     public DomainEventDispatchException(IDomainEvent domainEvent, EncinaError error)
-        : base(BuildMessage(domainEvent, error.GetEncinaCode()), ResolveInnerException(error))
+        : base(BuildMessage(RequireEvent(domainEvent), error.GetEncinaCode()), ResolveInnerException(error))
     {
         DomainEvent = domainEvent;
         ErrorCode = error.GetEncinaCode();
@@ -443,11 +443,25 @@ public sealed class DomainEventDispatchException : Exception
     /// <param name="domainEvent">The domain event that failed.</param>
     /// <param name="innerException">The exception thrown while publishing, kept as the inner exception.</param>
     public DomainEventDispatchException(IDomainEvent domainEvent, Exception innerException)
-        : base($"Exception while dispatching domain event {domainEvent.GetType().Name}.", innerException)
+        : base(
+            $"Exception while dispatching domain event {RequireEvent(domainEvent).GetType().Name}.",
+            RequireInner(innerException))
     {
         DomainEvent = domainEvent;
         ErrorCode = UnknownCode;
         Data[ErrorCodeDataKey] = ErrorCode;
+    }
+
+    private static IDomainEvent RequireEvent(IDomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        return domainEvent;
+    }
+
+    private static Exception RequireInner(Exception innerException)
+    {
+        ArgumentNullException.ThrowIfNull(innerException);
+        return innerException;
     }
 
     private static string BuildMessage(IDomainEvent domainEvent, string code) =>
