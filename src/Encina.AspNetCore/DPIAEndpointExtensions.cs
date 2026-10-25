@@ -8,6 +8,7 @@ using LanguageExt;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -133,15 +134,6 @@ public static class DPIAEndpointExtensions
 
         return group;
     }
-
-    /// <summary>
-    /// The HTTP header name for tenant identification in DPIA management endpoints.
-    /// </summary>
-    /// <remarks>
-    /// When multi-tenancy is enabled, this header scopes DPIA assessments to a specific tenant.
-    /// The value is optional — when absent, assessments are created without tenant scoping.
-    /// </remarks>
-    public const string TenantIdHeader = "X-Tenant-Id";
 
     /// <summary>
     /// The HTTP header name for module identification in DPIA management endpoints.
@@ -487,15 +479,18 @@ public static class DPIAEndpointExtensions
             detail: $"DPIA assessment with ID '{id}' was not found.");
 
     /// <summary>
-    /// Resolves tenant and module identifiers from HTTP request headers.
+    /// Resolves the tenant from the request context and the module from the HTTP request header.
     /// </summary>
     /// <remarks>
-    /// Multi-tenancy and module isolation are soft dependencies. When the headers
-    /// are absent, assessments are created without tenant/module scoping.
+    /// The tenant is the <see cref="IRequestContext.TenantId"/> that <c>UseEncinaContext()</c> bound
+    /// (the verified claim, or the tenant header only when <see cref="EncinaAspNetCoreOptions.TrustTenantIdHeader"/>
+    /// is enabled); the endpoints never read a tenant header themselves. Multi-tenancy and module
+    /// isolation are soft dependencies: with no tenant in the context or no module header,
+    /// assessments are created without tenant/module scoping.
     /// </remarks>
     private static (string? TenantId, string? ModuleId) ResolveTenantModule(HttpContext httpContext)
     {
-        var tenantId = httpContext.Request.Headers[TenantIdHeader].FirstOrDefault();
+        var tenantId = httpContext.RequestServices?.GetService<IRequestContextAccessor>()?.RequestContext?.TenantId;
         var moduleId = httpContext.Request.Headers[ModuleIdHeader].FirstOrDefault();
 
         return (

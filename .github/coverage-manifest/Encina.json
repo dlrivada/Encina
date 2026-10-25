@@ -489,7 +489,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 0, "guard": 0 },
+      "justifications": {
+        "unit": "Source-generated [LoggerMessage] partials: the generated bodies are attributed to the generator output, not this file, so the file has no coverable lines; the messages are asserted through the logger in the scope factory tests.",
+        "guard": "Source-generated [LoggerMessage] partials: the generated bodies are attributed to the generator output, not this file, so the file has no coverable lines; the messages are asserted through the logger in the scope factory tests."
+      }
     },
     "Dispatchers/Encina.NotificationDispatcher.cs": {
       "defaultTests": [
@@ -590,7 +595,12 @@
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "*Factory.cs default; security-critical claim mapping (property test informational)"
+      "reason": "*Factory.cs default; security-critical claim mapping (property test informational)",
+      "targets": { "unit": 95, "guard": 60 },
+      "justifications": {
+        "unit": "Claim mapping, conflicting identities and the tenant resolution (ResolveTenantId, TryResolveTenantId) have unit tests (measured 98%).",
+        "guard": "Constructor guard, the principal-mapping guard cases and the conflicting-tenant-claims case (measured 67%)."
+      }
     },
     "Identity/IdentityIssuer.cs": {
       "defaultTests": [
@@ -659,12 +669,20 @@
     "Identity/IRequestContextScopeFactory.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interfaces have no implementation to test",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "Interface: no executable lines."
+      }
     },
     "Identity/IRequestIdentityFactory.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interfaces have no implementation to test",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "Interface: no executable lines."
+      }
     },
     "Identity/IServiceIdentityCatalog.cs": {
       "defaultTests": [],
@@ -712,11 +730,11 @@
       ],
       "defaultRule": "*Factory.cs",
       "reason": "Security-critical scope factory: refusals, frame, logs (unit), argument guards (guard), invalidate-on-completion and no-work-on-Left contract",
-      "targets": { "unit": 95, "guard": 20, "contract": 80 },
+      "targets": { "unit": 95, "guard": 40, "contract": 80 },
       "justifications": {
         "unit": "Security-critical: every refusal, the frame, the logs 166-175 and the tenant rules have unit tests (measured 100%).",
-        "guard": "Constructor and member null guards only (measured 22%).",
-        "contract": "The contract drives every member, refusals and invalidation (measured 87%)."
+        "guard": "The constructor and member null guards plus the inbound tenant-resolution guard test reach this file (measured 46%).",
+        "contract": "The contract drives every member, refusals and invalidation (measured 82%)."
       }
     },
     "Identity/RequestContextScopeFactory.Restore.cs": {
@@ -767,14 +785,22 @@
         "unit"
       ],
       "defaultRule": "*ErrorCodes.cs",
-      "reason": "Error code constants"
+      "reason": "Error code constants",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "Constants only: the file has no executable lines, so no flag can cover it."
+      }
     },
     "Identity/RequestIdentityErrors.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "Every error factory, including InboundTenantConflict, is asserted for code and fixed message (measured 100%)."
+      }
     },
     "Identity/RequestIdentityOptions.cs": {
       "defaultTests": [

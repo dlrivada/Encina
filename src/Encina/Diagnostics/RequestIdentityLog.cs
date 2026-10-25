@@ -6,7 +6,7 @@ namespace Encina;
 /// Log messages of the request identity model.
 /// </summary>
 /// <remarks>
-/// Event IDs: 162-175 (see <c>EventIdRanges.Core</c>). Messages carry only claim <b>type</b>
+/// Event IDs: 162-176 (see <c>EventIdRanges.Core</c>). Messages carry only claim <b>type</b>
 /// names, the authentication type, identity kinds, error codes, correlation ids, scope member names
 /// and declared service names; never a user id, claim value, role, permission or tenant.
 /// </remarks>
@@ -69,4 +69,8 @@ internal static partial class RequestIdentityLog
     [LoggerMessage(EventId = 175, Level = LogLevel.Information,
         Message = "Application code opened an inbound scope with a {Kind} identity (correlation id {CorrelationId}).")]
     public static partial void InboundScopeOpenedByApplication(ILogger logger, IdentityKind kind, string correlationId);
+
+    [LoggerMessage(EventId = 176, Level = LogLevel.Debug,
+        Message = "An inbound request carried a tenant header that was ignored because the application does not trust it and the caller has no tenant claim.")]
+    public static partial void UntrustedTenantHeaderIgnored(ILogger logger);
 }

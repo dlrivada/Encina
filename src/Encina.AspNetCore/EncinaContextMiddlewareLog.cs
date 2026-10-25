@@ -6,7 +6,7 @@ namespace Encina.AspNetCore;
 /// Log messages of <see cref="EncinaContextMiddleware"/>.
 /// </summary>
 /// <remarks>
-/// Event IDs: 202-203 (see <c>EventIdRanges.AspNetCore</c>). No path, header or other request data
+/// Event IDs: 202-204 (see <c>EventIdRanges.AspNetCore</c>). No path, header or other request data
 /// is logged.
 /// </remarks>
 internal static partial class EncinaContextMiddlewareLog
@@ -18,4 +18,8 @@ internal static partial class EncinaContextMiddlewareLog
     [LoggerMessage(EventId = 203, Level = LogLevel.Warning,
         Message = "A request was re-routed to a SignalR hub endpoint inside UseEncinaContext() (a rewrite or a re-execute registered after it); the request ran with a request identity. Register UseRewriter and the error handlers before UseEncinaContext().")]
     public static partial void EncinaContextPathChanged(ILogger logger);
+
+    [LoggerMessage(EventId = 204, Level = LogLevel.Warning,
+        Message = "TrustTenantIdHeader is enabled: a request whose principal has no tenant claim takes its tenant from the tenant header. Enable it only when a gateway sets or strips the header and the application is not reachable around it.")]
+    public static partial void TenantHeaderTrusted(ILogger logger);
 }

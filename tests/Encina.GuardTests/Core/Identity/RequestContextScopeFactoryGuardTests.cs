@@ -61,6 +61,22 @@ public sealed class RequestContextScopeFactoryGuardTests
     }
 
     [Fact]
+    public async Task RunInboundAsync_UnauthenticatedRequestWithHeaderAndAgreeingClaim_NeverThrows_AndTheHeaderIsNotATenant()
+    {
+        var factory = CreateFactory();
+        var withHeader = new InboundRequestInfo(null, TenantHeaderValue: "header-tenant");
+        var conflicting = new InboundRequestInfo(
+            new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "u"), new Claim("tenant_id", "a")], "guard")),
+            TenantHeaderValue: "b");
+
+        var ignored = await factory.RunInboundAsync(withHeader, (context, _) => Task.FromResult(Right<EncinaError, string>(context.TenantId ?? "none")));
+        var refused = await factory.RunInboundAsync(conflicting, Work);
+
+        ignored.ShouldBeSuccess().ShouldBe("none");
+        refused.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
     public void Extensions_NullArguments_Throw()
     {
         IRequestContextScopeFactory factory = CreateFactory();

@@ -28,4 +28,13 @@ internal interface IRequestIdentityFactory
     /// <see langword="null"/> when there is none or the identities disagree.
     /// </summary>
     string? ResolveTenantId(ClaimsPrincipal? principal);
+
+    /// <summary>
+    /// Resolves the tenant id from the authenticated identities of <paramref name="principal"/> and
+    /// tells apart "no tenant claim" from "conflicting tenant claims".
+    /// </summary>
+    /// <param name="principal">The principal to inspect.</param>
+    /// <param name="tenantId">The tenant claim value, or <see langword="null"/> when there is none or the identities disagree.</param>
+    /// <returns><see langword="false"/> when the authenticated identities carry different tenant claims; otherwise <see langword="true"/>.</returns>
+    bool TryResolveTenantId(ClaimsPrincipal? principal, out string? tenantId);
 }

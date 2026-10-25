@@ -51,7 +51,7 @@ internal sealed class EncinaContextMiddleware
     /// </summary>
     /// <param name="next">The next middleware in the pipeline.</param>
     /// <param name="options">The header names.</param>
-    /// <param name="logger">The logger (EventIds 202-203).</param>
+    /// <param name="logger">The logger (EventIds 202-204).</param>
     public EncinaContextMiddleware(
         RequestDelegate next,
         IOptions<EncinaAspNetCoreOptions> options,
@@ -64,6 +64,11 @@ internal sealed class EncinaContextMiddleware
         _next = next;
         _options = options.Value;
         _logger = logger;
+
+        if (_options.TrustTenantIdHeader)
+        {
+            EncinaContextMiddlewareLog.TenantHeaderTrusted(_logger);
+        }
     }
 
     /// <summary>
@@ -115,7 +120,7 @@ internal sealed class EncinaContextMiddleware
     {
         var result = await scopes.RunAnonymousMarkerAsync(AnonymousMarker.Connection, _ => _next(context), context.RequestAborted)
             .ConfigureAwait(false);
-        Complete(context, result, endpointBefore, pathBefore);
+        await Complete(context, result, endpointBefore, pathBefore).ConfigureAwait(false);
     }
 
     private async Task RunInboundAsync(HttpContext context, IInternalRequestContextScopeFactory scopes, Endpoint? endpointBefore, PathString pathBefore)
@@ -123,7 +128,7 @@ internal sealed class EncinaContextMiddleware
         var info = HttpContextInboundRequestExtensions.CreateInboundRequestInfo(context, _options);
         var result = await scopes.RunHostInboundAsync(info, (requestContext, _) => RunNextAsync(context, requestContext), context.RequestAborted)
             .ConfigureAwait(false);
-        Complete(context, result, endpointBefore, pathBefore);
+        await Complete(context, result, endpointBefore, pathBefore).ConfigureAwait(false);
     }
 
     private async Task<Either<EncinaError, Unit>> RunNextAsync(HttpContext context, IRequestContext requestContext)
@@ -133,18 +138,30 @@ internal sealed class EncinaContextMiddleware
         return Unit.Default;
     }
 
-    // A refused scope never ran the pipeline: an aborted request gets nothing, any other refusal is a
-    // host misconfiguration (the factory already logged its code) and fails closed with 500.
-    private void Complete(HttpContext context, Either<EncinaError, Unit> result, Endpoint? endpointBefore, PathString pathBefore)
+    // A refused scope never ran the pipeline: an aborted request gets nothing, an ambiguous tenant
+    // (header against claim, or conflicting claims) is answered 403 problem+json with no tenant value,
+    // any other refusal is a host misconfiguration (the factory already logged its code) and fails
+    // closed with 500.
+    private async Task Complete(HttpContext context, Either<EncinaError, Unit> result, Endpoint? endpointBefore, PathString pathBefore)
     {
-        result.Match(
-            Right: _ => CheckOrdering(context, endpointBefore, pathBefore),
-            Left: error => Refuse(context, error));
-    }
+        if (result.IsRight)
+        {
+            CheckOrdering(context, endpointBefore, pathBefore);
+            return;
+        }
 
-    private static void Refuse(HttpContext context, EncinaError error)
-    {
-        if (!error.GetCode().Exists(static code => code == EncinaErrorCodes.RequestCancelled))
+        var error = result.LeftToList()[0];
+        var code = error.GetCode();
+        if (code.Exists(static value => value == RequestIdentityErrorCodes.InboundTenantConflict))
+        {
+            await Results.Problem(
+                    statusCode: StatusCodes.Status403Forbidden,
+                    title: "Forbidden",
+                    detail: "The tenant of the request could not be resolved unambiguously.")
+                .ExecuteAsync(context)
+                .ConfigureAwait(false);
+        }
+        else if (!code.Exists(static value => value == EncinaErrorCodes.RequestCancelled))
         {
             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
         }

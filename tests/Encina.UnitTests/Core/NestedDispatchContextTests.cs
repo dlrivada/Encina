@@ -359,7 +359,7 @@ public sealed class NestedDispatchContextTests
     {
         var scopes = provider.GetRequiredService<IInternalRequestContextScopeFactory>();
         var accessor = provider.GetRequiredService<IRequestContextAccessor>();
-        var info = new InboundRequestInfo(TestIdentity.Principal("user-1"), "corr-1", TenantHeaderValue: "tenant-1", IdempotencyKey: idempotencyKey);
+        var info = new InboundRequestInfo(TestIdentity.Principal("user-1"), "corr-1", TenantHeaderValue: "tenant-1", IdempotencyKey: idempotencyKey, TenantHeaderTrusted: true);
 
         var result = await scopes.RunHostInboundAsync(info, async (context, _) =>
         {
