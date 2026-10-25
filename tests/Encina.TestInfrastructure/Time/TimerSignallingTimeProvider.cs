@@ -11,6 +11,12 @@ namespace Encina.TestInfrastructure.Time;
 /// <remarks>
 /// Code under test usually creates its timers from a background task. Advancing the clock before
 /// the timer exists silently does nothing, so a test calls <see cref="WaitForTimersAsync"/> first.
+/// <para>
+/// Signals accumulate for every timer created between waits, so a timer created earlier (for example in
+/// a previous phase of the test) can satisfy a later <see cref="WaitForTimersAsync"/> call; wait for
+/// exactly the timers of the phase you are about to advance. Signals consumed by a wait that then times
+/// out are lost, so a retry on the same instance sees a lower count.
+/// </para>
 /// </remarks>
 /// <param name="start">The initial time of the clock.</param>
 public sealed class TimerSignallingTimeProvider(DateTimeOffset start) : FakeTimeProvider(start)
