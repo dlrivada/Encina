@@ -1,0 +1,1 @@
+- `DomainEventDispatchException` replaces its `EncinaError` property and its `(string message, ...)` constructors with `ErrorCode`, `ErrorCodeDataKey` and the constructors `(IDomainEvent, EncinaError)` and `(IDomainEvent, Exception)` (#2710).
