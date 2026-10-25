@@ -88,10 +88,10 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "Endpoint mapping extensions with ThrowIfNull(endpoints)",
-      "targets": { "unit": 80, "guard": 0 },
+      "targets": { "unit": 80, "guard": 4 },
       "justifications": {
         "unit": "Every handler path has an endpoint execution test through the test server, including the request-context tenant of the assess handler (measured 83%).",
-        "guard": "Guard tests reach only the MapDPIAEndpoints null check, the handlers take no guarded arguments (measured 0.4%)."
+        "guard": "Guard tests cover the MapDPIAEndpoints null-endpoints and null-prefix checks and a successful mapping; the handlers take no guarded arguments, so the flag cannot reach them (measured 4.3%)."
       }
     },
     "EncinaAspNetCoreOptions.cs": {
