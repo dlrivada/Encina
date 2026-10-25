@@ -153,6 +153,34 @@ public sealed class AttestationGuardExtendedTests
     }
 
     [Fact]
+    public async Task InMemoryProvider_AttestAsync_WithActivityListener_StartsAttestationActivity()
+    {
+        var started = new List<string>();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Encina.Compliance.Attestation",
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) =>
+                System.Diagnostics.ActivitySamplingResult.AllData,
+            ActivityStarted = activity => { lock (started) { started.Add(activity.OperationName); } }
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        var provider = new InMemoryAttestationProvider(
+            TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryAttestationProvider>.Instance);
+
+        var result = await provider.AttestAsync(new AuditRecord
+        {
+            RecordId = Guid.NewGuid(),
+            RecordType = "GuardActivity",
+            OccurredAtUtc = DateTimeOffset.UnixEpoch,
+            SerializedContent = "{}"
+        });
+
+        result.IsRight.ShouldBeTrue();
+        lock (started) { started.ShouldContain("Attestation.Attest"); }
+    }
+
+    [Fact]
     public void HashChainOptionsValidator_NullOptions_Throws() =>
         Should.Throw<ArgumentNullException>(() => new HashChainOptionsValidator().Validate(null, null!))
             .ParamName.ShouldBe("options");

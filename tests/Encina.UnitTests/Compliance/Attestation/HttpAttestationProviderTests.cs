@@ -330,7 +330,28 @@ public sealed class HttpAttestationProviderTests
     [Fact]
     public async Task AttestAsync_MalformedBody_IncrementsAttestationFailedAndRecordsFailure()
     {
-        var failed = new List<long>();
+        // The record type is unique to this test: the counter is process-wide, so a measurement
+        // only counts when it is taken inside the activity that carries this record type
+        // (the callback runs synchronously on the thread that calls Add).
+        var recordType = "metrics-" + Guid.NewGuid();
+        var failed = new System.Collections.Concurrent.ConcurrentBag<(long Value, object? Provider)>();
+        var finished = new System.Collections.Concurrent.ConcurrentBag<System.Diagnostics.Activity>();
+
+        using var activityListener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Encina.Compliance.Attestation",
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) =>
+                System.Diagnostics.ActivitySamplingResult.AllData,
+            ActivityStopped = activity =>
+            {
+                if (Equals(activity.GetTagItem("attestation.record_type"), recordType))
+                {
+                    finished.Add(activity);
+                }
+            }
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(activityListener);
+
         using var listener = new System.Diagnostics.Metrics.MeterListener();
         listener.InstrumentPublished = (instrument, l) =>
         {
@@ -339,13 +360,33 @@ public sealed class HttpAttestationProviderTests
                 l.EnableMeasurementEvents(instrument);
             }
         };
-        listener.SetMeasurementEventCallback<long>((_, value, _, _) => failed.Add(value));
+        listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
+        {
+            if (!Equals(System.Diagnostics.Activity.Current?.GetTagItem("attestation.record_type"), recordType))
+            {
+                return;
+            }
+
+            object? provider = null;
+            foreach (var tag in tags)
+            {
+                if (tag.Key == "attestation.provider")
+                {
+                    provider = tag.Value;
+                }
+            }
+
+            failed.Add((value, provider));
+        });
         listener.Start();
         var sut = Create(RespondRaw(""));
 
-        await sut.AttestAsync(Record());
+        await sut.AttestAsync(Record() with { RecordType = recordType });
 
-        failed.ShouldNotBeEmpty();
+        failed.Single().ShouldBe((1L, (object?)"Http"));
+        var activity = finished.Single();
+        activity.Status.ShouldBe(System.Diagnostics.ActivityStatusCode.Error);
+        activity.StatusDescription.ShouldBe("Malformed response");
     }
 
     [Fact]
