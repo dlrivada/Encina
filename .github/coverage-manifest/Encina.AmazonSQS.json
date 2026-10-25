@@ -16,11 +16,15 @@
       "reason": "Default: assume testable with mocks",
       "targets": {
         "unit": 95,
-        "guard": 10
+        "guard": 10,
+        "integration": 85,
+        "contract": 85
       },
       "justifications": {
         "unit": "Unit tests drive send, publish, batch and FIFO paths against substituted SQS and SNS clients, including the supplied and generated message id and the FIFO deduplication id.",
-        "guard": "Guard tests cover the constructor and method null checks."
+        "guard": "Guard tests cover the constructor and method null checks.",
+        "integration": "Integration tests drive queue send, FIFO send with group and deduplication ids, SNS publish and the message id and type attributes against a LocalStack SQS/SNS emulator; the remaining lines are the batch result collection, which currently throws on a fully successful batch (follow-up bug), and the exception branches that need a failing broker.",
+        "contract": "Contract tests run the real publisher against LocalStack and assert the IAmazonSQSMessagePublisher contract (Right with the broker id, Left with a stable code instead of throwing, type and id attributes); the batch-result lines wait for the batch bug fix."
       }
     },
     "EncinaAmazonSQSOptions.cs": {
@@ -35,7 +39,13 @@
         "unit"
       ],
       "defaultRule": "*Validator.cs",
-      "reason": "Internal IValidateOptions validator; guard and property invariants are covered on the core EndpointValidator (#852)"
+      "reason": "Internal IValidateOptions validator; guard and property invariants are covered on the core EndpointValidator (#852)",
+      "targets": {
+        "integration": 85
+      },
+      "justifications": {
+        "integration": "Integration tests register the package with a LocalStack queue URL under AllowInsecureHttp and AllowLocalEndpoints, so validation and the relaxed-endpoint warning run; the failure branches are covered by the unit flag."
+      }
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
@@ -48,7 +58,15 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "integration": 70,
+        "contract": 70
+      },
+      "justifications": {
+        "integration": "Integration tests run ListQueues against LocalStack for the healthy result and against a closed port for the unhealthy result; the non-OK status and AmazonSQSException branches need a broker that answers with an error.",
+        "contract": "Contract tests run the real health check against LocalStack and assert the IEncinaHealthCheck name, tags and healthy status."
+      }
     },
     "IAmazonSQSMessagePublisher.cs": {
       "defaultTests": [],
@@ -66,7 +84,13 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "integration": 55
+      },
+      "justifications": {
+        "integration": "Integration tests build the provider with ValidateOnBuild and ValidateScopes and pre-registered LocalStack clients, so the options, publisher and health check registrations run; the package's own client-construction lambdas (lines 50-66) stay integration-uncovered because the fixture clients win through TryAdd."
+      }
     }
   }
 }
