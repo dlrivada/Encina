@@ -69,6 +69,8 @@ public static class ProblemDetailsExtensions
         HttpContext httpContext,
         int? statusCode = null)
     {
+        ArgumentNullException.ThrowIfNull(httpContext);
+
         var options = ResolveOptions(httpContext);
         var effectiveStatusCode = statusCode ?? MapErrorCodeToStatusCode(error);
 
