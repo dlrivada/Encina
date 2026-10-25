@@ -110,7 +110,7 @@ public sealed class AmazonSQSPublisherContractTests : IAsyncLifetime
         received[0].MessageAttributes["MessageId"].StringValue.ShouldBe("propagated-id");
     }
 
-    [Fact(Skip = "Blocked by a src bug: SendBatchAsync returns SQS_BATCH_SEND_FAILED for a fully successful batch because the SDK response leaves Failed null (see the follow-up bug issue). Enable when fixed.")]
+    [Fact(Skip = "Blocked by a src bug: SendBatchAsync returns SQS_BATCH_SEND_FAILED for a fully successful batch because the SDK response leaves Failed null (#2799). Enable when fixed.")]
     public async Task SendBatchAsync_OnSuccess_ReturnsOneIdPerMessage()
     {
         // Arrange

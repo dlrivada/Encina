@@ -126,7 +126,7 @@ public sealed class AmazonSQSPublisherIntegrationTests : IAsyncLifetime
 
     // The batch result is not asserted here: with the AWS SDK v4 response, Failed is null when no entry
     // failed, so CollectMessageIds throws and SendBatchAsync returns SQS_BATCH_SEND_FAILED after the
-    // messages were delivered. The follow-up bug issue tracks it; the test below pins the result.
+    // messages were delivered. #2799 tracks it; the test below pins the result.
     [Fact]
     public async Task SendBatchAsync_DeliversEveryMessageWithItsType()
     {
@@ -149,7 +149,7 @@ public sealed class AmazonSQSPublisherIntegrationTests : IAsyncLifetime
         received.ShouldAllBe(m => m.MessageAttributes["MessageType"].StringValue == typeof(OrderPlacedMessage).FullName);
     }
 
-    [Fact(Skip = "Blocked by a src bug: SendBatchAsync returns SQS_BATCH_SEND_FAILED for a fully successful batch because the SDK response leaves Failed null (see the follow-up bug issue). Enable when fixed.")]
+    [Fact(Skip = "Blocked by a src bug: SendBatchAsync returns SQS_BATCH_SEND_FAILED for a fully successful batch because the SDK response leaves Failed null (#2799). Enable when fixed.")]
     public async Task SendBatchAsync_OnSuccess_ReturnsOneMessageIdPerMessage()
     {
         // Arrange
