@@ -17,7 +17,7 @@
       "targets": { "unit": 100, "guard": 25 },
       "justifications": {
         "unit": "Success, both Failure overloads, ToEither and both ToActivityResult extensions are executed by ActivityResultTests.",
-        "guard": "DurableGuardTests runs ToActivityResult on a Right value, which executes the success mapping; the null check in Failure(EncinaError) and the remaining members are left to the unit flag."
+        "guard": "DurableGuardTests run ToActivityResult on a Right value, which executes the success mapping; the null check in Failure(EncinaError) is unreachable because EncinaError is a struct, and the remaining members are left to the unit flag."
       }
     },
     "Durable/DurableFunctionsHealthCheck.cs": {
@@ -42,7 +42,7 @@
       "targets": { "unit": 100, "guard": 80 },
       "justifications": {
         "unit": "Every option default is read by DurableFunctionsOptionsTests.",
-        "guard": "The auto-property initializers are executed whenever the options are instantiated by the health check and registration guard tests."
+        "guard": "The auto-property initializers are executed when the DurableFunctionsHealthCheck guard test instantiates the options."
       }
     },
     "Durable/DurableSagaBuilder.cs": {
@@ -55,7 +55,7 @@
       "targets": { "unit": 50, "guard": 38 },
       "justifications": {
         "unit": "DurableSagaBuilderTests build and configure sagas; the ExecuteAsync and compensation paths need an orchestration context double and are still partly unmeasured.",
-        "guard": "DurableGuardTests call Step, WithTimeout, Execute, Compensate, the step Step/Build finalisation errors and ExecuteAsync with invalid arguments, plus the minimum valid calls that reach each check."
+        "guard": "DurableGuardTests call Step, WithTimeout, Execute and Compensate with invalid arguments, the step builder Step and Build finalisation errors, and ExecuteAsync with a null context, plus the minimum valid calls that reach each check."
       }
     },
     "Durable/DurableSagaErrorCodes.cs": {
@@ -88,7 +88,7 @@
       "targets": { "unit": 35, "guard": 25 },
       "justifications": {
         "unit": "FanOutFanInExtensionsTests run the FanOut methods with substituted orchestration contexts; the aggregate methods still lack unit coverage.",
-        "guard": "DurableGuardTests call every FanOut method with a null context, null or empty activity name and null inputs, plus the empty-input early return."
+        "guard": "DurableGuardTests call FanOutAsync and FanOutWithResultAsync with a null context, null or empty activity name, null inputs and empty inputs, and FanOutAllAsync, FanOutFirstSuccessAsync and both FanOutMultipleAsync overloads with a null context."
       }
     },
     "Durable/OrchestrationContextExtensions.cs": {
