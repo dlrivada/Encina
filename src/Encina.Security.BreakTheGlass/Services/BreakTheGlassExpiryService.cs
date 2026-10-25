@@ -128,7 +128,6 @@ internal sealed class BreakTheGlassExpiryService : BackgroundService
         var now = _timeProvider.GetUtcNow();
         await using var scope = _scopeFactory.CreateAsyncScope();
         var store = scope.ServiceProvider.GetRequiredService<IBreakTheGlassStore>();
-        var auditStore = scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
 
         var listed = await store.GetExpiredUnrecordedAsync(now, _options.Value.ExpirySweepBatchSize, cancellationToken).ConfigureAwait(false);
         var rows = listed.Match<IReadOnlyList<BreakTheGlassElevation>?>(Right: found => found, Left: error => { StoreFailed(error); return null; });
@@ -137,6 +136,14 @@ internal sealed class BreakTheGlassExpiryService : BackgroundService
             return false;
         }
 
+        if (rows.Count == 0)
+        {
+            return Complete(SweepFailure.None, 0);
+        }
+
+        // Resolved only when there is something to audit, so a deployment with the feature switched off
+        // and no audit store sweeps an empty table without error.
+        var auditStore = scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
         var failure = await HandleRowsAsync(rows, store, auditStore, context, now, cancellationToken).ConfigureAwait(false);
         return Complete(failure, rows.Count);
     }

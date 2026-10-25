@@ -12,6 +12,11 @@ namespace Encina.Security.BreakTheGlass;
 /// application that references the package without configuring scopes starts cleanly, while the expiry
 /// sweeper keeps closing and auditing the elevations that are already open.
 /// </para>
+/// <para>
+/// <see cref="EnableAutoPurge"/> and <see cref="AddHealthCheck"/> decide which services
+/// <c>AddEncinaBreakTheGlass</c> registers, so they are read from its <c>configure</c> delegate: set them
+/// there, not through configuration binding applied elsewhere.
+/// </para>
 /// </remarks>
 public sealed class BreakTheGlassOptions
 {
