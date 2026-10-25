@@ -44,8 +44,8 @@ builder.Services.AddEncinaAspNetCore(options =>
     // Optional: Include request path in Problem Details
     options.IncludeRequestPathInProblemDetails = false; // Default
 
-    // Optional: Include exception details (only in Development by default)
-    options.IncludeExceptionDetails = false;
+    // Optional: Put the error message in Problem Details (honoured only in Development)
+    options.IncludeErrorMessageInProblemDetails = false; // Default
 });
 
 // Authorization with CQRS-aware defaults (replaces plain AddAuthorization)
@@ -359,12 +359,13 @@ public async Task<IActionResult> Create(CreateOrderCommand cmd)
   "type": "https://tools.ietf.org/html/rfc7231#section-6.5.1",
   "title": "Bad Request",
   "status": 400,
-  "detail": "Email address is required",
   "traceId": "00-a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6-q7r8s9t0u1v2w3x4-01",
   "correlationId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
   "errorCode": "validation.email_required"
 }
 ```
+
+`detail` is omitted by default: `EncinaError.Message` never reaches the response, so a 400 validation response does not list field messages. The response carries the status, a generic title, `errorCode`, `traceId` and `correlationId` (when the request carries the correlation header).
 
 **Optional Request Path:**
 
@@ -382,21 +383,27 @@ This adds the `instance` field:
   "instance": "/api/users",
   "type": "https://tools.ietf.org/html/rfc7231#section-6.5.4",
   "title": "Not Found",
-  "status": 404,
-  "detail": "User not found"
+  "status": 404
 }
 ```
 
-**Development Mode Exception Details:**
+**Development Mode Error Messages:**
 
-In Development environment, exception details are automatically included:
+Set `IncludeErrorMessageInProblemDetails = true` and run in the Development environment to get the message in `detail` and the `exception` extension:
+
+```csharp
+services.AddEncinaAspNetCore(options =>
+{
+    options.IncludeErrorMessageInProblemDetails = true; // Ignored outside Development
+});
+```
 
 ```json
 {
   "type": "https://tools.ietf.org/html/rfc7231#section-6.6.1",
   "title": "Internal Server Error",
   "status": 500,
-  "detail": "An error occurred while processing the request",
+  "detail": "Database connection failed",
   "exception": {
     "type": "System.InvalidOperationException",
     "message": "Database connection failed",
@@ -484,10 +491,16 @@ services.AddEncinaAspNetCore(options =>
     // Include request path in Problem Details (default: false)
     options.IncludeRequestPathInProblemDetails = true;
 
-    // Include exception details in Problem Details (default: false, auto in Development)
-    options.IncludeExceptionDetails = false;
+    // Include the error message and exception details in Problem Details
+    // (default: false; honoured only when IHostEnvironment.IsDevelopment())
+    options.IncludeErrorMessageInProblemDetails = false;
 });
 ```
+
+| Option | Default | Effect |
+| --- | --- | --- |
+| `IncludeRequestPathInProblemDetails` | `false` | Adds `instance` with the request path. |
+| `IncludeErrorMessageInProblemDetails` | `false` | When `true` and the host environment is Development, `detail` carries `EncinaError.Message` and, when the error carries an exception, the `exception` extension (type, message, stack trace) is added. In any other environment, or when no host environment can be resolved, the option is ignored (fail closed) and a warning (EventId 204) is logged once at startup. When honoured in Development, a warning (EventId 205) is logged once at startup because responses expose error messages. |
 
 Claim types are not configured here; see [Request identity](#2-request-identity).
 
@@ -612,7 +625,7 @@ return EncinaErrors.Create(
     });
 ```
 
-This metadata is automatically included in the Problem Details response.
+This metadata is not copied into the Problem Details response. The response carries only `traceId`, `correlationId` and `errorCode` (plus `detail` and the `exception` extension in the Development-only case described in [EncinaAspNetCoreOptions](#encinaaspnetcoreoptions)); expose structured data to clients through your own response contract.
 
 ## Integration with Other Packages
 
