@@ -1,7 +1,7 @@
 {
   "package": "Encina.Testing",
   "generated": "2026-10-05T15:25:36Z",
-  "totalFiles": 32,
+  "totalFiles": 30,
   "targets": {
     "guard": 15,
     "unit": 60
@@ -53,7 +53,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 79, "guard": 21 },
+      "justifications": {
+        "unit": "The fluent time-travel and assertion paths of EncinaTestContext run against in-memory fakes and Microsoft's FakeTimeProvider, covering most of the file.",
+        "guard": "Only the argument checks and not-configured guards of EncinaTestContext are reachable by the guard flag."
+      }
     },
     "EncinaTestFixture.cs": {
       "defaultTests": [
@@ -61,7 +66,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 85, "guard": 25 },
+      "justifications": {
+        "unit": "The fluent time-travel and assertion paths of EncinaTestFixture run against in-memory fakes and Microsoft's FakeTimeProvider, covering most of the file.",
+        "guard": "Only the argument checks and not-configured guards of EncinaTestFixture are reachable by the guard flag."
+      }
     },
     "EventSourcing/AggregateTestBase.cs": {
       "defaultTests": [
@@ -118,10 +128,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 78, "guard": 28 },
+      "targets": { "unit": 84, "guard": 29 },
       "justifications": {
-        "unit": "Helper logic is exercised by the unit flag with in-memory fakes, covering most of the file.",
-        "guard": "Only the argument checks of the helper methods are guard-reachable."
+        "unit": "The fluent time-travel and assertion paths of InboxTestHelper run against in-memory fakes and Microsoft's FakeTimeProvider, covering most of the file.",
+        "guard": "Only the argument checks and not-configured guards of InboxTestHelper are reachable by the guard flag."
       }
     },
     "Messaging/OutboxTestHelper.cs": {
@@ -130,7 +140,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 87, "guard": 28 },
+      "justifications": {
+        "unit": "The fluent time-travel and assertion paths of OutboxTestHelper run against in-memory fakes and Microsoft's FakeTimeProvider, covering most of the file.",
+        "guard": "Only the argument checks and not-configured guards of OutboxTestHelper are reachable by the guard flag."
+      }
     },
     "Messaging/SagaTestHelper.cs": {
       "defaultTests": [
@@ -138,7 +153,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 90, "guard": 22 },
+      "justifications": {
+        "unit": "The fluent time-travel and assertion paths of SagaTestHelper run against in-memory fakes and Microsoft's FakeTimeProvider, covering most of the file.",
+        "guard": "Only the argument checks and not-configured guards of SagaTestHelper are reachable by the guard flag."
+      }
     },
     "Messaging/SchedulingTestHelper.cs": {
       "defaultTests": [
@@ -146,7 +166,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 85, "guard": 11 },
+      "justifications": {
+        "unit": "The fluent time-travel and assertion paths of SchedulingTestHelper run against in-memory fakes and Microsoft's FakeTimeProvider, covering most of the file.",
+        "guard": "Only the argument checks and not-configured guards of SchedulingTestHelper are reachable by the guard flag."
+      }
     },
     "Modules/CircularDependency.cs": {
       "defaultTests": [
@@ -226,7 +251,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 87, "guard": 21 },
+      "justifications": {
+        "unit": "The fluent time-travel and assertion paths of ModuleTestFixture run against in-memory fakes and Microsoft's FakeTimeProvider, covering most of the file.",
+        "guard": "Only the argument checks and not-configured guards of ModuleTestFixture are reachable by the guard flag."
+      }
     },
     "Mutations/MutationKillerAttribute.cs": {
       "defaultTests": [
@@ -245,22 +275,6 @@
       "reason": "Default: assume testable with mocks"
     },
     "Sagas/SagaSpecification.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Time/FakeTimeProvider.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
-    },
-    "Time/FakeTimer.cs": {
       "defaultTests": [
         "unit",
         "guard"
