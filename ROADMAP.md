@@ -306,7 +306,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 
 - OpenTelemetry integration
 - Metrics & Tracing
-- Circuit Breaker patterns
+- Resilience family consolidated into one package, `Encina.Resilience` ([ADR-055](docs/architecture/adr/055-resilience-family.md), #2691): one Polly pipeline per request type, the partitioned rate limiting core (#2414), timeout, hedging, fallback, chaos, load shedding, adaptive concurrency and provider decorators; `Encina.Polly` and `Encina.Extensions.Resilience` are removed
 - Advanced Caching patterns
 - Distributed Lock providers
 - Serverless enhancements
@@ -569,7 +569,7 @@ Key areas already completed:
   - Cache Diagnostics [#276](https://github.com/dlrivada/Encina/issues/276) — HTTP headers, debug endpoints
   - New Providers [#277](https://github.com/dlrivada/Encina/issues/277) — Memcached, Pogocache, MemoryPack serializer
   - Auto-Recovery [#278](https://github.com/dlrivada/Encina/issues/278) — Retry, Circuit Breaker, automatic reconnection
-- **Advanced Resilience** (new - based on 2025 research):
+- **Advanced Resilience** (new - based on 2025 research; in the 1.0 scope since SPEC-000 DEC-009, designed by [ADR-055](docs/architecture/adr/055-resilience-family.md), all in `Encina.Resilience`):
   - Hedging Pattern [#136](https://github.com/dlrivada/Encina/issues/136) — Parallel redundant requests for latency reduction (Polly v8)
   - Fallback / Graceful Degradation [#137](https://github.com/dlrivada/Encina/issues/137) — Alternative responses when primary operations fail
   - Load Shedding with Priority [#138](https://github.com/dlrivada/Encina/issues/138) — Netflix/Uber-inspired priority-based request shedding
