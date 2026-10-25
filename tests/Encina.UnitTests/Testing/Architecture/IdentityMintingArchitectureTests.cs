@@ -77,13 +77,14 @@ public sealed class IdentityMintingArchitectureTests
     public void TheInternalScopeMembers_AreCalledOnlyByTheirDeclaredHosts()
     {
         // Phase 3 (#1705): the host adapters reach only the inbound twin and the anonymous marker;
-        // only Encina.Security.ABAC opens a built-in identity. Calls inside Encina itself are the
+        // only Encina.Security.ABAC (policy seeding) and Encina.Security.BreakTheGlass (expiry sweeper,
+        // #1244 D31) open a built-in identity. Calls inside Encina itself are the
         // factory's own.
         Dictionary<string, string[]> allowedHosts = new(StringComparer.Ordinal)
         {
             [nameof(IInternalRequestContextScopeFactory.RunHostInboundAsync)] = ["Encina.AspNetCore", "Encina.AspNetCore.Blazor"],
             [nameof(IInternalRequestContextScopeFactory.RunAnonymousMarkerAsync)] = ["Encina.AspNetCore", "Encina.AspNetCore.Blazor"],
-            [nameof(IInternalRequestContextScopeFactory.RunAsBuiltInAsync)] = ["Encina.Security.ABAC"]
+            [nameof(IInternalRequestContextScopeFactory.RunAsBuiltInAsync)] = ["Encina.Security.ABAC", "Encina.Security.BreakTheGlass"]
         };
         var internalMembers = typeof(IInternalRequestContextScopeFactory).GetMethods(AllDeclared)
             .Concat(typeof(RequestContextScopeFactory).GetMethods(AllDeclared).Where(method => allowedHosts.ContainsKey(method.Name)))

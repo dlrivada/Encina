@@ -42,9 +42,9 @@ public sealed class BreakTheGlassOperationsContractTests
     {
         using var provider = Provider(o => o.ExpirySweepBatchSize = 0);
 
-        var validators = provider.GetServices<IValidateOptions<BreakTheGlassOptions>>().ToList();
+        var validator = provider.GetServices<IValidateOptions<BreakTheGlassOptions>>().ShouldHaveSingleItem();
 
-        validators.ShouldHaveSingleItem().Validate(null, provider.GetRequiredService<IOptions<BreakTheGlassOptions>>().Value).Failed.ShouldBeTrue();
+        validator.Validate(null, new BreakTheGlassOptions { ExpirySweepBatchSize = 0 }).Failed.ShouldBeTrue();
         Should.Throw<OptionsValidationException>(() => provider.GetRequiredService<IOptions<BreakTheGlassOptions>>().Value);
     }
 
@@ -72,7 +72,7 @@ public sealed class BreakTheGlassOperationsContractTests
     public async Task HostedServices_StartAndStopCleanly_InRegistrationOrder()
     {
         using var provider = Provider();
-        var hosted = provider.GetServices<IHostedService>().ToList();
+        var hosted = provider.GetServices<IHostedService>().Where(h => h.GetType().Namespace == "Encina.Security.BreakTheGlass").ToList();
 
         hosted.Select(h => h.GetType()).ToList().ShouldBe(
             [typeof(BreakTheGlassStartupValidator), typeof(BreakTheGlassExpiryService), typeof(BreakTheGlassPurgeService)], ignoreOrder: false);

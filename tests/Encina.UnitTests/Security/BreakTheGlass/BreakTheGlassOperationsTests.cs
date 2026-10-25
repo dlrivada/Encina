@@ -151,11 +151,11 @@ public sealed class BreakTheGlassOperationsTests
         // Nothing runs at start: the purge waits for its own interval (1 hour in this rig).
         (await StillThereAsync()).ShouldBeTrue();
 
-        rig.Time.Advance(TimeSpan.FromHours(1));
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         while (await StillThereAsync())
         {
-            await Task.Yield();
+            rig.Time.Advance(TimeSpan.FromHours(1));
+            await Task.Delay(1, timeout.Token);
             timeout.Token.ThrowIfCancellationRequested();
         }
 

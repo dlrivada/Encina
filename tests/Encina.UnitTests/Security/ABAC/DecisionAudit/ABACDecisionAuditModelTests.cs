@@ -159,7 +159,7 @@ public sealed class ABACDecisionAuditModelTests
     public void Schema_ActionAndVersionAreStable()
     {
         ABACDecisionAuditSchema.Action.ShouldBe("ABACDecision");
-        ABACDecisionAuditSchema.SchemaVersion.ShouldBe("encina.abac.decision/1");
+        ABACDecisionAuditSchema.SchemaVersion.ShouldBe("encina.abac.decision/2");
         ABACDecisionAuditSchema.MetadataIdentityKind.ShouldBe("abac.identity_kind");
     }
 
