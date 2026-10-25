@@ -109,7 +109,7 @@ public class FunctionsGuardTests
         EncinaError error = EncinaErrors.Create("test.code", "message");
 
         var ex = await Should.ThrowAsync<ArgumentNullException>(
-            async () => await Encina.AzureFunctions.HttpResponseDataExtensions.ToProblemDetailsResponse(error, null!));
+            async () => await global::Encina.AzureFunctions.HttpResponseDataExtensions.ToProblemDetailsResponse(error, null!));
 
         ex.ParamName.ShouldBe("request");
     }
