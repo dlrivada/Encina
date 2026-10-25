@@ -1,5 +1,7 @@
 using Encina.Security.Audit;
+using Encina.Security.BreakTheGlass.Diagnostics;
 using LanguageExt;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using static LanguageExt.Prelude;
 
@@ -17,7 +19,7 @@ namespace Encina.Security.BreakTheGlass;
 /// <item><description>the caller is a <see cref="IdentityKind.User"/> (never a service or an anonymous caller);</description></item>
 /// <item><description>the request type is marked <see cref="BreakTheGlassEligibleAttribute"/> and yields a non-blank subject id;</description></item>
 /// <item><description>an earlier gate of the same request already holds a grant for this subject: reuse it, write nothing;</description></item>
-/// <item><description>an elevation is effective for tenant, user, subject and scope at this instant;</description></item>
+/// <item><description>an elevation is effective for tenant, user, subject and scope at this instant (a failed lookup keeps the denial: it is logged and counted, never turned into another error);</description></item>
 /// <item><description>the write-ahead access audit entry is stored (a failure returns <c>break_glass.audit_failed</c> and the request stays denied);</description></item>
 /// <item><description>the read-audit purpose becomes <c>break-the-glass</c> and the elevation id joins the read-audit metadata.</description></item>
 /// </list>
@@ -32,6 +34,7 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
     private readonly BreakTheGlassRequestGrants _grants;
     private readonly IOptions<BreakTheGlassOptions> _options;
     private readonly TimeProvider _timeProvider;
+    private readonly ILogger<BreakTheGlassAccessGate> _logger;
 
     public BreakTheGlassAccessGate(
         IBreakTheGlassStore store,
@@ -39,8 +42,11 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
         IReadAuditContext readAuditContext,
         BreakTheGlassRequestGrants grants,
         IOptions<BreakTheGlassOptions> options,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ILogger<BreakTheGlassAccessGate> logger)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(auditStore);
         ArgumentNullException.ThrowIfNull(readAuditContext);
@@ -81,7 +87,17 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
         var found = await _store.FindEffectiveAsync(context.TenantId, userId, subjectId, eligibility.Scope, _timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
         return await found.Match(
             Right: option => GrantAsync(option, typeof(TRequest), subjectId, userId, context, denial, cancellationToken),
-            Left: _ => ValueTask.FromResult<Either<EncinaError, Option<AccessElevation>>>(BreakTheGlassErrors.StoreFailed())).ConfigureAwait(false);
+            Left: LookupFailed).ConfigureAwait(false);
+    }
+
+    // A failed lookup keeps the original denial (the request stays denied; nobody gets in): the outage is
+    // loud through the log, the counter and the health check, not through a changed response. The audit
+    // write of an existing elevation is different and still returns a typed Left (see GrantAsync).
+    private ValueTask<Either<EncinaError, Option<AccessElevation>>> LookupFailed(EncinaError error)
+    {
+        BreakTheGlassLogMessages.AccessLookupFailed(_logger, error.GetCode().IfNone("encina.unknown"));
+        BreakTheGlassDiagnostics.RecordStoreFailure(BreakTheGlassDiagnostics.OperationAccessLookup);
+        return ValueTask.FromResult<Either<EncinaError, Option<AccessElevation>>>(Option<AccessElevation>.None);
     }
 
     // A grant held by an earlier gate of the same request is reused only while it is still in force.
@@ -143,9 +159,17 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
 
         var audited = await BreakTheGlassAudit.WriteAsync(_auditStore, entry, cancellationToken).ConfigureAwait(false);
         return audited.Match<Either<EncinaError, Option<AccessElevation>>>(
-            Right: _ => Some(Elevate(elevation, requestType, subjectId, context.CorrelationId)),
+            Right: _ =>
+            {
+                BreakTheGlassDiagnostics.RecordAccess(elevation.Scope, StageOf(denial));
+                return Some(Elevate(elevation, requestType, subjectId, context.CorrelationId));
+            },
             Left: error => error);
     }
+
+    // The stage that denied the request ("authorization", "abac", ...), or "unknown".
+    private static string StageOf(EncinaError denial) =>
+        denial.GetDetails().TryGetValue("stage", out var stage) && stage is string name ? name : "unknown";
 
     private AccessElevation Elevate(BreakTheGlassElevation elevation, Type requestType, string subjectId, string correlationId)
     {
@@ -164,11 +188,10 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
 
     private static Dictionary<string, object?> AccessMetadata(Type requestType, EncinaError denial)
     {
-        var details = denial.GetDetails();
         return new Dictionary<string, object?>
         {
             ["request_type"] = requestType.Name,
-            ["gate"] = details.TryGetValue("stage", out var stage) && stage is string name ? name : "unknown",
+            ["gate"] = StageOf(denial),
             ["denial_code"] = denial.GetCode().IfNone("unknown")
         };
     }

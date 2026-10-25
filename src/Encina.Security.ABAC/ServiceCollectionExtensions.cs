@@ -140,6 +140,10 @@ public static class ServiceCollectionExtensions
         // Nothing here takes IOperationAuditStore at construction: the recorder resolves it per
         // write in its own scope and the reader per call, so an application without a store builds.
         services.TryAddSingleton(TimeProvider.System);
+
+        // The gate a definite denial is offered to: the default keeps every denial, so the behavior
+        // resolves without an elevation package. TryAdd: an elevation package or the application wins.
+        services.TryAddSingleton<IAccessElevationGate, NoAccessElevationGate>();
         services.TryAddSingleton<IABACDecisionRecorder, AuditStoreABACDecisionRecorder>();
         services.TryAddSingleton<ABACDecisionAuditHealthState>();
         services.TryAddScoped<IABACDecisionAuditReader, ABACDecisionAuditReader>();

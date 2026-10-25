@@ -134,6 +134,7 @@ public static class ABACDecisionAuditEntryMapper
             Outcome = entry.Outcome,
             ReasonCode = entry.ErrorMessage,
             Enforced = metadata.Text(ABACDecisionAuditSchema.MetadataEnforced) != "false",
+            ElevationId = Guid.TryParse(metadata.Text(ABACDecisionAuditSchema.MetadataElevationId), out var elevationId) ? elevationId : null,
             EnforcementMode = metadata.Enum<ABACEnforcementMode>(ABACDecisionAuditSchema.MetadataEnforcementMode),
             Effect = metadata.Enum<Effect>(ABACDecisionAuditSchema.MetadataEffect),
             PolicyId = metadata.Text(ABACDecisionAuditSchema.MetadataPolicyId),
@@ -162,13 +163,14 @@ public static class ABACDecisionAuditEntryMapper
         {
             [ABACDecisionAuditSchema.MetadataSchema] = ABACDecisionAuditSchema.SchemaVersion,
             [ABACDecisionAuditSchema.MetadataStage] = ABACDecisionAuditSchema.StagePep,
-            [ABACDecisionAuditSchema.MetadataEnforced] = record.EnforcedOutcome == ABACEnforcedOutcome.DeniedNotEnforced ? "false" : "true",
+            [ABACDecisionAuditSchema.MetadataEnforced] = record.EnforcedOutcome is ABACEnforcedOutcome.DeniedNotEnforced or ABACEnforcedOutcome.DeniedElevated ? "false" : "true",
             [ABACDecisionAuditSchema.MetadataEnforcementMode] = record.EnforcementMode.ToString(),
             [ABACDecisionAuditSchema.MetadataIdentityKind] = record.IdentityKind.ToString(),
             [ABACDecisionAuditSchema.MetadataStartedAtUtc] = record.StartedAtUtc.ToString("O", CultureInfo.InvariantCulture),
             [ABACDecisionAuditSchema.MetadataCompletedAtUtc] = record.CompletedAtUtc.ToString("O", CultureInfo.InvariantCulture)
         };
 
+        AddIfPresent(metadata, ABACDecisionAuditSchema.MetadataElevationId, record.ElevationId?.ToString("D"));
         AddDecision(metadata, record, bounds);
         AddTrace(metadata, record);
         AddAttributes(metadata, record, bounds);

@@ -21,5 +21,12 @@ public enum ABACEnforcedOutcome
     /// The decision is a definite denial but the enforcement mode is <see cref="ABACEnforcementMode.Warn"/>,
     /// so the request proceeds anyway.
     /// </summary>
-    DeniedNotEnforced = 2
+    DeniedNotEnforced = 2,
+
+    /// <summary>
+    /// The decision is a definite denial in <see cref="ABACEnforcementMode.Block"/> mode, but an
+    /// emergency elevation (break-the-glass) overrode it, so the request proceeds. The record carries
+    /// the elevation id and is always recorded, whatever <see cref="ABACDecisionAuditOptions.Outcomes"/> selects.
+    /// </summary>
+    DeniedElevated = 3
 }

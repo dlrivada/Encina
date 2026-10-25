@@ -390,6 +390,9 @@ public static class EventIdRanges
     /// <summary>Encina.Compliance.Attestation — tamper-evident audit attestation.</summary>
     public static readonly (int Min, int Max) ComplianceAttestation = (9600, 9699);
 
+    /// <summary>Encina.Security.BreakTheGlass — break-the-glass emergency access (gate, sweeper, health, start-up).</summary>
+    public static readonly (int Min, int Max) SecurityBreakTheGlass = (9750, 9799);
+
     /// <summary>
     /// Returns all registered ranges for validation and diagnostics.
     /// </summary>

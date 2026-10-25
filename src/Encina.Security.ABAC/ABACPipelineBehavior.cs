@@ -56,6 +56,16 @@ namespace Encina.Security.ABAC;
 /// anyway stays denied.
 /// </para>
 /// <para>
+/// <b>Emergency elevation.</b> In <see cref="ABACEnforcementMode.Block"/> mode a definite denial (see
+/// <see cref="AccessElevationDenials.IsOverridable"/>) is offered to the <see cref="IAccessElevationGate"/>
+/// inside the decide step, after the OnDeny obligations and advice and before the record is written.
+/// An elevation lets the request proceed and is recorded as <see cref="ABACEnforcedOutcome.DeniedElevated"/>
+/// with its id, always, whatever <see cref="ABACDecisionAuditOptions.Outcomes"/> selects; counters and
+/// span status keep the Deny verdict and the activity carries <c>abac.break_glass = true</c>. An error
+/// from the gate replaces the denial. Warn mode, indeterminate decisions, evaluation failures and an
+/// unauthenticated caller never reach the gate.
+/// </para>
+/// <para>
 /// Uses static per-generic-type attribute caching for zero-cost attribute discovery
 /// after the first invocation per request type.
 /// </para>
@@ -90,6 +100,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     private readonly ObligationExecutor _obligationExecutor;
     private readonly ABACOptions _options;
     private readonly IABACDecisionRecorder _decisionRecorder;
+    private readonly IAccessElevationGate _elevationGate;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<ABACPipelineBehavior<TRequest, TResponse>> _logger;
     private readonly ABACDecisionAuditHealthState? _healthState;
@@ -103,6 +114,10 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     /// <param name="eelCompiler">The EEL compiler whose cached delegates evaluate <see cref="RequireConditionAttribute"/> expressions.</param>
     /// <param name="options">ABAC configuration options.</param>
     /// <param name="decisionRecorder">The recorder that persists decision records when <see cref="ABACOptions.DecisionAudit"/> is enabled.</param>
+    /// <param name="elevationGate">
+    /// The gate a definite denial in <see cref="ABACEnforcementMode.Block"/> mode is offered to (break-the-glass).
+    /// The default that <c>AddEncinaABAC</c> registers keeps every denial.
+    /// </param>
     /// <param name="timeProvider">The clock for the timestamps of decision records; read only when the decision audit is enabled.</param>
     /// <param name="logger">Logger for ABAC evaluation tracing.</param>
     /// <param name="healthState">
@@ -120,10 +135,14 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         EELCompiler eelCompiler,
         IOptions<ABACOptions> options,
         IABACDecisionRecorder decisionRecorder,
+        IAccessElevationGate elevationGate,
         TimeProvider timeProvider,
         ILogger<ABACPipelineBehavior<TRequest, TResponse>> logger,
         ABACDecisionAuditHealthState? healthState = null)
     {
+        ArgumentNullException.ThrowIfNull(elevationGate);
+        _elevationGate = elevationGate;
+
         ArgumentNullException.ThrowIfNull(pdp);
         ArgumentNullException.ThrowIfNull(attributeProvider);
         ArgumentNullException.ThrowIfNull(obligationExecutor);
@@ -234,7 +253,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
                     requirement.Decision.PolicyId,
                     requirement.Decision.EvaluationDuration.TotalMilliseconds);
 
-                verdict = await ProcessDecisionAsync(requirement, attributes.Context, cancellationToken)
+                verdict = await ProcessDecisionAsync(request, context, requirement, attributes.Context, cancellationToken)
                     .ConfigureAwait(false);
             }
         }
@@ -270,6 +289,8 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     // The requirement verdict is Permit, Deny or Indeterminate; a required policy that is
     // NotApplicable is already a Deny verdict.
     private async ValueTask<ABACEnforcementVerdict> ProcessDecisionAsync(
+        TRequest request,
+        IRequestContext requestContext,
         ABACRequirementVerdict verdict,
         PolicyEvaluationContext evaluationContext,
         CancellationToken cancellationToken)
@@ -279,7 +300,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
             Effect.Permit => await DecidePermitAsync(verdict.Decision, evaluationContext, cancellationToken)
                 .ConfigureAwait(false),
 
-            Effect.Deny => await DecideDenyAsync(verdict, evaluationContext, cancellationToken)
+            Effect.Deny => await DecideDenyAsync(request, requestContext, verdict, evaluationContext, cancellationToken)
                 .ConfigureAwait(false),
 
             _ => DecideIndeterminate(verdict.Decision)
@@ -333,6 +354,8 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     // ── Deny ────────────────────────────────────────────────────────
 
     private async ValueTask<ABACEnforcementVerdict> DecideDenyAsync(
+        TRequest request,
+        IRequestContext requestContext,
         ABACRequirementVerdict verdict,
         PolicyEvaluationContext evaluationContext,
         CancellationToken cancellationToken)
@@ -367,8 +390,42 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
         // A missing policy or an unmet condition carries its own error code.
         var error = verdict.DenyError ?? ABACErrors.AccessDenied(typeof(TRequest), decision.PolicyId);
+        var telemetry = new ABACOutcomeTelemetry(Effect.Deny, decision.PolicyId, reason);
 
-        return ApplyEnforcement(error, requestTypeName, new(Effect.Deny, decision.PolicyId, reason));
+        // Warn mode lets the request through already: there is no denial to offer to the gate.
+        if (_options.EnforcementMode == ABACEnforcementMode.Warn)
+        {
+            return ApplyEnforcement(error, requestTypeName, telemetry);
+        }
+
+        // The gate runs after the obligations and advice and before the verdict is recorded, so the
+        // record describes the final outcome. An exception from the gate is an evaluation failure
+        // (DecideAsync), and an indeterminate or failed evaluation never gets here.
+        return await OfferToElevationGateAsync(request, requestContext, error, telemetry, cancellationToken).ConfigureAwait(false)
+            ?? ApplyEnforcement(error, requestTypeName, telemetry);
+    }
+
+    // None keeps the denial (null); an elevation lets the request proceed (always recorded); an error
+    // from the gate replaces the denial.
+    private async ValueTask<ABACEnforcementVerdict?> OfferToElevationGateAsync(
+        TRequest request,
+        IRequestContext requestContext,
+        EncinaError denial,
+        ABACOutcomeTelemetry telemetry,
+        CancellationToken cancellationToken)
+    {
+        if (!AccessElevationDenials.IsOverridable(denial))
+        {
+            return null;
+        }
+
+        var offered = await _elevationGate.TryElevateAsync(request, requestContext, denial, cancellationToken).ConfigureAwait(false);
+        return offered.Match<ABACEnforcementVerdict?>(
+            Left: replacement => ABACEnforcementVerdict.Denied(
+                replacement, telemetry with { Reason = replacement.GetCode().IfNone("encina.unknown") }),
+            Right: elevation => elevation.Match<ABACEnforcementVerdict?>(
+                Some: granted => ABACEnforcementVerdict.Elevated(denial, telemetry, granted.ElevationId),
+                None: () => null));
     }
 
     // ── Indeterminate ───────────────────────────────────────────────
@@ -525,6 +582,12 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         {
             ABACLogMessages.EnforcementWarnMode(_logger, requestTypeName, verdict.ReasonCode);
         }
+        else if (verdict is { Enforced: ABACEnforcedOutcome.DeniedElevated, ElevationId: { } elevationId })
+        {
+            // Counters and span status keep the policy verdict (Deny); the boolean tag marks the override.
+            ABACDiagnostics.RecordBreakGlass(activity);
+            ABACLogMessages.EnforcementElevated(_logger, requestTypeName, verdict.ReasonCode, elevationId);
+        }
     }
 
     // crap-exempt: single-question switch — the counter each final effect increments.
@@ -617,6 +680,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     {
         ABACEnforcedOutcome.Granted => ABACDecisionAuditOutcomes.Granted,
         ABACEnforcedOutcome.Denied => ABACDecisionAuditOutcomes.Denied,
+        ABACEnforcedOutcome.DeniedElevated => ABACDecisionAuditOutcomes.Elevated,
         _ => ABACDecisionAuditOutcomes.NotEnforced
     };
 
