@@ -179,8 +179,14 @@ public sealed class MartenTemporalKeyProvider : ITemporalKeyProvider
     public async ValueTask<Either<EncinaError, int>> DestroyKeysBeforeAsync(
         DateTime olderThanUtc,
         TemporalKeyGranularity granularity,
+        ErasureReference? erasureReference = null,
         CancellationToken cancellationToken = default)
     {
+        if (erasureReference is { IsValid: false })
+        {
+            return Left(MartenAuditErrors.InvalidErasureReference());
+        }
+
         try
         {
             // Find all key documents with periods that predate the cutoff
@@ -226,7 +232,10 @@ public sealed class MartenTemporalKeyProvider : ITemporalKeyProvider
                     Id = markerId,
                     Period = period,
                     DestroyedAtUtc = now,
-                    KeyVersionsDestroyed = periodKeys.Count
+                    KeyVersionsDestroyed = periodKeys.Count,
+                    ErasureRequestId = erasureReference?.RequestId,
+                    ErasureRequestedAtUtc = erasureReference?.RequestedAtUtc.ToUniversalTime(),
+                    ErasureActor = erasureReference?.Actor
                 };
 
                 _session.Store(marker);

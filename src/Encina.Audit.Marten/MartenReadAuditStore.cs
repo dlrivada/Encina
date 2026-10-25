@@ -250,6 +250,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
             var result = await _keyProvider.DestroyKeysBeforeAsync(
                 olderThanUtc.UtcDateTime,
                 _options.TemporalGranularity,
+                erasureReference: null,
                 cancellationToken).ConfigureAwait(false);
 
             return result.Match<Either<EncinaError, int>>(

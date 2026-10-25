@@ -347,6 +347,7 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
             var result = await _keyProvider.DestroyKeysBeforeAsync(
                 olderThanUtc,
                 _options.TemporalGranularity,
+                erasureReference: null,
                 cancellationToken).ConfigureAwait(false);
 
             return result.Match<Either<EncinaError, int>>(

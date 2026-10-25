@@ -42,6 +42,9 @@ public static class MartenAuditErrors
     /// <summary>Error code when a temporal key period identifier is invalid.</summary>
     public const string InvalidPeriodCode = "audit.marten.invalid_period";
 
+    /// <summary>Error code when the erasure reference given to a key destruction is not valid.</summary>
+    public const string InvalidErasureReferenceCode = "audit.marten.invalid_erasure_reference";
+
     /// <summary>Error code indicating the entry has been crypto-shredded.</summary>
     public const string ShreddedEntryCode = "audit.marten.shredded_entry";
 
@@ -192,6 +195,20 @@ public static class MartenAuditErrors
             details: new Dictionary<string, object?>
             {
                 ["period"] = period,
+                [MetadataKeyStage] = MetadataStageAuditMarten
+            });
+
+    /// <summary>
+    /// Creates an error when the erasure reference given to a key destruction has a blank request id or actor,
+    /// or no request date.
+    /// </summary>
+    /// <returns>An error indicating the erasure reference is not valid. It carries no part of the reference.</returns>
+    public static EncinaError InvalidErasureReference() =>
+        EncinaErrors.Create(
+            code: InvalidErasureReferenceCode,
+            message: "The erasure reference is not valid: it needs a non-blank request id, a non-blank actor and a request date. No keys were destroyed.",
+            details: new Dictionary<string, object?>
+            {
                 [MetadataKeyStage] = MetadataStageAuditMarten
             });
 

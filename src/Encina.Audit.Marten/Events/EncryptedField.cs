@@ -18,8 +18,10 @@ namespace Encina.Audit.Marten.Events;
 /// </code>
 /// </para>
 /// <para>
-/// When the temporal key has been destroyed via crypto-shredding, decryption returns the
-/// configured placeholder (default: <c>"[SHREDDED]"</c>) instead of failing with an exception.
+/// When the temporal key has been destroyed as the outcome of a recorded erasure request (crypto-shredding),
+/// the projections pass no key material and <see cref="DecryptOrPlaceholder"/> returns the configured placeholder
+/// (default: <c>"[SHREDDED]"</c>). A key destroyed without an erasure reference never reaches this type: the
+/// projection fails with <see cref="EncryptedFieldDecryptionException"/> first.
 /// </para>
 /// <para>
 /// This type is serialized as a JSON string within event payloads. Marten stores the
@@ -172,8 +174,9 @@ public sealed record EncryptedField
     /// if the original value was <c>null</c>.
     /// </returns>
     /// <remarks>
-    /// This method returns the placeholder only for a legitimately destroyed key (<c>null</c> key material,
-    /// crypto-shredding). Every other failure to read the stored value (tampered, wrong key, malformed or
+    /// This method returns the placeholder only for a key destroyed as the outcome of a recorded erasure request
+    /// (<c>null</c> key material; the projection decides this from the destroyed marker's erasure reference).
+    /// Every other failure to read the stored value (tampered, wrong key, malformed or
     /// unmarked envelope, wrong sizes) is never reported as erasure: it surfaces as
     /// <see cref="EncryptedFieldDecryptionException"/> so the projection stops (integrity over availability).
     /// This is the primary decryption method used by projections. Recovery steps:

@@ -136,8 +136,11 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// </item>
     /// <item>
     /// If no active key is found, check for an explicit
-    /// <see cref="TemporalKeyDestroyedMarker"/>. If present, the period was crypto-shredded
-    /// and the projection substitutes the placeholder (<c>IsShredded = true</c>).
+    /// <see cref="TemporalKeyDestroyedMarker"/>. If present with an erasure reference, the period was
+    /// crypto-shredded for an erasure request and the projection substitutes the placeholder
+    /// (<c>IsShredded = true</c>). If present without one (retention-period destruction, an error or tampering,
+    /// and every marker written before the reference existed), the projection fails with
+    /// <see cref="EncryptedFieldDecryptionException"/> and the async daemon pauses the shard.
     /// </item>
     /// <item>
     /// If neither an active key nor a destroyed marker exists, the lookup throws
@@ -193,9 +196,13 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// A tuple where:
     /// <list type="bullet">
     /// <item><c>(keyMaterial, false)</c> — an active key was found</item>
-    /// <item><c>(null, true)</c> — no active key, destroyed marker present (crypto-shredded)</item>
+    /// <item><c>(null, true)</c> — no active key, destroyed marker present with an erasure reference (crypto-shredded)</item>
     /// </list>
     /// </returns>
+    /// <exception cref="EncryptedFieldDecryptionException">
+    /// Thrown (reason <see cref="EncryptedFieldDecryptionFailureReason.KeyDestroyedWithoutErasureRecord"/>) when the
+    /// destroyed marker carries no erasure reference.
+    /// </exception>
     /// <exception cref="KeyNotFoundException">
     /// Thrown when both <paramref name="activeKey"/> and <paramref name="destroyedMarker"/>
     /// are <c>null</c>. This indicates transient inconsistency — see
@@ -217,7 +224,11 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
 
         if (destroyedMarker is not null)
         {
-            return (null, true);
+            // [SHREDDED] only for a destruction recorded as an erasure request. Any other destruction is not a
+            // lawful erasure: fail typed so the daemon pauses the shard for the operator (issue #2770, D15/Q1).
+            return destroyedMarker.HasErasureReference()
+                ? (null, true)
+                : throw new EncryptedFieldDecryptionException(EncryptedFieldDecryptionFailureReason.KeyDestroyedWithoutErasureRecord);
         }
 
         throw new KeyNotFoundException(

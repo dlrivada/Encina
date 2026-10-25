@@ -36,4 +36,31 @@ public sealed class TemporalKeyDestroyedMarker
     /// Number of encryption key versions that were deleted during the destruction operation.
     /// </summary>
     public int KeyVersionsDestroyed { get; set; }
+
+    /// <summary>
+    /// The identifier of the data-erasure request this destruction answers, or <c>null</c> when the keys were
+    /// destroyed without an erasure reference (retention expiry, error or tampering).
+    /// </summary>
+    public string? ErasureRequestId { get; set; }
+
+    /// <summary>
+    /// When the data-erasure request was made (UTC), or <c>null</c> without an erasure reference.
+    /// </summary>
+    public DateTimeOffset? ErasureRequestedAtUtc { get; set; }
+
+    /// <summary>
+    /// Who requested or approved the erasure, or <c>null</c> without an erasure reference.
+    /// </summary>
+    public string? ErasureActor { get; set; }
+
+    /// <summary>
+    /// Returns whether this marker records an erasure request (request id, date and actor all present).
+    /// Only then do the audit projections show the shredded placeholder; otherwise they fail with
+    /// <see cref="Events.EncryptedFieldDecryptionException"/>.
+    /// </summary>
+    /// <returns><c>true</c> when the marker carries a complete erasure reference.</returns>
+    public bool HasErasureReference() =>
+        !string.IsNullOrWhiteSpace(ErasureRequestId)
+        && !string.IsNullOrWhiteSpace(ErasureActor)
+        && ErasureRequestedAtUtc is not null;
 }

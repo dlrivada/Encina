@@ -22,12 +22,16 @@ public enum EncryptedFieldDecryptionFailureReason
 
     /// <summary>The authentication tag did not verify (tampered ciphertext, tampered tag or a key that does not match).</summary>
     IntegrityCheckFailed = 3,
+
+    /// <summary>The period's key was destroyed but its destruction marker carries no erasure reference (retention-period destruction, an error or tampering), so the destruction is not a recorded erasure.</summary>
+    KeyDestroyedWithoutErasureRecord = 4,
 }
 
 /// <summary>
 /// Thrown when a stored <see cref="EncryptedField"/> cannot be read for any reason other than a
-/// legitimately destroyed key. A destroyed key (crypto-shredding) is not a failure: it reads as the
-/// configured placeholder.
+/// key destruction recorded as the outcome of an erasure request. Only such a destruction (its marker carries an
+/// <see cref="Crypto.ErasureReference"/>) is not a failure: it reads as the configured placeholder. A key
+/// destroyed without that reference fails with <see cref="EncryptedFieldDecryptionFailureReason.KeyDestroyedWithoutErasureRecord"/>.
 /// </summary>
 /// <remarks>
 /// <para>

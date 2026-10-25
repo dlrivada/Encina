@@ -107,10 +107,17 @@ public interface ITemporalKeyProvider
     /// <param name="granularity">
     /// The temporal granularity to use when determining which periods are affected.
     /// </param>
+    /// <param name="erasureReference">
+    /// The data-erasure request this destruction answers, recorded in the destroyed marker of every period
+    /// destroyed. Pass it from the GDPR erasure flow. Retention jobs pass <c>null</c>: the audit projections then
+    /// do not treat the destruction as a lawful erasure and fail with
+    /// <see cref="Events.EncryptedFieldDecryptionException"/> instead of showing <c>[SHREDDED]</c> (issue #2770).
+    /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>
     /// <c>Right&lt;int&gt;</c> with the number of periods whose keys were destroyed, or
-    /// <c>Left&lt;EncinaError&gt;</c> if the destruction fails.
+    /// <c>Left&lt;EncinaError&gt;</c> if the destruction fails or <paramref name="erasureReference"/> is not valid
+    /// (<see cref="ErasureReference.IsValid"/>), in which case nothing is destroyed.
     /// </returns>
     /// <remarks>
     /// <para>
@@ -128,6 +135,7 @@ public interface ITemporalKeyProvider
     ValueTask<Either<EncinaError, int>> DestroyKeysBeforeAsync(
         DateTime olderThanUtc,
         TemporalKeyGranularity granularity,
+        ErasureReference? erasureReference = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -141,8 +149,9 @@ public interface ITemporalKeyProvider
     /// <c>Left&lt;EncinaError&gt;</c> if the check fails.
     /// </returns>
     /// <remarks>
-    /// Used by projections and read models to determine whether to show placeholder values
-    /// (e.g., <c>[SHREDDED]</c>) instead of attempting decryption.
+    /// Reports destruction only; it does not say whether the destruction answered an erasure request. The audit
+    /// projections show the placeholder (e.g., <c>[SHREDDED]</c>) only when the destroyed marker also carries an
+    /// <see cref="ErasureReference"/>.
     /// </remarks>
     ValueTask<Either<EncinaError, bool>> IsKeyDestroyedAsync(
         string period,
