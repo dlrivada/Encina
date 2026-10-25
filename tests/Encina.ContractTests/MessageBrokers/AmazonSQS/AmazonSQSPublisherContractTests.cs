@@ -100,7 +100,8 @@ public sealed class AmazonSQSPublisherContractTests : IAsyncLifetime
         var publisher = CreatePublisher();
 
         // Act
-        await publisher.SendToQueueAsync(new TestMessage("a"), queueUrl, "propagated-id");
+        var result = await publisher.SendToQueueAsync(new TestMessage("a"), queueUrl, "propagated-id");
+        result.IsRight.ShouldBeTrue();
         var received = await ReceiveAsync(_fixture, queueUrl, 1);
 
         // Assert
