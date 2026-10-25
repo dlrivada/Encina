@@ -69,10 +69,7 @@ public static class ProblemDetailsExtensions
         HttpContext httpContext,
         int? statusCode = null)
     {
-        var options = httpContext.RequestServices
-            .GetService<IOptions<EncinaAspNetCoreOptions>>()
-            ?.Value ?? new EncinaAspNetCoreOptions();
-
+        var options = ResolveOptions(httpContext);
         var effectiveStatusCode = statusCode ?? MapErrorCodeToStatusCode(error);
 
         var exposeMessage = ShouldExposeErrorMessage(
@@ -89,41 +86,60 @@ public static class ProblemDetailsExtensions
                 : null
         };
 
-        // Add trace ID for correlation
+        AddCorrelationExtensions(problemDetails, httpContext, options);
+        AddErrorCodeExtension(problemDetails, error);
+
+        // Exception details follow the same option and the same Development-only guard as the detail
+        if (exposeMessage)
+        {
+            AddExceptionExtension(problemDetails, error);
+        }
+
+        return Results.Problem(problemDetails);
+    }
+
+    private static EncinaAspNetCoreOptions ResolveOptions(HttpContext httpContext) =>
+        httpContext.RequestServices.GetService<IOptions<EncinaAspNetCoreOptions>>()?.Value
+        ?? new EncinaAspNetCoreOptions();
+
+    // Error code for client-side handling.
+    private static void AddErrorCodeExtension(ProblemDetails problemDetails, EncinaError error)
+    {
+        var errorCode = GetErrorCode(error);
+        if (!string.IsNullOrEmpty(errorCode))
+        {
+            problemDetails.Extensions["errorCode"] = errorCode;
+        }
+    }
+
+    private static void AddCorrelationExtensions(
+        ProblemDetails problemDetails,
+        HttpContext httpContext,
+        EncinaAspNetCoreOptions options)
+    {
         var traceId = httpContext.TraceIdentifier;
         if (!string.IsNullOrEmpty(traceId))
         {
             problemDetails.Extensions["traceId"] = traceId;
         }
 
-        // Add correlation ID if available
         if (httpContext.Request.Headers.TryGetValue(options.CorrelationIdHeader, out var correlationId))
         {
             problemDetails.Extensions["correlationId"] = correlationId.ToString();
         }
+    }
 
-        // Add error code for client-side handling
-        var errorCode = GetErrorCode(error);
-        if (!string.IsNullOrEmpty(errorCode))
+    private static void AddExceptionExtension(ProblemDetails problemDetails, EncinaError error)
+    {
+        error.Exception.IfSome(ex =>
         {
-            problemDetails.Extensions["errorCode"] = errorCode;
-        }
-
-        // Add exception details (same option and same Development-only guard as the detail)
-        if (exposeMessage)
-        {
-            error.Exception.IfSome(ex =>
+            problemDetails.Extensions["exception"] = new
             {
-                problemDetails.Extensions["exception"] = new
-                {
-                    type = ex.GetType().FullName,
-                    message = ex.Message,
-                    stackTrace = ex.StackTrace
-                };
-            });
-        }
-
-        return Results.Problem(problemDetails);
+                type = ex.GetType().FullName,
+                message = ex.Message,
+                stackTrace = ex.StackTrace
+            };
+        });
     }
 
     /// <summary>
