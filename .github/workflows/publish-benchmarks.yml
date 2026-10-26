@@ -43,7 +43,7 @@ jobs:
       contents: write
       actions: read
     outputs:
-      skip: ${{ steps.jobtype.outputs.skip }}
+      skip: ${{ steps.guard.outputs.skip == 'true' && 'true' || steps.jobtype.outputs.skip }}
 
     steps:
       # A source run that did not conclude `success` normally refuses to publish.
@@ -55,7 +55,11 @@ jobs:
       # previous series forward for the missing classes is #1575; this step does not
       # reconcile anything. When the aggregate job did not succeed (or does not
       # exist, e.g. the whole run was cancelled), nothing is published.
+      # A run cancelled before any job ran was superseded in the concurrency queue
+      # of benchmarks.yml (#2852): the newer run publishes, so skip with a notice
+      # instead of failing. A cancelled run that has jobs behaves as before.
       - name: Require a successful source run (or a successful aggregate)
+        id: guard
         if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -67,6 +71,14 @@ jobs:
         run: |
           set -euo pipefail
           JOBS_URL="repos/$REPO/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100&filter=latest"
+          if [ "$SOURCE_CONCLUSION" = "cancelled" ]; then
+            TOTAL=$(gh api "$JOBS_URL" --jq '.total_count')
+            if [ "$TOTAL" = "0" ]; then
+              echo "::notice title=Source run superseded::Benchmarks run $SOURCE_RUN_ID was superseded in the concurrency queue before any job ran; the newer run publishes."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
           AGGREGATE=$(gh api --paginate "$JOBS_URL" \
             --jq ".jobs[] | select(.name == env.AGGREGATE_JOB) | (.conclusion // \"unknown\")")
           if [ "$AGGREGATE" != "success" ]; then
@@ -87,18 +99,21 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout
+        if: steps.guard.outputs.skip != 'true'
         uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v6
+        if: steps.guard.outputs.skip != 'true'
+        uses:actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
       - name: Resolve Benchmarks run ID
         id: resolve
+        if: steps.guard.outputs.skip != 'true'
         run: |
           RID="${INPUT_RUN_ID:-$EVENT_RUN_ID}"
           if [ -z "$RID" ]; then
@@ -112,6 +127,7 @@ jobs:
           EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
 
       - name: Download perf-report artifact
+        if: steps.guard.outputs.skip != 'true'
         uses: actions/download-artifact@v8
         with:
           name: perf-report-benchmarks
@@ -120,6 +136,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download raw benchmark data
+        if: steps.guard.outputs.skip != 'true'
         uses: actions/download-artifact@v8
         with:
           name: perf-raw-benchmarks-${{ steps.resolve.outputs.run_id }}
@@ -141,6 +158,7 @@ jobs:
       # developer inspection; only the Pages-published dashboard is gated.
       - name: Detect source job type
         id: jobtype
+        if: steps.guard.outputs.skip != 'true'
         run: |
           JOB_TYPE=$(jq -r '.metadata.jobType // "unknown"' perf-report-artifact/latest.json)
           echo "job_type=$JOB_TYPE" >> "$GITHUB_OUTPUT"
@@ -162,7 +180,7 @@ jobs:
           esac
 
       - name: Stage fresh benchmarks data in the Pages overlay
-        if: steps.jobtype.outputs.skip != 'true'
+        if: steps.guard.outputs.skip != 'true' && steps.jobtype.outputs.skip != 'true'
         run: |
           # Only the files this workflow owns go into overlay/benchmarks/; they are
           # persisted to the dashboard-data branch, which docs.yml deploys.
@@ -183,7 +201,7 @@ jobs:
         # The base of history.json is the branch, not the live site: live lags
         # while a deploy is pending, cancelled or failed. Nothing is written when
         # the branch or the domain is absent.
-        if: steps.jobtype.outputs.skip != 'true'
+        if: steps.guard.outputs.skip != 'true' && steps.jobtype.outputs.skip != 'true'
         shell: pwsh
         run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain benchmarks -OutDir base/benchmarks
 
@@ -192,12 +210,12 @@ jobs:
         # failure (HTTP error, timeout, invalid JSON) fails the job instead of
         # being taken for an empty history. Skipped when the branch already
         # carries history.json.
-        if: steps.jobtype.outputs.skip != 'true' && hashFiles('base/benchmarks/history.json') == ''
+        if: steps.guard.outputs.skip != 'true' && steps.jobtype.outputs.skip != 'true' && hashFiles('base/benchmarks/history.json') == ''
         shell: pwsh
         run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Live -Domain benchmarks -OutDir live/benchmarks
 
       - name: Choose the history base (branch, else larger of live and main)
-        if: steps.jobtype.outputs.skip != 'true'
+        if: steps.guard.outputs.skip != 'true' && steps.jobtype.outputs.skip != 'true'
         run: |
           # Order: the dashboard-data branch copy when it exists and is non-empty
           # (durable record); otherwise the larger, by entry count, of the live
@@ -226,7 +244,7 @@ jobs:
           fi
 
       - name: Update benchmarks history
-        if: steps.jobtype.outputs.skip != 'true'
+        if: steps.guard.outputs.skip != 'true' && steps.jobtype.outputs.skip != 'true'
         run: |
           dotnet run .github/scripts/perf-history.cs -- \
             --kind benchmarks \
@@ -234,14 +252,14 @@ jobs:
             --history overlay/benchmarks/data/history.json
 
       - name: Generate regression badge
-        if: steps.jobtype.outputs.skip != 'true'
+        if: steps.guard.outputs.skip != 'true' && steps.jobtype.outputs.skip != 'true'
         run: |
           dotnet run .github/scripts/perf-badge.cs -- \
             --input overlay/benchmarks/data/latest.json \
             --output overlay/benchmarks/badge.json
 
       - name: Generate dynamic benchmark coverage scan
-        if: steps.jobtype.outputs.skip != 'true'
+        if: steps.guard.outputs.skip != 'true' && steps.jobtype.outputs.skip != 'true'
         continue-on-error: true
         run: |
           dotnet run .github/scripts/perf-coverage-scan.cs -- \
@@ -256,7 +274,7 @@ jobs:
       # BenchmarkDotNet artifacts (the raw files carry enough statistics for
       # a higher-quality re-run report). The archive is append-only.
       - name: Archive raw data to perf-raw branch
-        if: hashFiles('raw-data/**') != ''
+        if: steps.guard.outputs.skip != 'true' && hashFiles('raw-data/**') != ''
         continue-on-error: true
         env:
           RUN_ID: ${{ steps.resolve.outputs.run_id }}
@@ -348,7 +366,7 @@ jobs:
         # Committed before the deploy is requested, so a deploy that the
         # "pages" group cancels, or that fails, loses no dashboard data: the
         # next deploy of any kind reads the branch inside the lock (#1386).
-        if: steps.jobtype.outputs.skip != 'true'
+        if: steps.guard.outputs.skip != 'true' && steps.jobtype.outputs.skip != 'true'
         shell: pwsh
         run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Persist -Domain benchmarks -OverlayRoot overlay
 
