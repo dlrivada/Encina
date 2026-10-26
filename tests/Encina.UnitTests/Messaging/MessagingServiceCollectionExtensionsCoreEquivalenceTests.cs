@@ -1,6 +1,7 @@
 using Encina.Messaging;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
+using Encina.Messaging.Recoverability;
 using Encina.Testing.Fakes.Factories;
 using Encina.Testing.Fakes.Stores;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,6 +44,48 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
     }
 
     [Fact]
+    public void AddMessagingServicesCore_AllPatternsEnabledWithDelayedRetryStore_AddsOnlyTheStoreRegistrations()
+    {
+        // The store and factory registered by the application or a provider package do not change what
+        // the recoverability registration adds: the same descriptors, whichever comes first (#2248).
+        var config = new MessagingConfiguration
+        {
+            UseTransactions = true,
+            UseOutbox = true,
+            UseInbox = true,
+            UseRoutingSlips = true,
+            UseRecoverability = true,
+            UseContentRouter = true,
+            UseScatterGather = true,
+            UseSoftDelete = true,
+        };
+        config.RecoverabilityOptions.EnableDelayedRetries = true;
+
+        var snapshot = Snapshot(config, services =>
+            services.AddEncinaDelayedRetryStore<StubDelayedRetryStore, StubDelayedRetryFactory>());
+
+        List<string> expected =
+        [
+            "Encina.Messaging.Recoverability.IDelayedRetryStore|Encina.UnitTests.Messaging.MessagingServiceCollectionExtensionsCoreEquivalenceTests+StubDelayedRetryStore|Scoped",
+            "Encina.Messaging.Recoverability.IDelayedRetryMessageFactory|Encina.UnitTests.Messaging.MessagingServiceCollectionExtensionsCoreEquivalenceTests+StubDelayedRetryFactory|Scoped",
+            .. AllEnabledSnapshot,
+        ];
+        snapshot.ShouldBe(expected);
+    }
+
+    [Fact]
+    public void AddMessagingServicesCore_RecoverabilityWithoutDelayedRetries_AddsTheStartupCheckOnly()
+    {
+        var config = new MessagingConfiguration { UseRecoverability = true };
+
+        var snapshot = Snapshot(config);
+
+        snapshot.ShouldContain("Microsoft.Extensions.Hosting.IHostedService|Encina.Messaging.Recoverability.DelayedRetryStartupCheck|Singleton");
+        snapshot.ShouldNotContain(d => d.Contains("IDelayedRetryScheduler", StringComparison.Ordinal));
+        snapshot.ShouldNotContain(d => d.Contains("DelayedRetryProcessor", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void AddMessagingServicesCore_AllPatternsDisabled_MatchesPreRefactorSnapshot()
     {
         var config = new MessagingConfiguration();
@@ -52,9 +95,10 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
         snapshot.ShouldBe(AllDisabledSnapshot);
     }
 
-    private static List<string> Snapshot(MessagingConfiguration config)
+    private static List<string> Snapshot(MessagingConfiguration config, Action<IServiceCollection>? preRegister = null)
     {
         var services = new ServiceCollection();
+        preRegister?.Invoke(services);
 
         services.AddMessagingServicesCore<
             FakeOutboxStore, FakeOutboxMessageFactory,
@@ -102,7 +146,8 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
         "Encina.Messaging.Recoverability.RecoverabilityOptions|Encina.Messaging.Recoverability.RecoverabilityOptions|Singleton",
         "Encina.Recoverability.IErrorClassifier|Encina.Recoverability.DefaultErrorClassifier|Singleton",
         "Encina.IPipelineBehavior`2[TRequest,TResponse]|Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior`2[TRequest,TResponse]|Scoped",
-        "Encina.Messaging.Recoverability.IDelayedRetryScheduler|Encina.Messaging.Recoverability.DelayedRetryScheduler|Scoped",
+        "Microsoft.Extensions.Hosting.IHostedService|Encina.Messaging.Recoverability.DelayedRetryStartupCheck|Singleton",
+        "Encina.Messaging.Recoverability.IDelayedRetryScheduler|factory|Scoped",
         "Microsoft.Extensions.Hosting.IHostedService|Encina.Messaging.Recoverability.DelayedRetryProcessor|Singleton",
         "Encina.IPipelineBehavior`2[TRequest,TResponse]|Encina.Messaging.TransactionPipelineBehavior`2[TRequest,TResponse]|Scoped",
         "Encina.Messaging.Outbox.OutboxOptions|Encina.Messaging.Outbox.OutboxOptions|Singleton",
@@ -147,6 +192,21 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
     {
         public IInboxMessage Create(string messageId, string requestType, DateTime receivedAtUtc, DateTime expiresAtUtc, InboxMetadata? metadata)
             => Substitute.For<IInboxMessage>();
+    }
+
+    private sealed class StubDelayedRetryStore : IDelayedRetryStore
+    {
+        public Task AddAsync(IDelayedRetryMessage message, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<IEnumerable<IDelayedRetryMessage>> GetPendingMessagesAsync(int batchSize, CancellationToken cancellationToken = default)
+            => Task.FromResult<IEnumerable<IDelayedRetryMessage>>([]);
+        public Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task MarkAsFailedAsync(Guid messageId, string errorMessage, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> DeleteByContextIdAsync(Guid recoverabilityContextId, CancellationToken cancellationToken = default) => Task.FromResult(false);
+    }
+
+    private sealed class StubDelayedRetryFactory : IDelayedRetryMessageFactory
+    {
+        public IDelayedRetryMessage Create(DelayedRetryMessageData data) => Substitute.For<IDelayedRetryMessage>();
     }
 
     private sealed class StubOutboxProcessor : IHostedService

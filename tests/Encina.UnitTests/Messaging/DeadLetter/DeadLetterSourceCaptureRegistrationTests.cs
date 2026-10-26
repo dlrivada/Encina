@@ -68,6 +68,7 @@ public sealed class DeadLetterSourceCaptureRegistrationTests
             config.UseSagas = true;
             config.UseScheduling = true;
             config.UseRecoverability = true;
+            config.RecoverabilityOptions.EnableDelayedRetries = true;
             config.UseDeadLetterQueue = order == Order.SameConfiguration;
         });
 
