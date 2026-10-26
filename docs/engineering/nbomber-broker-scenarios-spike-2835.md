@@ -64,9 +64,14 @@ The other NBomber families do run Encina code: database (ADO.NET, Dapper, EF Cor
 | Scenarios that call an Encina publisher assert its `Either` result: a `Left` counts as a failed request, never as success | AGENTS.md section 3 (errors are never swallowed) |
 | AzureServiceBus and AmazonSQS stay with [#939](https://github.com/dlrivada/Encina/issues/939); the same-workload defect stays with [#1760](https://github.com/dlrivada/Encina/issues/1760) | #2835 out of scope |
 
-## 4. Open decisions (dilemmas)
+## 4. Decisions
 
-The issue said "no open design choices", but its own table offers two compliant outcomes (rewrite or relabel), and the evidence adds a third. These go to the maintainer as gates.
+The issue said "no open design choices", but its own table offers two compliant outcomes (rewrite or relabel), and the evidence adds a third. The maintainer decided both dilemmas on 2026-10-26 (comment on [#2835](https://github.com/dlrivada/Encina/issues/2835)):
+
+- **N1 = N1c, paired scenarios.** Each publish-type broker scenario runs twice under the same conditions, once through the Encina transport package and once through the client directly; the dashboard shows both and the difference (Encina's overhead).
+- **N2 = N2b, consume and subscribe scenarios kept, labelled.** They stay as "client reference" rows with a justification, visibly separate from the paired rows, until an Encina consumer exists; then they are paired too.
+
+The options as they were presented are kept below for the record.
 
 ### N1. What the `brokers` family measures
 
@@ -89,9 +94,9 @@ The issue said "no open design choices", but its own table offers two compliant 
 
 N2c without a label is excluded by the first settled point. **Recommendation: N2b if N1c, N2a if N1a.**
 
-## 5. Proposed sub-issues
+## 5. Sub-issues
 
-The drafts below are local files for the orchestrator (`artifacts/issues/2835-*.md`, not in the repository). Each is sized to one worker PR (one provider, at most about 15 files). Drafts 1-4 apply only if N1 is N1a or N1c; draft 5 applies in every case. For drafts 1-4, the first acceptance step records the baseline: the current numbers of that provider's raw scenarios from the last published `broker-load-metrics-<provider>` run.
+After the decisions the five drafts were opened as sub-issues of [#2845](https://github.com/dlrivada/Encina/issues/2845): [#2905](https://github.com/dlrivada/Encina/issues/2905) (RabbitMQ), [#2906](https://github.com/dlrivada/Encina/issues/2906) (Kafka), [#2907](https://github.com/dlrivada/Encina/issues/2907) (NATS) and [#2908](https://github.com/dlrivada/Encina/issues/2908) (MQTT), chained with blocked-by in that order because they share files, and [#2851](https://github.com/dlrivada/Encina/issues/2851) (area and README). Each is sized to one worker PR (one provider, at most about 15 files). For drafts 1-4, the first acceptance step records the baseline: the current numbers of that provider's raw scenarios from the last published `broker-load-metrics-<provider>` run.
 
 | # | Draft | Files (exact) | Acceptance |
 | --- | --- | --- | --- |
