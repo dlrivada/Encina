@@ -199,6 +199,8 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 | `PermissionClaimTypes` | `permission` |
 | `TenantIdClaimTypes` | `tenant_id`, `tid`, `RequestIdentityOptions.TenantIdentifierClaimType` |
 
+Differing values across the configured tenant claim types (for example an application `tenant_id` and an Entra `tid`), or several different values inside one identity, are a conflict, not a choice: the request is refused with 403 (`encina.identity.inbound_tenant_conflict`) and `IRequestContextScopeFactory.RunAsPrincipalAsync` refuses the principal with `encina.identity.conflicting_tenant_claims`; it never becomes anonymous. The same value repeated is not a conflict.
+
 ```csharp
 builder.Services.AddEncinaRequestIdentity(options =>
 {
@@ -234,7 +236,7 @@ The verified tenant claim always wins. The tenant header (`TenantIdHeader`, defa
 | Principal has no tenant claim, `TrustTenantIdHeader = false` (default) | The header is ignored (logged at Debug, EventId 176, no values); no tenant |
 | Principal has no tenant claim, `TrustTenantIdHeader = true` | The header is the tenant |
 | Header disagrees with the claim, trusted or not | Refused with 403 |
-| The principal's identities carry different tenant claims | Refused with 403 |
+| The principal's identities carry different tenant claims, including differing values across the default claim types (`tenant_id`, `tid`, ...) and several values inside one identity | Refused with 403 |
 
 A refused request is answered by `UseEncinaContext()` with 403 `application/problem+json`, without running the rest of the pipeline and without tenant values in the body. The refusal code is `encina.identity.inbound_tenant_conflict` (`RequestIdentityErrorCodes.InboundTenantConflict`), logged as a Warning with the code only. On the server-sent-event path, `IRequestContextScopeFactory.RunInboundAsync` returns the same `Left`; the endpoint maps it to a response itself.
 
