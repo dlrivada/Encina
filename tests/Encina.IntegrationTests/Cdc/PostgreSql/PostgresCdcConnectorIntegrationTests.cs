@@ -78,7 +78,8 @@ public sealed class PostgresCdcConnectorIntegrationTests : IAsyncLifetime
                     Prelude.Right<EncinaError, Option<CdcPosition>>(Option<CdcPosition>.None)));
         }
 
-        return new PostgresCdcConnector(options, store, NullLogger<PostgresCdcConnector>.Instance);
+        return new PostgresCdcConnector(
+            options, store, NullLogger<PostgresCdcConnector>.Instance, new NpgsqlReplicationClient(options));
     }
 
     /// <summary>Starts the stream on a background task and exposes its items through a channel.</summary>
