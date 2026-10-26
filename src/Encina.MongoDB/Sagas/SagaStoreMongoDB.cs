@@ -1,4 +1,5 @@
 using Encina.Messaging.Sagas;
+using Encina.MongoDB.Transactions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -16,6 +17,7 @@ public sealed class SagaStoreMongoDB : ISagaStore
     private readonly IMongoCollection<SagaState> _collection;
     private readonly ILogger<SagaStoreMongoDB> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly IMongoSessionAccessor? _sessionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SagaStoreMongoDB"/> class.
@@ -24,11 +26,16 @@ public sealed class SagaStoreMongoDB : ISagaStore
     /// <param name="options">The MongoDB options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="timeProvider">The time provider. Defaults to <see cref="TimeProvider.System"/> if not specified.</param>
+    /// <param name="sessionAccessor">
+    /// The scope's transaction accessor. When it has an active transaction every operation of the store runs in its
+    /// client session; without one (or when null) the store runs without a session.
+    /// </param>
     public SagaStoreMongoDB(
         IMongoClient mongoClient,
         IOptions<EncinaMongoDbOptions> options,
         ILogger<SagaStoreMongoDB> logger,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IMongoSessionAccessor? sessionAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(mongoClient);
         ArgumentNullException.ThrowIfNull(options);
@@ -39,7 +46,10 @@ public sealed class SagaStoreMongoDB : ISagaStore
         _collection = database.GetCollection<SagaState>(config.Collections.Sagas);
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _sessionAccessor = sessionAccessor;
     }
+
+    private IClientSessionHandle? Session => _sessionAccessor?.CurrentSession;
 
     /// <inheritdoc />
     public async Task<Either<EncinaError, Option<ISagaState>>> GetAsync(Guid sagaId, CancellationToken cancellationToken = default)
@@ -47,7 +57,7 @@ public sealed class SagaStoreMongoDB : ISagaStore
         return await EitherHelpers.TryAsync(async () =>
         {
             var saga = await _collection
-                .Find(s => s.SagaId == sagaId)
+                .FindInSession(Session, Builders<SagaState>.Filter.Eq(s => s.SagaId, sagaId))
                 .FirstOrDefaultAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -82,7 +92,7 @@ public sealed class SagaStoreMongoDB : ISagaStore
                 LastUpdatedAtUtc = sagaState.LastUpdatedAtUtc
             };
 
-            await _collection.InsertOneAsync(mongoSaga, cancellationToken: cancellationToken).ConfigureAwait(false);
+            await _collection.InsertOneInSessionAsync(Session, mongoSaga, cancellationToken).ConfigureAwait(false);
             Log.CreatedSaga(_logger, sagaState.SagaId, sagaState.SagaType);
         }, "saga.add_failed").ConfigureAwait(false);
     }
@@ -103,7 +113,7 @@ public sealed class SagaStoreMongoDB : ISagaStore
                 .Set(s => s.ErrorMessage, sagaState.ErrorMessage)
                 .Set(s => s.LastUpdatedAtUtc, _timeProvider.GetUtcNow().UtcDateTime);
 
-            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var result = await _collection.UpdateOneInSessionAsync(Session, filter, update, cancellationToken).ConfigureAwait(false);
 
             if (result.ModifiedCount == 0)
             {
@@ -132,7 +142,7 @@ public sealed class SagaStoreMongoDB : ISagaStore
             );
 
             var sagas = await _collection
-                .Find(filter)
+                .FindInSession(Session, filter)
                 .Limit(batchSize)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -158,7 +168,7 @@ public sealed class SagaStoreMongoDB : ISagaStore
             );
 
             var sagas = await _collection
-                .Find(filter)
+                .FindInSession(Session, filter)
                 .SortBy(s => s.TimeoutAtUtc)
                 .Limit(batchSize)
                 .ToListAsync(cancellationToken)

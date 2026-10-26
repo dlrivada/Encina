@@ -1,4 +1,5 @@
 using Encina.Messaging.Scheduling;
+using Encina.MongoDB.Transactions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,6 +15,7 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
     private readonly IMongoCollection<ScheduledMessage> _collection;
     private readonly ILogger<ScheduledMessageStoreMongoDB> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly IMongoSessionAccessor? _sessionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ScheduledMessageStoreMongoDB"/> class.
@@ -22,11 +24,16 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
     /// <param name="options">The MongoDB options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="timeProvider">The time provider. Defaults to <see cref="TimeProvider.System"/> if not specified.</param>
+    /// <param name="sessionAccessor">
+    /// The scope's transaction accessor. When it has an active transaction every operation of the store runs in its
+    /// client session; without one (or when null) the store runs without a session.
+    /// </param>
     public ScheduledMessageStoreMongoDB(
         IMongoClient mongoClient,
         IOptions<EncinaMongoDbOptions> options,
         ILogger<ScheduledMessageStoreMongoDB> logger,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IMongoSessionAccessor? sessionAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(mongoClient);
         ArgumentNullException.ThrowIfNull(options);
@@ -37,7 +44,10 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
         _collection = database.GetCollection<ScheduledMessage>(config.Collections.ScheduledMessages);
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _sessionAccessor = sessionAccessor;
     }
+
+    private IClientSessionHandle? Session => _sessionAccessor?.CurrentSession;
 
     /// <inheritdoc />
     public async Task<Either<EncinaError, Unit>> AddAsync(IScheduledMessage message, CancellationToken cancellationToken = default)
@@ -62,7 +72,7 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
                 LastExecutedAtUtc = message.LastExecutedAtUtc
             };
 
-            await _collection.InsertOneAsync(mongoMessage, cancellationToken: cancellationToken).ConfigureAwait(false);
+            await _collection.InsertOneInSessionAsync(Session, mongoMessage, cancellationToken).ConfigureAwait(false);
             Log.AddedScheduledMessage(_logger, message.Id, message.ScheduledAtUtc);
         }, "scheduling.add_failed").ConfigureAwait(false);
     }
@@ -88,7 +98,7 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
             );
 
             var messages = await _collection
-                .Find(filter)
+                .FindInSession(Session, filter)
                 .SortBy(m => m.ScheduledAtUtc)
                 .Limit(batchSize)
                 .ToListAsync(cancellationToken)
@@ -109,7 +119,7 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
                 .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime)
                 .Set(m => m.LastExecutedAtUtc, _timeProvider.GetUtcNow().UtcDateTime);
 
-            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var result = await _collection.UpdateOneInSessionAsync(Session, filter, update, cancellationToken).ConfigureAwait(false);
 
             if (result.ModifiedCount == 0)
             {
@@ -137,7 +147,7 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
                 .Set(m => m.NextRetryAtUtc, nextRetryAtUtc)
                 .Inc(m => m.RetryCount, 1);
 
-            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var result = await _collection.UpdateOneInSessionAsync(Session, filter, update, cancellationToken).ConfigureAwait(false);
 
             if (result.ModifiedCount == 0)
             {
@@ -166,7 +176,7 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
                 .Set(m => m.RetryCount, 0)
                 .Set(m => m.NextRetryAtUtc, null);
 
-            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var result = await _collection.UpdateOneInSessionAsync(Session, filter, update, cancellationToken).ConfigureAwait(false);
 
             if (result.ModifiedCount == 0)
             {
@@ -185,7 +195,7 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
         return await EitherHelpers.TryAsync(async () =>
         {
             var filter = Builders<ScheduledMessage>.Filter.Eq(m => m.Id, messageId);
-            var result = await _collection.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
+            var result = await _collection.DeleteOneInSessionAsync(Session, filter, cancellationToken).ConfigureAwait(false);
 
             if (result.DeletedCount == 0)
             {
