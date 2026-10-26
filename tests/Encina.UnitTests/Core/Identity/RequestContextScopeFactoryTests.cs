@@ -632,6 +632,15 @@ public sealed class RequestContextScopeFactoryTests
     }
 
     [Fact]
+    public void ConflictingTenantClaims_HasAFixedMessageWithNoTenant()
+    {
+        var error = RequestIdentityErrors.ConflictingTenantClaims();
+
+        error.GetCode().IfNone("none").ShouldBe("encina.identity.conflicting_tenant_claims");
+        error.Message.ShouldNotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
     public async Task RunInboundAsync_NormalizesEveryClientControlledMember_AndStillInvokesWork()
     {
         var info = new InboundRequestInfo(
