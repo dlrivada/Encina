@@ -84,6 +84,22 @@ public sealed class BreakTheGlassOptionsValidatorTests
         Failures(options).ShouldHaveSingleItem().ShouldContain("ExpirySweepInterval");
     }
 
+    [Fact]
+    public void TimerIntervalsAboveTheTimerLimit_Fail()
+    {
+        var options = BreakTheGlassTestKit.Options(o =>
+        {
+            o.ExpirySweepInterval = TimeSpan.FromDays(2);
+            o.PurgeIntervalHours = 721;
+        });
+
+        var failures = Failures(options);
+
+        failures.Length.ShouldBe(2);
+        failures.ShouldContain(f => f.Contains("ExpirySweepInterval"));
+        failures.ShouldContain(f => f.Contains("PurgeIntervalHours"));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(501)]

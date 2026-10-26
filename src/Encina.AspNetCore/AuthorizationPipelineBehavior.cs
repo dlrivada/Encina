@@ -47,7 +47,7 @@ namespace Encina.AspNetCore;
 /// <b>Emergency elevation.</b> A definite denial (see <see cref="AccessElevationDenials.IsOverridable"/>)
 /// is offered to the registered <see cref="IAccessElevationGate"/> before it is returned: <c>None</c>
 /// keeps the denial, an error from the gate replaces it, and an elevation lets the request continue
-/// (logged with EventId 204: the identity kind and the elevation id only). An unauthenticated caller is
+/// (logged with EventId 205: the identity kind and the elevation id only). An unauthenticated caller is
 /// never offered, and the allow path never calls the gate.
 /// </para>
 /// </remarks>

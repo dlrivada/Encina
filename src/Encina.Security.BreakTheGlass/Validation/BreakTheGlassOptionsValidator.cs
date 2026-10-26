@@ -53,15 +53,15 @@ internal sealed class BreakTheGlassOptionsValidator : IValidateOptions<BreakTheG
             $"BreakTheGlassOptions.MinimumJustificationLength must be between 1 and {BreakTheGlassOptions.MaxJustificationLength}.",
             failures);
         Require(
-            options.ExpirySweepInterval >= BreakTheGlassOptions.MinExpirySweepInterval,
-            $"BreakTheGlassOptions.ExpirySweepInterval must be at least {BreakTheGlassOptions.MinExpirySweepInterval}.",
+            Within(options.ExpirySweepInterval, BreakTheGlassOptions.MinExpirySweepInterval, TimeSpan.FromDays(1)),
+            $"BreakTheGlassOptions.ExpirySweepInterval must be between {BreakTheGlassOptions.MinExpirySweepInterval} and 1 day.",
             failures);
         Require(
             Within(options.ExpirySweepBatchSize, 1, BreakTheGlassOptions.MaxExpirySweepBatchSize),
             $"BreakTheGlassOptions.ExpirySweepBatchSize must be between 1 and {BreakTheGlassOptions.MaxExpirySweepBatchSize}.",
             failures);
         Require(options.RetentionDays >= 1, "BreakTheGlassOptions.RetentionDays must be positive.", failures);
-        Require(options.PurgeIntervalHours >= 1, "BreakTheGlassOptions.PurgeIntervalHours must be positive.", failures);
+        Require(Within(options.PurgeIntervalHours, 1, 720), "BreakTheGlassOptions.PurgeIntervalHours must be between 1 and 720.", failures);
     }
 
     private static void ValidateFeature(BreakTheGlassOptions options, List<string> failures)

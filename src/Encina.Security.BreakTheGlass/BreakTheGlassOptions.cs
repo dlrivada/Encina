@@ -34,7 +34,7 @@ public sealed class BreakTheGlassOptions
     /// <summary>Gets or sets a value indicating whether the gate honours elevations. Default <see langword="true"/>.</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Gets or sets how often the expiry sweeper closes and audits expired elevations. Default 1 minute; the validator rejects less than 10 seconds.</summary>
+    /// <summary>Gets or sets how often the expiry sweeper closes and audits expired elevations. Default 1 minute; the validator accepts 10 seconds to 1 day.</summary>
     public TimeSpan ExpirySweepInterval { get; set; } = TimeSpan.FromMinutes(1);
 
     /// <summary>Gets or sets the most elevations one sweep cycle handles. Default 100; the validator accepts 1 to 500.</summary>
@@ -54,7 +54,7 @@ public sealed class BreakTheGlassOptions
     /// </summary>
     public bool EnableAutoPurge { get; set; }
 
-    /// <summary>Gets or sets the hours between two purge runs. Default 24; used only when <see cref="EnableAutoPurge"/> is set.</summary>
+    /// <summary>Gets or sets the hours between two purge runs. Default 24; the validator accepts 1 to 720; used only when <see cref="EnableAutoPurge"/> is set.</summary>
     public int PurgeIntervalHours { get; set; } = 24;
 
     /// <summary>
