@@ -1,6 +1,7 @@
 using Encina.Recoverability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace Encina.Messaging.Recoverability;
 
@@ -25,11 +26,14 @@ public static class RecoverabilityServiceCollectionExtensions
     /// </list>
     /// </para>
     /// <para>
-    /// To enable delayed retries, you must also register:
+    /// Delayed retries are off by default. When <see cref="RecoverabilityOptions.EnableDelayedRetries"/> is on, you
+    /// must also register (before or after this call, with <see cref="AddEncinaDelayedRetryStore{TStore, TFactory}"/>
+    /// or through a database provider package), otherwise the application fails at startup:
     /// <list type="bullet">
     /// <item><description><see cref="IDelayedRetryStore"/> - Provider-specific implementation</description></item>
     /// <item><description><see cref="IDelayedRetryMessageFactory"/> - Provider-specific factory</description></item>
     /// </list>
+    /// An empty <see cref="RecoverabilityOptions.DelayedRetries"/> array with the flag on still requires the store.
     /// </para>
     /// </remarks>
     /// <example>
@@ -67,17 +71,49 @@ public static class RecoverabilityServiceCollectionExtensions
         // Register the pipeline behavior
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(RecoverabilityPipelineBehavior<,>));
 
-        // Register delayed retry infrastructure if delayed retries are enabled
-        if (options.EnableDelayedRetries)
-        {
-            // DelayedRetryScheduler and DelayedRetryProcessor serialize the request payload
-            // through IMessageSerializer (so encryption applies to delayed-retry content).
-            services.TryAddDefaultMessageSerializer();
-            services.TryAddScoped<IDelayedRetryScheduler, DelayedRetryScheduler>();
-            services.AddHostedService<DelayedRetryProcessor>();
-        }
+        RegisterDelayedRetries(services, options);
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers the delayed retry startup check always and, when
+    /// <see cref="RecoverabilityOptions.EnableDelayedRetries"/> is on, the scheduler and the processor.
+    /// Shared by <c>AddEncinaRecoverability</c> and <c>UseRecoverability</c> so the two paths never drift.
+    /// </summary>
+    /// <remarks>
+    /// The store and its factory may be registered before or after this call: the scheduler is built by a
+    /// factory that fails with a clear message when either is missing, and the startup check
+    /// (<see cref="DelayedRetryStartupCheck"/>) fails the host start for the same reason.
+    /// </remarks>
+    internal static void RegisterDelayedRetries(IServiceCollection services, RecoverabilityOptions options)
+    {
+        // The check goes before the processor so a failed start keeps the processor from running.
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, DelayedRetryStartupCheck>());
+
+        if (!options.EnableDelayedRetries)
+        {
+            return;
+        }
+
+        // DelayedRetryScheduler and DelayedRetryProcessor serialize the request payload
+        // through IMessageSerializer (so encryption applies to delayed-retry content).
+        services.TryAddDefaultMessageSerializer();
+        services.TryAddScoped<IDelayedRetryScheduler>(CreateScheduler);
+        services.AddHostedService<DelayedRetryProcessor>();
+    }
+
+    private static DelayedRetryScheduler CreateScheduler(IServiceProvider provider)
+    {
+        var missing = DelayedRetryStartupCheck.DescribeMissing(
+            provider.GetService<IDelayedRetryStore>() is not null,
+            provider.GetService<IDelayedRetryMessageFactory>() is not null);
+        if (missing is not null)
+        {
+            throw new InvalidOperationException(DelayedRetryStartupCheck.BuildMessage(missing));
+        }
+
+        return ActivatorUtilities.CreateInstance<DelayedRetryScheduler>(provider);
     }
 
     /// <summary>
