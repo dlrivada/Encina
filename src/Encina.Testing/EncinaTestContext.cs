@@ -1,8 +1,8 @@
 using System.Text.Json;
 using Encina.Messaging.Sagas;
 using Encina.Testing.Fakes.Stores;
-using Encina.Testing.Time;
 using LanguageExt;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.Testing;
 
@@ -421,7 +421,7 @@ public sealed class EncinaTestContext<TResponse>
     /// <returns>This context for method chaining.</returns>
     public EncinaTestContext<TResponse> ThenAdvanceTimeByMinutes(int minutes)
     {
-        GetTimeProvider().AdvanceMinutes(minutes);
+        GetTimeProvider().Advance(TimeSpan.FromMinutes(minutes));
         return this;
     }
 
@@ -452,7 +452,7 @@ public sealed class EncinaTestContext<TResponse>
     /// </summary>
     /// <param name="time">The time to set.</param>
     /// <returns>This context for method chaining.</returns>
-    /// <exception cref="ArgumentException">Thrown when attempting to move time backwards.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when attempting to move time backwards.</exception>
     public EncinaTestContext<TResponse> ThenSetTimeTo(DateTimeOffset time)
     {
         GetTimeProvider().SetUtcNow(time);

@@ -94,7 +94,7 @@ public class AuditService(IAuditAttestationProvider provider)
 
         return result.Match(
             Right: v => v.IsValid,
-            Left: _ => false);
+            Left: _ => false); // Left means the answer is unknown (see HTTP Provider Details); treated as not verified here
     }
 }
 ```
@@ -128,16 +128,32 @@ Modifying any entry breaks the chain from that point forward. Call `VerifyChainI
 | Multi-process / persistent | Provide stable `HmacKey` via secrets manager; note: chain data is still in-memory — use `HttpAttestationProvider` for cross-restart verification |
 | Regulatory / external audit | Use `HttpAttestationProvider` with external transparency log |
 
+### HTTP Provider Details
+
+`HttpAttestationProvider` separates a verdict the endpoint gave from a response it could not use.
+
+| Operation | Situation | Result |
+|-----------|-----------|--------|
+| `AttestAsync` | 2xx with a valid JSON object body | `Right(AttestationReceipt)` |
+| `AttestAsync` | 2xx that is malformed: empty body, non-JSON, undecodable or unknown charset, JSON root not an object, `attestation_id` or `signature` absent, null or of the wrong type, or `attestation_id` not a valid GUID | `Left` with `attestation.provider_unavailable` |
+| `AttestAsync` | Non-2xx | `Left` with `attestation.http_endpoint_error` |
+| `VerifyAsync` | 2xx with `"is_valid": true` | `Right` with `IsValid = true` |
+| `VerifyAsync` | Non-2xx, 2xx without `is_valid`, explicit `"is_valid": false`, or no `VerifyEndpointUrl` | `Right` with `IsValid = false` |
+| `VerifyAsync` | 2xx whose verdict cannot be read: empty, non-JSON or non-object body, or `is_valid` not a JSON boolean (`null`, `"true"` and `1` all qualify) | `Left` with `attestation.provider_unavailable` |
+| `VerifyAsync` | 2xx whose Content-Length exceeds 1 MB | `Left` with `attestation.http_response_too_large` |
+
+On a negative verdict, a `failure_reason` of the wrong type is ignored and the default reason `Remote verification failed.` is used. The error text for an unusable response names only the exception type, never the exception message or the payload.
+
 ## Configuration Options
 
 | Class | Property | Type | Description |
 |-------|----------|------|-------------|
 | `AttestationOptions` | `AddHealthCheck` | `bool` | Register health check (default: `false`) |
 | `HashChainOptions` | `StoragePath` | `string?` | Persistence path (null = in-memory only) |
-| `HashChainOptions` | `HashAlgorithm` | `HashAlgorithmName` | Hash algorithm (default: SHA-256) |
-| `HashChainOptions` | `HmacKey` | `byte[]?` | HMAC signing key (null = ephemeral, warning logged) |
+| `HashChainOptions` | `HashAlgorithm` | `HashAlgorithmName` | Hash algorithm (default: SHA-256). Only SHA-256, SHA-384 and SHA-512 are supported; any other value is rejected. With `AddEncinaAttestation`, `OptionsValidationException` is thrown at host start (`ValidateOnStart`) or on the first resolution of `IOptions<HashChainOptions>.Value`. A provider built by hand (`new HashChainAttestationProvider(...)`) throws `ArgumentException` at construction, also when `HmacKey` is supplied |
+| `HashChainOptions` | `HmacKey` | `byte[]?` | HMAC signing key (null = ephemeral, warning logged). Excluded from JSON serialization; `ToString()` prints `HmacKey = [REDACTED]`, never its content or length |
 | `HttpAttestationOptions` | `AttestEndpointUrl` | `Uri` | POST endpoint for attestation (required) |
-| `HttpAttestationOptions` | `VerifyEndpointUrl` | `Uri?` | POST endpoint for verification (optional) |
+| `HttpAttestationOptions` | `VerifyEndpointUrl` | `Uri?` | POST endpoint for verification (optional; when null, `VerifyAsync` returns a negative verdict) |
 | `HttpAttestationOptions` | `AuthHeader` | `string?` | Authorization header value |
 
 ## Error Codes
@@ -146,10 +162,11 @@ Modifying any entry breaks the chain from that point forward. Call `VerifyChainI
 |------|-------------|
 | `attestation.verification_failed` | Receipt failed verification |
 | `attestation.duplicate_record` | Duplicate RecordId (idempotent return) |
-| `attestation.provider_unavailable` | Provider unreachable |
+| `attestation.provider_unavailable` | Provider unreachable or its response unusable |
 | `attestation.content_hash_mismatch` | Content hash does not match |
 | `attestation.chain_integrity_broken` | Hash chain link broken |
 | `attestation.http_endpoint_error` | HTTP endpoint returned error |
+| `attestation.http_response_too_large` | HTTP response body exceeds the 1 MB cap |
 
 ## Observability
 

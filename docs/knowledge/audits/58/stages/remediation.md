@@ -1,0 +1,33 @@
+Remediation for #58:
+- code 1 (Major): draft 58-code-1-nothing-in-src-ever-writes-the-module-name.md
+- code 2 (Major): draft 58-code-2-a-module-behavior-cannot-be-registered-for-a.md
+- code 3 (Minor): draft 58-code-3-the-issue-s-acceptance-item-override-mechanism-works.md
+- code 4 (Minor): draft 58-code-4-a-module-behavior-that-can-never-run-gives.md
+- code 5 (Minor): draft 58-code-5-the-per-request-ownership-test-does-reflection-and.md
+- code 6 (Minor): draft 58-code-6-modulehandlerregistry-getloadabletypes-swallows-the-load-fai.md
+- code 7 (Minor): draft 58-code-7-stale-and-wrong-xml-documentation-in-the-delivered.md
+- tests 1 (Major): draft 58-tests-1-src-encina-modules-modulebehaviorservicecollectionextensions.md
+- tests 2 (Major): draft 58-tests-2-src-encina-modules-requestcontextmoduleextensions-cs-18-cove.md
+- tests 3 (Major): draft 58-tests-3-src-encina-modules-modulehandlerregistry-cs-71-coverable-lin.md
+- tests 4 (Major): draft 58-tests-4-no-test-runs-a-module-behavior-through-the.md
+- tests 5 (Minor): draft 58-tests-5-github-coverage-manifest-encina-json-entry-modules-imodulepi.md
+- tests 6 (Minor): draft 58-tests-6-no-benchmark-or-justification-file-covers-the-per.md
+- docs 1 (Major): draft 58-docs-1-no-concept-or-guide-page-and-no-reference.md
+- docs 2 (Major): merged into code 2 (manual override)
+- docs 3 (Minor): merged into code 7 (manual override)
+- docs 4 (Minor): draft 58-docs-4-visuals-rule-a-point-1-the-feature-has.md
+
+## Lessons for the pipeline
+- docs 3: merged into code 7 by manual override
+- docs 2: merged into code 2 by manual override
+- Code 1, code 2 and code 3 each carry a Dilemma (the producer of the module name, the module-wide registration shape, the override mechanism): the finding text leaves the remedy to the maintainer, so those drafts list the options with the scenario in which each wins; their `labels:` lines carry only the route's labels and the orchestrator adds `needs-decision` when opening; the others state a fix.
+- Code 2 and code 7 point at the same sample line from different sides (`IModulePipelineBehavior.cs:49` does not compile; the remarks at `:18-19` and `:67` are stale); the code 7 draft leaves the sample to the code 2 draft so the two issues do not overlap.
+- Tests 4 (the real-registry pipeline test) and the AddEncina-before-AddEncinaModules case overlap #2752, and tests 3 overlaps #2755 and #2752: the drafts cite them as the manifest's partially related lines and keep only the new test work.
+- The docs stage (docs 1) says `README.md:551` mentions modules in a roadmap table row; a search of `README.md` for `odule` finds only the coverage comment at `:17`, so the docs 1 draft does not cite the README.
+- The bullet above is wrong: `README.md:551` is the "Multi-Tenancy & Modular" row, and `odule` does not match "Modular". The docs stage (docs 1) is right about `README.md:551`: it is the roadmap row `| v0.16.0 | Multi-Tenancy & Modular | 21 |`. An earlier lesson here called it wrong because the search pattern `odule` does not match "Modular". The row names the theme and not the module-behavior feature, so the docs 1 draft does not cite the README.
+- The Glob tool again returned no files for `src/Encina/Modules/*.cs` and `tests/Encina.LoadTests/Module*`, which exist; existence was confirmed with Grep (the `ModuleIsolation.md` justification in both test projects, the module sources by content search).
+- The tests stage cites the deletion of earlier module test files by commit (`3bccb5736`, `658263027`); this agent has no shell and the history is not stated as fact in any draft, only the verified current state (no test calls `AddEncinaModuleBehavior`, `WithModuleName` or `IsInModule`).
+- The coverage manifest shape of an interface differs from the finding's proposed reason: the `Modules/IModuleHandlerRegistry.cs` entry has `defaultRule` `^I[A-Z].*\.cs$` and the reason "Interfaces have no implementation to test" (`Encina.json:907-911`), so the tests 5 draft points to that wording.
+- Code 1 and code 6 (the `[BUG]` drafts) use only the headers of `bug_report.md`: related issues are plain `Related Issues:` lines inside `## Additional Context`, and code 6 has no Root Cause section because none is established.
+- Tests 1 to 3 take the corrected targets of the tests stage: `ModuleBehaviorServiceCollectionExtensions.cs` unit 100 and guard 4, `RequestContextModuleExtensions.cs` unit 100 and guard 65 (12/18, slack 0), `ModuleHandlerRegistry.cs` unit 98 and guard 65 (slack 0). They are derived from the line sets and not run.
+- The code 5 finding says the answer can be "a field computed once"; the adapter is registered scoped (`ModuleBehaviorServiceCollectionExtensions.cs:59`), so a field is recomputed per scope. The draft says so and mentions a registry-side cache as the alternative; the code stage did not note the lifetime.

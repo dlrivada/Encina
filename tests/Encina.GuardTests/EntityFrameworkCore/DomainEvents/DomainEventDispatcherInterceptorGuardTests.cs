@@ -1,3 +1,4 @@
+using Encina.DomainModeling;
 using Encina.EntityFrameworkCore.DomainEvents;
 using Microsoft.Extensions.Logging;
 
@@ -52,6 +53,40 @@ public sealed class DomainEventDispatcherInterceptorGuardTests
         var ex = Should.Throw<ArgumentNullException>(() =>
             new DomainEventDispatcherInterceptor(serviceProvider, options, logger));
         ex.ParamName.ShouldBe("logger");
+    }
+
+    #endregion
+
+    #region DomainEventDispatchException Constructor Guards
+
+    [Fact]
+    public void ExceptionConstructor_NullDomainEventWithError_ThrowsArgumentNullException()
+    {
+        // Act & Assert
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            new DomainEventDispatchException(null!, EncinaErrors.Create("CODE", "message")));
+        ex.ParamName.ShouldBe("domainEvent");
+    }
+
+    [Fact]
+    public void ExceptionConstructor_NullDomainEventWithException_ThrowsArgumentNullException()
+    {
+        // Act & Assert
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            new DomainEventDispatchException(null!, new InvalidOperationException("inner")));
+        ex.ParamName.ShouldBe("domainEvent");
+    }
+
+    [Fact]
+    public void ExceptionConstructor_NullInnerException_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var domainEvent = Substitute.For<IDomainEvent>();
+
+        // Act & Assert
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            new DomainEventDispatchException(domainEvent, (Exception)null!));
+        ex.ParamName.ShouldBe("innerException");
     }
 
     #endregion

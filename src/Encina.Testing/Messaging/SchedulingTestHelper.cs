@@ -2,8 +2,8 @@ using System.Text.Json;
 using Encina.Messaging.Scheduling;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
-using Encina.Testing.Time;
 using LanguageExt;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.Testing.Messaging;
 
@@ -50,7 +50,7 @@ public sealed class SchedulingTestHelper : IDisposable
     /// Initializes a new instance of the <see cref="SchedulingTestHelper"/> class.
     /// </summary>
     public SchedulingTestHelper()
-        : this(new FakeScheduledMessageStore(), new FakeTimeProvider())
+        : this(new FakeScheduledMessageStore(), new FakeTimeProvider(System.TimeProvider.System.GetUtcNow()))
     {
     }
 
@@ -889,7 +889,7 @@ public sealed class SchedulingTestHelper : IDisposable
     /// <returns>This helper for method chaining.</returns>
     public SchedulingTestHelper AdvanceTimeByMinutes(int minutes)
     {
-        _timeProvider.AdvanceMinutes(minutes);
+        _timeProvider.Advance(TimeSpan.FromMinutes(minutes));
         return this;
     }
 

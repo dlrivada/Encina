@@ -3,7 +3,7 @@ using Encina;
 using Encina.DomainModeling;
 using Encina.MongoDB.Repository;
 using Encina.Testing.Identity;
-using Encina.Testing.Time;
+using Microsoft.Extensions.Time.Testing;
 using MongoDB.Driver;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;

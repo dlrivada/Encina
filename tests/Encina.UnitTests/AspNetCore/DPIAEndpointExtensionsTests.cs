@@ -100,7 +100,8 @@ public sealed class DPIAEndpointExtensionsTests
     private static async Task<TestHarness> CreateHarnessAsync(
         IDPIAService service,
         IDPIATemplateProvider? templateProvider = null,
-        string prefix = "/api/dpia")
+        string prefix = "/api/dpia",
+        string? contextTenant = null)
     {
         var builder = new HostBuilder()
             .ConfigureWebHost(web =>
@@ -115,6 +116,14 @@ public sealed class DPIAEndpointExtensionsTests
                     services.AddSingleton(Substitute.For<IDPIAAssessmentEngine>());
                     services.AddSingleton(TimeProvider.System);
                     services.Configure<DPIAOptions>(_ => { });
+                    if (contextTenant is not null)
+                    {
+                        var requestContext = Substitute.For<IRequestContext>();
+                        requestContext.TenantId.Returns(contextTenant);
+                        var accessor = Substitute.For<IRequestContextAccessor>();
+                        accessor.RequestContext.Returns(requestContext);
+                        services.AddSingleton(accessor);
+                    }
                 });
                 web.Configure(app =>
                 {
@@ -172,12 +181,6 @@ public sealed class DPIAEndpointExtensionsTests
     }
 
     // ── Constants ───────────────────────────────────────────────────────────
-
-    [Fact]
-    public void TenantIdHeader_Constant_Value()
-    {
-        DPIAEndpointExtensions.TenantIdHeader.ShouldBe("X-Tenant-Id");
-    }
 
     [Fact]
     public void ModuleIdHeader_Constant_Value()
@@ -379,6 +382,53 @@ public sealed class DPIAEndpointExtensionsTests
             content: null);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Assess_TakesTenantFromRequestContext_AndIgnoresTenantHeader()
+    {
+        var service = CreateAssessService();
+        await using var harness = await CreateHarnessAsync(service, contextTenant: "context-tenant");
+        using var message = new HttpRequestMessage(HttpMethod.Post, new Uri("/api/dpia/assessments/System.String/assess", UriKind.Relative));
+        message.Headers.Add("X-Tenant-Id", "header-tenant");
+        message.Headers.Add("X-Tenant-ID", "other-header-tenant");
+
+        using var response = await harness.Client.SendAsync(message);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
+        await service.Received(1).CreateAssessmentAsync(
+            "System.String", Arg.Any<string?>(), Arg.Any<string?>(), "context-tenant", null, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Assess_NoRequestContextTenant_IgnoresTenantHeader_AndCreatesUnscopedAssessment()
+    {
+        var service = CreateAssessService();
+        await using var harness = await CreateHarnessAsync(service);
+        using var message = new HttpRequestMessage(HttpMethod.Post, new Uri("/api/dpia/assessments/System.String/assess", UriKind.Relative));
+        message.Headers.Add("X-Tenant-Id", "header-tenant");
+
+        using var response = await harness.Client.SendAsync(message);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
+        await service.Received(1).CreateAssessmentAsync(
+            "System.String", Arg.Any<string?>(), Arg.Any<string?>(), null, null, Arg.Any<CancellationToken>());
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability", "CA2012:Use ValueTasks correctly",
+        Justification = "NSubstitute mock setup pattern for ValueTask-returning members.")]
+    private static IDPIAService CreateAssessService()
+    {
+        var service = CreateService();
+        service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, DPIAReadModel>>(
+                Left<EncinaError, DPIAReadModel>(DPIAErrors.AssessmentNotFound(Guid.Empty))));
+        service.CreateAssessmentAsync(
+                Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, Guid>>(
+                Left<EncinaError, Guid>(DPIAErrors.AssessmentNotFound(Guid.Empty))));
+        return service;
     }
 
     // ── Custom prefix ───────────────────────────────────────────────────────

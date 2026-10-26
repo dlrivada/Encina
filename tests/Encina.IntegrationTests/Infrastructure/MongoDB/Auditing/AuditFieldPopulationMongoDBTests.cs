@@ -3,7 +3,7 @@ using Encina.DomainModeling;
 using Encina.MongoDB.Repository;
 using Encina.TestInfrastructure.Fixtures;
 using Encina.Testing.Identity;
-using Encina.Testing.Time;
+using Microsoft.Extensions.Time.Testing;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;

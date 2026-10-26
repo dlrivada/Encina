@@ -3,6 +3,7 @@ using System.Transactions;
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.DecisionAudit;
 using Encina.Security.Audit;
+using Encina.TestInfrastructure.Time;
 
 using LanguageExt;
 
@@ -10,7 +11,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Time.Testing;
 
 using Shouldly;
 
@@ -30,30 +30,6 @@ public sealed class AuditStoreABACDecisionRecorderTests
 
     private readonly TimerSignallingTimeProvider _time = new(new DateTimeOffset(2026, 10, 9, 8, 0, 0, TimeSpan.Zero));
     private readonly FakeLogCollector _logs = new();
-
-    /// <summary>
-    /// A fake clock that signals every timer created on it, so a test advances time only once the
-    /// timers it means to fire exist (deterministic, no polling).
-    /// </summary>
-    private sealed class TimerSignallingTimeProvider(DateTimeOffset start) : FakeTimeProvider(start)
-    {
-        private readonly global::System.Threading.Channels.Channel<bool> _created = global::System.Threading.Channels.Channel.CreateUnbounded<bool>();
-
-        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
-        {
-            var timer = base.CreateTimer(callback, state, dueTime, period);
-            _created.Writer.TryWrite(true);
-            return timer;
-        }
-
-        public async Task WaitForTimersAsync(int count)
-        {
-            for (var i = 0; i < count; i++)
-            {
-                await _created.Reader.ReadAsync(TestContext.Current.CancellationToken);
-            }
-        }
-    }
 
     /// <summary>A scriptable store: each call runs the delegate the test sets.</summary>
     private sealed class ScriptedStore : IOperationAuditStore
@@ -317,9 +293,9 @@ public sealed class AuditStoreABACDecisionRecorderTests
         pending.IsCompleted.ShouldBeFalse();
 
         // Each bounded call creates two timers on the clock: its token source and its WaitAsync race.
-        await _time.WaitForTimersAsync(2);
+        await _time.WaitForTimersAsync(2, TestContext.Current.CancellationToken);
         _time.Advance(Timeout);
-        await _time.WaitForTimersAsync(2);
+        await _time.WaitForTimersAsync(2, TestContext.Current.CancellationToken);
         _time.Advance(Timeout);
 
         await Should.ThrowAsync<TimeoutException>(pending);

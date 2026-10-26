@@ -336,7 +336,10 @@ result.Match(
 
 ```csharp
 // Use InMemoryAISystemRegistry for unit tests
-var registry = new InMemoryAISystemRegistry(new FakeTimeProvider());
+// FakeTimeProvider comes from package Microsoft.Extensions.TimeProvider.Testing
+// using Microsoft.Extensions.Time.Testing;
+// A parameterless FakeTimeProvider starts at 2000-01-01, so pass an explicit start
+var registry = new InMemoryAISystemRegistry(new FakeTimeProvider(TimeProvider.System.GetUtcNow()));
 await registry.RegisterSystemAsync(new AISystemRegistration
 {
     SystemId = "test-system",

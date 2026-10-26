@@ -43,6 +43,13 @@ public static class RequestIdentityErrorCodes
     public const string TenantConflict = "encina.identity.tenant_conflict";
 
     /// <summary>
+    /// An inbound request is refused because its tenant is ambiguous: the tenant header disagrees with
+    /// the principal's tenant claim, or the principal's authenticated identities carry different
+    /// tenant claims.
+    /// </summary>
+    public const string InboundTenantConflict = "encina.identity.inbound_tenant_conflict";
+
+    /// <summary>
     /// The registered <see cref="IRequestContextAccessor"/> is not the default
     /// <see cref="RequestContextAccessor"/>, so an identity scope would write to a store the
     /// dispatcher never reads.

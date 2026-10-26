@@ -459,15 +459,118 @@ public sealed class RequestContextScopeFactoryTests
     }
 
     [Fact]
-    public async Task RunInboundAsync_UsesTheTenantHeader_OnlyWhenThePrincipalHasNoTenant()
+    public async Task RunInboundAsync_UsesTheTenantHeader_OnlyWhenTrusted_AndThePrincipalHasNoTenant()
     {
-        var anonymous = (await Factory.RunInboundAsync(new InboundRequestInfo(null, TenantHeaderValue: "header-tenant"), ScopeTestHost.Capture)).ShouldBeSuccess();
-        var claimed = (await Factory.RunInboundAsync(
-            new InboundRequestInfo(ScopeTestHost.UserPrincipal("alice", tenant: "claim-tenant"), TenantHeaderValue: "header-tenant"), ScopeTestHost.Capture)).ShouldBeSuccess();
+        var anonymous = (await Factory.RunInboundAsync(
+            new InboundRequestInfo(null, TenantHeaderValue: "header-tenant", TenantHeaderTrusted: true), ScopeTestHost.Capture)).ShouldBeSuccess();
+        var userWithoutClaim = (await Factory.RunInboundAsync(
+            new InboundRequestInfo(ScopeTestHost.UserPrincipal("alice"), TenantHeaderValue: "header-tenant", TenantHeaderTrusted: true), ScopeTestHost.Capture)).ShouldBeSuccess();
 
         anonymous.TenantId.ShouldBe("header-tenant");
         anonymous.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
-        claimed.TenantId.ShouldBe("claim-tenant");
+        userWithoutClaim.TenantId.ShouldBe("header-tenant");
+    }
+
+    [Fact]
+    public async Task RunInboundAsync_IgnoresAnUntrustedTenantHeader_AndLogsDebug()
+    {
+        var anonymous = (await Factory.RunInboundAsync(new InboundRequestInfo(null, TenantHeaderValue: "header-tenant"), ScopeTestHost.Capture)).ShouldBeSuccess();
+        var noHeader = (await Factory.RunInboundAsync(new InboundRequestInfo(null), ScopeTestHost.Capture)).ShouldBeSuccess();
+
+        anonymous.TenantId.ShouldBeNull();
+        noHeader.TenantId.ShouldBeNull();
+        Records.Count(r => r.Id.Id == 176).ShouldBe(1);
+        Records.Single(r => r.Id.Id == 176).Level.ShouldBe(LogLevel.Debug);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RunInboundAsync_ClaimWinsOverAnAgreeingHeader(bool trusted)
+    {
+        var principal = ScopeTestHost.UserPrincipal("alice", tenant: "claim-tenant");
+
+        var agree = (await Factory.RunInboundAsync(
+            new InboundRequestInfo(principal, TenantHeaderValue: "claim-tenant", TenantHeaderTrusted: trusted), ScopeTestHost.Capture)).ShouldBeSuccess();
+        var claimOnly = (await Factory.RunInboundAsync(new InboundRequestInfo(principal, TenantHeaderTrusted: trusted), ScopeTestHost.Capture)).ShouldBeSuccess();
+
+        agree.TenantId.ShouldBe("claim-tenant");
+        claimOnly.TenantId.ShouldBe("claim-tenant");
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task RunInboundAsync_RefusesAHeaderThatDisagreesWithTheClaim(bool trusted, bool host)
+    {
+        var info = new InboundRequestInfo(
+            ScopeTestHost.UserPrincipal("alice", tenant: "claim-tenant"), TenantHeaderValue: "header-tenant", TenantHeaderTrusted: trusted);
+        var worked = false;
+        Task<Either<EncinaError, int>> Work(IRequestContext _, CancellationToken __)
+        {
+            worked = true;
+            return Task.FromResult(Right<EncinaError, int>(1));
+        }
+
+        var result = host ? await Factory.RunHostInboundAsync(info, Work) : await Factory.RunInboundAsync(info, Work);
+
+        worked.ShouldBeFalse();
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.InboundTenantConflict));
+        Records.Single(r => r.Id.Id == 167).Level.ShouldBe(LogLevel.Warning);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("tenant-a")]
+    public async Task RunInboundAsync_RefusesConflictingTenantClaims_WhateverTheHeader(string? header)
+    {
+        var first = new ClaimsIdentity([new Claim("sub", "alice"), new Claim("tenant_id", "tenant-a")], "test");
+        var second = new ClaimsIdentity([new Claim("sub", "alice"), new Claim("tenant_id", "tenant-b")], "test");
+        var info = new InboundRequestInfo(new ClaimsPrincipal([first, second]), TenantHeaderValue: header, TenantHeaderTrusted: true);
+
+        var result = await Factory.RunInboundAsync(info, ScopeTestHost.Capture);
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.InboundTenantConflict));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("tenant-a")]
+    public async Task RunInboundAsync_RefusesTwoDifferentTenantClaimsInOneIdentity_WhateverTheHeader(string? header)
+    {
+        var identity = new ClaimsIdentity(
+            [new Claim("sub", "alice"), new Claim("tenant_id", "tenant-a"), new Claim("tenant_id", "tenant-b")], "test");
+        var info = new InboundRequestInfo(new ClaimsPrincipal(identity), TenantHeaderValue: header, TenantHeaderTrusted: true);
+
+        var result = await Factory.RunInboundAsync(info, ScopeTestHost.Capture);
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.InboundTenantConflict));
+    }
+
+    [Fact]
+    public async Task RunInboundAsync_AcceptsTheSameTenantClaimRepeatedInOneIdentity()
+    {
+        var identity = new ClaimsIdentity(
+            [new Claim("sub", "alice"), new Claim("tenant_id", "tenant-a"), new Claim("tenant_id", "tenant-a")], "test");
+        var info = new InboundRequestInfo(new ClaimsPrincipal(identity), TenantHeaderValue: "tenant-a", TenantHeaderTrusted: true);
+
+        var context = (await Factory.RunInboundAsync(info, ScopeTestHost.Capture)).ShouldBeSuccess();
+
+        context.TenantId.ShouldBe("tenant-a");
+    }
+
+    [Fact]
+    public void InboundTenantConflict_HasAFixedMessageWithNoTenant()
+    {
+        var error = RequestIdentityErrors.InboundTenantConflict();
+
+        error.GetCode().IfNone("none").ShouldBe("encina.identity.inbound_tenant_conflict");
+        error.Message.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -499,7 +602,7 @@ public sealed class RequestContextScopeFactoryTests
     public async Task RunInboundAsync_KeepsUsableValues_IncludingA200CharacterIdempotencyKey()
     {
         var key = new string('k', 200);
-        var info = new InboundRequestInfo(null, "corr-ok", "tenant-ok", key, " 10.0.0.1 ", "agent/1.0", "eu");
+        var info = new InboundRequestInfo(null, "corr-ok", "tenant-ok", key, " 10.0.0.1 ", "agent/1.0", "eu", TenantHeaderTrusted: true);
 
         var context = (await Factory.RunInboundAsync(info, ScopeTestHost.Capture)).ShouldBeSuccess();
 

@@ -1,0 +1,1 @@
+- `DomainEventDispatchException` (Encina.EntityFrameworkCore) no longer includes `EncinaError.Message` in its text: Message and Data carry only the event type name and the error code, and a cause is reduced to its type name (#2710).

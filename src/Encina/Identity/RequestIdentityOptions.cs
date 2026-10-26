@@ -71,8 +71,9 @@ public sealed class RequestIdentityOptions
     public char? PermissionClaimSeparator { get; set; }
 
     /// <summary>
-    /// Gets the claim types that carry the tenant id, in precedence order. Used only for
-    /// authenticated principals. Default: <c>tenant_id</c>, <c>tid</c>, <see cref="TenantIdentifierClaimType"/>.
+    /// Gets the claim types that carry the tenant id. Used only for
+    /// authenticated principals. There is no precedence: every claim of these types counts, and two
+    /// different values (in one identity, several identities or several claim types) are a conflict. Default: <c>tenant_id</c>, <c>tid</c>, <see cref="TenantIdentifierClaimType"/>.
     /// </summary>
     public IList<string> TenantIdClaimTypes { get; } = ["tenant_id", "tid", TenantIdentifierClaimType];
 

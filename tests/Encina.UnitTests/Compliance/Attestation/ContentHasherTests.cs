@@ -140,8 +140,19 @@ public class ContentHasherTests
     }
 
     [Fact]
-    public void GetRecommendedKeySize_Unknown_ReturnsFallback32()
+    public void GetRecommendedKeySize_Unknown_ThrowsArgumentException()
     {
-        ContentHasher.GetRecommendedKeySize(HashAlgorithmName.MD5).ShouldBe(32);
+        var ex = Should.Throw<ArgumentException>(() => ContentHasher.GetRecommendedKeySize(HashAlgorithmName.MD5));
+
+        ex.ParamName.ShouldBe("algorithm");
+        ex.Message.ShouldContain("MD5");
+    }
+
+    [Fact]
+    public void GetRecommendedKeySize_DefaultAlgorithmName_ThrowsNamingNone()
+    {
+        var ex = Should.Throw<ArgumentException>(() => ContentHasher.GetRecommendedKeySize(default));
+
+        ex.Message.ShouldContain("(none)");
     }
 }

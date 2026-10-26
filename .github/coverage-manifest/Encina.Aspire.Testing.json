@@ -29,12 +29,12 @@
         "guard"
       ],
       "targets": {
-        "unit": 10,
-        "guard": 10
+        "unit": 95,
+        "guard": 9
       },
       "justifications": {
-        "unit": "Only the null-builder guard and its argument check are reachable; the registration path needs an IDistributedApplicationTestingBuilder, and both NSubstitute (Castle proxy fails on the interface) and DistributedApplicationTestingBuilder.Create (requires an AppHost assembly) were tried and cannot produce one in a unit test.",
-        "guard": "The guard test passes a null builder to WithEncinaTestSupport, the only guard this file has."
+        "unit": "WithEncinaTestSupport is run end to end against a hand-written IDistributedApplicationTestingBuilder double whose Services is a real ServiceCollection (tests/Encina.UnitTests/Aspire/Testing/WithEncinaTestSupportRegistrationTests.cs): the null guard, the second-call InvalidOperationException, the options singleton, the configure action, AddEncinaFakes and the EncinaTestContext registration; the unit flag reaches every coverable line of the file.",
+        "guard": "The guard flag only passes a null builder (AspireTestingArgumentGuardTests), which reaches the null-check line and nothing after it; the registration and second-call lines belong to the unit flag, so the guard flag covers one of the file's coverable lines."
       },
       "reason": "Extension methods on IDistributedApplicationTestingBuilder with ThrowIfNull guard — guard testable without real builder."
     },

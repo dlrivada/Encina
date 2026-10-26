@@ -1,7 +1,7 @@
 using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Model;
-using Encina.Testing.Time;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 
 namespace Encina.UnitTests.Compliance.NIS2;

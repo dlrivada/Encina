@@ -551,9 +551,11 @@ await repository.AddAsync(order);
 
 ### Using FakeTimeProvider
 
-For deterministic tests, inject `FakeTimeProvider`:
+For deterministic tests, inject `Microsoft.Extensions.Time.Testing.FakeTimeProvider` (package `Microsoft.Extensions.TimeProvider.Testing`, referenced by `Encina.Testing`). The convention is in the [testing guide](https://github.com/dlrivada/Encina/blob/main/docs/en/guides/TESTING.md#testing-time).
 
 ```csharp
+using Microsoft.Extensions.Time.Testing;
+
 [Fact]
 public async Task Order_WhenCreated_SetsCreatedAtUtc()
 {

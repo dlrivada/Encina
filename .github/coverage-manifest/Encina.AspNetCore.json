@@ -87,7 +87,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "Endpoint mapping extensions with ThrowIfNull(endpoints)"
+      "reason": "Endpoint mapping extensions with ThrowIfNull(endpoints)",
+      "targets": { "unit": 80, "guard": 4 },
+      "justifications": {
+        "unit": "Every handler path has an endpoint execution test through the test server, including the request-context tenant of the assess handler (measured 83%).",
+        "guard": "Guard tests cover the MapDPIAEndpoints null-endpoints and null-prefix checks and a successful mapping; the handlers take no guarded arguments, so the flag cannot reach them (measured 4.3%)."
+      }
     },
     "EncinaAspNetCoreOptions.cs": {
       "defaultTests": [
@@ -110,13 +115,17 @@
       "targets": { "unit": 95, "guard": 20 },
       "justifications": {
         "unit": "Every branch (latch, connection marker, refusals, 202/203) has unit and TestServer tests (measured 100%).",
-        "guard": "Constructor and InvokeAsync null guards only (measured 25%)."
+        "guard": "Constructor and InvokeAsync null guards only (measured 23%)."
       }
     },
     "EncinaContextMiddlewareLog.cs": {
       "defaultTests": [],
       "defaultRule": "*.cs",
-      "reason": "Source-generated LoggerMessage declarations without hand-written executable lines"
+      "reason": "Source-generated LoggerMessage declarations without hand-written executable lines",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "Source-generated [LoggerMessage] partials: the generated bodies are attributed to the generator output, so the file has no coverable lines; the messages are asserted in the middleware tests."
+      }
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],

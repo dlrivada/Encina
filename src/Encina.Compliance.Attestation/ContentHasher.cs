@@ -67,11 +67,15 @@ internal static class ContentHasher
     /// <summary>
     /// Returns the recommended HMAC key size in bytes for the specified algorithm.
     /// </summary>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="algorithm"/> is not supported.</exception>
     internal static int GetRecommendedKeySize(HashAlgorithmName algorithm)
     {
         if (algorithm == HashAlgorithmName.SHA256) return 32;
         if (algorithm == HashAlgorithmName.SHA384) return 48;
         if (algorithm == HashAlgorithmName.SHA512) return 64;
-        return 32; // fallback
+
+        throw new ArgumentException(
+            $"Hash algorithm '{algorithm.Name ?? "(none)"}' is not supported. Use SHA256, SHA384, or SHA512.",
+            nameof(algorithm));
     }
 }

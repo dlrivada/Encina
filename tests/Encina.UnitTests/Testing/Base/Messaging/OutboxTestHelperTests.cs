@@ -1,7 +1,7 @@
 using Encina.Testing;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Messaging;
-using Encina.Testing.Time;
+using Microsoft.Extensions.Time.Testing;
 using FakeOutboxMessage = Encina.Testing.Fakes.Models.FakeOutboxMessage;
 
 namespace Encina.UnitTests.Testing.Base.Messaging;

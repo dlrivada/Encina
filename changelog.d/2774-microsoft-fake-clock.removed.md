@@ -1,0 +1,1 @@
+- `Encina.Testing.Time.FakeTimeProvider`, `FakeTimer` and `FrozenTimeScope` are removed from `Encina.Testing`; use `Microsoft.Extensions.Time.Testing.FakeTimeProvider` instead (`Freeze`, `Reset`, `AdvanceToNextDay/Hour` and `AdvanceSeconds/Milliseconds` have no replacement; `AdvanceMinutes(n)` becomes `Advance(TimeSpan.FromMinutes(n))`) (#2774, #2454, #2746).

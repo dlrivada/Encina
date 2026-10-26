@@ -63,6 +63,24 @@ public sealed class RequestContextScopeFactoryContractTests : IDisposable
     }
 
     [Fact]
+    public async Task RunInboundAsync_TenantHeader_NeverOutranksTheClaim_AndChoosesTheTenantOnlyWhenTrusted()
+    {
+        var principal = Principal(new Claim("oid", "user-1"), new Claim("org", "tenant-1"));
+        var noClaim = Principal(new Claim("oid", "user-1"));
+
+        var untrusted = (await Scopes.RunInboundAsync(new InboundRequestInfo(noClaim, TenantHeaderValue: "header"), Capture)).ShouldBeSuccess();
+        var trusted = (await Scopes.RunInboundAsync(new InboundRequestInfo(noClaim, TenantHeaderValue: "header", TenantHeaderTrusted: true), Capture)).ShouldBeSuccess();
+        var agreeing = (await Scopes.RunInboundAsync(new InboundRequestInfo(principal, TenantHeaderValue: "tenant-1"), Capture)).ShouldBeSuccess();
+        var disagreeing = await Scopes.RunInboundAsync(new InboundRequestInfo(principal, TenantHeaderValue: "header", TenantHeaderTrusted: true), Capture);
+
+        untrusted.TenantId.ShouldBeNull();
+        trusted.TenantId.ShouldBe("header");
+        agreeing.TenantId.ShouldBe("tenant-1");
+        disagreeing.IsLeft.ShouldBeTrue();
+        disagreeing.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.InboundTenantConflict));
+    }
+
+    [Fact]
     public async Task EveryScope_IsInvalidatedWhenWorkCompletes()
     {
         var service = (await Scopes.RunAsServiceAsync(Job, Capture)).ShouldBeSuccess();

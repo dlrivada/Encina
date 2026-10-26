@@ -1,7 +1,7 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
 using Encina.Security.Audit;
-using Encina.Testing.Time;
+using Encina.TestInfrastructure.Time;
 using Encina.UnitTests.OpenTelemetry;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -117,14 +117,14 @@ public class ReadAuditRetentionServiceTests
         _mockStore.PurgeEntriesAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, int>>(Right(5)));
 
-        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var fakeTime = new TimerSignallingTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
         var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
         // Act
         await service.StartAsync(cts.Token);
-        await WaitForTimerRegistrationAsync(fakeTime);
+        await fakeTime.WaitForTimersAsync(1, TestContext.Current.CancellationToken);
         fakeTime.Advance(TimeSpan.FromHours(1.1));
         await Task.Delay(200); // Allow purge to complete
         await cts.CancelAsync();
@@ -151,14 +151,14 @@ public class ReadAuditRetentionServiceTests
             .Returns(ValueTask.FromResult<Either<EncinaError, int>>(
                 Left(EncinaError.New("purge failed"))));
 
-        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var fakeTime = new TimerSignallingTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
         var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
         // Act - should not throw despite error
         await service.StartAsync(cts.Token);
-        await WaitForTimerRegistrationAsync(fakeTime);
+        await fakeTime.WaitForTimersAsync(1, TestContext.Current.CancellationToken);
         fakeTime.Advance(TimeSpan.FromHours(1.1));
         await Task.Delay(200);
         await cts.CancelAsync();
@@ -184,14 +184,14 @@ public class ReadAuditRetentionServiceTests
         _mockStore.PurgeEntriesAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Throws(new InvalidOperationException("database down"));
 
-        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var fakeTime = new TimerSignallingTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
         var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
         // Act - should not throw
         await service.StartAsync(cts.Token);
-        await WaitForTimerRegistrationAsync(fakeTime);
+        await fakeTime.WaitForTimersAsync(1, TestContext.Current.CancellationToken);
         fakeTime.Advance(TimeSpan.FromHours(1.1));
         await Task.Delay(200);
         await cts.CancelAsync();
@@ -234,7 +234,7 @@ public class ReadAuditRetentionServiceTests
         });
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
 
-        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var fakeTime = new TimerSignallingTimeProvider(DateTimeOffset.UtcNow);
         using var service = new ReadAuditRetentionService(
             provider.GetRequiredService<IServiceScopeFactory>(),
             CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1),
@@ -245,7 +245,7 @@ public class ReadAuditRetentionServiceTests
         await service.StartAsync(CancellationToken.None);
         for (var run = 1; run <= 2; run++)
         {
-            await WaitForTimerRegistrationAsync(fakeTime);
+            await fakeTime.WaitForTimersAsync(1, TestContext.Current.CancellationToken);
             fakeTime.Advance(TimeSpan.FromHours(1.1));
             await purgeCompleted[run - 1].Task.WaitAsync(TimeSpan.FromSeconds(5));
         }
@@ -338,13 +338,13 @@ public class ReadAuditRetentionServiceTests
 
     private async Task RunOnePurgeCycleAsync(ActivityStatusCapture capture, string expectedStatusDescription)
     {
-        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var fakeTime = new TimerSignallingTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
         var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
         await service.StartAsync(cts.Token);
-        await WaitForTimerRegistrationAsync(fakeTime);
+        await fakeTime.WaitForTimersAsync(1, TestContext.Current.CancellationToken);
         fakeTime.Advance(TimeSpan.FromHours(1.1));
         await capture.WaitForErrorActivityAsync(expectedStatusDescription);
         await cts.CancelAsync();
@@ -356,19 +356,6 @@ public class ReadAuditRetentionServiceTests
         catch (OperationCanceledException)
         {
             // Expected when cancelling the background service
-        }
-    }
-
-    /// <summary>
-    /// Waits until the background service registers its timer with the FakeTimeProvider.
-    /// This replaces flaky Task.Delay(50) calls that caused race conditions on slow CI runners.
-    /// </summary>
-    private static async Task WaitForTimerRegistrationAsync(FakeTimeProvider fakeTime, int timeoutMs = 5000)
-    {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        while (fakeTime.ActiveTimerCount == 0 && sw.ElapsedMilliseconds < timeoutMs)
-        {
-            await Task.Delay(10);
         }
     }
 

@@ -36,6 +36,20 @@ public sealed class RequestIdentityGuardTests
     }
 
     [Fact]
+    public void ClaimsRequestIdentityFactory_ConflictingTenantClaims_AreNeverResolved()
+    {
+        var factory = new ClaimsRequestIdentityFactory(Options.Create(new RequestIdentityOptions()));
+        var identity = new System.Security.Claims.ClaimsIdentity(
+            [new("sub", "alice"), new("tenant_id", "a"), new("tenant_id", "b")], "test");
+        var principal = new System.Security.Claims.ClaimsPrincipal(identity);
+
+        factory.TryResolveTenantId(principal, out var tenantId).ShouldBeFalse();
+        tenantId.ShouldBeNull();
+        factory.ResolveTenantId(principal).ShouldBeNull();
+        factory.Create(principal).ShouldBeSameAs(RequestIdentity.Anonymous);
+    }
+
+    [Fact]
     public void Validator_NullOptions_Throws() =>
         Should.Throw<ArgumentNullException>(() => new RequestIdentityOptionsValidator().Validate(null, null!));
 

@@ -81,6 +81,10 @@ internal sealed class ClaimsRequestIdentityFactory : IRequestIdentityFactory
     public string? ResolveTenantId(ClaimsPrincipal? principal) =>
         TryResolveTenant(AuthenticatedIdentities(principal), out var tenantId) ? tenantId : null;
 
+    /// <inheritdoc />
+    public bool TryResolveTenantId(ClaimsPrincipal? principal, out string? tenantId) =>
+        TryResolveTenant(AuthenticatedIdentities(principal), out tenantId);
+
     private static List<ClaimsIdentity> AuthenticatedIdentities(ClaimsPrincipal? principal) =>
         principal is null
             ? []
@@ -127,9 +131,12 @@ internal sealed class ClaimsRequestIdentityFactory : IRequestIdentityFactory
 
     private bool TryResolveTenant(List<ClaimsIdentity> identities, out string? tenantId)
     {
+        // Every tenant claim of every configured type counts: one identity carrying two different
+        // tenant values is as ambiguous as two identities doing so.
         var tenants = identities
-            .Select(identity => FindFirst(identity, _options.TenantIdClaimTypes)?.Value)
-            .OfType<string>()
+            .SelectMany(identity => _options.TenantIdClaimTypes.SelectMany(identity.FindAll))
+            .Select(static claim => claim.Value)
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
