@@ -30,7 +30,6 @@ public sealed class BreakTheGlassOperationsContractTests
             options.DeclareScope("clinical-record", scope => scope.OpenerRoles.Add("clinician"));
             options.ReviewerRoles.Add("reviewer");
             options.EnableAutoPurge = true;
-            options.AddHealthCheck = true;
             options.AllowInMemoryStore = true;
             configure?.Invoke(options);
         });

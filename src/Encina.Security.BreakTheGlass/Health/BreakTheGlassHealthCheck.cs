@@ -19,10 +19,7 @@ namespace Encina.Security.BreakTheGlass.Health;
 /// user, subject or elevation id and never an error message.
 /// </para>
 /// <para>
-/// Enable it with <see cref="BreakTheGlassOptions.AddHealthCheck"/>:
-/// <code>
-/// services.AddEncinaBreakTheGlass(options => options.AddHealthCheck = true);
-/// </code>
+/// <c>AddEncinaBreakTheGlass</c> registers it under <see cref="DefaultName"/> with the <c>ready</c> tag.
 /// </para>
 /// </remarks>
 public sealed class BreakTheGlassHealthCheck : IHealthCheck

@@ -12,8 +12,9 @@ namespace Encina.Security.BreakTheGlass;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Opt-in: <c>AddEncinaBreakTheGlass</c> registers this service only when
-/// <see cref="BreakTheGlassOptions.EnableAutoPurge"/> is <see langword="true"/>. Deleting review evidence is
+/// Opt-in: <c>AddEncinaBreakTheGlass</c> always registers this service, and at start it reads the built
+/// <see cref="BreakTheGlassOptions"/>; when <see cref="BreakTheGlassOptions.EnableAutoPurge"/> is
+/// <see langword="false"/> it logs that it is disabled and exits. Deleting review evidence is
 /// irreversible and the justification can hold health data, so the controller enables the purge once its
 /// retention policy is fixed (a required production setting).
 /// </para>
@@ -49,7 +50,14 @@ internal sealed class BreakTheGlassPurgeService : BackgroundService
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromHours(_options.Value.PurgeIntervalHours), _timeProvider);
+        var options = _options.Value;
+        if (!options.EnableAutoPurge)
+        {
+            BreakTheGlassLogMessages.PurgeDisabled(_logger);
+            return;
+        }
+
+        using var timer = new PeriodicTimer(TimeSpan.FromHours(options.PurgeIntervalHours), _timeProvider);
 
         try
         {

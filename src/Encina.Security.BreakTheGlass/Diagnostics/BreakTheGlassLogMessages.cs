@@ -6,7 +6,7 @@ namespace Encina.Security.BreakTheGlass.Diagnostics;
 /// Structured log messages of the break-the-glass gate, expiry sweeper, purge and start-up checks.
 /// </summary>
 /// <remarks>
-/// <para>Event IDs: 9750-9763 (see <c>EventIdRanges.SecurityBreakTheGlass</c>).</para>
+/// <para>Event IDs: 9750-9764 (see <c>EventIdRanges.SecurityBreakTheGlass</c>).</para>
 /// <para>
 /// Arguments are counts, error codes, the scope name and an environment name only: never a user id,
 /// a subject id, a justification, an elevation payload or an <see cref="EncinaError"/> message. An
@@ -78,4 +78,10 @@ internal static partial class BreakTheGlassLogMessages
     [LoggerMessage(EventId = 9763, Level = LogLevel.Critical,
         Message = "Break-the-glass start-up validation failed with {FailureCount} problems")]
     internal static partial void StartupValidationFailed(ILogger logger, int failureCount);
+
+    // ── Purge disabled (9764) ────────────────────────────────────────
+
+    [LoggerMessage(EventId = 9764, Level = LogLevel.Information,
+        Message = "Break-the-glass purge is disabled (EnableAutoPurge = false); reviewed elevations are kept until it is enabled")]
+    internal static partial void PurgeDisabled(ILogger logger);
 }

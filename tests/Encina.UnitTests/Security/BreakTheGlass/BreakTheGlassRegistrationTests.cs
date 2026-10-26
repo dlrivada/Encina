@@ -136,7 +136,7 @@ public sealed class BreakTheGlassRegistrationTests
     }
 
     [Fact]
-    public void HostedServices_AreRegisteredOnce_PurgeOnlyWhenEnabled()
+    public void HostedServices_AreRegisteredOnce_PurgeAlways()
     {
         var services = Base();
         services.AddEncina();
@@ -147,37 +147,16 @@ public sealed class BreakTheGlassRegistrationTests
 
         hosted.Count(t => t == typeof(BreakTheGlassExpiryService)).ShouldBe(1);
         hosted.Count(t => t == typeof(BreakTheGlassStartupValidator)).ShouldBe(1);
-        hosted.ShouldNotContain(typeof(BreakTheGlassPurgeService));
+        hosted.Count(t => t == typeof(BreakTheGlassPurgeService)).ShouldBe(1);
         hosted.IndexOf(typeof(BreakTheGlassStartupValidator)).ShouldBeLessThan(hosted.IndexOf(typeof(BreakTheGlassExpiryService)));
-
-        var withPurge = Base();
-        withPurge.AddEncina();
-        withPurge.AddEncinaBreakTheGlass(o =>
-        {
-            Configure(o);
-            o.EnableAutoPurge = true;
-        });
-        withPurge.Any(d => d.ServiceType == typeof(IHostedService) && d.ImplementationType == typeof(BreakTheGlassPurgeService)).ShouldBeTrue();
     }
 
     [Fact]
-    public void HealthCheck_IsRegisteredOnlyWhenRequested_AndResolves()
+    public void HealthCheck_IsAlwaysRegistered_AndResolves()
     {
-        var off = Base();
-        off.AddEncina();
-        off.AddEncinaBreakTheGlass(Configure);
-        using (var provider = off.BuildServiceProvider(Validated))
-        {
-            provider.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value.Registrations.ShouldBeEmpty();
-        }
-
         var on = Base();
         on.AddEncina();
-        on.AddEncinaBreakTheGlass(o =>
-        {
-            Configure(o);
-            o.AddHealthCheck = true;
-        });
+        on.AddEncinaBreakTheGlass(Configure);
         using var withCheck = on.BuildServiceProvider(Validated);
         var registration = withCheck.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value.Registrations.ShouldHaveSingleItem();
         registration.Name.ShouldBe(BreakTheGlassHealthCheck.DefaultName);

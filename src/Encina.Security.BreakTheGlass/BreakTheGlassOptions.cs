@@ -13,9 +13,8 @@ namespace Encina.Security.BreakTheGlass;
 /// sweeper keeps closing and auditing the elevations that are already open.
 /// </para>
 /// <para>
-/// <see cref="EnableAutoPurge"/> and <see cref="AddHealthCheck"/> decide which services
-/// <c>AddEncinaBreakTheGlass</c> registers, so they are read from its <c>configure</c> delegate: set them
-/// there, not through configuration binding applied elsewhere.
+/// Every setting is read from the built options at run time, so each can come from the <c>configure</c>
+/// delegate or from configuration binding. <see cref="EnableAutoPurge"/> is read when the purge service starts.
 /// </para>
 /// </remarks>
 public sealed class BreakTheGlassOptions
@@ -57,9 +56,6 @@ public sealed class BreakTheGlassOptions
 
     /// <summary>Gets or sets the hours between two purge runs. Default 24; used only when <see cref="EnableAutoPurge"/> is set.</summary>
     public int PurgeIntervalHours { get; set; } = 24;
-
-    /// <summary>Gets or sets a value indicating whether <c>AddEncinaBreakTheGlass</c> registers the health check. Default <see langword="false"/>.</summary>
-    public bool AddHealthCheck { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the in-memory elevation store may run outside the

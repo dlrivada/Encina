@@ -199,7 +199,7 @@ public class AuthorizationPipelineBehaviorTests
 
         nextCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
-        var entry = logger.Collector.GetSnapshot().Single(e => e.Id.Id == 204);
+        var entry = logger.Collector.GetSnapshot().Single(e => e.Id.Id == 205);
         entry.Message.ShouldContain(elevationId.ToString());
         entry.Message.ShouldNotContain(Sentinel);
     }

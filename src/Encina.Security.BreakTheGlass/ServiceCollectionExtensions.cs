@@ -14,7 +14,7 @@ public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Adds break-the-glass emergency access: options with start-up validation, the access gate, the
-    /// service, the expiry sweeper, the opt-in purge and, when requested, the health check.
+    /// service, the expiry sweeper, the opt-in purge and the health check.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Configures <see cref="BreakTheGlassOptions"/> (scopes, reviewer roles, limits).</param>
@@ -33,8 +33,9 @@ public static class ServiceCollectionExtensions
     /// The in-memory elevation store is registered with <c>TryAdd</c>; a database provider store wins in any
     /// registration order. The access gate replaces the core default (which keeps every denial) but never an
     /// application's own <see cref="IAccessElevationGate"/>. The expiry sweeper runs even when
-    /// <see cref="BreakTheGlassOptions.Enabled"/> is <see langword="false"/>; the purge runs only when
-    /// <see cref="BreakTheGlassOptions.EnableAutoPurge"/> is set.
+    /// <see cref="BreakTheGlassOptions.Enabled"/> is <see langword="false"/>. The purge service is always
+    /// registered and deletes only when <see cref="BreakTheGlassOptions.EnableAutoPurge"/> is set in the built
+    /// options, so the flag may come from the <c>configure</c> delegate or from configuration binding.
     /// </para>
     /// </remarks>
     /// <example>
@@ -58,21 +59,14 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configure);
         ArgumentNullException.ThrowIfNull(assembliesToScan);
 
-        // The registration-time flags are read from a throwaway instance (the options are built later).
-        var flags = new BreakTheGlassOptions();
-        configure(flags);
-
         AddOptions(services, configure);
         AddCoreServices(services);
         AddGate(services);
-        AddBackgroundServices(services, flags, ScanTargets(assembliesToScan, Assembly.GetCallingAssembly()));
+        AddBackgroundServices(services, ScanTargets(assembliesToScan, Assembly.GetCallingAssembly()));
 
-        if (flags.AddHealthCheck)
-        {
-            services.AddHealthChecks().AddCheck<Health.BreakTheGlassHealthCheck>(
-                Health.BreakTheGlassHealthCheck.DefaultName,
-                tags: Health.BreakTheGlassHealthCheck.Tags);
-        }
+        services.AddHealthChecks().AddCheck<Health.BreakTheGlassHealthCheck>(
+            Health.BreakTheGlassHealthCheck.DefaultName,
+            tags: Health.BreakTheGlassHealthCheck.Tags);
 
         return services;
     }
@@ -111,7 +105,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IAccessElevationGate, BreakTheGlassAccessGate>();
     }
 
-    private static void AddBackgroundServices(IServiceCollection services, BreakTheGlassOptions flags, BreakTheGlassScanTargets targets)
+    private static void AddBackgroundServices(IServiceCollection services, BreakTheGlassScanTargets targets)
     {
         // The sweeper runs under a built-in service identity; it also registers the request identity services.
         services.AddBuiltInServiceIdentity(BreakTheGlassExpiryService.ServiceIdentityName);
@@ -122,10 +116,8 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, BreakTheGlassStartupValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, BreakTheGlassExpiryService>());
 
-        if (flags.EnableAutoPurge)
-        {
-            services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, BreakTheGlassPurgeService>());
-        }
+        // Always registered: whether it purges is read from the built options at start (as the operation audit does).
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, BreakTheGlassPurgeService>());
     }
 
     private static BreakTheGlassScanTargets ScanTargets(Assembly[] assembliesToScan, Assembly callingAssembly) =>

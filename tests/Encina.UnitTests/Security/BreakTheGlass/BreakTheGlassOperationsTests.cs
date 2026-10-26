@@ -5,6 +5,7 @@ using Encina.Security.BreakTheGlass;
 using Encina.Security.BreakTheGlass.Health;
 using Encina.Tenancy;
 using LanguageExt;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
@@ -57,7 +58,7 @@ public sealed class BreakTheGlassOperationsTests
 
         public FakeLogger<BreakTheGlassPurgeService> Logger { get; } = new();
 
-        public BreakTheGlassPurgeService Service(IBreakTheGlassStore? store = null)
+        public BreakTheGlassPurgeService Service(IBreakTheGlassStore? store = null, bool enabled = true)
         {
             var services = new ServiceCollection();
             services.AddSingleton(store ?? Store);
@@ -66,7 +67,8 @@ public sealed class BreakTheGlassOperationsTests
                 Microsoft.Extensions.Options.Options.Create(Options(o =>
                 {
                     o.RetentionDays = 30;
-                    o.PurgeIntervalHours = 1;
+                    o.EnableAutoPurge = enabled;
+                    o.PurgeIntervalHours = 24;
                 })),
                 Time,
                 Logger);
@@ -148,18 +150,78 @@ public sealed class BreakTheGlassOperationsTests
             (await rig.Store.GetByIdAsync(old.TenantId, old.ElevationId)).Match(Right: row => row.IsSome, Left: _ => false);
 
         await service.StartAsync(CancellationToken.None);
-        // Nothing runs at start: the purge waits for its own interval (1 hour in this rig).
+        // Nothing runs at start: the purge waits for its own interval (24 hours in this rig).
         (await StillThereAsync()).ShouldBeTrue();
 
+        await WaitUntilPurgedAsync(rig.Time, StillThereAsync);
+
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    private static async Task WaitUntilPurgedAsync(FakeTimeProvider time, Func<Task<bool>> stillThere)
+    {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        while (await StillThereAsync())
+        while (await stillThere())
         {
-            rig.Time.Advance(TimeSpan.FromHours(1));
+            time.Advance(TimeSpan.FromHours(24));
             await Task.Delay(1, timeout.Token);
             timeout.Token.ThrowIfCancellationRequested();
         }
+    }
 
+    [Fact]
+    public async Task Purge_Disabled_LogsOnceAndNeverPurges()
+    {
+        var rig = new PurgeRig();
+        var old = await AddReviewedAsync(rig.Store, Now.AddDays(-60), "old", close: true);
+        var service = rig.Service(enabled: false);
+
+        await service.StartAsync(CancellationToken.None);
+        await service.ExecuteTask!;
+        rig.Time.Advance(TimeSpan.FromHours(48));
         await service.StopAsync(CancellationToken.None);
+
+        (await rig.Store.GetByIdAsync(old.TenantId, old.ElevationId)).Match(Right: row => row.IsSome, Left: _ => false).ShouldBeTrue();
+        rig.Logger.Collector.GetSnapshot().Count(e => e.Id.Id == 9764).ShouldBe(1);
+        rig.Logger.Collector.GetSnapshot().ShouldNotContain(e => e.Id.Id == 9756);
+    }
+
+    [Fact]
+    public async Task Purge_EnabledOnlyThroughConfigurationBinding_Runs()
+    {
+        // The configure delegate leaves EnableAutoPurge false; only the bound configuration turns it on.
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["EnableAutoPurge"] = "true",
+                ["RetentionDays"] = "30",
+                ["PurgeIntervalHours"] = "24"
+            })
+            .Build();
+        var time = new FakeTimeProvider(Now);
+        var store = new InMemoryBreakTheGlassStore();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<TimeProvider>(time);
+        services.AddSingleton<IBreakTheGlassStore>(store);
+        services.AddSingleton<IOperationAuditStore, InMemoryOperationAuditStore>();
+        services.AddEncinaBreakTheGlass(o =>
+        {
+            o.DeclareScope("start-up-scope", scope => scope.OpenerRoles.Add("clinician"));
+            o.ReviewerRoles.Add("reviewer");
+            o.AllowInMemoryStore = true;
+        });
+        services.Configure<BreakTheGlassOptions>(configuration);
+        await using var provider = services.BuildServiceProvider();
+        var old = await AddReviewedAsync(store, Now.AddDays(-60), "old", close: true);
+
+        var purge = provider.GetServices<IHostedService>().OfType<BreakTheGlassPurgeService>().Single();
+        await purge.StartAsync(CancellationToken.None);
+
+        await WaitUntilPurgedAsync(time, async () =>
+            (await store.GetByIdAsync(old.TenantId, old.ElevationId)).Match(Right: row => row.IsSome, Left: _ => false));
+
+        await purge.StopAsync(CancellationToken.None);
     }
 
     // ── Health check ──────────────────────────────────────────────────
