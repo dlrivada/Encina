@@ -32,7 +32,11 @@ public sealed class PostgresCdcConnectorTests
     private static PostgresCdcConnector CreateConnector(
         PostgresCdcOptions options,
         ICdcPositionStore? store = null) =>
-        new(options, store ?? Substitute.For<ICdcPositionStore>(), NullLogger<PostgresCdcConnector>.Instance);
+        new(
+            options,
+            store ?? Substitute.For<ICdcPositionStore>(),
+            NullLogger<PostgresCdcConnector>.Instance,
+            new NpgsqlReplicationClient(options));
 
     private static ICdcPositionStore StoreReturning(Either<EncinaError, Option<CdcPosition>> result)
     {
@@ -48,21 +52,40 @@ public sealed class PostgresCdcConnectorTests
     public void Constructor_NullOptions_Throws()
     {
         Should.Throw<ArgumentNullException>(() => new PostgresCdcConnector(
-            null!, Substitute.For<ICdcPositionStore>(), NullLogger<PostgresCdcConnector>.Instance));
+            null!,
+            Substitute.For<ICdcPositionStore>(),
+            NullLogger<PostgresCdcConnector>.Instance,
+            new NpgsqlReplicationClient(new PostgresCdcOptions())));
     }
 
     [Fact]
     public void Constructor_NullPositionStore_Throws()
     {
         Should.Throw<ArgumentNullException>(() => new PostgresCdcConnector(
-            new PostgresCdcOptions(), null!, NullLogger<PostgresCdcConnector>.Instance));
+            new PostgresCdcOptions(),
+            null!,
+            NullLogger<PostgresCdcConnector>.Instance,
+            new NpgsqlReplicationClient(new PostgresCdcOptions())));
     }
 
     [Fact]
     public void Constructor_NullLogger_Throws()
     {
         Should.Throw<ArgumentNullException>(() => new PostgresCdcConnector(
-            new PostgresCdcOptions(), Substitute.For<ICdcPositionStore>(), null!));
+            new PostgresCdcOptions(),
+            Substitute.For<ICdcPositionStore>(),
+            null!,
+            new NpgsqlReplicationClient(new PostgresCdcOptions())));
+    }
+
+    [Fact]
+    public void Constructor_NullReplicationClient_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => new PostgresCdcConnector(
+            new PostgresCdcOptions(),
+            Substitute.For<ICdcPositionStore>(),
+            NullLogger<PostgresCdcConnector>.Instance,
+            null!));
     }
 
     [Fact]

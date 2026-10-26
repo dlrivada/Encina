@@ -2,6 +2,7 @@ using Encina.Cdc.Abstractions;
 using Encina.Cdc.PostgreSql;
 using Encina.Cdc.PostgreSql.Health;
 using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 using Shouldly;
 
 namespace Encina.UnitTests.Cdc.PostgreSql;
@@ -81,6 +82,54 @@ public sealed class ServiceCollectionExtensionsTests
         services.ShouldContain(d =>
             d.ServiceType == typeof(TimeProvider) &&
             d.Lifetime == ServiceLifetime.Singleton);
+    }
+
+    [Fact]
+    public void AddEncinaCdcPostgreSql_RegistersNpgsqlReplicationClientAsSingleton()
+    {
+        var services = new ServiceCollection();
+
+        services.AddEncinaCdcPostgreSql(_ => { });
+
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IPostgresReplicationClient) &&
+            d.ImplementationType == typeof(NpgsqlReplicationClient) &&
+            d.Lifetime == ServiceLifetime.Singleton);
+    }
+
+    [Fact]
+    public void AddEncinaCdcPostgreSql_ProviderBuildsWithValidateOnBuildAndValidateScopes()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(Substitute.For<ICdcPositionStore>());
+        services.AddEncinaCdcPostgreSql(o => o.ConnectionString = "Host=localhost");
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+
+        provider.GetRequiredService<ICdcConnector>().ConnectorId.ShouldBe("encina-cdc-postgresql");
+        provider.GetRequiredService<IPostgresReplicationClient>().ShouldBeOfType<NpgsqlReplicationClient>();
+        provider.GetRequiredService<PostgresCdcHealthCheck>().ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void AddEncinaCdcPostgreSql_KeepsAReplicationClientRegisteredByTheApplication()
+    {
+        var services = new ServiceCollection();
+        IPostgresReplicationClient custom = new NpgsqlReplicationClient(new PostgresCdcOptions());
+        services.AddSingleton(custom);
+
+        services.AddEncinaCdcPostgreSql(_ => { });
+
+        using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<IPostgresReplicationClient>().ShouldBeSameAs(custom);
+    }
+
+    [Fact]
+    public void NpgsqlReplicationClient_NullOptions_ThrowsArgumentNullException()
+    {
+        Should.Throw<ArgumentNullException>(() => new NpgsqlReplicationClient(null!));
     }
 
     [Fact]
