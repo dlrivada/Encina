@@ -16,7 +16,7 @@ This page answers [#2835](https://github.com/dlrivada/Encina/issues/2835): do th
 
 ### 2.1 References
 
-`tests/Encina.NBomber/Encina.NBomber.csproj` references the four client libraries (`:96-99`) and their Testcontainers modules (`:104-106`). It has no `ProjectReference` to any of the four Encina transport packages, directly or through the Encina projects it does reference (core, Messaging, Tenancy, the database, caching and lock packages, `Encina.InMemory`). The only `using Encina.*` lines in `tests/Encina.NBomber/Scenarios/Brokers/` are the harness's own namespaces.
+`tests/Encina.NBomber/Encina.NBomber.csproj` references the four client libraries (`:96-99`) and three of their Testcontainers modules (`:104-106`: RabbitMQ, Kafka and NATS; MQTT runs on the workflow's Mosquitto service). It has no `ProjectReference` to any of the four Encina transport packages, directly or through the Encina projects it does reference (core, Messaging, Tenancy, the database, caching and lock packages, `Encina.InMemory`). The only `using Encina.*` lines in `tests/Encina.NBomber/Scenarios/Brokers/` are the harness's own namespaces.
 
 ### 2.2 The measured calls
 
@@ -42,13 +42,13 @@ This page answers [#2835](https://github.com/dlrivada/Encina/issues/2835): do th
 ### 2.4 Two related findings
 
 - **The `brokers` area is never assigned.** `ExtractArea` in `.github/scripts/perf-report.cs` maps names that start with `broker-` to "brokers" (`:1032`), but the scenarios are named `rabbitmq-*`, `kafka-*`, `nats-*` and `mqtt-*`. They fall to the first-segment rule (`:1034-1035`) and appear as areas named after each broker.
-- **Half of the scenarios have no Encina counterpart.** The four Encina packages are publish-only. Their publisher interfaces expose:
+- **Several scenarios have no Encina counterpart.** Three of the four Encina packages are publish-only. Their publisher interfaces expose:
   - RabbitMQ: `PublishAsync`, `SendToQueueAsync` and `RequestAsync`.
   - Kafka: `ProduceAsync`, `ProduceBatchAsync` and `ProduceWithHeadersAsync`.
   - NATS: `PublishAsync`, `RequestAsync` and `JetStreamPublishAsync`.
-  - MQTT: `PublishAsync` only.
+  - MQTT: `PublishAsync`, and also `SubscribeAsync` and `SubscribePatternAsync` (`src/Encina.MQTT/IMQTTMessagePublisher.cs:21`, `:39`, `:55`).
 
-  None of the packages has a consumer, subscriber or hosted service. The consume and subscribe scenarios (`rabbitmq-consume-throughput`, `rabbitmq-concurrent-consumers`, `kafka-consume-throughput`, `mqtt-subscribe-throughput`) and `kafka-partition-distribution` measure broker behaviour that Encina does not wrap.
+  No package has a hosted consumer, and only MQTT exposes subscription methods. The consume scenarios `rabbitmq-consume-throughput`, `rabbitmq-concurrent-consumers` and `kafka-consume-throughput`, and `kafka-partition-distribution`, measure broker behaviour that Encina does not wrap. `mqtt-subscribe-throughput` does have an Encina counterpart (`SubscribeAsync`) and can be paired.
 
 ### 2.5 For comparison
 
@@ -70,6 +70,8 @@ The issue said "no open design choices", but its own table offers two compliant 
 
 - **N1 = N1c, paired scenarios.** Each publish-type broker scenario runs twice under the same conditions, once through the Encina transport package and once through the client directly; the dashboard shows both and the difference (Encina's overhead).
 - **N2 = N2b, consume and subscribe scenarios kept, labelled.** They stay as "client reference" rows with a justification, visibly separate from the paired rows, until an Encina consumer exists; then they are paired too.
+
+Correction found in review after the decision: `Encina.MQTT` already exposes `SubscribeAsync` (section 2.4), so under N2b's own rule ("then they are paired too") `mqtt-subscribe-throughput` can be paired now; the other consume scenarios stay as client reference. This is flagged to the maintainer and noted on [#2908](https://github.com/dlrivada/Encina/issues/2908).
 
 The options as they were presented are kept below for the record.
 
@@ -96,15 +98,15 @@ N2c without a label is excluded by the first settled point. **Recommendation: N2
 
 ## 5. Sub-issues
 
-After the decisions the five drafts were opened as sub-issues of [#2845](https://github.com/dlrivada/Encina/issues/2845): [#2905](https://github.com/dlrivada/Encina/issues/2905) (RabbitMQ), [#2906](https://github.com/dlrivada/Encina/issues/2906) (Kafka), [#2907](https://github.com/dlrivada/Encina/issues/2907) (NATS) and [#2908](https://github.com/dlrivada/Encina/issues/2908) (MQTT), chained with blocked-by in that order because they share files, and [#2851](https://github.com/dlrivada/Encina/issues/2851) (area and README). Each is sized to one worker PR (one provider, at most about 15 files). For drafts 1-4, the first acceptance step records the baseline: the current numbers of that provider's raw scenarios from the last published `broker-load-metrics-<provider>` run.
+After the decisions the five drafts were opened as sub-issues of [#2845](https://github.com/dlrivada/Encina/issues/2845): [#2905](https://github.com/dlrivada/Encina/issues/2905) (RabbitMQ), [#2906](https://github.com/dlrivada/Encina/issues/2906) (Kafka), [#2907](https://github.com/dlrivada/Encina/issues/2907) (NATS) and [#2908](https://github.com/dlrivada/Encina/issues/2908) (MQTT), chained with blocked-by in that order because they share files, and [#2851](https://github.com/dlrivada/Encina/issues/2851) (area and README). Each is sized to one worker PR (one provider, at most about 15 files). For the four [TEST] issues, the first acceptance step records the baseline: the current numbers of that provider's raw scenarios from the last published `broker-load-metrics-<provider>` run.
 
-| # | Draft | Files (exact) | Acceptance |
+| Issue | Title | Files (exact) | Acceptance |
 | --- | --- | --- | --- |
-| 1 | `[TEST]` RabbitMQ load scenarios call `Encina.RabbitMQ` | `tests/Encina.NBomber/Encina.NBomber.csproj`, `tests/Encina.NBomber/Scenarios/Brokers/RabbitMQScenarioFactory.cs`, `tests/Encina.NBomber/Scenarios/Brokers/Providers/RabbitMQProviderFactory.cs`, `.github/ci/nbomber-brokers-thresholds.json`, `tests/Encina.NBomber/README.md` | `rabbitmq-publish-throughput` and `rabbitmq-publisher-confirms` measure `IRabbitMQMessagePublisher.PublishAsync`; a `Left` counts as failure; the raw rows keep running and are labelled reference (if N1c); the workflow run for `rabbitmq` passes its thresholds |
-| 2 | `[TEST]` Kafka load scenarios call `Encina.Kafka` | `Encina.NBomber.csproj`, `KafkaScenarioFactory.cs`, `Providers/KafkaProviderFactory.cs`, `nbomber-brokers-thresholds.json`, `README.md` | `kafka-produce-throughput` measures `ProduceAsync` and `kafka-batch-produce-throughput` measures `ProduceBatchAsync`; same rules |
-| 3 | `[TEST]` NATS load scenarios call `Encina.NATS` | `Encina.NBomber.csproj`, `NATSScenarioFactory.cs`, `Providers/NATSProviderFactory.cs`, `nbomber-brokers-thresholds.json`, `README.md` | `nats-publish-throughput`, `nats-request-reply` (`RequestAsync`) and `nats-jetstream-publish` (`JetStreamPublishAsync`) measure the Encina publisher; same rules |
-| 4 | `[TEST]` MQTT load scenarios call `Encina.MQTT` | `Encina.NBomber.csproj`, `MQTTScenarioFactory.cs`, `Providers/MQTTProviderFactory.cs`, `nbomber-brokers-thresholds.json`, `README.md` | The publish scenarios measure `IMQTTMessagePublisher.PublishAsync`; same rules |
-| 5 | `[BUG]` Broker load scenarios are not grouped under the `brokers` area, and the README does not say what they measure | `.github/scripts/perf-report.cs`, `tests/Encina.NBomber/README.md` | `ExtractArea` maps `rabbitmq-`, `kafka-`, `nats-` and `mqtt-` names to "brokers" (or the names gain a `broker-` prefix); the README states per scenario whether it measures Encina code or the client, and drops `rabbitmq-batch-publish` (listed at `README.md:250`, no such scenario exists); a unit check of `ExtractArea` covers the four prefixes |
+| [#2905](https://github.com/dlrivada/Encina/issues/2905) | `[TEST]` RabbitMQ load scenarios measure Encina.RabbitMQ paired with RabbitMQ.Client | `tests/Encina.NBomber/Encina.NBomber.csproj`, `tests/Encina.NBomber/Scenarios/Brokers/RabbitMQScenarioFactory.cs`, `tests/Encina.NBomber/Scenarios/Brokers/Providers/RabbitMQProviderFactory.cs`, `.github/ci/nbomber-brokers-thresholds.json`, `tests/Encina.NBomber/README.md` | `rabbitmq-publish-throughput` and `rabbitmq-publisher-confirms` measure `IRabbitMQMessagePublisher.PublishAsync`; a `Left` counts as failure; each publish row is paired with its raw-client row; the consume rows stay as labelled client reference; the workflow run for `rabbitmq` passes its thresholds |
+| [#2906](https://github.com/dlrivada/Encina/issues/2906) | `[TEST]` Kafka load scenarios measure Encina.Kafka paired with Confluent.Kafka | `Encina.NBomber.csproj`, `KafkaScenarioFactory.cs`, `Providers/KafkaProviderFactory.cs`, `nbomber-brokers-thresholds.json`, `README.md` | `kafka-produce-throughput` measures `ProduceAsync` and `kafka-batch-produce-throughput` measures `ProduceBatchAsync`; same rules |
+| [#2907](https://github.com/dlrivada/Encina/issues/2907) | `[TEST]` NATS load scenarios measure Encina.NATS paired with NATS.Net | `Encina.NBomber.csproj`, `NATSScenarioFactory.cs`, `Providers/NATSProviderFactory.cs`, `nbomber-brokers-thresholds.json`, `README.md` | `nats-publish-throughput`, `nats-request-reply` (`RequestAsync`) and `nats-jetstream-publish` (`JetStreamPublishAsync`) measure the Encina publisher; same rules |
+| [#2908](https://github.com/dlrivada/Encina/issues/2908) | `[TEST]` MQTT load scenarios measure Encina.MQTT paired with MQTTnet | `Encina.NBomber.csproj`, `MQTTScenarioFactory.cs`, `Providers/MQTTProviderFactory.cs`, `nbomber-brokers-thresholds.json`, `README.md` | The publish scenarios measure `IMQTTMessagePublisher.PublishAsync`, and `mqtt-subscribe-throughput` can be paired with `SubscribeAsync` (Encina has a subscription API for MQTT); same rules |
+| [#2851](https://github.com/dlrivada/Encina/issues/2851) | `[BUG]` Broker load scenarios are not grouped under the `brokers` area, and the README does not say what they measure | `.github/scripts/perf-report.cs`, `tests/Encina.NBomber/README.md` | `ExtractArea` maps `rabbitmq-`, `kafka-`, `nats-` and `mqtt-` names to "brokers" (or the names gain a `broker-` prefix); the README states per scenario whether it measures Encina code or the client, and drops `rabbitmq-batch-publish` (listed at `README.md:250`, no such scenario exists); a unit check of `ExtractArea` covers the four prefixes |
 
 Drafts 1-4 share `Encina.NBomber.csproj`, `nbomber-brokers-thresholds.json` and the README, so they run one at a time, not in parallel.
 
@@ -114,4 +116,4 @@ Drafts 1-4 share `Encina.NBomber.csproj`, `nbomber-brokers-thresholds.json` and 
 
 ## Related issues
 
-[#2835](https://github.com/dlrivada/Encina/issues/2835), [#2845](https://github.com/dlrivada/Encina/issues/2845), [#1760](https://github.com/dlrivada/Encina/issues/1760), [#939](https://github.com/dlrivada/Encina/issues/939), [#2831](https://github.com/dlrivada/Encina/issues/2831), [#2834](https://github.com/dlrivada/Encina/issues/2834).
+[#2835](https://github.com/dlrivada/Encina/issues/2835), [#2845](https://github.com/dlrivada/Encina/issues/2845), [#1760](https://github.com/dlrivada/Encina/issues/1760), [#939](https://github.com/dlrivada/Encina/issues/939), [#2831](https://github.com/dlrivada/Encina/issues/2831), [#2851](https://github.com/dlrivada/Encina/issues/2851), [#2905](https://github.com/dlrivada/Encina/issues/2905), [#2906](https://github.com/dlrivada/Encina/issues/2906), [#2907](https://github.com/dlrivada/Encina/issues/2907), [#2908](https://github.com/dlrivada/Encina/issues/2908).
