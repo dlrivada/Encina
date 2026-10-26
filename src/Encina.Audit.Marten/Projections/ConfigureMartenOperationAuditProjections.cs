@@ -78,6 +78,16 @@ internal sealed class ConfigureMartenOperationAuditProjections : IConfigureOptio
             new ReadAuditEntryProjection(placeholder, _loggerFactory.CreateLogger<ReadAuditEntryProjection>()),
             JasperFx.Events.Projections.ProjectionLifecycle.Async);
 
+        // Fail closed (issue #2770, D14): Marten's async daemon skips an event whose projection throws
+        // (Errors.SkipApplyErrors defaults to true) and an event it cannot deserialize (SkipSerializationErrors).
+        // A skipped audit event would vanish from the read model without a stop, which is exactly the silent loss
+        // EncryptedFieldDecryptionException exists to prevent. With the flags off, the failing shard is paused and
+        // an operator resolves the event. Marten has no per-projection error policy, so the setting is store-wide.
+        options.Projections.Errors.SkipApplyErrors = false;
+        options.Projections.Errors.SkipSerializationErrors = false;
+        options.Projections.RebuildErrors.SkipApplyErrors = false;
+        options.Projections.RebuildErrors.SkipSerializationErrors = false;
+
         // Configure indexes for OperationAuditEntryReadModel
         options.Schema.For<OperationAuditEntryReadModel>()
             .Index(x => x.TimestampUtc)

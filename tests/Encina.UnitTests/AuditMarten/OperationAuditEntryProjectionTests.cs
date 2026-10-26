@@ -282,8 +282,8 @@ public sealed class OperationAuditEntryProjectionTests
                 activeKey: null, destroyedMarker: null, "2026-03"));
 
         ex.Message.ShouldContain("2026-03");
-        ex.Message.ShouldContain("transient inconsistency");
-        ex.Message.ShouldContain("retry");
+        ex.Message.ShouldContain("no active key and no destroyed marker");
+        ex.Message.ShouldContain("pauses the shard");
     }
 
     [Fact]

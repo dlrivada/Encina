@@ -86,6 +86,21 @@ public sealed class ConfigureMartenOperationAuditProjectionsTests
     }
 
     [Fact]
+    public void Configure_SetsTheFailClosedErrorPolicy_SoAFailingEventPausesTheShardInsteadOfBeingSkipped()
+    {
+        // Issue #2770: Marten skips failing events by default; the audit projections must pause the shard instead.
+        var storeOptions = new StoreOptions();
+        storeOptions.Projections.Errors.SkipApplyErrors.ShouldBeTrue("precondition: Marten's default skips");
+
+        CreateSut().Configure(storeOptions);
+
+        storeOptions.Projections.Errors.SkipApplyErrors.ShouldBeFalse();
+        storeOptions.Projections.Errors.SkipSerializationErrors.ShouldBeFalse();
+        storeOptions.Projections.RebuildErrors.SkipApplyErrors.ShouldBeFalse();
+        storeOptions.Projections.RebuildErrors.SkipSerializationErrors.ShouldBeFalse();
+    }
+
+    [Fact]
     public void Configure_CustomShreddedPlaceholder_PassesMartenProjectionValidation()
     {
         // Arrange

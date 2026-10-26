@@ -144,17 +144,18 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// </item>
     /// <item>
     /// If neither an active key nor a destroyed marker exists, the lookup throws
-    /// <see cref="KeyNotFoundException"/>. This is <b>deliberately retryable</b>: the absence
-    /// of both documents can be caused by replication lag, a transient read-your-writes delay,
-    /// or a pending write on the primary. Persisting <c>IsShredded = true</c> in that scenario
-    /// would advance the async projection daemon's high-water mark and permanently corrupt
-    /// the read model. Throwing causes Marten to retry the projection on the next pass.
+    /// <see cref="KeyNotFoundException"/>. The absence of both documents is not a recorded erasure, so the
+    /// projection never persists <c>IsShredded = true</c> for it: that would permanently corrupt the read model.
+    /// <b>The daemon does not retry this exception.</b> With the fail-closed error policy that
+    /// <see cref="ConfigureMartenOperationAuditProjections"/> sets, Marten pauses the shard (verified by
+    /// <c>AuditProjectionUnreadableEventIntegrationTests</c>, issue #2770); without that policy it would skip the
+    /// event silently. Either way the operator restores the key (or the marker) and rebuilds the projection.
     /// </item>
     /// </list>
     /// </remarks>
     /// <exception cref="KeyNotFoundException">
     /// Thrown when neither an active key nor a destroyed marker exists for the given period,
-    /// indicating transient inconsistency. The Marten async projection daemon will retry.
+    /// indicating an inconsistency the operator must resolve. The Marten async projection daemon pauses the shard.
     /// </exception>
     internal static async Task<(byte[]? KeyMaterial, bool IsShredded)> LoadTemporalKeyAsync(
         IQuerySession session,
@@ -205,7 +206,7 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// </exception>
     /// <exception cref="KeyNotFoundException">
     /// Thrown when both <paramref name="activeKey"/> and <paramref name="destroyedMarker"/>
-    /// are <c>null</c>. This indicates transient inconsistency — see
+    /// are <c>null</c>. This indicates an inconsistency the daemon does not retry — see
     /// <see cref="LoadTemporalKeyAsync"/> for the full rationale.
     /// </exception>
     /// <remarks>
@@ -233,8 +234,8 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
 
         throw new KeyNotFoundException(
             $"Temporal key for period '{period}' not found: no active key and no destroyed marker. " +
-            "This indicates transient inconsistency (replication lag, pending write, or similar). " +
-            "The Marten async projection daemon will retry on the next pass.");
+            "The key may not be written yet (replication lag, pending write) or may be lost. " +
+            "The Marten async projection daemon does not retry: it pauses the shard until the operator restores the key.");
     }
 
     /// <summary>
