@@ -238,10 +238,10 @@ public sealed class RequestContextScopeFactoryTests
         ShouldBeLeftWith(result, RequestIdentityErrorCodes.TenantConflict);
     }
 
-    public static TheoryData<string?> OptionTenants => new() { null, "t1", "t3" };
-
     [Theory]
-    [MemberData(nameof(OptionTenants))]
+    [InlineData(null)]
+    [InlineData("t1")]
+    [InlineData("t3")]
     public async Task RunAsPrincipalAsync_WithTwoDistinctTenantClaimsInOneIdentity_IsRefused_AndWorkNeverRuns(string? optionTenant)
     {
         var principal = TestIdentity.Principal("alice", claims: [new Claim("tenant_id", "t1-" + Sentinel), new Claim("tenant_id", "t2-" + Sentinel)]);
