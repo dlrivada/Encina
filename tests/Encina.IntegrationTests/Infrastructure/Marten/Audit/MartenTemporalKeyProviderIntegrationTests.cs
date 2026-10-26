@@ -143,6 +143,64 @@ public sealed class MartenTemporalKeyProviderIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DestroyKeysBeforeAsync_WithReference_PersistsItInTheMarker_AndASecondRunSkipsThePeriod()
+    {
+        await using var session = _fixture.Store!.LightweightSession();
+        var sut = new MartenTemporalKeyProvider(
+            session, TimeProvider.System, NullLogger<MartenTemporalKeyProvider>.Instance);
+        await sut.GetOrCreateKeyAsync("1901-05");
+        var requested = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
+
+        var first = await sut.DestroyKeysBeforeAsync(
+            new DateTime(1901, 6, 1, 0, 0, 0, DateTimeKind.Utc), TemporalKeyGranularity.Monthly, new ErasureReference("erasure-9", requested, "dpo"));
+        var second = await sut.DestroyKeysBeforeAsync(
+            new DateTime(1901, 6, 1, 0, 0, 0, DateTimeKind.Utc), TemporalKeyGranularity.Monthly, new ErasureReference("erasure-10", requested, "dpo"));
+
+        first.IfRight(count => count.ShouldBe(1));
+        second.IfRight(count => count.ShouldBe(0));
+        await using var query = _fixture.Store!.QuerySession();
+        var marker = await query.LoadAsync<TemporalKeyDestroyedMarker>(TemporalPeriodHelper.FormatDestroyedMarkerId("1901-05"));
+        marker!.HasErasureReference().ShouldBeTrue();
+        marker.ErasureRequestId.ShouldBe("erasure-9", "the second run must not overwrite the first marker");
+        marker.ErasureActor.ShouldBe("dpo");
+        marker.ErasureRequestedAtUtc.ShouldBe(requested);
+    }
+
+    [Fact]
+    public async Task DestroyKeysBeforeAsync_WithoutReference_PersistsAMarkerWithoutOne()
+    {
+        await using var session = _fixture.Store!.LightweightSession();
+        var sut = new MartenTemporalKeyProvider(
+            session, TimeProvider.System, NullLogger<MartenTemporalKeyProvider>.Instance);
+        await sut.GetOrCreateKeyAsync("1902-05");
+
+        var result = await sut.DestroyKeysBeforeAsync(
+            new DateTime(1902, 6, 1, 0, 0, 0, DateTimeKind.Utc), TemporalKeyGranularity.Monthly);
+
+        result.IfRight(count => count.ShouldBe(1));
+        await using var query = _fixture.Store!.QuerySession();
+        var marker = await query.LoadAsync<TemporalKeyDestroyedMarker>(TemporalPeriodHelper.FormatDestroyedMarkerId("1902-05"));
+        marker!.HasErasureReference().ShouldBeFalse();
+        marker.ErasureRequestId.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task DestroyKeysBeforeAsync_WithInvalidReference_ReturnsLeftAndDestroysNothing()
+    {
+        await using var session = _fixture.Store!.LightweightSession();
+        var sut = new MartenTemporalKeyProvider(
+            session, TimeProvider.System, NullLogger<MartenTemporalKeyProvider>.Instance);
+        await sut.GetOrCreateKeyAsync("1903-05");
+
+        var result = await sut.DestroyKeysBeforeAsync(
+            new DateTime(1903, 6, 1, 0, 0, 0, DateTimeKind.Utc), TemporalKeyGranularity.Monthly, new ErasureReference("", default, ""));
+
+        result.IsLeft.ShouldBeTrue();
+        (await sut.IsKeyDestroyedAsync("1903-05")).IfRight(destroyed => destroyed.ShouldBeFalse());
+        (await sut.GetKeyAsync("1903-05")).IsRight.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task IsKeyDestroyedAsync_ActivePeriod_ReturnsFalse()
     {
         // Arrange

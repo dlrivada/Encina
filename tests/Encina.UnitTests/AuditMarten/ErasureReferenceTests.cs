@@ -215,6 +215,90 @@ public sealed class ErasureReferenceTests
         session.ReceivedCalls().ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task InMemory_DestroyWithCancelledToken_ReturnsLeft()
+    {
+        var (_, sut) = InMemory();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var result = await sut.DestroyKeysBeforeAsync(DateTime.UtcNow, TemporalKeyGranularity.Monthly, null, cts.Token);
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task InMemory_DestroyKeepsPeriodsNotOlderThanCutoffAndSkipsAlreadyDestroyed()
+    {
+        var (time, sut) = InMemory();
+        await sut.GetOrCreateKeyAsync("2020-01");
+        time.Advance(TimeSpan.FromDays(3650));
+        await sut.GetOrCreateKeyAsync("2030-01");
+        var cutoff = time.GetUtcNow().UtcDateTime.AddDays(-30);
+
+        var first = await sut.DestroyKeysBeforeAsync(cutoff, TemporalKeyGranularity.Monthly);
+        var second = await sut.DestroyKeysBeforeAsync(cutoff, TemporalKeyGranularity.Monthly);
+
+        first.IfRight(count => count.ShouldBe(1));
+        second.IfRight(count => count.ShouldBe(0));
+        (await sut.GetKeyAsync("2030-01", 1)).IsRight.ShouldBeTrue();
+    }
+
+    // ---- MartenTemporalKeyProvider helpers ----
+
+    [Fact]
+    public void BuildMarker_WithReference_CarriesItInUtc()
+    {
+        var reference = new ErasureReference("erasure-7", new DateTimeOffset(2026, 10, 1, 10, 0, 0, TimeSpan.FromHours(2)), "dpo");
+
+        var marker = MartenTemporalKeyProvider.BuildMarker("temporal-destroyed:2020-01", "2020-01", Requested, 2, reference);
+
+        marker.Id.ShouldBe("temporal-destroyed:2020-01");
+        marker.Period.ShouldBe("2020-01");
+        marker.KeyVersionsDestroyed.ShouldBe(2);
+        marker.ErasureRequestId.ShouldBe("erasure-7");
+        marker.ErasureActor.ShouldBe("dpo");
+        marker.ErasureRequestedAtUtc.ShouldBe(new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero));
+        marker.ErasureRequestedAtUtc!.Value.Offset.ShouldBe(TimeSpan.Zero);
+        marker.HasErasureReference().ShouldBeTrue();
+    }
+
+    [Fact]
+    public void BuildMarker_WithoutReference_HasNoReference()
+    {
+        var marker = MartenTemporalKeyProvider.BuildMarker("temporal-destroyed:2020-01", "2020-01", Requested, 1, null);
+
+        marker.ErasureRequestId.ShouldBeNull();
+        marker.ErasureRequestedAtUtc.ShouldBeNull();
+        marker.ErasureActor.ShouldBeNull();
+        marker.HasErasureReference().ShouldBeFalse();
+    }
+
+    [Fact]
+    public void SelectPeriodsBefore_ReturnsOnlyPeriodsStartingBeforeTheCutoff()
+    {
+        TemporalKeyDocument Key(string period, int v) => new() { Id = $"k{period}{v}", Period = period, Version = v };
+        var keys = new[] { Key("2020-01", 1), Key("2020-01", 2), Key("2020-03", 1), Key("garbage", 1) };
+
+        var periods = MartenTemporalKeyProvider.SelectPeriodsBefore(
+            keys, new DateTime(2020, 2, 1, 0, 0, 0, DateTimeKind.Utc), TemporalKeyGranularity.Monthly);
+
+        periods.ShouldBe(["2020-01"]);
+    }
+
+    [Fact]
+    public async Task Marten_DestroyWhenTheSessionFails_ReturnsLeftInsteadOfThrowing()
+    {
+        var session = Substitute.For<IDocumentSession>();
+        session.When(s => s.Query<TemporalKeyDocument>()).Do(_ => throw new InvalidOperationException("database down"));
+        var sut = new MartenTemporalKeyProvider(session, TimeProvider.System, NullLogger<MartenTemporalKeyProvider>.Instance);
+
+        var result = await sut.DestroyKeysBeforeAsync(DateTime.UtcNow, TemporalKeyGranularity.Monthly, ValidReference());
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfNone(string.Empty).ShouldBe(MartenAuditErrors.KeyDestructionFailedCode));
+    }
+
     // ---- both projections propagate the failure ----
 
     private static EncryptedField Tampered(byte[] key)

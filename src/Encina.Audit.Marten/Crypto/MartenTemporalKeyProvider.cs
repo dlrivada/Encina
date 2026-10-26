@@ -194,13 +194,7 @@ public sealed class MartenTemporalKeyProvider : ITemporalKeyProvider
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
 
             // Group by period and filter those whose period date is before the cutoff
-            var cutoff = new DateTimeOffset(olderThanUtc, TimeSpan.Zero);
-            var periodsToDestroy = allKeys
-                .GroupBy(k => k.Period)
-                .Where(g => TemporalPeriodHelper.TryParsePeriodToDate(g.Key, granularity, out var periodDate)
-                            && periodDate < cutoff)
-                .Select(g => g.Key)
-                .ToList();
+            var periodsToDestroy = SelectPeriodsBefore(allKeys, olderThanUtc, granularity);
 
             // Also exclude already-destroyed periods
             var destroyedCount = 0;
@@ -208,43 +202,11 @@ public sealed class MartenTemporalKeyProvider : ITemporalKeyProvider
 
             foreach (var period in periodsToDestroy)
             {
-                var markerId = TemporalPeriodHelper.FormatDestroyedMarkerId(period);
-                var existingMarker = await _session.LoadAsync<TemporalKeyDestroyedMarker>(
-                    markerId, cancellationToken).ConfigureAwait(false);
-
-                if (existingMarker is not null)
-                {
-                    continue; // Already destroyed
-                }
-
-                // Find all keys for this period
                 var periodKeys = allKeys.Where(k => k.Period == period).ToList();
-
-                // Hard-delete all key documents
-                foreach (var key in periodKeys)
+                if (await StageDestructionAsync(period, periodKeys, now, erasureReference, cancellationToken).ConfigureAwait(false))
                 {
-                    _session.Delete(key);
+                    destroyedCount++;
                 }
-
-                // Store a destroyed marker
-                var marker = new TemporalKeyDestroyedMarker
-                {
-                    Id = markerId,
-                    Period = period,
-                    DestroyedAtUtc = now,
-                    KeyVersionsDestroyed = periodKeys.Count,
-                    ErasureRequestId = erasureReference?.RequestId,
-                    ErasureRequestedAtUtc = erasureReference?.RequestedAtUtc.ToUniversalTime(),
-                    ErasureActor = erasureReference?.Actor
-                };
-
-                _session.Store(marker);
-                destroyedCount++;
-
-                _logger.LogInformation(
-                    "Destroyed temporal keys for period {Period}: {KeyVersionsDestroyed} key version(s) deleted",
-                    period,
-                    periodKeys.Count);
             }
 
             if (destroyedCount > 0)
@@ -259,6 +221,75 @@ public sealed class MartenTemporalKeyProvider : ITemporalKeyProvider
             return Left(MartenAuditErrors.KeyDestructionFailed(olderThanUtc, ex));
         }
     }
+
+    /// <summary>
+    /// Stages the hard-delete of a period's keys and its destroyed marker; skips a period already destroyed.
+    /// </summary>
+    private async Task<bool> StageDestructionAsync(
+        string period,
+        List<TemporalKeyDocument> periodKeys,
+        DateTimeOffset now,
+        ErasureReference? erasureReference,
+        CancellationToken cancellationToken)
+    {
+        var markerId = TemporalPeriodHelper.FormatDestroyedMarkerId(period);
+        var existingMarker = await _session.LoadAsync<TemporalKeyDestroyedMarker>(
+            markerId, cancellationToken).ConfigureAwait(false);
+
+        if (existingMarker is not null)
+        {
+            return false;
+        }
+
+        foreach (var key in periodKeys)
+        {
+            _session.Delete(key);
+        }
+
+        _session.Store(BuildMarker(markerId, period, now, periodKeys.Count, erasureReference));
+
+        _logger.LogInformation(
+            "Destroyed temporal keys for period {Period}: {KeyVersionsDestroyed} key version(s) deleted",
+            period,
+            periodKeys.Count);
+        return true;
+    }
+
+    /// <summary>
+    /// Returns the periods whose start predates the cutoff.
+    /// </summary>
+    internal static List<string> SelectPeriodsBefore(
+        IEnumerable<TemporalKeyDocument> keys,
+        DateTime olderThanUtc,
+        TemporalKeyGranularity granularity)
+    {
+        var cutoff = new DateTimeOffset(olderThanUtc, TimeSpan.Zero);
+        return keys
+            .GroupBy(k => k.Period)
+            .Where(g => TemporalPeriodHelper.TryParsePeriodToDate(g.Key, granularity, out var periodDate)
+                        && periodDate < cutoff)
+            .Select(g => g.Key)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Builds the destroyed marker of a period; it carries the erasure reference only when one was given.
+    /// </summary>
+    internal static TemporalKeyDestroyedMarker BuildMarker(
+        string markerId,
+        string period,
+        DateTimeOffset destroyedAtUtc,
+        int keyVersionsDestroyed,
+        ErasureReference? erasureReference) => new()
+        {
+            Id = markerId,
+            Period = period,
+            DestroyedAtUtc = destroyedAtUtc,
+            KeyVersionsDestroyed = keyVersionsDestroyed,
+            ErasureRequestId = erasureReference?.RequestId,
+            ErasureRequestedAtUtc = erasureReference?.RequestedAtUtc.ToUniversalTime(),
+            ErasureActor = erasureReference?.Actor
+        };
 
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, bool>> IsKeyDestroyedAsync(
