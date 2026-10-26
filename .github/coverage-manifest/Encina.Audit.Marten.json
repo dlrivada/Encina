@@ -23,13 +23,39 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "Crypto/ErasureReference.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100,
+        "integration": 100
+      },
+      "justifications": {
+        "unit": "Unit tests call IsValid for a complete reference and for every blank or default field (measured 100%).",
+        "guard": "Guard tests build invalid references and pass them to DestroyKeysBeforeAsync, which reads IsValid (measured 100%).",
+        "integration": "The Marten integration tests pass valid and invalid references to MartenTemporalKeyProvider (measured 100%)."
+      }
+    },
     "Crypto/InMemoryTemporalKeyProvider.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": {
+        "unit": 86,
+        "guard": 18
+      },
+      "justifications": {
+        "unit": "Unit tests cover key creation, rotation, destruction with and without a reference, cancellation and skipped periods; the remainder is rarely used lookup overloads and the catch block (measured 86%).",
+        "guard": "Guard tests assert argument validation and the invalid-reference result of DestroyKeysBeforeAsync only (measured 19%)."
+      }
     },
     "Crypto/ITemporalKeyProvider.cs": {
       "defaultTests": [
@@ -37,7 +63,13 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "An interface declaration has no executable lines; the implementations carry the coverage."
+      }
     },
     "Crypto/MartenTemporalKeyProvider.cs": {
       "defaultTests": [
@@ -45,7 +77,17 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": {
+        "unit": 23,
+        "guard": 10,
+        "integration": 83
+      },
+      "justifications": {
+        "unit": "Unit tests mock IDocumentSession, so the Marten LINQ queries cannot run; they cover the marker builder, the period selector and the failure paths (measured 23%).",
+        "guard": "Guard tests assert constructor and argument checks only (measured 11%).",
+        "integration": "The Marten integration tests run key creation, lookup and destruction with, without and with an invalid erasure reference against PostgreSQL (measured 84%)."
+      }
     },
     "Crypto/TemporalKeyDestroyedMarker.cs": {
       "defaultTests": [
@@ -53,7 +95,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "integration": 100
+      },
+      "justifications": {
+        "unit": "Unit tests call HasErasureReference for every missing-field combination (measured 100%).",
+        "guard": "The marker is a plain document with no method taking arguments, so no guard test can execute it.",
+        "integration": "Destruction against PostgreSQL stores markers with and without a reference and the tests read them back (measured 100%)."
+      }
     },
     "Crypto/TemporalKeyDocument.cs": {
       "defaultTests": [
@@ -138,7 +190,39 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 97,
+        "guard": 37,
+        "property": 90,
+        "integration": 82
+      },
+      "justifications": {
+        "unit": "Unit tests run encrypt and decrypt, every unreadable-envelope cause and the placeholder rule (measured 98%).",
+        "guard": "Guard tests assert the argument checks of Encrypt and Decrypt only (measured 37%).",
+        "property": "FsCheck properties run round trips, garbage, corrupted envelopes and wrong key lengths (measured 91%).",
+        "integration": "The real-Marten tests decrypt healthy events and fail tampered and unmarked ones through the projections (measured 82%)."
+      }
+    },
+    "Events/EncryptedFieldDecryptionException.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100,
+        "property": 80,
+        "integration": 80
+      },
+      "justifications": {
+        "unit": "Unit tests construct the exception for every Reason and assert the fixed message and absence of an inner exception (measured 100%).",
+        "guard": "Guard tests construct it for two reasons and assert code, Reason and no inner exception (measured 100%).",
+        "property": "FsCheck properties trigger it through garbage and corrupted envelopes, never through the constructor of every reason (measured 80%).",
+        "integration": "The real-Marten tests make the projection throw it for tampered, unmarked and key-destroyed-without-reference events (measured 80%)."
+      }
     },
     "Events/ReadAuditEntryRecordedEvent.cs": {
       "defaultTests": [
@@ -169,7 +253,17 @@
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods",
+      "targets": {
+        "unit": 100,
+        "guard": 100,
+        "integration": 17
+      },
+      "justifications": {
+        "unit": "Unit tests build every error factory (measured 100%).",
+        "guard": "Guard tests exercise the error factories through the argument checks (measured 100%).",
+        "integration": "Integration tests reach only the few errors that real PostgreSQL work produces (measured 17%)."
+      }
     },
     "MartenOperationAuditOptions.cs": {
       "defaultTests": [
@@ -247,11 +341,13 @@
       "reason": "Default: assume testable with mocks",
       "targets": {
         "unit": 75,
-        "guard": 10
+        "guard": 10,
+        "integration": 96
       },
       "justifications": {
-        "unit": "Unit tests run the projection mapping (measured 76%).",
-        "guard": "Guard tests assert only argument validation (measured 15%)."
+        "unit": "Unit tests run the mapping and the pure key classification for every outcome; the Create path needs Marten (measured 76%).",
+        "guard": "Guard tests assert only argument validation (measured 16%).",
+        "integration": "The real-Marten daemon tests run Create, key loading, shredded, tampered and key-missing events (measured 97%)."
       }
     },
     "Projections/OperationAuditEntryReadModel.cs": {
@@ -295,11 +391,13 @@
       "reason": "Default: assume testable with mocks",
       "targets": {
         "unit": 95,
-        "guard": 0
+        "guard": 0,
+        "integration": 100
       },
       "justifications": {
         "unit": "Unit tests run the registration of every projection.",
-        "guard": "No guard test executes this class; its null checks are asserted by unit tests."
+        "guard": "No guard test executes this class; its null checks are asserted by unit tests.",
+        "integration": "Every integration test builds a store through this configuration, including the fail-closed error policy (measured 100%)."
       }
     },
     "Projections/ReadAuditEntryProjection.cs": {
