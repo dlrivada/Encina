@@ -13,7 +13,9 @@ name: Publish Benchmarks Data
 # A source run that did not succeed fails this workflow visibly instead of
 # skipping it (#1361), unless its "Aggregate all benchmark results" job succeeded:
 # then the partial snapshot is published with a warning naming the matrix jobs that
-# did not succeed (#2510; carrying their previous series forward is #1575). A successful `short` run is still skipped with a notice
+# did not succeed (#2510; carrying their previous series forward is #1575). A source
+# run cancelled before any job ran (superseded in the `benchmarks-<ref>` concurrency
+# queue) is skipped with a notice, because the newer run publishes (#2852). A successful `short` run is still skipped with a notice
 # (see "Detect source job type"); the daily dashboard-freshness check flags the
 # dashboard when no `medium` run has published for too long.
 #
