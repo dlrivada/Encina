@@ -73,6 +73,10 @@ public sealed class ErasureReferenceTests
     public void HasErasureReference_NoFields_ReturnsFalse() =>
         Marker(null, null, null).HasErasureReference().ShouldBeFalse();
 
+    [Fact]
+    public void HasErasureReference_DefaultDate_ReturnsFalse() =>
+        Marker("id", default(DateTimeOffset), "actor").HasErasureReference().ShouldBeFalse();
+
     [Theory]
     [InlineData(null, true, "actor")]
     [InlineData("  ", true, "actor")]

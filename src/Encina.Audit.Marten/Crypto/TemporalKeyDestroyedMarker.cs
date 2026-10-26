@@ -62,5 +62,6 @@ public sealed class TemporalKeyDestroyedMarker
     public bool HasErasureReference() =>
         !string.IsNullOrWhiteSpace(ErasureRequestId)
         && !string.IsNullOrWhiteSpace(ErasureActor)
-        && ErasureRequestedAtUtc is not null;
+        && ErasureRequestedAtUtc is { } requestedAt
+        && requestedAt != default;
 }

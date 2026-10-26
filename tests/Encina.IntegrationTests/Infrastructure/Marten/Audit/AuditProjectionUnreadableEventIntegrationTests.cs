@@ -115,7 +115,7 @@ public sealed class AuditProjectionUnreadableEventIntegrationTests(MartenFixture
     }
 
     [Fact]
-    public async Task TamperedEnvelope_FailsTypedAndTheShardStops()
+    public async Task MalformedTagLength_FailsTypedAndTheShardStops()
     {
         SkipWhenUnavailable();
         var live = await SeedKeyAsync(LivePeriod);
@@ -190,7 +190,6 @@ public sealed class AuditProjectionUnreadableEventIntegrationTests(MartenFixture
                        $"eventProjectedAfterKeyStored={recovered}, statusAfter={statusAfter}; log: " +
                        string.Join(" || ", _logs.Entries.Where(e => !e.Contains("high water mark", StringComparison.Ordinal)).Distinct().Take(10));
         TestContext.Current.SendDiagnosticMessage(evidence);
-        await File.WriteAllTextAsync(Path.Combine(Path.GetTempPath(), "d20-evidence.txt"), evidence);
 
         statusBefore.ShouldBe(AgentStatus.Paused);
         statusAfter.ShouldBe(AgentStatus.Paused, "the daemon does not retry a projection that throws KeyNotFoundException");

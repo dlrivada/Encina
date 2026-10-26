@@ -47,7 +47,7 @@ namespace Encina.Audit.Marten.Crypto;
 ///
 /// // Later, crypto-shred entries older than 7 years
 /// var cutoff = DateTime.UtcNow.AddDays(-2555);
-/// var destroyResult = await keyProvider.DestroyKeysBeforeAsync(cutoff, cancellationToken);
+/// var destroyResult = await keyProvider.DestroyKeysBeforeAsync(cutoff, TemporalKeyGranularity.Monthly, cancellationToken: cancellationToken);
 /// </code>
 /// </example>
 public interface ITemporalKeyProvider
