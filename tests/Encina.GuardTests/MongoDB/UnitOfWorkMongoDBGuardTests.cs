@@ -1,4 +1,5 @@
 using Encina.MongoDB;
+using Encina.MongoDB.Transactions;
 using Encina.MongoDB.UnitOfWork;
 using MongoDB.Driver;
 
@@ -9,15 +10,20 @@ public class UnitOfWorkMongoDBGuardTests
     [Fact]
     public void Constructor_NullClient_Throws()
         => Should.Throw<ArgumentNullException>(() =>
-            new UnitOfWorkMongoDB(null!, Options.Create(new EncinaMongoDbOptions()), Substitute.For<IServiceProvider>()));
+            new UnitOfWorkMongoDB(null!, Options.Create(new EncinaMongoDbOptions()), Substitute.For<IMongoSessionAccessor>(), Substitute.For<IServiceProvider>()));
 
     [Fact]
     public void Constructor_NullOptions_Throws()
         => Should.Throw<ArgumentNullException>(() =>
-            new UnitOfWorkMongoDB(Substitute.For<IMongoClient>(), null!, Substitute.For<IServiceProvider>()));
+            new UnitOfWorkMongoDB(Substitute.For<IMongoClient>(), null!, Substitute.For<IMongoSessionAccessor>(), Substitute.For<IServiceProvider>()));
+
+    [Fact]
+    public void Constructor_NullSessionAccessor_Throws()
+        => Should.Throw<ArgumentNullException>(() =>
+            new UnitOfWorkMongoDB(Substitute.For<IMongoClient>(), Options.Create(new EncinaMongoDbOptions()), null!, Substitute.For<IServiceProvider>()));
 
     [Fact]
     public void Constructor_NullServiceProvider_Throws()
         => Should.Throw<ArgumentNullException>(() =>
-            new UnitOfWorkMongoDB(Substitute.For<IMongoClient>(), Options.Create(new EncinaMongoDbOptions()), null!));
+            new UnitOfWorkMongoDB(Substitute.For<IMongoClient>(), Options.Create(new EncinaMongoDbOptions()), Substitute.For<IMongoSessionAccessor>(), null!));
 }

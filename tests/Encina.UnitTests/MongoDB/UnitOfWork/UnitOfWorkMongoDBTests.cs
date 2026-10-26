@@ -1,10 +1,14 @@
 using Encina;
 using Encina.DomainModeling;
 using Encina.MongoDB;
+using Encina.Messaging.Transactions;
 using Encina.MongoDB.Repository;
+using Encina.MongoDB.Transactions;
 using Encina.MongoDB.UnitOfWork;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using MongoDB.Driver.Core.Clusters;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -22,6 +26,7 @@ public class UnitOfWorkMongoDBTests : IAsyncLifetime
     private readonly IMongoDatabase _mockDatabase;
     private readonly IOptions<EncinaMongoDbOptions> _mockOptions;
     private readonly IServiceProvider _mockServiceProvider;
+    private readonly MongoSessionAccessor _sessionAccessor;
     private readonly UnitOfWorkMongoDB _unitOfWork;
 
     public UnitOfWorkMongoDBTests()
@@ -37,7 +42,8 @@ public class UnitOfWorkMongoDBTests : IAsyncLifetime
         _mockMongoClient.GetDatabase(_mockOptions.Value.DatabaseName, Arg.Any<MongoDatabaseSettings>())
             .Returns(_mockDatabase);
 
-        _unitOfWork = new UnitOfWorkMongoDB(_mockMongoClient, _mockOptions, _mockServiceProvider);
+        _sessionAccessor = new MongoSessionAccessor(_mockMongoClient, NullLogger<MongoSessionAccessor>.Instance);
+        _unitOfWork = new UnitOfWorkMongoDB(_mockMongoClient, _mockOptions, _sessionAccessor, _mockServiceProvider);
     }
 
     public ValueTask InitializeAsync() => ValueTask.CompletedTask;
@@ -54,7 +60,7 @@ public class UnitOfWorkMongoDBTests : IAsyncLifetime
     {
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new UnitOfWorkMongoDB(null!, _mockOptions, _mockServiceProvider));
+            new UnitOfWorkMongoDB(null!, _mockOptions, _sessionAccessor, _mockServiceProvider));
     }
 
     [Fact]
@@ -62,7 +68,7 @@ public class UnitOfWorkMongoDBTests : IAsyncLifetime
     {
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new UnitOfWorkMongoDB(_mockMongoClient, null!, _mockServiceProvider));
+            new UnitOfWorkMongoDB(_mockMongoClient, null!, _sessionAccessor, _mockServiceProvider));
     }
 
     [Fact]
@@ -70,7 +76,69 @@ public class UnitOfWorkMongoDBTests : IAsyncLifetime
     {
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new UnitOfWorkMongoDB(_mockMongoClient, _mockOptions, null!));
+            new UnitOfWorkMongoDB(_mockMongoClient, _mockOptions, _sessionAccessor, null!));
+    }
+
+    [Fact]
+    public void Constructor_NullSessionAccessor_ThrowsArgumentNullException()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+            new UnitOfWorkMongoDB(_mockMongoClient, _mockOptions, null!, _mockServiceProvider));
+    }
+
+    [Fact]
+    public async Task BeginTransactionAsync_OtherParticipantOwnsTransaction_JoinsAndCommitIsNoOp()
+    {
+        // Arrange: the outbox behavior (another participant) already owns the scope's transaction.
+        var session = CreateReplicaSetSession();
+        session.IsInTransaction.Returns(true);
+        _mockMongoClient.StartSessionAsync(Arg.Any<ClientSessionOptions>(), Arg.Any<CancellationToken>()).Returns(session);
+        await using var owner = (await _sessionAccessor.BeginOrJoinAsync()).Match(l => l, _ => throw new InvalidOperationException());
+
+        // Act
+        var begun = await _unitOfWork.BeginTransactionAsync();
+        var committed = await _unitOfWork.CommitAsync();
+
+        // Assert
+        begun.IsRight.ShouldBeTrue();
+        committed.IsRight.ShouldBeTrue();
+        await session.DidNotReceive().CommitTransactionAsync(Arg.Any<CancellationToken>());
+        _sessionAccessor.HasActiveTransaction.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task RollbackAsync_JoinedTransaction_MarksOwnerRollbackOnly()
+    {
+        var session = CreateReplicaSetSession();
+        session.IsInTransaction.Returns(true);
+        _mockMongoClient.StartSessionAsync(Arg.Any<ClientSessionOptions>(), Arg.Any<CancellationToken>()).Returns(session);
+        await using var owner = (await _sessionAccessor.BeginOrJoinAsync()).Match(l => l, _ => throw new InvalidOperationException());
+        await _unitOfWork.BeginTransactionAsync();
+
+        await _unitOfWork.RollbackAsync();
+        var committed = await owner.CommitAsync();
+
+        committed.IsLeft.ShouldBeTrue();
+        committed.IfLeft(e => e.GetCode().IfNone("").ShouldBe(TransactionErrors.RollbackOnlyCode));
+    }
+
+    [Fact]
+    public async Task BeginTransactionAsync_StandaloneServer_ReturnsTransactionStartFailed()
+    {
+        var session = Substitute.For<IClientSessionHandle>();
+        var cluster = Substitute.For<ICluster>();
+        cluster.Description.Returns(new ClusterDescription(new ClusterId(), false, null, ClusterType.Standalone, []));
+        var client = Substitute.For<IMongoClient>();
+        client.Cluster.Returns(cluster);
+        session.Client.Returns(client);
+        _mockMongoClient.StartSessionAsync(Arg.Any<ClientSessionOptions>(), Arg.Any<CancellationToken>()).Returns(session);
+
+        var result = await _unitOfWork.BeginTransactionAsync();
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(UnitOfWorkErrors.TransactionStartFailedErrorCode));
+        session.DidNotReceive().StartTransaction(Arg.Any<TransactionOptions>());
+        _unitOfWork.HasActiveTransaction.ShouldBeFalse();
     }
 
     #endregion
@@ -88,7 +156,7 @@ public class UnitOfWorkMongoDBTests : IAsyncLifetime
     public async Task HasActiveTransaction_AfterSuccessfulBeginTransaction_ReturnsTrue()
     {
         // Arrange
-        var mockSession = Substitute.For<IClientSessionHandle>();
+        var mockSession = CreateReplicaSetSession();
         mockSession.IsInTransaction.Returns(true);
         _mockMongoClient.StartSessionAsync(Arg.Any<ClientSessionOptions>(), Arg.Any<CancellationToken>())
             .Returns(mockSession);
@@ -199,7 +267,7 @@ public class UnitOfWorkMongoDBTests : IAsyncLifetime
     public async Task BeginTransactionAsync_StartsSession_StartsTransaction()
     {
         // Arrange
-        var mockSession = Substitute.For<IClientSessionHandle>();
+        var mockSession = CreateReplicaSetSession();
         mockSession.IsInTransaction.Returns(true);
         _mockMongoClient.StartSessionAsync(Arg.Any<ClientSessionOptions>(), Arg.Any<CancellationToken>())
             .Returns(mockSession);
@@ -217,7 +285,7 @@ public class UnitOfWorkMongoDBTests : IAsyncLifetime
     public async Task BeginTransactionAsync_TransactionAlreadyActive_ReturnsError()
     {
         // Arrange
-        var mockSession = Substitute.For<IClientSessionHandle>();
+        var mockSession = CreateReplicaSetSession();
         mockSession.IsInTransaction.Returns(true);
         _mockMongoClient.StartSessionAsync(Arg.Any<ClientSessionOptions>(), Arg.Any<CancellationToken>())
             .Returns(mockSession);
@@ -293,7 +361,7 @@ public class UnitOfWorkMongoDBTests : IAsyncLifetime
     public async Task CommitAsync_WithActiveTransaction_CommitsAndClearsTransaction()
     {
         // Arrange
-        var mockSession = Substitute.For<IClientSessionHandle>();
+        var mockSession = CreateReplicaSetSession();
         mockSession.IsInTransaction.Returns(true, true, false);
         _mockMongoClient.StartSessionAsync(Arg.Any<ClientSessionOptions>(), Arg.Any<CancellationToken>())
             .Returns(mockSession);
@@ -313,7 +381,7 @@ public class UnitOfWorkMongoDBTests : IAsyncLifetime
     public async Task CommitAsync_CommitThrows_AbortsAndReturnsError()
     {
         // Arrange
-        var mockSession = Substitute.For<IClientSessionHandle>();
+        var mockSession = CreateReplicaSetSession();
         mockSession.IsInTransaction.Returns(true, true, false);
         _mockMongoClient.StartSessionAsync(Arg.Any<ClientSessionOptions>(), Arg.Any<CancellationToken>())
             .Returns(mockSession);
@@ -362,7 +430,7 @@ public class UnitOfWorkMongoDBTests : IAsyncLifetime
     public async Task RollbackAsync_WithActiveTransaction_AbortsAndClearsTransaction()
     {
         // Arrange
-        var mockSession = Substitute.For<IClientSessionHandle>();
+        var mockSession = CreateReplicaSetSession();
         mockSession.IsInTransaction.Returns(true, true, false);
         _mockMongoClient.StartSessionAsync(Arg.Any<ClientSessionOptions>(), Arg.Any<CancellationToken>())
             .Returns(mockSession);
@@ -404,7 +472,7 @@ public class UnitOfWorkMongoDBTests : IAsyncLifetime
     public async Task DisposeAsync_WithActiveTransaction_Aborts()
     {
         // Arrange
-        var mockSession = Substitute.For<IClientSessionHandle>();
+        var mockSession = CreateReplicaSetSession();
         mockSession.IsInTransaction.Returns(true);
         _mockMongoClient.StartSessionAsync(Arg.Any<ClientSessionOptions>(), Arg.Any<CancellationToken>())
             .Returns(mockSession);
@@ -421,6 +489,17 @@ public class UnitOfWorkMongoDBTests : IAsyncLifetime
     #endregion
 
     #region Helper Methods
+
+    private static IClientSessionHandle CreateReplicaSetSession()
+    {
+        var session = Substitute.For<IClientSessionHandle>();
+        var cluster = Substitute.For<ICluster>();
+        cluster.Description.Returns(new ClusterDescription(new ClusterId(), false, null, ClusterType.ReplicaSet, []));
+        var client = Substitute.For<IMongoClient>();
+        client.Cluster.Returns(cluster);
+        session.Client.Returns(client);
+        return session;
+    }
 
     private static MongoDbRepositoryOptions<TestMongoEntity, Guid> CreateTestRepositoryOptions()
     {

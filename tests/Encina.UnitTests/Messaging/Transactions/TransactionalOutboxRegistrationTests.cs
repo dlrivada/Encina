@@ -97,19 +97,58 @@ public sealed class TransactionalOutboxRegistrationTests
             .ShouldNotContain(p => p is OutboxPostProcessor<ProbeRequest, string>);
     }
 
-    // MongoDB stays on the interim post-processor (#718): no accessor, still builds, still resolves it.
-    [Fact]
-    public void MongoDb_RegistersNoAccessor_AndStillBuilds()
+    // MongoDB (#718 Phase 8): one scoped session accessor shared as the neutral lease source, the
+    // transactional outbox behavior instead of the post-processor, and no relational accessor.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void MongoDb_BuildsWithValidationAndSharesOneSessionAccessor(bool useOutbox)
     {
-        var services = Register(Family.MongoDB);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncina();
+        global::Encina.MongoDB.ServiceCollectionExtensions.AddEncinaMongoDB(services, options =>
+        {
+            options.ConnectionString = "mongodb://localhost:27017";
+            options.DatabaseName = "probe";
+            options.UseOutbox = useOutbox;
+            options.CreateIndexes = false;
+        });
 
         services.ShouldNotContain(d => d.ServiceType == typeof(IDbTransactionAccessor));
-        services.ShouldNotContain(d => d.ServiceType == typeof(ITransactionLeaseSource));
-        Should.NotThrow(() =>
-        {
-            using var provider = services.BuildServiceProvider(
-                new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
-        });
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        using var scope = provider.CreateScope();
+        var sp = scope.ServiceProvider;
+
+        var accessor = sp.GetRequiredService<global::Encina.MongoDB.Transactions.IMongoSessionAccessor>();
+        sp.GetRequiredService<ITransactionLeaseSource>().ShouldBeSameAs(accessor);
+        sp.GetRequiredService<global::Encina.MongoDB.Transactions.IMongoSessionAccessor>().ShouldBeSameAs(accessor);
+        accessor.DbSystem.ShouldBe("mongodb");
+
+        sp.GetServices<IPipelineBehavior<ProbeRequest, string>>()
+            .Any(b => b is TransactionalOutboxPipelineBehavior<ProbeRequest, string>).ShouldBe(useOutbox);
+        sp.GetServices<IRequestPostProcessor<ProbeRequest, string>>()
+            .ShouldNotContain(p => p is OutboxPostProcessor<ProbeRequest, string>);
+    }
+
+    [Fact]
+    public void MongoDb_AddEncinaUnitOfWorkAlone_RegistersTheAccessorOnceAndResolvesTheUnitOfWork()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(Substitute.For<global::MongoDB.Driver.IMongoClient>());
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new global::Encina.MongoDB.EncinaMongoDbOptions { DatabaseName = "probe" }));
+        global::Encina.MongoDB.ServiceCollectionExtensions.AddEncinaUnitOfWork(services);
+        global::Encina.MongoDB.ServiceCollectionExtensions.AddEncinaUnitOfWork(services);
+
+        services.Count(d => d.ServiceType == typeof(global::Encina.MongoDB.Transactions.IMongoSessionAccessor)).ShouldBe(1);
+        services.Count(d => d.ServiceType == typeof(ITransactionLeaseSource)).ShouldBe(1);
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        using var scope = provider.CreateScope();
+        scope.ServiceProvider.GetRequiredService<global::Encina.DomainModeling.IUnitOfWork>()
+            .ShouldBeOfType<global::Encina.MongoDB.UnitOfWork.UnitOfWorkMongoDB>();
     }
 
     [Theory]
