@@ -409,6 +409,8 @@ try {
     $apiDataOptions = @('-f', '--raw-field', '-F', '--field', '--input')
     # Stands for a variable inside an endpoint (a wildcard when the endpoint is matched).
     $Wild = [string][char]1
+    # Stands for one variable segment (a $( ... ) between slashes).
+    $WildSegment = [string][char]2
 
     # Every non-option token of a `gh api` statement: each one is an endpoint candidate.
     function Get-ApiPositionals($Tokens, [int]$From) {
@@ -431,8 +433,11 @@ try {
     # The path is normalised first: scheme and host, query, fragment, URL escapes, leading and trailing slash,
     # case. A variable owner or repository segment is a wildcard; {owner}/{repo} stand for the current repository.
     function Get-ApiEndpointKind($Token) {
-        if ($Token.Subexpression) { return 'dynamic' }
         $v = [string]$Token.Value
+        # A token with a $( ... ) holds only the inner text of the subexpression, so a segment that still has a
+        # '$' or '(' is a variable SEGMENT (a wildcard for that segment only); a token that is wholly one
+        # subexpression (no slash) is a wholly variable endpoint.
+        if ($Token.Subexpression -and -not $v.Contains('/')) { return 'dynamic' }
         $urlMatch = [regex]::Match($v, '^https?://(?<h>[^/]+)/(?<r>.*)$', 'IgnoreCase')
         if ($urlMatch.Success) {
             if ($urlMatch.Groups['h'].Value -ine 'api.github.com') { return $null }
@@ -441,14 +446,15 @@ try {
         $v = ($v -split '[?#]', 2)[0]
         try { $v = [Uri]::UnescapeDataString($v) } catch { }
         $v = $v.Trim('/')
-        if ($Token.Dynamic) { $v = [regex]::Replace($v, '\$(?:\{[^}]*\}|[\w:?]+)', $Wild) }
+        if ($Token.Subexpression) { $v = (($v -split '/') | ForEach-Object { if ($_ -match '[$(]') { $WildSegment } else { $_ } }) -join '/' }
+        elseif ($Token.Dynamic) { $v = [regex]::Replace($v, '\$(?:\{[^}]*\}|[\w:?]+)', $Wild) }
         $v = [regex]::Replace($v, '\{(?:owner|repo)\}', $Wild, 'IgnoreCase')
         $lower = $v.ToLowerInvariant()
 
-        if ($lower.Contains($Wild)) {
-            if (($lower.Replace($Wild, '').Replace('/', '')).Length -eq 0) { return 'dynamic' }
+        if ($lower.Contains($Wild) -or $lower.Contains($WildSegment)) {
+            if (($lower.Replace($Wild, '').Replace($WildSegment, '').Replace('/', '')).Length -eq 0) { return 'dynamic' }
             if ($lower -notmatch '(?:^|/)issues$') { return $null }
-            $pattern = '^' + (($lower.Split([char]1) | ForEach-Object { [regex]::Escape($_) }) -join '.*') + '$'
+            $pattern = '^' + (([regex]::Escape($lower).Replace([regex]::Escape($Wild), '.*').Replace([regex]::Escape($WildSegment), '[^/]+'))) + '$'
             if ('repos/dlrivada/encina/issues' -match $pattern -or 'repositories/1/issues' -match $pattern) { return 'issues' }
             return $null
         }
