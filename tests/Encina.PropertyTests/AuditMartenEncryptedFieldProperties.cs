@@ -18,6 +18,9 @@ public sealed class AuditMartenEncryptedFieldProperties
 {
     private static readonly byte[] Key = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();
 
+    private static readonly string FixedMessage =
+        new EncryptedFieldDecryptionException(EncryptedFieldDecryptionFailureReason.NotEncrypted).Message;
+
     [Property(MaxTest = 300)]
     public bool Garbage_NeverReturnsTheEnvelopeAndOnlyThrowsTheTypedFailure(string? garbage, bool withMarker)
     {
@@ -81,7 +84,8 @@ public sealed class AuditMartenEncryptedFieldProperties
         }
         catch (EncryptedFieldDecryptionException ex)
         {
-            return !ex.Message.Contains(value, StringComparison.Ordinal) || value.Length == 0;
+            // The message is fixed for every cause, so it can never carry any part of the stored value.
+            return ex.Message == FixedMessage;
         }
     }
 }
