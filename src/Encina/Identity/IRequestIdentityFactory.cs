@@ -24,12 +24,6 @@ internal interface IRequestIdentityFactory
     RequestIdentity Create(ClaimsPrincipal? principal, IdentityIssuer? issuer = null);
 
     /// <summary>
-    /// Resolves the tenant id from the authenticated identities of <paramref name="principal"/>, or
-    /// <see langword="null"/> when there is none or the identities disagree.
-    /// </summary>
-    string? ResolveTenantId(ClaimsPrincipal? principal);
-
-    /// <summary>
     /// Resolves the tenant id from the authenticated identities of <paramref name="principal"/> and
     /// tells apart "no tenant claim" from "conflicting tenant claims".
     /// </summary>

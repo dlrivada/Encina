@@ -127,10 +127,10 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
 
         var scopeOptions = options ?? DefaultOptions;
         var requestedKind = RequestedKindOf(principal);
-        var principalTenant = _identityFactory.ResolveTenantId(principal);
+        var tenantResolved = _identityFactory.TryResolveTenantId(principal, out var principalTenant);
         var overInbound = false;
         var refusal = Precheck(cancellationToken);
-        refusal ??= CheckPrincipalTenant(principalTenant, scopeOptions.TenantId, requestedKind);
+        refusal ??= CheckPrincipalTenant(tenantResolved, principalTenant, scopeOptions.TenantId, requestedKind);
         refusal ??= CheckChain(requestedKind, scopeOptions.AllowOverInbound, out overInbound);
 
         return refusal is not null
@@ -390,10 +390,19 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
         return null;
     }
 
-    private static EncinaError? CheckPrincipalTenant(string? principalTenant, string? requestedTenant, IdentityKind requestedKind) =>
-        requestedTenant is not null && principalTenant is not null && !string.Equals(principalTenant, requestedTenant, StringComparison.Ordinal)
+    // Conflicting tenant claims refuse the scope (fail closed); a requested tenant that differs from
+    // the principal's claim is the separate TenantConflict.
+    private static EncinaError? CheckPrincipalTenant(bool tenantResolved, string? principalTenant, string? requestedTenant, IdentityKind requestedKind)
+    {
+        if (!tenantResolved)
+        {
+            return RequestIdentityErrors.ConflictingTenantClaims();
+        }
+
+        return requestedTenant is not null && principalTenant is not null && !string.Equals(principalTenant, requestedTenant, StringComparison.Ordinal)
             ? RequestIdentityErrors.TenantConflict(requestedKind, requestedKind)
             : (EncinaError?)null;
+    }
 
     // The holder-chain refusals (facts of the current holder, ended holders included): a user
     // anywhere refuses every scope; an inbound request anywhere refuses unless the member allows the

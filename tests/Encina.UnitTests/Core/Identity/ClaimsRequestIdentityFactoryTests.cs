@@ -183,7 +183,8 @@ public sealed class ClaimsRequestIdentityFactoryTests
         identity.UserId.ShouldBe("alice");
         identity.Roles.ShouldBeEmpty();
         identity.Permissions.ShouldBeEmpty();
-        factory.ResolveTenantId(principal).ShouldBeNull();
+        factory.TryResolveTenantId(principal, out var tenantId).ShouldBeTrue();
+        tenantId.ShouldBeNull();
     }
 
     [Fact]
@@ -229,7 +230,8 @@ public sealed class ClaimsRequestIdentityFactoryTests
         var factory = CreateFactory();
 
         factory.Create(principal).ShouldBeSameAs(RequestIdentity.Anonymous);
-        factory.ResolveTenantId(principal).ShouldBeNull();
+        factory.TryResolveTenantId(principal, out var tenantId).ShouldBeFalse();
+        tenantId.ShouldBeNull();
 
         var record = _logger.Collector.GetSnapshot().ShouldHaveSingleItem();
         record.Id.Id.ShouldBe(164);
@@ -241,25 +243,25 @@ public sealed class ClaimsRequestIdentityFactoryTests
     [InlineData("tenant_id")]
     [InlineData("tid")]
     [InlineData(RequestIdentityOptions.TenantIdentifierClaimType)]
-    public void ResolveTenantId_ReadsTheConfiguredTenantClaims_OfAuthenticatedPrincipals(string claimType)
+    public void TryResolveTenantId_ReadsTheConfiguredTenantClaims_OfAuthenticatedPrincipals(string claimType)
     {
-        CreateFactory().ResolveTenantId(Authenticated(new Claim("sub", "alice"), new Claim(claimType, "tenant-1"))).ShouldBe("tenant-1");
+        CreateFactory().TryResolveTenantId(Authenticated(new Claim("sub", "alice"), new Claim(claimType, "tenant-1")), out var tenantId).ShouldBeTrue();
+        tenantId.ShouldBe("tenant-1");
     }
 
     [Fact]
-    public void ResolveTenantId_TwoDifferentTenantClaimsInOneIdentity_IsNull_AndTryResolveReportsAConflict()
+    public void TryResolveTenantId_TwoDifferentTenantClaimsInOneIdentity_ReportsAConflict()
     {
         var principal = Authenticated(new Claim("sub", "alice"), new Claim("tenant_id", "t1"), new Claim("tenant_id", "t2"));
         var factory = CreateFactory();
 
-        factory.ResolveTenantId(principal).ShouldBeNull();
         factory.TryResolveTenantId(principal, out var tenantId).ShouldBeFalse();
         tenantId.ShouldBeNull();
         factory.Create(principal).ShouldBeSameAs(RequestIdentity.Anonymous);
     }
 
     [Fact]
-    public void ResolveTenantId_RepeatedSameTenantClaim_IsNotAConflict()
+    public void TryResolveTenantId_RepeatedSameTenantClaim_IsNotAConflict()
     {
         var principal = Authenticated(new Claim("sub", "alice"), new Claim("tenant_id", "t1"), new Claim("tenant_id", "t1"));
 
@@ -268,13 +270,16 @@ public sealed class ClaimsRequestIdentityFactoryTests
     }
 
     [Fact]
-    public void ResolveTenantId_IsNull_ForNullOrUnauthenticatedPrincipals()
+    public void TryResolveTenantId_HasNoTenant_ForNullOrUnauthenticatedPrincipals()
     {
         var factory = CreateFactory();
 
-        factory.ResolveTenantId(null).ShouldBeNull();
-        factory.ResolveTenantId(new ClaimsPrincipal(new ClaimsIdentity([new Claim("tenant_id", "t")]))).ShouldBeNull();
-        factory.ResolveTenantId(Authenticated(new Claim("sub", "alice"))).ShouldBeNull();
+        factory.TryResolveTenantId(null, out var nullTenant).ShouldBeTrue();
+        factory.TryResolveTenantId(new ClaimsPrincipal(new ClaimsIdentity([new Claim("tenant_id", "t")])), out var unauthenticatedTenant).ShouldBeTrue();
+        factory.TryResolveTenantId(Authenticated(new Claim("sub", "alice")), out var noClaimTenant).ShouldBeTrue();
+        nullTenant.ShouldBeNull();
+        unauthenticatedTenant.ShouldBeNull();
+        noClaimTenant.ShouldBeNull();
     }
 
     [Fact]

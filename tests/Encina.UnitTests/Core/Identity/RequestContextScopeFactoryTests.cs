@@ -238,6 +238,64 @@ public sealed class RequestContextScopeFactoryTests
         ShouldBeLeftWith(result, RequestIdentityErrorCodes.TenantConflict);
     }
 
+    public static TheoryData<string?> OptionTenants => new() { null, "t1", "t3" };
+
+    [Theory]
+    [MemberData(nameof(OptionTenants))]
+    public async Task RunAsPrincipalAsync_WithTwoDistinctTenantClaimsInOneIdentity_IsRefused_AndWorkNeverRuns(string? optionTenant)
+    {
+        var principal = TestIdentity.Principal("alice", claims: [new Claim("tenant_id", "t1-" + Sentinel), new Claim("tenant_id", "t2-" + Sentinel)]);
+        var invoked = false;
+
+        var result = await Factory.RunAsPrincipalAsync(principal, (c, t) =>
+        {
+            invoked = true;
+            return Ok(c, t);
+        }, optionTenant is null ? null : new IdentityScopeOptions(TenantId: optionTenant));
+
+        ShouldBeLeftWith(result, RequestIdentityErrorCodes.ConflictingTenantClaims);
+        invoked.ShouldBeFalse();
+        var record = Records.Single(r => r.Id.Id == 167);
+        record.Level.ShouldBe(LogLevel.Warning);
+        record.Message.ShouldContain(RequestIdentityErrorCodes.ConflictingTenantClaims);
+        NoSentinelInAnyRecord();
+    }
+
+    [Fact]
+    public async Task RunAsPrincipalAsync_WithDifferentValuesAcrossTwoConfiguredClaimTypes_IsRefused()
+    {
+        var principal = TestIdentity.Principal("alice", claims: [new Claim("tenant_id", "t1"), new Claim("tid", "t2")]);
+
+        var result = await Factory.RunAsPrincipalAsync(principal, ScopeTestHost.Capture);
+
+        ShouldBeLeftWith(result, RequestIdentityErrorCodes.ConflictingTenantClaims);
+        _host.Accessor.RequestContext.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task RunAsPrincipalAsync_WithTheSameTenantRepeated_OpensTheScopeWithThatTenant()
+    {
+        var principal = TestIdentity.Principal("alice", claims: [new Claim("tenant_id", "t1"), new Claim("tid", "t1")]);
+
+        var result = await Factory.RunAsPrincipalAsync(principal, ScopeTestHost.Capture, new IdentityScopeOptions(TenantId: "t1"));
+
+        var context = result.ShouldBeSuccess();
+        context.TenantId.ShouldBe("t1");
+        context.Issued().UserId.ShouldBe("alice");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("t9")]
+    public async Task RunAsPrincipalAsync_WithoutATenantClaim_UsesTheOptionTenantOrNone(string? optionTenant)
+    {
+        var principal = ScopeTestHost.UserPrincipal("alice");
+
+        var result = await Factory.RunAsPrincipalAsync(principal, ScopeTestHost.Capture, new IdentityScopeOptions(TenantId: optionTenant));
+
+        result.ShouldBeSuccess().TenantId.ShouldBe(optionTenant);
+    }
+
     // ── Rule 4: the holder chain ─────────────────────────────────────────
 
     [Fact]

@@ -32,7 +32,8 @@ public sealed class RequestIdentityGuardTests
         var factory = new ClaimsRequestIdentityFactory(Options.Create(new RequestIdentityOptions()));
 
         factory.Create(null).ShouldBeSameAs(RequestIdentity.Anonymous);
-        factory.ResolveTenantId(null).ShouldBeNull();
+        factory.TryResolveTenantId(null, out var tenantId).ShouldBeTrue();
+        tenantId.ShouldBeNull();
     }
 
     [Fact]
@@ -45,7 +46,6 @@ public sealed class RequestIdentityGuardTests
 
         factory.TryResolveTenantId(principal, out var tenantId).ShouldBeFalse();
         tenantId.ShouldBeNull();
-        factory.ResolveTenantId(principal).ShouldBeNull();
         factory.Create(principal).ShouldBeSameAs(RequestIdentity.Anonymous);
     }
 

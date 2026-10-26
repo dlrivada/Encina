@@ -9,7 +9,8 @@ namespace Encina;
 /// (<see langword="null"/> means no tenant); for
 /// <see cref="IRequestContextScopeFactory.RunAsPrincipalAsync{T}"/> it is used only when the
 /// principal has no tenant claim, and a different value is refused with
-/// <see cref="RequestIdentityErrorCodes.TenantConflict"/>.
+/// <see cref="RequestIdentityErrorCodes.TenantConflict"/>. A principal whose tenant claims conflict is
+/// refused with <see cref="RequestIdentityErrorCodes.ConflictingTenantClaims"/> whatever this value is.
 /// </param>
 /// <param name="AllowOverInbound">
 /// Opts in, for this call only, to opening the scope inside an inbound request (or a flow forked
