@@ -90,29 +90,7 @@ internal sealed class PostgresCdcConnector : ICdcConnector
     public async IAsyncEnumerable<Either<EncinaError, ChangeEvent>> StreamChangesAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        NpgsqlLogSequenceNumber? startLsn = null;
-
-        // Try to restore position
-        var positionResult = await _positionStore.GetPositionAsync(ConnectorId, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (positionResult.IsRight)
-        {
-            var optPosition = (LanguageExt.Option<CdcPosition>)positionResult;
-            optPosition.IfSome(position =>
-            {
-                if (position is PostgresCdcPosition pgPosition)
-                {
-                    startLsn = pgPosition.Lsn;
-                    CdcLog.PositionRestored(_logger, ConnectorId, position.ToString());
-                }
-            });
-        }
-
-        if (startLsn is null)
-        {
-            CdcLog.NoSavedPosition(_logger, ConnectorId);
-        }
+        var startLsn = await RestoreStartLsnAsync(cancellationToken).ConfigureAwait(false);
 
         // Setup replication
         if (_options.CreatePublicationIfNotExists)
@@ -142,6 +120,35 @@ internal sealed class PostgresCdcConnector : ICdcConnector
 
             // The client acknowledges the WAL position when this iteration resumes.
         }
+    }
+
+    private async Task<NpgsqlLogSequenceNumber?> RestoreStartLsnAsync(CancellationToken cancellationToken)
+    {
+        NpgsqlLogSequenceNumber? startLsn = null;
+
+        // Try to restore position
+        var positionResult = await _positionStore.GetPositionAsync(ConnectorId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (positionResult.IsRight)
+        {
+            var optPosition = (LanguageExt.Option<CdcPosition>)positionResult;
+            optPosition.IfSome(position =>
+            {
+                if (position is PostgresCdcPosition pgPosition)
+                {
+                    startLsn = pgPosition.Lsn;
+                    CdcLog.PositionRestored(_logger, ConnectorId, position.ToString());
+                }
+            });
+        }
+
+        if (startLsn is null)
+        {
+            CdcLog.NoSavedPosition(_logger, ConnectorId);
+        }
+
+        return startLsn;
     }
 
     // crap-exempt: single-question switch — one type pattern answers "which change event, if any, does this record map to"
