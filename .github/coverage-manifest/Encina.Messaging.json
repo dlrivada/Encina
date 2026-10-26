@@ -1023,6 +1023,21 @@
         "integration": "Store persistence is covered per provider by the delayed-retry store integration tests."
       }
     },
+    "Recoverability/DelayedRetryStartupCheck.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal hosted startup check of the delayed retry store and factory (ADR-050)",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "DelayedRetryRegistrationTests start the check with the store, the factory, both, or neither missing, with the flag off and with an empty DelayedRetries array, and through a real host (measured 100%).",
+        "guard": "The type is internal and the guard test project has no access to internals; its constructor null checks are asserted in the unit project (DelayedRetryRegistrationTests.StartupCheck_WithNullArguments_Throws)."
+      }
+    },
     "Recoverability/FailedMessage.cs": {
       "defaultTests": [
         "unit",
@@ -1093,7 +1108,7 @@
       "reason": "ServiceCollection extensions with conditional registration",
       "targets": { "unit": 95 },
       "justifications": {
-        "unit": "RegisterErrorClassifier asserted by ErrorClassifierRegistrationTests."
+        "unit": "RegisterErrorClassifier is asserted by ErrorClassifierRegistrationTests; RegisterDelayedRetries and the scheduler factory by DelayedRetryRegistrationTests (store before and after the registration, missing store or factory, flag off) (measured 100%)."
       }
     },
     "RoutingSlip/IRoutingSlipRunner.cs": {
