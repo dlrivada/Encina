@@ -18,8 +18,8 @@ Unlike the 13 database providers (ADO.NET, Dapper, EF Core, MongoDB) which store
 |------------|---------|-------------|-------------------------------|
 | **SOX** | Section 404 | Immutable audit trail of internal controls | Append-only event streams cannot be modified or deleted |
 | **NIS2** | Art. 10 | Logging with integrity guarantees | Event stream integrity preserved even after crypto-shredding |
-| **GDPR** | Art. 5(1)(e) | Data minimization — storage limitation | Temporal crypto-shredding renders PII unreadable after retention period |
-| **GDPR** | Art. 17 | Right to erasure | Temporal key destruction achieves effective erasure |
+| **GDPR** | Art. 5(1)(e) | Data minimization — storage limitation | Temporal key destruction renders PII unreadable after the retention period; projecting those periods again fails typed, see [Recover from an unreadable audit event](#recover-from-an-unreadable-audit-event) |
+| **GDPR** | Art. 17 | Right to erasure | Temporal key destruction recorded with an erasure reference (`[SHREDDED]`) achieves provable erasure; a retention purge records none |
 | **HIPAA** | Section 164.312(b) | Audit controls | Comprehensive access tracking with configurable retention |
 | **PCI-DSS** | Req. 10.2 | Logging and monitoring | Full audit trail of cardholder data operations |
 
@@ -54,7 +54,7 @@ services.AddEncinaAuditMarten(options =>
     // Which fields to encrypt (PiiFieldsOnly or AllFields)
     options.EncryptionScope = AuditEncryptionScope.PiiFieldsOnly;
 
-    // Retention before crypto-shredding (SOX = 7 years)
+    // Retention before key destruction (SOX = 7 years)
     options.RetentionPeriod = TimeSpan.FromDays(2555);
 
     // Background auto-purge
@@ -74,11 +74,11 @@ Encrypts: `UserId`, `IpAddress`, `UserAgent`, `RequestPayload`, `ResponsePayload
 
 Plaintext: `Action`, `EntityType`, `EntityId`, `Outcome`, `TimestampUtc`, `CorrelationId`, `TenantId`, `RequestPayloadHash`.
 
-After crypto-shredding, compliance officers can still see "someone did X to entity Y at time Z" without knowing who. Events already projected keep that state; projecting an event whose key was destroyed without an erasure reference fails instead (see [Recover from an unreadable audit event](#recover-from-an-unreadable-audit-event)).
+After key destruction, compliance officers can still see "someone did X to entity Y at time Z" without knowing who, in read-model entries that were already projected. Retention purge shows no `[SHREDDED]` placeholder: `[SHREDDED]` appears only when the destroyed marker carries an erasure reference. Projecting an event whose key was destroyed without an erasure reference fails instead (see [Recover from an unreadable audit event](#recover-from-an-unreadable-audit-event)).
 
 ### AllFields
 
-Encrypts everything. After crypto-shredding, nothing is queryable. Use only when structural metadata is considered sensitive.
+Encrypts everything. After key destruction, nothing new can be projected or queried for the affected periods. Use only when structural metadata is considered sensitive.
 
 ## Temporal Key Granularity
 
@@ -117,11 +117,11 @@ The encryption overhead represents **< 1%** of total audit recording cost (Postg
 
 ## Recover from an unreadable audit event
 
-This section is for the operator of an application that uses `Encina.Audit.Marten` and whose audit read models have stopped updating. It shows how to recognise the cause, repair it and rebuild the projection. Background: [ADR-020](../architecture/adr/020-temporal-crypto-shredding-audit-store.md) describes the temporal crypto-shredding audit store, and [ADR-034](../architecture/adr/034-crypto-shredding-through-the-stj-contract.md) the fail-closed reads of the per-subject store. The behaviour described here was decided in issue #2770 and supersedes ADR-020 where it says any destroyed key reads as `[SHREDDED]`; no ADR records it yet.
+This section is for the operator of an application that uses `Encina.Audit.Marten` and whose audit read models have stopped updating. It shows how to recognise the cause, repair it and rebuild the projection. Background: [ADR-020](../architecture/adr/020-temporal-crypto-shredding-audit-store.md) describes the temporal crypto-shredding audit store, and [ADR-034](../architecture/adr/034-crypto-shredding-through-the-stj-contract.md) the fail-closed reads of the per-subject store. The behaviour described here was decided in issue #2770 and narrows ADR-020 where it says any destroyed key reads as `[SHREDDED]`; ADR-020 carries a dated amendment note, and no separate ADR records it yet.
 
 ### What happens
 
-When the projection reads an event whose encrypted field cannot be read, it throws `EncryptedFieldDecryptionException` and Marten's async daemon pauses that shard. Encina chooses integrity before availability: damaged or unexplained audit data is never shown as plaintext and never shown as erased. Only a key destruction recorded together with an erasure request reference (`ErasureReference`: `RequestId`, `RequestedAtUtc`, `Actor`) reads as the `[SHREDDED]` placeholder, because a lawful erasure must be provable.
+When the projection reads an event whose encrypted field cannot be read, it throws `EncryptedFieldDecryptionException` and Marten's async daemon pauses that shard. Encina chooses integrity before availability: damaged or unexplained audit data is never shown as plaintext and never shown as erased. Only a key destruction recorded together with a complete erasure request reference (`ErasureReference`: `RequestId`, `RequestedAtUtc`, `Actor`; `TemporalKeyDestroyedMarker.HasErasureReference()` requires a non-blank request id and actor and a non-default request date) reads as the `[SHREDDED]` placeholder, because a lawful erasure must be provable.
 
 ```mermaid
 flowchart TD
@@ -138,7 +138,7 @@ The shards are `OperationAuditEntryProjection:All` and `ReadAuditEntryProjection
 
 ### Recognise it
 
-1. Look for an Error entry in the the logger you gave to `BuildProjectionDaemonAsync` (category `Marten.Daemon` in the integration test) that reads "Subscription OperationAuditEntryProjection:All failed while creating a SQL batch", with an inner `JasperFx.Events.Daemon.ApplyEventException` ("Failure to apply event #`<sequence>` Id(`<event guid>`)") whose inner exception is the one below.
+1. Look for an Error entry in the logger you gave to `BuildProjectionDaemonAsync` (category `Marten.Daemon` in the integration test) that reads "Subscription OperationAuditEntryProjection:All failed while creating a SQL batch", with an inner `JasperFx.Events.Daemon.ApplyEventException` ("Failure to apply event #`<sequence>` Id(`<event guid>`)") whose inner exception is the one below.
 2. `EncryptedFieldDecryptionException` derives from `CryptographicException`. Its message is fixed and holds only the code `audit.marten.encrypted_field_unreadable`. Its `Reason` property says which of the five cases applies.
 3. The message never contains plaintext, a key id, a period or the envelope. Use the sequence number or event id from the log to find the row in the `mt_events` table, and read its stream and period from there.
 4. A daemon check shows the same thing: `IProjectionDaemon.StatusFor(shard)` is `AgentStatus.Paused`, and `HasAnyPaused()` is `true`.
@@ -149,7 +149,7 @@ The shards are `OperationAuditEntryProjection:All` and `ReadAuditEntryProjection
 | `NotEncrypted` | The value has no `__enc` marker although every stored value should be encrypted | Find out how plaintext got into the event, then restore the data |
 | `InvalidKeyOrParameters` | The key material, nonce or tag has the wrong size | Restore the key document or the event data |
 | `IntegrityCheckFailed` | The authentication tag did not verify: tampered ciphertext or tag, or a key that does not match | Treat as a security incident, then restore the data or the correct key |
-| `KeyDestroyedWithoutErasureRecord` | The period's key was destroyed, but the marker has no `ErasureReference` | Write the confirmed erasure reference into the marker, or restore the key |
+| `KeyDestroyedWithoutErasureRecord` | The period's key was destroyed, but the marker has no `ErasureReference` | Restore the key, or add the reference only for a real erasure request (see [Retention-period destruction now stops the projection](#retention-period-destruction-now-stops-the-projection)) |
 
 A key with neither an active key document nor a destroyed marker for the event's period throws `KeyNotFoundException` instead (the message names the period and says there is no active key and no destroyed marker). The daemon does not retry it either: the shard pauses. Restore the key document.
 
@@ -171,10 +171,14 @@ The integration test `AfterTheCauseIsRepaired_RebuildingTheProjectionProjectsEve
 
 `MartenOperationAuditStore` and `MartenReadAuditStore` call `DestroyKeysBeforeAsync` for retention with `erasureReference: null`. Those markers have no erasure reference, so projecting events of those periods (for example in a rebuild) now fails with `KeyDestroyedWithoutErasureRecord` and pauses the shard. The same holds for every marker written before this change. No GDPR erasure flow in the repository calls `DestroyKeysBeforeAsync` with a reference yet (follow-up work), so today only a direct caller that passes an `ErasureReference` produces a marker that reads as `[SHREDDED]`.
 
+A retention purge hard-deletes the key document. The key cannot be restored, except from a backup of the key documents. For a store whose periods were destroyed by retention purge, rebuilding therefore cannot succeed past the first purged period: the rebuild stops at the first event of that period and pauses the shard again. Operator resolution for this case is not available until the later change tracked as PR 2b of issue #2770.
+
 Today you can:
 
-- Restore the key document, when the destruction was a mistake or the data must stay readable.
-- Edit the destroyed marker document directly through a Marten session to add the confirmed erasure reference, when the key was destroyed because of a real erasure request. No Encina API does this yet.
+- Restore the key document from a backup, when the destruction was a mistake or the data must stay readable.
+- Edit the destroyed marker document directly through a Marten session to add the confirmed erasure reference, only when an erasure request really exists for that period and the key was destroyed because of it. No Encina API does this yet. Do not add a reference to the marker of a retention purge or any other destruction that was not an erasure: that falsifies the erasure evidence, because the marker would then claim a lawful erasure that never happened. The reference must be complete (request id, actor and a non-default request date), or `HasErasureReference()` stays `false`.
+
+`DestroyKeysBeforeAsync` cannot attach an erasure reference to a period that is already destroyed: its marker exists, so the period is skipped and the reference passed in the call is not recorded.
 
 ### Limits today
 

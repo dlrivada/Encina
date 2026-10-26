@@ -50,7 +50,7 @@ services.AddEncinaAuditMarten(options =>
 | `RetentionPeriod` | 2555 days | Retention before crypto-shredding |
 | `EnableAutoPurge` | `false` | Background crypto-shredding service |
 | `PurgeIntervalHours` | 24 | Auto-purge interval |
-| `ShreddedPlaceholder` | `[SHREDDED]` | Placeholder for destroyed PII |
+| `ShreddedPlaceholder` | `[SHREDDED]` | Placeholder for PII whose key was destroyed with an erasure reference |
 | `AddHealthCheck` | `false` | Register health check |
 
 ## How Crypto-Shredding Works
@@ -58,7 +58,7 @@ services.AddEncinaAuditMarten(options =>
 1. **Record**: PII fields encrypted with temporal key for the entry's month/quarter/year
 2. **Query**: Async projections decrypt PII into queryable read models
 3. **Purge**: `PurgeEntriesAsync` destroys temporal keys (not events)
-4. **After purge**: PII fields show `[SHREDDED]`, structural fields remain queryable
+4. **After purge**: read-model entries already projected keep their state. Purge destroys keys without an erasure reference, so projecting events of a purged period (for example in a rebuild) throws `EncryptedFieldDecryptionException` (`KeyDestroyedWithoutErasureRecord`) and the Marten daemon pauses the shard. `[SHREDDED]` appears only when the destroyed-key marker carries an erasure reference (request id, request date and actor). See [Recover from an unreadable audit event](../../docs/features/audit-marten.md#recover-from-an-unreadable-audit-event).
 
 ## Performance
 

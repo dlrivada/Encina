@@ -11,6 +11,8 @@ grand_parent: Architecture
 
 Accepted
 
+> **Amendment 2026-10-26 ([#2770](https://github.com/dlrivada/Encina/issues/2770)):** this narrows every statement below that a destroyed key (section 2, section 5 steps 3-4 and the shredded-entry list, section 7, and Negative consequence 3) reads as `[SHREDDED]`. The placeholder is shown only for a key destruction recorded with an erasure reference (request id, request date and actor). Any other destroyed or unreadable key, including every retention purge (`PurgeEntriesAsync`, `EnableAutoPurge`), fails typed with `EncryptedFieldDecryptionException` and the Marten daemon pauses the shard. A retention purge is not a lawful erasure and must not read as one. The procedure is in [Recover from an unreadable audit event](../../features/audit-marten.md#recover-from-an-unreadable-audit-event); the original text below is kept as decided.
+
 ## Date
 
 2026-03-19
@@ -130,6 +132,8 @@ The `MartenOperationAuditStore` uses an **inline projection** that maintains a d
 3. **On purge**: Delete temporal keys → mark affected read model entries as `[SHREDDED]`
 4. **On rebuild**: Events with deleted temporal keys produce `[SHREDDED]` entries
 
+*Amended 2026-10-26 (#2770): steps 3 and 4 hold only for a destruction recorded with an erasure reference; a retention purge fails the rebuild typed (see the amendment at the top).*
+
 **Shredded entries in query results**:
 
 - Shredded entries are **included** in query results (not skipped)
@@ -169,6 +173,8 @@ OperationAuditEntry.UserId = Encrypt(temporal_key, Encrypt(subject_key, "user-42
 - **Temporal purge** (retention): Deletes temporal key → all PII in that period becomes `[SHREDDED]` for all users
 - **Decryption**: Requires both keys. If either is missing, the field is `[SHREDDED]`
 
+*Amended 2026-10-26 (#2770): the temporal purge and the missing-key rules above read as `[SHREDDED]` only when the destruction carries an erasure reference; otherwise projection fails typed and pauses the shard.*
+
 This layered approach satisfies both compliance requirements independently.
 
 ## Consequences
@@ -186,7 +192,7 @@ This layered approach satisfies both compliance requirements independently.
 
 1. **PostgreSQL-only**: Marten requires PostgreSQL (consistent with ADR-019)
 2. **Operational complexity**: Master key management for temporal key encryption
-3. **Projection rebuild cost**: Rebuilding projections with shredded keys produces `[SHREDDED]` entries
+3. **Projection rebuild cost**: Rebuilding projections with shredded keys produces `[SHREDDED]` entries (amended 2026-10-26, #2770: only for destructions with an erasure reference; a retention-purged period fails the rebuild typed)
 4. **Return value approximation**: `PurgeEntriesAsync` count is estimated from projection, not exact
 5. **Dual encryption overhead**: When both subject and temporal keys are active, double encryption/decryption cost
 
