@@ -500,7 +500,7 @@ services.AddEncinaAspNetCore(options =>
 | Option | Default | Effect |
 | --- | --- | --- |
 | `IncludeRequestPathInProblemDetails` | `false` | Adds `instance` with the request path. |
-| `IncludeErrorMessageInProblemDetails` | `false` | When `true` and the host environment is Development, `detail` carries `EncinaError.Message` and, when the error carries an exception, the `exception` extension (type, message, stack trace) is added. In any other environment, or when no host environment can be resolved, the option is ignored (fail closed) and a warning (EventId 204) is logged once at startup. When honoured in Development, a warning (EventId 205) is logged once at startup because responses expose error messages. |
+| `IncludeErrorMessageInProblemDetails` | `false` | When `true` and the host environment is Development, `detail` carries `EncinaError.Message` and, when the error carries an exception, the `exception` extension (type, message, stack trace) is added. In any other environment, or when no host environment can be resolved, the option is ignored (fail closed) and a warning (EventId 205) is logged once at startup. When honoured in Development, a warning (EventId 206) is logged once at startup because responses expose error messages. |
 
 Claim types are not configured here; see [Request identity](#2-request-identity).
 

@@ -188,7 +188,7 @@ public sealed class ProblemDetailsMessageExposureTests
         var entry = RunStartup(option: true, environment).Entries.ShouldHaveSingleItem();
 
         entry.Level.ShouldBe(LogLevel.Warning);
-        entry.EventId.ShouldBe(204);
+        entry.EventId.ShouldBe(205);
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public sealed class ProblemDetailsMessageExposureTests
         var entry = RunStartup(option: true, environment: "Development").Entries.ShouldHaveSingleItem();
 
         entry.Level.ShouldBe(LogLevel.Warning);
-        entry.EventId.ShouldBe(205);
+        entry.EventId.ShouldBe(206);
     }
 
     [Fact]
