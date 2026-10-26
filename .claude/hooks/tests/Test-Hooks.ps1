@@ -27,9 +27,10 @@ $env:CLAUDE_PROJECT_DIR = $repo
 
 # #1926: check-issue-template also requires an existing milestone, the template's default label and a priority
 # label. The milestone list comes from a seeded cache file (ENCINA_MILESTONES_CACHE), never from the network.
+# #2823: the cache lines are `<state><TAB><number><TAB><title>` (a REST creation sends the milestone number).
 $hardening = "v0.14.0 $([char]0x2014) Hardening"
-[IO.File]::WriteAllLines((Join-Path $work 'milestones.txt'), [string[]]@("open`t$hardening", "open`tv0.21.0 - Documentation", "closed`tv0.1.0 - Old"), [Text.UTF8Encoding]::new($false))
-$env:ENCINA_MILESTONES_CACHE = Join-Path $work 'milestones.txt'
+[IO.File]::WriteAllLines((Join-Path $work 'milestones-v2.txt'), [string[]]@("open`t14`t$hardening", "open`t21`tv0.21.0 - Documentation", "closed`t1`tv0.1.0 - Old"), [Text.UTF8Encoding]::new($false))
+$env:ENCINA_MILESTONES_CACHE = Join-Path $work 'milestones-v2.txt'
 foreach ($pair in @(@('feature-ok.md', 'feature_request.md'), @('spike-ok.md', 'architecture_spike.md'))) {
     $tplHeaders = @(Get-Content -LiteralPath (Join-Path $repo ".github/ISSUE_TEMPLATE/$($pair[1])") | Where-Object { $_ -cmatch '^## \S' } | ForEach-Object { $_.Trim() })
     Set-Content (Join-Path $work $pair[0]) ('<!-- local-draft: none, reason: hook test fixture, not a drafting task -->' + "`n" + (($tplHeaders | ForEach-Object { "$_`nx" }) -join "`n"))
@@ -45,8 +46,10 @@ Set-Content (Join-Path $work 'edit-negated.md') "There is No Dilemma here, and n
 Set-Content (Join-Path $work 'edit-classfield.md') "Id: D1`nClass: Dilemma`n"
 Set-Content (Join-Path $work 'edit-settled.md')"No open design choices. D1 is Settled by AGENTS.md section 3.`n"
 # Fake gh for `gh issue edit` without a body: 9001 has a Dilemma, 9002 has none, 9003 cannot be read.
+# #2823: the milestone lookup (`gh api .../milestones`) prints the lines of $env:ENCINA_FAKE_MILESTONES when set.
 $fakeGh = Join-Path $work 'fake-gh.ps1'
 Set-Content $fakeGh @'
+if ("$args" -match 'repos/dlrivada/Encina/milestones' -and $env:ENCINA_FAKE_MILESTONES) { Get-Content -LiteralPath $env:ENCINA_FAKE_MILESTONES; exit 0 }
 if ("$args" -match 'issues/9001') { 'Dilemma D1: two valid options.'; exit 0 }
 if ("$args" -match 'issues/9002') { 'No open design choices.'; exit 0 }
 exit 1
@@ -1144,7 +1147,7 @@ try {
 
     # #1926: when the milestone lookup fails (no cache, gh unusable) the call is denied, never allowed.
     $savedCache = $env:ENCINA_MILESTONES_CACHE; $savedGh = $env:ENCINA_ISSUE_GH
-    $env:ENCINA_MILESTONES_CACHE = Join-Path $work 'no-such-dir/milestones.txt'
+    $env:ENCINA_MILESTONES_CACHE = Join-Path $work 'no-such-dir/milestones-v2.txt'
     $env:ENCINA_ISSUE_GH = Join-Path $work 'no-such-gh.exe'
     try {
         $json = @{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'gh issue create --title "[DEBT] x" --body-file debt-ok.md' + $hm } } | ConvertTo-Json -Compress
@@ -1155,7 +1158,7 @@ try {
     # #1926: a cache older than 12 hours is not trusted: with the lookup unusable the call is denied; the same
     # file made fresh again is accepted.
     $staleCache = Join-Path $work 'stale-milestones.txt'
-    Copy-Item -LiteralPath (Join-Path $work 'milestones.txt') -Destination $staleCache -Force
+    Copy-Item -LiteralPath (Join-Path $work 'milestones-v2.txt') -Destination $staleCache -Force
     (Get-Item -LiteralPath $staleCache).LastWriteTimeUtc = (Get-Date).ToUniversalTime().AddHours(-13)
     $savedCache = $env:ENCINA_MILESTONES_CACHE; $savedGh = $env:ENCINA_ISSUE_GH
     $env:ENCINA_MILESTONES_CACHE = $staleCache
@@ -1196,6 +1199,150 @@ try {
     finally {
         $env:CLAUDE_PROJECT_DIR = $savedProjectDirForOptOut
     }
+
+    # #2823: issue creation through `gh api` (REST POST on the issues endpoint) gets the checks of `gh issue
+    # create`; a GraphQL createIssue is denied. The ledger rows and templates come from $issueRoot as above.
+    Set-Content (Join-Path $work 'debt-dilemma.md') ($debt + "`nDilemma D1: two valid options, each better in a named scenario.`n")
+    Set-Content (Join-Path $work 'draft-pointer-dilemma.md') ("<!-- local-draft: artifacts/local-ai/out/case-a.md -->`n" + $debtCore + "`nDilemma D1: two valid options.`n")
+    Set-Content (Join-Path $work 'query-create.graphql') 'mutation { createIssue(input: {repositoryId: "x", title: "t"}) { issue { id } } }'
+    Set-Content (Join-Path $work 'query-viewer.graphql') 'query { viewer { login } }'
+    $restJson = @{ title = '[DEBT] x'; body = $debt; labels = @('technical-debt', 'p1-recommended'); milestone = 14 }
+    Set-Content (Join-Path $work 'rest-ok.json') ($restJson | ConvertTo-Json -Compress)
+    $restBadJson = $restJson.Clone(); $restBadJson.body = $debtCore -replace '(?m)^d\r?$', 'no local-draft evidence at all'
+    Set-Content (Join-Path $work 'rest-bad-body.json') ($restBadJson | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'rest-no-milestone.json') (@{ title = '[DEBT] x'; body = $debt; labels = @('technical-debt', 'p1-recommended') } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'rest-no-title.json') (@{ body = $debt; labels = @('technical-debt', 'p1-recommended'); milestone = 14 } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'rest-malformed.json') '{ "title": "[DEBT] x", '
+    Set-Content (Join-Path $work 'query-create.json') (@{ query = 'mutation { createIssue(input: {}) { issue { id } } }' } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'query-viewer.json') (@{ query = 'query { viewer { login } }' } | ConvertTo-Json -Compress)
+    $pipedOk = (Get-Content -LiteralPath (Join-Path $work 'rest-ok.json') -Raw).Trim()
+    # A piped JSON body is inline (no file to point evidence at, as for --body), so its non-conformance is a missing header.
+    $restPipedBadJson = $restJson.Clone(); $restPipedBadJson.body = $debt -replace '## Root Cause\r?\nr\r?\n', ''
+    $pipedBad = ($restPipedBadJson | ConvertTo-Json -Compress)
+    $ep = 'repos/dlrivada/Encina/issues'
+    $lbl = " -f 'labels[]=technical-debt' -f 'labels[]=p1-recommended'"
+    $okTitle = " -f 'title=[DEBT] x'"
+    $restCases = @(
+        # Denied: the body file has no local-draft evidence, across every spelling of a creation.
+        @("gh api $ep -X POST$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: POST without local-draft evidence'),
+        @("gh api $ep -X=POST$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: -X=POST'),
+        @("gh api $ep --method=post$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: --method=post (value case-insensitive)'),
+        @("gh api $ep --method POST -X GET$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 0, 'rest: the last method counts (GET: fields go to the query string)'),
+        @("gh api $ep -X GET -X POST$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: the last method counts (POST)'),
+        @("gh api $ep$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: implicit POST through -f/-F fields'),
+        @("gh api $ep --input rest-bad-body.json", 2, 'rest: implicit POST through --input (body without evidence)'),
+        @("gh api https://api.github.com/$ep -X POST$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: full URL'),
+        @("gh api /$ep/ -X POST$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: leading and trailing slash'),
+        @("gh api repos/DLRIVADA/encina/issues?x=1 -X POST$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: upper-case owner and a query string'),
+        @("gh api repositories/123456/issues -X POST$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: repository id form'),
+        @("gh api repos/dlrivada/%45ncina/issues -X POST$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: URL-escaped repository name'),
+        @("gh api -p x -X POST $ep$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: -p takes a value, the endpoint is still found'),
+        @("gh api `"repos/{owner}/{repo}/issues`" -X POST$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: quoted {owner}/{repo} placeholder counts as Encina'),
+        @("gh api `"repos/`$Repo/issues`" -X POST$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: variable owner/repo segments are wildcards'),
+        @("gh api -X `$m $ep$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: a variable method with a data option is judged'),
+        @("gh api `$ep -X POST$okTitle -F body=@debt-no-evidence.md$lbl -F milestone=14", 2, 'rest: a wholly variable endpoint with a POST and a title is judged'),
+        # Denied: unreadable parts fail closed on this route.
+        @("gh api $ep -X POST$okTitle -f `"body=`$b`"$lbl -F milestone=14", 2, 'rest: a variable body is denied'),
+        @("gh api $ep -X POST -f `"title=`$t`" -F body=@debt-ok.md$lbl -F milestone=14", 2, 'rest: a variable title is denied'),
+        @("gh api $ep -X POST$okTitle -F body=@no-such-file.md$lbl -F milestone=14", 2, 'rest: a missing body file is denied'),
+        @("gh api $ep -X POST$okTitle -F body=@`$f$lbl -F milestone=14", 2, 'rest: a variable body file is denied'),
+        @("gh api $ep -X POST$okTitle -F body=@-$lbl -F milestone=14", 2, 'rest: a body read from stdin that is not piped is denied'),
+        @("gh api $ep -X POST$okTitle$lbl -F milestone=14", 2, 'rest: no body is denied'),
+        @("gh api $ep -X POST -F body=@debt-ok.md$lbl -F milestone=14", 2, 'rest: no title is denied'),
+        @("gh api $ep --input rest-malformed.json", 2, 'rest: malformed --input JSON is denied'),
+        @("gh api $ep --input no-such-file.json", 2, 'rest: a missing --input file is denied'),
+        @("gh api $ep --input rest-no-title.json", 2, 'rest: --input JSON without a title is denied'),
+        @("gh api $ep --input `$f", 2, 'rest: a variable --input is denied'),
+        @("gh api $ep --input -", 2, 'rest: --input - with nothing piped is denied'),
+        @("'$pipedBad' | gh api $ep --input -", 2, 'rest: piped --input - with a body missing a template header is denied'),
+        # Denied: metadata and template checks.
+        @("gh api $ep -X POST$okTitle -F body=@debt-ok.md$lbl", 2, 'rest: no milestone is denied'),
+        @("gh api $ep -X POST$okTitle -F body=@debt-ok.md$lbl -F milestone=999", 2, 'rest: an unknown milestone number is denied'),
+        @("gh api $ep -X POST$okTitle -F body=@debt-ok.md$lbl -F milestone=1", 2, 'rest: a closed milestone number is denied'),
+        @("gh api $ep -X POST$okTitle -F body=@debt-ok.md$lbl -F `"milestone=$hardening`"", 2, 'rest: a milestone title instead of the number is denied'),
+        @("gh api $ep -X POST$okTitle -F body=@debt-ok.md -f 'labels[]=p1-recommended' -F milestone=14", 2, 'rest: the default label is missing'),
+        @("gh api $ep -X POST$okTitle -F body=@debt-ok.md -f 'labels[]=technical-debt' -F milestone=14", 2, 'rest: the priority label is missing'),
+        @("gh api $ep -X POST$okTitle -F body=@debt-ok.md -f 'labels[]=technical-debt,p1-recommended' -F milestone=14", 2, 'rest: labels are not comma-split'),
+        @("gh api $ep -X POST -f 'title=No prefix' -F body=@debt-ok.md$lbl -F milestone=14", 2, 'rest: a title without a template prefix is denied'),
+        @("gh api $ep -X POST$okTitle -F body=@debt-missing.md$lbl -F milestone=14", 2, 'rest: a body missing a template header is denied'),
+        @("gh api $ep -X POST$okTitle -F body=@draft-pointer-a.md$lbl -f 'labels[]=needs-decision' -F milestone=14", 2, 'rest: needs-decision without a Dilemma is denied (labels[] values)'),
+        @("gh api $ep --input rest-no-milestone.json", 2, 'rest: --input JSON without a milestone is denied'),
+        # Denied: GraphQL createIssue.
+        @("gh api graphql -f query='mutation { createIssue(input: {}) { issue { id } } }'", 2, 'graphql: createIssue through -f query= is denied'),
+        @("gh api graphql -F query=@query-create.graphql", 2, 'graphql: createIssue through -F query=@file is denied'),
+        @("gh api graphql --input query-create.json", 2, 'graphql: createIssue through --input is denied'),
+        @("'$((Get-Content -LiteralPath (Join-Path $work 'query-create.json') -Raw).Trim())' | gh api graphql --input -", 2, 'graphql: createIssue through a piped --input - is denied'),
+        # Allowed: a conforming creation.
+        @("gh api $ep -X POST$okTitle -F body=@draft-pointer-a.md$lbl -f milestone=14", 0, 'rest: a drafted body, labels and a known milestone (-f milestone=N)'),
+        @("gh api $ep -X POST$okTitle -F body=@draft-pointer-a.md$lbl -F milestone=14", 0, 'rest: a drafted body, labels and a known milestone (-F milestone=N)'),
+        @("gh api $ep$okTitle -F body=@debt-ok.md$lbl -F milestone=14", 0, 'rest: implicit POST with a logged opt-out body'),
+        @("gh api $ep -X POST$okTitle -F body=@draft-pointer-dilemma.md$lbl -f 'labels[]=needs-decision' -F milestone=14", 0, 'rest: needs-decision with a Dilemma in the body'),
+        @("gh api $ep -X POST$okTitle -F body=@debt-ok.md$lbl -F milestone=14 --jq .number", 0, 'rest: a conforming creation with --jq'),
+        @("gh api $ep --input rest-ok.json", 0, 'rest: --input JSON with title, body, labels and milestone'),
+        @("gh api $ep --input rest-ok.json -f title=ignored -F body=@no-such-file.md", 0, 'rest: with --input the -f/-F fields go to the query string and are ignored'),
+        @("'$pipedOk' | gh api $ep --input -", 0, 'rest: a piped --input - JSON that conforms'),
+        # Allowed: not a creation.
+        @("gh api -X=GET $ep -f state=open", 0, 'rest: -X=GET with fields (query string)'),
+        @("gh api -X `$m $ep", 0, 'rest: a variable method without fields'),
+        @("gh api $ep", 0, 'rest: GET of the issues endpoint'),
+        @("gh api $ep --jq '.[].number' --paginate", 0, 'rest: GET listing with --jq'),
+        @("gh api $ep/5/comments -X POST -f body=x", 0, 'rest: a comment is not a creation'),
+        @("gh api $ep/5/labels -X POST -f 'labels[]=x'", 0, 'rest: adding labels is not a creation'),
+        @("gh api $ep/5/sub_issues -F sub_issue_id=1", 0, 'rest: sub_issues link is not a creation'),
+        @("gh api $ep/5/dependencies/blocked_by -F issue_id=1", 0, 'rest: blocked_by link is not a creation'),
+        @("gh api $ep/5 -X PATCH -f title=x", 0, 'rest: editing an issue is not a creation'),
+        @("gh api repos/dlrivada/Encina/labels -X POST -f name=x", 0, 'rest: creating a label is not an issue creation'),
+        @("gh api `"repos/`$Repo/labels`" -X POST -f name=x", 0, 'rest: variable repository, labels endpoint'),
+        @("gh api `"repos/`$Repo/milestones/`$n`" --method PATCH -f title=x", 0, 'rest: variable repository, milestones PATCH'),
+        @("gh api `$ep -X POST -f name=x", 0, 'rest: a wholly variable endpoint without a title or body is not judged'),
+        @("gh api `$ep -X PATCH$okTitle -f 'body=x'", 0, 'rest: a wholly variable endpoint with PATCH is not a creation'),
+        @("gh api repos/other/x/issues -X POST -f title=x -f body=y", 0, 'rest: another repository is not judged'),
+        @("gh api --hostname other.example $ep -X POST -f title=x -f body=y", 0, 'rest: another host is not judged'),
+        @("gh api graphql -f query=`$q", 0, 'graphql: an unreadable query is allowed'),
+        @("gh api graphql -F query=@no-such-file.graphql", 0, 'graphql: a missing query file is allowed'),
+        @("gh api graphql -f query='query { viewer { login } }'", 0, 'graphql: another operation is allowed'),
+        @("gh api graphql -F query=@query-viewer.graphql", 0, 'graphql: another operation from a file is allowed'),
+        @("gh api graphql --input query-viewer.json", 0, 'graphql: another operation through --input is allowed'),
+        @("gh api user --jq .login", 0, 'gh api: another endpoint is not judged')
+    )
+    $savedProjectDirForRest = $env:CLAUDE_PROJECT_DIR
+    $env:CLAUDE_PROJECT_DIR = $issueRoot
+    try {
+        foreach ($case in $restCases) {
+            $command, $expected, $label = $case
+            $json = @{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = $command } } | ConvertTo-Json -Compress
+            Invoke-HookCase $issue $json $expected $label
+        }
+    }
+    finally { $env:CLAUDE_PROJECT_DIR = $savedProjectDirForRest }
+
+    # #2823: the milestone cache has three columns and a new name. An old two-column file named through
+    # ENCINA_MILESTONES_CACHE is never parsed: it is refreshed from the lookup (fresh file, usable gh) or
+    # refused (lookup unusable), and a refresh writes the three-column format.
+    $fakeMilestones = Join-Path $work 'fake-milestones.txt'
+    [IO.File]::WriteAllLines($fakeMilestones, [string[]]@("open`t14`t$hardening", "closed`t1`tv0.1.0 - Old"), [Text.UTF8Encoding]::new($false))
+    $oldCache = Join-Path $work 'old-two-column-milestones.txt'
+    $restOkCommand = "gh api $ep -X POST$okTitle -F body=@debt-ok.md$lbl -F milestone=14"
+    $restOkJson = @{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = $restOkCommand } } | ConvertTo-Json -Compress
+    $savedCache = $env:ENCINA_MILESTONES_CACHE; $savedGh = $env:ENCINA_ISSUE_GH; $savedProjectDirForCache = $env:CLAUDE_PROJECT_DIR
+    $env:CLAUDE_PROJECT_DIR = $issueRoot
+    $env:ENCINA_MILESTONES_CACHE = $oldCache
+    try {
+        [IO.File]::WriteAllLines($oldCache, [string[]]@("open`t$hardening", "closed`tv0.1.0 - Old"), [Text.UTF8Encoding]::new($false))
+        $env:ENCINA_ISSUE_GH = Join-Path $work 'no-such-gh.exe'
+        Invoke-HookCase $issue $restOkJson 2 'milestone cache: an old two-column cache is not read (lookup unusable)'
+        $env:ENCINA_ISSUE_GH = $fakeGh; $env:ENCINA_FAKE_MILESTONES = $fakeMilestones
+        Invoke-HookCase $issue $restOkJson 0 'milestone cache: an old two-column cache is refreshed from the lookup'
+        $cacheLines = @(Get-Content -LiteralPath $oldCache -Encoding utf8)
+        $refreshed = $cacheLines.Count -eq 2 -and (@($cacheLines | Where-Object { ($_ -split "`t").Count -eq 3 }).Count -eq 2) -and $cacheLines[0] -like "open`t14`t*"
+        $script:total++
+        if (-not $refreshed) { $script:failed++ }
+        "{0} [n/a] check-issue-template.ps1: {1}" -f $(if ($refreshed) { 'PASS' } else { 'FAIL' }), 'milestone cache: a refresh writes <state><TAB><number><TAB><title> lines'
+        # gh issue create reads the same three-column cache by title.
+        $ghCreateJson = @{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'gh issue create --title "[DEBT] x" --body-file debt-ok.md' + $hm } } | ConvertTo-Json -Compress
+        Invoke-HookCase $issue $ghCreateJson 0 'milestone cache: gh issue create reads the three-column cache by title'
+    }
+    finally { $env:ENCINA_MILESTONES_CACHE = $savedCache; $env:ENCINA_ISSUE_GH = $savedGh; $env:CLAUDE_PROJECT_DIR = $savedProjectDirForCache; Remove-Item Env:ENCINA_FAKE_MILESTONES -ErrorAction SilentlyContinue }
 
     foreach ($case in $spawnCases) {
         $hookAgent, $agentType, $subagentType, $expected, $label = $case
