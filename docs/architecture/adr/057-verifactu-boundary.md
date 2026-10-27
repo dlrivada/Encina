@@ -37,7 +37,7 @@ The regulation-neutral primitives are:
 | Gapless sequence, `ISequenceGenerator`, gapless per key, enlisted in the ambient transaction | REQ-045, P-36 | Planned |
 | Persistent hash-chained log with a pluggable hasher and a chain per partition | REQ-047, P-38 | Planned |
 | Outbox partitions with pacing | REQ-042, #469 | Planned |
-| The reliable outbox | REQ-017 | Shipped |
+| The reliable outbox | `Encina.Messaging` outbox ([ADR-037](037-transactional-outbox.md)); its delivery guarantee fixes are tracked by REQ-017 | Shipped |
 | The nullable `PartitionKey` column on the outbox | P-51 (REQ-042) | Planned |
 | `HashChainAttestationProvider` | [ADR-022](022-provider-agnostic-attestation.md), `src/Encina.Compliance.Attestation/Providers/HashChainAttestationProvider.cs` | Shipped |
 
