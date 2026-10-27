@@ -25,7 +25,20 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "override": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "targets": {
+        "guard": 55,
+        "property": 75
+      },
+      "justifications": {
+        "guard": "Guard tests cover the argument checks and invalid state transitions of the aggregate factory and commands.",
+        "property": "FsCheck properties run the real aggregate over generated inputs and transition sequences."
+      }
     },
     "Attributes/RequireConsentAttribute.cs": {
       "defaultTests": [
@@ -33,7 +46,13 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 40
+      },
+      "justifications": {
+        "guard": "Guard tests check the null and empty purposes guards of the constructor."
+      }
     },
     "ConsentAutoRegistrationDescriptor.cs": {
       "defaultTests": [
@@ -64,7 +83,17 @@
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods",
+      "override": [
+        "unit",
+        "property"
+      ],
+      "targets": {
+        "property": 50
+      },
+      "justifications": {
+        "property": "FsCheck properties assert over generated subject ids that no error factory puts the subject id in the message (#1350)."
+      }
     },
     "ConsentMartenExtensions.cs": {
       "defaultTests": [
@@ -72,7 +101,13 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "guard": 20
+      },
+      "justifications": {
+        "guard": "Guard test covers the null services check; the registrations need a Marten store and belong to integration tests."
+      }
     },
     "ConsentOptions.cs": {
       "defaultTests": [
@@ -88,7 +123,15 @@
         "property"
       ],
       "defaultRule": "*Validator.cs",
-      "reason": "Validation logic with invariants"
+      "reason": "Validation logic with invariants",
+      "targets": {
+        "property": 85,
+        "guard": 3
+      },
+      "justifications": {
+        "property": "FsCheck properties run the real validator over generated expiration days, enforcement modes and purpose definitions.",
+        "guard": "Guard test covers the null-options check; the validation rules are covered by the property flag."
+      }
     },
     "ConsentRequiredPipelineBehavior.cs": {
       "defaultTests": [
@@ -97,7 +140,15 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "contract": 90,
+        "guard": 12
+      },
+      "justifications": {
+        "contract": "Contract tests run the real behavior against a substituted validator and cover skip, Block, Warn, validator-failure and missing-subject fail-closed outcomes.",
+        "guard": "Guard tests check the constructor and Handle null guards only; the pipeline branches are covered by the contract flag."
+      }
     },
     "DefaultConsentValidator.cs": {
       "defaultTests": [
@@ -106,7 +157,15 @@
         "property"
       ],
       "defaultRule": "*Validator.cs",
-      "reason": "Validation logic with invariants"
+      "reason": "Validation logic with invariants",
+      "targets": {
+        "property": 95,
+        "guard": 20
+      },
+      "justifications": {
+        "property": "FsCheck properties run the real validator with a substituted consent service over generated statuses, expiries, missing records and store failures.",
+        "guard": "Guard tests check the constructor, blank subject and null purposes guards."
+      }
     },
     "Diagnostics/ConsentDiagnostics.cs": {
       "defaultTests": [
@@ -127,7 +186,13 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 25
+      },
+      "justifications": {
+        "guard": "Guard tests construct the events through the aggregate commands, running the record constructors."
+      }
     },
     "Health/ConsentHealthCheck.cs": {
       "defaultTests": [
@@ -182,7 +247,13 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "guard": 3
+      },
+      "justifications": {
+        "guard": "Guard test covers the null services check; the registrations are covered by unit DI tests."
+      }
     },
     "Services/DefaultConsentService.cs": {
       "defaultTests": [
@@ -190,7 +261,13 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 25
+      },
+      "justifications": {
+        "guard": "Guard tests check the constructor null guards and drive every operation into the tenant fail-closed gate (SPEC-002 DEC-006); the happy and error paths of the operations belong to unit tests."
+      }
     },
     "SubjectIdConversion.cs": {
       "defaultTests": [
@@ -198,7 +275,13 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 40
+      },
+      "justifications": {
+        "guard": "Guard tests check the null property guard and the unsupported subject type rejection; the conversions themselves belong to unit tests."
+      }
     }
   }
 }
