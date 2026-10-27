@@ -57,6 +57,7 @@ internal sealed class AesGcmFieldEncryptor : IFieldEncryptor
     private const int KeySizeInBytes = 32;
 
     private readonly IKeyProvider _keyProvider;
+    private readonly Action<byte[]> _fillNonce;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AesGcmFieldEncryptor"/> class.
@@ -64,8 +65,20 @@ internal sealed class AesGcmFieldEncryptor : IFieldEncryptor
     /// <param name="keyProvider">The key provider used to retrieve encryption keys.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="keyProvider"/> is null.</exception>
     public AesGcmFieldEncryptor(IKeyProvider keyProvider)
+        : this(keyProvider, fillNonce: null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance with a replaceable nonce source, so tests can make the
+    /// encryption primitive fail (no real input makes <c>AesGcm.Encrypt</c> throw).
+    /// </summary>
+    /// <param name="keyProvider">The key provider used to retrieve encryption keys.</param>
+    /// <param name="fillNonce">Fills the nonce buffer; defaults to <see cref="RandomNumberGenerator.Fill(Span{byte})"/>.</param>
+    internal AesGcmFieldEncryptor(IKeyProvider keyProvider, Action<byte[]>? fillNonce)
     {
         _keyProvider = keyProvider ?? throw new ArgumentNullException(nameof(keyProvider));
+        _fillNonce = fillNonce ?? (static nonce => RandomNumberGenerator.Fill(nonce));
     }
 
     /// <inheritdoc />
@@ -154,7 +167,7 @@ internal sealed class AesGcmFieldEncryptor : IFieldEncryptor
         {
             // Generate cryptographic nonce
             var nonce = new byte[NonceSizeInBytes];
-            RandomNumberGenerator.Fill(nonce);
+            _fillNonce(nonce);
 
             var ciphertext = new byte[plaintext.Length];
             var tag = new byte[TagSizeInBytes];
@@ -181,7 +194,7 @@ internal sealed class AesGcmFieldEncryptor : IFieldEncryptor
         catch (CryptographicException ex)
         {
             return Left<EncinaError, EncryptedValue>(
-                EncryptionErrors.DecryptionFailed(keyId, exception: ex));
+                EncryptionErrors.EncryptionFailed(keyId, ex));
         }
     }
 
