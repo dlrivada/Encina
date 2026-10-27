@@ -6,7 +6,7 @@
 
 ## Context
 
-Only `src/Encina/Encina.csproj` is mutated. `.github/stryker-config.json` sets `"project": "Encina.csproj"`, and every shard of `.github/workflows/mutation-tests.yml` mutates a slice of that project (the comment above the `select-matrix` job says so). The mutation dashboard on 2026-10-25 showed `packagesInScope` 1 of 106 and 13 files in scope.
+Only `src/Encina/Encina.csproj` is mutated. `.github/stryker-config.json` sets `"project": "Encina.csproj"`, and every shard of `.github/workflows/mutation-tests.yml` mutates a slice of that project (the comment above the `select-matrix` job says so). The mutation dashboard on 2026-10-25 showed a single package in scope.
 
 No document said which packages must be mutated. [AGENTS.md](../../../AGENTS.md) section 9 ("Mutation score is per file with no project-wide target") and [SPEC-000](../../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-008 cover reproducibility and the absence of a score threshold, not scope. The [mutation measurement methodology](../../testing/mutation-measurement-methodology.md) described the core-only run without justifying it, and no ADR decided it.
 
@@ -25,7 +25,7 @@ A package enters the mutation scope if it contains any of:
 1. a fail-closed gate (AGENTS.md section 3, compliance and security gates);
 2. security or personal-data handling;
 3. a state machine or concurrency;
-4. high cyclomatic complexity.
+4. high cyclomatic complexity (the same measure as the CRAP gate of AGENTS.md section 9).
 
 No numeric threshold is defined. The judgement is made per package and recorded with its reason.
 
