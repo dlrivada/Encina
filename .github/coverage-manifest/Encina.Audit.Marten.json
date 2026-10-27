@@ -314,6 +314,24 @@
         "unit": "The options defaults are asserted in unit tests."
       }
     },
+    "MartenOperationAuditOptionsValidator.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "integration": 100
+      },
+      "justifications": {
+        "unit": "Unit tests cover null, named and blank policy ids (measured 100%).",
+        "guard": "Internal type: the guard test project has no access to it; the null check is asserted by a unit test.",
+        "integration": "Every integration test builds the options through the validated registration (measured 100%)."
+      }
+    },
     "MartenOperationAuditRetentionService.cs": {
       "defaultTests": [
         "unit",
@@ -402,6 +420,24 @@
         "guard": "The read model's property guards are asserted by the guard tests."
       }
     },
+    "Projections/AuditProjectionErrorPolicyStartupGuard.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "integration": 80
+      },
+      "justifications": {
+        "unit": "Unit tests drive every branch of the guard with a substituted store and with a real Marten store built by the container (measured 100%).",
+        "guard": "Internal type: the guard test project has no access to it; its constructor null checks and its branches are asserted by unit tests.",
+        "integration": "Integration tests start the guard against a real Marten store built by the container, with the flags set before and after the audit registration, left at Marten's defaults, and with the explicit opt-out (measured 83.7%); the remaining lines are the unverifiable-options branch, which needs a store whose options are not StoreOptions."
+      }
+    },
     "Projections/AuditTimestamps.cs": {
       "defaultTests": [
         "unit",
@@ -480,12 +516,14 @@
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
       "targets": {
-        "unit": 81,
-        "guard": 4
+        "unit": 85,
+        "guard": 4,
+        "integration": 75
       },
       "justifications": {
-        "unit": "Unit tests build the provider for the Marten audit registration and resolve its stores (measured 81.8%); this change only edits XML documentation.",
-        "guard": "Guard tests only reach the null check of the registration method (measured 4.5%); this change only edits XML documentation."
+        "unit": "Unit tests build the provider for the Marten audit registration, resolve its stores, the startup guard and the options validation (measured 85.4%).",
+        "guard": "Guard tests only reach the null check of the registration method (measured 4.9%); the options validation and the guard are internal.",
+        "integration": "Integration tests register the audit services over a real Marten store, in both orders with the application's Marten configuration (measured 78%)."
       }
     },
     "TemporalKeyGranularity.cs": {
