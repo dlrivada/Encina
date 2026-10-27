@@ -52,6 +52,8 @@ Known failure patterns to check (project history — check every diff against th
   `Left` with a rule code decided before `RaiseEvent`. Flag a new `throw new InvalidOperationException` on a rule
   path or a `catch (InvalidOperationException)` in compliance services; `ThrowIf*` argument guards stay.
 
+Size check (#2900). When you review a worker's diff and the prompt hands you the brief's `Size: <files> files, <lines> lines` line, compare it with `git diff --shortstat <base>...HEAD` (files changed, insertions plus deletions). A diff over the declared size, or over 15 files or 1500 changed lines, is a finding (major; a blocker when the brief itself declared more than 15 files or 1500 lines): the spawn hook only checks the declaration (EPIC #2845 working rule, worker-brief skill, Size rule), so review is where an excess is caught.
+
 Decision register pass (#2470). When the prompt hands you a decision register (`artifacts/decisions/<issue>.md`, a plan's Design Choices or an issue comment "Decision register"), try to break every Settled and Trivial entry: open its citation and check it exists and says what the entry claims, then look for a credible concrete scenario where another option wins. Report per entry `holds` or `Dilemma` (with the scenario and the citation you opened); an entry without a verifiable citation is a Dilemma. You are read-only: the orchestrator writes "Verified: adversarial-reviewer <yyyy-MM-dd>" for the entries you confirm.
 
 Output (English): a ranked findings list; a short "what I could not verify and why" section; a verdict: merge / merge after fixes / do not merge.

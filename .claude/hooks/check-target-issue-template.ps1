@@ -10,11 +10,24 @@
 # the title prefix and read at run time from .github/ISSUE_TEMPLATE. The body must contain every level-2 header
 # of the template verbatim (case included) and in order. Closed issues are checked the same way.
 #
+# Second gate, size (#2900; EPIC #2845 working rule: a ready sub-issue is one worker PR). After the template
+# check the hook denies (1) an issue whose title starts with [EPIC] (an EPIC is never briefed), (2) a brief
+# without a line "Size: <files> files, <lines> lines", (3) a declared size over $MaxFiles files or $MaxLines
+# lines or below 1 file, and (4) an issue whose "## Component Affected" (infrastructure template) or
+# "## Location" (technical-debt template) section names more distinct backticked paths than $MaxFiles or than
+# the brief declares. The hook cannot measure the real diff; the declaration is the contract and review
+# (adversarial-reviewer) compares it with git diff --shortstat.
+#
 # Fails closed: no "Issue #<n>", a gh failure, an unknown title prefix, an unreadable template or a missing
 # shared helper all deny. Exit code 2 blocks the call and shows stderr to Claude; an unreadable hook payload
 # (not JSON) allows, since the agent type cannot be judged.
 
 $ErrorActionPreference = 'Stop'
+
+# Worker PR limits, EPIC #2845 "Child Issues" working rule ("about 15 files or fewer, about 1500 lines or fewer")
+# turned into hard limits (#2900).
+$MaxFiles = 15
+$MaxLines = 1500
 
 try {
     . (Join-Path $PSScriptRoot '_read-payload.ps1')
@@ -121,6 +134,40 @@ try {
         if ($outOfOrder.Count -gt 0) { $problems.Add("out of order: $($outOfOrder -join ' | ')") }
         [Console]::Error.WriteLine("Blocked: issue #$number ($prefix) does not follow .github/ISSUE_TEMPLATE/$($template.File) -- $($problems -join '; '). Rewrite the body to the template (headers verbatim and in order, content preserved and re-checked against today's code) before the brief; no issue moves forward without it (maintainer decision 2026-10-07, #1980).")
         exit 2
+    }
+
+    # Size gate (#2900), second check of this hook. The title is already in memory, so no second gh call.
+    if ($prefix.Value -eq '[EPIC]') {
+        [Console]::Error.WriteLine("Blocked: issue #$number is an [EPIC] ($title); an EPIC is never briefed; brief one of its ready sub-issues (EPIC #2845 working rule, #2900).")
+        exit 2
+    }
+    $size = [regex]::Match($prompt, '(?m)^\s*Size:\s*(?<files>\d+)\s+files?,\s*(?<lines>\d+)\s+lines?\b')
+    if (-not $size.Success) {
+        [Console]::Error.WriteLine("Blocked: the brief for a $subagent must state its size on a line `"Size: <files> files, <lines> lines`" (worker-brief skill, section 1 'Size rule'); a ready sub-issue is one worker PR: at most $MaxFiles files and $MaxLines changed lines (#2900).")
+        exit 2
+    }
+    $declaredFiles = [bigint]::Parse($size.Groups['files'].Value)
+    $declaredLines = [bigint]::Parse($size.Groups['lines'].Value)
+    if ($declaredFiles -lt 1 -or $declaredFiles -gt $MaxFiles -or $declaredLines -gt $MaxLines) {
+        [Console]::Error.WriteLine("Blocked: the brief for issue #$number declares $declaredFiles files and $declaredLines lines; a worker PR is at least 1 file, at most $MaxFiles files and $MaxLines changed lines. Decompose the issue into sub-issues of one package or provider each (EPIC #2845 working rule), then brief the sub-issue (#2900).")
+        exit 2
+    }
+
+    # The paths the issue itself names (backticked dir/.../name.ext tokens in its file-list section) tie the
+    # declaration to the issue text, so the brief alone cannot understate the size. An issue whose template has
+    # neither section skips this check.
+    $fileSection = [regex]::Match([string]$issue.body, '(?ms)^##[ \t]+(?:Component Affected|Location)[ \t]*\r?\n(?<s>.*?)(?=^##[ \t]|\z)')
+    if ($fileSection.Success) {
+        $paths = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        foreach ($token in [regex]::Matches($fileSection.Groups['s'].Value.Replace('\', '/'), '`(?<p>[^`\s*<>]+/[^`\s*<>/]*\.[A-Za-z0-9]+)`')) { [void]$paths.Add($token.Groups['p'].Value) }
+        if ($paths.Count -gt $MaxFiles) {
+            [Console]::Error.WriteLine("Blocked: the issue lists $($paths.Count) files; decompose it (a worker PR is at most $MaxFiles files, EPIC #2845 working rule, #2900).")
+            exit 2
+        }
+        if ($declaredFiles -lt $paths.Count) {
+            [Console]::Error.WriteLine("Blocked: the brief declares $declaredFiles files but the issue lists $($paths.Count); declare the real size or decompose the issue (#2900).")
+            exit 2
+        }
     }
     exit 0
 }
