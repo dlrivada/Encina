@@ -474,6 +474,81 @@ Every cell is colored by the pass/warn/fail rules above. Cells with no data (fla
 
 **Packages that are "not measured".** The package list is seeded from the manifest files in `.github/coverage-manifest/` (every file except `defaults.json`), and the measured file results are joined onto it. A package that has a manifest but no Cobertura data for any of its files under any applicable flag is reported with `measured: false` in `encina-coverage-summary.json` and `latest.json`, and is listed in the top-level `unmeasuredPackages` array (omitted when empty). The dashboard shows it as "not measured" in one cell and lists it in the "Packages Not Measured" warning block; it is never shown as 0% and never counted as met, and it adds no obligations, so the overall ratios do not change. A measured 0% and a missing measurement are different facts: the first means the tests ran and covered nothing, the second means no coverage data arrived. The report also prints a warning naming each such package, and `dotnet run --file .github/scripts/coverage-report.cs -- --check-unmeasured [--input <dir>]` writes the normal outputs and then exits 1 listing them (it also exits 1 when the input directory is missing or no manifest loads). The maintainer decided on 2026-10-26 that a package without coverage data must fail CI ([#2827](https://github.com/dlrivada/Encina/issues/2827)); the check is not wired into CI yet, which is tracked in [#2896](https://github.com/dlrivada/Encina/issues/2896).
 
+## Flag assignment check (--check-flag-assignment)
+
+This section is for maintainers who see a flag's package row read 0 or low although that flag's tests run. It explains why that happens and how to find and fix the cause.
+
+### Why a flag can run tests and still read 0
+
+The default report computes a flag's package row only over the files whose manifest entry lists that flag: the file's `override`, or `defaultTests` when it has no override. A file missing from the manifest gets unit and guard. A test project can therefore execute real package code in files that are not assigned to its flag. Those lines count nowhere, so the flag's package row can stay at 0 or low while the tests pass.
+
+The check finds these gaps. For every package and flag it lists each source file whose lines that flag executes (hits above 0) but that the manifest does not assign to the flag, with the executed and total instrumented lines.
+
+A file counts as assigned to a flag when either condition holds:
+
+- the flag is in the file's `override` (or in `defaultTests` when there is no override);
+- the flag has a per-file target in the file's entry, even a target of 0.
+
+The check skips a package without a manifest, a generated file (path under `/obj/` or ending in `.g.cs`), a file with no executed line, and a file the manifest excludes on purpose (an empty `override` and no targets).
+
+### Run it
+
+Run the tests of each flag first, as in [Per-file targets and justifications](#per-file-targets-and-justifications), so that the top folder of every Cobertura report names its flag (`UnitTests`, `GuardTests`, `ContractTests`, `PropertyTests`, `IntegrationTests`). Then, from the repository root:
+
+```powershell
+dotnet run --file .github/scripts/coverage-report.cs -- --check-flag-assignment [--min-lines <n>] [--input <dir>] [--output <dir>]
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--input` | `artifacts/test-results` | Folder with the per-flag Cobertura files |
+| `--output` | `artifacts/coverage` | Folder where `flag-assignment.json` is written |
+| `--min-lines` | `5` | Whole number of 1 or more. The limit is inclusive: a file with exactly `n` executed lines fails |
+
+### Read the output
+
+The output is plain text: a header line, a table ordered by executed lines (largest first), the path of the JSON file and, on failure, a `Fix:` line. Pairs under the threshold are marked `(below --min-lines)`. The JSON file has the fields `minLines`, `pairs`, `failing` and `files[]`; each entry of `files` has `package`, `flag`, `file`, `executedLines`, `totalLines` and `failing`.
+
+This is illustrative output from contract, guard and unit runs filtered to the caching packages. The real run printed more rows; they are trimmed here.
+
+```text
+FLAG ASSIGNMENT: 33 file/flag pair(s) execute lines under a flag the manifest does not assign; 18 at or above --min-lines 5
+  Package                              Flag         Executed  Total  File
+  Encina.Security.ABAC                 contract           74    147  Persistence/CachingPolicyStoreDecorator.cs
+  Encina.Caching                       guard              18     20  Configuration/CachingOptions.cs
+  Encina.Caching                       contract            1      1  Abstractions/IQueryCacheKeyGenerator.cs  (below --min-lines)
+  JSON:     artifacts\flag-assign\flag-assignment.json
+  Fix: assign the flag in the manifest with a per-file target and justification when the tests are real, or replace reflection-only tests.
+```
+
+| Exit code | When |
+|---|---|
+| 0 | No file reaches `--min-lines`, including when nothing is unassigned |
+| 1 | At least one file reaches `--min-lines` |
+| 1 | The check cannot run: no manifest loaded, a manifest failed to parse, no Cobertura data found, input folder missing, invalid `--min-lines`, or combined with another `--check-*` mode (it runs as its own step) |
+
+### Fix a gap
+
+```mermaid
+flowchart TD
+    A[Row in the output] --> B{Do the tests exercise the file on purpose?}
+    B -->|Yes, real tests| C[Assign the flag in the manifest entry]
+    B -->|Only reflection-only or incidental| D{Is the execution an obligation?}
+    D -->|Yes| E[Replace them with tests of the file behaviour]
+    D -->|No| F[Leave the file unassigned]
+    C --> G[Re-run the check]
+    E --> G
+    F --> G
+```
+
+1. If the tests are real, assign the flag in the manifest entry: add it to the `override`, or give the file a per-file target for the flag with a one-sentence justification. A target alone also assigns the flag.
+2. If the executed lines come only from reflection-only or incidental tests, replace them with tests that exercise the file's behaviour, or leave the file unassigned when the incidental execution is not an obligation.
+3. Re-run the check.
+
+Worked example: [#2920](https://github.com/dlrivada/Encina/issues/2920) and [PR #2924](https://github.com/dlrivada/Encina/pull/2924). In `Encina.Compliance.Consent` the contract, guard and property rows read 0 or low because the tests executed files the manifest did not assign to those flags. The fix was real tests for the assigned files plus per-file targets, justifications and overrides.
+
+The check is not wired into CI yet ([#2935](https://github.com/dlrivada/Encina/issues/2935)). Running it over all candidate pairs and fixing them is [#2936](https://github.com/dlrivada/Encina/issues/2936).
+
 ## CRAP (Change Risk Anti-Patterns)
 
 CRAP is a per-method risk score computed alongside the obligations model, from the same Cobertura data. It answers a different question than the rest of this document: not "is this file covered to its target?" but "is this specific method both complex and undertested?" — the combination that produces bugs no one notices until production.
