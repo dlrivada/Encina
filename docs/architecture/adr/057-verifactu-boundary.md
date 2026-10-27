@@ -67,7 +67,7 @@ At `src/`, plus an allow-list of files that may name the regulation: this ADR, S
 
 ### No AEAT or DGT consultation (D17)
 
-No AEAT or DGT consultation was sought, and no dated follow-up is set (sine die). The research notes make a written AEAT answer a precondition only before a Verifactu-specific package ships (H, line 114), and Encina ships none. SPEC-002 section 3.6 keeps the conditional trigger: if an AEAT answer on component producers ever arrives, section 3 is re-verified by pull request within 30 days (REQ-025).
+No AEAT or DGT consultation was sought, and no dated follow-up is set (sine die). The research notes make a written AEAT answer a precondition only before a Verifactu-specific package ships (H, line 114), and Encina ships none. The re-verification trigger of SPEC-002 section 3.6 ("an AEAT answer on component producers, if P-24 seeks one") therefore stays dormant; if an answer is ever obtained, section 3 is re-verified by pull request within 30 days (REQ-025).
 
 ### Where the boundary is published (D23)
 
@@ -122,6 +122,8 @@ The open points of SPEC-002 section 12 question 7 are recorded here as risks:
 - [SPEC-002](../../specifications/SPEC-002-eu-regulatory-readiness.md): DEC-002, INV-004, REQ-042, REQ-045, REQ-047, section 12 question 7
 - [SPEC-002 research note H](../../specifications/research/SPEC-002/H-integrations-law.md): the Verifactu analysis and U1 to U3
 - [ADR-022](022-provider-agnostic-attestation.md): `HashChainAttestationProvider`
+- SPEC-002 section 13.2 defines the P-n ids used above (P-24, P-27, P-31, P-36, P-38, P-44, P-51)
+- The D-numbers (D8 to D23) are the decision labels of the register in the [#1226 body](https://github.com/dlrivada/Encina/issues/1226) and the maintainer's [decision comment](https://github.com/dlrivada/Encina/issues/1226#issuecomment-6439624866)
 - Issues: [#1226](https://github.com/dlrivada/Encina/issues/1226), [#469](https://github.com/dlrivada/Encina/issues/469)
 
 ## Date
