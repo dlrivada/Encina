@@ -149,21 +149,7 @@ public static class MessagingServiceCollectionExtensions
         RecoverabilityServiceCollectionExtensions.RegisterErrorClassifier(services, config.RecoverabilityOptions);
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(RecoverabilityPipelineBehavior<,>));
 
-        RegisterDelayedRetries(services, config.RecoverabilityOptions);
-    }
-
-    /// <summary>
-    /// Registers the delayed retry scheduler and processor when
-    /// <see cref="RecoverabilityOptions.EnableDelayedRetries"/> is enabled.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="options">The recoverability options.</param>
-    private static void RegisterDelayedRetries(IServiceCollection services, RecoverabilityOptions options)
-    {
-        if (!options.EnableDelayedRetries) return;
-
-        services.TryAddScoped<IDelayedRetryScheduler, DelayedRetryScheduler>();
-        services.AddHostedService<DelayedRetryProcessor>();
+        RecoverabilityServiceCollectionExtensions.RegisterDelayedRetries(services, config.RecoverabilityOptions);
     }
 
     /// <summary>

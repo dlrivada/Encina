@@ -91,7 +91,7 @@ public class RecoverabilityGuardTests
         options.DelayedRetries.ShouldNotBeEmpty();
         options.UseJitter.ShouldBeTrue();
         options.MaxJitterPercent.ShouldBeGreaterThan(0);
-        options.EnableDelayedRetries.ShouldBeTrue();
+        options.EnableDelayedRetries.ShouldBeFalse();
         options.UseExponentialBackoffForImmediateRetries.ShouldBeTrue();
     }
 

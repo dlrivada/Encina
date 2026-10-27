@@ -90,20 +90,22 @@ public sealed class MessagingServiceCollectionExtensionsRecoverabilityTests
     }
 
     [Fact]
-    public void AddMessagingServices_UseRecoverabilityTrueWithDelayedRetriesDisabled_DoesNotRegisterDelayedRetryProcessor()
+    public void AddMessagingServices_UseRecoverabilityTrueWithDefaults_DoesNotRegisterDelayedRetryProcessorNorScheduler()
     {
-        var config = new MessagingConfiguration { UseRecoverability = true };
-        config.RecoverabilityOptions.EnableDelayedRetries = false;
-
-        var services = AddMessagingServices(config);
+        // Delayed retries are off by default (#2248): only the (no-op) startup check is registered.
+        var services = AddMessagingServices(new MessagingConfiguration { UseRecoverability = true });
 
         services.ShouldNotContain(sd =>
             sd.ServiceType == typeof(IHostedService) &&
             sd.ImplementationType == typeof(DelayedRetryProcessor));
+        services.ShouldNotContain(sd => sd.ServiceType == typeof(IDelayedRetryScheduler));
+        services.ShouldContain(sd =>
+            sd.ServiceType == typeof(IHostedService) &&
+            sd.ImplementationType == typeof(DelayedRetryStartupCheck));
     }
 
     [Fact]
-    public void AddMessagingServices_UseRecoverabilityTrueWithDelayedRetriesEnabled_RegistersDelayedRetryProcessorAndScheduler()
+    public void AddMessagingServices_UseRecoverabilityTrueWithDelayedRetriesEnabled_RegistersCheckSchedulerAndProcessor()
     {
         var config = new MessagingConfiguration { UseRecoverability = true };
         config.RecoverabilityOptions.EnableDelayedRetries = true;
@@ -111,9 +113,12 @@ public sealed class MessagingServiceCollectionExtensionsRecoverabilityTests
         var services = AddMessagingServices(config);
 
         services.ShouldContain(sd => sd.ServiceType == typeof(IDelayedRetryScheduler));
-        services.ShouldContain(sd =>
-            sd.ServiceType == typeof(IHostedService) &&
-            sd.ImplementationType == typeof(DelayedRetryProcessor));
+        var hosted = services
+            .Where(sd => sd.ServiceType == typeof(IHostedService))
+            .Select(sd => sd.ImplementationType)
+            .ToList();
+        hosted.ShouldContain(typeof(DelayedRetryProcessor));
+        hosted.IndexOf(typeof(DelayedRetryStartupCheck)).ShouldBeLessThan(hosted.IndexOf(typeof(DelayedRetryProcessor)));
     }
 
     #region Stub Types (minimal implementations for generic constraints)

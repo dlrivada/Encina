@@ -119,12 +119,8 @@ public sealed class DelayedRetryProcessor : BackgroundService
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
 
-        var store = scope.ServiceProvider.GetService<IDelayedRetryStore>();
-        if (store is null)
-        {
-            DelayedRetryProcessorLog.StoreNotConfigured(_logger);
-            return;
-        }
+        // The startup check guarantees the store when delayed retries are on; a missing one is an error.
+        var store = scope.ServiceProvider.GetRequiredService<IDelayedRetryStore>();
 
         var encina = scope.ServiceProvider.GetService<IEncina>();
         if (encina is null)
@@ -725,12 +721,6 @@ internal static partial class DelayedRetryProcessorLog
         Level = LogLevel.Error,
         Message = "Error during delayed retry processing")]
     public static partial void ProcessingError(ILogger logger, Exception ex);
-
-    [LoggerMessage(
-        EventId = 2848,
-        Level = LogLevel.Warning,
-        Message = "IDelayedRetryStore not configured - delayed retries disabled")]
-    public static partial void StoreNotConfigured(ILogger logger);
 
     [LoggerMessage(
         EventId = 2849,

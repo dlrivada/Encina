@@ -200,7 +200,8 @@ services.AddEncinaMessaging(config =>
         ImmediateRetryDelay = TimeSpan.FromMilliseconds(100),
         UseExponentialBackoffForImmediateRetries = true,
 
-        // Delayed retries (persistent, scheduled)
+        // Delayed retries (persistent, scheduled). Off by default; turning them on
+        // requires an IDelayedRetryStore and an IDelayedRetryMessageFactory (see below)
         EnableDelayedRetries = true,
         DelayedRetries = [
             TimeSpan.FromSeconds(30),
@@ -222,7 +223,28 @@ services.AddEncinaMessaging(config =>
         }
     };
 });
+
+// Required because EnableDelayedRetries is true: register the store and its message factory
+// (before or after the call above, in any order). Your own implementations, or a database
+// provider package; no provider store exists yet (#594).
+services.AddEncinaDelayedRetryStore<MyDelayedRetryStore, MyDelayedRetryMessageFactory>();
 ```
+
+**Delayed retries are off by default** (`RecoverabilityOptions.EnableDelayedRetries` is `false`). With the default, a failing message gets the immediate retries and then goes to the dead letter queue, and no delayed retry store is needed:
+
+```csharp
+services.AddEncinaMessaging(config =>
+{
+    config.UseRecoverability = true;
+    config.RecoverabilityOptions = new RecoverabilityOptions
+    {
+        ImmediateRetries = 3,
+        // EnableDelayedRetries stays false: immediate retries + dead letter only
+    };
+});
+```
+
+When `EnableDelayedRetries` is `true`, an `IDelayedRetryStore` and an `IDelayedRetryMessageFactory` must be registered, even if `DelayedRetries` is empty: the flag alone decides. Otherwise the application fails at startup with an `InvalidOperationException` that names what is missing, [ADR-050](../../docs/architecture/adr/050-modules-may-require-modules.md) and the fix. Without a generic host, the failure happens when the scheduler or the behavior is resolved. The startup check is interim and moves into the requirements validator of [#2382](https://github.com/dlrivada/Encina/issues/2382).
 
 **Error Classification**:
 
