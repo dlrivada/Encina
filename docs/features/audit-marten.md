@@ -18,8 +18,9 @@ Unlike the 13 database providers (ADO.NET, Dapper, EF Core, MongoDB) which store
 |------------|---------|-------------|-------------------------------|
 | **SOX** | Section 404 | Immutable audit trail of internal controls | Append-only event streams cannot be modified or deleted |
 | **NIS2** | Art. 10 | Logging with integrity guarantees | Event stream integrity preserved even after crypto-shredding |
-| **GDPR** | Art. 5(1)(e) | Data minimization — storage limitation | Temporal key destruction renders PII unreadable after the retention period; projecting those periods again fails typed, see [Recover from an unreadable audit event](#recover-from-an-unreadable-audit-event) |
-| **GDPR** | Art. 17 | Right to erasure | Temporal key destruction recorded with an erasure reference (`[SHREDDED]`) achieves provable erasure; a retention purge records none |
+| **GDPR** | Art. 5(1)(e) | Data minimization — storage limitation | Temporal key destruction renders PII unreadable after the retention period; the marker records a retention reference and the fields read `[EXPIRED]`, see [Retention expiry reads [EXPIRED]](#retention-expiry-reads-expired) |
+| **GDPR** | Art. 5(2) | Accountability | The destroyed-key marker records why a field is unreadable: an erasure reference or a retention reference |
+| **GDPR** | Art. 17 | Right to erasure | Temporal key destruction recorded with an erasure reference (`[SHREDDED]`) achieves provable erasure; a retention purge records a retention reference instead and reads `[EXPIRED]` |
 | **HIPAA** | Section 164.312(b) | Audit controls | Comprehensive access tracking with configurable retention |
 | **PCI-DSS** | Req. 10.2 | Logging and monitoring | Full audit trail of cardholder data operations |
 
@@ -74,7 +75,7 @@ Encrypts: `UserId`, `IpAddress`, `UserAgent`, `RequestPayload`, `ResponsePayload
 
 Plaintext: `Action`, `EntityType`, `EntityId`, `Outcome`, `TimestampUtc`, `CorrelationId`, `TenantId`, `RequestPayloadHash`.
 
-After key destruction, compliance officers can still see "someone did X to entity Y at time Z" without knowing who, in read-model entries that were already projected. Retention purge shows no `[SHREDDED]` placeholder: `[SHREDDED]` appears only when the destroyed marker carries an erasure reference. Projecting an event whose key was destroyed without an erasure reference fails instead (see [Recover from an unreadable audit event](#recover-from-an-unreadable-audit-event)).
+After key destruction, compliance officers can still see "someone did X to entity Y at time Z" without knowing who, in read-model entries that were already projected. A retention purge shows `[EXPIRED]` (option `MartenOperationAuditOptions.ExpiredPlaceholder`, default `[EXPIRED]`), never `[SHREDDED]`: `[SHREDDED]` appears only when the destroyed marker carries an erasure reference. Projecting an event whose key was destroyed without any reference fails instead (see [Recover from an unreadable audit event](#recover-from-an-unreadable-audit-event)).
 
 ### AllFields
 
@@ -117,11 +118,16 @@ The encryption overhead represents **< 1%** of total audit recording cost (Postg
 
 ## Recover from an unreadable audit event
 
-This section is for the operator of an application that uses `Encina.Audit.Marten` and whose audit read models have stopped updating. It shows how to recognise the cause, repair it and rebuild the projection. Background: [ADR-020](../architecture/adr/020-temporal-crypto-shredding-audit-store.md) describes the temporal crypto-shredding audit store, and [ADR-034](../architecture/adr/034-crypto-shredding-through-the-stj-contract.md) the fail-closed reads of the per-subject store. The behaviour described here was decided in issue #2770 and narrows ADR-020 where it says any destroyed key reads as `[SHREDDED]`; ADR-020 carries a dated amendment note, and no separate ADR records it yet.
+This section is for the operator of an application that uses `Encina.Audit.Marten` and whose audit read models have stopped updating. It shows how to recognise the cause, repair it and rebuild the projection. Background: [ADR-020](../architecture/adr/020-temporal-crypto-shredding-audit-store.md) describes the temporal crypto-shredding audit store, and [ADR-034](../architecture/adr/034-crypto-shredding-through-the-stj-contract.md) the fail-closed reads of the per-subject store. The behaviour described here was decided in issue #2770 and narrows ADR-020 where it says any destroyed key reads as `[SHREDDED]`; ADR-020 carries dated amendment notes, and no separate ADR records it yet.
 
 ### What happens
 
-When the projection reads an event whose encrypted field cannot be read, it throws `EncryptedFieldDecryptionException` and Marten's async daemon pauses that shard. Encina chooses integrity before availability: damaged or unexplained audit data is never shown as plaintext and never shown as erased. Only a key destruction recorded together with a complete erasure request reference (`ErasureReference`: `RequestId`, `RequestedAtUtc`, `Actor`; `TemporalKeyDestroyedMarker.HasErasureReference()` requires a non-blank request id and actor and a non-default request date) reads as the `[SHREDDED]` placeholder, because a lawful erasure must be provable.
+When the projection reads an event whose encrypted field cannot be read for an unexplained reason, it throws `EncryptedFieldDecryptionException` and Marten's async daemon pauses that shard. Encina chooses integrity before availability: damaged or unexplained audit data is never shown as plaintext and never shown as erased. A key destruction is explained only by a reference stored in the destroyed-key marker (`TemporalKeyDestroyedMarker`), and a destruction carries exactly one kind of reference (`KeyDestructionReference` is a closed record with two derivations):
+
+- `ErasureReference` (`RequestId`, `RequestedAtUtc`, `Actor`): a recorded erasure request. The field reads `[SHREDDED]` (`IsShredded = true`) and the shard keeps running, because a lawful erasure must be provable. `HasErasureReference()` requires a non-blank request id and actor and a non-default request date.
+- `RetentionReference` (`PolicyId`, `CutoffUtc`, `ExecutedAtUtc`, `Actor`): a retention policy execution. The field reads `[EXPIRED]` (`IsExpired = true`) and the shard keeps running. `HasRetentionReference()` requires all four values.
+
+`TemporalKeyDestroyedMarker.Classify()` returns a `KeyDestructionKind`: `Erasure`, `Retention`, or `Unrecorded` (neither reference, or both, which a marker never carries unless it is damaged or tampered with). `DestroyKeysBeforeAsync` returns `Left` with `audit.marten.invalid_erasure_reference` or `audit.marten.invalid_retention_reference` for an incomplete reference and destroys nothing. Why retention expiry is an expected event and not a fault: GDPR Art. 5(1)(e) (storage limitation), while the marker still answers why a field is unreadable (Art. 5(2)).
 
 ```mermaid
 flowchart TD
@@ -129,8 +135,9 @@ flowchart TD
     B -- "active key" --> C{"Envelope and tag valid?"}
     C -- "yes" --> D["Plaintext projected"]
     C -- "no" --> F["EncryptedFieldDecryptionException<br/>shard paused"]
-    B -- "destroyed marker with ErasureReference" --> E["[SHREDDED] projected"]
-    B -- "destroyed marker without ErasureReference" --> F
+    B -- "destroyed marker with only an ErasureReference" --> E["[SHREDDED] projected<br/>shard keeps running"]
+    B -- "destroyed marker with only a RetentionReference" --> H["[EXPIRED] projected<br/>shard keeps running"]
+    B -- "destroyed marker with no reference, or with both" --> F
     B -- "no key and no marker" --> G["KeyNotFoundException<br/>shard paused"]
 ```
 
@@ -149,13 +156,13 @@ The shards are `OperationAuditEntryProjection:All` and `ReadAuditEntryProjection
 | `NotEncrypted` | The value has no `__enc` marker although every stored value should be encrypted | Find out how plaintext got into the event, then restore the data |
 | `InvalidKeyOrParameters` | The key material, nonce or tag has the wrong size | Restore the key document or the event data |
 | `IntegrityCheckFailed` | The authentication tag did not verify: tampered ciphertext or tag, or a key that does not match | Treat as a security incident, then restore the data or the correct key |
-| `KeyDestroyedWithoutErasureRecord` | The period's key was destroyed, but the marker has no `ErasureReference` | Restore the key, or add the reference only for a real erasure request (see [Retention-period destruction now stops the projection](#retention-period-destruction-now-stops-the-projection)) |
+| `KeyDestroyedWithoutErasureRecord` | The period's key was destroyed, but the marker has neither an erasure nor a retention reference, or has both (damaged or tampered, not trusted) | Restore the key, or add the reference only for a real erasure request or a real retention execution (see [Retention expiry reads [EXPIRED]](#retention-expiry-reads-expired)) |
 
 A key with neither an active key document nor a destroyed marker for the event's period throws `KeyNotFoundException` instead (the message names the period and says there is no active key and no destroyed marker). The daemon does not retry it either: the shard pauses. Restore the key document.
 
 ### Repair the cause and rebuild
 
-1. Repair the cause: restore the missing key document, restore or repair the damaged event data, or write the confirmed erasure reference into the destroyed marker (only when the erasure request really exists).
+1. Repair the cause: restore the missing key document, restore or repair the damaged event data, or write the confirmed reference into the destroyed marker (an erasure reference only when the erasure request really exists, a retention reference only when a retention execution really destroyed the key).
 2. Rebuild the projection. This is the recovery the integration test below verifies:
 
 ```csharp
@@ -167,23 +174,25 @@ await daemon.RebuildProjectionAsync("OperationAuditEntryProjection", cancellatio
 
 The integration test `AfterTheCauseIsRepaired_RebuildingTheProjectionProjectsEveryEvent` in `tests/Encina.IntegrationTests/Infrastructure/Marten/Audit/AuditProjectionUnreadableEventIntegrationTests.cs` runs this sequence against a real PostgreSQL: after the key is restored, the rebuild projects every event, including the one that stopped the shard.
 
-### Retention-period destruction now stops the projection
+### Retention expiry reads [EXPIRED]
 
-`MartenOperationAuditStore` and `MartenReadAuditStore` call `DestroyKeysBeforeAsync` for retention with `erasureReference: null`. Those markers have no erasure reference, so projecting events of those periods (for example in a rebuild) now fails with `KeyDestroyedWithoutErasureRecord` and pauses the shard. The same holds for every marker written before this change. No GDPR erasure flow in the repository calls `DestroyKeysBeforeAsync` with a reference yet (follow-up work), so today only a direct caller that passes an `ErasureReference` produces a marker that reads as `[SHREDDED]`.
+`MartenOperationAuditStore.PurgeEntriesAsync` and `MartenReadAuditStore.PurgeEntriesAsync` (and so the auto-purge retention service) pass a `RetentionReference` to `DestroyKeysBeforeAsync`: policy id `audit-retention:<ISO 8601 RetentionPeriod>` (for example `audit-retention:P2555D`), the purge cutoff, the execution time from the injected `TimeProvider`, and actor `system`. Projecting events of a purged period, including in a rebuild, therefore yields the `[EXPIRED]` placeholder (`IsExpired = true`) and does not pause the shard. A rebuild passes over purged periods.
 
-A retention purge hard-deletes the key document. The key cannot be restored, except from a backup of the key documents. For a store whose periods were destroyed by retention purge, rebuilding therefore cannot succeed past the first purged period: the rebuild stops at the first event of that period and pauses the shard again. Operator resolution for this case is not available until the later change tracked as PR 2b of issue #2770.
+The query helpers treat `[EXPIRED]` like `[SHREDDED]`: the `MetadataJson` of an expired or shredded entry is not parsed (the metadata is empty), `UserId` and `IpAddress` filters cannot match placeholder values, and a `Purpose` filter contains the placeholder.
 
-Today you can:
+A retention purge hard-deletes the key document, so the key cannot be restored except from a backup of the key documents. A marker written without any reference (before this change, or by a direct `DestroyKeysBeforeAsync(..., reference: null)` call) still fails with `KeyDestroyedWithoutErasureRecord` and pauses the shard. Operator resolution for that case is not available until the later change tracked as PR 2b of issue #2770.
+
+For a marker with no reference you can today:
 
 - Restore the key document from a backup, when the destruction was a mistake or the data must stay readable.
-- Edit the destroyed marker document directly through a Marten session to add the confirmed erasure reference, only when an erasure request really exists for that period and the key was destroyed because of it. No Encina API does this yet. Do not add a reference to the marker of a retention purge or any other destruction that was not an erasure: that falsifies the erasure evidence, because the marker would then claim a lawful erasure that never happened. The reference must be complete (request id, actor and a non-default request date), or `HasErasureReference()` stays `false`.
+- Edit the destroyed marker document directly through a Marten session to add the confirmed reference, only when it is true: an erasure reference (request id, actor and a non-default request date) when an erasure request really exists for that period, or a retention reference (policy id, cutoff, execution time and actor) when a retention execution really destroyed the key. No Encina API does this yet. Do not add an erasure reference to the marker of a retention purge: that falsifies the erasure evidence. A marker must never carry both kinds; it then classifies as `Unrecorded` and the shard pauses.
 
-`DestroyKeysBeforeAsync` cannot attach an erasure reference to a period that is already destroyed: its marker exists, so the period is skipped and the reference passed in the call is not recorded.
+`DestroyKeysBeforeAsync` cannot attach a reference to a period that is already destroyed: its marker exists, so the period is skipped and the reference passed in the call is not recorded.
 
 ### Limits today
 
 - The configuration `ConfigureMartenOperationAuditProjections` sets `Projections.Errors.SkipApplyErrors`, `SkipSerializationErrors` and the same two options of `Projections.RebuildErrors` to `false`. Marten's default (`SkipApplyErrors = true`) would silently skip a failing audit event. Marten has no per-projection policy, so this applies to the whole store: other projections in the same Marten store also stop on an apply or serialization error instead of skipping it.
-- You cannot skip or label a single event. Operator resolution commands (mark an event `[UNREADABLE]`, confirm `[SHREDDED]` out of band, re-project one event, exclude an event, each one audited) arrive in a later change, tracked as PR 2b of issue #2770. They are not available yet.
+- You cannot skip or label a single event. Operator resolution commands (mark an event `[UNREADABLE]`, confirm `[SHREDDED]` or `[EXPIRED]` out of band for a marker with no reference, re-project one event, exclude an event, each one audited) arrive in a later change, tracked as PR 2b of issue #2770. They are not available yet.
 
 ## Related
 

@@ -51,6 +51,7 @@ services.AddEncinaAuditMarten(options =>
 | `EnableAutoPurge` | `false` | Background crypto-shredding service |
 | `PurgeIntervalHours` | 24 | Auto-purge interval |
 | `ShreddedPlaceholder` | `[SHREDDED]` | Placeholder for PII whose key was destroyed with an erasure reference |
+| `ExpiredPlaceholder` | `[EXPIRED]` | Placeholder for PII whose key was destroyed by a retention execution (retention reference) |
 | `AddHealthCheck` | `false` | Register health check |
 
 ## How Crypto-Shredding Works
@@ -58,7 +59,7 @@ services.AddEncinaAuditMarten(options =>
 1. **Record**: PII fields encrypted with temporal key for the entry's month/quarter/year
 2. **Query**: Async projections decrypt PII into queryable read models
 3. **Purge**: `PurgeEntriesAsync` destroys temporal keys (not events)
-4. **After purge**: read-model entries already projected keep their state. Purge destroys keys without an erasure reference, so projecting events of a purged period (for example in a rebuild) throws `EncryptedFieldDecryptionException` (`KeyDestroyedWithoutErasureRecord`) and the Marten daemon pauses the shard. `[SHREDDED]` appears only when the destroyed-key marker carries an erasure reference (request id, request date and actor). See [Recover from an unreadable audit event](../../docs/features/audit-marten.md#recover-from-an-unreadable-audit-event).
+4. **After purge**: read-model entries already projected keep their state. `PurgeEntriesAsync` (and auto-purge) destroys keys with a `RetentionReference` (policy `audit-retention:<ISO 8601 RetentionPeriod>`, cutoff, execution time, actor `system`), so projecting events of a purged period, for example in a rebuild, reads `[EXPIRED]` and the shard keeps running. `[SHREDDED]` is reserved for a destruction recorded with an `ErasureReference` (request id, request date and actor). A marker with neither reference, or with both, throws `EncryptedFieldDecryptionException` (`KeyDestroyedWithoutErasureRecord`) and the Marten daemon pauses the shard. See [Recover from an unreadable audit event](../../docs/features/audit-marten.md#recover-from-an-unreadable-audit-event).
 
 ## Performance
 
