@@ -66,7 +66,10 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
         services.AddSingleton(mongoOptions);
         _serviceProvider = services.BuildServiceProvider();
 
-        _unitOfWork = new UnitOfWorkMongoDB(_fixture.Client!, mongoOptions, _serviceProvider);
+        var sessionAccessor = new global::Encina.MongoDB.Transactions.MongoSessionAccessor(
+            _fixture.Client!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<global::Encina.MongoDB.Transactions.MongoSessionAccessor>.Instance);
+        _unitOfWork = new UnitOfWorkMongoDB(_fixture.Client!, mongoOptions, sessionAccessor, _serviceProvider);
     }
 
     public async ValueTask DisposeAsync()
