@@ -141,7 +141,7 @@ try {
         [Console]::Error.WriteLine("Blocked: issue #$number is an [EPIC] ($title); an EPIC is never briefed; brief one of its ready sub-issues (EPIC #2845 working rule, #2900).")
         exit 2
     }
-    $size = [regex]::Match($prompt, '(?m)^\s*Size:\s*(?<files>\d+)\s+files?,\s*(?<lines>\d+)\s+lines?\b')
+    $size = [regex]::Match($prompt, '(?m)^[ \t]*Size:[ \t]*(?<files>\d+)[ \t]+files?,[ \t]*(?<lines>\d+)[ \t]+lines?\b')
     if (-not $size.Success) {
         [Console]::Error.WriteLine("Blocked: the brief for a $subagent must state its size on a line `"Size: <files> files, <lines> lines`" (worker-brief skill, section 1 'Size rule'); a ready sub-issue is one worker PR: at most $MaxFiles files and $MaxLines changed lines (#2900).")
         exit 2
@@ -155,7 +155,9 @@ try {
 
     # The paths the issue itself names (backticked dir/.../name.ext tokens in its file-list section) tie the
     # declaration to the issue text, so the brief alone cannot understate the size. An issue whose template has
-    # neither section skips this check.
+    # neither section skips this check. Limits: every backticked path with a slash and an extension counts, also
+    # one the issue only mentions (an issue must then keep reference paths out of that section or the brief
+    # declares at least that count); a path with a line suffix, spaces, a wildcard or no extension is not counted.
     $fileSection = [regex]::Match([string]$issue.body, '(?ms)^##[ \t]+(?:Component Affected|Location)[ \t]*\r?\n(?<s>.*?)(?=^##[ \t]|\z)')
     if ($fileSection.Success) {
         $paths = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)

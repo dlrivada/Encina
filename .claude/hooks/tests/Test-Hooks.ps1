@@ -5173,7 +5173,8 @@ The fluent builder chain described in the documentation is fictional. The parame
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 16 files, 100 lines" 2 'size gate: 16 files is denied' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 3 files, 1501 lines" 2 'size gate: 1501 lines is denied' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 0 files, 10 lines" 2 'size gate: 0 files is denied' -NoSize
-        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 99999999999999999999 files, 10 lines" 2 'size gate: a number beyond int range is denied, not a crash' -NoSize
+        Invoke-TargetMessage 'issue-worker' "Issue #9001 go.`nSize: 99999999999999999999 files, 10 lines" 'declares 99999999999999999999 files' 'size gate: a number beyond int range is denied with its value, not a crash'
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize:`n3 files, 100 lines" 2 'size gate: a Size line split across lines is denied' -NoSize
         Invoke-TargetCase 'issue-worker' 'Issue #9001 go.' 2 'size gate: a brief with no Size line is denied' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nsize: 3 files, 100 lines" 2 'size gate: a lowercase size line is denied' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: three files, 100 lines" 2 'size gate: a malformed Size line is denied' -NoSize
