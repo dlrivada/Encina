@@ -7,7 +7,13 @@
 //        dotnet run .github/scripts/coverage-report.cs -- --check-stale-manifest [--manifest <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --check-missing-manifest [--manifest <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --check-justifications [--manifest <dir>]
+//        dotnet run .github/scripts/coverage-report.cs -- --check-unmeasured [--input <dir>] [--output <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --self-test
+//
+// A package with a manifest but no measured lines is listed in the report and the summary JSON
+// as "not measured" (measured: false, unmeasuredPackages), never as 0%. The report mode prints a
+// warning for each; --check-unmeasured also writes the report and then exits 1 when any exists
+// (#2827; wiring it into CI is #2896).
 //
 // Per-file obligations (#1762): a manifest file entry may carry "targets" ({ "<flag>": 0-100 }) and
 // "justifications" ({ "<flag>": "<one sentence>" }); --check-justifications exits 1 when a per-file
@@ -32,6 +38,7 @@ var manifestDirExplicit = false;
 var checkStaleManifest = false;
 var checkMissingManifest = false;
 var checkJustifications = false;
+var checkUnmeasured = false;
 var selfTest = false;
 
 for (int i = 0; i < args.Length; i++)
@@ -43,6 +50,7 @@ for (int i = 0; i < args.Length; i++)
     if (args[i] == "--manifest" && i + 1 < args.Length) { manifestDir = args[++i]; manifestDirExplicit = true; }
     if (args[i] == "--check-stale-manifest") checkStaleManifest = true;
     if (args[i] == "--check-missing-manifest") checkMissingManifest = true;
+    if (args[i] == "--check-unmeasured") checkUnmeasured = true;
 }
 
 if (selfTest)
@@ -632,6 +640,34 @@ int RunSelfTest()
         "a pair without data omits measured instead of writing 0");
     Check(OrderByGap([Pair("B.cs", "unit", 80, 200, 190), Pair("A.cs", "unit", 50, 100, 30)])[0].File == "A.cs", "rows are ordered by gap, largest first");
 
+    // A manifested package with no measured lines is a not-measured row, not an absent one (#2827).
+    var seedFiles = new List<FileCoverage>
+    {
+        new("src/Encina.A/X.cs", "Encina.A", 10, 8, 80, new() { [TestType.Unit] = (10, 8) }, []),
+        new("src/Encina.A/Y.cs", "Encina.A", 10, 2, 20, new() { [TestType.Unit] = (10, 2) }, []),
+    };
+    var seedTargets = new Dictionary<string, Dictionary<string, double>>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Encina.A"] = new() { ["unit"] = 80 },
+        ["Encina.Gone"] = new() { ["unit"] = 70 },
+    };
+    var seeded = SeedPackages(["Encina.A", "Encina.Gone", "Encina.Silent", "encina.a"], seedFiles, seedTargets);
+    var seededA = seeded.Single(p => p.Name == "Encina.A");
+    var seededGone = seeded.Single(p => p.Name == "Encina.Gone");
+    Check(!seededGone.Measured && seededGone.TotalLines == 0 && seededGone.PerFlag.Count == 0 && seededGone.Files.Count == 0,
+        "a manifest-only package is present and flagged not measured, with no lines or flags");
+    Check(seeded.Count == 3, "the package count equals the manifest count (case-duplicate keys count once)");
+    Check(string.Join(",", seeded.Where(p => !p.Measured).Select(p => p.Name).Order(StringComparer.Ordinal)) == "Encina.Gone,Encina.Silent",
+        "the not-measured set is exactly the manifest packages without data");
+    Check(seededA.Measured && seededA.TotalLines == 20 && Near(seededA.Percentage, 50) && seededA.PerFlag[TestType.Unit] == (20, 10)
+            && seededA.Files.Count == 2 && seededA.PerFlagTarget?["unit"] == 80,
+        "a package with data keeps its measured aggregates and targets");
+    Check(seededGone.PerFlagTarget?["unit"] == 70 && seeded.Single(p => p.Name == "Encina.Silent").PerFlagTarget is null,
+        "a not-measured package keeps its manifest targets, or none");
+    Check(seeded.Sum(p => p.PerFlag.Values.Sum(v => v.Total)) == 20, "a not-measured package adds no obligations to the overall ratios");
+    Check(SeedPackages([], seedFiles, seedTargets).Count == 1 && SeedPackages(["Encina.A"], [], seedTargets).Single().Measured == false,
+        "no manifest keys give only the measured packages; no data gives only not-measured rows");
+
     foreach (var failure in failures) Console.WriteLine($"  FAIL: {failure}");
     if (failures.Count > 0)
     {
@@ -857,6 +893,8 @@ if (!Directory.Exists(inputDir))
     Directory.CreateDirectory(outputDir);
     File.WriteAllText(Path.Combine(outputDir, "encina-coverage-report.md"),
         "# Encina Coverage Report\n\nNo coverage data available. Run tests with `--collect \"XPlat Code Coverage\"` first.\n");
+    // A missing input directory means every manifested package is unmeasured: the check must not pass vacuously.
+    if (checkUnmeasured) Environment.Exit(1);
     return;
 }
 
@@ -1082,41 +1120,16 @@ foreach (var file in allFiles)
 
 // ─── Aggregate by package ────────────────────────────────────────────────────
 
-var packageResults = fileResults
-    .GroupBy(f => f.Package)
-    .Select(g =>
-    {
-        var first = g.First();
-        int totalLines = g.Sum(f => f.TotalLines);
-        double coveredEquivalent = g.Sum(f => f.CoveredEquivalent);
-
-        // Aggregate per-flag
-        var perFlag = new Dictionary<TestType, (int Total, int Covered)>();
-        foreach (var file in g)
-        {
-            foreach (var (flag, (t, c)) in file.PerFlag)
-            {
-                if (perFlag.TryGetValue(flag, out var existing))
-                    perFlag[flag] = (existing.Total + t, existing.Covered + c);
-                else
-                    perFlag[flag] = (t, c);
-            }
-        }
-
-        // Combined = total obligations met / total obligations (sum of flag totals)
-        int totalObligations = perFlag.Values.Sum(v => v.Total);
-        int metObligations = perFlag.Values.Sum(v => v.Covered);
-        double pct = totalObligations > 0 ? Math.Round(metObligations * 100.0 / totalObligations, 2) : 0;
-
-        // Get per-flag targets from manifest
-        Dictionary<string, double>? perFlagTarget = manifestTargets.TryGetValue(first.Package, out var pkgTargets)
-            ? pkgTargets : null;
-
-        return new PackageCoverage(first.Package, totalLines, coveredEquivalent, pct,
-            perFlag, perFlagTarget, g.OrderBy(f => f.Percentage).ToList());
-    })
-    .OrderBy(p => p.Percentage)
-    .ToList();
+// Seeded from the manifest keys (#2827): a manifested package with no measured lines is still a
+// row, flagged Measured = false, so it is never silently absent and never reads as 0%.
+var packageResults = SeedPackages(manifest.Keys, fileResults, manifestTargets);
+var unmeasuredPackages = packageResults.Where(p => !p.Measured).Select(p => p.Name).Order(StringComparer.Ordinal).ToList();
+if (unmeasuredPackages.Count > 0)
+{
+    Console.WriteLine($"\n  ⚠ WARNING: {unmeasuredPackages.Count} package(s) have a coverage manifest but no measured lines (not measured, not counted as met):");
+    foreach (var pkg in unmeasuredPackages)
+        Console.WriteLine($"    - {pkg}");
+}
 
 // ─── Overall (obligations model) ────────────────────────────────────────────
 
@@ -1181,6 +1194,12 @@ md.AppendLine("|---------|:----:|:-----:|:--------:|:--------:|:-----:|:--------
 
 foreach (var pkg in packageResults)
 {
+    if (!pkg.Measured)
+    {
+        md.AppendLine($"| {pkg.Name} | - | - | - | - | - | not measured | |");
+        continue;
+    }
+
     md.AppendLine($"| {pkg.Name} | {FlagPct(pkg, TestType.Unit)} | {FlagPct(pkg, TestType.Guard)} | {FlagPct(pkg, TestType.Contract)} | {FlagPct(pkg, TestType.Property)} | {FlagPct(pkg, TestType.Integration)} | {pkg.Percentage:F1}% | |");
 }
 
@@ -1210,7 +1229,7 @@ md.AppendLine();
 
 foreach (var pkg in packageResults.OrderBy(p => p.Name))
 {
-    md.AppendLine($"### {pkg.Name} ({pkg.Percentage:F1}%)");
+    md.AppendLine($"### {pkg.Name} ({(pkg.Measured ? pkg.Percentage.ToString("F1", CultureInfo.InvariantCulture) + "%" : "not measured")})");
     md.AppendLine();
     md.AppendLine("| File | Lines | Covered | Coverage | Max CRAP |");
     md.AppendLine("|------|:-----:|:-------:|:--------:|:--------:|");
@@ -1245,6 +1264,7 @@ var jsonData = new
     packages = packageResults.Select(p => new
     {
         name = p.Name,
+        measured = p.Measured,
         attainment = PackageAttainment(fileTargetRows, p.Name),
         coverage = p.Percentage,
         lines = p.TotalLines,
@@ -1274,7 +1294,8 @@ var jsonData = new
                 crap = Math.Round(m.Crap, 2)
             })
     }),
-    untrackedPackages = untrackedPackages.Count > 0 ? untrackedPackages : null
+    untrackedPackages = untrackedPackages.Count > 0 ? untrackedPackages : null,
+    unmeasuredPackages = unmeasuredPackages.Count > 0 ? unmeasuredPackages : null
 };
 
 var jsonOptions = SummaryJsonOptions();
@@ -1311,12 +1332,32 @@ File.WriteAllText(Path.Combine(outputDir, "badge.svg"), badgeSvg);
 Console.WriteLine($"  SVG:      {Path.Combine(outputDir, "badge.svg")}");
 
 // 5. HTML Dashboard
+// The standalone page has no not-measured state, so it lists measured packages only rather than show 0% (#2827).
 var htmlDashboard = GenerateHtmlDashboard(overallPct, overallTotal, overallCovered,
-    packageResults, fileResults);
+    packageResults.Where(p => p.Measured).ToList(), fileResults);
 File.WriteAllText(Path.Combine(outputDir, "index.html"), htmlDashboard);
 Console.WriteLine($"  HTML:     {Path.Combine(outputDir, "index.html")}");
 
 Console.WriteLine("\nDone.");
+
+// --check-unmeasured (#2827): the outputs above are written first, then the run fails when a
+// manifested package has no measured lines. Not wired into CI yet (#2896).
+if (checkUnmeasured)
+{
+    if (manifest.Count == 0)
+    {
+        Console.WriteLine("\nERROR: --check-unmeasured loaded no coverage manifest; nothing was checked.");
+        Environment.Exit(1);
+    }
+
+    if (unmeasuredPackages.Count > 0)
+    {
+        Console.WriteLine($"\nFAIL: {unmeasuredPackages.Count} package(s) have a coverage manifest but no measured lines: {string.Join(", ", unmeasuredPackages)}");
+        Environment.Exit(1);
+    }
+
+    Console.WriteLine($"\nAll {packageResults.Count} manifested package(s) have measured lines.");
+}
 
 // ─── Helper functions ────────────────────────────────────────────────────────
 
@@ -1409,6 +1450,57 @@ static JsonObject BuildDocRefIndex(
     }
 
     return index;
+}
+
+// Package rows: the measured packages grouped from the file results, plus one not-measured row
+// for every manifest key with no measured lines (#2827). Package names match case-insensitively
+// (the manifest dictionaries are); the name of a measured package is the one in its file results.
+static List<PackageCoverage> SeedPackages(
+    IEnumerable<string> manifestKeys,
+    IReadOnlyList<FileCoverage> fileResults,
+    IReadOnlyDictionary<string, Dictionary<string, double>> manifestTargets)
+{
+    Dictionary<string, double>? TargetsOf(string package)
+        => manifestTargets.TryGetValue(package, out var targets) ? targets : null;
+
+    var measured = fileResults
+        .GroupBy(f => f.Package)
+        .Select(g =>
+        {
+            var first = g.First();
+            int totalLines = g.Sum(f => f.TotalLines);
+            double coveredEquivalent = g.Sum(f => f.CoveredEquivalent);
+
+            // Aggregate per-flag
+            var perFlag = new Dictionary<TestType, (int Total, int Covered)>();
+            foreach (var file in g)
+            {
+                foreach (var (flag, (t, c)) in file.PerFlag)
+                {
+                    if (perFlag.TryGetValue(flag, out var existing))
+                        perFlag[flag] = (existing.Total + t, existing.Covered + c);
+                    else
+                        perFlag[flag] = (t, c);
+                }
+            }
+
+            // Combined = total obligations met / total obligations (sum of flag totals)
+            int totalObligations = perFlag.Values.Sum(v => v.Total);
+            int metObligations = perFlag.Values.Sum(v => v.Covered);
+            double pct = totalObligations > 0 ? Math.Round(metObligations * 100.0 / totalObligations, 2) : 0;
+
+            return new PackageCoverage(first.Package, totalLines, coveredEquivalent, pct,
+                perFlag, TargetsOf(first.Package), g.OrderBy(f => f.Percentage).ToList());
+        })
+        .ToList();
+
+    var seen = measured.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var unmeasured = manifestKeys
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Where(key => !seen.Contains(key))
+        .Select(key => new PackageCoverage(key, 0, 0, 0, new(), TargetsOf(key), [], Measured: false));
+
+    return measured.Concat(unmeasured).OrderBy(p => p.Percentage).ThenBy(p => p.Name, StringComparer.Ordinal).ToList();
 }
 
 string FlagPct(PackageCoverage pkg, TestType flag)
@@ -1715,9 +1807,11 @@ record AttainmentSummary(int Pairs, int Met, double? Ratio, double? LineWeighted
 record FileTargetEntry(string Package, string File, string Flag, double Target, double? Measured,
     int? Covered, int? Total, double Gap, double Attainment, int LinesToCover, string Status);
 
+// Measured is false for a package that has a manifest and no measured lines (#2827): its
+// Percentage is 0 only as a placeholder and must never be read as a measured 0%.
 record PackageCoverage(string Name, int TotalLines, double CoveredEquivalent, double Percentage,
     Dictionary<TestType, (int Total, int Covered)> PerFlag,
-    Dictionary<string, double>? PerFlagTarget, List<FileCoverage> Files);
+    Dictionary<string, double>? PerFlagTarget, List<FileCoverage> Files, bool Measured = true);
 
 record ManifestFile
 {
