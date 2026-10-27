@@ -408,7 +408,7 @@ All operations return `Either<EncinaError, T>` following Railway Oriented Progra
 | Error Code | When | Metadata |
 |------------|------|----------|
 | `encryption.key_not_found` | Key ID not found in provider | `keyId` |
-| `encryption.decryption_failed` | The AES-GCM primitive throws while encrypting (it is no longer returned on the decrypt path) | `keyId`, `propertyName` |
+| `encryption.encryption_failed` | The AES-GCM primitive throws while encrypting | `keyId`, `stage` |
 | `encryption.invalid_ciphertext` | Serialized value cannot be parsed, or decryption fails for any reason tied to the stored value or the key (wrong-sized nonce or tag, tag that fails verification, tampered ciphertext, mismatched associated data, wrong key). Always the same generic error, so it is not a decryption oracle | `propertyName` (never the key id) |
 | `encryption.algorithm_not_supported` | Unknown encryption algorithm | `algorithm` |
 | `encryption.key_rotation_failed` | Key rotation operation fails | (exception details) |
