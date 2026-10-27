@@ -5129,6 +5129,8 @@ The fluent builder chain described in the documentation is fictional. The parame
     Write-StubIssue 9012 '[DEBT] 3 paths in Location' (Get-PathBody 'technical_debt.md' '## Location' @('src/A/One.cs', 'src/A/Two.cs', 'src/A/Three.cs'))
     # The shape of #2900: 5 listed paths plus 3 reference paths in other bullets (the nested "No fragment" item also names one).
     Write-StubIssue 9013 '[INFRA] 5 listed, 3 reference' (Get-PathBody 'infrastructure.md' '## Component Affected' @('a/1.ps1', 'a/2.ps1', 'a/3.md', 'a/4.md', 'a/5.md') @('.claude/hooks/ref1.ps1', '.claude/hooks/ref2.ps1', '.claude/agents/ref3.md'))
+    # The shape of the repository templates: paths on the File(s) first line (3), then nested "-" and "*" items (2 more), tab-indented.
+    Write-StubIssue 9015 '[DEBT] inline and nested paths' ((Get-TemplateBody 'technical_debt.md') -replace '(?m)^(## Location\r?\n)text', ('$1' + "- **File(s)**: ``src/C/One.cs``, ``src/C/Two.cs``, ``src/C/Three.cs```n  - ``src/C/Four.cs`` (x)`n`t* ``src/C/Five.cs`` (y)`n- **Notes**: ``src/C/Ref.cs``"))
     # A section without a File(s) bullet: paths in plain prose are not counted, so the check is skipped.
     Write-StubIssue 9014 '[INFRA] no File(s) bullet' ((Get-TemplateBody 'infrastructure.md') -replace '(?m)^(## Component Affected\r?\n)text', ('$1' + ((1..20 | ForEach-Object { "- ``src/B/F$_.cs``" }) -join "`n")))
     # The stub returns no state: the hook reads only title and body, so a closed issue is checked the same way.
@@ -5209,6 +5211,8 @@ The fluent builder chain described in the documentation is fictional. The parame
         Invoke-TargetCase 'issue-worker' "Issue #9013 go.`nSize: 5 files, 200 lines" 0 'size gate: reference paths outside the File(s) bullet are ignored (5 listed + 3 references, Size 5 passes)' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9013 go.`nSize: 4 files, 200 lines" 2 'size gate: the 5 listed paths still bind the declaration (Size 4 denied)' -NoSize
         Invoke-TargetMessage 'issue-worker' "Issue #9013 go.`nSize: 4 files, 200 lines" 'declares 4 files but the issue lists 5' 'size gate: the count is 5, not 8'
+        Invoke-TargetCase 'issue-worker' "Issue #9015 go.`nSize: 5 files, 100 lines" 0 'size gate: paths on the File(s) first line plus nested - and * items count 5, the Notes reference is ignored' -NoSize
+        Invoke-TargetMessage 'issue-worker' "Issue #9015 go.`nSize: 4 files, 100 lines" 'declares 4 files but the issue lists 5' 'size gate: the first-line paths are counted (deleting that branch gives 2)'
         Invoke-TargetCase 'issue-worker' "Issue #9014 go.`nSize: 1 files, 100 lines" 0 'size gate: a section without a File(s) bullet skips the path check (20 prose paths ignored)' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9005 go.`nSize: 1 files, 100 lines" 0 'size gate: an issue whose template has neither section skips the path check' -NoSize
 

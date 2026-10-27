@@ -159,7 +159,8 @@ try {
     # sections are references and are not counted. An issue without that bullet skips this check. Counted: every
     # backticked dir/.../name.ext on the bullet's first line, and the backticked path that opens a nested list item
     # (numbered or "-"/"*"); a path inside a nested item's prose, with a line suffix, spaces, a wildcard or no
-    # extension is not counted (the count can undercount, it is not inflated by mentions).
+    # extension is not counted (the count can undercount, it is not inflated by mentions). The bullet is matched
+    # as "- **File(s)**" at column 0 (the template spelling); another spelling skips the check.
     $fileSection = [regex]::Match([string]$issue.body, '(?ms)^##[ \t]+(?:Component Affected|Location)[ \t]*\r?\n(?<s>.*?)(?=^##[ \t]|\z)')
     $fileBullet = if ($fileSection.Success) { [regex]::Match($fileSection.Groups['s'].Value, '(?ms)^-[ \t]+\*\*File\(s\)\*\*(?<b>.*?)(?=^-[ \t]+\*\*|\z)') } else { $null }
     if ($null -ne $fileBullet -and $fileBullet.Success) {
