@@ -11,6 +11,17 @@ This document explains **how** Encina measures mutation testing — the rules, f
 
 It is the contract between the mutation infrastructure and the people who consume its output. Anyone reading a mutation score in a doc, a PR comment, or the dashboard should be able to come here, understand the formula that produced it, and be able to reproduce the result.
 
+## Scope
+
+Today the run mutates only `src/Encina/Encina.csproj` (`.github/stryker-config.json` sets `"project": "Encina.csproj"`), the one project that `Encina.UnitTests` exercises. That is the current state of the infrastructure, not the intended scope. [ADR-056](../architecture/adr/056-mutation-testing-scope.md) decides the scope: risk-based now, all packages as the final goal.
+
+- A package enters the scope if it contains a fail-closed gate, security or personal-data handling, a state machine or concurrency, or high cyclomatic complexity. The criterion is applied per package by the assessment of [#2911](https://github.com/dlrivada/Encina/issues/2911).
+- The list only grows. Removing a package needs a reviewed pull request.
+- Just before 1.0 the scope is re-opened to get as close to all packages as is realistic.
+- Extending Stryker beyond `src/Encina` is tracked in [#2829](https://github.com/dlrivada/Encina/issues/2829).
+
+The sections below describe the run as it is today, for the core project.
+
 ## Why a methodology document exists
 
 Off-the-shelf mutation testing assumes that every commit can re-run the full mutant set against the full test suite. That is not feasible for Encina:
