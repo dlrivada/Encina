@@ -138,8 +138,8 @@ public sealed class BreakTheGlassGateProperties
     public bool ExpiredElevation_IsNeverHonouredAgain_AndRecordedOnce_AcrossSweeperRuns(PositiveInt duration, PositiveInt runs) =>
         SweptElevationStaysDeadAsync(duration.Get % 3_600 + 1, runs.Get % 4 + 1).GetAwaiter().GetResult();
 
-    private static BreakTheGlassAccessGate GateOver(IBreakTheGlassStore store, BreakTheGlassOptions options, FakeTimeProvider time) =>
-        new(store, new InMemoryOperationAuditStore(), new ReadAuditContext(), new BreakTheGlassRequestGrants(), Options.Create(options), time, NullLogger<BreakTheGlassAccessGate>.Instance);
+    private static BreakTheGlassAccessGate GateOver(IBreakTheGlassStore store, BreakTheGlassOptions options, FakeTimeProvider time, InMemoryOperationAuditStore? audit = null) =>
+        new(store, audit ?? new InMemoryOperationAuditStore(), new ReadAuditContext(), new BreakTheGlassRequestGrants(), Options.Create(options), time, NullLogger<BreakTheGlassAccessGate>.Instance);
 
     private static BreakTheGlassElevation ActiveElevation(int durationSeconds) => new()
     {
@@ -200,12 +200,15 @@ public sealed class BreakTheGlassGateProperties
     {
         var store = new InMemoryBreakTheGlassStore();
         await store.AddAsync(ActiveElevation(durationSeconds) with { TenantId = "tenant-1" });
-        var gate = GateOver(store, new BreakTheGlassOptions(), new FakeTimeProvider(OpenedAt));
+        var audit = new InMemoryOperationAuditStore();
+        var gate = GateOver(store, new BreakTheGlassOptions(), new FakeTimeProvider(OpenedAt), audit);
 
         var first = await gate.TryElevateAsync(new PropertyGateRequest("patient-1"), Context(), EncinaErrors.Forbidden(), CancellationToken.None);
         var second = await gate.TryElevateAsync(new PropertyGateRequest("patient-1"), Context(), EncinaErrors.Forbidden(), CancellationToken.None);
 
-        return first.Match(Right: o => o.IsSome, Left: _ => false) && second.Match(Right: o => o.IsSome, Left: _ => false);
+        return first.Match(Right: o => o.IsSome, Left: _ => false)
+            && second.Match(Right: o => o.IsSome, Left: _ => false)
+            && audit.GetAllEntries().Count == 1;
     }
 
     [Property(MaxTest = 100)]

@@ -19,6 +19,7 @@ namespace Encina.Security.BreakTheGlass;
 /// <item><description>the caller is a <see cref="IdentityKind.User"/> (never a service or an anonymous caller);</description></item>
 /// <item><description>the request type is marked <see cref="BreakTheGlassEligibleAttribute"/> and yields a non-blank subject id;</description></item>
 /// <item><description>an earlier gate of the same request already holds a grant for this subject: reuse it, write nothing;</description></item>
+/// <item><description>when <see cref="BreakTheGlassOptions.RequireTenant"/> is on and the request carries no tenant, the denial stays before any store call (fail closed);</description></item>
 /// <item><description>an elevation is effective for tenant, user, subject and scope at this instant (a failed lookup keeps the denial: it is logged and counted, never turned into another error);</description></item>
 /// <item><description>the write-ahead access audit entry is stored (a failure returns <c>break_glass.audit_failed</c> and the request stays denied);</description></item>
 /// <item><description>the read-audit purpose becomes <c>break-the-glass</c> and the elevation id joins the read-audit metadata.</description></item>
