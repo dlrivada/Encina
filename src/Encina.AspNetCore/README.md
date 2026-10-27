@@ -199,7 +199,7 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 | `PermissionClaimTypes` | `permission` |
 | `TenantIdClaimTypes` | `tenant_id`, `tid`, `RequestIdentityOptions.TenantIdentifierClaimType` |
 
-Differing values across the configured tenant claim types (for example an application `tenant_id` and an Entra `tid`), or several different values inside one identity, are a conflict, not a choice: the request is refused with 403 (`encina.identity.inbound_tenant_conflict`) and `IRequestContextScopeFactory.RunAsPrincipalAsync` refuses the principal with `encina.identity.conflicting_tenant_claims`; it never becomes anonymous. The same value repeated is not a conflict.
+Differing values across the configured tenant claim types (for example an application `tenant_id` and an Entra `tid`), or several different values inside one identity, are a conflict, not a choice: the request is refused with 403 (`encina.identity.inbound_tenant_conflict`) and `IRequestContextScopeFactory.RunAsPrincipalAsync` refuses the principal with `encina.identity.conflicting_tenant_claims`; it never becomes anonymous because of conflicting tenant claims. The same value repeated is not a conflict.
 
 ```csharp
 builder.Services.AddEncinaRequestIdentity(options =>
