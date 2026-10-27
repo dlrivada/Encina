@@ -8,7 +8,13 @@
 //        dotnet run .github/scripts/coverage-report.cs -- --check-missing-manifest [--manifest <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --check-justifications [--manifest <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --check-unmeasured [--input <dir>] [--output <dir>]
+//        dotnet run .github/scripts/coverage-report.cs -- --check-flag-assignment [--min-lines <n>] [--input <dir>] [--output <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --self-test
+//
+// --check-flag-assignment (#2932) lists, per package and flag, the source files whose lines that flag's tests
+// execute although the manifest does not assign the flag to the file (override ?? defaultTests, or a per-file
+// target for the flag), with the executed line count. It writes <output>/flag-assignment.json and exits 1 when
+// any such file executes at least --min-lines lines (default 5); wiring it into CI is #2935.
 //
 // A package with a manifest but no measured lines is listed in the report and the summary JSON
 // as "not measured" (measured: false, unmeasuredPackages), never as 0%. The report mode prints a
@@ -39,10 +45,18 @@ var checkStaleManifest = false;
 var checkMissingManifest = false;
 var checkJustifications = false;
 var checkUnmeasured = false;
+var checkFlagAssignment = false;
+var minLines = 5;
 var selfTest = false;
 
 for (int i = 0; i < args.Length; i++)
 {
+    if (args[i] == "--check-flag-assignment") checkFlagAssignment = true;
+    if (args[i] == "--min-lines" && i + 1 < args.Length && (!int.TryParse(args[++i], NumberStyles.None, CultureInfo.InvariantCulture, out minLines) || minLines < 1))
+    {
+        Console.WriteLine("\nERROR: --min-lines needs a whole number of at least 1.");
+        Environment.Exit(1);
+    }
     if (args[i] == "--check-justifications") checkJustifications = true;
     if (args[i] == "--self-test") selfTest = true;
     if (args[i] == "--output" && i + 1 < args.Length) outputDir = args[++i];
@@ -177,6 +191,13 @@ else
 if (checkUnmeasured && (checkStaleManifest || checkMissingManifest || checkJustifications))
 {
     Console.WriteLine("\nERROR: --check-unmeasured cannot be combined with --check-stale-manifest, --check-missing-manifest or --check-justifications; run it as its own step.");
+    Environment.Exit(1);
+}
+
+// --check-flag-assignment (#2932) also needs coverage data and has its own exit code, so it runs alone.
+if (checkFlagAssignment && (checkUnmeasured || checkStaleManifest || checkMissingManifest || checkJustifications))
+{
+    Console.WriteLine("\nERROR: --check-flag-assignment cannot be combined with another --check-* mode; run it as its own step.");
     Environment.Exit(1);
 }
 
@@ -496,6 +517,101 @@ static string FormatAttainment(double attainment)
 static string FormatGap(double gap)
     => (Math.Floor(gap * 100 + 1e-9) / 100).ToString("F2", CultureInfo.InvariantCulture);
 
+// ─── Flag assignment (#2932): files a flag executes but the manifest does not assign to it ──────────
+
+// Flags that count as assigned to a file: its manifest entry (override ?? defaultTests, a file missing from
+// the manifest gets the report's unit + guard fallback) plus every flag named in its per-file targets.
+// None means the manifest excludes the file on purpose (an empty override and no targets).
+static TestType AssignedFlags(
+    Dictionary<string, Dictionary<string, TestType>> manifest,
+    Dictionary<string, Dictionary<string, ManifestFileEntry>> fileObligations,
+    string package, string relPath)
+{
+    var fileName = Path.GetFileName(relPath);
+    var assigned = TestType.Unit | TestType.Guard;
+    if (manifest.TryGetValue(package, out var files))
+    {
+        if (files.TryGetValue(relPath, out var byPath)) assigned = byPath;
+        else if (files.TryGetValue(fileName, out var byName)) assigned = byName;
+    }
+
+    var targeted = TestType.None;
+    if (fileObligations.TryGetValue(package, out var obligations) &&
+        (obligations.TryGetValue(relPath, out var entry) || obligations.TryGetValue(fileName, out entry)))
+        foreach (var name in NormaliseFlagKeys(entry.Targets, []).Keys)
+            targeted |= ParseFlag(name);
+
+    return assigned | targeted;
+}
+
+// Per (package, flag, file): the source files whose lines that flag's tests execute (hits > 0) although the
+// manifest assigns the flag to neither the file nor, through a per-file target, the pair. Packages without a
+// manifest, generated files and files the manifest excludes are skipped. Ordered by executed lines, largest first.
+static List<UnassignedFlagFile> FindUnassignedFlagFiles(
+    Dictionary<TestType, Dictionary<string, Dictionary<int, int>>> coverageByFlag,
+    Dictionary<string, Dictionary<string, TestType>> manifest,
+    Dictionary<string, Dictionary<string, ManifestFileEntry>> fileObligations)
+{
+    var rows = new List<UnassignedFlagFile>();
+    foreach (var (flag, flagData) in coverageByFlag)
+    {
+        if (flag == TestType.None) continue;
+        foreach (var (path, lines) in flagData)
+        {
+            var parts = path.Split('/');
+            if (parts.Length < 3 || parts[0] != "src") continue;
+            if (path.Contains("/obj/", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)) continue;
+            if (!manifest.ContainsKey(parts[1])) continue;
+
+            var executed = lines.Values.Count(h => h > 0);
+            if (executed == 0) continue;
+
+            var assigned = AssignedFlags(manifest, fileObligations, parts[1], string.Join("/", parts[2..]));
+            if (assigned == TestType.None || assigned.HasFlag(flag)) continue;
+
+            rows.Add(new UnassignedFlagFile(parts[1], string.Join("/", parts[2..]), flag.ToString().ToLowerInvariant(), executed, lines.Count));
+        }
+    }
+    return rows.OrderByDescending(r => r.ExecutedLines)
+        .ThenBy(r => r.Package, StringComparer.Ordinal)
+        .ThenBy(r => r.Flag, StringComparer.Ordinal)
+        .ThenBy(r => r.File, StringComparer.Ordinal)
+        .ToList();
+}
+
+// Prints the table and writes flag-assignment.json to outputDir; returns true (failed) when any file executes
+// at least minLines lines under a flag it is not assigned to.
+static bool RunCheckFlagAssignment(List<UnassignedFlagFile> rows, int minLines, string outputDir)
+{
+    var failing = rows.Where(r => r.ExecutedLines >= minLines).ToList();
+    Console.WriteLine($"\nFLAG ASSIGNMENT: {rows.Count} file/flag pair(s) execute lines under a flag the manifest does not assign; {failing.Count} at or above --min-lines {minLines}");
+    if (rows.Count > 0)
+    {
+        Console.WriteLine($"  {"Package",-36} {"Flag",-12} {"Executed",8} {"Total",6}  File");
+        foreach (var r in rows)
+            Console.WriteLine($"  {r.Package,-36} {r.Flag,-12} {r.ExecutedLines,8} {r.TotalLines,6}  {r.File}{(r.ExecutedLines >= minLines ? "" : "  (below --min-lines)")}");
+    }
+
+    Directory.CreateDirectory(outputDir);
+    var json = JsonSerializer.Serialize(new
+    {
+        minLines,
+        pairs = rows.Count,
+        failing = failing.Count,
+        files = rows.Select(r => new { r.Package, r.Flag, r.File, r.ExecutedLines, r.TotalLines, failing = r.ExecutedLines >= minLines })
+    }, SummaryJsonOptions());
+    File.WriteAllText(Path.Combine(outputDir, "flag-assignment.json"), json);
+    Console.WriteLine($"  JSON:     {Path.Combine(outputDir, "flag-assignment.json")}");
+
+    if (failing.Count > 0)
+    {
+        Console.WriteLine("  Fix: assign the flag in the manifest with a per-file target and justification when the tests are real, or replace reflection-only tests.");
+        return true;
+    }
+    Console.WriteLine("  No file reaches the threshold.");
+    return false;
+}
+
 // Self-test (#1762): exercises the per-file obligation logic without touching the repository.
 int RunSelfTest()
 {
@@ -675,6 +791,68 @@ int RunSelfTest()
     Check(seeded.Sum(p => p.PerFlag.Values.Sum(v => v.Total)) == 20, "a not-measured package adds no obligations to the overall ratios");
     Check(SeedPackages([], seedFiles, seedTargets).Count == 1 && SeedPackages(["Encina.A"], [], seedTargets).Single().Measured == false,
         "no manifest keys give only the measured packages; no data gives only not-measured rows");
+
+    // --- flag assignment (#2932) ---
+    static Dictionary<int, int> Executed(int executed, int unexecuted)
+    {
+        var d = new Dictionary<int, int>();
+        for (var n = 1; n <= executed + unexecuted; n++) d[n] = n <= executed ? 1 : 0;
+        return d;
+    }
+    var assignManifest = new Dictionary<string, Dictionary<string, TestType>>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Pkg"] = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Unit.cs"] = TestType.Unit,
+            ["Override.cs"] = TestType.Unit | TestType.Contract,
+            ["Targeted.cs"] = TestType.Unit,
+            ["Excluded.cs"] = TestType.None,
+            ["Gen.g.cs"] = TestType.Unit
+        }
+    };
+    var assignObligations = new Dictionary<string, Dictionary<string, ManifestFileEntry>>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Pkg"] = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Targeted.cs"] = new ManifestFileEntry { Targets = new() { ["Contract"] = 0 }, Justifications = new() { ["contract"] = "x" } }
+        }
+    };
+    var contractData = new Dictionary<TestType, Dictionary<string, Dictionary<int, int>>>
+    {
+        [TestType.Contract] = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["src/Pkg/Unit.cs"] = Executed(12, 3),        // unassigned: reported
+            ["src/Pkg/Override.cs"] = Executed(12, 0),    // assigned through the override
+            ["src/Pkg/Targeted.cs"] = Executed(12, 0),    // assigned only through a per-file target
+            ["src/Pkg/Excluded.cs"] = Executed(12, 0),    // excluded on purpose
+            ["src/Pkg/Gen.g.cs"] = Executed(12, 0),       // generated
+            ["src/Pkg/Small.cs"] = Executed(2, 8),        // unlisted (unit + guard fallback), below the threshold
+            ["src/Pkg/Idle.cs"] = Executed(0, 9),         // nothing executed
+            ["src/Other/X.cs"] = Executed(12, 0)          // package without a manifest
+        },
+        [TestType.Unit] = new(StringComparer.OrdinalIgnoreCase) { ["src/Pkg/Unit.cs"] = Executed(5, 0) }
+    };
+    var unassigned = FindUnassignedFlagFiles(contractData, assignManifest, assignObligations);
+    Check(unassigned.Count == 2 && unassigned[0] is { Package: "Pkg", File: "Unit.cs", Flag: "contract", ExecutedLines: 12, TotalLines: 15 },
+        "a flag that executes a file the manifest does not assign to it is reported with its executed lines");
+    Check(unassigned.All(r => r.File != "Override.cs"), "a file assigned through the override is not reported");
+    Check(unassigned.All(r => r.File != "Targeted.cs"), "a file assigned only through a per-file target is not reported");
+    Check(unassigned.All(r => r.File is not ("Excluded.cs" or "Gen.g.cs" or "Idle.cs" or "X.cs")), "excluded, generated, idle and unmanifested files are not reported");
+    Check(unassigned.All(r => r.Flag == "contract"), "a flag assigned to the file (unit on Unit.cs) is not reported");
+    Check(unassigned.Any(r => r.File == "Small.cs" && r.ExecutedLines == 2), "an unlisted file gets the unit + guard fallback, so contract is unassigned");
+    var assignOut = Path.Combine(Path.GetTempPath(), "flag-assignment-selftest-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        Check(RunCheckFlagAssignment(unassigned, 5, assignOut), "a file at or above --min-lines fails the check");
+        Check(File.Exists(Path.Combine(assignOut, "flag-assignment.json")), "the check writes flag-assignment.json");
+        Check(!RunCheckFlagAssignment(unassigned.Where(r => r.File == "Small.cs").ToList(), 5, assignOut), "files below --min-lines do not fail the check");
+        Check(RunCheckFlagAssignment(unassigned.Where(r => r.File == "Small.cs").ToList(), 2, assignOut), "--min-lines is inclusive");
+        Check(!RunCheckFlagAssignment(FindUnassignedFlagFiles(new(), assignManifest, assignObligations), 5, assignOut), "empty input finds nothing and passes");
+    }
+    finally
+    {
+        if (Directory.Exists(assignOut)) Directory.Delete(assignOut, true);
+    }
 
     foreach (var failure in failures) Console.WriteLine($"  FAIL: {failure}");
     if (failures.Count > 0)
@@ -902,7 +1080,7 @@ if (!Directory.Exists(inputDir))
     File.WriteAllText(Path.Combine(outputDir, "encina-coverage-report.md"),
         "# Encina Coverage Report\n\nNo coverage data available. Run tests with `--collect \"XPlat Code Coverage\"` first.\n");
     // A missing input directory means every manifested package is unmeasured: the check must not pass vacuously.
-    if (checkUnmeasured) Environment.Exit(1);
+    if (checkUnmeasured || checkFlagAssignment) Environment.Exit(1);
     return;
 }
 
@@ -1012,6 +1190,22 @@ foreach (var xmlFile in xmlFiles)
 }
 
 Console.WriteLine($"\nLoaded data from {coverageByFlag.Count} test type(s): {string.Join(", ", coverageByFlag.Keys)}");
+
+// --check-flag-assignment (#2932): needs only the coverage data and the manifest, so it runs here and stops.
+// It cannot pass vacuously: no manifest, an unparsed manifest or no coverage data is an error.
+if (checkFlagAssignment)
+{
+    if (manifest.Count == 0 || manifestParseFailures.Count > 0 || coverageByFlag.Count == 0)
+    {
+        Console.WriteLine(manifestParseFailures.Count > 0
+            ? $"\nERROR: --check-flag-assignment could not parse {manifestParseFailures.Count} coverage manifest(s): {string.Join(", ", manifestParseFailures)}"
+            : "\nERROR: --check-flag-assignment found no coverage manifest or no coverage data; nothing was checked.");
+        Environment.Exit(1);
+    }
+
+    var unassignedFiles = FindUnassignedFlagFiles(coverageByFlag, manifest, fileObligations);
+    Environment.Exit(RunCheckFlagAssignment(unassignedFiles, minLines, outputDir) ? 1 : 0);
+}
 
 // ─── CRAP per method (combined coverage across ALL flags) ────────────────────
 //
@@ -1813,6 +2007,9 @@ record FileTargetRow(string Package, string File, string Flag, double Target, do
 // Target attainment aggregates (#2542); the field names are the contract of latest.json overall.attainment.
 record AttainmentSummary(int Pairs, int Met, double? Ratio, double? LineWeighted, double? MeanGap,
     int LinesToCover, int NoData, int Unweighted, int ZeroTarget);
+
+// A source file whose lines a flag executes although the manifest does not assign the flag to it (#2932).
+record UnassignedFlagFile(string Package, string File, string Flag, int ExecutedLines, int TotalLines);
 
 // One element of latest.json "fileTargets" (Design Choice 7).
 record FileTargetEntry(string Package, string File, string Flag, double Target, double? Measured,
