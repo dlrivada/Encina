@@ -62,6 +62,10 @@ services.AddEncinaAuditMarten(options =>
     options.EnableAutoPurge = true;
     options.PurgeIntervalHours = 24;
 
+    // Optional: name the approved retention policy in the destroyed-key marker
+    // (default null: audit-retention:<ISO 8601 RetentionPeriod>)
+    options.RetentionPolicyId = "audit-retention-policy-2026";
+
     // Health check
     options.AddHealthCheck = true;
 });
@@ -143,6 +147,26 @@ flowchart TD
 
 The shards are `OperationAuditEntryProjection:All` and `ReadAuditEntryProjection:All`. A paused shard does not retry. Marten applies events in ranges as one batch, so the healthy events of the failing range are also not projected until the shard runs again. Nothing is projected wrongly, and the read side keeps serving the last projected state meanwhile.
 
+### Set Marten's projection error flags
+
+A paused shard only happens when Marten does not skip the failing event. Marten's default is to skip (`SkipApplyErrors = true`), which would drop an audit event from the read model without a stop. Encina does not change these flags, because they are store-wide and also govern the application's own projections. The application MUST set all four to `false` in its `AddMarten` configuration:
+
+```csharp
+services.AddMarten(options =>
+{
+    options.Projections.Errors.SkipApplyErrors = false;
+    options.Projections.Errors.SkipSerializationErrors = false;
+    options.Projections.RebuildErrors.SkipApplyErrors = false;
+    options.Projections.RebuildErrors.SkipSerializationErrors = false;
+});
+```
+
+A failing event of any projection of the store, not only the audit ones, then pauses that shard instead of being skipped.
+
+`AuditProjectionErrorPolicyStartupGuard` (an `IHostedLifecycleService`) checks this in `StartingAsync`, after the application's final Marten configuration is built, whatever the registration order. If any of the four flags is `true`, it throws `InvalidOperationException` and the host stops. The message is fixed, names the offending flags (`Errors.SkipApplyErrors`, `Errors.SkipSerializationErrors`, `RebuildErrors.SkipApplyErrors`, `RebuildErrors.SkipSerializationErrors`) and holds no secrets. The failure is logged as error event 2591.
+
+To start with skipping enabled anyway, set `MartenOperationAuditOptions.AllowSkippedProjectionErrors = true` (default `false`). The host then starts and logs warning event 2590 with the number of skipping flags. Accept the risk first: an audit event that fails to project can be lost from the read model without a stop. Decision record: the 2026-10-27 amendment of [ADR-020](../architecture/adr/020-temporal-crypto-shredding-audit-store.md).
+
 ### Recognise it
 
 1. Look for an Error entry in the logger you gave to `BuildProjectionDaemonAsync` (category `Marten.Daemon` in the integration test) that reads "Subscription OperationAuditEntryProjection:All failed while creating a SQL batch", with an inner `JasperFx.Events.Daemon.ApplyEventException` ("Failure to apply event #`<sequence>` Id(`<event guid>`)") whose inner exception is the one below.
@@ -176,9 +200,11 @@ The integration test `AfterTheCauseIsRepaired_RebuildingTheProjectionProjectsEve
 
 ### Retention expiry reads [EXPIRED]
 
-`MartenOperationAuditStore.PurgeEntriesAsync` and `MartenReadAuditStore.PurgeEntriesAsync` (and so the auto-purge retention service) pass a `RetentionReference` to `DestroyKeysBeforeAsync`: policy id `audit-retention:<ISO 8601 RetentionPeriod>` (for example `audit-retention:P2555D`), the purge cutoff, the execution time from the injected `TimeProvider`, and actor `system`. Projecting events of a purged period, including in a rebuild, therefore yields the `[EXPIRED]` placeholder (`IsExpired = true`) and does not pause the shard. A rebuild passes over purged periods.
+`MartenOperationAuditStore.PurgeEntriesAsync` and `MartenReadAuditStore.PurgeEntriesAsync` (and so the auto-purge retention service) pass a `RetentionReference` to `DestroyKeysBeforeAsync`: policy id `MartenOperationAuditOptions.RetentionPolicyId` when set, otherwise `audit-retention:<ISO 8601 RetentionPeriod>` (for example `audit-retention:P2555D`), the purge cutoff, the execution time from the injected `TimeProvider`, and actor `system`. Projecting events of a purged period, including in a rebuild, therefore yields the `[EXPIRED]` placeholder (`IsExpired = true`) and does not pause the shard. A rebuild passes over purged periods.
 
 The query helpers treat `[EXPIRED]` like `[SHREDDED]`: the `MetadataJson` of an expired or shredded entry is not parsed (the metadata is empty), `UserId` and `IpAddress` filters cannot match placeholder values, and a `Purpose` filter contains the placeholder.
+
+`RetentionPolicyId` (`string?`, default `null`) is rejected with an `OptionsValidationException` at `AddEncinaAuditMarten` when it is empty or whitespace. Operators who run manual purges should set it to the identifier of the retention policy their organisation approved, so the marker names that policy (GDPR Art. 5(2)); the automatic and the manual purge both use it.
 
 A retention purge hard-deletes the key document, so the key cannot be restored except from a backup of the key documents. A marker written without any reference (before this change, or by a direct `DestroyKeysBeforeAsync(..., reference: null)` call) still fails with `KeyDestroyedWithoutErasureRecord` and pauses the shard. Operator resolution for that case is not available until the later change tracked as PR 2b of issue #2770.
 
@@ -191,7 +217,7 @@ For a marker with no reference you can today:
 
 ### Limits today
 
-- The configuration `ConfigureMartenOperationAuditProjections` sets `Projections.Errors.SkipApplyErrors`, `SkipSerializationErrors` and the same two options of `Projections.RebuildErrors` to `false`. Marten's default (`SkipApplyErrors = true`) would silently skip a failing audit event. Marten has no per-projection policy, so this applies to the whole store: other projections in the same Marten store also stop on an apply or serialization error instead of skipping it.
+- Encina does not set Marten's projection error flags; the application does (see [Set Marten's projection error flags](#set-martens-projection-error-flags)). Marten has no per-projection policy, so the flags apply to the whole store.
 - You cannot skip or label a single event. Operator resolution commands (mark an event `[UNREADABLE]`, confirm `[SHREDDED]` or `[EXPIRED]` out of band for a marker with no reference, re-project one event, exclude an event, each one audited) arrive in a later change, tracked as PR 2b of issue #2770. They are not available yet.
 
 ## Related
