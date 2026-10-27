@@ -14,8 +14,8 @@
 # check the hook denies (1) an issue whose title starts with [EPIC] (an EPIC is never briefed), (2) a brief
 # without a line "Size: <files> files, <lines> lines", (3) a declared size over $MaxFiles files or $MaxLines
 # lines or below 1 file, and (4) an issue whose "## Component Affected" (infrastructure template) or
-# "## Location" (technical-debt template) section names more distinct backticked paths than $MaxFiles or than
-# the brief declares. The hook cannot measure the real diff; the declaration is the contract and review
+# "## Location" (technical-debt template) section lists, in its "- **File(s)**" bullet only, more distinct
+# backticked paths than $MaxFiles or than the brief declares. The hook cannot measure the real diff; the declaration is the contract and review
 # (adversarial-reviewer) compares it with git diff --shortstat.
 #
 # Fails closed: no "Issue #<n>", a gh failure, an unknown title prefix, an unreadable template or a missing
@@ -153,15 +153,24 @@ try {
         exit 2
     }
 
-    # The paths the issue itself names (backticked dir/.../name.ext tokens in its file-list section) tie the
-    # declaration to the issue text, so the brief alone cannot understate the size. An issue whose template has
-    # neither section skips this check. Limits: every backticked path with a slash and an extension counts, also
-    # one the issue only mentions (an issue must then keep reference paths out of that section or the brief
-    # declares at least that count); a path with a line suffix, spaces, a wildcard or no extension is not counted.
+    # The paths the issue itself lists tie the declaration to the issue text, so the brief alone cannot understate
+    # the size. Only the "- **File(s)**" bullet of "## Component Affected" / "## Location" is read, from its first
+    # line to the next top-level "- **" bullet; paths in other bullets ("Who does what", "Environment") and other
+    # sections are references and are not counted. An issue without that bullet skips this check. Counted: every
+    # backticked dir/.../name.ext on the bullet's first line, and the backticked path that opens a nested list item
+    # (numbered or "-"/"*"); a path inside a nested item's prose, with a line suffix, spaces, a wildcard or no
+    # extension is not counted (the count can undercount, it is not inflated by mentions).
     $fileSection = [regex]::Match([string]$issue.body, '(?ms)^##[ \t]+(?:Component Affected|Location)[ \t]*\r?\n(?<s>.*?)(?=^##[ \t]|\z)')
-    if ($fileSection.Success) {
+    $fileBullet = if ($fileSection.Success) { [regex]::Match($fileSection.Groups['s'].Value, '(?ms)^-[ \t]+\*\*File\(s\)\*\*(?<b>.*?)(?=^-[ \t]+\*\*|\z)') } else { $null }
+    if ($null -ne $fileBullet -and $fileBullet.Success) {
         $paths = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-        foreach ($token in [regex]::Matches($fileSection.Groups['s'].Value.Replace('\', '/'), '`(?<p>[^`\s*<>]+/[^`\s*<>/]*\.[A-Za-z0-9]+)`')) { [void]$paths.Add($token.Groups['p'].Value) }
+        $pathToken = '`(?<p>[^`\s*<>]+/[^`\s*<>/]*\.[A-Za-z0-9]+)`'
+        $bulletLines = @($fileBullet.Groups['b'].Value.Replace('\', '/') -split "`r?`n")
+        foreach ($token in [regex]::Matches($bulletLines[0], $pathToken)) { [void]$paths.Add($token.Groups['p'].Value) }
+        foreach ($line in ($bulletLines | Select-Object -Skip 1)) {
+            $item = [regex]::Match($line, '^[ \t]+(?:[-*]|\d+\.)[ \t]+' + $pathToken)
+            if ($item.Success) { [void]$paths.Add($item.Groups['p'].Value) }
+        }
         if ($paths.Count -gt $MaxFiles) {
             [Console]::Error.WriteLine("Blocked: the issue lists $($paths.Count) files; decompose it (a worker PR is at most $MaxFiles files, EPIC #2845 working rule, #2900).")
             exit 2

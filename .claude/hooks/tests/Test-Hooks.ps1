@@ -5115,9 +5115,11 @@ The fluent builder chain described in the documentation is fictional. The parame
     Write-StubIssue 9006 '[FEATURE] feature with a debt body' (Get-TemplateBody 'technical_debt.md')
     # #2900: stub issues for the size gate. The file-list section (Component Affected / Location) names the given paths.
     Write-StubIssue 9007 '[EPIC] compliant epic' (Get-TemplateBody 'epic.md')
-    function Get-PathBody([string]$TemplateFile, [string]$SectionHeader, [string[]]$Paths) {
+    function Get-PathBody([string]$TemplateFile, [string]$SectionHeader, [string[]]$Paths, [string[]]$Reference = @()) {
         $hs = @(Get-Content -LiteralPath (Join-Path $repo ".github/ISSUE_TEMPLATE/$TemplateFile") | Where-Object { $_ -cmatch '^## \S' } | ForEach-Object { $_.Trim() })
-        return (($hs | ForEach-Object { if ($_ -ceq $SectionHeader) { "$_`n" + (($Paths | ForEach-Object { "- ``$_``" }) -join "`n") } else { "$_`ntext" } }) -join "`n`n")
+        # The section holds the "- **File(s)**" bullet with one nested numbered item per path, then (when given)
+        # a "Who does what" bullet whose reference paths must not be counted.
+        return (($hs | ForEach-Object { if ($_ -ceq $SectionHeader) { "$_`n`n- **File(s)** ($($Paths.Count), none outside this list):`n" + ((1..$Paths.Count | ForEach-Object { "  $_. ``$($Paths[$_ - 1])`` (change)" }) -join "`n") + "`n  - No fragment (see ``changelog.d/README.md``)`n" + $(if ($Reference) { "- **Who does what**: " + (($Reference | ForEach-Object { "``$_``" }) -join ', ') + "`n" }) + "- **Environment**: ``pwsh`` 7" } else { "$_`ntext" } }) -join "`n`n")
     }
     $paths15 = 1..15 | ForEach-Object { "src/Pkg/File$_.cs" }
     Write-StubIssue 9008 '[INFRA] 15 paths' (Get-PathBody 'infrastructure.md' '## Component Affected' $paths15)
@@ -5125,6 +5127,10 @@ The fluent builder chain described in the documentation is fictional. The parame
     Write-StubIssue 9010 '[INFRA] 3 paths' (Get-PathBody 'infrastructure.md' '## Component Affected' @('src/A/One.cs', 'src\A\Two.cs', 'tests/A/Three.cs'))
     Write-StubIssue 9011 '[INFRA] one path repeated' (Get-PathBody 'infrastructure.md' '## Component Affected' (1..20 | ForEach-Object { 'src/A/Same.cs' }))
     Write-StubIssue 9012 '[DEBT] 3 paths in Location' (Get-PathBody 'technical_debt.md' '## Location' @('src/A/One.cs', 'src/A/Two.cs', 'src/A/Three.cs'))
+    # The shape of #2900: 5 listed paths plus 3 reference paths in other bullets (the nested "No fragment" item also names one).
+    Write-StubIssue 9013 '[INFRA] 5 listed, 3 reference' (Get-PathBody 'infrastructure.md' '## Component Affected' @('a/1.ps1', 'a/2.ps1', 'a/3.md', 'a/4.md', 'a/5.md') @('.claude/hooks/ref1.ps1', '.claude/hooks/ref2.ps1', '.claude/agents/ref3.md'))
+    # A section without a File(s) bullet: paths in plain prose are not counted, so the check is skipped.
+    Write-StubIssue 9014 '[INFRA] no File(s) bullet' ((Get-TemplateBody 'infrastructure.md') -replace '(?m)^(## Component Affected\r?\n)text', ('$1' + ((1..20 | ForEach-Object { "- ``src/B/F$_.cs``" }) -join "`n")))
     # The stub returns no state: the hook reads only title and body, so a closed issue is checked the same way.
     $savedStubGh = $env:ENCINA_ISSUE_GH; $savedStubDir = $env:ENCINA_STUB_DIR
     $env:ENCINA_ISSUE_GH = Join-Path $stubDir 'gh-stub.ps1'; $env:ENCINA_STUB_DIR = $stubDir
@@ -5200,6 +5206,10 @@ The fluent builder chain described in the documentation is fictional. The parame
         Invoke-TargetCase 'issue-worker' "Issue #9011 go.`nSize: 1 files, 100 lines" 0 'size gate: a path repeated 20 times counts once' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9012 go.`nSize: 2 files, 100 lines" 2 'size gate: a technical-debt Location section is counted the same way (denied)' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9012 go.`nSize: 3 files, 100 lines" 0 'size gate: a technical-debt Location section is counted the same way (passes)' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9013 go.`nSize: 5 files, 200 lines" 0 'size gate: reference paths outside the File(s) bullet are ignored (5 listed + 3 references, Size 5 passes)' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9013 go.`nSize: 4 files, 200 lines" 2 'size gate: the 5 listed paths still bind the declaration (Size 4 denied)' -NoSize
+        Invoke-TargetMessage 'issue-worker' "Issue #9013 go.`nSize: 4 files, 200 lines" 'declares 4 files but the issue lists 5' 'size gate: the count is 5, not 8'
+        Invoke-TargetCase 'issue-worker' "Issue #9014 go.`nSize: 1 files, 100 lines" 0 'size gate: a section without a File(s) bullet skips the path check (20 prose paths ignored)' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9005 go.`nSize: 1 files, 100 lines" 0 'size gate: an issue whose template has neither section skips the path check' -NoSize
 
         # A hung gh is denied once the bound passes (settings.json gives the hook 30 s; a hook timeout would allow).
