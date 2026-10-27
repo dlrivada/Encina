@@ -23,11 +23,13 @@ public class ConsentFailClosedGuardTests
     private readonly IReadModelRepository<ConsentReadModel> _readModelRepository = Substitute.For<IReadModelRepository<ConsentReadModel>>();
     private readonly IRequestContextAccessor _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
 
+    private readonly ICacheProvider _cache = Substitute.For<ICacheProvider>();
+
     private DefaultConsentService CreateService(bool? requireTenantContext = true) =>
         new(
             _repository,
             _readModelRepository,
-            Substitute.For<ICacheProvider>(),
+            _cache,
             TimeProvider.System,
             _requestContextAccessor,
             Options.Create(new ConsentOptions { RequireTenantContext = requireTenantContext }),
@@ -82,6 +84,7 @@ public class ConsentFailClosedGuardTests
             .ShouldBe(ConsentErrors.TenantRequiredCode);
         _repository.ReceivedCalls().ShouldBeEmpty();
         _readModelRepository.ReceivedCalls().ShouldBeEmpty();
+        _cache.ReceivedCalls().ShouldBeEmpty();
     }
 
     [Fact]

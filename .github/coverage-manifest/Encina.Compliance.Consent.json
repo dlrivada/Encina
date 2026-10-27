@@ -36,8 +36,8 @@
         "property": 75
       },
       "justifications": {
-        "guard": "Guard tests cover the argument checks and invalid state transitions of the aggregate factory and commands.",
-        "property": "FsCheck properties run the real aggregate over generated inputs and transition sequences."
+        "guard": "Guard tests cover the null, empty and whitespace argument checks of the aggregate factory and commands.",
+        "property": "FsCheck properties run the real aggregate over generated inputs and single state transitions."
       }
     },
     "Attributes/RequireConsentAttribute.cs": {
@@ -191,7 +191,7 @@
         "guard": 25
       },
       "justifications": {
-        "guard": "Guard tests construct the events through the aggregate commands, running the record constructors."
+        "guard": "Guard tests construct ConsentGranted and ConsentVersionChanged through the aggregate Grant and ChangeVersion commands; the other event records belong to unit tests."
       }
     },
     "Health/ConsentHealthCheck.cs": {
@@ -266,7 +266,7 @@
         "guard": 25
       },
       "justifications": {
-        "guard": "Guard tests check the constructor null guards and drive every operation into the tenant fail-closed gate (SPEC-002 DEC-006); the happy and error paths of the operations belong to unit tests."
+        "guard": "Guard tests check the constructor null guards and drive every tenant-gated operation into the fail-closed gate (SPEC-002 DEC-006); the happy and error paths of the operations belong to unit tests."
       }
     },
     "SubjectIdConversion.cs": {
