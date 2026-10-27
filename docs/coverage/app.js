@@ -376,7 +376,7 @@
   // Extract sortable value from a package for a given column
   function sortValue(pkg, col) {
     if (col === 'name') return pkg.name.toLowerCase();
-    if (!isMeasured(pkg)) return -1; // not measured sorts below any measured value, including 0%
+    if (!isMeasured(pkg)) return -Infinity; // not measured sorts below any measured value, including 0% and negative gaps
     if (col === 'lines') return pkg.lines;
     if (col === 'combined') return pkg.coverage;
     if (col === 'gap') {
@@ -416,7 +416,7 @@
       filtered.sort((a, b) => {
         const va = sortValue(a, col), vb = sortValue(b, col);
         if (typeof va === 'string') return va.localeCompare(vb) * dir;
-        return (va - vb) * dir;
+        return va === vb ? 0 : (va - vb) * dir; // equal check keeps two -Infinity values from giving NaN
       });
     }
 

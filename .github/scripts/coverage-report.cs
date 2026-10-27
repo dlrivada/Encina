@@ -172,6 +172,14 @@ else
 // parent) instead of the current directory — the same directory independent of the process's
 // cwd. Neither needs coverage data or a build. The two flags can be passed together (CI does):
 // both run, and the process exits 1 if either found a problem, not just whichever ran last.
+// --check-unmeasured needs coverage data, the others do not and return early: combining them would
+// silently skip the unmeasured check, so it is rejected (#2827).
+if (checkUnmeasured && (checkStaleManifest || checkMissingManifest || checkJustifications))
+{
+    Console.WriteLine("\nERROR: --check-unmeasured cannot be combined with --check-stale-manifest, --check-missing-manifest or --check-justifications; run it as its own step.");
+    Environment.Exit(1);
+}
+
 if (checkStaleManifest || checkMissingManifest || checkJustifications)
 {
     // A gate that fails CI when a manifest entry is stale or missing must not pass vacuously
@@ -1344,9 +1352,12 @@ Console.WriteLine("\nDone.");
 // manifested package has no measured lines. Not wired into CI yet (#2896).
 if (checkUnmeasured)
 {
-    if (manifest.Count == 0)
+    if (manifest.Count == 0 || manifestParseFailures.Count > 0)
     {
-        Console.WriteLine("\nERROR: --check-unmeasured loaded no coverage manifest; nothing was checked.");
+        // An unparsed manifest never enters `manifest`, so its package would be invisible to this check.
+        Console.WriteLine(manifestParseFailures.Count > 0
+            ? $"\nERROR: --check-unmeasured could not parse {manifestParseFailures.Count} coverage manifest(s): {string.Join(", ", manifestParseFailures)}"
+            : "\nERROR: --check-unmeasured loaded no coverage manifest; nothing was checked.");
         Environment.Exit(1);
     }
 
@@ -1356,7 +1367,7 @@ if (checkUnmeasured)
         Environment.Exit(1);
     }
 
-    Console.WriteLine($"\nAll {packageResults.Count} manifested package(s) have measured lines.");
+    Console.WriteLine($"\nAll {manifest.Count} manifested package(s) have measured lines.");
 }
 
 // ─── Helper functions ────────────────────────────────────────────────────────
