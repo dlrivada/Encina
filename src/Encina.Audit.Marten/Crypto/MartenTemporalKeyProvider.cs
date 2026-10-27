@@ -297,23 +297,30 @@ public sealed class MartenTemporalKeyProvider : ITemporalKeyProvider
         int keyVersionsDestroyed,
         KeyDestructionReference? reference)
     {
-        var erasure = reference as ErasureReference;
-        var retention = reference as RetentionReference;
-
-        return new TemporalKeyDestroyedMarker
+        var marker = new TemporalKeyDestroyedMarker
         {
             Id = markerId,
             Period = period,
             DestroyedAtUtc = destroyedAtUtc,
-            KeyVersionsDestroyed = keyVersionsDestroyed,
-            ErasureRequestId = erasure?.RequestId,
-            ErasureRequestedAtUtc = erasure?.RequestedAtUtc.ToUniversalTime(),
-            ErasureActor = erasure?.Actor,
-            RetentionPolicyId = retention?.PolicyId,
-            RetentionCutoffUtc = retention?.CutoffUtc.ToUniversalTime(),
-            RetentionExecutedAtUtc = retention?.ExecutedAtUtc.ToUniversalTime(),
-            RetentionActor = retention?.Actor
+            KeyVersionsDestroyed = keyVersionsDestroyed
         };
+
+        switch (reference)
+        {
+            case ErasureReference erasure:
+                marker.ErasureRequestId = erasure.RequestId;
+                marker.ErasureRequestedAtUtc = erasure.RequestedAtUtc.ToUniversalTime();
+                marker.ErasureActor = erasure.Actor;
+                break;
+            case RetentionReference retention:
+                marker.RetentionPolicyId = retention.PolicyId;
+                marker.RetentionCutoffUtc = retention.CutoffUtc.ToUniversalTime();
+                marker.RetentionExecutedAtUtc = retention.ExecutedAtUtc.ToUniversalTime();
+                marker.RetentionActor = retention.Actor;
+                break;
+        }
+
+        return marker;
     }
 
     /// <inheritdoc />

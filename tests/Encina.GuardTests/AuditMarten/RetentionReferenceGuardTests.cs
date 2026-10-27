@@ -28,6 +28,20 @@ public sealed class RetentionReferenceGuardTests
     }
 
     [Fact]
+    public async Task Marten_SessionFailure_ReturnsLeftInsteadOfThrowing()
+    {
+        var session = Substitute.For<IDocumentSession>();
+        session.When(s => s.Query<TemporalKeyDocument>()).Do(_ => throw new InvalidOperationException("database down"));
+        var sut = new MartenTemporalKeyProvider(
+            session, TimeProvider.System, NullLogger<MartenTemporalKeyProvider>.Instance);
+
+        var result = await sut.DestroyKeysBeforeAsync(
+            DateTime.UtcNow, TemporalKeyGranularity.Monthly, new RetentionReference("p", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "system"));
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task InMemory_InvalidRetentionReference_ReturnsLeft()
     {
         var sut = new InMemoryTemporalKeyProvider(TimeProvider.System, NullLogger<InMemoryTemporalKeyProvider>.Instance);

@@ -44,10 +44,7 @@ public sealed partial class ReadAuditEntryProjection : EventProjection
     /// using the default shredded and expired placeholders and a null logger.
     /// </summary>
     public ReadAuditEntryProjection()
-        : this(
-            MartenOperationAuditOptions.DefaultShreddedPlaceholder,
-            MartenOperationAuditOptions.DefaultExpiredPlaceholder,
-            NullLogger<ReadAuditEntryProjection>.Instance)
+        : this(MartenOperationAuditOptions.DefaultShreddedPlaceholder, MartenOperationAuditOptions.DefaultExpiredPlaceholder, NullLogger<ReadAuditEntryProjection>.Instance)
     {
     }
 
@@ -107,6 +104,18 @@ public sealed partial class ReadAuditEntryProjection : EventProjection
         return MapToReadModel(@event, keyMaterial, isShredded, isExpired);
     }
 
+    private void LogDestroyedKey(ReadAuditEntryRecordedEvent @event, bool isShredded, bool isExpired)
+    {
+        if (isShredded || isExpired)
+        {
+            _logger.LogDebug(
+                "Temporal key for period {Period} destroyed — marking read audit entry {EntryId} as {Kind}",
+                @event.TemporalKeyPeriod,
+                @event.Id,
+                isShredded ? "shredded" : "expired");
+        }
+    }
+
     /// <summary>
     /// Maps a <see cref="ReadAuditEntryRecordedEvent"/> to a <see cref="ReadAuditEntryReadModel"/>,
     /// decrypting PII fields with the supplied key material or substituting the shredded
@@ -123,14 +132,7 @@ public sealed partial class ReadAuditEntryProjection : EventProjection
         bool isShredded,
         bool isExpired = false)
     {
-        if (isShredded || isExpired)
-        {
-            _logger.LogDebug(
-                "Temporal key for period {Period} destroyed — marking read audit entry {EntryId} as {Kind}",
-                @event.TemporalKeyPeriod,
-                @event.Id,
-                isShredded ? "shredded" : "expired");
-        }
+        LogDestroyedKey(@event, isShredded, isExpired);
 
         var placeholder = isExpired ? _expiredPlaceholder : _shreddedPlaceholder;
 

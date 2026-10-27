@@ -54,10 +54,7 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// and a null logger.
     /// </summary>
     public OperationAuditEntryProjection()
-        : this(
-            MartenOperationAuditOptions.DefaultShreddedPlaceholder,
-            MartenOperationAuditOptions.DefaultExpiredPlaceholder,
-            NullLogger<OperationAuditEntryProjection>.Instance)
+        : this(MartenOperationAuditOptions.DefaultShreddedPlaceholder, MartenOperationAuditOptions.DefaultExpiredPlaceholder, NullLogger<OperationAuditEntryProjection>.Instance)
     {
     }
 
