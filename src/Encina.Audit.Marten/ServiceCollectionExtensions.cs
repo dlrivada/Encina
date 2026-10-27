@@ -93,20 +93,12 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         // Validate eagerly so a plain BuildServiceProvider (no host, no ValidateOnStart) is protected too.
-        var optionsInstance = new MartenOperationAuditOptions();
-        configure?.Invoke(optionsInstance);
-        var validation = new MartenOperationAuditOptionsValidator().Validate(Options.DefaultName, optionsInstance);
-        if (validation.Failed)
-        {
-            throw new OptionsValidationException(Options.DefaultName, typeof(MartenOperationAuditOptions), validation.Failures);
-        }
+        var optionsInstance = ValidatedOptions(configure);
 
         // Configure options
-        var optionsBuilder = services.AddOptions<MartenOperationAuditOptions>().ValidateOnStart();
-        if (configure is not null)
-        {
-            optionsBuilder.Configure(configure);
-        }
+        services.AddOptions<MartenOperationAuditOptions>()
+            .Configure(options => configure?.Invoke(options))
+            .ValidateOnStart();
 
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IValidateOptions<MartenOperationAuditOptions>, MartenOperationAuditOptionsValidator>());
@@ -140,8 +132,15 @@ public static class ServiceCollectionExtensions
         // Fail closed at startup when the application's Marten error flags would skip audit events (D22).
         services.AddHostedService<AuditProjectionErrorPolicyStartupGuard>();
 
-        // Conditional: health check
-        if (optionsInstance.AddHealthCheck)
+        AddOptInServices(services, optionsInstance);
+
+        return services;
+    }
+
+    // Opt-in registrations: the health check and the auto-purge background service.
+    private static void AddOptInServices(IServiceCollection services, MartenOperationAuditOptions options)
+    {
+        if (options.AddHealthCheck)
         {
             services.AddHealthChecks()
                 .AddCheck<MartenOperationAuditHealthCheck>(
@@ -149,12 +148,19 @@ public static class ServiceCollectionExtensions
                     tags: MartenOperationAuditHealthCheck.Tags);
         }
 
-        // Conditional: auto-purge background service
-        if (optionsInstance.EnableAutoPurge)
+        if (options.EnableAutoPurge)
         {
             services.AddHostedService<MartenOperationAuditRetentionService>();
         }
+    }
 
-        return services;
+    private static MartenOperationAuditOptions ValidatedOptions(Action<MartenOperationAuditOptions>? configure)
+    {
+        var options = new MartenOperationAuditOptions();
+        configure?.Invoke(options);
+        var validation = new MartenOperationAuditOptionsValidator().Validate(Options.DefaultName, options);
+        return validation.Failed
+            ? throw new OptionsValidationException(Options.DefaultName, typeof(MartenOperationAuditOptions), validation.Failures)
+            : options;
     }
 }
