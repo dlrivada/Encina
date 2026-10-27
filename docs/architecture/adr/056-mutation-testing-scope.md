@@ -39,7 +39,7 @@ The list only grows. Removing a package from it needs a reviewed pull request th
 
 ### Review trigger
 
-Just before 1.0, after all pre-1.0 development, this decision is re-opened to get as close to option C as is realistic, with all CI time available. A reminder issue in milestone v1.0.0-rc.1 carries the trigger.
+Just before 1.0, after all pre-1.0 development, this decision is re-opened to get as close to option C as is realistic, with all CI time available. The reminder issue [#2914](https://github.com/dlrivada/Encina/issues/2914), in milestone v1.0.0-rc.1, carries the trigger.
 
 ## Alternatives considered
 
@@ -63,7 +63,7 @@ Option A was chosen because it spends mutation time where a surviving mutant is 
 | Extending Stryker beyond `src/Encina`: per-package projects or shards | [#2829](https://github.com/dlrivada/Encina/issues/2829) |
 | Applying the criterion to each package and producing the list | [#2911](https://github.com/dlrivada/Encina/issues/2911) |
 | Mutation measurement integrity work this scope builds on | [#2845](https://github.com/dlrivada/Encina/issues/2845) |
-| The 1.0 review of the scope | A reminder issue in milestone v1.0.0-rc.1 |
+| The 1.0 review of the scope | [#2914](https://github.com/dlrivada/Encina/issues/2914) (milestone v1.0.0-rc.1) |
 
 ## Related
 
