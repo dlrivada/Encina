@@ -240,7 +240,7 @@ internal static partial class MartenAuditLog
         string period);
 
     // ========================================================================
-    // Startup validation (2590-2591)
+    // Startup validation (2590-2592)
     // ========================================================================
 
     /// <summary>The fail-closed projection error-policy check was skipped through the explicit opt-out.</summary>
@@ -261,4 +261,12 @@ internal static partial class MartenAuditLog
     internal static partial void ProjectionErrorPolicyViolated(
         ILogger logger,
         int skippingFlagCount);
+
+    /// <summary>The audit projections cannot start because the store's projection error flags cannot be read.</summary>
+    [LoggerMessage(
+        EventId = 2592,
+        Level = LogLevel.Error,
+        Message = "Marten audit projections cannot start: the store's projection error flags cannot be read, so the fail-closed check cannot run")]
+    internal static partial void ProjectionErrorPolicyUnverifiable(
+        ILogger logger);
 }

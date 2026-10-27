@@ -86,7 +86,7 @@ internal sealed class AuditProjectionErrorPolicyStartupGuard : IHostedLifecycleS
         if (_store.Options is not StoreOptions storeOptions)
         {
             // Fail closed: the flags cannot be read, so they cannot be verified.
-            MartenAuditLog.ProjectionErrorPolicyViolated(_logger, 0);
+            MartenAuditLog.ProjectionErrorPolicyUnverifiable(_logger);
             throw new InvalidOperationException(UnverifiableMessage);
         }
 
