@@ -42,7 +42,7 @@ public sealed class DestroyKeysBeforeGuardTests
     {
         var sut = new InMemoryTemporalKeyProvider(TimeProvider.System, NullLogger<InMemoryTemporalKeyProvider>.Instance);
 
-        var result = await sut.DestroyKeysBeforeAsync(DateTime.UtcNow, TemporalKeyGranularity.Monthly, erasureReference: null);
+        var result = await sut.DestroyKeysBeforeAsync(DateTime.UtcNow, TemporalKeyGranularity.Monthly, reference: null);
 
         result.IsRight.ShouldBeTrue();
     }

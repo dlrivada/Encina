@@ -6,24 +6,41 @@ Encina.Audit.Marten.AuditEventEncryptor
 Encina.Audit.Marten.AuditEventEncryptor.AuditEventEncryptor(Encina.Audit.Marten.Crypto.ITemporalKeyProvider! keyProvider, Microsoft.Extensions.Options.IOptions<Encina.Audit.Marten.MartenOperationAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Audit.Marten.AuditEventEncryptor!>! logger) -> void
 Encina.Audit.Marten.AuditEventEncryptor.EncryptAuditEntryAsync(Encina.Security.Audit.OperationAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Audit.Marten.Events.OperationAuditEntryRecordedEvent!>>
 Encina.Audit.Marten.AuditEventEncryptor.EncryptReadAuditEntryAsync(Encina.Security.Audit.ReadAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Audit.Marten.Events.ReadAuditEntryRecordedEvent!>>
+Encina.Audit.Marten.Crypto.KeyDestructionKind
+Encina.Audit.Marten.Crypto.KeyDestructionKind.Erasure = 1 -> Encina.Audit.Marten.Crypto.KeyDestructionKind
+Encina.Audit.Marten.Crypto.KeyDestructionKind.Retention = 2 -> Encina.Audit.Marten.Crypto.KeyDestructionKind
+Encina.Audit.Marten.Crypto.KeyDestructionKind.Unrecorded = 0 -> Encina.Audit.Marten.Crypto.KeyDestructionKind
+Encina.Audit.Marten.Crypto.KeyDestructionReference
+abstract Encina.Audit.Marten.Crypto.KeyDestructionReference.IsValid.get -> bool
+Encina.Audit.Marten.Crypto.RetentionReference
+Encina.Audit.Marten.Crypto.RetentionReference.Actor.get -> string!
+Encina.Audit.Marten.Crypto.RetentionReference.Actor.init -> void
+Encina.Audit.Marten.Crypto.RetentionReference.CutoffUtc.get -> System.DateTimeOffset
+Encina.Audit.Marten.Crypto.RetentionReference.CutoffUtc.init -> void
+Encina.Audit.Marten.Crypto.RetentionReference.ExecutedAtUtc.get -> System.DateTimeOffset
+Encina.Audit.Marten.Crypto.RetentionReference.ExecutedAtUtc.init -> void
+override Encina.Audit.Marten.Crypto.RetentionReference.IsValid.get -> bool
+Encina.Audit.Marten.Crypto.RetentionReference.PolicyId.get -> string!
+Encina.Audit.Marten.Crypto.RetentionReference.PolicyId.init -> void
+Encina.Audit.Marten.Crypto.RetentionReference.RetentionReference(string! PolicyId, System.DateTimeOffset CutoffUtc, System.DateTimeOffset ExecutedAtUtc, string! Actor) -> void
 Encina.Audit.Marten.Crypto.ErasureReference
 Encina.Audit.Marten.Crypto.ErasureReference.Actor.get -> string!
 Encina.Audit.Marten.Crypto.ErasureReference.Actor.init -> void
 Encina.Audit.Marten.Crypto.ErasureReference.ErasureReference(string! RequestId, System.DateTimeOffset RequestedAtUtc, string! Actor) -> void
-Encina.Audit.Marten.Crypto.ErasureReference.IsValid.get -> bool
+override Encina.Audit.Marten.Crypto.ErasureReference.IsValid.get -> bool
 Encina.Audit.Marten.Crypto.ErasureReference.RequestedAtUtc.get -> System.DateTimeOffset
 Encina.Audit.Marten.Crypto.ErasureReference.RequestedAtUtc.init -> void
 Encina.Audit.Marten.Crypto.ErasureReference.RequestId.get -> string!
 Encina.Audit.Marten.Crypto.ErasureReference.RequestId.init -> void
 Encina.Audit.Marten.Crypto.ITemporalKeyProvider
-Encina.Audit.Marten.Crypto.ITemporalKeyProvider.DestroyKeysBeforeAsync(System.DateTime olderThanUtc, Encina.Audit.Marten.TemporalKeyGranularity granularity, Encina.Audit.Marten.Crypto.ErasureReference? erasureReference = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
+Encina.Audit.Marten.Crypto.ITemporalKeyProvider.DestroyKeysBeforeAsync(System.DateTime olderThanUtc, Encina.Audit.Marten.TemporalKeyGranularity granularity, Encina.Audit.Marten.Crypto.KeyDestructionReference? reference = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
 Encina.Audit.Marten.Crypto.ITemporalKeyProvider.GetActiveKeysAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Audit.Marten.Crypto.TemporalKeyInfo!>!>>
 Encina.Audit.Marten.Crypto.ITemporalKeyProvider.GetKeyAsync(string! period, int? version = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Audit.Marten.Crypto.TemporalKeyInfo!>>
 Encina.Audit.Marten.Crypto.ITemporalKeyProvider.GetOrCreateKeyAsync(string! period, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Audit.Marten.Crypto.TemporalKeyInfo!>>
 Encina.Audit.Marten.Crypto.ITemporalKeyProvider.IsKeyDestroyedAsync(string! period, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
 Encina.Audit.Marten.Crypto.InMemoryTemporalKeyProvider
 Encina.Audit.Marten.Crypto.InMemoryTemporalKeyProvider.Clear() -> void
-Encina.Audit.Marten.Crypto.InMemoryTemporalKeyProvider.DestroyKeysBeforeAsync(System.DateTime olderThanUtc, Encina.Audit.Marten.TemporalKeyGranularity granularity, Encina.Audit.Marten.Crypto.ErasureReference? erasureReference = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
+Encina.Audit.Marten.Crypto.InMemoryTemporalKeyProvider.DestroyKeysBeforeAsync(System.DateTime olderThanUtc, Encina.Audit.Marten.TemporalKeyGranularity granularity, Encina.Audit.Marten.Crypto.KeyDestructionReference? reference = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
 Encina.Audit.Marten.Crypto.InMemoryTemporalKeyProvider.GetActiveKeysAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Audit.Marten.Crypto.TemporalKeyInfo!>!>>
 Encina.Audit.Marten.Crypto.InMemoryTemporalKeyProvider.GetKeyAsync(string! period, int? version = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Audit.Marten.Crypto.TemporalKeyInfo!>>
 Encina.Audit.Marten.Crypto.InMemoryTemporalKeyProvider.GetOrCreateKeyAsync(string! period, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Audit.Marten.Crypto.TemporalKeyInfo!>>
@@ -31,7 +48,7 @@ Encina.Audit.Marten.Crypto.InMemoryTemporalKeyProvider.InMemoryTemporalKeyProvid
 Encina.Audit.Marten.Crypto.InMemoryTemporalKeyProvider.IsKeyDestroyedAsync(string! period, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
 Encina.Audit.Marten.Crypto.InMemoryTemporalKeyProvider.PeriodCount.get -> int
 Encina.Audit.Marten.Crypto.MartenTemporalKeyProvider
-Encina.Audit.Marten.Crypto.MartenTemporalKeyProvider.DestroyKeysBeforeAsync(System.DateTime olderThanUtc, Encina.Audit.Marten.TemporalKeyGranularity granularity, Encina.Audit.Marten.Crypto.ErasureReference? erasureReference = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
+Encina.Audit.Marten.Crypto.MartenTemporalKeyProvider.DestroyKeysBeforeAsync(System.DateTime olderThanUtc, Encina.Audit.Marten.TemporalKeyGranularity granularity, Encina.Audit.Marten.Crypto.KeyDestructionReference? reference = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
 Encina.Audit.Marten.Crypto.MartenTemporalKeyProvider.GetActiveKeysAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Audit.Marten.Crypto.TemporalKeyInfo!>!>>
 Encina.Audit.Marten.Crypto.MartenTemporalKeyProvider.GetKeyAsync(string! period, int? version = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Audit.Marten.Crypto.TemporalKeyInfo!>>
 Encina.Audit.Marten.Crypto.MartenTemporalKeyProvider.GetOrCreateKeyAsync(string! period, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Audit.Marten.Crypto.TemporalKeyInfo!>>
@@ -140,7 +157,7 @@ Encina.Audit.Marten.Events.ReadAuditEntryRecordedEvent.TenantId.get -> string?
 Encina.Audit.Marten.Events.ReadAuditEntryRecordedEvent.TenantId.init -> void
 Encina.Audit.Marten.Projections.OperationAuditEntryProjection
 Encina.Audit.Marten.Projections.OperationAuditEntryProjection.OperationAuditEntryProjection() -> void
-Encina.Audit.Marten.Projections.OperationAuditEntryProjection.OperationAuditEntryProjection(string! shreddedPlaceholder, Microsoft.Extensions.Logging.ILogger<Encina.Audit.Marten.Projections.OperationAuditEntryProjection!>! logger) -> void
+Encina.Audit.Marten.Projections.OperationAuditEntryProjection.OperationAuditEntryProjection(string! shreddedPlaceholder, string! expiredPlaceholder, Microsoft.Extensions.Logging.ILogger<Encina.Audit.Marten.Projections.OperationAuditEntryProjection!>! logger) -> void
 Encina.Audit.Marten.Projections.OperationAuditEntryProjection.Create(Encina.Audit.Marten.Events.OperationAuditEntryRecordedEvent! event, Marten.IDocumentOperations! operations, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Encina.Audit.Marten.Projections.OperationAuditEntryReadModel!>!
 Encina.Audit.Marten.Projections.OperationAuditEntryReadModel
 Encina.Audit.Marten.Projections.OperationAuditEntryReadModel.OperationAuditEntryReadModel() -> void
@@ -158,6 +175,8 @@ Encina.Audit.Marten.Projections.OperationAuditEntryReadModel.ErrorMessage.get ->
 Encina.Audit.Marten.Projections.OperationAuditEntryReadModel.ErrorMessage.set -> void
 Encina.Audit.Marten.Projections.OperationAuditEntryReadModel.Id.get -> System.Guid
 Encina.Audit.Marten.Projections.OperationAuditEntryReadModel.Id.set -> void
+Encina.Audit.Marten.Projections.OperationAuditEntryReadModel.IsExpired.get -> bool
+Encina.Audit.Marten.Projections.OperationAuditEntryReadModel.IsExpired.set -> void
 Encina.Audit.Marten.Projections.OperationAuditEntryReadModel.IpAddress.get -> string?
 Encina.Audit.Marten.Projections.OperationAuditEntryReadModel.IpAddress.set -> void
 Encina.Audit.Marten.Projections.OperationAuditEntryReadModel.IsShredded.get -> bool
@@ -186,7 +205,7 @@ Encina.Audit.Marten.Projections.OperationAuditEntryReadModel.UserId.get -> strin
 Encina.Audit.Marten.Projections.OperationAuditEntryReadModel.UserId.set -> void
 Encina.Audit.Marten.Projections.ReadAuditEntryProjection
 Encina.Audit.Marten.Projections.ReadAuditEntryProjection.ReadAuditEntryProjection() -> void
-Encina.Audit.Marten.Projections.ReadAuditEntryProjection.ReadAuditEntryProjection(string! shreddedPlaceholder, Microsoft.Extensions.Logging.ILogger<Encina.Audit.Marten.Projections.ReadAuditEntryProjection!>! logger) -> void
+Encina.Audit.Marten.Projections.ReadAuditEntryProjection.ReadAuditEntryProjection(string! shreddedPlaceholder, string! expiredPlaceholder, Microsoft.Extensions.Logging.ILogger<Encina.Audit.Marten.Projections.ReadAuditEntryProjection!>! logger) -> void
 Encina.Audit.Marten.Projections.ReadAuditEntryProjection.Create(Encina.Audit.Marten.Events.ReadAuditEntryRecordedEvent! event, Marten.IDocumentOperations! operations, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Encina.Audit.Marten.Projections.ReadAuditEntryReadModel!>!
 Encina.Audit.Marten.Projections.ReadAuditEntryReadModel
 Encina.Audit.Marten.Projections.ReadAuditEntryReadModel.ReadAuditEntryReadModel() -> void
@@ -204,6 +223,8 @@ Encina.Audit.Marten.Projections.ReadAuditEntryReadModel.EntityType.get -> string
 Encina.Audit.Marten.Projections.ReadAuditEntryReadModel.EntityType.set -> void
 Encina.Audit.Marten.Projections.ReadAuditEntryReadModel.Id.get -> System.Guid
 Encina.Audit.Marten.Projections.ReadAuditEntryReadModel.Id.set -> void
+Encina.Audit.Marten.Projections.ReadAuditEntryReadModel.IsExpired.get -> bool
+Encina.Audit.Marten.Projections.ReadAuditEntryReadModel.IsExpired.set -> void
 Encina.Audit.Marten.Projections.ReadAuditEntryReadModel.IsShredded.get -> bool
 Encina.Audit.Marten.Projections.ReadAuditEntryReadModel.IsShredded.set -> void
 Encina.Audit.Marten.Projections.ReadAuditEntryReadModel.MetadataJson.get -> string?
@@ -220,6 +241,8 @@ Encina.Audit.Marten.MartenAuditErrors
 Encina.Audit.Marten.MartenOperationAuditOptions
 Encina.Audit.Marten.MartenOperationAuditOptions.AddHealthCheck.get -> bool
 Encina.Audit.Marten.MartenOperationAuditOptions.AddHealthCheck.set -> void
+Encina.Audit.Marten.MartenOperationAuditOptions.ExpiredPlaceholder.get -> string!
+Encina.Audit.Marten.MartenOperationAuditOptions.ExpiredPlaceholder.set -> void
 Encina.Audit.Marten.MartenOperationAuditOptions.EnableAutoPurge.get -> bool
 Encina.Audit.Marten.MartenOperationAuditOptions.EnableAutoPurge.set -> void
 Encina.Audit.Marten.MartenOperationAuditOptions.EncryptionScope.get -> Encina.Audit.Marten.AuditEncryptionScope
@@ -239,6 +262,7 @@ Encina.Audit.Marten.TemporalKeyGranularity.Quarterly = 1 -> Encina.Audit.Marten.
 Encina.Audit.Marten.TemporalKeyGranularity.Yearly = 2 -> Encina.Audit.Marten.TemporalKeyGranularity
 const Encina.Audit.Marten.MartenAuditErrors.DecryptionFailedCode = "audit.marten.decryption_failed" -> string!
 const Encina.Audit.Marten.MartenAuditErrors.InvalidErasureReferenceCode = "audit.marten.invalid_erasure_reference" -> string!
+const Encina.Audit.Marten.MartenAuditErrors.InvalidRetentionReferenceCode = "audit.marten.invalid_retention_reference" -> string!
 const Encina.Audit.Marten.MartenAuditErrors.EncryptionFailedCode = "audit.marten.encryption_failed" -> string!
 const Encina.Audit.Marten.MartenAuditErrors.InvalidPeriodCode = "audit.marten.invalid_period" -> string!
 const Encina.Audit.Marten.MartenAuditErrors.KeyDestructionFailedCode = "audit.marten.key_destruction_failed" -> string!
@@ -247,6 +271,7 @@ const Encina.Audit.Marten.MartenAuditErrors.ProjectionFailedCode = "audit.marten
 const Encina.Audit.Marten.MartenAuditErrors.QueryFailedCode = "audit.marten.query_failed" -> string!
 const Encina.Audit.Marten.MartenAuditErrors.ShreddedEntryCode = "audit.marten.shredded_entry" -> string!
 const Encina.Audit.Marten.MartenAuditErrors.StoreUnavailableCode = "audit.marten.store_unavailable" -> string!
+const Encina.Audit.Marten.MartenOperationAuditOptions.DefaultExpiredPlaceholder = "[EXPIRED]" -> string!
 const Encina.Audit.Marten.MartenOperationAuditOptions.DefaultPurgeIntervalHours = 24 -> int
 const Encina.Audit.Marten.MartenOperationAuditOptions.DefaultRetentionDays = 2555 -> int
 const Encina.Audit.Marten.MartenOperationAuditOptions.DefaultShreddedPlaceholder = "[SHREDDED]" -> string!
@@ -260,6 +285,7 @@ static Encina.Audit.Marten.Events.EncryptedField.Encrypt(string? plaintext, byte
 static Encina.Audit.Marten.MartenAuditErrors.DecryptionFailed(System.Guid entryId, string! period, System.Exception? exception = null) -> Encina.EncinaError
 static Encina.Audit.Marten.MartenAuditErrors.EncryptionFailed(System.Guid entryId, string! period, System.Exception? exception = null) -> Encina.EncinaError
 static Encina.Audit.Marten.MartenAuditErrors.InvalidErasureReference() -> Encina.EncinaError
+static Encina.Audit.Marten.MartenAuditErrors.InvalidRetentionReference() -> Encina.EncinaError
 static Encina.Audit.Marten.MartenAuditErrors.InvalidPeriod(string? period) -> Encina.EncinaError
 static Encina.Audit.Marten.MartenAuditErrors.KeyDestructionFailed(System.DateTime olderThanUtc, System.Exception? exception = null) -> Encina.EncinaError
 static Encina.Audit.Marten.MartenAuditErrors.KeyNotFound(string! period) -> Encina.EncinaError
@@ -268,7 +294,7 @@ static Encina.Audit.Marten.MartenAuditErrors.QueryFailed(string! queryType, Syst
 static Encina.Audit.Marten.MartenAuditErrors.ShreddedEntry(System.Guid entryId, string! period) -> Encina.EncinaError
 static Encina.Audit.Marten.MartenAuditErrors.StoreUnavailable(string! operation, System.Exception? exception = null) -> Encina.EncinaError
 Encina.Audit.Marten.MartenOperationAuditStore
-Encina.Audit.Marten.MartenOperationAuditStore.MartenOperationAuditStore(Marten.IDocumentSession! session, Encina.Audit.Marten.AuditEventEncryptor! encryptor, Encina.Audit.Marten.Crypto.ITemporalKeyProvider! keyProvider, Microsoft.Extensions.Options.IOptions<Encina.Audit.Marten.MartenOperationAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Audit.Marten.MartenOperationAuditStore!>! logger) -> void
+Encina.Audit.Marten.MartenOperationAuditStore.MartenOperationAuditStore(Marten.IDocumentSession! session, Encina.Audit.Marten.AuditEventEncryptor! encryptor, Encina.Audit.Marten.Crypto.ITemporalKeyProvider! keyProvider, Microsoft.Extensions.Options.IOptions<Encina.Audit.Marten.MartenOperationAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Audit.Marten.MartenOperationAuditStore!>! logger, System.TimeProvider? timeProvider = null) -> void
 Encina.Audit.Marten.MartenOperationAuditStore.RecordAsync(Encina.Security.Audit.OperationAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Audit.Marten.MartenOperationAuditStore.GetByEntityAsync(string! entityType, string? entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.Audit.OperationAuditEntry!>!>>
 Encina.Audit.Marten.MartenOperationAuditStore.GetByUserAsync(string! userId, System.DateTime? fromUtc, System.DateTime? toUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.Audit.OperationAuditEntry!>!>>
@@ -276,7 +302,7 @@ Encina.Audit.Marten.MartenOperationAuditStore.GetByCorrelationIdAsync(string! co
 Encina.Audit.Marten.MartenOperationAuditStore.QueryAsync(Encina.Security.Audit.OperationAuditQuery! query, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Security.Audit.PagedResult<Encina.Security.Audit.OperationAuditEntry!>!>>
 Encina.Audit.Marten.MartenOperationAuditStore.PurgeEntriesAsync(System.DateTime olderThanUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
 Encina.Audit.Marten.MartenReadAuditStore
-Encina.Audit.Marten.MartenReadAuditStore.MartenReadAuditStore(Marten.IDocumentSession! session, Encina.Audit.Marten.AuditEventEncryptor! encryptor, Encina.Audit.Marten.Crypto.ITemporalKeyProvider! keyProvider, Microsoft.Extensions.Options.IOptions<Encina.Audit.Marten.MartenOperationAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Audit.Marten.MartenReadAuditStore!>! logger) -> void
+Encina.Audit.Marten.MartenReadAuditStore.MartenReadAuditStore(Marten.IDocumentSession! session, Encina.Audit.Marten.AuditEventEncryptor! encryptor, Encina.Audit.Marten.Crypto.ITemporalKeyProvider! keyProvider, Microsoft.Extensions.Options.IOptions<Encina.Audit.Marten.MartenOperationAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Audit.Marten.MartenReadAuditStore!>! logger, System.TimeProvider? timeProvider = null) -> void
 Encina.Audit.Marten.MartenReadAuditStore.LogReadAsync(Encina.Security.Audit.ReadAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Audit.Marten.MartenReadAuditStore.GetAccessHistoryAsync(string! entityType, string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.Audit.ReadAuditEntry!>!>>
 Encina.Audit.Marten.MartenReadAuditStore.GetUserAccessHistoryAsync(string! userId, System.DateTimeOffset fromUtc, System.DateTimeOffset toUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.Audit.ReadAuditEntry!>!>>
@@ -319,3 +345,13 @@ Encina.Audit.Marten.Crypto.TemporalKeyDestroyedMarker.ErasureRequestedAtUtc.set 
 Encina.Audit.Marten.Crypto.TemporalKeyDestroyedMarker.ErasureRequestId.get -> string?
 Encina.Audit.Marten.Crypto.TemporalKeyDestroyedMarker.ErasureRequestId.set -> void
 Encina.Audit.Marten.Crypto.TemporalKeyDestroyedMarker.HasErasureReference() -> bool
+Encina.Audit.Marten.Crypto.TemporalKeyDestroyedMarker.HasRetentionReference() -> bool
+Encina.Audit.Marten.Crypto.TemporalKeyDestroyedMarker.Classify() -> Encina.Audit.Marten.Crypto.KeyDestructionKind
+Encina.Audit.Marten.Crypto.TemporalKeyDestroyedMarker.RetentionActor.get -> string?
+Encina.Audit.Marten.Crypto.TemporalKeyDestroyedMarker.RetentionActor.set -> void
+Encina.Audit.Marten.Crypto.TemporalKeyDestroyedMarker.RetentionCutoffUtc.get -> System.DateTimeOffset?
+Encina.Audit.Marten.Crypto.TemporalKeyDestroyedMarker.RetentionCutoffUtc.set -> void
+Encina.Audit.Marten.Crypto.TemporalKeyDestroyedMarker.RetentionExecutedAtUtc.get -> System.DateTimeOffset?
+Encina.Audit.Marten.Crypto.TemporalKeyDestroyedMarker.RetentionExecutedAtUtc.set -> void
+Encina.Audit.Marten.Crypto.TemporalKeyDestroyedMarker.RetentionPolicyId.get -> string?
+Encina.Audit.Marten.Crypto.TemporalKeyDestroyedMarker.RetentionPolicyId.set -> void

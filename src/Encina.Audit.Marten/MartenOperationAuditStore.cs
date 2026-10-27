@@ -71,6 +71,7 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
     private readonly ITemporalKeyProvider _keyProvider;
     private readonly MartenOperationAuditOptions _options;
     private readonly ILogger<MartenOperationAuditStore> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MartenOperationAuditStore"/> class.
@@ -80,12 +81,14 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
     /// <param name="keyProvider">The temporal key provider for crypto-shredding operations.</param>
     /// <param name="options">The Marten audit configuration options.</param>
     /// <param name="logger">Logger for structured diagnostic logging.</param>
+    /// <param name="timeProvider">Provider of the execution time recorded in the retention reference of a purge; defaults to <see cref="TimeProvider.System"/>.</param>
     public MartenOperationAuditStore(
         IDocumentSession session,
         AuditEventEncryptor encryptor,
         ITemporalKeyProvider keyProvider,
         IOptions<MartenOperationAuditOptions> options,
-        ILogger<MartenOperationAuditStore> logger)
+        ILogger<MartenOperationAuditStore> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(encryptor);
@@ -98,6 +101,7 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
         _keyProvider = keyProvider;
         _options = options.Value;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -326,8 +330,9 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
     /// PII fields cannot be decrypted.
     /// </para>
     /// <para>
-    /// After key destruction, async projection rebuilds will show <c>[SHREDDED]</c> placeholder
-    /// values for the affected entries' PII fields.
+    /// The destruction records a <see cref="RetentionReference"/> (policy, cutoff, execution time, actor
+    /// <c>system</c>), so async projections and rebuilds show the <c>[EXPIRED]</c> placeholder for the affected
+    /// entries' PII fields and keep running; <c>[SHREDDED]</c> is reserved for a recorded erasure request.
     /// </para>
     /// <para>
     /// Returns the number of temporal key periods whose keys were destroyed.
@@ -347,7 +352,7 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
             var result = await _keyProvider.DestroyKeysBeforeAsync(
                 olderThanUtc,
                 _options.TemporalGranularity,
-                erasureReference: null,
+                RetentionReference.ForPurge(_options.RetentionPeriod, olderThanUtc, _timeProvider.GetUtcNow()),
                 cancellationToken).ConfigureAwait(false);
 
             return result.Match<Either<EncinaError, int>>(
@@ -540,6 +545,8 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
     internal static OperationAuditEntry MapToAuditEntry(OperationAuditEntryReadModel model)
     {
         IReadOnlyDictionary<string, object?> metadata = model.MetadataJson is not null
+                && !model.IsShredded
+                && !model.IsExpired
                 && model.MetadataJson != MartenOperationAuditOptions.DefaultShreddedPlaceholder
             ? JsonSerializer.Deserialize<Dictionary<string, object?>>(model.MetadataJson, MetadataJsonOptions)
                 ?? new Dictionary<string, object?>()

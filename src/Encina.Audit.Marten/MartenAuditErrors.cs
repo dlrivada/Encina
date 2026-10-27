@@ -1,3 +1,5 @@
+using Encina.Audit.Marten.Crypto;
+
 namespace Encina.Audit.Marten;
 
 /// <summary>
@@ -44,6 +46,9 @@ public static class MartenAuditErrors
 
     /// <summary>Error code when the erasure reference given to a key destruction is not valid.</summary>
     public const string InvalidErasureReferenceCode = "audit.marten.invalid_erasure_reference";
+
+    /// <summary>Error code indicating the retention reference given to a key destruction is not valid.</summary>
+    public const string InvalidRetentionReferenceCode = "audit.marten.invalid_retention_reference";
 
     /// <summary>Error code indicating the entry has been crypto-shredded.</summary>
     public const string ShreddedEntryCode = "audit.marten.shredded_entry";
@@ -211,6 +216,30 @@ public static class MartenAuditErrors
             {
                 [MetadataKeyStage] = MetadataStageAuditMarten
             });
+
+    /// <summary>
+    /// Creates an error when the retention reference given to a key destruction has a blank policy id or actor,
+    /// or no cutoff or execution date.
+    /// </summary>
+    /// <returns>An error indicating the retention reference is not valid. It carries no part of the reference.</returns>
+    public static EncinaError InvalidRetentionReference() =>
+        EncinaErrors.Create(
+            code: InvalidRetentionReferenceCode,
+            message: "The retention reference is not valid: it needs a non-blank policy id, a non-blank actor, a cutoff date and an execution date. No keys were destroyed.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAuditMarten
+            });
+
+    /// <summary>
+    /// Returns the error for an invalid destruction reference, or <c>null</c> when the reference is absent or valid.
+    /// </summary>
+    internal static EncinaError? RejectInvalidReference(KeyDestructionReference? reference) => reference switch
+    {
+        { IsValid: true } or null => (EncinaError?)null,
+        RetentionReference => InvalidRetentionReference(),
+        _ => InvalidErasureReference()
+    };
 
     /// <summary>
     /// Creates an error indicating the audit entry has been crypto-shredded.

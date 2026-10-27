@@ -179,12 +179,12 @@ public sealed class MartenTemporalKeyProvider : ITemporalKeyProvider
     public async ValueTask<Either<EncinaError, int>> DestroyKeysBeforeAsync(
         DateTime olderThanUtc,
         TemporalKeyGranularity granularity,
-        ErasureReference? erasureReference = null,
+        KeyDestructionReference? reference = null,
         CancellationToken cancellationToken = default)
     {
-        if (erasureReference is { IsValid: false })
+        if (MartenAuditErrors.RejectInvalidReference(reference) is { } rejection)
         {
-            return Left(MartenAuditErrors.InvalidErasureReference());
+            return Left(rejection);
         }
 
         try
@@ -196,18 +196,8 @@ public sealed class MartenTemporalKeyProvider : ITemporalKeyProvider
             // Group by period and filter those whose period date is before the cutoff
             var periodsToDestroy = SelectPeriodsBefore(allKeys, olderThanUtc, granularity);
 
-            // Also exclude already-destroyed periods
-            var destroyedCount = 0;
-            var now = _timeProvider.GetUtcNow();
-
-            foreach (var period in periodsToDestroy)
-            {
-                var periodKeys = allKeys.Where(k => k.Period == period).ToList();
-                if (await StageDestructionAsync(period, periodKeys, now, erasureReference, cancellationToken).ConfigureAwait(false))
-                {
-                    destroyedCount++;
-                }
-            }
+            var destroyedCount = await StageDestructionsAsync(periodsToDestroy, allKeys, reference, cancellationToken)
+                .ConfigureAwait(false);
 
             if (destroyedCount > 0)
             {
@@ -223,13 +213,38 @@ public sealed class MartenTemporalKeyProvider : ITemporalKeyProvider
     }
 
     /// <summary>
+    /// Stages the destruction of every selected period and returns how many were staged (periods already destroyed
+    /// are skipped).
+    /// </summary>
+    private async Task<int> StageDestructionsAsync(
+        List<string> periods,
+        IReadOnlyList<TemporalKeyDocument> allKeys,
+        KeyDestructionReference? reference,
+        CancellationToken cancellationToken)
+    {
+        var destroyedCount = 0;
+        var now = _timeProvider.GetUtcNow();
+
+        foreach (var period in periods)
+        {
+            var periodKeys = allKeys.Where(k => k.Period == period).ToList();
+            if (await StageDestructionAsync(period, periodKeys, now, reference, cancellationToken).ConfigureAwait(false))
+            {
+                destroyedCount++;
+            }
+        }
+
+        return destroyedCount;
+    }
+
+    /// <summary>
     /// Stages the hard-delete of a period's keys and its destroyed marker; skips a period already destroyed.
     /// </summary>
     private async Task<bool> StageDestructionAsync(
         string period,
         List<TemporalKeyDocument> periodKeys,
         DateTimeOffset now,
-        ErasureReference? erasureReference,
+        KeyDestructionReference? reference,
         CancellationToken cancellationToken)
     {
         var markerId = TemporalPeriodHelper.FormatDestroyedMarkerId(period);
@@ -246,7 +261,7 @@ public sealed class MartenTemporalKeyProvider : ITemporalKeyProvider
             _session.Delete(key);
         }
 
-        _session.Store(BuildMarker(markerId, period, now, periodKeys.Count, erasureReference));
+        _session.Store(BuildMarker(markerId, period, now, periodKeys.Count, reference));
 
         _logger.LogInformation(
             "Destroyed temporal keys for period {Period}: {KeyVersionsDestroyed} key version(s) deleted",
@@ -273,23 +288,33 @@ public sealed class MartenTemporalKeyProvider : ITemporalKeyProvider
     }
 
     /// <summary>
-    /// Builds the destroyed marker of a period; it carries the erasure reference only when one was given.
+    /// Builds the destroyed marker of a period; it carries the erasure or retention reference only when one was given.
     /// </summary>
     internal static TemporalKeyDestroyedMarker BuildMarker(
         string markerId,
         string period,
         DateTimeOffset destroyedAtUtc,
         int keyVersionsDestroyed,
-        ErasureReference? erasureReference) => new()
+        KeyDestructionReference? reference)
+    {
+        var erasure = reference as ErasureReference;
+        var retention = reference as RetentionReference;
+
+        return new TemporalKeyDestroyedMarker
         {
             Id = markerId,
             Period = period,
             DestroyedAtUtc = destroyedAtUtc,
             KeyVersionsDestroyed = keyVersionsDestroyed,
-            ErasureRequestId = erasureReference?.RequestId,
-            ErasureRequestedAtUtc = erasureReference?.RequestedAtUtc.ToUniversalTime(),
-            ErasureActor = erasureReference?.Actor
+            ErasureRequestId = erasure?.RequestId,
+            ErasureRequestedAtUtc = erasure?.RequestedAtUtc.ToUniversalTime(),
+            ErasureActor = erasure?.Actor,
+            RetentionPolicyId = retention?.PolicyId,
+            RetentionCutoffUtc = retention?.CutoffUtc.ToUniversalTime(),
+            RetentionExecutedAtUtc = retention?.ExecutedAtUtc.ToUniversalTime(),
+            RetentionActor = retention?.Actor
         };
+    }
 
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, bool>> IsKeyDestroyedAsync(

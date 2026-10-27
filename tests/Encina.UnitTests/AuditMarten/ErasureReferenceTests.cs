@@ -94,7 +94,7 @@ public sealed class ErasureReferenceTests
         var material = RandomNumberGenerator.GetBytes(32);
         var key = new TemporalKeyDocument { Id = "k", Period = "2026-03", KeyMaterial = material, Version = 1, Status = TemporalKeyStatus.Active };
 
-        var (resultKey, shredded) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(key, null, "2026-03");
+        var (resultKey, shredded, _) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(key, null, "2026-03");
 
         resultKey.ShouldBeSameAs(material);
         shredded.ShouldBeFalse();
@@ -103,7 +103,7 @@ public sealed class ErasureReferenceTests
     [Fact]
     public void Classify_MarkerWithReference_IsShredded()
     {
-        var (resultKey, shredded) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
+        var (resultKey, shredded, _) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
             null, Marker("erasure-1", Requested, "dpo"), "2020-01");
 
         resultKey.ShouldBeNull();
@@ -315,7 +315,7 @@ public sealed class ErasureReferenceTests
     public void OperationProjection_TamperedEnvelope_Propagates()
     {
         var key = RandomNumberGenerator.GetBytes(32);
-        var projection = new OperationAuditEntryProjection("[SHREDDED]", NullLogger<OperationAuditEntryProjection>.Instance);
+        var projection = new OperationAuditEntryProjection("[SHREDDED]", MartenOperationAuditOptions.DefaultExpiredPlaceholder, NullLogger<OperationAuditEntryProjection>.Instance);
         var evt = new OperationAuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),
@@ -337,7 +337,7 @@ public sealed class ErasureReferenceTests
     public void ReadProjection_UnmarkedValue_Propagates()
     {
         var key = RandomNumberGenerator.GetBytes(32);
-        var projection = new ReadAuditEntryProjection("[SHREDDED]", NullLogger<ReadAuditEntryProjection>.Instance);
+        var projection = new ReadAuditEntryProjection("[SHREDDED]", MartenOperationAuditOptions.DefaultExpiredPlaceholder, NullLogger<ReadAuditEntryProjection>.Instance);
         var evt = new ReadAuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),

@@ -45,6 +45,7 @@ namespace Encina.Audit.Marten.Projections;
 public sealed partial class OperationAuditEntryProjection : EventProjection
 {
     private readonly string _shreddedPlaceholder;
+    private readonly string _expiredPlaceholder;
     private readonly ILogger<OperationAuditEntryProjection> _logger;
 
     /// <summary>
@@ -53,7 +54,10 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// and a null logger.
     /// </summary>
     public OperationAuditEntryProjection()
-        : this(MartenOperationAuditOptions.DefaultShreddedPlaceholder, NullLogger<OperationAuditEntryProjection>.Instance)
+        : this(
+            MartenOperationAuditOptions.DefaultShreddedPlaceholder,
+            MartenOperationAuditOptions.DefaultExpiredPlaceholder,
+            NullLogger<OperationAuditEntryProjection>.Instance)
     {
     }
 
@@ -61,24 +65,29 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// Initializes a new instance of the <see cref="OperationAuditEntryProjection"/> class.
     /// </summary>
     /// <param name="shreddedPlaceholder">
-    /// The placeholder substituted for PII fields when the temporal key has been destroyed.
+    /// The placeholder substituted for PII fields when the temporal key was destroyed by a recorded erasure request.
+    /// </param>
+    /// <param name="expiredPlaceholder">
+    /// The placeholder substituted for PII fields when the temporal key was destroyed by a recorded retention execution.
     /// </param>
     /// <param name="logger">Logger used for projection diagnostics.</param>
     /// <exception cref="ArgumentException">
-    /// Thrown when <paramref name="shreddedPlaceholder"/> is <c>null</c>, empty, or whitespace.
+    /// Thrown when a placeholder is <c>null</c>, empty, or whitespace.
     /// An empty or whitespace placeholder would project PII fields as blank strings instead
     /// of masking them, which defeats the purpose of crypto-shredding.
     /// </exception>
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="logger"/> is <c>null</c>.
     /// </exception>
-    public OperationAuditEntryProjection(string shreddedPlaceholder, ILogger<OperationAuditEntryProjection> logger)
+    public OperationAuditEntryProjection(string shreddedPlaceholder, string expiredPlaceholder, ILogger<OperationAuditEntryProjection> logger)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(shreddedPlaceholder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(expiredPlaceholder);
         ArgumentNullException.ThrowIfNull(logger);
 
         Name = "OperationAuditEntryProjection";
         _shreddedPlaceholder = shreddedPlaceholder;
+        _expiredPlaceholder = expiredPlaceholder;
         _logger = logger;
     }
 
@@ -107,10 +116,10 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(operations);
 
-        var (keyMaterial, isShredded) = await LoadTemporalKeyAsync(
+        var (keyMaterial, isShredded, isExpired) = await LoadTemporalKeyAsync(
             operations, @event.TemporalKeyPeriod, cancellationToken).ConfigureAwait(false);
 
-        return MapToReadModel(@event, keyMaterial, isShredded);
+        return MapToReadModel(@event, keyMaterial, isShredded, isExpired);
     }
 
     /// <summary>
@@ -136,11 +145,13 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// </item>
     /// <item>
     /// If no active key is found, check for an explicit
-    /// <see cref="TemporalKeyDestroyedMarker"/>. If present with an erasure reference, the period was
-    /// crypto-shredded for an erasure request and the projection substitutes the placeholder
-    /// (<c>IsShredded = true</c>). If present without one (retention-period destruction, an error or tampering,
-    /// and every marker written before the reference existed), the projection fails with
-    /// <see cref="EncryptedFieldDecryptionException"/> and the async daemon pauses the shard.
+    /// <see cref="TemporalKeyDestroyedMarker"/>. If present with only an erasure reference, the period was
+    /// crypto-shredded for an erasure request and the projection substitutes the shredded placeholder
+    /// (<c>IsShredded = true</c>). If present with only a retention reference, the keys expired under a retention
+    /// policy and the projection substitutes the expired placeholder (<c>IsExpired = true</c>) and keeps running.
+    /// If present with neither reference, or with both (an error, tampering, and every marker written before the
+    /// references existed), the projection fails with <see cref="EncryptedFieldDecryptionException"/> and the async
+    /// daemon pauses the shard.
     /// </item>
     /// <item>
     /// If neither an active key nor a destroyed marker exists, the lookup throws
@@ -157,7 +168,7 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// Thrown when neither an active key nor a destroyed marker exists for the given period,
     /// indicating an inconsistency the operator must resolve. The Marten async projection daemon pauses the shard.
     /// </exception>
-    internal static async Task<(byte[]? KeyMaterial, bool IsShredded)> LoadTemporalKeyAsync(
+    internal static async Task<(byte[]? KeyMaterial, bool IsShredded, bool IsExpired)> LoadTemporalKeyAsync(
         IQuerySession session,
         string period,
         CancellationToken cancellationToken)
@@ -196,13 +207,14 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// <returns>
     /// A tuple where:
     /// <list type="bullet">
-    /// <item><c>(keyMaterial, false)</c> — an active key was found</item>
-    /// <item><c>(null, true)</c> — no active key, destroyed marker present with an erasure reference (crypto-shredded)</item>
+    /// <item><c>(keyMaterial, false, false)</c> — an active key was found</item>
+    /// <item><c>(null, true, false)</c> — no active key, destroyed marker present with only an erasure reference (crypto-shredded)</item>
+    /// <item><c>(null, false, true)</c> — no active key, destroyed marker present with only a retention reference (expired)</item>
     /// </list>
     /// </returns>
     /// <exception cref="EncryptedFieldDecryptionException">
     /// Thrown (reason <see cref="EncryptedFieldDecryptionFailureReason.KeyDestroyedWithoutErasureRecord"/>) when the
-    /// destroyed marker carries no erasure reference.
+    /// destroyed marker carries neither a complete erasure nor a complete retention reference, or carries both.
     /// </exception>
     /// <exception cref="KeyNotFoundException">
     /// Thrown when both <paramref name="activeKey"/> and <paramref name="destroyedMarker"/>
@@ -213,23 +225,27 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// This function is extracted and exposed as <c>internal</c> so the three decision paths
     /// can be unit-tested exhaustively without needing to mock Marten's LINQ pipeline.
     /// </remarks>
-    internal static (byte[]? KeyMaterial, bool IsShredded) ClassifyTemporalKeyLookup(
+    internal static (byte[]? KeyMaterial, bool IsShredded, bool IsExpired) ClassifyTemporalKeyLookup(
         TemporalKeyDocument? activeKey,
         TemporalKeyDestroyedMarker? destroyedMarker,
         string period)
     {
         if (activeKey is not null)
         {
-            return (activeKey.KeyMaterial, false);
+            return (activeKey.KeyMaterial, false, false);
         }
 
         if (destroyedMarker is not null)
         {
-            // [SHREDDED] only for a destruction recorded as an erasure request. Any other destruction is not a
-            // lawful erasure: fail typed so the daemon pauses the shard for the operator (issue #2770, D15/Q1).
-            return destroyedMarker.HasErasureReference()
-                ? (null, true)
-                : throw new EncryptedFieldDecryptionException(EncryptedFieldDecryptionFailureReason.KeyDestroyedWithoutErasureRecord);
+            // [SHREDDED] only for a destruction recorded as an erasure request, [EXPIRED] only for one recorded as a
+            // retention execution (Q3). Any other destruction (neither reference, or both) is not a lawful event:
+            // fail typed so the daemon pauses the shard for the operator (issue #2770, D15/Q1).
+            return destroyedMarker.Classify() switch
+            {
+                KeyDestructionKind.Erasure => (null, true, false),
+                KeyDestructionKind.Retention => (null, false, true),
+                _ => throw new EncryptedFieldDecryptionException(EncryptedFieldDecryptionFailureReason.KeyDestroyedWithoutErasureRecord)
+            };
         }
 
         throw new KeyNotFoundException(
@@ -241,7 +257,8 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// <summary>
     /// Maps an <see cref="OperationAuditEntryRecordedEvent"/> to an <see cref="OperationAuditEntryReadModel"/>,
     /// decrypting PII fields with the supplied key material or substituting the shredded
-    /// placeholder when <paramref name="isShredded"/> is <c>true</c>.
+    /// placeholder when <paramref name="isShredded"/> is <c>true</c>, or the expired placeholder when
+    /// <paramref name="isExpired"/> is <c>true</c>.
     /// </summary>
     /// <remarks>
     /// Exposed as <c>internal</c> so unit tests can validate the mapping logic independently
@@ -250,17 +267,19 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     internal OperationAuditEntryReadModel MapToReadModel(
         OperationAuditEntryRecordedEvent @event,
         byte[]? keyMaterial,
-        bool isShredded)
+        bool isShredded,
+        bool isExpired = false)
     {
-        if (isShredded)
+        if (isShredded || isExpired)
         {
             _logger.LogDebug(
-                "Temporal key for period {Period} not found — marking audit entry {EntryId} as shredded",
+                "Temporal key for period {Period} destroyed — marking audit entry {EntryId} as {Kind}",
                 @event.TemporalKeyPeriod,
-                @event.Id);
+                @event.Id,
+                isShredded ? "shredded" : "expired");
         }
 
-        var placeholder = _shreddedPlaceholder;
+        var placeholder = isExpired ? _expiredPlaceholder : _shreddedPlaceholder;
 
         return new OperationAuditEntryReadModel
         {
@@ -290,6 +309,7 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
 
             // Crypto-shredding tracking
             IsShredded = isShredded,
+            IsExpired = isExpired,
             TemporalKeyPeriod = @event.TemporalKeyPeriod
         };
     }

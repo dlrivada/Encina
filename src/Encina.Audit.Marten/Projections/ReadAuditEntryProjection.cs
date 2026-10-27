@@ -36,14 +36,18 @@ namespace Encina.Audit.Marten.Projections;
 public sealed partial class ReadAuditEntryProjection : EventProjection
 {
     private readonly string _shreddedPlaceholder;
+    private readonly string _expiredPlaceholder;
     private readonly ILogger<ReadAuditEntryProjection> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ReadAuditEntryProjection"/> class
-    /// using the default shredded placeholder and a null logger.
+    /// using the default shredded and expired placeholders and a null logger.
     /// </summary>
     public ReadAuditEntryProjection()
-        : this(MartenOperationAuditOptions.DefaultShreddedPlaceholder, NullLogger<ReadAuditEntryProjection>.Instance)
+        : this(
+            MartenOperationAuditOptions.DefaultShreddedPlaceholder,
+            MartenOperationAuditOptions.DefaultExpiredPlaceholder,
+            NullLogger<ReadAuditEntryProjection>.Instance)
     {
     }
 
@@ -51,24 +55,29 @@ public sealed partial class ReadAuditEntryProjection : EventProjection
     /// Initializes a new instance of the <see cref="ReadAuditEntryProjection"/> class.
     /// </summary>
     /// <param name="shreddedPlaceholder">
-    /// The placeholder substituted for PII fields when the temporal key has been destroyed.
+    /// The placeholder substituted for PII fields when the temporal key was destroyed by a recorded erasure request.
+    /// </param>
+    /// <param name="expiredPlaceholder">
+    /// The placeholder substituted for PII fields when the temporal key was destroyed by a recorded retention execution.
     /// </param>
     /// <param name="logger">Logger used for projection diagnostics.</param>
     /// <exception cref="ArgumentException">
-    /// Thrown when <paramref name="shreddedPlaceholder"/> is <c>null</c>, empty, or whitespace.
+    /// Thrown when a placeholder is <c>null</c>, empty, or whitespace.
     /// An empty or whitespace placeholder would project PII fields as blank strings instead
     /// of masking them, which defeats the purpose of crypto-shredding.
     /// </exception>
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="logger"/> is <c>null</c>.
     /// </exception>
-    public ReadAuditEntryProjection(string shreddedPlaceholder, ILogger<ReadAuditEntryProjection> logger)
+    public ReadAuditEntryProjection(string shreddedPlaceholder, string expiredPlaceholder, ILogger<ReadAuditEntryProjection> logger)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(shreddedPlaceholder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(expiredPlaceholder);
         ArgumentNullException.ThrowIfNull(logger);
 
         Name = "ReadAuditEntryProjection";
         _shreddedPlaceholder = shreddedPlaceholder;
+        _expiredPlaceholder = expiredPlaceholder;
         _logger = logger;
     }
 
@@ -92,16 +101,17 @@ public sealed partial class ReadAuditEntryProjection : EventProjection
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(operations);
 
-        var (keyMaterial, isShredded) = await OperationAuditEntryProjection.LoadTemporalKeyAsync(
+        var (keyMaterial, isShredded, isExpired) = await OperationAuditEntryProjection.LoadTemporalKeyAsync(
             operations, @event.TemporalKeyPeriod, cancellationToken).ConfigureAwait(false);
 
-        return MapToReadModel(@event, keyMaterial, isShredded);
+        return MapToReadModel(@event, keyMaterial, isShredded, isExpired);
     }
 
     /// <summary>
     /// Maps a <see cref="ReadAuditEntryRecordedEvent"/> to a <see cref="ReadAuditEntryReadModel"/>,
     /// decrypting PII fields with the supplied key material or substituting the shredded
-    /// placeholder when <paramref name="isShredded"/> is <c>true</c>.
+    /// placeholder when <paramref name="isShredded"/> is <c>true</c>, or the expired placeholder when
+    /// <paramref name="isExpired"/> is <c>true</c>.
     /// </summary>
     /// <remarks>
     /// Exposed as <c>internal</c> so unit tests can validate the mapping logic independently
@@ -110,17 +120,19 @@ public sealed partial class ReadAuditEntryProjection : EventProjection
     internal ReadAuditEntryReadModel MapToReadModel(
         ReadAuditEntryRecordedEvent @event,
         byte[]? keyMaterial,
-        bool isShredded)
+        bool isShredded,
+        bool isExpired = false)
     {
-        if (isShredded)
+        if (isShredded || isExpired)
         {
             _logger.LogDebug(
-                "Temporal key for period {Period} not found — marking read audit entry {EntryId} as shredded",
+                "Temporal key for period {Period} destroyed — marking read audit entry {EntryId} as {Kind}",
                 @event.TemporalKeyPeriod,
-                @event.Id);
+                @event.Id,
+                isShredded ? "shredded" : "expired");
         }
 
-        var placeholder = _shreddedPlaceholder;
+        var placeholder = isExpired ? _expiredPlaceholder : _shreddedPlaceholder;
 
         return new ReadAuditEntryReadModel
         {
@@ -143,6 +155,7 @@ public sealed partial class ReadAuditEntryProjection : EventProjection
 
             // Crypto-shredding tracking
             IsShredded = isShredded,
+            IsExpired = isExpired,
             TemporalKeyPeriod = @event.TemporalKeyPeriod
         };
     }

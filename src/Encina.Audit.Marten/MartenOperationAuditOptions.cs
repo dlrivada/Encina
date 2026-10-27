@@ -40,6 +40,11 @@ public sealed class MartenOperationAuditOptions
     public const string DefaultShreddedPlaceholder = "[SHREDDED]";
 
     /// <summary>
+    /// Default placeholder value for PII fields of audit entries whose keys were destroyed by a retention execution.
+    /// </summary>
+    public const string DefaultExpiredPlaceholder = "[EXPIRED]";
+
+    /// <summary>
     /// Default retention period in days (~7 years for SOX compliance).
     /// </summary>
     public const int DefaultRetentionDays = 2555;
@@ -138,6 +143,18 @@ public sealed class MartenOperationAuditOptions
     /// </remarks>
     /// <value>Defaults to <c>"[SHREDDED]"</c>.</value>
     public string ShreddedPlaceholder { get; set; } = DefaultShreddedPlaceholder;
+
+    /// <summary>
+    /// Gets or sets the placeholder value substituted for PII fields of audit entries whose temporal keys were
+    /// destroyed by a retention execution.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="ShreddedPlaceholder"/>, which is reserved for a destruction that answers a recorded
+    /// erasure request. A retention expiry is an expected, lawful event: the projection shows this placeholder and
+    /// keeps running (issue #2770).
+    /// </remarks>
+    /// <value>Defaults to <c>"[EXPIRED]"</c>.</value>
+    public string ExpiredPlaceholder { get; set; } = DefaultExpiredPlaceholder;
 
     /// <summary>
     /// Gets or sets whether to register a health check for the Marten audit store.

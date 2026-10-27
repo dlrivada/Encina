@@ -185,11 +185,11 @@ public sealed class InMemoryTemporalKeyProvider : ITemporalKeyProvider
     public ValueTask<Either<EncinaError, int>> DestroyKeysBeforeAsync(
         DateTime olderThanUtc,
         TemporalKeyGranularity granularity,
-        ErasureReference? erasureReference = null,
+        KeyDestructionReference? reference = null,
         CancellationToken cancellationToken = default)
     {
         // The reference is validated but not kept: this provider has no destroyed marker and no projection reads it.
-        var rejection = RejectDestroyRequest(olderThanUtc, erasureReference, cancellationToken);
+        var rejection = RejectDestroyRequest(olderThanUtc, reference, cancellationToken);
         if (rejection is { } error)
         {
             return ValueTask.FromResult<Either<EncinaError, int>>(Left(error));
@@ -225,12 +225,12 @@ public sealed class InMemoryTemporalKeyProvider : ITemporalKeyProvider
 
     private static EncinaError? RejectDestroyRequest(
         DateTime olderThanUtc,
-        ErasureReference? erasureReference,
+        KeyDestructionReference? reference,
         CancellationToken cancellationToken)
     {
-        if (erasureReference is { IsValid: false })
+        if (MartenAuditErrors.RejectInvalidReference(reference) is { } invalid)
         {
-            return MartenAuditErrors.InvalidErasureReference();
+            return invalid;
         }
 
         return cancellationToken.IsCancellationRequested

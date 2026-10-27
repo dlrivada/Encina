@@ -107,17 +107,18 @@ public interface ITemporalKeyProvider
     /// <param name="granularity">
     /// The temporal granularity to use when determining which periods are affected.
     /// </param>
-    /// <param name="erasureReference">
-    /// The data-erasure request this destruction answers, recorded in the destroyed marker of every period
-    /// destroyed. Pass it from the GDPR erasure flow. Retention jobs pass <c>null</c>: the audit projections then
-    /// do not treat the destruction as a lawful erasure and fail with
-    /// <see cref="Events.EncryptedFieldDecryptionException"/> instead of showing <c>[SHREDDED]</c> (issue #2770).
+    /// <param name="reference">
+    /// Why the keys are destroyed, recorded in the destroyed marker of every period destroyed: an
+    /// <see cref="ErasureReference"/> from the GDPR erasure flow (fields then read <c>[SHREDDED]</c>) or a
+    /// <see cref="RetentionReference"/> from a retention execution (fields then read <c>[EXPIRED]</c> and the shard
+    /// keeps running). With <c>null</c> the destruction is unrecorded: the audit projections do not treat it as a
+    /// lawful erasure or expiry and fail with <see cref="Events.EncryptedFieldDecryptionException"/> (issue #2770).
     /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>
     /// <c>Right&lt;int&gt;</c> with the number of periods whose keys were destroyed, or
-    /// <c>Left&lt;EncinaError&gt;</c> if the destruction fails or <paramref name="erasureReference"/> is not valid
-    /// (<see cref="ErasureReference.IsValid"/>), in which case nothing is destroyed.
+    /// <c>Left&lt;EncinaError&gt;</c> if the destruction fails or <paramref name="reference"/> is not valid
+    /// (<see cref="KeyDestructionReference.IsValid"/>), in which case nothing is destroyed.
     /// </returns>
     /// <remarks>
     /// <para>
@@ -135,7 +136,7 @@ public interface ITemporalKeyProvider
     ValueTask<Either<EncinaError, int>> DestroyKeysBeforeAsync(
         DateTime olderThanUtc,
         TemporalKeyGranularity granularity,
-        ErasureReference? erasureReference = null,
+        KeyDestructionReference? reference = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -149,9 +150,9 @@ public interface ITemporalKeyProvider
     /// <c>Left&lt;EncinaError&gt;</c> if the check fails.
     /// </returns>
     /// <remarks>
-    /// Reports destruction only; it does not say whether the destruction answered an erasure request. The audit
-    /// projections show the placeholder (e.g., <c>[SHREDDED]</c>) only when the destroyed marker also carries an
-    /// <see cref="ErasureReference"/>.
+    /// Reports destruction only; it does not say why. The audit projections show <c>[SHREDDED]</c> only when the
+    /// destroyed marker carries an <see cref="ErasureReference"/> and <c>[EXPIRED]</c> only when it carries a
+    /// <see cref="RetentionReference"/>.
     /// </remarks>
     ValueTask<Either<EncinaError, bool>> IsKeyDestroyedAsync(
         string period,

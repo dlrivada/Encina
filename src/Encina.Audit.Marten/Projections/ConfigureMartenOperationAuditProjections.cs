@@ -65,17 +65,18 @@ internal sealed class ConfigureMartenOperationAuditProjections : IConfigureOptio
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        var placeholder = _auditOptions.Value.ShreddedPlaceholder;
+        var shreddedPlaceholder = _auditOptions.Value.ShreddedPlaceholder;
+        var expiredPlaceholder = _auditOptions.Value.ExpiredPlaceholder;
 
         // Register async projections processed by Marten's AsyncProjectionDaemon.
         // Projections are constructed with explicit dependencies so Marten's validator
         // only sees parameters it supports (IDocumentOperations, CancellationToken, event types).
         options.Projections.Add(
-            new OperationAuditEntryProjection(placeholder, _loggerFactory.CreateLogger<OperationAuditEntryProjection>()),
+            new OperationAuditEntryProjection(shreddedPlaceholder, expiredPlaceholder, _loggerFactory.CreateLogger<OperationAuditEntryProjection>()),
             JasperFx.Events.Projections.ProjectionLifecycle.Async);
 
         options.Projections.Add(
-            new ReadAuditEntryProjection(placeholder, _loggerFactory.CreateLogger<ReadAuditEntryProjection>()),
+            new ReadAuditEntryProjection(shreddedPlaceholder, expiredPlaceholder, _loggerFactory.CreateLogger<ReadAuditEntryProjection>()),
             JasperFx.Events.Projections.ProjectionLifecycle.Async);
 
         // Fail closed (issue #2770, D14): Marten's async daemon skips an event whose projection throws
