@@ -376,7 +376,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
                 && !model.IsShredded
                 && !model.IsExpired
                 && model.MetadataJson != MartenOperationAuditOptions.DefaultShreddedPlaceholder
-            ?JsonSerializer.Deserialize<Dictionary<string, object?>>(model.MetadataJson, MetadataJsonOptions)
+            ? JsonSerializer.Deserialize<Dictionary<string, object?>>(model.MetadataJson, MetadataJsonOptions)
                 ?? new Dictionary<string, object?>()
             : new Dictionary<string, object?>();
 

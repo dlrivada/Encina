@@ -18,7 +18,7 @@ namespace Encina.Audit.Marten.Crypto;
 /// </para>
 /// <para>
 /// Retention jobs pass a <see cref="RetentionReference"/> instead (the field then reads <c>[EXPIRED]</c> and the
-/// shard keeps running). The GDPR erasure flow calls <c>DestroyKeysBeforeAsync</c> with an erasure reference.
+/// shard keeps running). No erasure flow in the repository passes an erasure reference yet (tracked by issue #2847), so only a direct caller of <c>DestroyKeysBeforeAsync</c> produces <c>[SHREDDED]</c> today.
 /// </para>
 /// </remarks>
 public sealed record ErasureReference(string RequestId, DateTimeOffset RequestedAtUtc, string Actor)

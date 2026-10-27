@@ -109,7 +109,7 @@ public interface ITemporalKeyProvider
     /// </param>
     /// <param name="reference">
     /// Why the keys are destroyed, recorded in the destroyed marker of every period destroyed: an
-    /// <see cref="ErasureReference"/> from the GDPR erasure flow (fields then read <c>[SHREDDED]</c>) or a
+    /// <see cref="ErasureReference"/> from an erasure request (no flow in the repository passes one yet, issue #2847; fields then read <c>[SHREDDED]</c>) or a
     /// <see cref="RetentionReference"/> from a retention execution (fields then read <c>[EXPIRED]</c> and the shard
     /// keeps running). With <c>null</c> the destruction is unrecorded: the audit projections do not treat it as a
     /// lawful erasure or expiry and fail with <see cref="Events.EncryptedFieldDecryptionException"/> (issue #2770).

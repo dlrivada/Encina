@@ -7,6 +7,7 @@ using Marten;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 
 using Shouldly;
 
@@ -22,6 +23,7 @@ namespace Encina.IntegrationTests.Infrastructure.Marten.Audit;
 public sealed class MartenAuditStorePurgeIntegrationTests(MartenFixture fixture) : IAsyncLifetime
 {
     private static readonly DateTime Old = new(2020, 1, 15, 8, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTimeOffset ExecutedAt = new(2026, 10, 27, 3, 0, 0, TimeSpan.Zero);
 
     private readonly IOptions<MartenOperationAuditOptions> _options = Options.Create(new MartenOperationAuditOptions());
     private DocumentStore? _store;
@@ -91,7 +93,7 @@ public sealed class MartenAuditStorePurgeIntegrationTests(MartenFixture fixture)
         marker.RetentionPolicyId.ShouldBe("audit-retention:P2555D");
         marker.RetentionActor.ShouldBe("system");
         marker.RetentionCutoffUtc.ShouldBe(new DateTimeOffset(cutoffUtc, TimeSpan.Zero));
-        marker.RetentionExecutedAtUtc.ShouldNotBeNull();
+        marker.RetentionExecutedAtUtc.ShouldBe(ExecutedAt, "the execution time comes from the injected TimeProvider");
     }
 
     [Fact]
@@ -126,8 +128,8 @@ public sealed class MartenAuditStorePurgeIntegrationTests(MartenFixture fixture)
         var encryptor = new AuditEventEncryptor(keys, _options, NullLogger<AuditEventEncryptor>.Instance);
 
         return (
-            new MartenOperationAuditStore(session, encryptor, keys, _options, NullLogger<MartenOperationAuditStore>.Instance),
-            new MartenReadAuditStore(session, encryptor, keys, _options, NullLogger<MartenReadAuditStore>.Instance));
+            new MartenOperationAuditStore(session, encryptor, keys, _options, NullLogger<MartenOperationAuditStore>.Instance, new FakeTimeProvider(ExecutedAt)),
+            new MartenReadAuditStore(session, encryptor, keys, _options, NullLogger<MartenReadAuditStore>.Instance, new FakeTimeProvider(ExecutedAt)));
     }
 
     private static OperationAuditEntry Entry() => new()
