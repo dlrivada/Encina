@@ -31,6 +31,25 @@ public class EncryptionGuardTests
     }
 
     [Fact]
+    public async Task AesGcmFieldEncryptor_EncryptStringAsync_PrimitiveFailure_ReturnsLeftInsteadOfThrowing()
+    {
+        // Arrange: the nonce source throws, standing in for a failing AES-GCM primitive
+        var keyProvider = new InMemoryKeyProvider();
+        keyProvider.AddKey("k1", new byte[32]);
+        var encryptor = new AesGcmFieldEncryptor(
+            keyProvider,
+            _ => throw new System.Security.Cryptography.CryptographicException("boom"));
+
+        // Act
+        var result = await encryptor.EncryptStringAsync("test", new EncryptionContext { KeyId = "k1" });
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty))
+            .ShouldBe(EncryptionErrors.EncryptionFailedCode);
+    }
+
+    [Fact]
     public async Task AesGcmFieldEncryptor_EncryptStringAsync_NullPlaintext_ThrowsArgumentNullException()
     {
         // Arrange
