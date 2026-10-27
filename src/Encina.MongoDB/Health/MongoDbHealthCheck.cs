@@ -74,17 +74,22 @@ public sealed class MongoDbHealthCheck : EncinaHealthCheck
     /// </summary>
     private HealthCheckResult EvaluateTransactionSupport(IMongoClient mongoClient)
     {
-        var healthy = HealthCheckResult.Healthy($"{Name} is reachable");
-        if (_serviceProvider.GetService<IOptions<EncinaMongoDbOptions>>()?.Value.UseOutbox != true)
-        {
-            return healthy;
-        }
-
-        return mongoClient.Cluster?.Description?.Type switch
-        {
-            ClusterType.Standalone => HealthCheckResult.Unhealthy($"{Name}: {StandaloneReasonCode}"),
-            ClusterType.Unknown or null => HealthCheckResult.Degraded($"{Name}: {ClusterTypeUnknownReasonCode}"),
-            _ => healthy
-        };
+        return IsOutboxEnabled()
+            ? Verdict(ClusterTypeOf(mongoClient))
+            : HealthCheckResult.Healthy($"{Name} is reachable");
     }
+
+    private bool IsOutboxEnabled()
+        => _serviceProvider.GetService<IOptions<EncinaMongoDbOptions>>()?.Value.UseOutbox == true;
+
+    private static ClusterType ClusterTypeOf(IMongoClient mongoClient)
+        => mongoClient.Cluster?.Description?.Type ?? ClusterType.Unknown;
+
+    // crap-exempt: single-question switch — maps the cluster type to the transaction-support verdict
+    private HealthCheckResult Verdict(ClusterType clusterType) => clusterType switch
+    {
+        ClusterType.Standalone => HealthCheckResult.Unhealthy($"{Name}: {StandaloneReasonCode}"),
+        ClusterType.Unknown => HealthCheckResult.Degraded($"{Name}: {ClusterTypeUnknownReasonCode}"),
+        _ => HealthCheckResult.Healthy($"{Name} is reachable")
+    };
 }

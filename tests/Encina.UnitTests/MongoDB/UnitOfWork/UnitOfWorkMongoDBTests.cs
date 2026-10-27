@@ -1,7 +1,7 @@
 using Encina;
 using Encina.DomainModeling;
-using Encina.MongoDB;
 using Encina.Messaging.Transactions;
+using Encina.MongoDB;
 using Encina.MongoDB.Repository;
 using Encina.MongoDB.Transactions;
 using Encina.MongoDB.UnitOfWork;
