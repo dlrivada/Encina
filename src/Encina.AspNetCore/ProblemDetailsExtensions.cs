@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Encina.AspNetCore;
@@ -20,6 +21,12 @@ public static class ProblemDetailsExtensions
     /// <remarks>
     /// <para>
     /// This method creates a standardized error response following RFC 7807 (Problem Details for HTTP APIs).
+    /// </para>
+    /// <para>
+    /// The response carries the status, a generic title, the <c>errorCode</c> and the trace and correlation
+    /// ids. The error message (<c>detail</c>) and the exception type, message and stack trace
+    /// (<c>exception</c>) are omitted unless <see cref="EncinaAspNetCoreOptions.IncludeErrorMessageInProblemDetails"/>
+    /// is true and the host environment is Development.
     /// </para>
     /// <para>
     /// Status codes are mapped from error codes:
@@ -62,60 +69,87 @@ public static class ProblemDetailsExtensions
         HttpContext httpContext,
         int? statusCode = null)
     {
-        var options = httpContext.RequestServices
-            .GetService<IOptions<EncinaAspNetCoreOptions>>()
-            ?.Value ?? new EncinaAspNetCoreOptions();
+        ArgumentNullException.ThrowIfNull(httpContext);
 
+        var options = ResolveOptions(httpContext);
         var effectiveStatusCode = statusCode ?? MapErrorCodeToStatusCode(error);
+
+        var exposeMessage = ShouldExposeErrorMessage(
+            options,
+            httpContext.RequestServices.GetService<IHostEnvironment>());
 
         var problemDetails = new ProblemDetails
         {
             Status = effectiveStatusCode,
             Title = GetTitle(effectiveStatusCode),
-            Detail = error.Message,
+            Detail = exposeMessage ? error.Message : null,
             Instance = options.IncludeRequestPathInProblemDetails
                 ? httpContext.Request.Path
                 : null
         };
 
-        // Add trace ID for correlation
+        AddCorrelationExtensions(problemDetails, httpContext, options);
+        AddErrorCodeExtension(problemDetails, error);
+
+        // Exception details follow the same option and the same Development-only guard as the detail
+        if (exposeMessage)
+        {
+            AddExceptionExtension(problemDetails, error);
+        }
+
+        return Results.Problem(problemDetails);
+    }
+
+    private static EncinaAspNetCoreOptions ResolveOptions(HttpContext httpContext) =>
+        httpContext.RequestServices.GetService<IOptions<EncinaAspNetCoreOptions>>()?.Value
+        ?? new EncinaAspNetCoreOptions();
+
+    // Error code for client-side handling.
+    private static void AddErrorCodeExtension(ProblemDetails problemDetails, EncinaError error)
+    {
+        var errorCode = GetErrorCode(error);
+        if (!string.IsNullOrEmpty(errorCode))
+        {
+            problemDetails.Extensions["errorCode"] = errorCode;
+        }
+    }
+
+    private static void AddCorrelationExtensions(
+        ProblemDetails problemDetails,
+        HttpContext httpContext,
+        EncinaAspNetCoreOptions options)
+    {
         var traceId = httpContext.TraceIdentifier;
         if (!string.IsNullOrEmpty(traceId))
         {
             problemDetails.Extensions["traceId"] = traceId;
         }
 
-        // Add correlation ID if available
         if (httpContext.Request.Headers.TryGetValue(options.CorrelationIdHeader, out var correlationId))
         {
             problemDetails.Extensions["correlationId"] = correlationId.ToString();
         }
-
-        // Add error code for client-side handling
-        var errorCode = GetErrorCode(error);
-        if (!string.IsNullOrEmpty(errorCode))
-        {
-            problemDetails.Extensions["errorCode"] = errorCode;
-        }
-
-        // Add exception details (only in Development)
-        if (options.IncludeExceptionDetails || httpContext.RequestServices
-                .GetService<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>()
-                ?.EnvironmentName == "Development")
-        {
-            error.Exception.IfSome(ex =>
-            {
-                problemDetails.Extensions["exception"] = new
-                {
-                    type = ex.GetType().FullName,
-                    message = ex.Message,
-                    stackTrace = ex.StackTrace
-                };
-            });
-        }
-
-        return Results.Problem(problemDetails);
     }
+
+    private static void AddExceptionExtension(ProblemDetails problemDetails, EncinaError error)
+    {
+        error.Exception.IfSome(ex =>
+        {
+            problemDetails.Extensions["exception"] = new
+            {
+                type = ex.GetType().FullName,
+                message = ex.Message,
+                stackTrace = ex.StackTrace
+            };
+        });
+    }
+
+    /// <summary>
+    /// Whether error messages may reach the client: the option is on and the host is Development.
+    /// A missing environment counts as non-Development (fail closed).
+    /// </summary>
+    internal static bool ShouldExposeErrorMessage(EncinaAspNetCoreOptions options, IHostEnvironment? environment) =>
+        options.IncludeErrorMessageInProblemDetails && environment?.IsDevelopment() == true;
 
     /// <summary>
     /// Converts a <see cref="EncinaError"/> to an <see cref="IActionResult"/> for controllers.

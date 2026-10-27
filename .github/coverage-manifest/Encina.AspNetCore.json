@@ -1,7 +1,7 @@
 {
   "package": "Encina.AspNetCore",
   "generated": "2026-04-13T00:00:00Z",
-  "totalFiles": 25,
+  "totalFiles": 27,
   "targets": {
     "unit": 60,
     "guard": 15
@@ -215,8 +215,26 @@
       "reason": "Error mapper converting EncinaError to ProblemDetails; unit tests cover all code paths, guard tests cover null-parameter checks",
       "targets": { "unit": 100, "guard": 25 },
       "justifications": {
-        "unit": "Every error code and HTTP status mapping, including each encina.authorization.* code, has a unit test.",
-        "guard": "Only the null guards on the public error and request parameters need guard tests."
+        "unit": "Every status mapping, the message and exception-extension matrix (option on or off, Development, Production, Staging, no environment) and ToActionResult have unit tests (measured 100%).",
+        "guard": "Only the httpContext null guards of ToProblemDetails and ToActionResult need guard tests (measured 62%)."
+      }
+    },
+    "ProblemDetailsStartupLog.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Source-generated LoggerMessage declarations without hand-written executable lines"
+    },
+    "ProblemDetailsStartupWarningService.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Hosted service that logs the startup warning for IncludeErrorMessageInProblemDetails; unit tests cover every environment branch, guard tests cover the constructor null checks",
+      "targets": { "unit": 100, "guard": 25 },
+      "justifications": {
+        "unit": "Every branch (option off, honoured in Development, ignored in Production, Staging and without an environment) and StopAsync run in unit tests (measured 100%).",
+        "guard": "Only the three constructor null guards need guard tests (measured 27%)."
       }
     },
     "Properties/AssemblyInfo.cs": {

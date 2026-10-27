@@ -201,12 +201,12 @@ public static class ProjectScaffolder
             app.UseEncinaContext();
 
             // Sample endpoint using Encina
-            app.MapPost("/api/sample", async (SampleCommand command, IEncina encina) =>
+            app.MapPost("/api/sample", async (SampleCommand command, IEncina encina, HttpContext httpContext) =>
             {
                 var result = await encina.Send(command);
                 return result.Match(
                     Right: response => Results.Ok(response),
-                    Left: error => Results.Problem(error.Message));
+                    Left: error => error.ToProblemDetails(httpContext));
             });
 
             app.Run();

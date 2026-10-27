@@ -53,6 +53,7 @@ has_children: true
 | [053](053-aggregate-rule-violations-return-either.md) | Compliance Aggregate Rule Violations Are a Left, Not an Exception (Accepted) |
 | [054](054-observability-conventions-and-trace-propagation.md) | Observability Conventions and Cross-Boundary Trace Propagation (Accepted) |
 | [055](055-resilience-family.md) | The Resilience Family: One Package, One Engine, One Retry Owner (Accepted) |
+| [056](056-mutation-testing-scope.md) | Mutation Testing Scope: A Risk-Based List That Only Grows, Toward All Packages (Accepted) |
 
 ## Reserved numbers
 
