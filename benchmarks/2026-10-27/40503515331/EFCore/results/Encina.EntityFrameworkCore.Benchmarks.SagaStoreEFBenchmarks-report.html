@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.EntityFrameworkCore.Benchmarks.SagaStoreEFBenchmarks-20261027-133352</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]   : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  InvocationCount=1  IterationCount=3  
+LaunchCount=1  UnrollFactor=1  WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method      </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>GetAsync</td><td>134.86 &mu;s</td><td>406.10 &mu;s</td><td>22.260 &mu;s</td><td>1.02</td><td>0.22</td><td>10.64 KB</td><td>1.00</td>
+</tr><tr><td>AddAsync</td><td>41.95 &mu;s</td><td>164.59 &mu;s</td><td>9.022 &mu;s</td><td>0.32</td><td>0.08</td><td>3.27 KB</td><td>0.31</td>
+</tr><tr><td>UpdateAsync</td><td>79.62 &mu;s</td><td>385.80 &mu;s</td><td>21.147 &mu;s</td><td>0.60</td><td>0.17</td><td>5.64 KB</td><td>0.53</td>
+</tr><tr><td>GetStuckSagasAsync</td><td>821.33 &mu;s</td><td>1,109.14 &mu;s</td><td>60.796 &mu;s</td><td>6.21</td><td>1.05</td><td>335.8 KB</td><td>31.56</td>
+</tr></tbody></table>
+</body>
+</html>
