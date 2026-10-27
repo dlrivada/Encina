@@ -6,7 +6,7 @@ namespace Encina.Security.BreakTheGlass.Diagnostics;
 /// Structured log messages of the break-the-glass gate, expiry sweeper, purge and start-up checks.
 /// </summary>
 /// <remarks>
-/// <para>Event IDs: 9750-9764 (see <c>EventIdRanges.SecurityBreakTheGlass</c>).</para>
+/// <para>Event IDs: 9750-9765 (see <c>EventIdRanges.SecurityBreakTheGlass</c>).</para>
 /// <para>
 /// Arguments are counts, error codes, the scope name and an environment name only: never a user id,
 /// a subject id, a justification, an elevation payload or an <see cref="EncinaError"/> message. An
@@ -84,4 +84,10 @@ internal static partial class BreakTheGlassLogMessages
     [LoggerMessage(EventId = 9764, Level = LogLevel.Information,
         Message = "Break-the-glass purge is disabled (EnableAutoPurge = false); reviewed elevations are kept until it is enabled")]
     internal static partial void PurgeDisabled(ILogger logger);
+
+    // ── Access without a tenant (9765) ───────────────────────────────
+
+    [LoggerMessage(EventId = 9765, Level = LogLevel.Warning,
+        Message = "Break-the-glass access denied: a tenant is required and the request carries none")]
+    internal static partial void AccessTenantMissing(ILogger logger);
 }

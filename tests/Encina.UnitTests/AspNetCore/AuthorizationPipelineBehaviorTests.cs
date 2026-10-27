@@ -191,7 +191,7 @@ public class AuthorizationPipelineBehaviorTests
     public async Task Handle_DefiniteDenial_ElevationGranted_ContinuesAndLogsElevationIdOnly()
     {
         var elevationId = Guid.NewGuid();
-        var gate = GateReturning(Right<EncinaError, Option<AccessElevation>>(Some(new AccessElevation(elevationId, "scope", DateTimeOffset.UtcNow.AddHours(1)))));
+        var gate = GateReturning(Right<EncinaError, Option<AccessElevation>>(Some(new AccessElevation(elevationId, "scope", new Microsoft.Extensions.Time.Testing.FakeTimeProvider().GetUtcNow().AddHours(1)))));
         var logger = new FakeLogger<AuthorizationPipelineBehavior<AdminOnlyRequest, Unit>>();
 
         var (result, nextCalled) = await RunAsync<AdminOnlyRequest, Unit>(
@@ -199,7 +199,7 @@ public class AuthorizationPipelineBehaviorTests
 
         nextCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
-        var entry = logger.Collector.GetSnapshot().Single(e => e.Id.Id == 205);
+        var entry = logger.Collector.GetSnapshot().Single(e => e.Id.Id == 207);
         entry.Message.ShouldContain(elevationId.ToString());
         entry.Message.ShouldNotContain(Sentinel);
     }

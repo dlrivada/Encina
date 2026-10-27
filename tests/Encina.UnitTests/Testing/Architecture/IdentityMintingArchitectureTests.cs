@@ -114,6 +114,13 @@ public sealed class IdentityMintingArchitectureTests
         hostCallers.ShouldContain("Encina.AspNetCore:RunAnonymousMarkerAsync");
         hostCallers.ShouldContain("Encina.AspNetCore.Blazor:RunHostInboundAsync");
         hostCallers.ShouldContain("Encina.AspNetCore.Blazor:RunAnonymousMarkerAsync");
+
+        // The built-in identity hosts really call it, so a stale allowlist entry fails; and the
+        // break-the-glass package (D31) opens only a built-in identity, never an inbound or anonymous one.
+        hostCallers.ShouldContain("Encina.Security.ABAC:RunAsBuiltInAsync");
+        hostCallers.ShouldContain("Encina.Security.BreakTheGlass:RunAsBuiltInAsync");
+        hostCallers.ShouldNotContain("Encina.Security.BreakTheGlass:RunHostInboundAsync");
+        hostCallers.ShouldNotContain("Encina.Security.BreakTheGlass:RunAnonymousMarkerAsync");
     }
 
     [Fact]

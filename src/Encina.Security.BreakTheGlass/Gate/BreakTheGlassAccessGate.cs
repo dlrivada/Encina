@@ -84,6 +84,13 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
             return Some(held);
         }
 
+        // Fail closed: when a tenant is required, a tenant-less request never reaches the store.
+        if (_options.Value.RequireTenant && string.IsNullOrWhiteSpace(context.TenantId))
+        {
+            BreakTheGlassLogMessages.AccessTenantMissing(_logger);
+            return Option<AccessElevation>.None;
+        }
+
         var found = await _store.FindEffectiveAsync(context.TenantId, userId, subjectId, eligibility.Scope, _timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
         return await found.Match(
             Right: option => GrantAsync(option, typeof(TRequest), subjectId, userId, context, denial, cancellationToken),

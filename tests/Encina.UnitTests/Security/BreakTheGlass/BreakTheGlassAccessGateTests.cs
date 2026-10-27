@@ -253,6 +253,36 @@ public sealed class BreakTheGlassAccessGateTests
 
     // ── Failures replace the denial ─────────────────────────────────────
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task RequireTenant_MissingTenant_KeepsDenial_WithoutStoreCall_AndLogsNoIdentifiers(string? tenant)
+    {
+        var h = new Harness();
+        var store = Substitute.For<IBreakTheGlassStore>();
+        h.Store = store;
+        h.Options.RequireTenant = true;
+
+        var result = await h.TryAsync(new EligibleGateRequest(Subject), tenant: tenant);
+
+        Granted(result).IsNone.ShouldBeTrue();
+        store.ReceivedCalls().ShouldBeEmpty();
+        var entry = h.Logger.Collector.GetSnapshot().Single(e => e.Id.Id == 9765);
+        entry.Message.ShouldNotContain(Subject);
+        entry.Message.ShouldNotContain("clin-1");
+    }
+
+    [Fact]
+    public async Task RequireTenantOff_MissingTenant_StillFindsATenantlessElevation()
+    {
+        var h = new Harness();
+        await h.OpenAsync(tenant: null);
+        h.Options.RequireTenant = false;
+
+        Granted(await h.TryAsync(new EligibleGateRequest(Subject), tenant: null)).IsSome.ShouldBeTrue();
+    }
+
     [Fact]
     public async Task StoreLookupFailure_KeepsTheDenial_LogsTheCodeAndNoIdentifiers()
     {

@@ -138,6 +138,76 @@ public sealed class BreakTheGlassGateProperties
     public bool ExpiredElevation_IsNeverHonouredAgain_AndRecordedOnce_AcrossSweeperRuns(PositiveInt duration, PositiveInt runs) =>
         SweptElevationStaysDeadAsync(duration.Get % 3_600 + 1, runs.Get % 4 + 1).GetAwaiter().GetResult();
 
+    private static BreakTheGlassAccessGate GateOver(IBreakTheGlassStore store, BreakTheGlassOptions options, FakeTimeProvider time) =>
+        new(store, new InMemoryOperationAuditStore(), new ReadAuditContext(), new BreakTheGlassRequestGrants(), Options.Create(options), time, NullLogger<BreakTheGlassAccessGate>.Instance);
+
+    private static BreakTheGlassElevation ActiveElevation(int durationSeconds) => new()
+    {
+        ElevationId = Guid.NewGuid(),
+        TenantId = null,
+        UserId = "clin-1",
+        SubjectId = "patient-1",
+        Scope = "clinical-record",
+        Justification = "justification",
+        OpenedAtUtc = OpenedAt,
+        ExpiresAtUtc = OpenedAt.AddSeconds(durationSeconds)
+    };
+
+    // Fail closed: when a tenant is required, a request without one never gets an elevation, even a tenant-less one.
+    [Property(MaxTest = 50)]
+    public bool RequireTenant_NeverGrants_ARequestWithoutATenant(PositiveInt duration, bool blank) =>
+        RequireTenantDeniesAsync(duration.Get % 86_400 + 60, blank).GetAwaiter().GetResult();
+
+    private static async Task<bool> RequireTenantDeniesAsync(int durationSeconds, bool blank)
+    {
+        var store = new InMemoryBreakTheGlassStore();
+        await store.AddAsync(ActiveElevation(durationSeconds));
+        var gate = GateOver(store, new BreakTheGlassOptions { RequireTenant = true }, new FakeTimeProvider(OpenedAt));
+        var context = Context();
+        context.TenantId.Returns(blank ? "  " : null);
+
+        var result = await gate.TryElevateAsync(new PropertyGateRequest("patient-1"), context, EncinaErrors.Forbidden(), CancellationToken.None);
+
+        return result.Match(Right: option => option.IsNone, Left: _ => false);
+    }
+
+    // A failing store lookup never turns into a grant and never into an error: the denial stays.
+    [Property(MaxTest = 50)]
+    public bool FailingStore_NeverGrants_AndNeverErrors(NonEmptyString code) =>
+        FailingStoreKeepsDenialAsync(code.Get).GetAwaiter().GetResult();
+
+    private static async Task<bool> FailingStoreKeepsDenialAsync(string message)
+    {
+        var store = Substitute.For<IBreakTheGlassStore>();
+#pragma warning disable CA2012 // NSubstitute stubbing of ValueTask members
+        store.FindEffectiveAsync(default, default!, default!, default!, default, default)
+            .ReturnsForAnyArgs(ValueTask.FromResult(LanguageExt.Prelude.Left<EncinaError, LanguageExt.Option<BreakTheGlassElevation>>(
+                EncinaErrors.Create(BreakTheGlassErrors.StoreFailedCode, message))));
+#pragma warning restore CA2012
+        var gate = GateOver(store, new BreakTheGlassOptions(), new FakeTimeProvider(OpenedAt));
+
+        var result = await gate.TryElevateAsync(new PropertyGateRequest("patient-1"), Context(), EncinaErrors.Forbidden(), CancellationToken.None);
+
+        return result.Match(Right: option => option.IsNone, Left: _ => false);
+    }
+
+    // A second gate of the same request reuses the grant while it is in force and writes nothing more.
+    [Property(MaxTest = 30)]
+    public bool SecondGateOfTheSameRequest_ReusesTheGrant_WhileItIsInForce(PositiveInt duration) =>
+        ReusesGrantAsync(duration.Get % 86_400 + 60).GetAwaiter().GetResult();
+
+    private static async Task<bool> ReusesGrantAsync(int durationSeconds)
+    {
+        var store = new InMemoryBreakTheGlassStore();
+        await store.AddAsync(ActiveElevation(durationSeconds) with { TenantId = "tenant-1" });
+        var gate = GateOver(store, new BreakTheGlassOptions(), new FakeTimeProvider(OpenedAt));
+
+        var first = await gate.TryElevateAsync(new PropertyGateRequest("patient-1"), Context(), EncinaErrors.Forbidden(), CancellationToken.None);
+        var second = await gate.TryElevateAsync(new PropertyGateRequest("patient-1"), Context(), EncinaErrors.Forbidden(), CancellationToken.None);
+
+        return first.Match(Right: o => o.IsSome, Left: _ => false) && second.Match(Right: o => o.IsSome, Left: _ => false);
+    }
+
     [Property(MaxTest = 100)]
     public bool NeverGrants_ForAClosedElevation(PositiveInt duration, int checkOffset, bool revoked)
     {
