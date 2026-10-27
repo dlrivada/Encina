@@ -60,6 +60,7 @@ public sealed class MartenAuditStorePurgeIntegrationTests(MartenFixture fixture)
         var result = await operationStore.PurgeEntriesAsync(Old.AddYears(1));
 
         DestroyedCount(result).ShouldBeGreaterThan(0);
+        await AssertRetentionMarkerAsync(Old.AddYears(1));
     }
 
     [Fact]
@@ -72,6 +73,25 @@ public sealed class MartenAuditStorePurgeIntegrationTests(MartenFixture fixture)
         var result = await readStore.PurgeEntriesAsync(Old.AddYears(1));
 
         DestroyedCount(result).ShouldBeGreaterThan(0);
+        await AssertRetentionMarkerAsync(Old.AddYears(1));
+    }
+
+    /// <summary>
+    /// The purge records a retention reference (policy, cutoff, execution time, actor system) and no erasure
+    /// reference, so the projections read the destroyed period as <c>[EXPIRED]</c> and keep running (issue #2770, Q3).
+    /// </summary>
+    private async Task AssertRetentionMarkerAsync(DateTime cutoffUtc)
+    {
+        await using var query = _store!.QuerySession();
+        var marker = await query.LoadAsync<TemporalKeyDestroyedMarker>(TemporalPeriodHelper.FormatDestroyedMarkerId("2020-01"));
+
+        marker.ShouldNotBeNull();
+        marker.Classify().ShouldBe(KeyDestructionKind.Retention);
+        marker.HasErasureReference().ShouldBeFalse();
+        marker.RetentionPolicyId.ShouldBe("audit-retention:P2555D");
+        marker.RetentionActor.ShouldBe("system");
+        marker.RetentionCutoffUtc.ShouldBe(new DateTimeOffset(cutoffUtc, TimeSpan.Zero));
+        marker.RetentionExecutedAtUtc.ShouldNotBeNull();
     }
 
     [Fact]

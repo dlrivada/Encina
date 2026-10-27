@@ -22,7 +22,8 @@ namespace Encina.IntegrationTests.Infrastructure.Marten.Audit;
 /// <summary>
 /// Issue #2770 (D14, D15, Q1): on real Marten and PostgreSQL, an audit event whose encrypted field cannot be read
 /// stops the projection's shard instead of being skipped or projected as plaintext or as <c>[SHREDDED]</c>, while a key
-/// destroyed with an erasure reference reads as <c>[SHREDDED]</c> and the shard keeps running.
+/// destroyed with an erasure reference reads as <c>[SHREDDED]</c> and one destroyed with a retention reference (Q3) reads
+/// as <c>[EXPIRED]</c>, both with the shard still running.
 /// </summary>
 [Collection(MartenCollection.Name)]
 [Trait("Category", "Integration")]
@@ -94,6 +95,49 @@ public sealed class AuditProjectionUnreadableEventIntegrationTests(MartenFixture
         shredded.UserId.ShouldBe(MartenOperationAuditOptions.DefaultShreddedPlaceholder);
         (await Load(last))!.UserId.ShouldBe(Plaintext);
         _daemon!.StatusFor(OperationShard).ShouldBe(AgentStatus.Running);
+        _daemon.HasAnyPaused().ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task KeyDestroyedWithRetentionReference_ProjectsExpiredAndTheShardKeepsRunning()
+    {
+        SkipWhenUnavailable();
+        var live = await SeedKeyAsync(LivePeriod);
+        var old = await SeedKeyAsync(DestroyedPeriod);
+        var first = await AppendAsync(LivePeriod, live);
+        var expired = await AppendAsync(DestroyedPeriod, old);
+        var last = await AppendAsync(LivePeriod, live);
+        await DestroyAsync(new RetentionReference("audit-retention:P2555D", Requested.AddYears(-7), Requested, "system"));
+
+        await StartDaemonAsync();
+        await WaitForAsync(() => IsProjectedAsync(last));
+
+        (await Load(first))!.IsExpired.ShouldBeFalse();
+        var model = (await Load(expired))!;
+        model.IsExpired.ShouldBeTrue();
+        model.IsShredded.ShouldBeFalse();
+        model.UserId.ShouldBe(MartenOperationAuditOptions.DefaultExpiredPlaceholder);
+        (await Load(last))!.UserId.ShouldBe(Plaintext);
+        _daemon!.StatusFor(OperationShard).ShouldBe(AgentStatus.Running);
+        _daemon.HasAnyPaused().ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task RebuildPassesOverPeriodsPurgedWithARetentionReference()
+    {
+        SkipWhenUnavailable();
+        var live = await SeedKeyAsync(LivePeriod);
+        var old = await SeedKeyAsync(DestroyedPeriod);
+        var first = await AppendAsync(DestroyedPeriod, old);
+        var last = await AppendAsync(LivePeriod, live);
+        await DestroyAsync(new RetentionReference("audit-retention:P2555D", Requested.AddYears(-7), Requested, "system"));
+
+        await StartDaemonAsync();
+        await WaitForAsync(() => IsProjectedAsync(last));
+        await _daemon!.RebuildProjectionAsync("OperationAuditEntryProjection", CancellationToken.None);
+
+        (await Load(first))!.IsExpired.ShouldBeTrue();
+        (await Load(last))!.UserId.ShouldBe(Plaintext);
         _daemon.HasAnyPaused().ShouldBeFalse();
     }
 
@@ -310,7 +354,7 @@ public sealed class AuditProjectionUnreadableEventIntegrationTests(MartenFixture
         return id;
     }
 
-    private async Task DestroyAsync(ErasureReference? erasureReference)
+    private async Task DestroyAsync(KeyDestructionReference? erasureReference)
     {
         await using var session = _store!.LightweightSession();
         var keys = new MartenTemporalKeyProvider(
