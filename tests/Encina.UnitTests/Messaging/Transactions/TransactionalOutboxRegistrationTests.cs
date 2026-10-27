@@ -133,7 +133,7 @@ public sealed class TransactionalOutboxRegistrationTests
     }
 
     [Fact]
-    public void MongoDb_AddEncinaUnitOfWorkAlone_RegistersTheAccessorOnceAndResolvesTheUnitOfWork()
+    public async Task MongoDb_AddEncinaUnitOfWorkAlone_RegistersTheAccessorOnceAndResolvesTheUnitOfWork()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -146,7 +146,8 @@ public sealed class TransactionalOutboxRegistrationTests
         services.Count(d => d.ServiceType == typeof(ITransactionLeaseSource)).ShouldBe(1);
         using var provider = services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
-        using var scope = provider.CreateScope();
+        // The Mongo unit of work is IAsyncDisposable only (#2556), so the scope is disposed asynchronously.
+        await using var scope = provider.CreateAsyncScope();
         scope.ServiceProvider.GetRequiredService<global::Encina.DomainModeling.IUnitOfWork>()
             .ShouldBeOfType<global::Encina.MongoDB.UnitOfWork.UnitOfWorkMongoDB>();
     }

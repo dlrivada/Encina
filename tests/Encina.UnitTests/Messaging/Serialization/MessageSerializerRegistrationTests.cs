@@ -86,9 +86,9 @@ public sealed class MessageSerializerRegistrationTests
 
         // Assert
         AssertSerializer(sp, encryption);
-        if (family is ProviderFamily.AdoPostgreSql or ProviderFamily.DapperPostgreSql or ProviderFamily.EntityFrameworkCore)
+        if (family is ProviderFamily.AdoPostgreSql or ProviderFamily.DapperPostgreSql or ProviderFamily.EntityFrameworkCore or ProviderFamily.MongoDB)
         {
-            // ADO.NET, Dapper and EF Core write the notifications inside the request's transaction (#718, #719).
+            // ADO.NET, Dapper, EF Core and MongoDB write the notifications inside the request's transaction (#718, #719).
             sp.GetServices<IPipelineBehavior<ProbeRequest, string>>()
                 .ShouldContain(b => b is TransactionalOutboxPipelineBehavior<ProbeRequest, string>);
         }
