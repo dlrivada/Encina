@@ -64,12 +64,23 @@ public sealed class RetentionReferenceTests
     [Fact]
     public void ForPurge_BuildsPolicyIdFromRetentionPeriodAndSystemActor()
     {
-        var reference = RetentionReference.ForPurge(TimeSpan.FromDays(2555), At.AddYears(-7), At);
+        var reference = RetentionReference.ForPurge(new MartenOperationAuditOptions { RetentionPeriod = TimeSpan.FromDays(2555) }, At.AddYears(-7), At);
 
         reference.PolicyId.ShouldBe("audit-retention:P2555D");
         reference.Actor.ShouldBe("system");
         reference.CutoffUtc.ShouldBe(At.AddYears(-7));
         reference.ExecutedAtUtc.ShouldBe(At);
+        reference.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ForPurge_ConfiguredRetentionPolicyId_IsUsedAsThePolicyId()
+    {
+        var options = new MartenOperationAuditOptions { RetentionPolicyId = "policy-2026-gdpr-7y", RetentionPeriod = TimeSpan.FromDays(10) };
+
+        var reference = RetentionReference.ForPurge(options, At.AddYears(-7), At);
+
+        reference.PolicyId.ShouldBe("policy-2026-gdpr-7y");
         reference.IsValid.ShouldBeTrue();
     }
 

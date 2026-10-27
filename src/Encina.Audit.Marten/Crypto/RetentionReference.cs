@@ -29,11 +29,12 @@ public sealed record RetentionReference(string PolicyId, DateTimeOffset CutoffUt
     internal const string SystemActor = "system";
 
     /// <summary>
-    /// Builds the reference of a purge the audit stores execute: the policy is identified by the configured retention
-    /// period (ISO 8601 duration, for example <c>audit-retention:P2555D</c>), the actor is <c>system</c>.
+    /// Builds the reference of a purge the audit stores execute: the policy is the configured
+    /// <see cref="MartenOperationAuditOptions.RetentionPolicyId"/> or, when that is unset, the one derived from the
+    /// retention period (ISO 8601 duration, for example <c>audit-retention:P2555D</c>); the actor is <c>system</c>.
     /// </summary>
-    internal static RetentionReference ForPurge(TimeSpan retentionPeriod, DateTimeOffset cutoffUtc, DateTimeOffset executedAtUtc) =>
-        new($"audit-retention:{XmlConvert.ToString(retentionPeriod)}", cutoffUtc, executedAtUtc, SystemActor);
+    internal static RetentionReference ForPurge(MartenOperationAuditOptions options, DateTimeOffset cutoffUtc, DateTimeOffset executedAtUtc) =>
+        new(options.RetentionPolicyId ?? $"audit-retention:{XmlConvert.ToString(options.RetentionPeriod)}", cutoffUtc, executedAtUtc, SystemActor);
 
     /// <summary>
     /// Gets a value indicating whether the reference identifies a retention execution: a non-blank policy id and

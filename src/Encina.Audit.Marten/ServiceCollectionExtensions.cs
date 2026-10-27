@@ -36,6 +36,10 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IReadAuditStore"/> → <see cref="MartenReadAuditStore"/> (Scoped, replaces default InMemory)</item>
     /// <item><see cref="IConfigureOptions{StoreOptions}"/> → <see cref="ConfigureMartenOperationAuditProjections"/>
     /// (registers async projections and document indexes)</item>
+    /// <item>A startup guard that stops the host when the application left Marten's projection error flags
+    /// (<c>SkipApplyErrors</c>, <c>SkipSerializationErrors</c>, store-wide) skipping failing events; the application
+    /// sets them to <c>false</c> itself, or opts out with
+    /// <see cref="MartenOperationAuditOptions.AllowSkippedProjectionErrors"/> (logged)</item>
     /// <item><see cref="MartenOperationAuditHealthCheck"/> (optional, when <see cref="MartenOperationAuditOptions.AddHealthCheck"/> is true)</item>
     /// <item><see cref="MartenOperationAuditRetentionService"/> (optional, when <see cref="MartenOperationAuditOptions.EnableAutoPurge"/> is true)</item>
     /// </list>
@@ -78,21 +82,34 @@ public static class ServiceCollectionExtensions
     /// </code>
     /// </example>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is null.</exception>
+    /// <exception cref="OptionsValidationException">
+    /// Thrown when <see cref="MartenOperationAuditOptions.RetentionPolicyId"/> is set but empty or whitespace. The
+    /// same validation runs again at host startup (<c>ValidateOnStart</c>).
+    /// </exception>
     public static IServiceCollection AddEncinaAuditMarten(
         this IServiceCollection services,
         Action<MartenOperationAuditOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // Validate eagerly so a plain BuildServiceProvider (no host, no ValidateOnStart) is protected too.
+        var optionsInstance = new MartenOperationAuditOptions();
+        configure?.Invoke(optionsInstance);
+        var validation = new MartenOperationAuditOptionsValidator().Validate(Options.DefaultName, optionsInstance);
+        if (validation.Failed)
+        {
+            throw new OptionsValidationException(Options.DefaultName, typeof(MartenOperationAuditOptions), validation.Failures);
+        }
+
         // Configure options
+        var optionsBuilder = services.AddOptions<MartenOperationAuditOptions>().ValidateOnStart();
         if (configure is not null)
         {
-            services.Configure(configure);
+            optionsBuilder.Configure(configure);
         }
-        else
-        {
-            services.Configure<MartenOperationAuditOptions>(_ => { });
-        }
+
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<MartenOperationAuditOptions>, MartenOperationAuditOptionsValidator>());
 
         // Ensure TimeProvider is available
         services.TryAddSingleton(TimeProvider.System);
@@ -105,10 +122,6 @@ public static class ServiceCollectionExtensions
         // extension runs before the host's own AddLogging() call, NullLoggerFactory would
         // claim the ILoggerFactory slot and silently swallow the host's configured logs.
         services.AddLogging();
-
-        // Instantiate options to inspect flags for conditional registrations
-        var optionsInstance = new MartenOperationAuditOptions();
-        configure?.Invoke(optionsInstance);
 
         // Register temporal key provider (scoped — uses IDocumentSession)
         services.TryAddScoped<ITemporalKeyProvider, MartenTemporalKeyProvider>();
@@ -123,6 +136,9 @@ public static class ServiceCollectionExtensions
         // Register Marten projection configuration (async projections + document indexes)
         services.AddSingleton<IConfigureOptions<StoreOptions>, ConfigureMartenOperationAuditProjections>();
         services.AddEncinaMartenStoreOptionsBridge();
+
+        // Fail closed at startup when the application's Marten error flags would skip audit events (D22).
+        services.AddHostedService<AuditProjectionErrorPolicyStartupGuard>();
 
         // Conditional: health check
         if (optionsInstance.AddHealthCheck)

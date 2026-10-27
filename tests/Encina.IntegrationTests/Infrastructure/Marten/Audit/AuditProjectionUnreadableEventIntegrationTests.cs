@@ -56,6 +56,13 @@ public sealed class AuditProjectionUnreadableEventIntegrationTests(MartenFixture
             options.Connection(fixture.ConnectionString);
             options.DatabaseSchemaName = schema;
             options.Events.StreamIdentity = JasperFx.Events.StreamIdentity.AsString;
+
+            // D22: Encina no longer sets Marten's store-wide error flags; like an application, the test does, so an
+            // unreadable audit event pauses the shard instead of being skipped.
+            options.Projections.Errors.SkipApplyErrors = false;
+            options.Projections.Errors.SkipSerializationErrors = false;
+            options.Projections.RebuildErrors.SkipApplyErrors = false;
+            options.Projections.RebuildErrors.SkipSerializationErrors = false;
             new ConfigureMartenOperationAuditProjections(
                 Options.Create(new MartenOperationAuditOptions()), _loggerFactory).Configure(options);
         });
