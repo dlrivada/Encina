@@ -71,6 +71,24 @@
         "unit": "An interface declaration has no executable lines; the implementations carry the coverage."
       }
     },
+    "Crypto/KeyDestructionReference.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100,
+        "integration": 100
+      },
+      "justifications": {
+        "unit": "Unit tests construct both erasure and retention references, so the abstract base constructor runs (measured 100%).",
+        "guard": "Guard tests construct the references through the base constructor with invalid arguments (measured 100%).",
+        "integration": "Constructing either reference in the Marten integration tests reaches the abstract base constructor (measured 100%)."
+      }
+    },
     "Crypto/MartenTemporalKeyProvider.cs": {
       "defaultTests": [
         "unit",
@@ -89,6 +107,24 @@
         "integration": "The Marten integration tests run key creation, lookup and destruction with, without and with an invalid erasure reference against PostgreSQL (measured 84%)."
       }
     },
+    "Crypto/RetentionReference.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 83,
+        "integration": 100
+      },
+      "justifications": {
+        "unit": "Unit tests call IsValid for a complete reference and for every missing field, and ForPurge (measured 100%).",
+        "guard": "Guard tests pass invalid references to DestroyKeysBeforeAsync; the remaining line is the factory that only unit tests call (measured 83%).",
+        "integration": "The purge integration tests and the Marten destruction tests build and persist the retention reference (measured 100%)."
+      }
+    },
     "Crypto/TemporalKeyDestroyedMarker.cs": {
       "defaultTests": [
         "unit",
@@ -102,9 +138,9 @@
         "integration": 100
       },
       "justifications": {
-        "unit": "Unit tests call HasErasureReference for every missing-field combination (measured 100%).",
+        "unit": "Unit tests call HasErasureReference for every missing-field combination, and the erasure and retention reference classification through Classify (measured 100%).",
         "guard": "The marker is a plain document with no method taking arguments, so no guard test can execute it.",
-        "integration": "Destruction against PostgreSQL stores markers with and without a reference and the tests read them back (measured 100%)."
+        "integration": "Destruction against PostgreSQL stores markers with and without an erasure or retention reference and the tests read them back (measured 100%)."
       }
     },
     "Crypto/TemporalKeyDocument.cs": {
@@ -406,7 +442,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 87,
+        "guard": 27,
+        "integration": 82
+      },
+      "justifications": {
+        "unit": "Unit tests run MapToReadModel for active, shredded and expired keys; the remainder is the Marten-only Create path (measured 87%).",
+        "guard": "Guard tests assert the constructor and Create argument guards only (measured 27%).",
+        "integration": "The real-Marten daemon tests project events through Create (measured 82%)."
+      }
     },
     "Projections/ReadAuditEntryReadModel.cs": {
       "defaultTests": [
@@ -414,7 +460,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 92,
+        "integration": 100
+      },
+      "justifications": {
+        "unit": "Every property is set and read by the projection tests (measured 100%).",
+        "guard": "The read model's property guards are exercised by the guard tests (measured 92%).",
+        "integration": "The real-Marten projection tests set and read every property (measured 100%)."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
