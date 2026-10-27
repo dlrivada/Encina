@@ -127,6 +127,26 @@ public sealed class BreakTheGlassOptionsValidatorTests
     }
 
     [Theory]
+    [InlineData(1)]
+    [InlineData(36500)]
+    public void RetentionDaysAtBoundary_Passes(int days)
+    {
+        var options = BreakTheGlassTestKit.Options(o => o.RetentionDays = days);
+
+        Failures(options).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(36501)]
+    [InlineData(int.MaxValue)]
+    public void RetentionDaysAboveCap_Fails(int days)
+    {
+        var options = BreakTheGlassTestKit.Options(o => o.RetentionDays = days);
+
+        Failures(options).ShouldHaveSingleItem().ShouldContain("RetentionDays");
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(2001)]
     public void MinimumJustificationLengthOutOfRange_Fails(int length)

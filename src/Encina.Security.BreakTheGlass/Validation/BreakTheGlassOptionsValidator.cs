@@ -13,6 +13,10 @@ namespace Encina.Security.BreakTheGlass;
 /// </remarks>
 internal sealed class BreakTheGlassOptionsValidator : IValidateOptions<BreakTheGlassOptions>
 {
+    // About 100 years (maintainer decision D44): a larger value would make the purge cutoff date fall outside
+    // the DateTimeOffset range and break the purge silently, so it fails at start-up instead.
+    private const int MaxRetentionDays = 36500;
+
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, BreakTheGlassOptions options)
     {
@@ -60,7 +64,10 @@ internal sealed class BreakTheGlassOptionsValidator : IValidateOptions<BreakTheG
             Within(options.ExpirySweepBatchSize, 1, BreakTheGlassOptions.MaxExpirySweepBatchSize),
             $"BreakTheGlassOptions.ExpirySweepBatchSize must be between 1 and {BreakTheGlassOptions.MaxExpirySweepBatchSize}.",
             failures);
-        Require(options.RetentionDays >= 1, "BreakTheGlassOptions.RetentionDays must be positive.", failures);
+        Require(
+            Within(options.RetentionDays, 1, MaxRetentionDays),
+            $"BreakTheGlassOptions.RetentionDays must be between 1 and {MaxRetentionDays} (about 100 years).",
+            failures);
         Require(Within(options.PurgeIntervalHours, 1, 720), "BreakTheGlassOptions.PurgeIntervalHours must be between 1 and 720.", failures);
     }
 

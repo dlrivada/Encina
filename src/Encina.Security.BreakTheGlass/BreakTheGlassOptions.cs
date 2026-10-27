@@ -42,7 +42,7 @@ public sealed class BreakTheGlassOptions
 
     /// <summary>
     /// Gets or sets how many days a closed and reviewed elevation is kept before the purge deletes it.
-    /// Default 2555 (about 7 years, aligned with the operation audit). Used only when <see cref="EnableAutoPurge"/> is set.
+    /// Default 2555 (about 7 years, aligned with the operation audit); the validator accepts 1 to 36500. Used only when <see cref="EnableAutoPurge"/> is set.
     /// </summary>
     public int RetentionDays { get; set; } = 2555;
 
@@ -80,7 +80,13 @@ public sealed class BreakTheGlassOptions
     /// <summary>Gets or sets the longest elevation. Default 4 hours; the validator rejects a value above 24 hours.</summary>
     public TimeSpan MaxDuration { get; set; } = TimeSpan.FromHours(4);
 
-    /// <summary>Gets or sets the minimum length of the trimmed justification. Default 20.</summary>
+    /// <summary>
+    /// Gets or sets the minimum length of the trimmed justification. Default 20.
+    /// </summary>
+    /// <remarks>
+    /// Recommend operational justifications (for example "on call, unassigned patient, crisis") and warn
+    /// users against clinical detail in the justification text: data minimisation, GDPR Art. 5(1)(c) and Art. 9.
+    /// </remarks>
     public int MinimumJustificationLength { get; set; } = 20;
 
     /// <summary>Gets or sets a value indicating whether opening and reviewing publish notifications. Default <see langword="true"/>.</summary>
