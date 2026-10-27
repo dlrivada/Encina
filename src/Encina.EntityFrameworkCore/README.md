@@ -405,6 +405,27 @@ public class TransferMoneyCommandHandler : IRequestHandler<TransferMoneyCommand,
 config.UseTransactions = true;
 ```
 
+### Recoverability, Routing Slips, Content Router and Scatter-Gather
+
+`AddEncinaEntityFrameworkCore` honours `MessagingConfiguration.UseRecoverability`, `UseRoutingSlips`, `UseContentRouter` and `UseScatterGather` exactly as the ADO.NET and Dapper packages do: all three families call the same registration helpers in `Encina.Messaging`.
+
+```csharp
+builder.Services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseTransactions = true;
+    config.UseRecoverability = true;
+    config.UseRoutingSlips = true;
+    config.UseContentRouter = true;
+    config.UseScatterGather = true;
+});
+```
+
+- **Recoverability** is the only one of the four that is a pipeline behavior (`RecoverabilityPipelineBehavior`). It is registered first, so it is the outermost Encina behavior and sits outside EF's `TransactionPipelineBehavior`: a retry begins a new transaction instead of re-running inside the failed one ([ADR-050](../../docs/architecture/adr/050-modules-may-require-modules.md)). Behavior nesting, outermost first: Recoverability, Transaction, Outbox, Inbox, Module, ReadWrite.
+- **Routing slips, content router and scatter-gather** register plain services (`IRoutingSlipRunner`, `IContentRouter`, `IScatterGatherRunner`), not behaviors.
+- **Delayed retries** are off by default (`RecoverabilityOptions.EnableDelayedRetries`). With it on, an `IDelayedRetryStore` and an `IDelayedRetryMessageFactory` must be registered; otherwise `DelayedRetryStartupCheck` makes the host fail to start.
+
+**Soft delete is not a pipeline behavior in EF Core.** ADO.NET and Dapper register `SoftDeleteQueryFilterBehavior` and `ISoftDeleteFilterContext` for `UseSoftDelete`. `AddEncinaEntityFrameworkCore` does not: with `UseSoftDelete`, EF soft delete is `SoftDeleteInterceptor` plus the named query filter `Encina.SoftDelete`, so a request-level behavior would add nothing. The unread `ISoftDeleteFilterContext` is tracked in issue [#2825](https://github.com/dlrivada/Encina/issues/2825).
+
 ### Domain Event Dispatcher
 
 Automatically dispatches domain events from aggregate roots after `SaveChanges()` succeeds. Events are collected from all tracked entities implementing `Entity<TId>` and dispatched via MediatR's `IPublisher`.
