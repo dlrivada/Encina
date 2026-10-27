@@ -29,6 +29,7 @@ public static class ServiceCollectionExtensions
         configure(options);
 
         services.AddSingleton(options);
+        services.TryAddSingleton<IPostgresReplicationClient, NpgsqlReplicationClient>();
         services.TryAddSingleton<ICdcConnector, PostgresCdcConnector>();
         services.TryAddSingleton<PostgresCdcHealthCheck>();
 
