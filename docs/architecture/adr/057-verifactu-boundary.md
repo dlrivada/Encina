@@ -10,7 +10,7 @@
 
 Verifactu is the Spanish tax agency's (AEAT) invoicing-record regime (RD 1007/2023, Orden HAC/1177/2024, RDL 15/2025). Per the SPEC-002 regulatory table (section 3), a library implementing chaining, QR or submission could make its publisher a component "fabricante" under the AEAT developer FAQ, with a producer sanction of 150,000 euros per year and system type under LGT art. 201 bis (source quality [S] in the table, not verified against the BOE text).
 
-SPEC-002 DEC-002 decided on 2026-09-24 that public Encina ships no Verifactu code and offers regulation-neutral primitives only; the Verifactu module belongs to the application, whose producer signs the declaracion responsable and carries the producer liability. SPEC-002 INV-004 forbids code whose purpose is a single regulation that would make the maintainer a Verifactu producer, unless a DEC accepts that role, and none does. DEC-002 also requires an ADR that records which primitives are regulation-neutral, before any sequence or chain primitive ships (SPEC-002 section 11.2, table row 29; tracked by P-24 in section 13.2).
+SPEC-002 DEC-002 decided on 2026-09-24 that public Encina ships no Verifactu code and offers regulation-neutral primitives only; the Verifactu module belongs to the application, whose producer signs the declaración responsable and carries the producer liability. SPEC-002 INV-004 forbids code whose purpose is a single regulation that would make the maintainer a Verifactu producer, unless a DEC accepts that role, and none does. DEC-002 also requires an ADR that records which primitives are regulation-neutral, before any sequence or chain primitive ships (SPEC-002 section 11.2, table row 29; tracked by P-24 in section 13.2).
 
 Three of those primitives are planned and not yet in `src/`: the gapless sequence (P-36, `ISequenceGenerator` per REQ-045), the persistent chained log (P-38, REQ-047) and outbox partitions with pacing (#469, REQ-042). The order holds: this ADR is P-24, milestone v0.14.0, ahead of P-38 and P-36.
 
@@ -24,8 +24,8 @@ These points follow from a rule and were not open choices:
 
 - **Public names (D10)**: this ADR fixes capabilities and a naming rule (generic, domain-free names; no regulation-named type) and quotes only `ISequenceGenerator` from REQ-045. The implementation plans of P-36 and P-38 fix the other names.
 - **Legal claim strength (D16)**: the claim that the primitives do not make the publisher a component producer is a reasoned position with the residual risk stated (see "Residual risks"), not an unqualified statement.
-- **What integrators are told (D20)**: the Verifactu module belongs to the application, and the application's producer lists Encina and its version as a non-RRSIF-specific dependency in the declaracion responsable (H, line 113, option (a) of the framework's choices). This ADR gives no checklist for the producer, because that moves toward legal advice.
-- **Risks (D14)**: SPEC-002 section 12 question 7 is recorded as risks in this ADR (U1 to U3); U2 is tracked by a follow-up issue because it is a reading task, not an AEAT question.
+- **What integrators are told (D20)**: the Verifactu module belongs to the application, and the application's producer lists Encina and its version as a non-RRSIF-specific dependency in the declaración responsable (H, line 113, option (a) of the framework's choices). This ADR gives no checklist for the producer, because that moves toward legal advice.
+- **Risks (D14)**: SPEC-002 section 12 question 7 is recorded as risks in this ADR (U1 to U3); U2 is tracked by [#2927](https://github.com/dlrivada/Encina/issues/2927) because it is a reading task, not an AEAT question.
 - **Who contacts authorities (D18)**: agents never contact authorities, and a binding DGT ruling (LGT art. 88) can only be requested by a taxpayer. No consultation is sought (see "No AEAT or DGT consultation"), so the question of who asks does not arise.
 
 ### The list of primitives (D8)
@@ -59,7 +59,7 @@ The reasoning that makes such a primitive neutral is the one in H line 110: an a
 
 ### How neutrality is checked (D12)
 
-By both an architecture test and a review checklist, each planned and owned by a follow-up issue. The architecture test is a mechanical floor that fails CI; the checklist judges what a token scan cannot, such as a neutrally named type that implements the RRSIF hash. The cost of a miss is the producer exposure above, which justifies the upkeep of two mechanisms.
+By both an architecture test and a review checklist, each planned and owned by a follow-up issue ([#2925](https://github.com/dlrivada/Encina/issues/2925) for the test, [#2926](https://github.com/dlrivada/Encina/issues/2926) for the checklist). The architecture test is a mechanical floor that fails CI; the checklist judges what a token scan cannot, such as a neutrally named type that implements the RRSIF hash. The cost of a miss is the producer exposure above, which justifies the upkeep of two mechanisms.
 
 ### Where the check looks (D13)
 
@@ -75,14 +75,14 @@ In this ADR, plus one sentence in the README of each new primitive package, whic
 
 ### Residual risks
 
-The claim above is a reasoned position, not a certainty. The research notes say the argument that the integrator, not the publisher, is the producer "is strongest there, though still not certain, because 'conservacion inalterada' is on the relevant list" (H, line 110); the same list names record generation, chaining and submission (H, line 103). The persistent chained log is a chaining primitive. An AEAT answer could contradict this ADR.
+The claim above is a reasoned position, not a certainty. The research notes say the argument that the integrator, not the publisher, is the producer "is strongest there, though still not certain, because 'conservación inalterada' is on the relevant list" (H, line 110); the same list names record generation, chaining and submission (H, line 103). The persistent chained log is a chaining primitive. An AEAT answer could contradict this ADR.
 
 The open points of SPEC-002 section 12 question 7 are recorded here as risks:
 
 | Id | Risk | Tracking |
 | --- | --- | --- |
-| U1 | Whether a free, independently versioned library implementing RRSIF functions needs its own declaracion responsable; the AEAT FAQs on open source and on components point different ways. Unresolved without a written AEAT answer (H, line 123). | ADR risk only |
-| U2 | The exact wording of LGT art. 201 bis: read only through a secondary source, and whether free software without sales is sanctionable is untested (H, line 124). | Follow-up issue (a reading task of the BOE text) |
+| U1 | Whether a free, independently versioned library implementing RRSIF functions needs its own declaración responsable; the AEAT FAQs on open source and on components point different ways. Unresolved without a written AEAT answer (H, line 123). | ADR risk only |
+| U2 | The exact wording of LGT art. 201 bis: read only through a secondary source, and whether free software without sales is sanctionable is untested (H, line 124). | [#2927](https://github.com/dlrivada/Encina/issues/2927) (a reading task of the BOE text) |
 | U3 | Whether an application that captures billing data and forwards it to an external SIF is itself a billing component (H, line 125). It concerns the application, not Encina. | ADR risk only |
 
 ## Alternatives considered
@@ -110,10 +110,10 @@ The open points of SPEC-002 section 12 question 7 are recorded here as risks:
 
 | Point | What it implies | Owner |
 | --- | --- | --- |
-| Neutrality criterion (D11) and scope (D13) | An architecture test scanning `src/` for regulation-named tokens, with the allow-list above | Follow-up issue (architecture test) |
-| Review checklist (D12) | A checklist for pull requests that touch the listed primitives, judging the RRSIF concatenation, defaults, presets and option names | Follow-up issue (review checklist) |
+| Neutrality criterion (D11) and scope (D13) | An architecture test scanning `src/` for regulation-named tokens, with the allow-list above | [#2925](https://github.com/dlrivada/Encina/issues/2925) |
+| Review checklist (D12) | A checklist for pull requests that touch the listed primitives, judging the RRSIF concatenation, defaults, presets and option names | [#2926](https://github.com/dlrivada/Encina/issues/2926) |
 | Publication (D23) | One sentence stating the boundary in the README of each new primitive package | The implementation plans of P-36 and P-38 |
-| U2 | Read the BOE text of LGT art. 201 bis and record the result | Follow-up issue (U2) |
+| U2 | Read the BOE text of LGT art. 201 bis and record the result | [#2927](https://github.com/dlrivada/Encina/issues/2927) |
 | `HashChainAttestationProvider` | No change | None |
 | `Encina.Http` (D9) | No AEAT endpoint, Verifactu preset or RRSIF type when it is built | The implementation plan of P-31 |
 
