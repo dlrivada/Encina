@@ -163,25 +163,35 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _configPath = Path.Combine(Path.GetTempPath(), $"encina-servicebus-emulator-{Guid.NewGuid():N}.json");
-        await File.WriteAllTextAsync(_configPath, EmulatorConfig);
 
-        _network = new NetworkBuilder().Build();
-        _sqlContainer = new MsSqlBuilder(SqlServerImage)
-            .WithNetwork(_network)
-            .WithNetworkAliases(ServiceBusBuilder.DatabaseNetworkAlias)
-            .WithEnvironment("MSSQL_PID", "Developer")
-            .Build();
+        try
+        {
+            await File.WriteAllTextAsync(_configPath, EmulatorConfig);
 
-        _container = new ServiceBusBuilder(Image)
-            .WithAcceptLicenseAgreement(true)
-            .WithConfig(_configPath)
-            .WithMsSqlContainer(_network, _sqlContainer, ServiceBusBuilder.DatabaseNetworkAlias)
-            .WithCleanUp(true)
-            .Build();
+            _network = new NetworkBuilder().Build();
+            _sqlContainer = new MsSqlBuilder(SqlServerImage)
+                .WithNetwork(_network)
+                .WithNetworkAliases(ServiceBusBuilder.DatabaseNetworkAlias)
+                .WithEnvironment("MSSQL_PID", "Developer")
+                .Build();
 
-        await _container.StartAsync();
+            _container = new ServiceBusBuilder(Image)
+                .WithAcceptLicenseAgreement(true)
+                .WithConfig(_configPath)
+                .WithMsSqlContainer(_network, _sqlContainer, ServiceBusBuilder.DatabaseNetworkAlias)
+                .WithCleanUp(true)
+                .Build();
 
-        _client = CreateClient();
+            await _container.StartAsync();
+
+            _client = CreateClient();
+        }
+        catch
+        {
+            // A failed start must not leak the temp config file or half-started containers.
+            await DisposeAsync();
+            throw;
+        }
     }
 
     /// <inheritdoc/>

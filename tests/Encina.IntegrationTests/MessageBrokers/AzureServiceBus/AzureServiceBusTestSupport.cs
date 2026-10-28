@@ -21,6 +21,22 @@ internal static class AzureServiceBusTestSupport
     private static readonly TimeSpan ReceiveTimeout = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// Asserts that a failed result carries the expected error code and that its cause is the broker reporting
+    /// a missing entity, so the code is not the only evidence (the publisher uses one code for any exception).
+    /// </summary>
+    public static void ShouldFailBecauseTheEntityIsMissing<T>(Either<EncinaError, T> result, string expectedCode)
+    {
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error =>
+        {
+            error.GetCode().IfNone(string.Empty).ShouldBe(expectedCode);
+            var cause = error.Exception.IfNone(() => throw new InvalidOperationException("The error does not expose its exception."));
+            var serviceBusException = cause.ShouldBeOfType<ServiceBusException>();
+            serviceBusException.Reason.ShouldBe(ServiceBusFailureReason.MessagingEntityNotFound);
+        });
+    }
+
+    /// <summary>
     /// Builds a provider that registers the fixture's client before <c>AddEncinaAzureServiceBus</c>,
     /// so the package's own TryAdd registration leaves it in place.
     /// </summary>

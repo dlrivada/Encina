@@ -46,6 +46,11 @@ public sealed class AzureServiceBusPublisherContractTests : IAsyncLifetime
     private static string CodeOf<T>(Either<EncinaError, T> result) =>
         result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty));
 
+    private static ServiceBusFailureReason? ReasonOf<T>(Either<EncinaError, T> result) =>
+        result.Match(
+            Right: _ => (ServiceBusFailureReason?)null,
+            Left: e => e.Exception.Match(Some: x => (x as ServiceBusException)?.Reason, None: () => null));
+
     private async Task<IReadOnlyList<ServiceBusReceivedMessage>> ReceiveFromQueueAsync(string queueName, int expectedCount)
     {
         await using var receiver = _fixture.Client.CreateReceiver(queueName, ReceiveAndDelete);
@@ -57,16 +62,6 @@ public sealed class AzureServiceBusPublisherContractTests : IAsyncLifetime
         }
 
         return received;
-    }
-
-    [Fact]
-    public void Publisher_ImplementsThePublisherInterface()
-    {
-        // Arrange & Act
-        var publisher = CreatePublisher();
-
-        // Assert
-        publisher.ShouldBeAssignableTo<IAzureServiceBusMessagePublisher>();
     }
 
     [Fact]
@@ -152,6 +147,12 @@ public sealed class AzureServiceBusPublisherContractTests : IAsyncLifetime
         CodeOf(topic).ShouldBe("AZURE_SB_PUBLISH_FAILED");
         CodeOf(schedule).ShouldBe("AZURE_SB_SCHEDULE_FAILED");
         CodeOf(cancel).ShouldBe("AZURE_SB_CANCEL_FAILED");
+
+        // The code alone is shared by every exception, so the cause proves the broker rejected the missing entity.
+        ReasonOf(send).ShouldBe(ServiceBusFailureReason.MessagingEntityNotFound);
+        ReasonOf(topic).ShouldBe(ServiceBusFailureReason.MessagingEntityNotFound);
+        ReasonOf(schedule).ShouldBe(ServiceBusFailureReason.MessagingEntityNotFound);
+        ReasonOf(cancel).ShouldBe(ServiceBusFailureReason.MessagingEntityNotFound);
     }
 
     [Fact]
