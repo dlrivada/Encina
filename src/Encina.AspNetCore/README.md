@@ -226,6 +226,23 @@ builder.Services.AddEncinaRequestIdentity(options =>
 
 **Authorization.** `[Authorize]` (`AuthorizationPipelineBehavior`, registered by `AddEncinaAuthorization`) evaluates `IRequestContext.Identity`. An anonymous identity is denied with `encina.authorization.unauthenticated`.
 
+#### Subject refusal
+
+An authenticated principal whose subject is unusable is refused, never opened as anonymous. The refusal applies to `IRequestContextScopeFactory.RunAsPrincipalAsync` and to `RunInboundAsync` and to the internal host adapter `RunHostInboundAsync` (the path `UseEncinaContext()` uses). The work is not invoked, and a Warning (EventId 167) logs the code only, never a claim value. The cause-specific Warnings 162 to 164 precede it; they carry claim types, never values. An unauthenticated principal still opens the anonymous scope.
+
+| Cause | Condition | Code (`RequestIdentityErrorCodes`) |
+| --- | --- | --- |
+| Missing | No configured `UserIdClaimTypes` claim has a non-blank value on any authenticated identity | `encina.identity.missing_subject_claim` (`MissingSubjectClaim`) |
+| Malformed | The subject is not a valid user id: surrounding whitespace, or control or format characters (a blank value counts as missing) | `encina.identity.malformed_subject_claim` (`MalformedSubjectClaim`) |
+| Reserved | The subject starts with the `service:` prefix, case-insensitive | `encina.identity.reserved_subject_claim` (`ReservedSubjectClaim`) |
+| Conflicting | Different subject values across authenticated identities, or several distinct values of the winning claim type inside one identity | `encina.identity.conflicting_subject_claims` (`ConflictingSubjectClaims`) |
+
+- Per identity, the first claim type of `UserIdClaimTypes` with a non-blank value wins. `sub` and `oid` with different values in one identity are therefore not a conflict: `sub` wins.
+- Missing is decided for the whole principal. A principal where only some identities carry a subject is accepted.
+- `UseEncinaContext()` answers all four causes like the inbound tenant conflict: 403 `application/problem+json` with a fixed detail and no claim value, without running the rest of the pipeline.
+- There is no opt-out. An authenticated principal without a subject (for example a stale cookie identity with only a name claim) is also refused on `[AllowAnonymous]` endpoints, because the middleware runs before the endpoint. Connection requests (see below) are not subject-checked: they run anonymous.
+- When both the subject and the tenant are bad, the subject code is returned.
+
 #### Tenant resolution
 
 The verified tenant claim always wins. The tenant header (`TenantIdHeader`, default `X-Tenant-ID`) is ignored by default; it chooses the tenant only when the principal has no tenant claim and `TrustTenantIdHeader` is `true`.
