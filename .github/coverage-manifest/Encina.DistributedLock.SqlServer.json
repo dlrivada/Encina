@@ -23,16 +23,16 @@
     },
     "SqlServerDistributedLockProvider.cs": {
       "defaultTests": ["unit", "guard", "integration"],
-      "reason": "Creates SqlConnection internally from connection string and calls sp_getapplock: the lock paths need real SQL Server (integration); the unit tests cover the guards, cancellation and the failed-release log of the lock handle",
+      "reason": "Creates SqlConnection internally from connection string and calls sp_getapplock: the lock paths need real SQL Server (integration); the unit tests cover the guards, cancellation, connection-open failures, the lock handle state and the failed-release log of the lock handle",
       "targets": {
-        "unit": 41,
+        "unit": 57,
         "guard": 6,
-        "integration": 15
+        "integration": 93
       },
       "justifications": {
-        "unit": "Measured 41.9%: the unit tests cover the constructor, the cancellation guards, ExtendAsync and the failed-release path of the lock handle (a closed connection makes the release command fail, and the test asserts the Warning with the exception type only); the acquire, release and IsLocked paths call sp_getapplock on a connection the provider creates itself and need a real SQL Server.",
-        "guard": "Measured 6.3%: the guard tests assert the ArgumentNullException of the constructor and of each public method; every other line runs only past those guards and belongs to the unit and integration flags.",
-        "integration": "The acquire, release and IsLocked paths run sp_getapplock and need a real SQL Server; the integration tests exercise them in Docker and were not measured in this change, so the target keeps the package value of 15."
+        "unit": "Measured 57.9%: the unit tests cover the constructor, the cancellation guards, ExtendAsync, the SqlException of an unreachable server out of AcquireAsync, TryAcquireAsync and IsLockedAsync (the connection is opened before the try block), the lock handle (expiry, ExtendAsync held and disposed, repeated DisposeAsync) and the failed-release path; the sp_getapplock calls need a real SQL Server and belong to the integration flag.",
+        "guard": "Measured 6.8%: the guard tests assert the ArgumentNullException of the constructor and of each public method; every other line runs only past those guards and belongs to the unit and integration flags.",
+        "integration": "Measured 94.0%: the Docker tests on the shared ADO-SqlServer SQL Server run TryAcquireAsync, AcquireAsync (free, blocked until the holder disposes, cancelled while waiting), IsLockedAsync (held and free), cancellation inside sp_getapplock and the lock handle (ExtendAsync held and disposed, double DisposeAsync); not reached: the negative-code branch of AcquireAsync (the provider has no way to make sp_getapplock return one), the provider-level ExtendAsync (its behaviour is to be fixed, not pinned) and the failed-release catch of the handle (unit flag)."
       }
     },
     "SqlServerLockOptions.cs": {
