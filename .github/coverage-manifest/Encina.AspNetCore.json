@@ -112,10 +112,10 @@
       ],
       "defaultRule": "*Middleware.cs",
       "reason": "Security-critical request middleware: inbound scope, connection skip, refusals, misordering latch",
-      "targets": { "unit": 95, "guard": 17 },
+      "targets": { "unit": 95, "guard": 20 },
       "justifications": {
         "unit": "Every branch (latch, connection marker, the 403 table for tenant and subject refusals, other refusals, 202/203) has unit and TestServer tests (measured 100%).",
-        "guard": "Constructor and InvokeAsync null guards only (measured 18%)."
+        "guard": "Constructor and InvokeAsync null guards plus the fail-closed answer of every refused scope (403 for ambiguous identity, 500 for host refusals, nothing for cancellation) (measured value in the coverage report)."
       }
     },
     "EncinaContextMiddlewareLog.cs": {
