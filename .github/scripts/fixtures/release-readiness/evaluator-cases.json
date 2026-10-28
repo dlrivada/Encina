@@ -300,6 +300,13 @@
     "contains": "below target"
   },
   {
+    "name": "coverage-flags-green fails when a package is not measured, even with every measured package green",
+    "check": { "name": "coverage-flags-green", "params": {} },
+    "facts": { "coverage-flags": { "value": { "packages": 5, "failing": [], "unmeasured": [ "Encina.NoData" ] } } },
+    "expect": "FAIL",
+    "contains": "not measured"
+  },
+  {
     "name": "branch-protection passes when every AC-020 field matches exactly",
     "check": { "name": "branch-protection", "params": { "contexts": ["build", "ci-result", "Analyze"] } },
     "facts": { "branch-protection": { "value": { "protection": { "enforce_admins": { "enabled": true }, "required_pull_request_reviews": { "required_approving_review_count": 0 }, "required_conversation_resolution": { "enabled": true }, "required_linear_history": { "enabled": true }, "required_status_checks": { "contexts": ["build", "ci-result", "Analyze"], "checks": [ { "context": "build" }, { "context": "ci-result" }, { "context": "Analyze" } ] } } } } },
