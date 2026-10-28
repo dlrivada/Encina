@@ -141,8 +141,11 @@ try {
         [Console]::Error.WriteLine("Blocked: issue #$number is an [EPIC] ($title); an EPIC is never briefed; brief one of its ready sub-issues (EPIC #2845 working rule, #2900).")
         exit 2
     }
-    $size = [regex]::Match($prompt, '(?m)^[ \t]*Size:[ \t]*(?<files>\d+)[ \t]+files?,[ \t]*(?<lines>\d+)[ \t]+lines?\b')
-    if (-not $size.Success) {
+    # Exactly one line starting with "Size:" (any case), and that line is the whole declaration: nothing may follow
+    # "lines" on it, so a second or a trailing-text declaration cannot hide a different size.
+    $sizeLineCount = [regex]::Matches($prompt, '(?im)^[ \t]*Size:').Count
+    $size = [regex]::Match($prompt, '(?m)^[ \t]*Size:[ \t]*(?<files>\d+)[ \t]+files?,[ \t]*(?<lines>\d+)[ \t]+lines?[ \t]*\r?$')
+    if ($sizeLineCount -ne 1 -or -not $size.Success) {
         [Console]::Error.WriteLine("Blocked: the brief for a $subagent must state its size on a line `"Size: <files> files, <lines> lines`" (worker-brief skill, section 1 'Size rule'); a ready sub-issue is one worker PR: at most $MaxFiles files and $MaxLines changed lines (#2900).")
         exit 2
     }
@@ -157,15 +160,16 @@ try {
     # the size. Only the "- **File(s)**" bullet of "## Component Affected" / "## Location" is read, from its first
     # line to the next top-level "- **" bullet; paths in other bullets ("Who does what", "Environment") and other
     # sections are references and are not counted. An issue without that bullet skips this check. Counted: every
-    # backticked dir/.../name.ext on the bullet's first line, and the backticked path that opens a nested list item
-    # (numbered or "-"/"*"); a path inside a nested item's prose, with a line suffix, spaces, a wildcard or no
-    # extension is not counted (the count can undercount, it is not inflated by mentions). The bullet is matched
+    # backticked [dir/.../]name.ext on the bullet's first line (a root-level file such as docker-compose.yml counts;
+    # so does any backticked token with a dot and an alphanumeric extension, e.g. `Foo.Bar`: pinned by a test), and
+    # the backticked path that opens a nested list item (numbered or "-"/"*"); a path inside a nested item's prose,
+    # with a line suffix, spaces, a wildcard or no extension is not counted (the count can undercount, it is not inflated by mentions). The bullet is matched
     # as "- **File(s)**" at column 0 (the template spelling); another spelling skips the check.
     $fileSection = [regex]::Match([string]$issue.body, '(?ms)^##[ \t]+(?:Component Affected|Location)[ \t]*\r?\n(?<s>.*?)(?=^##[ \t]|\z)')
     $fileBullet = if ($fileSection.Success) { [regex]::Match($fileSection.Groups['s'].Value, '(?ms)^-[ \t]+\*\*File\(s\)\*\*(?<b>.*?)(?=^-[ \t]+\*\*|\z)') } else { $null }
     if ($null -ne $fileBullet -and $fileBullet.Success) {
         $paths = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-        $pathToken = '`(?<p>[^`\s*<>]+/[^`\s*<>/]*\.[A-Za-z0-9]+)`'
+        $pathToken = '`(?<p>(?:[^`\s*<>]+/)?[^`\s*<>/]*\.[A-Za-z0-9]+)`'
         $bulletLines = @($fileBullet.Groups['b'].Value.Replace('\', '/') -split "`r?`n")
         foreach ($token in [regex]::Matches($bulletLines[0], $pathToken)) { [void]$paths.Add($token.Groups['p'].Value) }
         foreach ($line in ($bulletLines | Select-Object -Skip 1)) {
