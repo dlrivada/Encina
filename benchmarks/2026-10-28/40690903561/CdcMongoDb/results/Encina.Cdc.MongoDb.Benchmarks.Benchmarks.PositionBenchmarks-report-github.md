@@ -1,0 +1,18 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]   : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v3
+
+Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+
+```
+| Method           | Mean       | Error      | StdDev     | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|----------------- |-----------:|-----------:|-----------:|------:|--------:|-------:|----------:|------------:|
+| ComparePositions | 140.296 ns |   3.312 ns |  0.1816 ns | 17.39 |    0.27 | 0.0057 |      96 B |        4.00 |
+| CreatePosition   |   8.068 ns |   2.601 ns |  0.1426 ns |  1.00 |    0.02 | 0.0014 |      24 B |        1.00 |
+| FromBytes        | 595.567 ns |  53.029 ns |  2.9067 ns | 73.84 |    1.18 | 0.0610 |    1024 B |       42.67 |
+| ToBytes          | 569.443 ns | 310.283 ns | 17.0077 ns | 70.60 |    2.13 | 0.0601 |    1008 B |       42.00 |
