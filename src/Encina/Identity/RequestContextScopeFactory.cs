@@ -127,16 +127,29 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
 
         var scopeOptions = options ?? DefaultOptions;
         var requestedKind = RequestedKindOf(principal);
-        var tenantResolved = _identityFactory.TryResolveTenantId(principal, out var principalTenant);
-        var overInbound = false;
-        var refusal = Precheck(cancellationToken);
-        refusal ??= _identityFactory.CheckSubject(principal);
-        refusal ??= CheckPrincipalTenant(tenantResolved, principalTenant, scopeOptions.TenantId, requestedKind);
-        refusal ??= CheckChain(requestedKind, scopeOptions.AllowOverInbound, out overInbound);
+        var refusal = CheckPrincipalScope(principal, scopeOptions, requestedKind, cancellationToken, out var principalTenant, out var overInbound);
 
         return refusal is not null
             ? Refuse<T>(refusal, requestedKind)
             : OpenPrincipal(principal, principalTenant ?? scopeOptions.TenantId, overInbound, work, cancellationToken);
+    }
+
+    // In order: the host conditions, the subject, the tenant, then the holder chain.
+    private EncinaError? CheckPrincipalScope(
+        ClaimsPrincipal principal,
+        IdentityScopeOptions scopeOptions,
+        IdentityKind requestedKind,
+        CancellationToken cancellationToken,
+        out string? principalTenant,
+        out bool overInbound)
+    {
+        var tenantResolved = _identityFactory.TryResolveTenantId(principal, out principalTenant);
+        overInbound = false;
+        var refusal = Precheck(cancellationToken);
+        refusal ??= _identityFactory.CheckSubject(principal);
+        refusal ??= CheckPrincipalTenant(tenantResolved, principalTenant, scopeOptions.TenantId, requestedKind);
+        refusal ??= CheckChain(requestedKind, scopeOptions.AllowOverInbound, out overInbound);
+        return refusal;
     }
 
     /// <inheritdoc />
@@ -167,11 +180,7 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
         // reserved or conflicting subject; a tenant header that disagrees with the tenant claim, or
         // conflicting tenant claims). A connection marker permits one inbound scope per activity.
         var requestedKind = RequestedKindOf(request.Principal);
-        var refusal = Precheck(cancellationToken)
-            ?? CheckChain(requestedKind, inboundOptIn: false, out _, connectionPermitted: true);
-        string? tenantId = null;
-        refusal ??= _identityFactory.CheckSubject(request.Principal);
-        refusal ??= ResolveInboundTenant(request, out tenantId);
+        var refusal = CheckInbound(request, requestedKind, cancellationToken, out var tenantId);
         if (refusal is not null)
         {
             return Refuse<T>(refusal, requestedKind);
@@ -195,6 +204,16 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
         }
 
         return Open(context, work, cancellationToken);
+    }
+
+    // In order: the host conditions, the holder chain, the subject, then the tenant.
+    private EncinaError? CheckInbound(InboundRequestInfo request, IdentityKind requestedKind, CancellationToken cancellationToken, out string? tenantId)
+    {
+        tenantId = null;
+        var refusal = Precheck(cancellationToken)
+            ?? CheckChain(requestedKind, inboundOptIn: false, out _, connectionPermitted: true);
+        refusal ??= _identityFactory.CheckSubject(request.Principal);
+        return refusal ?? ResolveInboundTenant(request, out tenantId);
     }
 
     // The verified claim always wins. The header chooses the tenant only when there is no claim and the
