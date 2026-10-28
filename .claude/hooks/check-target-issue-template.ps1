@@ -12,7 +12,8 @@
 #
 # Second gate, size (#2900; EPIC #2845 working rule: a ready sub-issue is one worker PR). After the template
 # check the hook denies (1) an issue whose title starts with [EPIC] (an EPIC is never briefed), (2) a brief
-# without a line "Size: <files> files, <lines> lines", (3) a declared size over $MaxFiles files or $MaxLines
+# without exactly one line "Size: <files> files, <lines> lines" (nothing after "lines"; a second line starting
+# with "Size:" denies, an indented or quoted one such as "- Size:" is not seen), (3) a declared size over $MaxFiles files or $MaxLines
 # lines or below 1 file, and (4) an issue whose "## Component Affected" (infrastructure template) or
 # "## Location" (technical-debt template) section lists, in its "- **File(s)**" bullet only, more distinct
 # backticked paths than $MaxFiles or than the brief declares. The hook cannot measure the real diff; the declaration is the contract and review
@@ -146,7 +147,7 @@ try {
     $sizeLineCount = [regex]::Matches($prompt, '(?im)^[ \t]*Size:').Count
     $size = [regex]::Match($prompt, '(?m)^[ \t]*Size:[ \t]*(?<files>\d+)[ \t]+files?,[ \t]*(?<lines>\d+)[ \t]+lines?[ \t]*\r?$')
     if ($sizeLineCount -ne 1 -or -not $size.Success) {
-        [Console]::Error.WriteLine("Blocked: the brief for a $subagent must state its size on a line `"Size: <files> files, <lines> lines`" (worker-brief skill, section 1 'Size rule'); a ready sub-issue is one worker PR: at most $MaxFiles files and $MaxLines changed lines (#2900).")
+        [Console]::Error.WriteLine("Blocked: the brief for a $subagent must state its size on exactly one line `"Size: <files> files, <lines> lines`" with nothing after `"lines`" (worker-brief skill, section 1 'Size rule'); a ready sub-issue is one worker PR: at most $MaxFiles files and $MaxLines changed lines (#2900).")
         exit 2
     }
     $declaredFiles = [bigint]::Parse($size.Groups['files'].Value)
@@ -163,7 +164,8 @@ try {
     # backticked [dir/.../]name.ext on the bullet's first line (a root-level file such as docker-compose.yml counts;
     # so does any backticked token with a dot and an alphanumeric extension, e.g. `Foo.Bar`: pinned by a test), and
     # the backticked path that opens a nested list item (numbered or "-"/"*"); a path inside a nested item's prose,
-    # with a line suffix, spaces, a wildcard or no extension is not counted (the count can undercount, it is not inflated by mentions). The bullet is matched
+    # with a line suffix, spaces, a wildcard or no extension is not counted (nested prose mentions are not counted, but a backticked dotted word on the first line, e.g. `.NET` or
+    # `IFoo.Bar`, is: write such words without backticks there, or declare the larger count). The bullet is matched
     # as "- **File(s)**" at column 0 (the template spelling); another spelling skips the check.
     $fileSection = [regex]::Match([string]$issue.body, '(?ms)^##[ \t]+(?:Component Affected|Location)[ \t]*\r?\n(?<s>.*?)(?=^##[ \t]|\z)')
     $fileBullet = if ($fileSection.Success) { [regex]::Match($fileSection.Groups['s'].Value, '(?ms)^-[ \t]+\*\*File\(s\)\*\*(?<b>.*?)(?=^-[ \t]+\*\*|\z)') } else { $null }

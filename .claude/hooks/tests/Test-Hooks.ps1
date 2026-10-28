@@ -5223,6 +5223,8 @@ The fluent builder chain described in the documentation is fictional. The parame
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 3 files, 100 lines`nSize: 20 files, 100 lines" 2 'size gate: two Size lines (valid first, over-limit second) are denied' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 20 files, 100 lines`nSize: 3 files, 100 lines" 2 'size gate: two Size lines (over-limit first, valid second) are denied' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 3 files, 100 lines`nSize: 3 files, 100 lines" 2 'size gate: two identical Size lines are denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: see below`nSize: 3 files, 100 lines" 2 'size gate: a prose Size line next to the valid one is denied (two Size lines)' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nsize: 20 files, 9 lines`nSize: 3 files, 100 lines" 2 'size gate: a lowercase size line next to the valid one is denied' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 3 files, 100 lines and more text" 2 'size gate: text after lines on the Size line is denied' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`r`nGoal: x`r`nSize: 3 files, 100 lines`r`nRules:" 0 'size gate: a single valid Size line with CRLF line endings passes' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 3 files, 100 lines   " 0 'size gate: trailing blanks after the Size line pass' -NoSize
