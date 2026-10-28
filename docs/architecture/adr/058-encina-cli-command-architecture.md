@@ -14,7 +14,7 @@ Every command beyond scaffolding needs the user's real configuration and depende
 
 - Commands are written once over the store abstractions, so they work on all 10 database providers (AGENTS.md section 5).
 - A module contributes commands only when it is registered (pay-for-what-you-use, AGENTS.md section 1).
-- Mutating commands carry the safety rules of AGENTS.md section 3: dry-run by default with explicit confirmation, fail closed when context such as the tenant is missing, and every execution audited ([ADR-018](018-cross-cutting-integration-principle.md) function 12).
+- Mutating commands carry the safety rules of EPIC #2614: dry-run by default with explicit confirmation, fail closed when context such as the tenant is missing (AGENTS.md section 3), and every execution audited ([ADR-018](018-cross-cutting-integration-principle.md) function 12).
 
 The store abstractions do not have the operations an operator needs. `IOutboxStore` (`src/Encina.Messaging/Outbox/IOutboxStore.cs`) and `ISagaStore` (`src/Encina.Messaging/Sagas/ISagaStore.cs`) have no list, purge or inspect operation; their members serve the runtime processors (`AddAsync`, `GetPendingMessagesAsync`, `GetStuckSagasAsync`, and so on).
 
