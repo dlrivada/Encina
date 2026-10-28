@@ -508,14 +508,14 @@ dotnet run --file .github/scripts/coverage-report.cs -- --check-flag-assignment 
 
 The output is plain text: a header line, a table ordered by executed lines (largest first), the path of the JSON file and, on failure, a `Fix:` line. A pair whose file has a per-file target for the flag is marked `(has a per-file target, not in the package row)`; a pair under the threshold is marked `(below --min-lines)`, after the target suffix when both apply. The JSON file has the fields `minLines`, `pairs`, `failing` and `files[]`; each entry of `files` has `package`, `flag`, `file`, `executedLines`, `totalLines`, `hasFileTarget` (a boolean) and `failing`.
 
-This is illustrative output from contract, guard and unit runs filtered to the caching packages. The real run printed more rows; they are trimmed here, and the target suffix on the second row is added to show its form.
+This is illustrative output from contract, guard and unit runs filtered to the caching packages. The real run printed more rows; they are trimmed here, and the target suffix on the second row is added to show its form. The numbers in angle brackets are placeholders, not measured figures; the real figures come from the run.
 
 ```text
-FLAG ASSIGNMENT: 33 file/flag pair(s) execute lines under a flag the manifest does not assign; 18 at or above --min-lines 5
+FLAG ASSIGNMENT: <pairs> file/flag pair(s) execute lines under a flag the manifest does not assign; <at-or-above> at or above --min-lines 5
   Package                              Flag         Executed  Total  File
-  Encina.Security.ABAC                 contract           74    147  Persistence/CachingPolicyStoreDecorator.cs
-  Encina.Caching                       guard              18     20  Configuration/CachingOptions.cs  (has a per-file target, not in the package row)
-  Encina.Caching                       contract            1      1  Abstractions/IQueryCacheKeyGenerator.cs  (below --min-lines)
+  Encina.Security.ABAC                 contract        <executed> <total>  Persistence/CachingPolicyStoreDecorator.cs
+  Encina.Caching                       guard           <executed> <total>  Configuration/CachingOptions.cs  (has a per-file target, not in the package row)
+  Encina.Caching                       contract        <executed> <total>  Abstractions/IQueryCacheKeyGenerator.cs  (below --min-lines)
   JSON:     artifacts\flag-assign\flag-assignment.json
   Fix: add the flag to the file's override or defaultTests in the manifest when the tests are real (keep or add the per-file target and justification), or replace reflection-only tests.
 ```
