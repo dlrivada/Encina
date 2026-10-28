@@ -114,6 +114,35 @@ public sealed class SqsMessageHandlerIntegrationTests
     }
 
     [Fact]
+    public async Task ProcessBatchAsync_WhenTheProcessingDelegateThrows_ReportsTheMessageAndKeepsProcessing()
+    {
+        // Arrange
+        await using var provider = CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+        var ledger = provider.GetRequiredService<OrderLedger>();
+        var sqsEvent = Deserialize<SQSEvent>(SqsEventJson(
+            ("m-1", Body("o-1", 5m)),
+            ("m-2", Body("o-2", 5m))));
+        var logger = new FakeLogger();
+
+        // Act
+        var response = await SqsMessageHandler.ProcessBatchAsync(
+            sqsEvent,
+            record => record.MessageId == "m-1"
+                ? throw new InvalidOperationException("secret detail")
+                : encina.Send(JsonSerializer.Deserialize<PlaceOrder>(record.Body, CamelCase)!).AsTask(),
+            logger);
+
+        // Assert
+        response.BatchItemFailures.Select(f => f.ItemIdentifier).ShouldBe(["m-1"]);
+        ledger.Entries.ShouldBe(["placed:o-2"]);
+        var failure = logger.Collector.GetSnapshot().ShouldHaveSingleItem();
+        failure.Level.ShouldBe(LogLevel.Error);
+        failure.Message.ShouldNotContain("secret detail");
+    }
+
+    [Fact]
     public async Task ProcessBatchAsync_WhenTheBatchIsCancelled_PropagatesTheCancellation()
     {
         // Arrange

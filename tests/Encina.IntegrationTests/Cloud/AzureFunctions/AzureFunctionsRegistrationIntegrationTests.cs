@@ -30,6 +30,27 @@ public sealed class AzureFunctionsRegistrationIntegrationTests
     }
 
     [Fact]
+    public async Task AddEncinaAzureFunctions_WithoutConfiguration_BuildsAValidProviderWithTheDefaultOptions()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncina();
+        services.AddEncinaAzureFunctions();
+
+        // Act
+        await using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+
+        // Assert
+        provider.GetRequiredService<IOptions<EncinaAzureFunctionsOptions>>().Value.EnableRequestContextEnrichment.ShouldBeTrue();
+        provider.GetRequiredService<EncinaFunctionMiddleware>().ShouldNotBeNull();
+    }
+
+    [Fact]
     public async Task AddEncinaAzureFunctions_RegistersTheHealthCheckOnlyWhenItIsEnabled()
     {
         // Arrange
@@ -56,6 +77,8 @@ public sealed class AzureFunctionsRegistrationIntegrationTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
+        healthCheck.Name.ShouldBe("encina-azure-functions");
+        healthCheck.Tags.ShouldNotBeNull();
         result.Status.ShouldBe(HealthStatus.Healthy);
         result.Data["correlationIdHeader"].ShouldBe("X-Correlation-ID");
         result.Data["tenantIdHeader"].ShouldBe("X-Tenant-ID");
