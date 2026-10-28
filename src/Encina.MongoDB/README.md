@@ -29,15 +29,16 @@ using Encina.MongoDB;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddEncinalMongoDB(config =>
+builder.Services.AddEncinaMongoDB(config =>
 {
-    config.ConnectionString = "mongodb://localhost:27017";
+    config.ConnectionString = "mongodb://localhost:27017/?replicaSet=rs0";
     config.DatabaseName = "MyApp";
-    config.UseOutbox = true;
+    config.UseOutbox = true; // Requires a replica set or a sharded cluster
     config.UseInbox = true;
-    config.UseTransactions = true; // Requires replica set
 });
 ```
+
+The transactional outbox needs a replica set or a sharded cluster (see [Transactional outbox](#transactional-outbox)).
 
 ### 2. Use Repository
 
@@ -151,9 +152,36 @@ result.IfLeft(error =>
 });
 ```
 
+## Transactional outbox
+
+With `UseOutbox = true`, a request that implements `IHasNotifications` writes its outbox messages inside one MongoDB client-session transaction, owned by the scoped `IMongoSessionAccessor`, together with the unit of work and the messaging stores. See [How to write the outbox inside the request's transaction](https://github.com/dlrivada/Encina/blob/main/docs/features/transactional-outbox.md) and [ADR-037](https://github.com/dlrivada/Encina/blob/main/docs/architecture/adr/037-transactional-outbox.md).
+
+- **Replica set or sharded cluster required.** On a standalone server the request fails closed with `Left` `transaction.not_supported`; nothing is written without the transaction. A single-node replica set is enough for development.
+- **Tested versions.** The integration fixtures run `mongo:7` with MongoDB driver 3.12. No other server version is claimed.
+- **Health check.** When `UseOutbox` is on, `MongoDbHealthCheck` reports `Unhealthy` on a standalone server and `Degraded` while the cluster type is not discovered; replica sets and sharded clusters are healthy.
+- **No `UseTransactions` option.** There is no transaction behavior for MongoDB; the outbox behavior begins the session itself, and `IUnitOfWork` covers explicit use.
+- **Transaction options.** Only the read preference (primary) is set; the read and write concern come from your `MongoClient`. A read concern of `available` or `linearizable` is rejected inside a transaction.
+- **Commit failures.** The commit is never retried by Encina; `transaction.commit_failed` carries the error label (`TransientTransactionError` or `UnknownTransactionCommitResult`) as metadata. The server's 60 second transaction lifetime and write conflicts apply to every request with notifications.
+
+A handler that writes with its own collection handle passes `IMongoSessionAccessor.CurrentSession` to the driver so its write commits or aborts with the request:
+
+```csharp
+public sealed class PlaceOrderHandler(IMongoClient client, IMongoSessionAccessor accessor) : IRequestHandler<PlaceOrder, int>
+{
+    public async Task<Either<EncinaError, int>> Handle(PlaceOrder request, CancellationToken cancellationToken)
+    {
+        var orders = client.GetDatabase("MyApp").GetCollection<BsonDocument>("Orders");
+        await orders.InsertOneAsync(accessor.CurrentSession!, new BsonDocument("_id", request.OrderId), cancellationToken: cancellationToken);
+        return request.OrderId;
+    }
+}
+```
+
+Stores that do not use the session (default, soft-delete and tenant repositories, bulk operations, dead-letter, audit, anonymization, ABAC) write outside the transaction without failing ([#1934](https://github.com/dlrivada/Encina/issues/1934)).
+
 ## Unit of Work with Transactions
 
-> **Note**: MongoDB transactions require a **replica set** configuration.
+> **Note**: MongoDB transactions require a **replica set** or a sharded cluster.
 
 ```csharp
 public async Task<Either<EncinaError, Unit>> ProcessBatchAsync(
@@ -217,7 +245,7 @@ builder.Services.AddEncinaMongoDBWithTenancy(
 Leverage MongoDB replica sets for read scaling:
 
 ```csharp
-builder.Services.AddEncinalMongoDB(config =>
+builder.Services.AddEncinaMongoDB(config =>
 {
     config.ReadWriteSeparation.Enabled = true;
     config.ReadWriteSeparation.ReadPreference = MongoReadPreference.SecondaryPreferred;
@@ -294,18 +322,17 @@ Encina automatically creates optimized indexes:
 ## Configuration Reference
 
 ```csharp
-builder.Services.AddEncinalMongoDB(config =>
+builder.Services.AddEncinaMongoDB(config =>
 {
     // Connection
-    config.ConnectionString = "mongodb://localhost:27017";
+    config.ConnectionString = "mongodb://localhost:27017/?replicaSet=rs0";
     config.DatabaseName = "MyApp";
 
     // Messaging patterns (all opt-in)
-    config.UseOutbox = true;
+    config.UseOutbox = true; // Requires a replica set or a sharded cluster
     config.UseInbox = true;
     config.UseSagas = true;
     config.UseScheduling = true;
-    config.UseTransactions = true; // Requires replica set
 
     // Outbox options
     config.OutboxOptions.ProcessingInterval = TimeSpan.FromSeconds(5);
