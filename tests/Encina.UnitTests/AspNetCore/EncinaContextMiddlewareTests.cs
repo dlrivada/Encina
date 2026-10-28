@@ -244,6 +244,48 @@ public sealed class EncinaContextMiddlewareTests
         await AssertForbiddenProblemAsync(context);
     }
 
+    [Theory]
+    [InlineData("missing", RequestIdentityErrorCodes.MissingSubjectClaim)]
+    [InlineData("malformed", RequestIdentityErrorCodes.MalformedSubjectClaim)]
+    [InlineData("reserved", RequestIdentityErrorCodes.ReservedSubjectClaim)]
+    [InlineData("conflicting", RequestIdentityErrorCodes.ConflictingSubjectClaims)]
+    public async Task AnUnusableSubject_IsAnswered403ProblemJson_WithoutClaimValues_AndWithoutRunningNext(string cause, string code)
+    {
+        var claims = cause switch
+        {
+            "missing" => new[] { new System.Security.Claims.Claim("email", Sentinel) },
+            "malformed" => [new System.Security.Claims.Claim("sub", Sentinel + " ")],
+            "reserved" => [new System.Security.Claims.Claim("sub", "service:" + Sentinel)],
+            _ => [new System.Security.Claims.Claim("sub", "a-" + Sentinel), new System.Security.Claims.Claim("sub", "b-" + Sentinel)]
+        };
+        var context = NewHttpContext();
+        context.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(claims, "test"));
+
+        await InvokeAsync(CreateMiddleware(), context);
+
+        _nextCalls.ShouldBe(0);
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status403Forbidden);
+        context.Response.ContentType.ShouldNotBeNull().ShouldStartWith("application/problem+json");
+        context.Response.Body.Position = 0;
+        var body = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        body.ShouldContain("403");
+        body.ShouldNotContain(Sentinel);
+        _host.Logger.Collector.GetSnapshot().Single(static r => r.Id.Id == 167).Message.ShouldContain(code);
+    }
+
+    [Fact]
+    public async Task AnUnauthenticatedPrincipalWithoutSubject_StillRunsNext_Anonymously()
+    {
+        var context = NewHttpContext();
+        context.User = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity([new System.Security.Claims.Claim("email", Sentinel)]));
+
+        await InvokeAsync(CreateMiddleware(), context);
+
+        _nextCalls.ShouldBe(1);
+        _seen!.Identity.Kind.ShouldBe(IdentityKind.Anonymous);
+    }
+
     private static DefaultHttpContext NewHttpContext() => new()
     {
         RequestServices = new ServiceCollection().AddLogging().BuildServiceProvider(),

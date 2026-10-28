@@ -16,7 +16,7 @@ namespace Encina.UnitTests.AspNetCore;
 /// <summary>
 /// The request identity that <c>UseEncinaContext()</c> binds, end to end through <c>IEncina.Send</c>
 /// and the <c>[Authorize]</c> gate on a <see cref="TestServer"/> (#1705, Phase 3 task 9): the claim
-/// map, the anonymous mappings (no subject, reserved subject) and their denial, the custom claim map,
+/// map, the refusal of an authenticated principal without a usable subject (403), the custom claim map,
 /// the injected clock and the absence of leaks between requests.
 /// </summary>
 public sealed class AuthorizationIdentityTests
@@ -114,25 +114,38 @@ public sealed class AuthorizationIdentityTests
     }
 
     [Fact]
-    public async Task AnAuthenticatedPrincipalWithoutSubject_MapsToAnonymous_LogsWarning162_AndIsDenied()
+    public async Task AnAuthenticatedPrincipalWithoutSubject_IsRefusedBeforeTheEndpoint_LogsWarnings162And167()
     {
         using var host = await StartAsync();
 
-        var body = await SendAsync(host, "email=alice@example.test");
+        var (status, body) = await SendRawAsync(host, "email=alice@example.test");
 
-        body.ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
+        status.ShouldBe(HttpStatusCode.Forbidden);
+        body.ShouldNotContain("alice@example.test");
         EventIds(host).ShouldContain(162);
+        EventIds(host).ShouldContain(167);
     }
 
     [Fact]
-    public async Task AReservedServiceSubject_MapsToAnonymous_LogsWarning163_AndIsDenied()
+    public async Task AReservedServiceSubject_IsRefusedBeforeTheEndpoint_LogsWarnings163And167()
     {
         using var host = await StartAsync();
 
-        var body = await SendAsync(host, "sub=service:billing-job");
+        var (status, body) = await SendRawAsync(host, "sub=service:billing-job");
 
-        body.ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
+        status.ShouldBe(HttpStatusCode.Forbidden);
+        body.ShouldNotContain("billing-job");
         EventIds(host).ShouldContain(163);
+        EventIds(host).ShouldContain(167);
+    }
+
+    private static async Task<(HttpStatusCode Status, string Body)> SendRawAsync(IHost host, string claims)
+    {
+        using var client = host.GetTestClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri("/send", UriKind.Relative));
+        request.Headers.Add("X-Claims", claims);
+        using var response = await client.SendAsync(request);
+        return (response.StatusCode, await response.Content.ReadAsStringAsync());
     }
 
     [Fact]

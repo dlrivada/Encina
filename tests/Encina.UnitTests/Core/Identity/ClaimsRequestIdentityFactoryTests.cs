@@ -53,13 +53,15 @@ public sealed class ClaimsRequestIdentityFactoryTests
     }
 
     [Fact]
-    public void Create_AuthenticatedWithoutSubject_IsAnonymous_AndLogs162WithTypesOnly()
+    public void CheckSubject_AuthenticatedWithoutSubject_IsMissing_AndLogs162WithTypesOnce()
     {
         var principal = Authenticated(new Claim("email", Sentinel));
+        var factory = CreateFactory();
 
-        var identity = CreateFactory().Create(principal);
+        var refusal = factory.CheckSubject(principal);
+        factory.Create(principal).ShouldBeSameAs(RequestIdentity.Anonymous);
 
-        identity.ShouldBeSameAs(RequestIdentity.Anonymous);
+        refusal.GetValueOrDefault().GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.MissingSubjectClaim);
         var record = _logger.Collector.GetSnapshot().ShouldHaveSingleItem();
         record.Id.Id.ShouldBe(162);
         record.Level.ShouldBe(LogLevel.Warning);
@@ -68,21 +70,116 @@ public sealed class ClaimsRequestIdentityFactoryTests
         AssertNoSentinelLogged();
     }
 
-    [Theory]
-    [InlineData("service:" + Sentinel)]
-    [InlineData("SERVICE:" + Sentinel)]
-    [InlineData(" service:" + Sentinel)]
-    [InlineData(Sentinel + " ")]
-    [InlineData("a\u0007" + Sentinel)]
-    public void Create_ReservedOrMalformedSubject_IsAnonymous_AndLogs163WithTheClaimTypeOnly(string subject)
+    [Fact]
+    public void CheckSubject_NullOrUnauthenticatedPrincipal_IsNotRefused()
     {
-        var identity = CreateFactory().Create(Authenticated(new Claim("sub", subject)));
+        var factory = CreateFactory();
 
-        identity.ShouldBeSameAs(RequestIdentity.Anonymous);
+        factory.CheckSubject(null).ShouldBeNull();
+        factory.CheckSubject(new ClaimsPrincipal(new ClaimsIdentity([new Claim("email", "x")]))).ShouldBeNull();
+        factory.CheckSubject(new ClaimsPrincipal()).ShouldBeNull();
+        _logger.Collector.Count.ShouldBe(0);
+    }
+
+    [Fact]
+    public void CheckSubject_BlankOnlySubjectClaims_AreMissing()
+    {
+        var refusal = CreateFactory().CheckSubject(Authenticated(new Claim("sub", " "), new Claim("oid", "")));
+
+        refusal.GetValueOrDefault().GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.MissingSubjectClaim);
+    }
+
+    [Fact]
+    public void CheckSubject_AUsableSubject_IsNotRefused_AndLogsNothing()
+    {
+        CreateFactory().CheckSubject(Authenticated(new Claim("sub", "alice"))).ShouldBeNull();
+        _logger.Collector.Count.ShouldBe(0);
+    }
+
+    [Fact]
+    public void CheckSubject_SubAndOidWithDifferentValuesInOneIdentity_IsNotAConflict_AndSubWins()
+    {
+        var principal = Authenticated(new Claim("sub", "pairwise"), new Claim(RequestIdentityOptions.ObjectIdentifierClaimType, "directory"));
+        var factory = CreateFactory();
+
+        factory.CheckSubject(principal).ShouldBeNull();
+        factory.Create(principal).UserId.ShouldBe("pairwise");
+    }
+
+    [Fact]
+    public void CheckSubject_TwoDifferentValuesOfTheWinningTypeInOneIdentity_IsConflicting_AndLogs164()
+    {
+        var principal = Authenticated(new Claim("sub", "alice-" + Sentinel), new Claim("sub", "bob-" + Sentinel));
+
+        var refusal = CreateFactory().CheckSubject(principal);
+
+        refusal.GetValueOrDefault().GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.ConflictingSubjectClaims);
+        _logger.Collector.GetSnapshot().ShouldHaveSingleItem().Id.Id.ShouldBe(164);
+        AssertNoSentinelLogged();
+    }
+
+    [Fact]
+    public void CheckSubject_TheSameValueRepeated_IsNotAConflict()
+    {
+        CreateFactory().CheckSubject(Authenticated(new Claim("sub", "alice"), new Claim("sub", "alice"))).ShouldBeNull();
+    }
+
+    public static TheoryData<string, string> SubjectCauses => new()
+    {
+        { "service:" + Sentinel, RequestIdentityErrorCodes.ReservedSubjectClaim },
+        { "SERVICE:" + Sentinel, RequestIdentityErrorCodes.ReservedSubjectClaim },
+        { " service:" + Sentinel, RequestIdentityErrorCodes.ReservedSubjectClaim },
+        { Sentinel + " ", RequestIdentityErrorCodes.MalformedSubjectClaim },
+        { "a\u0007" + Sentinel, RequestIdentityErrorCodes.MalformedSubjectClaim }
+    };
+
+    [Theory]
+    [MemberData(nameof(SubjectCauses))]
+    public void CheckSubject_ReservedOrMalformedSubject_HasItsOwnCode_AndLogs163WithTheClaimTypeOnly(string subject, string code)
+    {
+        var factory = CreateFactory();
+        var principal = Authenticated(new Claim("sub", subject));
+
+        var refusal = factory.CheckSubject(principal);
+        factory.Create(principal).ShouldBeSameAs(RequestIdentity.Anonymous);
+
+        refusal.GetValueOrDefault().GetCode().IfNone("none").ShouldBe(code);
         var record = _logger.Collector.GetSnapshot().ShouldHaveSingleItem();
         record.Id.Id.ShouldBe(163);
         record.Message.ShouldContain("sub");
         AssertNoSentinelLogged();
+    }
+
+    [Fact]
+    public void CheckSubject_AndCreate_AgreeOnEveryCause()
+    {
+        var factory = CreateFactory();
+        ClaimsPrincipal[] refused =
+        [
+            Authenticated(new Claim("email", "x")),
+            Authenticated(new Claim("sub", "service:x")),
+            Authenticated(new Claim("sub", " padded ")),
+            Authenticated(new Claim("sub", "a"), new Claim("sub", "b")),
+            new([new ClaimsIdentity([new Claim("sub", "a")], "bearer"), new ClaimsIdentity([new Claim("sub", "b")], "cookie")])
+        ];
+        ClaimsPrincipal[] accepted =
+        [
+            Authenticated(new Claim("sub", "alice")),
+            Authenticated(new Claim("sub", "a"), new Claim("oid", "b")),
+            new([new ClaimsIdentity([new Claim("sub", "a")], "bearer"), new ClaimsIdentity([new Claim("email", "e")], "cookie")])
+        ];
+
+        foreach (var principal in refused)
+        {
+            factory.CheckSubject(principal).ShouldNotBeNull();
+            factory.Create(principal).ShouldBeSameAs(RequestIdentity.Anonymous);
+        }
+
+        foreach (var principal in accepted)
+        {
+            factory.CheckSubject(principal).ShouldBeNull();
+            factory.Create(principal).Kind.ShouldBe(IdentityKind.User);
+        }
     }
 
     [Fact]
@@ -203,7 +300,7 @@ public sealed class ClaimsRequestIdentityFactoryTests
     }
 
     [Fact]
-    public void Create_TwoAuthenticatedIdentitiesWithDifferentSubjects_IsAnonymous_AndLogs164()
+    public void CheckSubject_TwoAuthenticatedIdentitiesWithDifferentSubjects_IsConflicting_AndLogs164()
     {
         var principal = new ClaimsPrincipal(
         [
@@ -211,7 +308,8 @@ public sealed class ClaimsRequestIdentityFactoryTests
             new ClaimsIdentity([new Claim("sub", "bob-" + Sentinel)], "cookie")
         ]);
 
-        CreateFactory().Create(principal).ShouldBeSameAs(RequestIdentity.Anonymous);
+        CreateFactory().CheckSubject(principal).GetValueOrDefault().GetCode().IfNone("none")
+            .ShouldBe(RequestIdentityErrorCodes.ConflictingSubjectClaims);
 
         var record = _logger.Collector.GetSnapshot().ShouldHaveSingleItem();
         record.Id.Id.ShouldBe(164);
