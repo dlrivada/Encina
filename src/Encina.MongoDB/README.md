@@ -154,7 +154,7 @@ result.IfLeft(error =>
 
 ## Transactional outbox
 
-With `UseOutbox = true`, a request that implements `IHasNotifications` writes its outbox messages inside one MongoDB client-session transaction, owned by the scoped `IMongoSessionAccessor`, together with the unit of work and the messaging stores. See [How to write the outbox inside the request's transaction](https://github.com/dlrivada/Encina/blob/main/docs/features/transactional-outbox.md) and [ADR-037](https://github.com/dlrivada/Encina/blob/main/docs/architecture/adr/037-transactional-outbox.md).
+With `UseOutbox = true`, a request that implements `IHasNotifications` writes its outbox messages inside one MongoDB client-session transaction, owned by the scoped `IMongoSessionAccessor`, together with the unit of work and the messaging stores. See [How to write the outbox inside the request's transaction](../../docs/features/transactional-outbox.md) and [ADR-037](../../docs/architecture/adr/037-transactional-outbox.md).
 
 - **Replica set or sharded cluster required.** On a standalone server the request fails closed with `Left` `transaction.not_supported`; nothing is written without the transaction. A single-node replica set is enough for development.
 - **Tested versions.** The integration fixtures run `mongo:7` with MongoDB driver 3.12. No other server version is claimed.
