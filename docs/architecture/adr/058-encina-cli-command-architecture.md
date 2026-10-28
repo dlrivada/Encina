@@ -27,11 +27,11 @@ These points follow from a rule and were not open choices. The maintainer can ve
 | Id | Point | Rule |
 | --- | --- | --- |
 | D6 | Processors and other hosted services do not run in command mode. The ADR-050 requirement validators are hosted services (an `IHostedService` that throws in `StartAsync`, [ADR-050](050-modules-may-require-modules.md) line 104), and they still run, so a command never starts on an invalid composition. How the suppression works is left to the plans. | AGENTS.md section 3 (fail closed); ADR-050 |
-| D8 | Only registered modules contribute commands. | AGENTS.md sections 1 and 3 (every feature opt-in); ADR-050 |
+| D8 | Only registered modules contribute commands. | AGENTS.md sections 1 and 3 (every feature opt-in) |
 | D10 | Mutating commands are dry-run by default and execute only on explicit confirmation. | EPIC #2614 and the context of #2605 (the consequence of failing closed is in AGENTS.md section 3, but the dry-run default itself is recorded only in the EPIC and the issue) |
 | D13 | Commands fail closed when context such as the tenant is missing; the only opt-out is explicit and logged. | AGENTS.md section 3; ADR-050 (Multi-tenancy row, `RequireTenant`) |
 | D15, D16 | Every execution of a mutating command is recorded in the operation audit (`IOperationAuditStore`, [ADR-036](036-three-audit-stores.md) decision 2); the entry holds the error code or exception type, never `EncinaError.Message`. | ADR-018 function 12; ADR-036; AGENTS.md section 3 |
-| D17 | The audit is written ahead and awaited; an audit failure fails the command. | ADR-050 sub-decision 5 (line 120); AGENTS.md section 3 |
+| D17 | The audit is written ahead and awaited; an audit failure fails the command. | ADR-050 sub-decision 5 (line 120), applied by the same reasoning; AGENTS.md section 3 |
 | D18 | When no persistent audit store is registered outside Development, startup validation fails; the only exit is an explicit, logged opt-out. | ADR-050 sub-decision 2 (line 117) and the Audit stores row (line 69); AGENTS.md section 3 |
 | D19 (part) | Commands that read personal data go to the read audit (`IReadAuditStore`) when it is enabled. Whether dry-runs are audited is left to the plans. | ADR-036; ADR-018 function 12 |
 | D20 | Commands depend on abstractions and carry no provider-specific code, so switching provider changes only the DI registration. | AGENTS.md sections 3 and 5 |
@@ -75,7 +75,7 @@ Separate administration interfaces (for example `IOutboxAdministration` and `ISa
 
 ### Left to the implementation plans
 
-The plans of the EPIC children decide the following inside this architecture:
+The plans decide the following inside this architecture. The ones with more than one valid option are recorded as dilemmas for the maintainer in [#2983](https://github.com/dlrivada/Encina/issues/2983), the host child, which decides them before its plan:
 
 | Id | Item |
 | --- | --- |
@@ -118,10 +118,24 @@ Each option comes from the dilemma screen of the issue; the maintainer chose the
 
 | Item | State |
 | --- | --- |
-| D33: a [FEATURE] child of #2614 for the command host, the command contract and the module registration. No existing child builds them; the six children presuppose them. | Issue to be opened (no number yet) |
-| D34: milestone alignment of #2612 (v0.17.0) with #2608 and #2609 (v0.18.0), which need the same host | To do by the orchestrator now that D2 is decided |
+| D33: a [FEATURE] child of #2614 for the command host, the command contract and the module registration. No existing child builds them; the in-app children presuppose them. | [#2983](https://github.com/dlrivada/Encina/issues/2983), v0.18.0; blocks #2608 to #2612 |
+| D34: milestone alignment of #2612 with #2608 and #2609, which need the same host | Done: all three are in v0.18.0 (state on 2026-10-28) |
 | The remote administration surface (shape, threat model, authentication and authorization, audit) | SPIKE [#2972](https://github.com/dlrivada/Encina/issues/2972) |
 | Stale text in the children: "1.0 fit decided by SPEC-002" in #2612; the metric placeholders (see D30) | To correct in the children |
+
+### The six EPIC children
+
+The issue asks to confirm or adjust the six children of #2614 and their milestones. State on 2026-10-28:
+
+| Child | Milestone | Result |
+| --- | --- | --- |
+| [#2607](https://github.com/dlrivada/Encina/issues/2607) scaffolding: `generate test` and `generate notification` | v0.14.0 | Confirmed. Standalone scaffolding; it does not need the host. |
+| [#2608](https://github.com/dlrivada/Encina/issues/2608) introspection: `describe` and `doctor` | v0.18.0 | Confirmed; blocked by #2983. |
+| [#2609](https://github.com/dlrivada/Encina/issues/2609) database schema commands | v0.18.0 | Confirmed; blocked by #2983. |
+| [#2610](https://github.com/dlrivada/Encina/issues/2610) messaging operations | v1.0.0-rc.1 | Confirmed; blocked by #2983; uses the administration interfaces of D21. |
+| [#2611](https://github.com/dlrivada/Encina/issues/2611) event sourcing commands | v1.0.0-rc.1 | Confirmed; blocked by #2983. |
+| [#2612](https://github.com/dlrivada/Encina/issues/2612) compliance commands | v0.18.0 | Adjusted from v0.17.0 to v0.18.0 to sit with #2608 and #2609 (D34); blocked by #2983. |
+| [#2983](https://github.com/dlrivada/Encina/issues/2983) command host, contract and module registration (new) | v0.18.0 | Added (D33); it must land before the other in-app children of that milestone. |
 
 ## Cross-cutting functions
 
@@ -133,8 +147,8 @@ The 12 functions of [ADR-018](018-cross-cutting-integration-principle.md) and AG
 | 2 | OpenTelemetry | Integrate: one `ActivitySource` and `Meter` named `Encina.*` for the new package (D30, ADR-054). |
 | 3 | Structured logging | Integrate: `[LoggerMessage]` with an EventId range registered first (D30, AGENTS.md section 7). |
 | 4 | Health checks | Not applicable: the host has no runtime dependency to check; the `doctor` command belongs to #2608. |
-| 5 | Validation | Defer: validation of command input is decided in the plan of the D33 child (issue to be opened). |
-| 6 | Resilience | Defer: calls to the application's identity provider and the retry of remote calls are decided in the plan of the D33 child (issue to be opened). |
+| 5 | Validation | Defer: validation of command input is decided in the plan of [#2983](https://github.com/dlrivada/Encina/issues/2983). |
+| 6 | Resilience | Defer: calls to the application's identity provider and the retry of remote calls are decided in the plan of #2983. |
 | 7 | Distributed locks | Defer: the plans of the operations children ([#2609](https://github.com/dlrivada/Encina/issues/2609), [#2610](https://github.com/dlrivada/Encina/issues/2610)) decide whether purge and replay need a lock against a running processor elsewhere. |
 | 8 | Transactions | Defer: atomicity of purge and replay belongs to the administration interface implementations in the plans of #2609 and #2610. |
 | 9 | Idempotency | Defer: replay semantics are decided in the plans of #2609 and #2610. |

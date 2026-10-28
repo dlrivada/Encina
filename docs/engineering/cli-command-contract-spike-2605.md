@@ -64,7 +64,7 @@ The same identity model serves the console, the administration surface and the w
 
 The rules, all settled by existing decisions ([ADR-018](../architecture/adr/018-cross-cutting-integration-principle.md) function 12, [ADR-036](../architecture/adr/036-three-audit-stores.md), [ADR-050](../architecture/adr/050-modules-may-require-modules.md)):
 
-- Every mutating execution is recorded through `IOperationAuditStore` (`RecordAsync` returns an `Either<EncinaError, Unit>`).
+- Every mutating execution is recorded through `IOperationAuditStore` (`RecordAsync` returns a `ValueTask<Either<EncinaError, Unit>>`).
 - The record is written before the operation and awaited; if the write fails, the command does not run.
 - The entry holds the error code or exception type, never `EncinaError.Message`.
 - Outside Development a persistent audit store is required; without one, startup validation fails, and the only exit is an explicit, logged opt-out.
