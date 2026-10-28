@@ -13,6 +13,8 @@ namespace Encina.MongoDB.Inbox;
 public sealed class InboxStoreMongoDB : IInboxStore
 {
     internal const string MarkProcessedNotFoundCode = "inbox.mark_processed_not_found";
+    internal const string CacheNotFoundCode = "inbox.cache_handler_error_not_found";
+    internal const string FailedNotFoundCode = "inbox.mark_failed_not_found";
 
     private readonly IMongoCollection<InboxMessage> _collection;
     private readonly ILogger<InboxStoreMongoDB> _logger;
@@ -27,11 +29,13 @@ public sealed class InboxStoreMongoDB : IInboxStore
     /// <param name="logger">The logger.</param>
     /// <param name="timeProvider">The time provider. Defaults to <see cref="TimeProvider.System"/> if not specified.</param>
     /// <param name="sessionAccessor">
-    /// The scope's transaction accessor. Following ADR-048, <c>GetMessageAsync</c>, the success
-    /// <c>MarkAsProcessedAsync</c>, <c>GetExpiredMessagesAsync</c> and <c>RemoveExpiredMessagesAsync</c> run in its
-    /// client session when a transaction is active; <c>AddAsync</c>, <c>MarkAsFailedAsync</c> and
-    /// <c>CacheHandlerErrorAsync</c> always run without a session, so the inbox record and a cached handler error
-    /// survive a rollback of the request.
+    /// The scope's transaction accessor. Following ADR-048, the success <c>MarkAsProcessedAsync</c> and
+    /// <c>RemoveExpiredMessagesAsync</c> run in its client session when a transaction is active;
+    /// <c>AddAsync</c>, <c>MarkAsFailedAsync</c> and <c>CacheHandlerErrorAsync</c> always run without a session, so
+    /// the inbox record and a cached handler error survive a rollback of the request. <c>GetMessageAsync</c> and
+    /// <c>GetExpiredMessagesAsync</c> are plain reads: a MongoDB transaction reads from a snapshot taken at its
+    /// first operation, so an in-session read before the independent <c>AddAsync</c> would hide the new record
+    /// from the enlisted processed mark.
     /// </param>
     public InboxStoreMongoDB(
         IMongoClient mongoClient,
@@ -61,8 +65,10 @@ public sealed class InboxStoreMongoDB : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
+            // A plain read, not in the session: the transaction snapshot starts at its first operation, and the
+            // independent AddAsync that follows must be visible to the enlisted processed mark (#718, ADR-048).
             var message = await _collection
-                .FindInSession(Session, Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId))
+                .Find(Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId))
                 .FirstOrDefaultAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -127,10 +133,15 @@ public sealed class InboxStoreMongoDB : IInboxStore
         ArgumentException.ThrowIfNullOrEmpty(messageId);
 
         // Independent (ADR-048): written without the request's session so it survives a rollback.
-        return await EitherHelpers.TryAsync(
-            async () => { await SetProcessedAsync(null, messageId, response, cancellationToken).ConfigureAwait(false); },
+        var cached = await EitherHelpers.TryAsync(
+            async () => await SetProcessedAsync(null, messageId, response, cancellationToken).ConfigureAwait(false),
             "inbox.cache_handler_error_failed").ConfigureAwait(false);
+
+        return cached.Bind(found => found ? Prelude.Right<EncinaError, Unit>(Unit.Default) : NotFound(CacheNotFoundCode));
     }
+
+    private static Either<EncinaError, Unit> NotFound(string code)
+        => Prelude.Left<EncinaError, Unit>(EncinaErrors.Create(code, "The inbox message was not found."));
 
     /// <inheritdoc />
     public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
@@ -141,7 +152,7 @@ public sealed class InboxStoreMongoDB : IInboxStore
     {
         ArgumentException.ThrowIfNullOrEmpty(messageId);
 
-        return await EitherHelpers.TryAsync(async () =>
+        var marked = await EitherHelpers.TryAsync(async () =>
         {
             var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
             var update = Builders<InboxMessage>.Update
@@ -151,15 +162,17 @@ public sealed class InboxStoreMongoDB : IInboxStore
 
             var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 
-            if (result.ModifiedCount == 0)
+            if (result.MatchedCount == 0)
             {
                 Log.InboxMessageNotFoundForFailed(_logger, messageId);
+                return false;
             }
-            else
-            {
-                Log.MarkedInboxMessageAsFailed(_logger, messageId, errorMessage);
-            }
+
+            Log.MarkedInboxMessageAsFailed(_logger, messageId, errorMessage);
+            return true;
         }, "inbox.mark_failed_failed").ConfigureAwait(false);
+
+        return marked.Bind(found => found ? Prelude.Right<EncinaError, Unit>(Unit.Default) : NotFound(FailedNotFoundCode));
     }
 
     /// <inheritdoc />
@@ -174,7 +187,7 @@ public sealed class InboxStoreMongoDB : IInboxStore
             var filter = Builders<InboxMessage>.Filter.Lt(m => m.ExpiresAtUtc, now);
 
             var messages = await _collection
-                .FindInSession(Session, filter)
+                .Find(filter)
                 .Limit(batchSize)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);

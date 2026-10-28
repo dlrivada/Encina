@@ -4,6 +4,8 @@ using Encina.Messaging.Outbox;
 using Encina.Messaging.Transactions;
 using Encina.MongoDB;
 using Encina.MongoDB.Outbox;
+using Encina.MongoDB.Transactions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Encina.TestInfrastructure.Fixtures;
 using Encina.Testing.Shouldly;
 using LanguageExt;
@@ -35,11 +37,12 @@ public sealed class OutboxAtomicityMongoDBTests : IAsyncLifetime
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    [Fact(Skip = "D15 open design Dilemma (#718): an independent inbox insert is invisible to the enlisted processed mark; see ServerBehavior_AnIndependentInsertAfterTheFirstTransactionOperationIsInvisibleToTheTransaction. Remove the skip when the maintainer decides.")]
+    [Fact]
     public async Task InboxAndOutbox_FirstTimeMessage_ShareTheOutboxTransaction()
     {
-        // The design risk of ADR-048 on MongoDB: GetMessage (enlisted) -> AddAsync (independent, no session) ->
-        // handler writes -> MarkAsProcessedAsync (enlisted) inside the outbox transaction.
+        // GetMessage (plain read) -> AddAsync (independent) -> handler writes (the snapshot starts here) ->
+        // MarkAsProcessedAsync (enlisted) inside the outbox transaction. See the probe test below for why
+        // GetMessage must not be in the session.
         await using var provider = Build(inbox: true);
         var key = Guid.NewGuid().ToString();
 
@@ -50,7 +53,125 @@ public sealed class OutboxAtomicityMongoDBTests : IAsyncLifetime
         var row = await ReadInboxAsync(key);
         row.ShouldNotBeNull();
         row.ProcessedAtUtc.ShouldNotBeNull();
+        row.Response.ShouldNotBeNull();
+
+        // A second delivery of the same id is answered from the inbox: the handler does not run again. (The outer
+        // outbox behavior still writes the request's notifications for it; that is a finding filed as a follow-up
+        // issue and is not asserted here.)
+        (await SendIdempotentAsync(provider, Mode.Commit, key)).ShouldBeRight();
+        (await CountAsync()).Business.ShouldBe(1L);
     }
+
+    [Fact]
+    public async Task InboxAndOutbox_FailingHandler_KeepsTheFailureRecordAndRollsTheRestBack()
+    {
+        await using var provider = Build(inbox: true);
+
+        var leftKey = Guid.NewGuid().ToString();
+        (await SendIdempotentAsync(provider, Mode.ReturnLeft, leftKey)).IsLeft.ShouldBeTrue();
+        var leftRow = await ReadInboxAsync(leftKey);
+        leftRow.ShouldNotBeNull();
+        leftRow.Response.ShouldNotBeNull();
+
+        var throwKey = Guid.NewGuid().ToString();
+        // The inbox behavior turns a handler exception into a Left after recording the failure.
+        (await SendIdempotentAsync(provider, Mode.Throw, throwKey)).IsLeft.ShouldBeTrue();
+        var throwRow = await ReadInboxAsync(throwKey);
+        throwRow.ShouldNotBeNull();
+        throwRow.RetryCount.ShouldBe(1);
+        throwRow.ProcessedAtUtc.ShouldBeNull();
+
+        // The failure records are independent of the transaction; the business and outbox writes rolled back.
+        (await CountAsync()).ShouldBe((0L, 0L));
+    }
+
+    [Fact]
+    public async Task UnitOfWorkRollbackInsideTheRequest_FailsWithRollbackOnlyAndLeavesNoDocument()
+    {
+        await using var provider = Build();
+
+        var result = await SendOrderAsync(provider, 2, Mode.UnitOfWorkRollback);
+
+        result.ShouldBeErrorWithCode(TransactionErrors.RollbackOnlyCode);
+        (await CountAsync()).ShouldBe((0L, 0L));
+    }
+
+    [Fact]
+    public async Task DisposingTheAccessor_AbortsAnOpenTransaction()
+    {
+        var accessor = NewAccessor();
+        var lease = (await accessor.BeginOrJoinAsync()).RequireLease();
+        await _fixture.Database!.GetCollection<BsonDocument>(BusinessCollection)
+            .InsertOneAsync(accessor.CurrentSession!, new BsonDocument("_id", "abandoned"));
+
+        accessor.Dispose();
+
+        await lease.DisposeAsync();
+        (await CountAsync()).Business.ShouldBe(0L);
+    }
+
+    [Fact]
+    public async Task AbortAfterAFailedCommit_DoesNotThrow()
+    {
+        var accessor = NewAccessor();
+        await using var lease = (await accessor.BeginOrJoinAsync()).RequireLease();
+        await _fixture.Database!.GetCollection<BsonDocument>(BusinessCollection)
+            .InsertOneAsync(accessor.CurrentSession!, new BsonDocument("_id", "doomed"));
+        // The transaction ends behind the lease's back, so the commit fails.
+        await accessor.CurrentSession!.AbortTransactionAsync();
+
+        var commit = await lease.CommitAsync();
+
+        commit.ShouldBeErrorWithCode(TransactionErrors.CommitFailedCode);
+        await Should.NotThrowAsync(async () => await lease.RollbackAsync());
+        (await CountAsync()).Business.ShouldBe(0L);
+    }
+
+    [Fact]
+    public async Task ReadWriteSeparationBehavior_CoexistsWithTheSessionTransaction()
+    {
+        await using var provider = Build(customize: null, readWriteSeparation: true);
+
+        var result = await SendOrderAsync(provider, 2, Mode.Commit);
+
+        result.ShouldBeRight();
+        (await CountAsync()).ShouldBe((1L, 2L));
+    }
+
+    [Fact]
+    public async Task SagaAndScheduledMessageStores_EnlistInTheSessionTransaction()
+    {
+        var accessor = NewAccessor();
+        var options = Microsoft.Extensions.Options.Options.Create(new EncinaMongoDbOptions { DatabaseName = MongoDbReplicaSetFixture.DatabaseName });
+        var sagas = new global::Encina.MongoDB.Sagas.SagaStoreMongoDB(
+            _fixture.Client!, options, NullLogger<global::Encina.MongoDB.Sagas.SagaStoreMongoDB>.Instance, null, accessor);
+        var scheduled = new global::Encina.MongoDB.Scheduling.ScheduledMessageStoreMongoDB(
+            _fixture.Client!, options, NullLogger<global::Encina.MongoDB.Scheduling.ScheduledMessageStoreMongoDB>.Instance, null, accessor);
+        var sagaId = Guid.NewGuid();
+        var scheduledId = Guid.NewGuid();
+
+        await using (var lease = (await accessor.BeginOrJoinAsync()).RequireLease())
+        {
+            (await sagas.AddAsync(new global::Encina.MongoDB.Sagas.SagaState
+            {
+                SagaId = sagaId, SagaType = "S", Data = "{}", Status = "Running", StartedAtUtc = DateTime.UtcNow, LastUpdatedAtUtc = DateTime.UtcNow
+            })).ShouldBeRight();
+            (await scheduled.AddAsync(new global::Encina.MongoDB.Scheduling.ScheduledMessage
+            {
+                Id = scheduledId, RequestType = "R", Content = "{}", ScheduledAtUtc = DateTime.UtcNow.AddHours(1), CreatedAtUtc = DateTime.UtcNow
+            })).ShouldBeRight();
+            // Read-your-writes inside the session.
+            (await sagas.GetAsync(sagaId)).ShouldBeRight().IsSome.ShouldBeTrue();
+            await lease.RollbackAsync();
+        }
+
+        var names = new MongoDbCollectionNames();
+        (await _fixture.Database!.GetCollection<BsonDocument>(names.Sagas).CountDocumentsAsync(FilterDefinition<BsonDocument>.Empty)).ShouldBe(0L);
+        (await _fixture.Database!.GetCollection<BsonDocument>(names.ScheduledMessages).CountDocumentsAsync(FilterDefinition<BsonDocument>.Empty)).ShouldBe(0L);
+    }
+
+    private MongoSessionAccessor NewAccessor()
+        => new(_fixture.Client!, NullLogger<MongoSessionAccessor>.Instance);
 
     [Fact]
     public async Task ServerBehavior_AnIndependentInsertAfterTheFirstTransactionOperationIsInvisibleToTheTransaction()
@@ -118,7 +239,7 @@ public sealed class OutboxAtomicityMongoDBTests : IAsyncLifetime
         (await CountAsync()).ShouldBe((0L, 0L));
     }
 
-    private ServiceProvider Build(bool inbox = false, Action<IServiceCollection>? customize = null)
+    private ServiceProvider Build(bool inbox = false, Action<IServiceCollection>? customize = null, bool readWriteSeparation = false)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -131,6 +252,7 @@ public sealed class OutboxAtomicityMongoDBTests : IAsyncLifetime
             options.DatabaseName = MongoDbReplicaSetFixture.DatabaseName;
             options.UseOutbox = true;
             options.UseInbox = inbox;
+            options.UseReadWriteSeparation = readWriteSeparation;
         });
         customize?.Invoke(services);
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });

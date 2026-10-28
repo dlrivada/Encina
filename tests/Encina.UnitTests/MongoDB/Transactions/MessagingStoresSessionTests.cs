@@ -138,9 +138,38 @@ public sealed class MessagingStoresSessionTests
         (await store.GetExpiredMessagesAsync(5)).IsRight.ShouldBeTrue();
         (await store.RemoveExpiredMessagesAsync(["m"])).IsRight.ShouldBeTrue();
 
-        await collection.Received(2).FindAsync(_session, Arg.Any<FilterDefinition<InboxMessage>>(), Arg.Any<FindOptions<InboxMessage, InboxMessage>>(), Arg.Any<CancellationToken>());
+        // The reads are plain (the transaction snapshot must start after the independent AddAsync).
+        await collection.DidNotReceive().FindAsync(Arg.Any<IClientSessionHandle>(), Arg.Any<FilterDefinition<InboxMessage>>(), Arg.Any<FindOptions<InboxMessage, InboxMessage>>(), Arg.Any<CancellationToken>());
+        await collection.Received(2).FindAsync(Arg.Any<FilterDefinition<InboxMessage>>(), Arg.Any<FindOptions<InboxMessage, InboxMessage>>(), Arg.Any<CancellationToken>());
         await collection.Received(1).UpdateOneAsync(_session, Arg.Any<FilterDefinition<InboxMessage>>(), Arg.Any<UpdateDefinition<InboxMessage>>(), Arg.Any<UpdateOptions>(), Arg.Any<CancellationToken>());
         await collection.Received(1).DeleteManyAsync(_session, Arg.Any<FilterDefinition<InboxMessage>>(), Arg.Any<DeleteOptions>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Inbox_CacheHandlerErrorAndMarkAsFailed_ReturnLeftWhenNothingMatches()
+    {
+        var collection = Collection<InboxMessage>();
+        collection.UpdateOneAsync(Arg.Any<FilterDefinition<InboxMessage>>(), Arg.Any<UpdateDefinition<InboxMessage>>(), Arg.Any<UpdateOptions>(), Arg.Any<CancellationToken>())
+            .Returns(new UpdateResult.Acknowledged(0, 0, null));
+        WithSession(false);
+        var store = Inbox();
+
+        var cached = await store.CacheHandlerErrorAsync("m", "r");
+        var failed = await store.MarkAsFailedAsync("m", "type", null);
+
+        cached.IsLeft.ShouldBeTrue();
+        failed.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Inbox_MarkAsProcessed_RemarkingAnIdenticalRow_IsNotAnError()
+    {
+        var collection = Collection<InboxMessage>();
+        collection.UpdateOneAsync(Arg.Any<IClientSessionHandle>(), Arg.Any<FilterDefinition<InboxMessage>>(), Arg.Any<UpdateDefinition<InboxMessage>>(), Arg.Any<UpdateOptions>(), Arg.Any<CancellationToken>())
+            .Returns(new UpdateResult.Acknowledged(1, 0, null));
+        WithSession(true);
+
+        (await Inbox().MarkAsProcessedAsync("m", "r")).IsRight.ShouldBeTrue();
     }
 
     [Fact]
