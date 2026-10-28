@@ -5693,7 +5693,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - `InMemoryKeyProvider` para testing (thread-safe con `ConcurrentDictionary`)
 - `EncryptionHealthCheck` con verificación roundtrip encrypt/decrypt
 - OpenTelemetry tracing y metrics (opt-in via `EncryptionOptions`)
-- 5 error codes: `encryption.key_not_found`, `.decryption_failed`, `.invalid_ciphertext`, `.algorithm_not_supported`, `.key_rotation_failed`
+- 5 error codes: `encryption.key_not_found`, `.encryption_failed`, `.invalid_ciphertext`, `.algorithm_not_supported`, `.key_rotation_failed`
 - 181 tests (109 unit, 22 guard, 12 property, 28 contract, 10 integration) + benchmarks
 - **Paquete implementado**: `Encina.Security.Encryption`
 - Labels: `area-security`, `area-encryption`, `area-gdpr`, `area-data-protection`, `pattern-crypto-shredding`, `owasp-pattern`, `cloud-aws`, `cloud-azure`

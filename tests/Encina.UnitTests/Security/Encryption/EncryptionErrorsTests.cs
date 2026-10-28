@@ -25,31 +25,24 @@ public sealed class EncryptionErrorsTests
     }
 
     [Fact]
-    public void DecryptionFailed_WithPropertyName_IncludesPropertyInMessage()
+    public void EncryptionFailed_ReturnsEncryptionFailedCodeWithKeyId()
     {
-        var error = EncryptionErrors.DecryptionFailed("key-1", propertyName: "Email");
+        var error = EncryptionErrors.EncryptionFailed("key-1");
 
-        error.GetCode().IfNone("").ShouldBe(EncryptionErrors.DecryptionFailedCode);
-        error.Message.ShouldContain("Email");
+        error.GetCode().IfNone("").ShouldBe(EncryptionErrors.EncryptionFailedCode);
+        error.GetCode().IfNone("").ShouldBe("encryption.encryption_failed");
         error.Message.ShouldContain("key-1");
+        error.GetDetails()["keyId"].ShouldBe("key-1");
     }
 
     [Fact]
-    public void DecryptionFailed_WithoutPropertyName_DoesNotContainProperty()
+    public void EncryptionFailed_WithException_PreservesExceptionButNotItsMessage()
     {
-        var error = EncryptionErrors.DecryptionFailed("key-1");
-
-        error.GetCode().IfNone("").ShouldBe(EncryptionErrors.DecryptionFailedCode);
-        error.Message.ShouldContain("key-1");
-    }
-
-    [Fact]
-    public void DecryptionFailed_WithException_PreservesException()
-    {
-        var ex = new InvalidOperationException("test error");
-        var error = EncryptionErrors.DecryptionFailed("key-1", exception: ex);
+        var ex = new InvalidOperationException("secret-detail");
+        var error = EncryptionErrors.EncryptionFailed("key-1", ex);
 
         error.Exception.IsSome.ShouldBeTrue();
+        error.Message.ShouldNotContain("secret-detail");
     }
 
     [Fact]
@@ -98,7 +91,7 @@ public sealed class EncryptionErrorsTests
 
     [Theory]
     [InlineData(EncryptionErrors.KeyNotFoundCode)]
-    [InlineData(EncryptionErrors.DecryptionFailedCode)]
+    [InlineData(EncryptionErrors.EncryptionFailedCode)]
     [InlineData(EncryptionErrors.InvalidCiphertextCode)]
     [InlineData(EncryptionErrors.AlgorithmNotSupportedCode)]
     [InlineData(EncryptionErrors.KeyRotationFailedCode)]
@@ -113,7 +106,7 @@ public sealed class EncryptionErrorsTests
         var errors = new[]
         {
             EncryptionErrors.KeyNotFound("k"),
-            EncryptionErrors.DecryptionFailed("k"),
+            EncryptionErrors.EncryptionFailed("k"),
             EncryptionErrors.InvalidCiphertext(),
             EncryptionErrors.AlgorithmNotSupported(EncryptionAlgorithm.Aes256Gcm),
             EncryptionErrors.KeyRotationFailed()
