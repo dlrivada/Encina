@@ -83,6 +83,8 @@ Before opening a PR, make sure:
 - [ ] Zero build warnings (`TreatWarningsAsErrors` is active)
 - [ ] New/changed behavior has tests
 
+> **Cloud emulator tests and licences.** Running the Azure Service Bus emulator tests (collection `Cloud-ServiceBusEmulator`) accepts the [Microsoft Azure Service Bus Emulator Software License Terms](https://github.com/Azure/azure-service-bus-emulator-installer/blob/main/EMULATOR_EULA.txt) (development and testing only), and the SQL Server container it needs runs as Developer edition (free for non-production use only). Azurite is MIT licensed. Encina's cloud features are tested only against local emulators, never the real cloud. The terms, pinned image tags and a known limitation are in [Integration Testing with Docker](docs/testing/integration-tests.md#what-running-the-cloud-emulator-tests-means).
+
 ### PR Guidelines
 
 - Follow [Conventional Commits](https://www.conventionalcommits.org/) in the PR title: `type(scope?): subject`

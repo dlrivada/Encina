@@ -113,7 +113,28 @@ Connection strings are defined in `tests/appsettings.Testing.json`:
 | Service    | Image                                              | Startup Time |
 |------------|----------------------------------------------------|--------------|
 | LocalStack | `localstack/localstack:latest`                     | ~30 seconds  |
-| Azurite    | `mcr.microsoft.com/azure-storage/azurite:latest`   | ~5 seconds   |
+| Azurite    | `mcr.microsoft.com/azure-storage/azurite:3.37.0`   | ~5 seconds   |
+
+The Azure Service Bus emulator and its SQL Server sidecar are listed, with their terms, in the next section.
+
+#### What running the cloud emulator tests means
+
+This section is for contributors who run the Azure emulator integration tests and want to know which terms they accept and why the images are pinned.
+
+Encina's cloud features are tested only locally, against emulators, never against the real cloud. Using those features in production is your responsibility.
+
+| Emulator | Fixture and collection | Image | Terms |
+| --- | --- | --- | --- |
+| Azure Service Bus emulator | `ServiceBusEmulatorFixture` in `tests/Encina.TestInfrastructure/Fixtures/ServiceBusEmulatorFixture.cs`, collection `Cloud-ServiceBusEmulator` | `mcr.microsoft.com/azure-messaging/servicebus-emulator:2.0.1` | [Microsoft Azure Service Bus Emulator Software License Terms](https://github.com/Azure/azure-service-bus-emulator-installer/blob/main/EMULATOR_EULA.txt) |
+| SQL Server (sidecar of the Service Bus emulator) | started by `ServiceBusEmulatorFixture` | `mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04` | SQL Server Developer edition |
+| Azurite | `AzuriteFixture` in `tests/Encina.TestInfrastructure/Fixtures/AzuriteFixture.cs`, collection `Cloud-Azurite` | `mcr.microsoft.com/azure-storage/azurite:3.37.0` | [MIT licence, Copyright (c) Microsoft Corporation](https://github.com/Azure/Azurite/blob/main/LICENSE) |
+
+Pinned tags keep the tests reproducible; none of these fixtures uses a `:latest` tag.
+
+- **Service Bus emulator licence.** Running the Service Bus emulator tests accepts the Microsoft terms linked in the table: development and testing use only, not production, and no reverse engineering or redistribution. The fixture accepts them explicitly with `WithAcceptLicenseAgreement(true)` (issue #2699).
+- **SQL Server Developer edition.** The emulator needs a SQL Server container, which runs with `ACCEPT_EULA=Y` (set by the `Testcontainers.MsSql` builder) and `MSSQL_PID=Developer` (set explicitly by the fixture). Developer edition is free for non-production use only. Read the [SQL Server terms](https://go.microsoft.com/fwlink/?linkid=857698), the [Docker Hub page](https://hub.docker.com/_/microsoft-mssql-server) and the [environment variable documentation](https://learn.microsoft.com/en-us/sql/linux/sql-server-linux-configure-environment-variables?view=sql-server-ver16).
+- **Azurite flag.** Azurite starts with `--skipApiVersionCheck` because the Azure Storage SDKs request a newer API version than Azurite implements.
+- **Known limitation.** `servicebus-emulator` 2.0.1 accepts `CancelScheduledMessage` but still delivers the message, so that integration test is skipped. A follow-up issue tracks re-enabling the test once the emulator honours the cancel.
 
 ## Collection Fixture Strategy
 
