@@ -1,0 +1,37 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 3.69GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+
+WarmupCount=3  
+
+```
+| Method                   | Job        | IterationCount | LaunchCount | concurrencyLevel | Mean             | Error           | StdDev        | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|------------------------- |----------- |--------------- |------------ |----------------- |-----------------:|----------------:|--------------:|------:|--------:|-------:|----------:|------------:|
+| **AcquireAndReleaseLock**    | **Job-YFEFPZ** | **10**             | **Default**     | **?**                |       **1,699.0 ns** |         **4.18 ns** |       **2.19 ns** |  **1.00** |    **0.00** | **0.0229** |     **392 B** |        **1.00** |
+| TryAcquireAsync_Success  | Job-YFEFPZ | 10             | Default     | ?                |       1,743.6 ns |         3.98 ns |       2.37 ns |  1.03 |    0.00 | 0.0229 |     392 B |        1.00 |
+| IsLockedAsync_NotLocked  | Job-YFEFPZ | 10             | Default     | ?                |         781.7 ns |         5.36 ns |       3.19 ns |  0.46 |    0.00 | 0.0057 |     104 B |        0.27 |
+| IsLockedAsync_Locked     | Job-YFEFPZ | 10             | Default     | ?                |       1,789.6 ns |         5.47 ns |       3.25 ns |  1.05 |    0.00 | 0.0229 |     400 B |        1.02 |
+| ExtendLock               | Job-YFEFPZ | 10             | Default     | ?                |       1,815.1 ns |         5.55 ns |       3.67 ns |  1.07 |    0.00 | 0.0248 |     432 B |        1.10 |
+|                          |            |                |             |                  |                  |                 |               |       |         |        |           |             |
+| AcquireAndReleaseLock    | ShortRun   | 3              | 1           | ?                |       1,695.3 ns |       108.11 ns |       5.93 ns |  1.00 |    0.00 | 0.0229 |     392 B |        1.00 |
+| TryAcquireAsync_Success  | ShortRun   | 3              | 1           | ?                |       1,734.5 ns |        74.15 ns |       4.06 ns |  1.02 |    0.00 | 0.0229 |     392 B |        1.00 |
+| IsLockedAsync_NotLocked  | ShortRun   | 3              | 1           | ?                |         800.7 ns |       180.89 ns |       9.91 ns |  0.47 |    0.01 | 0.0057 |     104 B |        0.27 |
+| IsLockedAsync_Locked     | ShortRun   | 3              | 1           | ?                |       1,753.2 ns |        70.94 ns |       3.89 ns |  1.03 |    0.00 | 0.0229 |     400 B |        1.02 |
+| ExtendLock               | ShortRun   | 3              | 1           | ?                |       1,799.0 ns |        52.83 ns |       2.90 ns |  1.06 |    0.00 | 0.0248 |     432 B |        1.10 |
+|                          |            |                |             |                  |                  |                 |               |       |         |        |           |             |
+| **ConcurrentLockContention** | **Job-YFEFPZ** | **10**             | **Default**     | **10**               |  **48,264,457.8 ns** |   **827,040.10 ns** | **547,035.82 ns** |     **?** |       **?** |      **-** |   **17719 B** |           **?** |
+|                          |            |                |             |                  |                  |                 |               |       |         |        |           |             |
+| ConcurrentLockContention | ShortRun   | 3              | 1           | 10               |  47,173,611.2 ns | 2,204,342.24 ns | 120,827.44 ns |     ? |       ? |      - |   17864 B |           ? |
+|                          |            |                |             |                  |                  |                 |               |       |         |        |           |             |
+| **ConcurrentLockContention** | **Job-YFEFPZ** | **10**             | **Default**     | **50**               | **101,978,808.0 ns** |   **255,149.88 ns** | **168,765.85 ns** |     **?** |       **?** |      **-** |  **182880 B** |           **?** |
+|                          |            |                |             |                  |                  |                 |               |       |         |        |           |             |
+| ConcurrentLockContention | ShortRun   | 3              | 1           | 50               | 101,754,836.9 ns | 2,003,111.10 ns | 109,797.28 ns |     ? |       ? |      - |  184386 B |           ? |
+|                          |            |                |             |                  |                  |                 |               |       |         |        |           |             |
+| **ConcurrentLockContention** | **Job-YFEFPZ** | **10**             | **Default**     | **100**              | **101,468,718.0 ns** |   **287,445.32 ns** | **190,127.28 ns** |     **?** |       **?** |      **-** |  **414462 B** |           **?** |
+|                          |            |                |             |                  |                  |                 |               |       |         |        |           |             |
+| ConcurrentLockContention | ShortRun   | 3              | 1           | 100              | 101,475,295.1 ns | 1,451,625.86 ns |  79,568.51 ns |     ? |       ? |      - |  417181 B |           ? |
