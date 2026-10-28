@@ -25,7 +25,7 @@ public sealed class AuditMartenEncryptedFieldProperties
     public bool Garbage_NeverReturnsTheEnvelopeAndOnlyThrowsTheTypedFailure(string? garbage, bool withMarker)
     {
         var value = (withMarker ? "{\"__enc\":true" : string.Empty) + (garbage ?? string.Empty);
-        return OnlyTypedFailureOrNeverTheValue(new EncryptedField { Value = value }, value);
+        return OnlyTypedFailure(new EncryptedField { Value = value });
     }
 
     [Property(MaxTest = 300)]
@@ -37,7 +37,9 @@ public sealed class AuditMartenEncryptedFieldProperties
         chars[index] = (char)replacement;
         var value = new string(chars);
 
-        return OnlyTypedFailureOrNeverTheValue(new EncryptedField { Value = value }, value);
+        // A replacement can leave the envelope byte-identical or change only ignorable base64 padding bits;
+        // then the only acceptable plaintext is the original one. Anything else must be the typed failure.
+        return OnlyTypedFailureOrExactly(new EncryptedField { Value = value }, "plain-secret");
     }
 
     [Property(MaxTest = 200)]
@@ -75,12 +77,14 @@ public sealed class AuditMartenEncryptedFieldProperties
         }
     }
 
-    private static bool OnlyTypedFailureOrNeverTheValue(EncryptedField field, string value)
+    private static bool OnlyTypedFailure(EncryptedField field) => OnlyTypedFailureOrExactly(field, null);
+
+    private static bool OnlyTypedFailureOrExactly(EncryptedField field, string? expectedPlaintext)
     {
         try
         {
             var result = field.Decrypt(Key);
-            return result != value;
+            return expectedPlaintext is not null && result == expectedPlaintext;
         }
         catch (EncryptedFieldDecryptionException ex)
         {
