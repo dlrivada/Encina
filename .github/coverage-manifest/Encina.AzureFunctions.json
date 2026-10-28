@@ -14,10 +14,11 @@
       ],
       "defaultRule": "*Result.cs",
       "reason": "Result type",
-      "targets": { "unit": 100, "guard": 25 },
+      "targets": { "unit": 100, "guard": 25, "integration": 0 },
       "justifications": {
         "unit": "Success, both Failure overloads, ToEither and both ToActivityResult extensions are executed by ActivityResultTests.",
-        "guard": "DurableGuardTests run ToActivityResult on a Right value, which executes the success mapping; the null check in Failure(EncinaError) is unreachable because EncinaError is a struct, and the remaining members are left to the unit flag."
+        "guard": "DurableGuardTests run ToActivityResult on a Right value, which executes the success mapping; the null check in Failure(EncinaError) is unreachable because EncinaError is a struct, and the remaining members are left to the unit flag.",
+        "integration": "Durable orchestrations run only inside a Functions host, which the integration flag does not start; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
       }
     },
     "Durable/DurableFunctionsHealthCheck.cs": {
@@ -27,10 +28,11 @@
       ],
       "defaultRule": "*HealthCheck.cs",
       "reason": "Health check with mockeable service dependencies",
-      "targets": { "unit": 95, "guard": 12 },
+      "targets": { "unit": 95, "guard": 12, "integration": 0 },
       "justifications": {
         "unit": "Healthy and every Degraded configuration branch are executed by DurableFunctionsHealthCheckTests.",
-        "guard": "DurableGuardTests runs the constructor with null and valid options and reads Name; CheckHealthAsync validation branches are behaviour and belong to the unit flag."
+        "guard": "DurableGuardTests runs the constructor with null and valid options and reads Name; CheckHealthAsync validation branches are behaviour and belong to the unit flag.",
+        "integration": "Durable orchestrations run only inside a Functions host, which the integration flag does not start; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
       }
     },
     "Durable/DurableFunctionsOptions.cs": {
@@ -39,10 +41,11 @@
       ],
       "defaultRule": "*Options.cs",
       "reason": "Configuration POCO with defaults and validation",
-      "targets": { "unit": 100, "guard": 80 },
+      "targets": { "unit": 100, "guard": 80, "integration": 0 },
       "justifications": {
         "unit": "Every option default is read by DurableFunctionsOptionsTests.",
-        "guard": "The auto-property initializers are executed when the DurableFunctionsHealthCheck guard test instantiates the options."
+        "guard": "The auto-property initializers are executed when the DurableFunctionsHealthCheck guard test instantiates the options.",
+        "integration": "Durable orchestrations run only inside a Functions host, which the integration flag does not start; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
       }
     },
     "Durable/DurableSagaBuilder.cs": {
@@ -52,10 +55,11 @@
       ],
       "defaultRule": "*Builder.cs",
       "reason": "Fluent builder with validation",
-      "targets": { "unit": 50, "guard": 38 },
+      "targets": { "unit": 50, "guard": 38, "integration": 0 },
       "justifications": {
         "unit": "DurableSagaBuilderTests build and configure sagas; the ExecuteAsync and compensation paths need an orchestration context double and are still partly unmeasured.",
-        "guard": "DurableGuardTests call Step, WithTimeout, Execute and Compensate with invalid arguments, the step builder Step and Build finalisation errors, and ExecuteAsync with a null context, plus the minimum valid calls that reach each check."
+        "guard": "DurableGuardTests call Step, WithTimeout, Execute and Compensate with invalid arguments, the step builder Step and Build finalisation errors, and ExecuteAsync with a null context, plus the minimum valid calls that reach each check.",
+        "integration": "Durable orchestrations run only inside a Functions host, which the integration flag does not start; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
       }
     },
     "Durable/DurableSagaErrorCodes.cs": {
@@ -72,10 +76,11 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 100, "guard": 12 },
+      "targets": { "unit": 100, "guard": 12, "integration": 0 },
       "justifications": {
         "unit": "AddEncinaDurableFunctions registration and option configuration are executed by DurableServiceCollectionExtensionsTests.",
-        "guard": "DurableGuardTests call AddEncinaDurableFunctions with a null service collection; the registration body is the unit flag's."
+        "guard": "DurableGuardTests call AddEncinaDurableFunctions with a null service collection; the registration body is the unit flag's.",
+        "integration": "Durable orchestrations run only inside a Functions host, which the integration flag does not start; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
       }
     },
     "Durable/FanOutFanInExtensions.cs": {
@@ -85,10 +90,11 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 35, "guard": 25 },
+      "targets": { "unit": 35, "guard": 25, "integration": 0 },
       "justifications": {
         "unit": "FanOutFanInExtensionsTests run the FanOut methods with substituted orchestration contexts; the aggregate methods still lack unit coverage.",
-        "guard": "DurableGuardTests call FanOutAsync and FanOutWithResultAsync with a null context, null or empty activity name, null inputs and empty inputs, and FanOutAllAsync, FanOutFirstSuccessAsync and both FanOutMultipleAsync overloads with a null context."
+        "guard": "DurableGuardTests call FanOutAsync and FanOutWithResultAsync with a null context, null or empty activity name, null inputs and empty inputs, and FanOutAllAsync, FanOutFirstSuccessAsync and both FanOutMultipleAsync overloads with a null context.",
+        "integration": "Durable orchestrations run only inside a Functions host, which the integration flag does not start; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
       }
     },
     "Durable/OrchestrationContextExtensions.cs": {
@@ -98,10 +104,11 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 26, "guard": 22 },
+      "targets": { "unit": 26, "guard": 22, "integration": 0 },
       "justifications": {
         "unit": "OrchestrationContextExtensionsTests run the activity, sub-orchestrator and retry-option helpers; the external-event paths still lack unit coverage.",
-        "guard": "DurableGuardTests call every extension with a null context, null or empty name and out-of-range retry parameters, plus the zero-retry valid call."
+        "guard": "DurableGuardTests call every extension with a null context, null or empty name and out-of-range retry parameters, plus the zero-retry valid call.",
+        "integration": "Durable orchestrations run only inside a Functions host, which the integration flag does not start; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
       }
     },
     "EncinaAzureFunctionsOptions.cs": {
@@ -110,10 +117,11 @@
       ],
       "defaultRule": "*Options.cs",
       "reason": "Configuration POCO with defaults and validation",
-      "targets": { "unit": 100, "guard": 80 },
+      "targets": { "unit": 100, "guard": 80, "integration": 90 },
       "justifications": {
         "unit": "Every option property is read and set in tests, including its defaults.",
-        "guard": "The options are auto-properties with no setter logic; guard tests execute the file only by instantiating the options while guarding the consuming APIs (middleware, context extensions), so the target covers those lines."
+        "guard": "The options are auto-properties with no setter logic; guard tests execute the file only by instantiating the options while guarding the consuming APIs (middleware, context extensions), so the target covers those lines.",
+        "integration": "Integration tests configure the options through AddEncinaAzureFunctions and the middleware, extensions and health check read them; one property initializer is never read by these tests."
       }
     },
     "EncinaFunctionMiddleware.cs": {
@@ -123,10 +131,11 @@
       ],
       "defaultRule": "*Middleware.cs",
       "reason": "Middleware with mockeable HttpContext",
-      "targets": { "unit": 100, "guard": 30 },
+      "targets": { "unit": 100, "guard": 30, "integration": 100 },
       "justifications": {
         "unit": "Every pipeline branch of the middleware, including success and error responses, is unit-tested with a mocked function context.",
-        "guard": "GuardClauseTests and FunctionsGuardTests run the constructor and Invoke with null options, logger, context and next; the enrichment and logging path is the unit flag's."
+        "guard": "GuardClauseTests and FunctionsGuardTests run the constructor and Invoke with null options, logger, context and next; the enrichment and logging path is the unit flag's.",
+        "integration": "Integration tests run the middleware in a composed worker pipeline in front of a function that uses the real Encina pipeline, covering enrichment on and off, the lifecycle logs and a throwing function."
       }
     },
     "FunctionContextExtensions.cs": {
@@ -136,10 +145,11 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 100, "guard": 13 },
+      "targets": { "unit": 100, "guard": 13, "integration": 100 },
       "justifications": {
         "unit": "Every tenant and context lookup rule of the function context extensions is unit-tested.",
-        "guard": "Guard tests run every public overload with a null context or request; the claim and header resolution rules are the unit flag's."
+        "guard": "Guard tests run every public overload with a null context or request; the claim and header resolution rules are the unit flag's.",
+        "integration": "Integration tests resolve correlation, user and tenant ids from HTTP requests with real headers and claims identities, covering every tenant rule (claim, mismatch, empty claim, trusted and untrusted header, none)."
       }
     },
     "FunctionsWorkerApplicationBuilderExtensions.cs": {
@@ -149,10 +159,11 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 100, "guard": 30 },
+      "targets": { "unit": 100, "guard": 30, "integration": 100 },
       "justifications": {
         "unit": "UseEncinaMiddleware registration is executed by FunctionsWorkerApplicationBuilderExtensionsTests.",
-        "guard": "GuardClauseTests call UseEncinaMiddleware with a null builder."
+        "guard": "GuardClauseTests call UseEncinaMiddleware with a null builder.",
+        "integration": "Integration tests call UseEncinaMiddleware on a concrete worker application builder and run the composed pipeline."
       }
     },
     "GlobalSuppressions.cs": {
@@ -167,10 +178,11 @@
       ],
       "defaultRule": "*HealthCheck.cs",
       "reason": "Health check with mockeable service dependencies",
-      "targets": { "unit": 100, "guard": 20 },
+      "targets": { "unit": 100, "guard": 20, "integration": 100 },
       "justifications": {
         "unit": "Healthy and Degraded results are executed by AzureFunctionsHealthCheckTests.",
-        "guard": "Guard tests run the constructor with null and valid options and read Name; CheckHealthAsync branches are the unit flag's."
+        "guard": "Guard tests run the constructor with null and valid options and read Name; CheckHealthAsync branches are the unit flag's.",
+        "integration": "Integration tests resolve the health check from a validated provider and read Name, Tags and both the Healthy and the Degraded result."
       }
     },
     "HttpResponseDataExtensions.cs": {
@@ -180,20 +192,22 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "Error mapper converting EncinaError to HttpResponseData; unit tests cover all code paths, guard tests cover null-parameter checks",
-      "targets": { "unit": 100, "guard": 5 },
+      "targets": { "unit": 100, "guard": 5, "integration": 100 },
       "justifications": {
         "unit": "Every error code and HTTP status mapping, including each encina.authorization.* code, has a unit test.",
-        "guard": "Guard tests reach only the null-request checks of the async response builders; building a response needs a full HttpResponseData double and is behaviour for the unit flag."
+        "guard": "Guard tests reach only the null-request checks of the async response builders; building a response needs a full HttpResponseData double and is behaviour for the unit flag.",
+        "integration": "Integration tests convert the results of a real Encina pipeline to concrete HTTP responses (success, created, no content, each error family, explicit status codes) and read the written headers and Problem Details body."
       }
     },
     "Log.cs": {
       "defaultTests": [],
       "defaultRule": "Log.cs",
       "reason": "Source-generated [LoggerMessage] delegates, no logic",
-      "targets": { "unit": 0, "guard": 0 },
+      "targets": { "unit": 0, "guard": 0, "integration": 0 },
       "justifications": {
         "unit": "Source-generated [LoggerMessage] partials are not measured as hand-written lines; the events are asserted via a fake logger in FunctionResolveTenantIdTests.",
-        "guard": "Source-generated [LoggerMessage] partials have no parameters to guard."
+        "guard": "Source-generated [LoggerMessage] partials have no parameters to guard.",
+        "integration": "Source-generated [LoggerMessage] partials are not measured as hand-written lines; the events are exercised through the fake loggers of the integration tests."
       }
     },
     "ServiceCollectionExtensions.cs": {
@@ -203,10 +217,11 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 100, "guard": 25 },
+      "targets": { "unit": 100, "guard": 25, "integration": 100 },
       "justifications": {
         "unit": "AddEncinaAzureFunctions registration and the optional health check are executed by ServiceCollectionExtensionsTests.",
-        "guard": "GuardClauseTests call both AddEncinaAzureFunctions overloads with null services and null configureOptions."
+        "guard": "GuardClauseTests call both AddEncinaAzureFunctions overloads with null services and null configureOptions.",
+        "integration": "Integration tests build providers with ValidateOnBuild and ValidateScopes through both AddEncinaAzureFunctions overloads, with the health check enabled and disabled."
       }
     }
   }

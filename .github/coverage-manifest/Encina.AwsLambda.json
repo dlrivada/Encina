@@ -14,10 +14,11 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "Error mapper converting EncinaError to ApiGatewayResponse; unit tests cover all code paths, guard tests cover null-parameter checks",
-      "targets": { "unit": 100, "guard": 25 },
+      "targets": { "unit": 100, "guard": 25, "integration": 100 },
       "justifications": {
         "unit": "Every error code and HTTP status mapping, including each encina.authorization.* code, has a unit test.",
-        "guard": "Only the null guards on the public error and request parameters need guard tests."
+        "guard": "Only the null guards on the public error and request parameters need guard tests.",
+        "integration": "Integration tests convert the results of a real Encina pipeline (success, validation, conflict, missing handler and each error family) to REST, HTTP API v2, created and no-content responses and read the wire JSON back, so every line runs."
       }
     },
     "EncinaAwsLambdaOptions.cs": {
@@ -26,10 +27,11 @@
       ],
       "defaultRule": "*Options.cs",
       "reason": "Configuration POCO with defaults and validation",
-      "targets": { "unit": 100, "guard": 65 },
+      "targets": { "unit": 100, "guard": 65, "integration": 90 },
       "justifications": {
         "unit": "Every option property is read and set in tests, including its defaults.",
-        "guard": "The options are auto-properties with no setter logic; guard tests execute the file only by instantiating the options while guarding the consuming APIs (the Lambda context extensions and handlers), so the target covers those lines."
+        "guard": "The options are auto-properties with no setter logic; guard tests execute the file only by instantiating the options while guarding the consuming APIs (the Lambda context extensions and handlers), so the target covers those lines.",
+        "integration": "Integration tests configure the options through AddEncinaAwsLambda and the handlers and health check read them; one property initializer is never read by these tests."
       }
     },
     "EventBridgeHandler.cs": {
@@ -38,7 +40,13 @@
         "guard"
       ],
       "defaultRule": "*Handler.cs",
-      "reason": "Handler with mockeable dependencies"
+      "reason": "Handler with mockeable dependencies",
+      "targets": {
+        "integration": 100
+      },
+      "justifications": {
+        "integration": "Integration tests process EventBridge events deserialized by the Lambda serializer through a real handler, covering success, error, null detail, a throwing delegate, raw JSON and metadata."
+      }
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
@@ -51,7 +59,13 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "integration": 80
+      },
+      "justifications": {
+        "integration": "Integration tests resolve the health check from a validated provider and read its status and data outside Lambda; the in-Lambda branch needs the process-global AWS_LAMBDA_FUNCTION_NAME variable, which parallel tests must not change."
+      }
     },
     "LambdaContextExtensions.cs": {
       "defaultTests": [
@@ -60,20 +74,22 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 94, "guard": 8 },
+      "targets": { "unit": 94, "guard": 8, "integration": 95 },
       "justifications": {
         "unit": "Every ResolveTenantId rule is unit-tested, with the logger asserted through a fake.",
-        "guard": "Guard tests cover only the null checks of the public parameters."
+        "guard": "Guard tests cover only the null checks of the public parameters.",
+        "integration": "Integration tests resolve correlation, tenant and user ids from API Gateway requests deserialized by the Lambda serializer; the remaining lines are non-string authorizer value shapes left to the unit flag."
       }
     },
     "Log.cs": {
       "defaultTests": [],
       "defaultRule": "Log.cs",
       "reason": "Source-generated [LoggerMessage] delegates, no logic",
-      "targets": { "unit": 0, "guard": 0 },
+      "targets": { "unit": 0, "guard": 0, "integration": 0 },
       "justifications": {
         "unit": "Source-generated [LoggerMessage] partials are not measured as hand-written lines; the events are asserted via a fake logger in LambdaResolveTenantIdTests.",
-        "guard": "Source-generated [LoggerMessage] partials have no parameters to guard."
+        "guard": "Source-generated [LoggerMessage] partials have no parameters to guard.",
+        "integration": "Source-generated [LoggerMessage] partials are not measured as hand-written lines; the events are exercised through the fake loggers of the integration tests."
       }
     },
     "ServiceCollectionExtensions.cs": {
@@ -82,7 +98,13 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "integration": 100
+      },
+      "justifications": {
+        "integration": "Integration tests build providers with ValidateOnBuild and ValidateScopes through both AddEncinaAwsLambda overloads and resolve the options and the health check."
+      }
     },
     "SqsMessageHandler.cs": {
       "defaultTests": [
@@ -90,7 +112,13 @@
         "guard"
       ],
       "defaultRule": "*Handler.cs",
-      "reason": "Handler with mockeable dependencies"
+      "reason": "Handler with mockeable dependencies",
+      "targets": {
+        "integration": 95
+      },
+      "justifications": {
+        "integration": "Integration tests process SQS events deserialized by the Lambda serializer with a real handler, covering partial batch failures, malformed bodies, a throwing delegate, cancellation, ProcessAllAsync and DeserializeMessage; the one unreached line is the unreachable Right branch inside ProcessAllAsync."
+      }
     }
   }
 }
