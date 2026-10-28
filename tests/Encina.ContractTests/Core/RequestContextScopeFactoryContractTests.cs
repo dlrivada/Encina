@@ -132,6 +132,44 @@ public sealed class RequestContextScopeFactoryContractTests : IDisposable
     }
 
     [Fact]
+    public async Task ABadSubject_WinsOverABadTenant_OnBothPaths_AndAnUnauthenticatedPrincipalStaysAnonymous()
+    {
+        var bad = Principal(new Claim("sub", "ignored-by-the-map"), new Claim("org", "t1"), new Claim("org", "t2"));
+        var unauthenticated = new ClaimsPrincipal(new ClaimsIdentity([new Claim("oid", "user-1")]));
+
+        var asPrincipal = await Scopes.RunAsPrincipalAsync(bad, Capture);
+        var inbound = await Scopes.RunInboundAsync(new InboundRequestInfo(bad), Capture);
+        var anonymousPrincipal = (await Scopes.RunAsPrincipalAsync(unauthenticated, Capture)).ShouldBeSuccess();
+        var anonymousInbound = (await Scopes.RunInboundAsync(new InboundRequestInfo(unauthenticated), Capture)).ShouldBeSuccess();
+
+        asPrincipal.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.MissingSubjectClaim));
+        inbound.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.MissingSubjectClaim));
+        asPrincipal.IsLeft.ShouldBeTrue();
+        inbound.IsLeft.ShouldBeTrue();
+        Issued(anonymousPrincipal).Kind.ShouldBe(IdentityKind.Anonymous);
+        Issued(anonymousInbound).Kind.ShouldBe(IdentityKind.Anonymous);
+    }
+
+    [Fact]
+    public async Task ABadSubject_InsideAUserScope_IsStillRefusedWithTheSubjectCode_OnThePrincipalPath()
+    {
+        var user = Principal(new Claim("oid", "alice"));
+        var bad = Principal(new Claim("sub", "x"));
+
+        var innerCode = "not-run";
+
+        var outcome = await Scopes.RunAsPrincipalAsync(user, async (_, ct) =>
+        {
+            var inner = await Scopes.RunAsPrincipalAsync(bad, Capture, cancellationToken: ct);
+            innerCode = inner.Match(Right: _ => "opened", Left: error => error.GetCode().IfNone("none"));
+            return Right<EncinaError, int>(1);
+        });
+
+        outcome.IsRight.ShouldBeTrue();
+        innerCode.ShouldBe(RequestIdentityErrorCodes.MissingSubjectClaim);
+    }
+
+    [Fact]
     public async Task EveryScope_IsInvalidatedWhenWorkCompletes()
     {
         var service = (await Scopes.RunAsServiceAsync(Job, Capture)).ShouldBeSuccess();
