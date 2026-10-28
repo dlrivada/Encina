@@ -806,10 +806,10 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 64, "guard": 55, "integration": 40, "contract": 0, "property": 0 },
+      "targets": { "unit": 64, "guard": 60, "integration": 40, "contract": 0, "property": 0 },
       "justifications": {
-        "unit": "Registration paths, including the recoverability, routing slip, content router and scatter-gather flags and the behavior order (#2711), are DI-tested with ValidateOnBuild and ValidateScopes (measured 66%); provider-specific branches need real contexts and other features are covered by their own tests.",
-        "guard": "Argument checks of the public registration methods are covered by the guard tests (measured 58%); the recoverability and router registrations added in #2711 are DI-tested by the unit tests, not guard tests.",
+        "unit": "Registration paths, including the recoverability, routing slip, content router and scatter-gather flags and the behavior order (#2711), are DI-tested with ValidateOnBuild and ValidateScopes; provider-specific branches need real contexts and other features are covered by their own tests.",
+        "guard": "Argument checks of the public registration methods and the registration branches, including the recoverability and router flags added in #2711, are covered by the guard tests.",
         "integration": "Real-database pipeline runs register the messaging stack; the remaining branches (tenancy, sharding, read-write routing) are exercised by their own suites.",
         "contract": "Registration only, with no public contract beyond the DI container, which the DI tests prove.",
         "property": "Registration only; there is no invariant to generate."
