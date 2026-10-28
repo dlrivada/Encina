@@ -149,6 +149,7 @@ public sealed class ABACPipelineBehaviorTests
             Compiler,
             Options.Create(abacOptions ?? new ABACOptions { EnforcementMode = mode }),
             recorder ?? Substitute.For<IABACDecisionRecorder>(),
+            new NoAccessElevationGate(),
             timeProvider ?? TimeProvider.System,
             logger ?? NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
     }
@@ -703,6 +704,7 @@ public sealed class ABACPipelineBehaviorTests
             freshCompiler,
             Options.Create(new ABACOptions()),
             Substitute.For<IABACDecisionRecorder>(),
+            new NoAccessElevationGate(),
             TimeProvider.System,
             NullLogger<ABACPipelineBehavior<HrConditionRequest, string>>.Instance);
 
@@ -1047,6 +1049,7 @@ public sealed class ABACPipelineBehaviorTests
             null!,
             Options.Create(new ABACOptions()),
             Substitute.For<IABACDecisionRecorder>(),
+            new NoAccessElevationGate(),
             TimeProvider.System,
             NullLogger<ABACPipelineBehavior<PolicyARequest, string>>.Instance);
 

@@ -62,9 +62,10 @@ public sealed class RequestIdentityHttpGuardTests
         var options = Options.Create(new AuthorizationConfiguration());
         var logger = NullLogger<AuthorizationPipelineBehavior<GuardRequest, string>>.Instance;
 
-        Should.Throw<ArgumentNullException>(() => new AuthorizationPipelineBehavior<GuardRequest, string>(null!, options, logger)).ParamName.ShouldBe("authorizationService");
-        Should.Throw<ArgumentNullException>(() => new AuthorizationPipelineBehavior<GuardRequest, string>(service, null!, logger)).ParamName.ShouldBe("options");
-        Should.Throw<ArgumentNullException>(() => new AuthorizationPipelineBehavior<GuardRequest, string>(service, options, null!)).ParamName.ShouldBe("logger");
+        Should.Throw<ArgumentNullException>(() => new AuthorizationPipelineBehavior<GuardRequest, string>(null!, options, new NoAccessElevationGate(), logger)).ParamName.ShouldBe("authorizationService");
+        Should.Throw<ArgumentNullException>(() => new AuthorizationPipelineBehavior<GuardRequest, string>(service, null!, new NoAccessElevationGate(), logger)).ParamName.ShouldBe("options");
+        Should.Throw<ArgumentNullException>(() => new AuthorizationPipelineBehavior<GuardRequest, string>(service, options, null!, logger)).ParamName.ShouldBe("elevationGate");
+        Should.Throw<ArgumentNullException>(() => new AuthorizationPipelineBehavior<GuardRequest, string>(service, options, new NoAccessElevationGate(), null!)).ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -73,6 +74,7 @@ public sealed class RequestIdentityHttpGuardTests
         var behavior = new AuthorizationPipelineBehavior<GuardRequest, string>(
             Substitute.For<IAuthorizationService>(),
             Options.Create(new AuthorizationConfiguration()),
+            new NoAccessElevationGate(),
             NullLogger<AuthorizationPipelineBehavior<GuardRequest, string>>.Instance);
 
         (await Should.ThrowAsync<ArgumentNullException>(async () => await behavior.Handle(new GuardRequest(), null!, () => default, CancellationToken.None)))

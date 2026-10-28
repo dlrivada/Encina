@@ -60,6 +60,7 @@ internal static class ABACDecisionRecordFactory
             RequestType = inputs.RequestType.Name,
             EnforcedOutcome = verdict.Enforced,
             ReasonCode = verdict.ReasonCode,
+            ElevationId = verdict.ElevationId,
             EnforcementMode = inputs.EnforcementMode,
             StartedAtUtc = inputs.StartedAtUtc,
             CompletedAtUtc = completedAtUtc

@@ -158,6 +158,49 @@ public sealed class ABACRequirementEnforcementTests
         ErrorCode(result).ShouldBe(ABACErrors.ConditionNotMetCode);
     }
 
+    // ── Non-overridable denials never reach the elevation gate (#1244) ──
+
+    [Fact]
+    public async Task Handle_RequiredPolicyNotFound_NeverOffersTheDenialToTheElevationGate()
+    {
+        // Arrange: abac_policy_not_found is not an overridable code (AccessElevationDenials).
+        var pap = NewPap();
+        (await pap.AddPolicySetAsync(FinanceSet(isEnabled: false, obligations: []))).IsRight.ShouldBeTrue();
+        var gate = Substitute.For<IAccessElevationGate>();
+        var behavior = CreateBehavior<RequiresNestedPolicy>(pap, new Dictionary<string, object>(), elevationGate: gate);
+
+        // Act
+        var result = await behavior.Handle(new RequiresNestedPolicy(), Caller(), Next(() => { }), CancellationToken.None);
+
+        // Assert
+        ErrorCode(result).ShouldBe(ABACErrors.RequiredPolicyNotFoundCode);
+        _ = gate.DidNotReceiveWithAnyArgs().TryElevateAsync<RequiresNestedPolicy>(default!, default!, default, default);
+    }
+
+    [Fact]
+    public async Task Handle_MandatoryPermitObligationFails_NeverOffersTheDenialToTheElevationGate()
+    {
+        // Arrange: the set permits but its mandatory obligation fails, so abac_obligation_failed denies.
+        var pap = NewPap();
+        (await pap.AddPolicySetAsync(FinanceSet(
+            isEnabled: true,
+            obligations: [new Obligation { Id = "audit", FulfillOn = FulfillOn.Permit, AttributeAssignments = [] }])))
+            .IsRight.ShouldBeTrue();
+        var handler = Substitute.For<IObligationHandler>();
+        handler.CanHandle("audit").Returns(true);
+        handler.HandleAsync(Arg.Any<Obligation>(), Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, Unit>(EncinaErrors.Create("handler.failed", "boom")));
+        var gate = Substitute.For<IAccessElevationGate>();
+        var behavior = CreateBehavior<RequiresFinanceSet>(pap, new Dictionary<string, object>(), [handler], elevationGate: gate);
+
+        // Act
+        var result = await behavior.Handle(new RequiresFinanceSet(), Caller(), Next(() => { }), CancellationToken.None);
+
+        // Assert
+        ErrorCode(result).ShouldBe(ABACErrors.ObligationFailedCode);
+        _ = gate.DidNotReceiveWithAnyArgs().TryElevateAsync<RequiresFinanceSet>(default!, default!, default, default);
+    }
+
     // ── Store failures (#1676) ──────────────────────────────────────
 
     [Theory]
@@ -259,7 +302,8 @@ public sealed class ABACRequirementEnforcementTests
         IEnumerable<IObligationHandler>? handlers = null,
         ABACEnforcementMode mode = ABACEnforcementMode.Block,
         ILogger<XACMLPolicyDecisionPoint>? pdpLogger = null,
-        ILogger<ABACPipelineBehavior<TRequest, string>>? pepLogger = null)
+        ILogger<ABACPipelineBehavior<TRequest, string>>? pepLogger = null,
+        IAccessElevationGate? elevationGate = null)
         where TRequest : IRequest<string>
     {
         var registry = new DefaultFunctionRegistry();
@@ -285,6 +329,7 @@ public sealed class ABACRequirementEnforcementTests
             Compiler,
             Options.Create(new ABACOptions { EnforcementMode = mode }),
             Substitute.For<global::Encina.Security.ABAC.DecisionAudit.IABACDecisionRecorder>(),
+            elevationGate ?? new NoAccessElevationGate(),
             TimeProvider.System,
             pepLogger ?? NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
     }

@@ -76,12 +76,14 @@ public sealed class BreakTheGlassGuardTests
         var readAudit = new ReadAuditContext();
         var grants = new BreakTheGlassRequestGrants();
 
-        Param(() => new BreakTheGlassAccessGate(null!, audit, readAudit, grants, Opts, TimeProvider.System), "store");
-        Param(() => new BreakTheGlassAccessGate(store, null!, readAudit, grants, Opts, TimeProvider.System), "auditStore");
-        Param(() => new BreakTheGlassAccessGate(store, audit, null!, grants, Opts, TimeProvider.System), "readAuditContext");
-        Param(() => new BreakTheGlassAccessGate(store, audit, readAudit, null!, Opts, TimeProvider.System), "grants");
-        Param(() => new BreakTheGlassAccessGate(store, audit, readAudit, grants, null!, TimeProvider.System), "options");
-        Param(() => new BreakTheGlassAccessGate(store, audit, readAudit, grants, Opts, null!), "timeProvider");
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<BreakTheGlassAccessGate>.Instance;
+
+        Param(() => new BreakTheGlassAccessGate(null!, audit, readAudit, grants, Opts, TimeProvider.System, logger), "store");
+        Param(() => new BreakTheGlassAccessGate(store, null!, readAudit, grants, Opts, TimeProvider.System, logger), "auditStore");
+        Param(() => new BreakTheGlassAccessGate(store, audit, null!, grants, Opts, TimeProvider.System, logger), "readAuditContext");
+        Param(() => new BreakTheGlassAccessGate(store, audit, readAudit, null!, Opts, TimeProvider.System, logger), "grants");
+        Param(() => new BreakTheGlassAccessGate(store, audit, readAudit, grants, null!, TimeProvider.System, logger), "options");
+        Param(() => new BreakTheGlassAccessGate(store, audit, readAudit, grants, Opts, null!, logger), "timeProvider");
     }
 
     [Theory]
@@ -119,7 +121,7 @@ public sealed class BreakTheGlassGuardTests
     [Fact]
     public async Task Gate_Methods()
     {
-        var gate = new BreakTheGlassAccessGate(new InMemoryBreakTheGlassStore(), new InMemoryOperationAuditStore(), new ReadAuditContext(), new BreakTheGlassRequestGrants(), Opts, TimeProvider.System);
+        var gate = new BreakTheGlassAccessGate(new InMemoryBreakTheGlassStore(), new InMemoryOperationAuditStore(), new ReadAuditContext(), new BreakTheGlassRequestGrants(), Opts, TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<BreakTheGlassAccessGate>.Instance);
         var context = Substitute.For<IRequestContext>();
 
         await ParamAsync(async () => await gate.TryElevateAsync<string>(null!, context, EncinaErrors.Forbidden(), CancellationToken.None), "request");

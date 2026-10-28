@@ -22,8 +22,12 @@ public static class ABACDecisionAuditSchema
     /// <summary>The <c>Action</c> of every decision audit entry: one indexed filter for all ABAC decisions.</summary>
     public const string Action = "ABACDecision";
 
-    /// <summary>The version of the entry shape and of the JSON Lines export (<c>encina.abac.decision/1</c>).</summary>
-    public const string SchemaVersion = "encina.abac.decision/1";
+    /// <summary>
+    /// The version of the entry shape and of the JSON Lines export (<c>encina.abac.decision/2</c>). Version 2
+    /// adds the <see cref="MetadataElevationId"/> key and the elevated outcome (<c>abac.enforced</c> false
+    /// with an elevation id).
+    /// </summary>
+    public const string SchemaVersion = "encina.abac.decision/2";
 
     /// <summary>The reason code of a permitted request.</summary>
     public const string PermitReasonCode = "abac.permit";
@@ -39,8 +43,11 @@ public static class ABACDecisionAuditSchema
     /// <summary>Metadata value of <see cref="MetadataStage"/>: the Policy Enforcement Point.</summary>
     public const string StagePep = "pep";
 
-    /// <summary>Metadata key: <c>true</c> when ABAC blocked or allowed the request as decided, <c>false</c> for a would-deny verdict in Warn mode.</summary>
+    /// <summary>Metadata key: <c>true</c> when ABAC blocked or allowed the request as decided, <c>false</c> for a would-deny verdict in Warn mode or a denial an elevation overrode.</summary>
     public const string MetadataEnforced = "abac.enforced";
+
+    /// <summary>Metadata key: the id of the break-the-glass elevation that overrode a denial; present only for an elevated decision.</summary>
+    public const string MetadataElevationId = "abac.elevation_id";
 
     /// <summary>Metadata key: the enforcement mode (<see cref="ABACEnforcementMode"/>).</summary>
     public const string MetadataEnforcementMode = "abac.enforcement_mode";

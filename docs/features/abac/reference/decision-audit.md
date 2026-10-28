@@ -36,9 +36,10 @@ Every metadata value is a string, so relational JSON columns, MongoDB and Marten
 
 | Key | Value |
 |-----|-------|
-| `abac.schema` | `encina.abac.decision/1` |
+| `abac.schema` | `encina.abac.decision/2` |
 | `abac.stage` | `pep` |
-| `abac.enforced` | `true`, or `false` for a would-deny verdict that Warn mode let through |
+| `abac.enforced` | `true`, or `false` for a would-deny verdict that Warn mode let through or a denial that a break-the-glass elevation overrode |
+| `abac.elevation_id` | `ABACDecisionAuditSchema.MetadataElevationId`: the id of the break-the-glass elevation that overrode a denial. Written only for a `DeniedElevated` decision |
 | `abac.enforcement_mode` | The `ABACEnforcementMode` in force |
 | `abac.identity_kind` | The `IdentityKind` of the caller |
 | `abac.effect` | The effect the PDP answered (when an evaluation was reached) |
@@ -61,8 +62,9 @@ Every metadata value is a string, so relational JSON columns, MongoDB and Marten
 | Definite denial in Warn mode (would-deny) | the denial code | `Success` | `abac.enforced` is `false` |
 | Denied | the denial code | `Denied` | |
 | Denied | `abac.indeterminate` or `abac.evaluation_failed` | `Error` | |
+| `DeniedElevated` (`ABACEnforcedOutcome`): a denial overridden by a break-the-glass elevation, the request proceeds | the denial code | `Success` | `abac.enforced` is `false`; `abac.elevation_id` holds the elevation id |
 
-`ABACDecisionAuditOptions.Outcomes` selects which of Granted, Denied and NotEnforced are recorded (default all). A filter never hides an error: an indeterminate decision, an evaluation failure and an unauthenticated caller are recorded whenever the audit is enabled.
+`ABACDecisionAuditOptions.Outcomes` selects which of Granted, Denied and NotEnforced are recorded (default all). A filter never hides an error: an indeterminate decision, an evaluation failure and an unauthenticated caller are recorded whenever the audit is enabled. A `DeniedElevated` decision is recorded the same way, whatever `Outcomes` selects: `ABACDecisionAuditOutcomes.Elevated` only keeps `ABACDecisionAuditOutcomes.All` complete.
 
 ### Never stored
 
@@ -119,7 +121,7 @@ Marten caveat: the Marten store reads through an asynchronous projection, so the
 | Method | Returns |
 |--------|---------|
 | `QueryAsync(ABACDecisionAuditQuery, CancellationToken)` | `Either<EncinaError, PagedResult<ABACDecisionAuditRecord>>`, newest first |
-| `ExportAsync(ABACDecisionAuditQuery, Stream, CancellationToken)` | `Either<EncinaError, int>`: the number of decisions written as JSON Lines (UTF-8, one `ABACDecisionAuditRecord` per line, schema `encina.abac.decision/1`). The stream is not closed. |
+| `ExportAsync(ABACDecisionAuditQuery, Stream, CancellationToken)` | `Either<EncinaError, int>`: the number of decisions written as JSON Lines (UTF-8, one `ABACDecisionAuditRecord` per line, schema `encina.abac.decision/2`). The stream is not closed. |
 
 A stored entry whose metadata cannot be read back makes `QueryAsync` and `ExportAsync` return a `Left` with `abac.decision_audit_record_unreadable` (logged with EventId 9098, exception type and stack trace only), never an exception.
 

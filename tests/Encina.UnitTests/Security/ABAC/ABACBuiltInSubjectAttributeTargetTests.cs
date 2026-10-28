@@ -127,6 +127,7 @@ public sealed class ABACBuiltInSubjectAttributeTargetTests
             Compiler,
             Options.Create(new ABACOptions { EnforcementMode = ABACEnforcementMode.Block }),
             Substitute.For<global::Encina.Security.ABAC.DecisionAudit.IABACDecisionRecorder>(),
+            new NoAccessElevationGate(),
             TimeProvider.System,
             NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
     }

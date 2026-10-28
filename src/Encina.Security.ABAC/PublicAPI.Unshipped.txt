@@ -29,7 +29,7 @@ Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.Denied = 2 -> Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.Granted = 1 -> Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.None = 0 -> Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes
-Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.All = Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.Granted | Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.Denied | Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.NotEnforced -> Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.All = Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.Granted | Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.Denied | Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.NotEnforced | Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.Elevated -> Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.NotEnforced = 4 -> Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditFailureMode
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditFailureMode.BestEffort = 1 -> Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditFailureMode
@@ -64,7 +64,7 @@ Encina.Security.ABAC.ABACOptions.UsePersistentPAP.set -> void
 Encina.Security.ABAC.ABACOptions.UseXacmlXmlSerializer() -> Encina.Security.ABAC.ABACOptions!
 Encina.Security.ABAC.ABACOptions.RegisterXacmlXmlSerializer() -> Encina.Security.ABAC.ABACOptions!
 Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>
-Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.ABACPipelineBehavior(Encina.Security.ABAC.IPolicyDecisionPoint! pdp, Encina.Security.ABAC.IAttributeProvider! attributeProvider, Encina.Security.ABAC.ObligationExecutor! obligationExecutor, Encina.Security.ABAC.EEL.EELCompiler! eelCompiler, Microsoft.Extensions.Options.IOptions<Encina.Security.ABAC.ABACOptions!>! options, Encina.Security.ABAC.DecisionAudit.IABACDecisionRecorder! decisionRecorder, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>!>! logger, Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditHealthState? healthState = null) -> void
+Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.ABACPipelineBehavior(Encina.Security.ABAC.IPolicyDecisionPoint! pdp, Encina.Security.ABAC.IAttributeProvider! attributeProvider, Encina.Security.ABAC.ObligationExecutor! obligationExecutor, Encina.Security.ABAC.EEL.EELCompiler! eelCompiler, Microsoft.Extensions.Options.IOptions<Encina.Security.ABAC.ABACOptions!>! options, Encina.Security.ABAC.DecisionAudit.IABACDecisionRecorder! decisionRecorder, Encina.IAccessElevationGate! elevationGate, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>!>! logger, Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditHealthState? healthState = null) -> void
 Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Security.ABAC.ABACSubjectAttributes
 Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint
@@ -960,7 +960,7 @@ Encina.Security.ABAC.DecisionAudit.ABACDecisionRecord.UserId.get -> string?
 Encina.Security.ABAC.DecisionAudit.ABACDecisionRecord.UserId.init -> void
 Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditSchema
 const Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditSchema.Action = "ABACDecision" -> string!
-const Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditSchema.SchemaVersion = "encina.abac.decision/1" -> string!
+const Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditSchema.SchemaVersion = "encina.abac.decision/2" -> string!
 const Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditSchema.PermitReasonCode = "abac.permit" -> string!
 const Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditSchema.MetadataSchema = "abac.schema" -> string!
 const Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditSchema.MetadataStage = "abac.stage" -> string!
@@ -1102,3 +1102,10 @@ Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.CompletedAtUtc.init -
 Encina.Security.ABAC.DecisionAudit.IABACDecisionAuditReader
 Encina.Security.ABAC.DecisionAudit.IABACDecisionAuditReader.QueryAsync(Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery! query, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Security.Audit.PagedResult<Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord!>!>>
 Encina.Security.ABAC.DecisionAudit.IABACDecisionAuditReader.ExportAsync(Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditQuery! query, System.IO.Stream! destination, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes.Elevated = 8 -> Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditOutcomes
+Encina.Security.ABAC.DecisionAudit.ABACEnforcedOutcome.DeniedElevated = 3 -> Encina.Security.ABAC.DecisionAudit.ABACEnforcedOutcome
+Encina.Security.ABAC.DecisionAudit.ABACDecisionRecord.ElevationId.get -> System.Guid?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionRecord.ElevationId.init -> void
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.ElevationId.get -> System.Guid?
+Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditRecord.ElevationId.init -> void
+const Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditSchema.MetadataElevationId = "abac.elevation_id" -> string!
