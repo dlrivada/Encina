@@ -114,7 +114,7 @@ public sealed class SqlServerDistributedLockAcquireIntegrationTests
         // Arrange
         var resource = NewResource();
         var holder = await _provider.AcquireAsync(resource, Expiry, CancellationToken.None);
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 
         // Act
         var ex = await Should.ThrowAsync<LockAcquisitionException>(
@@ -135,7 +135,7 @@ public sealed class SqlServerDistributedLockAcquireIntegrationTests
         // Arrange
         var resource = NewResource();
         var holder = await _provider.AcquireAsync(resource, Expiry, CancellationToken.None);
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 
         // Act
         var thrown = await Should.ThrowAsync<Exception>(
