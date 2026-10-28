@@ -489,7 +489,9 @@ A file counts as assigned to a flag when either condition holds:
 - the flag is in the file's `override` (or in `defaultTests` when there is no override);
 - the flag has a per-file target in the file's entry, even a target of 0.
 
-The check skips a package without a manifest, a generated file (path under `/obj/` or ending in `.g.cs`), a file with no executed line, and a file the manifest excludes on purpose (an empty `override` and no targets).
+A per-file target silences the check and puts the pair in the "Per-file targets" table, but it does not widen the package row. The package row changes only through the `override` (or `defaultTests`); to make the lines count in the package row, change the `override`.
+
+The check skips a package without a manifest, a generated file (path under `/obj/` or ending in `.g.cs`), a file with no executed line, and a file the manifest excludes on purpose (an empty `override`, whatever its targets say).
 
 ### Run it
 
@@ -525,7 +527,7 @@ FLAG ASSIGNMENT: 33 file/flag pair(s) execute lines under a flag the manifest do
 |---|---|
 | 0 | No file reaches `--min-lines`, including when nothing is unassigned |
 | 1 | At least one file reaches `--min-lines` |
-| 1 | The check cannot run: no manifest loaded, a manifest failed to parse, no Cobertura data found, input folder missing, invalid `--min-lines`, or combined with another `--check-*` mode (it runs as its own step) |
+| 1 | The check cannot run: no manifest loaded, a manifest or a Cobertura report failed to parse, no Cobertura data or no executable source lines found, input folder missing, invalid `--min-lines` (including no value), or combined with another `--check-*` mode (it runs as its own step) |
 
 ### Fix a gap
 
@@ -541,11 +543,11 @@ flowchart TD
     F --> G
 ```
 
-1. If the tests are real, assign the flag in the manifest entry: add it to the `override`, or give the file a per-file target for the flag with a one-sentence justification. A target alone also assigns the flag.
+1. If the tests are real, assign the flag in the manifest entry: add it to the `override`; that is what changes the package row. A per-file target with a one-sentence justification silences the check and adds a per-file obligation, but leaves the package row as it is.
 2. If the executed lines come only from reflection-only or incidental tests, replace them with tests that exercise the file's behaviour, or leave the file unassigned when the incidental execution is not an obligation.
 3. Re-run the check.
 
-Worked example: [#2920](https://github.com/dlrivada/Encina/issues/2920) and [PR #2924](https://github.com/dlrivada/Encina/pull/2924). In `Encina.Compliance.Consent` the contract, guard and property rows read 0 or low because the tests executed files the manifest did not assign to those flags. The fix was real tests for the assigned files plus per-file targets, justifications and overrides.
+Worked example: [#2920](https://github.com/dlrivada/Encina/issues/2920) and [PR #2924](https://github.com/dlrivada/Encina/pull/2924). In `Encina.Compliance.Consent` the contract, guard and property rows read 0 or low because the tests executed files the manifest did not assign to those flags. The fix was real tests for the assigned files, overrides that assign the flags (these change the package rows), and per-file targets with justifications (these add per-file obligations).
 
 The check is not wired into CI yet ([#2935](https://github.com/dlrivada/Encina/issues/2935)). Running it over all candidate pairs and fixing them is [#2936](https://github.com/dlrivada/Encina/issues/2936).
 
