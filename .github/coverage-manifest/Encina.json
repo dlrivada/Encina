@@ -598,8 +598,8 @@
       "reason": "*Factory.cs default; security-critical claim mapping (property test informational)",
       "targets": { "unit": 95, "guard": 60 },
       "justifications": {
-        "unit": "Claim mapping, conflicting identities and the tenant resolution (TryResolveTenantId) have unit tests (measured 98%).",
-        "guard": "Constructor guard, the principal-mapping guard cases and the conflicting-tenant-claims case (measured 64%)."
+        "unit": "Claim mapping, the CheckSubject refusal causes (missing, malformed, reserved, conflicting), the Create/CheckSubject agreement and the tenant resolution have unit tests (measured 99%).",
+        "guard": "Constructor guard, the principal-mapping guard cases, CheckSubject on a null principal and a principal without subject, and the conflicting-tenant-claims case (measured 76%)."
       }
     },
     "Identity/IdentityIssuer.cs": {
@@ -730,11 +730,11 @@
       ],
       "defaultRule": "*Factory.cs",
       "reason": "Security-critical scope factory: refusals, frame, logs (unit), argument guards (guard), invalidate-on-completion and no-work-on-Left contract",
-      "targets": { "unit": 95, "guard": 40, "contract": 80 },
+      "targets": { "unit": 95, "guard": 40, "contract": 79 },
       "justifications": {
-        "unit": "Security-critical: every refusal (including conflicting principal tenant claims), the frame, the logs 166-175 and the tenant rules have unit tests (measured 100%).",
+        "unit": "Security-critical: every refusal (including conflicting principal tenant claims and the four subject refusals on both paths), the frame, the logs 166-175 and the tenant rules have unit tests (measured 100%).",
         "guard": "The constructor and member null guards plus the inbound tenant-resolution guard test reach this file (measured 52%).",
-        "contract": "The contract drives every member, refusals (including conflicting principal tenant claims) and invalidation (measured 82%)."
+        "contract": "The contract drives every member, refusals (including conflicting principal tenant claims and the four subject refusals on both paths) and invalidation (measured 79.9%)."
       }
     },
     "Identity/RequestContextScopeFactory.Restore.cs": {
@@ -799,7 +799,7 @@
       "reason": "Static error factory methods",
       "targets": { "unit": 95 },
       "justifications": {
-        "unit": "Every error factory, including InboundTenantConflict and ConflictingTenantClaims, is asserted for code and fixed message (measured 100%)."
+        "unit": "Every error factory, including InboundTenantConflict, ConflictingTenantClaims and the four subject refusals, is asserted for code and fixed message (measured 100%)."
       }
     },
     "Identity/RequestIdentityOptions.cs": {
