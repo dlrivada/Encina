@@ -1,4 +1,5 @@
 using Encina.DomainModeling;
+using Encina.IntegrationTests.Infrastructure.MongoDB.ReadWriteSeparation;
 using Encina.MongoDB;
 using Encina.MongoDB.Repository;
 using Encina.MongoDB.UnitOfWork;
@@ -16,30 +17,22 @@ namespace Encina.IntegrationTests.Infrastructure.MongoDB.UnitOfWork;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <strong>IMPORTANT:</strong> MongoDB transactions require a replica set configuration.
-/// The default MongoDB container does not support transactions. These tests will be
-/// skipped if the MongoDB instance does not support transactions.
-/// </para>
-/// <para>
-/// To run these tests locally, use MongoDB with replica set enabled:
-/// <code>
-/// docker run -d -p 27017:27017 --name mongodb-replica mongo:7 --replSet rs0
-/// docker exec -it mongodb-replica mongosh --eval "rs.initiate()"
-/// </code>
+/// MongoDB transactions require a replica set, so these tests run on the shared single-node replica set
+/// fixture (<c>MongoDB-ReplicaSet</c> collection).
 /// </para>
 /// </remarks>
-[Collection(MongoDbTestCollection.Name)]
+[Collection(MongoDbReplicaSetCollection.Name)]
 [Trait("Category", "Integration")]
 [Trait("Database", "MongoDB")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable", Justification = "Disposal handled by IAsyncLifetime.DisposeAsync")]
 public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
 {
-    private readonly MongoDbFixture _fixture;
+    private readonly MongoDbReplicaSetFixture _fixture;
     private IMongoCollection<TestUoWDocument>? _collection;
     private UnitOfWorkMongoDB? _unitOfWork;
     private IServiceProvider? _serviceProvider;
 
-    public UnitOfWorkMongoDBIntegrationTests(MongoDbFixture fixture)
+    public UnitOfWorkMongoDBIntegrationTests(MongoDbReplicaSetFixture fixture)
     {
         _fixture = fixture;
     }
@@ -62,7 +55,7 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
         };
         services.AddSingleton(repositoryOptions);
 
-        var mongoOptions = Options.Create(new EncinaMongoDbOptions { DatabaseName = MongoDbFixture.DatabaseName });
+        var mongoOptions = Options.Create(new EncinaMongoDbOptions { DatabaseName = MongoDbReplicaSetFixture.DatabaseName });
         services.AddSingleton(mongoOptions);
         _serviceProvider = services.BuildServiceProvider();
 
@@ -108,7 +101,7 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
 
     #region Transaction Commit Tests
 
-    [Fact(Skip = "Requires MongoDB replica set for transactions")]
+    [Fact]
     public async Task Transaction_CommitMultipleEntities_AllPersisted()
     {
         SkipIfNotAvailable();
@@ -136,7 +129,7 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
         count.ShouldBe(3);
     }
 
-    [Fact(Skip = "Requires MongoDB replica set for transactions")]
+    [Fact]
     public async Task Transaction_ModifyEntities_ChangesPersisted()
     {
         SkipIfNotAvailable();
@@ -168,7 +161,7 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
 
     #region Transaction Rollback Tests
 
-    [Fact(Skip = "Requires MongoDB replica set for transactions")]
+    [Fact]
     public async Task Transaction_Rollback_NoChangesPersisted()
     {
         SkipIfNotAvailable();
@@ -192,7 +185,7 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
         count.ShouldBe(0);
     }
 
-    [Fact(Skip = "Requires MongoDB replica set for transactions")]
+    [Fact]
     public async Task Transaction_RollbackAfterModify_OriginalValuePreserved()
     {
         SkipIfNotAvailable();
@@ -223,7 +216,7 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
 
     #region Auto-Rollback on Dispose Tests
 
-    [Fact(Skip = "Requires MongoDB replica set for transactions")]
+    [Fact]
     public async Task Dispose_WithUncommittedTransaction_AutoRollback()
     {
         SkipIfNotAvailable();
@@ -268,7 +261,7 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
 
     #region Transaction State Tests
 
-    [Fact(Skip = "Requires MongoDB replica set for transactions")]
+    [Fact]
     public async Task BeginTransaction_SetsHasActiveTransactionTrue()
     {
         SkipIfNotAvailable();
@@ -284,7 +277,7 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
         _unitOfWork.HasActiveTransaction.ShouldBeTrue();
     }
 
-    [Fact(Skip = "Requires MongoDB replica set for transactions")]
+    [Fact]
     public async Task Commit_ClearsHasActiveTransaction()
     {
         SkipIfNotAvailable();
@@ -300,7 +293,7 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
         _unitOfWork.HasActiveTransaction.ShouldBeFalse();
     }
 
-    [Fact(Skip = "Requires MongoDB replica set for transactions")]
+    [Fact]
     public async Task Rollback_ClearsHasActiveTransaction()
     {
         SkipIfNotAvailable();
@@ -316,7 +309,7 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
         _unitOfWork.HasActiveTransaction.ShouldBeFalse();
     }
 
-    [Fact(Skip = "Requires MongoDB replica set for transactions")]
+    [Fact]
     public async Task BeginTransaction_WhenAlreadyActive_ReturnsError()
     {
         SkipIfNotAvailable();
@@ -385,7 +378,7 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
 
     #region Complex Workflow Tests
 
-    [Fact(Skip = "Requires MongoDB replica set for transactions")]
+    [Fact]
     public async Task ComplexWorkflow_MultipleOperations_CommitPreservesAll()
     {
         SkipIfNotAvailable();
