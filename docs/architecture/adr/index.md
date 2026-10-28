@@ -55,6 +55,7 @@ has_children: true
 | [055](055-resilience-family.md) | The Resilience Family: One Package, One Engine, One Retry Owner (Accepted) |
 | [056](056-mutation-testing-scope.md) | Mutation Testing Scope: A Risk-Based List That Only Grows, Toward All Packages (Accepted) |
 | [057](057-verifactu-boundary.md) | The Verifactu Boundary: Regulation-Neutral Primitives Only (Accepted) |
+| [058](058-encina-cli-command-architecture.md) | Encina.Cli Command Architecture: An In-App Command Host and One Command Contract (Accepted) |
 
 ## Reserved numbers
 
