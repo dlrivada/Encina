@@ -471,6 +471,14 @@ services.AddEncinaDurableFunctions(options =>
 
 *Auto-generated from benchmark data. See [methodology](../../docs/testing/performance-measurement-methodology.md).*
 
+## Testing
+
+Encina tests cloud features only locally, never against the real cloud. If you run this package in production, you do so under your own responsibility and risk.
+
+The package is tested in process. The tests in `tests/Encina.IntegrationTests/Cloud/AzureFunctions` use concrete `Microsoft.Azure.Functions.Worker` types (a function context, HTTP request and response data, and a worker application builder) to drive `EncinaFunctionMiddleware`, `FunctionContextExtensions`, `HttpResponseDataExtensions`, the health check and `AddEncinaAzureFunctions` with a real `IEncina` pipeline.
+
+Durable Functions (the `Durable/*` types, such as `DurableSagaBuilder` and the fan-out/fan-in and orchestration helpers) are not tested on a real Functions host, so their use is your responsibility. The [justification](../../tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md) explains why. A local-only follow-up with a real Functions host and Azurite is planned.
+
 ## Best Practices
 
 1. **Always use the middleware** for consistent context propagation
