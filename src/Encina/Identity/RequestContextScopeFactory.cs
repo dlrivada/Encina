@@ -130,6 +130,7 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
         var tenantResolved = _identityFactory.TryResolveTenantId(principal, out var principalTenant);
         var overInbound = false;
         var refusal = Precheck(cancellationToken);
+        refusal ??= _identityFactory.CheckSubject(principal);
         refusal ??= CheckPrincipalTenant(tenantResolved, principalTenant, scopeOptions.TenantId, requestedKind);
         refusal ??= CheckChain(requestedKind, scopeOptions.AllowOverInbound, out overInbound);
 
@@ -162,12 +163,14 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
         ArgumentNullException.ThrowIfNull(work);
 
         // Client-controlled members are normalized below, never refused: the refusals are host or
-        // transport conditions and one tenant ambiguity (a header that disagrees with the tenant claim,
-        // or conflicting tenant claims). A connection marker permits one inbound scope per activity.
+        // transport conditions and the ambiguities of an authenticated principal (no, malformed,
+        // reserved or conflicting subject; a tenant header that disagrees with the tenant claim, or
+        // conflicting tenant claims). A connection marker permits one inbound scope per activity.
         var requestedKind = RequestedKindOf(request.Principal);
         var refusal = Precheck(cancellationToken)
             ?? CheckChain(requestedKind, inboundOptIn: false, out _, connectionPermitted: true);
         string? tenantId = null;
+        refusal ??= _identityFactory.CheckSubject(request.Principal);
         refusal ??= ResolveInboundTenant(request, out tenantId);
         if (refusal is not null)
         {

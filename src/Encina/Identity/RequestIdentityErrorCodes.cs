@@ -57,6 +57,31 @@ public static class RequestIdentityErrorCodes
     public const string ConflictingTenantClaims = "encina.identity.conflicting_tenant_claims";
 
     /// <summary>
+    /// A scope is refused because an authenticated principal carries no usable subject: none of the
+    /// configured user-id claim types has a non-blank value on any authenticated identity.
+    /// </summary>
+    public const string MissingSubjectClaim = "encina.identity.missing_subject_claim";
+
+    /// <summary>
+    /// A scope is refused because the subject of an authenticated principal is not a valid user id
+    /// (blank, surrounding whitespace, or control or format characters).
+    /// </summary>
+    public const string MalformedSubjectClaim = "encina.identity.malformed_subject_claim";
+
+    /// <summary>
+    /// A scope is refused because the subject of an authenticated principal starts with the reserved
+    /// <c>service:</c> prefix, which only Encina service identities may carry.
+    /// </summary>
+    public const string ReservedSubjectClaim = "encina.identity.reserved_subject_claim";
+
+    /// <summary>
+    /// A scope is refused because the authenticated identities of a principal carry different subject
+    /// values (across identities, or several values of the winning claim type in one identity), so
+    /// the caller is ambiguous.
+    /// </summary>
+    public const string ConflictingSubjectClaims = "encina.identity.conflicting_subject_claims";
+
+    /// <summary>
     /// The registered <see cref="IRequestContextAccessor"/> is not the default
     /// <see cref="RequestContextAccessor"/>, so an identity scope would write to a store the
     /// dispatcher never reads.
