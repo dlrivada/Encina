@@ -132,6 +132,34 @@ public sealed class TransactionalOutboxRegistrationTests
             .ShouldNotContain(p => p is OutboxPostProcessor<ProbeRequest, string>);
     }
 
+    // The tenancy entry point (#718): it builds with ValidateOnBuild + ValidateScopes and shares one scoped
+    // session accessor as the neutral lease source.
+    [Fact]
+    public void MongoDbWithTenancy_BuildsWithValidationAndSharesOneSessionAccessor()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncina();
+        services.AddSingleton(Substitute.For<global::Encina.Tenancy.ITenantProvider>());
+        services.AddSingleton(Substitute.For<global::Encina.Tenancy.ITenantStore>());
+        global::Encina.MongoDB.Tenancy.TenancyServiceCollectionExtensions.AddEncinaMongoDBWithTenancy(services, options =>
+        {
+            options.ConnectionString = "mongodb://localhost:27017";
+            options.DatabaseName = "probe";
+            options.UseOutbox = true;
+            options.CreateIndexes = false;
+        });
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        using var scope = provider.CreateScope();
+        var sp = scope.ServiceProvider;
+
+        var accessor = sp.GetRequiredService<global::Encina.MongoDB.Transactions.IMongoSessionAccessor>();
+        sp.GetRequiredService<ITransactionLeaseSource>().ShouldBeSameAs(accessor);
+        sp.GetRequiredService<global::Encina.MongoDB.Transactions.IMongoSessionAccessor>().ShouldBeSameAs(accessor);
+    }
+
     [Fact]
     public async Task MongoDb_AddEncinaUnitOfWorkAlone_RegistersTheAccessorOnceAndResolvesTheUnitOfWork()
     {

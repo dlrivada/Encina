@@ -69,7 +69,7 @@ EF Core requirements: the context type has a public constructor taking `DbContex
   - Under a repeatable-read or serializable `[Transaction]`, the lock taken by the lookup on the business connection can block an independent write until the command timeout.
   - The ADO.NET `UnitOfWorkADO` is visible to the inbox since the amendment of 2026-10-20, and the Dapper `UnitOfWorkDapper` since 2026-10-21 (see the note under Status).
   - A request outside every transaction (an EF Core request that has neither `ITransactionalCommand`, `[Transaction]` nor `IHasNotifications` with the outbox on, or a MongoDB request without `IHasNotifications`, since MongoDB has no transaction behavior) has no atomic processed mark: a crash between the handler's writes and `MarkAsProcessedAsync` re-runs the handler.
-  - Known limit, duplicate delivery: for an idempotent request that implements `IHasNotifications`, the outbox behavior is outside the inbox behavior, so on a duplicate delivery it still writes the request's notifications even though the handler is answered from the inbox cache. This is filed as a follow-up.
+  - Known limit, duplicate delivery: for an idempotent request that implements `IHasNotifications`, the outbox behavior is outside the inbox behavior, so on a duplicate delivery it still writes the request's notifications even though the handler is answered from the inbox cache. This is tracked in [#2559](https://github.com/dlrivada/Encina/issues/2559).
   - The pool-size and repeatable-read limits above apply to every EF Core outbox request too, because it now runs in a transaction.
   - Concurrent redeliveries of one message are not serialized; `MaxRetries` holds for sequential deliveries.
 

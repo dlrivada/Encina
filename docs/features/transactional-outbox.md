@@ -228,10 +228,11 @@ The codes are the constants of `TransactionErrors`. A failed outbox write return
 ## Limits
 
 - All ten database providers write inside the transaction today (table above).
+- A committed request leaves one outbox row per notification per delivery of the request. A duplicate delivery of an idempotent request still writes its notifications again until [#2559](https://github.com/dlrivada/Encina/issues/2559) is fixed.
 - MongoDB: a replica set or a sharded cluster is required.
 - MongoDB: the server's transaction lifetime limit (60 seconds by default) and write conflicts (`TransientTransactionError`) now apply to every request that implements `IHasNotifications`.
 - MongoDB: a client configured with read concern `available` or `linearizable` is rejected by the server inside a transaction. Encina sets only the read preference (primary) and inherits the read and write concern from the client.
-- MongoDB: stores outside the session do not fail, they escape it silently: the default, soft-delete and tenant repositories, bulk operations, the dead-letter store, audit, anonymization and ABAC stores ([#1934](https://github.com/dlrivada/Encina/issues/1934)). Use the unit-of-work repository or `IMongoSessionAccessor.CurrentSession` for writes that must be atomic with the outbox.
+- MongoDB: stores outside the session do not fail, they escape it silently: the default, soft-delete and tenant repositories, bulk operations, the dead-letter store, audit, anonymization and ABAC stores ([#2987](https://github.com/dlrivada/Encina/issues/2987), [#1934](https://github.com/dlrivada/Encina/issues/1934)). Use the unit-of-work repository or `IMongoSessionAccessor.CurrentSession` for writes that must be atomic with the outbox.
 - MongoDB: mixing EF Core and MongoDB in one host registers the first `ITransactionLeaseSource` only; the first registration wins ([#2709](https://github.com/dlrivada/Encina/issues/2709)).
 - MongoDB: the inbox reads (`GetMessageAsync`, `GetExpiredMessagesAsync`) run outside the session; see [ADR-048](../architecture/adr/048-inbox-record-vs-business-transaction.md).
 - EF Core: a retrying execution strategy refuses a transaction Encina would begin (`transaction.not_supported`, above).

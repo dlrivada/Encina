@@ -56,8 +56,8 @@ public sealed class OutboxAtomicityMongoDBTests : IAsyncLifetime
         row.Response.ShouldNotBeNull();
 
         // A second delivery of the same id is answered from the inbox: the handler does not run again. (The outer
-        // outbox behavior still writes the request's notifications for it; that is a finding filed as a follow-up
-        // issue and is not asserted here.)
+        // outbox behavior still writes the request's notifications for it; that is tracked in #2559
+        // and is not asserted here.)
         (await SendIdempotentAsync(provider, Mode.Commit, key)).ShouldBeRight();
         (await CountAsync()).Business.ShouldBe(1L);
     }

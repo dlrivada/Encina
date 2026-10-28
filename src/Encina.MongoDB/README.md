@@ -159,7 +159,7 @@ With `UseOutbox = true`, a request that implements `IHasNotifications` writes it
 - **Replica set or sharded cluster required.** On a standalone server the request fails closed with `Left` `transaction.not_supported`; nothing is written without the transaction. A single-node replica set is enough for development.
 - **Tested versions.** The integration fixtures run `mongo:7` with MongoDB driver 3.12. No other server version is claimed.
 - **Health check.** When `UseOutbox` is on, `MongoDbHealthCheck` reports `Unhealthy` on a standalone server and `Degraded` while the cluster type is not discovered; replica sets and sharded clusters are healthy.
-- **No `UseTransactions` option.** There is no transaction behavior for MongoDB; the outbox behavior begins the session itself, and `IUnitOfWork` covers explicit use.
+- **No `UseTransactions` option.** There is no transaction behavior for MongoDB; the outbox behavior begins the session itself, and `IUnitOfWork` covers explicit use ([#2988](https://github.com/dlrivada/Encina/issues/2988)).
 - **Transaction options.** Only the read preference (primary) is set; the read and write concern come from your `MongoClient`. A read concern of `available` or `linearizable` is rejected inside a transaction.
 - **Commit failures.** The commit is never retried by Encina; `transaction.commit_failed` carries the error label (`TransientTransactionError` or `UnknownTransactionCommitResult`) as metadata. The server's 60 second transaction lifetime and write conflicts apply to every request with notifications.
 
