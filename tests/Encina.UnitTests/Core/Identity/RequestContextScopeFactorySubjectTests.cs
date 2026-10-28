@@ -153,6 +153,30 @@ public sealed class RequestContextScopeFactorySubjectTests
     }
 
     [Fact]
+    public async Task ACancelledToken_WinsOverABadSubject_OnBothPaths()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        var bad = One(new Claim("email", "x"));
+
+        ShouldBeCode(await _host.Factory.RunAsPrincipalAsync(bad, ScopeTestHost.Capture, cancellationToken: cts.Token), EncinaErrorCodes.RequestCancelled);
+        ShouldBeCode(
+            await _host.Factory.RunInboundAsync(new InboundRequestInfo(bad), ScopeTestHost.Capture, cts.Token),
+            EncinaErrorCodes.RequestCancelled);
+        _host.EventIds.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task ABlankSubWithAValidOid_OpensTheScopeWithTheOidValue()
+    {
+        var principal = One(new Claim("sub", " "), new Claim(RequestIdentityOptions.ObjectIdentifierClaimType, "directory"));
+
+        var scope = (await _host.Factory.RunAsPrincipalAsync(principal, ScopeTestHost.Capture)).ShouldBeSuccess();
+
+        scope.Issued().UserId.ShouldBe("directory");
+    }
+
+    [Fact]
     public async Task AnUnsupportedAccessor_WinsOverABadSubject()
     {
         var factory = new RequestContextScopeFactory(

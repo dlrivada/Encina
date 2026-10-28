@@ -64,7 +64,7 @@ public static class RequestIdentityErrorCodes
 
     /// <summary>
     /// A scope is refused because the subject of an authenticated principal is not a valid user id
-    /// (blank, surrounding whitespace, or control or format characters).
+    /// (surrounding whitespace, or control or format characters; a blank value counts as missing).
     /// </summary>
     public const string MalformedSubjectClaim = "encina.identity.malformed_subject_claim";
 
