@@ -2,7 +2,7 @@
 
 > **Issue**: [#686](https://github.com/dlrivada/Encina/issues/686)
 > **Type**: Feature
-> **Complexity**: High (10 phases, 17 packages touched, ~95 files)
+> **Complexity**: High (12 phases, 19 packages touched, ~120 source and test files)
 > **Estimated Scope**: ~2,600-3,200 lines of production code + ~3,000-3,700 lines of tests
 > **Milestone**: v0.17.0 — Compliance Lifecycle
 > **Parent EPIC**: [#668](https://github.com/dlrivada/Encina/issues/668) — v0.13.0 Security & Compliance (the issue's parent epic)
@@ -64,6 +64,8 @@ The building blocks the resolver reads also exist:
 4. Every compliance enforcement point in the table above consults `IComplianceApplicability` after it has found its attribute and before it enforces (the module list is Design Choice 8).
 5. Every skip is logged, counted and recorded as an `OperationAuditEntry` through `Encina.Security.Audit`; a skip that cannot be recorded does not happen (Design Choice 15).
 
+**Deviations from the issue text**, each explained in the Design Choice named: the profile is a capability set and a regulation set instead of typed booleans, and `FullEnforcement()` is `Full()` (3); no `ComplianceEnforcementMode` enum (9); `ComplianceOrchestrationBehavior` owns the decision and its telemetry while each module keeps its own behavior, instead of replacing the module behaviors (7); `TenantInfo.Jurisdiction` is folded into `ApplicableRegulations` (12); registration is `AddEncinaComplianceApplicability` and coverage is per flag instead of a single 85% (18); the span attribute `subject.id` is dropped (REQ-062 forbids direct subject identifiers); the log messages are named `ProfileResolved`, `CapabilitySkipped` and `ResolutionFailed`; Resilience is N/A instead of Deferred because the built-in resolvers call nothing external (matrix row 6). The capability names (`ProcessingRestriction`, `Dpia`) differ from the sketches in #687 and #688; Next Steps updates those sketches.
+
 **Standards**: GDPR Art. 2, 3 (territorial scope), 5(2) (accountability), 24, 25 and 32; LOPDGDD (Ley Orgánica 3/2018) art. 1-2; SPEC-002 REQ-011, REQ-019, REQ-061, REQ-062, DEC-006, INV-003, INV-005; ISO 3166-1 alpha-2 for country codes. CCPA (Cal. Civ. Code §1798.100 et seq.) and LGPD (Lei 13.709/2018) are configuration targets, not built-in mappings (Design Choice 14).
 
 **Affected packages**: `Encina` (core contract), new `Encina.Compliance.Applicability`, `Encina.Tenancy`, the 14 gated compliance packages (`GDPR`, `Consent`, `DataSubjectRights`, `LawfulBasis`, `DataResidency`, `CrossBorderTransfer`, `Retention`, `Anonymization`, `BreachNotification`, `DPIA`, `ProcessorAgreements`, `PrivacyByDesign`, `NIS2`, `AIAct`), `Encina.Marten.GDPR`, `Encina.Security.Audit`. `Encina.AspNetCore` needs no change: the "HTTP-aware context builder" of the issue is the claim contributor of Phase 3, which reads `IRequestContext.Identity` and works for every host. `Encina.Compliance.Attestation` is never gated (Design Choice 8).
@@ -74,7 +76,7 @@ The building blocks the resolver reads also exist:
 
 ## Design Choices
 
-Eighteen choices. Eleven are Dilemmas with a recommendation that waits for the maintainer; seven are Settled or Trivial with a citation. Every `Verified:` line is pending until `adversarial-reviewer` has tried to break the choice.
+Twenty choices. Twelve are Dilemmas with a recommendation that waits for the maintainer; eight are Settled or Trivial with a citation. Every `Verified:` line is pending until `adversarial-reviewer` has tried to break the choice.
 
 <details>
 <summary><strong>1. Package Placement — core contract, new <code>Encina.Compliance.Applicability</code> package, contributors in the packages that own the data</strong></summary>
@@ -92,7 +94,7 @@ Eighteen choices. Eleven are Dilemmas with a recommendation that waits for the m
 ### Rationale
 
 - We recommend A because it is the only placement in which every enforcement point can ask the question without a new reference, and the resolver package stays as light as core. It follows the precedent of `IAccessElevationGate` in core with the implementation in `Encina.Security.BreakTheGlass` ([#1244 Design Choice 1](break-the-glass-implementation-plan-1244.md), maintainer decision of 2026-10-17).
-- The built-in resolvers read primitive context fields (`TenantCountry`, `SubjectCountry`, `RegionCode`, `SubscriptionTier`), and the packages that own `TenantInfo` and `Region` fill them through contributors registered by their own `AddEncina*` methods. Nothing is resolved unless `Encina.Compliance.Applicability` is registered.
+- The built-in resolvers read primitive context fields (`TenantCountry`, `SubjectCountry`, `RegionCountry`, `RegionInEea`, `SubscriptionTier`), and the packages that own `TenantInfo` and `Region` fill them through contributors registered by their own `AddEncina*` methods. Nothing is resolved unless `Encina.Compliance.Applicability` is registered.
 - B wins only for an application that uses no tenancy and no residency and wants a single package; C wins only if the maintainer accepts the Marten dependency for the tenant-aware resolver.
 
 **Class:** Dilemma
@@ -115,7 +117,8 @@ Eighteen choices. Eleven are Dilemmas with a recommendation that waits for the m
 ### Rationale
 
 - ROP is the project rule for every operation that can fail (AGENTS.md §3, ADR-001, ADR-006), and the dependent issues fix the signature: #687's "Current state" shows `ValueTask<Either<EncinaError, ComplianceProfile>> ResolveAsync(ComplianceContext context, CancellationToken ct)` and #688 is "simply another `IComplianceApplicabilityResolver`".
-- The context carries `TenantId`, `TenantCountry`, `TenantRegulations`, `SubscriptionTier`, `SubjectId`, `SubjectCountry`, `RegionCode`, `ModuleName`, `RequestType`, `Operation`, `DataCategories` (strings, so `PersonalDataCategory` names and application categories both fit), `RequestContext` and `Metadata`.
+- The context carries `TenantId`, `TenantCountry`, `TenantRegulations`, `SubscriptionTier`, `SubjectId`, `SubjectCountry` (the data subject's country, from an explicit source only), `CallerCountry` (the authenticated caller's country claim, never used for the GDPR Art. 3(2) test), `RegionCountry` and `RegionInEea` (from `Region.Country` and `Region.IsEEA`), `ModuleName`, `RequestType`, `Operation`, `DataCategories` (strings, so `PersonalDataCategory` names and application categories both fit), `RequestContext` and `Metadata`.
+- The rejection of option C depends on Design Choice 1: if the maintainer picks 1-C (a package that references Tenancy and DataResidency), a typed context becomes feasible and this choice must be re-checked.
 
 **Class:** Settled
 **Settled by:** AGENTS.md §3 (Railway Oriented Programming), ADR-001, ADR-006; the signature consumed by #687 and #688 (issue bodies)
@@ -183,7 +186,10 @@ Eighteen choices. Eleven are Dilemmas with a recommendation that waits for the m
 
 ### Rationale
 
-- "When context is missing (no `HttpContext`, tenant or principal) or a lookup fails, the gate denies; the only opt-out is explicit and logged" (AGENTS.md §3); SPEC-002 REQ-019 names subject resolution as a case that must fail closed. B is a silent weakening; a single-country application gets the same result by configuring the jurisdiction resolver with its country, which is explicit.
+- "When context is missing (no `HttpContext`, tenant or principal) or a lookup fails, the gate denies; the only opt-out is explicit and logged" (AGENTS.md §3); SPEC-002 REQ-019 names subject resolution as a case that must fail closed. B is a silent weakening; a single-country application gets the same result explicitly with `RegionBasedResolverOptions.AssumedSubjectCountry`, which is logged at start-up as an opt-out.
+- **When a resolver may narrow.** `RegionBasedComplianceResolver` is decisive only when the tenant country is known **and** the subject country or the region country is known (or `AssumedSubjectCountry` is set); otherwise it returns `Full`. `TenantAwareComplianceResolver` is decisive only when the tenant is known and has a tier or regulations. The composite unions decisive answers, so "free tier: retention only" is reachable only when the jurisdiction resolver is decisive as well; this is intended.
+- **No "abstain" result.** A resolver that lacks its input returns `Full`; it never abstains. If a resolver could abstain, the composite would union only the others, and a tier resolver would narrow a jurisdiction that nobody evaluated, which is the silent weakening AGENTS.md §3 forbids.
+- The caller's own country claim is `CallerCountry`, never `SubjectCountry`: staff acting on a patient's record are not the data subject, so a claim-derived value would look "known" and drop GDPR for an EU subject.
 - The health check (Phase 8) asserts the invariant: the configured resolver must return the full profile for an empty context.
 
 **Class:** Settled
@@ -220,7 +226,7 @@ Eighteen choices. Eleven are Dilemmas with a recommendation that waits for the m
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Each module asks `IComplianceApplicability.AppliesAsync(request, context, capability, ct)` after it has found its attribute; the package's implementation resolves once per request (scoped memo keyed by correlation id and request type) and records skips; `ComplianceOrchestrationBehavior` runs early, warms the memo, opens the `encina.compliance.orchestrate` span and tags the profile** | Works whatever the behavior order is (no dependency on #2184); requests without compliance attributes never resolve; modules stay independent packages | 14 behaviors change; each needs a skip test |
+| **A) Each module asks `IComplianceApplicability.AppliesAsync(request, context, capability, ct)` after it has found its attribute; the package's implementation resolves once per request instance (scoped memo, key in Design Choice 19) and records skips; `ComplianceOrchestrationBehavior` runs early, warms the memo, opens the `encina.compliance.orchestrate` span and tags the profile** | Works whatever the behavior order is (no dependency on #2184); requests without compliance attributes never resolve; modules stay independent packages | 14 behaviors change; each needs a skip test |
 | **B) One `ComplianceOrchestrationBehavior` that replaces the module behaviors and calls each module's check** | One place; one span | The orchestrator must reference all 14 packages, so installing it installs every module (pay-for-what-you-use, AGENTS.md §1); module behaviors lose their own registration and options |
 | **C) An early behavior resolves and stamps the profile on `IRequestContext.Metadata`; modules read the stamp** | No service call in modules | Depends on behavior order (#2184 open); metadata is application-writable, so a stamp could be forged |
 
@@ -228,7 +234,7 @@ Eighteen choices. Eleven are Dilemmas with a recommendation that waits for the m
 
 ### Rationale
 
-- We recommend A because it meets the acceptance criterion "`ComplianceOrchestrationBehavior` coordinates ALL compliance modules" by owning the decision and its telemetry, while each module keeps its attribute, options and enforcement mode. The memo pattern is the one `BreakTheGlassRequestGrants` uses for one grant per request (#1244 Phase 2).
+- We recommend A because each module keeps its attribute, options and enforcement mode, and no package has to reference all 14 modules. This is a **deviation** from the literal acceptance criterion "`ComplianceOrchestrationBehavior` coordinates ALL compliance modules": under A the behavior coordinates the *decision* (one resolution, one span, the skip records) but does not call the modules; the modules call the decision. The maintainer accepts or rejects that reading with this choice. The memo pattern is the one `BreakTheGlassRequestGrants` uses for one grant per request (#1244 Phase 2).
 - C wins once #2184 has a contract that guarantees the orchestration stage runs first and the stamp is an internal type; B wins only for an application that installs every module anyway.
 
 **Class:** Dilemma
@@ -273,7 +279,7 @@ Eighteen choices. Eleven are Dilemmas with a recommendation that waits for the m
 ### Rationale
 
 - We recommend A because the evidence model stays simple: every weakening is a recorded skip (Design Choice 15). Under A the issue's `ComplianceEnforcementMode` enum is not created.
-- B wins for a SaaS that rolls compliance out per tenant in Warn first; it then needs the mode-mapping table of Phase 4 and the debt issue on enum consistency (follow-up file `plan-686-enforcement-mode-registration-consistency.md`).
+- B wins for a SaaS that rolls compliance out per tenant in Warn first; it then needs a mode-mapping table added to Phases 4a-5b and the debt issue on enum consistency (follow-up file `plan-686-enforcement-mode-registration-consistency.md`).
 
 **Class:** Dilemma
 
@@ -374,18 +380,22 @@ Eighteen choices. Eleven are Dilemmas with a recommendation that waits for the m
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `RegionBasedComplianceResolver` ships one mapping: GDPR applies when the tenant (controller) country is in the EU/EEA (Art. 3(1)) or the subject or region is in the EU/EEA (Art. 3(2)); LOPDGDD is added when either country is `ES`; unknown → full profile; every other regulation comes from configuration (`MapCountry("BR", ComplianceRegulation.Lgpd, capabilities...)`)** | Encodes only law the project has researched (SPEC-002 covers EU and Spain); CCPA's California scope cannot be expressed with country codes anyway | An application in Brazil or California must configure its mapping |
+| **A) `RegionBasedComplianceResolver` ships one mapping: GDPR applies when the tenant (controller) country or the configured `OperatorCountry` (the application operator, a processor when it hosts other controllers) is in the EU/EEA (Art. 3(1)), or the subject or region is in the EU/EEA (Art. 3(2)); LOPDGDD is added when any of those countries is `ES`; NIS2 and AI Act capabilities are never removed by a country mapping; unknown → full profile; every other regulation comes from configuration (`MapCountry("BR", ComplianceRegulation.Lgpd, capabilities...)`)** | Encodes only law the project has researched (SPEC-002 covers EU and Spain); CCPA's California scope cannot be expressed with country codes anyway | An application in Brazil or California must configure its mapping; `OperatorCountry` must be configured to be decisive for an EU-hosted operator |
 | **B) Ship mappings for GDPR, CCPA and LGPD as in the issue's examples** | Works out of the box for the three examples | CCPA needs a US state (the `RegionRegistry` has one `US` region, `RegionRegistry.cs:205`); shipping legal mappings for laws outside SPEC-002 is unverified legal content, against INV-003 (defaults follow the applicable law on the verification date) |
 
 ### Chosen Option: **A — GDPR and LOPDGDD built in, everything else by configuration**
 
 ### Rationale
 
-- GDPR Art. 3(1) and 3(2) define the territorial scope, so the union of controller establishment and subject location is the only reading that does not under-apply it (the issue's "Non-EU tenant processing EU subject data → GDPR still applies"). SPEC-002 §3 is the regulatory table the project has verified; INV-003 forbids defaults that are not grounded in the applicable law.
-- The EU/EEA list is a copy of `RegionRegistry` (EU-27 and IS, LI, NO) inside the package; the duplication is recorded in the follow-up file `plan-686-single-source-eea-country-list.md`.
+- GDPR Art. 3(1) applies to processing "in the context of the activities of an establishment of a controller or a processor in the Union, regardless of whether the processing takes place in the Union or not"; Art. 3(2) to controllers or processors not established in the Union that offer goods or services to, or monitor the behaviour of, data subjects in the Union; Art. 3(3) to places where Member State law applies by virtue of public international law. The union of controller establishment, processor (operator) establishment and subject or region location is therefore the only reading that does not under-apply it (the issue's "Non-EU tenant processing EU subject data → GDPR still applies"). Art. 3(3) is not mapped (no country code expresses it); an application that needs it configures `MapCountry`.
+- `OperatorCountry` is an option, not a context field: a Spanish SaaS operator that hosts Brazilian tenants is an EU processor, so GDPR applies to its processing whatever the tenant's country. When `OperatorCountry` is not set and the tenant and subject are both non-EEA, the resolver narrows and the README warns about the processor case.
+- NIS2 (Art. 2-3, entity type and size) and the AI Act (Art. 2, including providers outside the Union) do not follow the data subject's country, so a country mapping never removes the `Nis2` or `AiAct` capability; `OutOfScopeProfile` defaults to `{ Nis2, AiAct }`, not `None` (INV-003).
+- The capabilities each regulation brings are one table in core (`ComplianceRegulationCapabilities`, Phase 1): `Gdpr` and `Lopdgdd` → every GDPR capability (`ProcessingActivity`, `Consent`, `LawfulBasis`, `ProcessingRestriction`, `DataResidency`, `CrossBorderTransfer`, `Retention`, `Anonymization`, `BreachDetection`, `Dpia`, `ProcessorAgreements`, `DataMinimization`, `CryptoShredding`, `ReadAuditing`); `Nis2` → `Nis2`; `AiAct` → `AiAct`; a configured regulation brings the capabilities its `MapCountry` call lists. Both built-in resolvers use the same table.
+- SPEC-002 §3 is the regulatory table the project has verified; INV-003 forbids defaults that are not grounded in the applicable law.
+- The region contributor passes `Region.IsEEA` (`Region.cs:77`) as `RegionInEea`; tenant, operator and subject country codes still need an EU/EEA list, which the package copies from `RegionRegistry` (EU-27 and IS, LI, NO); the duplication is recorded in the follow-up file `plan-686-single-source-eea-country-list.md`.
 
 **Class:** Settled
-**Settled by:** GDPR Art. 3; SPEC-002 INV-003 and §3 (regulatory table); LOPDGDD art. 1-2
+**Settled by:** GDPR Art. 3(1)-(3); NIS2 Directive (EU) 2022/2555 Art. 2-3; AI Act Regulation (EU) 2024/1689 Art. 2; SPEC-002 INV-003 and §3 (regulatory table); LOPDGDD art. 1-2
 **Verified:** pending
 
 </details>
@@ -420,7 +430,7 @@ Eighteen choices. Eleven are Dilemmas with a recommendation that waits for the m
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `CryptoShreddingEngine.ResolveWriteSubject` asks `IComplianceApplicability.AppliesAsync(ComplianceContext { SubjectId, TenantId, Operation = Write }, CryptoShredding)` with the same sync-over-async bridge `ISubjectKeyProvider` already uses (`CryptoShreddingEngine.cs:33-36`); a `Left`, an exception or no answer means encrypt; the read path accepts plaintext for a `[CryptoShredded]` property** | Meets the acceptance criterion; non-EU event streams avoid per-property encryption | A subject who later falls under GDPR keeps plaintext events that cannot be shredded; one more blocking call per write |
+| **A) `CryptoShreddingEngine` asks `IComplianceApplicability.AppliesAsync(ComplianceContext { SubjectId, TenantId, Operation = Write }, CryptoShredding)` with the same sync-over-async bridge `ISubjectKeyProvider` already uses (`CryptoShreddingEngine.cs:33-36`), after the forgotten-subject check; a `Left`, an exception or no answer means encrypt; a skipped value is written in an explicit, versioned clear-text envelope that the read path accepts, while a raw string still fails as malformed** | Meets the acceptance criterion; non-EU event streams avoid per-property encryption | A subject who later falls under GDPR keeps plaintext events that cannot be shredded; one more blocking call per write |
 | **B) Always encrypt; the profile is not consulted by the serializer** | Forgetting stays possible for every subject; no blocking call | The acceptance criterion lists crypto-shredding; no cost saving for out-of-scope subjects |
 | **C) Decide per document type at registration (`CryptoShreddingOptions.ApplicabilityScope`)** | No per-write cost | Not per subject or tenant, which is the point of the feature |
 
@@ -429,6 +439,7 @@ Eighteen choices. Eleven are Dilemmas with a recommendation that waits for the m
 ### Rationale
 
 - We recommend A because it is what the issue asks and the existing engine already bridges async key lookups; the irreversibility is documented in the README and the XML docs of `ComplianceCapability.CryptoShredding`, and the skip record (Design Choice 15) shows which subject's events were written in clear.
+- Two safety rules hold under A. (1) The forgotten-subject branch (`CryptoShreddingEngine.cs:94-98`, `GetWriteKey` then `WriteForgotten`) runs **before** the applicability question, so an erased subject is never written in clear. (2) Today the read path rejects any stored value that is not a `cs2:` token (`CryptoShreddingEngine.Read.cs:161-164`, `EnvelopeMalformed`), which is the tamper and downgrade detection; a skipped value is therefore written as a distinct clear-text envelope (prefix `csc1:` plus the JSON value), the reader accepts exactly that prefix, and a raw unprefixed string still fails as malformed. The "unreadable → malformed" tests stay as they are and gain one case for `csc1:`.
 - B wins for an application whose subjects may move into GDPR scope later (for example a US clinic that may open an EU office); the maintainer may prefer B as the safer default with A as an opt-in.
 
 **Class:** Dilemma
@@ -478,6 +489,49 @@ Eighteen choices. Eleven are Dilemmas with a recommendation that waits for the m
 
 </details>
 
+<details>
+<summary><strong>19. Memo Key — one answer per request instance and full context, never per correlation id</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Key the request-path memo on the request instance (reference identity, `ConditionalWeakTable<object, ComplianceProfile>` held by the scoped memo); key skip records on the built `ComplianceContext` value (tenant, subject, countries, request type, operation) plus the capability** | Two `Send` calls in one scope for two subjects never share an answer; the same request asked by several modules resolves once | A request object reused for two subjects (an anti-pattern) resolves once |
+| **B) Key on (correlation id, request type)** | Simple | One HTTP request, saga step or handler loop shares one correlation id (`RequestContext.cs:194`, copied at :93 and :235): the second subject reuses the first subject's "not applicable" and is skipped without a record |
+
+### Chosen Option: **A — Request instance for the answer, full context value for the skip record**
+
+### Rationale
+
+- B fails open: a handler that sends `RecordConsentCommand` for a Brazilian subject and then for a Spanish one in the same scope would skip Consent for the Spanish subject. AGENTS.md §3 and SPEC-002 INV-005 leave only A.
+
+**Class:** Settled
+**Settled by:** AGENTS.md §3 (compliance gates fail closed); SPEC-002 INV-005; `src/Encina/Core/RequestContext.cs:194` (correlation id shared across a scope)
+**Verified:** pending
+
+</details>
+
+<details>
+<summary><strong>20. Skip Records Outside a Request — de-duplication of background and serializer skips</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The background and serializer path takes a `skipKey` (retention record id, or tenant + subject for crypto-shredding) and records a skip at most once per key and capability per `SkipRecordWindow` (default 24 hours, in-memory per process); crypto-shredding also asks at most once per subject per serializer call scope** | Bounded audit volume: retention keeps returning the same expired, non-applicable records every cycle, and the serializer runs per `[CryptoShredded]` property | After a restart or on another host the same skip is recorded again (over-reports, never under-reports) |
+| **B) De-duplicate through the audit store (query before write)** | Exactly one record per key across hosts | A query per skip on the hot path; `OperationAuditQuery` has no metadata filter for the key |
+| **C) Record every consultation** | Simplest | One audit entry per record per cycle, forever, and one per property write in Marten |
+
+### Chosen Option: **A — In-memory window per key and capability** (recommended, pending the maintainer)
+
+### Rationale
+
+- We recommend A because duplicates only over-report, which the write-ahead pattern of #1244 Design Choice 6 already accepts, while C grows the audit store without bound. B wins for an application that must show exactly one record per skipped item to an auditor.
+
+**Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -495,18 +549,23 @@ All files in `src/Encina/Compliance/`, namespace `Encina.Compliance`.
 2. `ComplianceRegulation.cs` (public `readonly record struct`): `string Id` normalised to upper invariant and trimmed; `static Gdpr`, `Lopdgdd`, `Nis2`, `AiAct`, `Ccpa`, `Lgpd`; `static Either<EncinaError, ComplianceRegulation> Parse(string id)` (non-blank, `[A-Z0-9_-]{2,32}`); `ToString()` returns `Id`.
 3. `ComplianceOperation.cs` (public enum): `Unknown`, `Read`, `Write`, `Delete`, `Background`.
 4. `ComplianceProfile.cs` (public sealed record): `IReadOnlySet<ComplianceCapability> Capabilities`, `IReadOnlySet<ComplianceRegulation> Regulations`, `string ResolvedBy`; `bool Applies(ComplianceCapability capability)`; `bool IsFull`; `static ComplianceProfile Full(string resolvedBy)` (all enum values, cached frozen set), `static ComplianceProfile None(string resolvedBy)`; `ComplianceProfile Union(ComplianceProfile other)`; value equality over set contents.
-5. `ComplianceContext.cs` (public sealed record): `Type? RequestType`, `ComplianceOperation Operation`, `string? TenantId`, `string? TenantCountry`, `IReadOnlySet<string>? TenantRegulations`, `string? SubscriptionTier`, `string? SubjectId`, `string? SubjectCountry`, `string? RegionCode`, `string? ModuleName`, `IReadOnlySet<string>? DataCategories`, `IRequestContext? RequestContext`, `IReadOnlyDictionary<string, object?> Metadata` (empty by default); `ToString()` omits `SubjectId` and `Metadata`; `static ComplianceContext Empty`.
-6. `ComplianceContextBuilder.cs` (public sealed class): mutable builder the contributors fill; `Build()`; country codes normalised to ISO 3166-1 alpha-2 upper case, invalid values left `null` (unknown, Design Choice 5).
-7. `IComplianceApplicabilityResolver.cs`: `ValueTask<Either<EncinaError, ComplianceProfile>> ResolveAsync(ComplianceContext context, CancellationToken cancellationToken = default)`; XML docs state the invariants: unknown context returns the full profile; never throws for business outcomes.
-8. `IComplianceContextContributor.cs`: `int Order { get; }`, `ValueTask<Either<EncinaError, Unit>> ContributeAsync(ComplianceContextBuilder builder, IRequestContext? requestContext, CancellationToken cancellationToken)`.
-9. `IComplianceApplicability.cs`: `ValueTask<Either<EncinaError, bool>> AppliesAsync<TRequest>(TRequest request, IRequestContext context, ComplianceCapability capability, CancellationToken cancellationToken) where TRequest : notnull` (request path) and `ValueTask<Either<EncinaError, bool>> AppliesAsync(ComplianceContext context, ComplianceCapability capability, CancellationToken cancellationToken)` (background and serializer path).
+5. `ComplianceContext.cs` (public sealed record): `Type? RequestType`, `ComplianceOperation Operation`, `string? TenantId`, `string? TenantCountry`, `IReadOnlySet<string>? TenantRegulations`, `string? SubscriptionTier`, `string? SubjectId`, `string? SubjectCountry` (data subject only, from an explicit source), `string? CallerCountry` (caller's claim; never used for GDPR Art. 3(2)), `string? RegionCountry`, `bool? RegionInEea`, `string? ModuleName`, `IReadOnlySet<string>? DataCategories`, `IRequestContext? RequestContext`, `IReadOnlyDictionary<string, object?> Metadata` (empty by default); `ToString()` omits `SubjectId` and `Metadata`; `static ComplianceContext Empty`.
+6. `ComplianceContextBuilder.cs` (public sealed class): mutable builder the contributors fill; exposes the input `object? Request` and `Type? RequestType` read-only, so contributors can call extractors that need the request instance (`IDataSubjectIdExtractor.ExtractSubjectId<TRequest>(request, context)`, `IDataSubjectIdExtractor.cs:65`); `Build()`; country codes normalised to ISO 3166-1 alpha-2 upper case, invalid values left `null` (unknown, Design Choice 5).
+7. `IComplianceApplicabilityResolver.cs`: `ValueTask<Either<EncinaError, ComplianceProfile>> ResolveAsync(ComplianceContext context, CancellationToken cancellationToken = default)`; XML docs state the invariants: unknown context returns the full profile; a resolver never abstains; never throws for business outcomes.
+8. `IComplianceContextContributor.cs`: `int Order { get; }`, `ValueTask<Either<EncinaError, Unit>> ContributeAsync(ComplianceContextBuilder builder, IRequestContext? requestContext, CancellationToken cancellationToken)`; the request instance and type come from the builder (task 6).
+9. `IComplianceApplicability.cs`: `ValueTask<Either<EncinaError, bool>> AppliesAsync<TRequest>(TRequest request, IRequestContext context, ComplianceCapability capability, CancellationToken cancellationToken) where TRequest : notnull` (request path) and `ValueTask<Either<EncinaError, bool>> AppliesAsync(ComplianceContext context, ComplianceCapability capability, string skipKey, CancellationToken cancellationToken)` (background and serializer path; `skipKey` de-duplicates skip records per Design Choice 20). Under Design Choice 6 A the result is never `Left`.
+9a. `ComplianceRegulationCapabilities.cs` (public static): the regulation → capability table of Design Choice 14, used by both built-in resolvers and by #687.
+9b. `ComplianceAttributeRegistry.cs` (public sealed, singleton, `TryAddSingleton` in the defaults of task 13): `RegisterConsultPoint(ComplianceCapability capability, string pointName, Type? requestAttributeType = null)`; `bool IsGoverned(Type requestType)` cached per type. `IsGoverned` is an optimisation only (the orchestration behavior warms the memo for governed types); modules work the same whether or not it returns true. It lives in core so modules that reference only `Encina` can register.
+9c. `DataSubjectCountryAttribute.cs` (public, `AttributeTargets.Property`): marks the request property that holds the data subject's country (ISO 3166-1 alpha-2), the explicit source of `SubjectCountry` (Design Choice 5).
 10. `IComplianceDecisionRecorder.cs` and `ComplianceSkipRecord.cs` (sealed record: `ComplianceCapability Capability`, `ComplianceProfile Profile`, `string? RequestTypeName`, `string? TenantId`, `string CorrelationId`, `DateTimeOffset SkippedAtUtc`; no subject id): `ValueTask<Either<EncinaError, Unit>> RecordSkipAsync(ComplianceSkipRecord record, CancellationToken cancellationToken)`.
 11. `AlwaysEnforceComplianceResolver.cs` (public sealed): returns `Right(ComplianceProfile.Full(nameof(...)))`.
 12. `AlwaysAppliesComplianceApplicability.cs` (internal sealed): returns a cached completed `Right(true)` task; no resolution, no allocation.
 13. `ComplianceApplicabilityDefaults.cs` (public static): `IServiceCollection TryAddEncinaComplianceApplicabilityDefaults(this IServiceCollection services)` → `TryAddSingleton<IComplianceApplicability, AlwaysAppliesComplianceApplicability>()`; called from `AddEncina` (`src/Encina/Core/ServiceCollectionExtensions.cs:43`) and, in Phases 4-6, from every module's `AddEncina*` (registration completeness, AGENTS.md §3).
 14. `ComplianceApplicabilityErrors.cs` (public static, `EncinaErrors.Create`): `compliance.applicability_failed`, `compliance.invalid_regulation`, `compliance.skip_not_recorded`; messages are fixed strings without identifiers.
 15. `src/Encina/PublicAPI.Unshipped.txt`: every public symbol.
-16. Tests: `tests/Encina.UnitTests/Core/Compliance/` (profile set semantics, `Union`, `Full`/`None`, regulation parsing, builder normalisation, default applicability), `tests/Encina.GuardTests/Core/Compliance/`.
+16. `src/Encina/Encina.csproj`: `InternalsVisibleTo` for `Encina.Compliance.Applicability`, so Phase 2 can remove the internal default descriptor by implementation type (the BreakTheGlass precedent relies on the same grant).
+17. Tests: `tests/Encina.UnitTests/Core/Compliance/` (profile set semantics, `Union`, `Full`/`None`, regulation parsing, builder normalisation, regulation table, registry, default applicability), `tests/Encina.GuardTests/Core/Compliance/`, `tests/Encina.PropertyTests/Core/Compliance/` (union commutative, associative, idempotent, monotonic).
+18. `.github/coverage-manifest/Encina.json`: per-file, per-flag targets with justifications for every new file (AGENTS.md §9, #1762).
 
 </details>
 
@@ -524,9 +583,10 @@ CONTEXT:
 - Core registration: src/Encina/Core/ServiceCollectionExtensions.cs (AddEncina at line 43).
 
 TASK:
-Create the 14 files of the Phase 1 tasks in src/Encina/Compliance/ (namespace Encina.Compliance), call
-TryAddEncinaComplianceApplicabilityDefaults from AddEncina, update src/Encina/PublicAPI.Unshipped.txt, and write the
-unit and guard tests listed.
+Create the files of the Phase 1 tasks in src/Encina/Compliance/ (namespace Encina.Compliance), call
+TryAddEncinaComplianceApplicabilityDefaults from AddEncina, add the InternalsVisibleTo grant, update
+src/Encina/PublicAPI.Unshipped.txt and .github/coverage-manifest/Encina.json, and write the unit, guard and
+property tests listed.
 
 KEY RULES:
 - Sealed records with value equality over set contents (ComplianceProfile compares capability and regulation sets).
@@ -554,17 +614,19 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. `src/Encina.Compliance.Applicability/Encina.Compliance.Applicability.csproj` (`net10.0`, nullable, XML docs, PublicAPI analyzers; references only `Encina`; packages `Microsoft.Extensions.Options`, `Microsoft.Extensions.Logging.Abstractions`, `Microsoft.Extensions.Diagnostics.HealthChecks`); add to `Encina.slnx`; `PublicAPI.Shipped.txt` (empty) and `PublicAPI.Unshipped.txt`.
-2. `ComplianceApplicabilityOptions.cs`: resolver selection (`UseResolver<TResolver>()`, `UseRegionBasedResolver(Action<RegionBasedResolverOptions>?)`, `UseTenantAwareResolver(Action<TenantAwareResolverOptions>)`, `UseCompositeResolver(Action<CompositeResolverBuilder>)`), `bool AllowUnrecordedSkips = false`, `bool AddOrchestrationBehavior = true`, `bool AddHealthCheck = true`, `int FailureDegradedThreshold = 5`.
+2. `ComplianceApplicabilityOptions.cs`: resolver selection (`UseResolver<TResolver>()`, `UseRegionBasedResolver(Action<RegionBasedResolverOptions>?)`, `UseTenantAwareResolver(Action<TenantAwareResolverOptions>)`, `UseCompositeResolver(Action<CompositeResolverBuilder>)`), `bool AllowUnrecordedSkips = false`, `bool AddOrchestrationBehavior = true`, `bool AddHealthCheck = true`, `int FailureDegradedThreshold = 5`, `TimeSpan SkipRecordWindow = 24 h` (Design Choice 20).
 3. `ComplianceApplicabilityOptionsValidator : IValidateOptions<ComplianceApplicabilityOptions>` with `ValidateOnStart`: exactly one resolver selected; a composite has at least one child; every configured country code is ISO 3166-1 alpha-2; every regulation id parses.
-4. `Resolvers/RegionBasedComplianceResolver.cs` and `Resolvers/RegionBasedResolverOptions.cs`: Design Choice 14 mapping; `MapCountry(string countryCode, ComplianceRegulation regulation, params ComplianceCapability[] capabilities)`; `OutOfScopeProfile` (capabilities for a known country with no mapped regulation, default `None`); unknown → `Full`.
+4. `Resolvers/RegionBasedComplianceResolver.cs` and `Resolvers/RegionBasedResolverOptions.cs`: Design Choice 14 mapping over tenant, operator, subject and region countries (`RegionInEea` when present); `OperatorCountry`; `AssumedSubjectCountry` (explicit opt-out, logged at start-up); `MapCountry(string countryCode, ComplianceRegulation regulation, params ComplianceCapability[] capabilities)`; `OutOfScopeCapabilities` (capabilities kept for a known country with no mapped regulation, default `{ Nis2, AiAct }`); decisive only under the rule of Design Choice 5, otherwise `Full`; capabilities from `ComplianceRegulationCapabilities`.
 5. `Resolvers/EuropeanEconomicAreaCountries.cs` (internal): EU-27 plus IS, LI, NO (copy of `RegionRegistry.cs:55-146`, see follow-up file).
-6. `Resolvers/TenantAwareComplianceResolver.cs` and `TenantAwareResolverOptions.cs`: reads `TenantRegulations` and `SubscriptionTier`; `MapTier(string tier, params ComplianceCapability[] capabilities)`; regulations from the tenant add their default capability sets (`RegulationCapabilities` table: `Gdpr` → every GDPR capability, `Lopdgdd` → same, `Nis2` → `Nis2`, `AiAct` → `AiAct`); no tenant, unknown tier and no regulations → `Full`.
+6. `Resolvers/TenantAwareComplianceResolver.cs` and `TenantAwareResolverOptions.cs`: reads `TenantRegulations` and `SubscriptionTier`; `MapTier(string tier, params ComplianceCapability[] capabilities)`; regulations from the tenant add their capability sets from `ComplianceRegulationCapabilities` (Phase 1); no tenant, unknown tier and no regulations → `Full`.
 7. `Resolvers/CompositeComplianceResolver.cs`, `CompositeResolverBuilder.cs`, `ComplianceMergeStrategy.cs` (`MostRestrictive` default, `FirstDecisive` opt-in per Design Choice 11): children resolved in order; under `MostRestrictive` the result is the union and any child `Left` makes the composite `Left`.
-8. `Contributors/ClaimComplianceContextContributor.cs`: reads configurable claim types (`SubjectCountryClaimType`, default `"country"`) from `IRequestContext.Identity.Principal`; fills `SubjectCountry`; also fills `ModuleName` from `GetModuleName()` and `Operation` from `ICommand`/`IQuery` (`src/Encina/Abstractions/CqrsContracts.cs:29,60`).
-9. `ServiceCollectionExtensions.cs`: `AddEncinaComplianceApplicability(this IServiceCollection, Action<ComplianceApplicabilityOptions>?)`: options and validator; `TryAddSingleton(TimeProvider.System)`; the selected resolver (singleton); `TryAddEnumerable` the claim contributor; replaces the core `AlwaysAppliesComplianceApplicability` descriptor (by implementation type, never an application's own registration) with the Phase 3 service.
+8. `Contributors/RequestComplianceContextContributor.cs`: fills `RequestType`, `Operation` from the generic `ICommand<TResponse>` / `IQuery<TResponse>` interfaces (`src/Encina/Abstractions/CqrsContracts.cs:29,60`), `TenantId` and `ModuleName` from `GetModuleName()`, and `SubjectCountry` from the request property marked `[DataSubjectCountry]` (compiled accessor cached per request type).
+8a. `Contributors/ClaimComplianceContextContributor.cs`: reads a configurable claim type (`CallerCountryClaimType`, default `"country"`) from `IRequestContext.Identity.Principal` into `CallerCountry` only; XML docs say the claim is the caller's, not the data subject's (Design Choice 5).
+9. `ServiceCollectionExtensions.cs`: `AddEncinaComplianceApplicability(this IServiceCollection, Action<ComplianceApplicabilityOptions>?)`: options and validator; `TryAddSingleton(TimeProvider.System)`; the selected resolver (singleton); `TryAddEnumerable` the request and claim contributors; replaces the core `AlwaysAppliesComplianceApplicability` descriptor (by implementation type, never an application's own registration) with the Phase 3 service.
 10. `src/Encina/Diagnostics/EventIdRanges.cs`: register `ComplianceApplicability = (8950, 8999)` in the compliance block; add the field to `src/Encina/PublicAPI.Unshipped.txt`; add `Encina.Compliance.Applicability` to `AssemblyRanges` in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`.
-11. `Diagnostics/ComplianceApplicabilityLogMessages.cs` (`[LoggerMessage]`, XML doc `Event IDs: 8950-8999 (see EventIdRanges.ComplianceApplicability)`): 8950 `ProfileResolved` (Debug), 8951 `UnknownCountryCode` (Debug), 8952 `FirstDecisiveMergeEnabled` (Warning, start-up). Phases 3 and 8 continue from 8953.
-12. Tests: unit tests per resolver (EU tenant, non-EU tenant with EU subject, `ES` adds LOPDGDD, unknown → full, tier mapping, composite union and `FirstDecisive`, child `Left`), options validator, DI test with `ValidateOnBuild` and `ValidateScopes`.
+11. `Diagnostics/ComplianceApplicabilityLogMessages.cs` (`[LoggerMessage]`, XML doc `Event IDs: 8950-8999 (see EventIdRanges.ComplianceApplicability)`): 8950 `ProfileResolved` (Debug), 8951 `UnknownCountryCode` (Debug), 8952 `FirstDecisiveMergeEnabled` (Warning, start-up), 8953 `AssumedSubjectCountryConfigured` (Warning, start-up). Phases 3 and 8 continue from 8954.
+12. Tests: unit tests per resolver (EU tenant, non-EU tenant with EU subject, EU operator with non-EU tenant and subject, `ES` adds LOPDGDD, non-EEA known countries keep `Nis2` and `AiAct`, caller claim never decides GDPR, unknown → full, tier mapping, composite union and `FirstDecisive`, child `Left`), options validator, DI test with `ValidateOnBuild` and `ValidateScopes`; guard tests for every public member of the package.
+13. `.github/coverage-manifest/Encina.Compliance.Applicability.json` (new) with per-file, per-flag targets and justifications for the files of this phase.
 
 </details>
 
@@ -573,7 +635,7 @@ REFERENCE FILES:
 
 ```text
 You are implementing Phase 2 of issue #686: the new package Encina.Compliance.Applicability with options, the
-region-based, tenant-aware and composite resolvers, the claim contributor and the registration.
+region-based, tenant-aware and composite resolvers, the request and claim contributors and the registration.
 
 CONTEXT:
 - Phase 1 contract exists in src/Encina/Compliance/.
@@ -582,13 +644,15 @@ CONTEXT:
 - EU/EEA country list source: src/Encina.Compliance.DataResidency/Model/RegionRegistry.cs lines 55-146.
 
 TASK:
-Create the package, its options and validator, the three resolvers, the claim contributor, the registration and
+Create the package, its options and validator, the three resolvers, the two contributors, the registration and
 the EventId range ComplianceApplicability = (8950, 8999), with the tests listed in the Phase 2 tasks.
 
 KEY RULES:
 - The package references only Encina (no Tenancy, DataResidency, Marten, Messaging or Caching).
 - Any unknown, missing or invalid input returns ComplianceProfile.Full; never a narrower profile.
-- GDPR applies when the tenant country OR the subject/region country is in the EU/EEA (GDPR Art. 3(1) and 3(2)).
+- GDPR applies when the tenant, operator, subject or region country is in the EU/EEA (GDPR Art. 3(1) and 3(2)).
+- The caller's country claim fills CallerCountry only; SubjectCountry comes only from [DataSubjectCountry] or a
+  custom contributor. A country mapping never removes Nis2 or AiAct.
 - Register the EventId range first; EventIds packed from 8950; [LoggerMessage] source generator only.
 - TryAdd/TryAddEnumerable; the DI test builds with ValidateOnBuild and ValidateScopes.
 - No subject id in logs, tags or exceptions.
@@ -612,18 +676,19 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. `src/Encina.Compliance.Applicability/Services/ComplianceApplicabilityService.cs : IComplianceApplicability` (scoped). Ctor: `IComplianceApplicabilityResolver`, `IEnumerable<IComplianceContextContributor>`, `IEnumerable<IComplianceDecisionRecorder>`, `ComplianceProfileMemo`, `IOptions<ComplianceApplicabilityOptions>`, `TimeProvider`, `ILogger<ComplianceApplicabilityService>`.
-   - Request path: memo hit → answer; miss → build context (contributors by `Order`; a contributor `Left` or exception leaves its fields unknown and logs 8953 `ContributorFailed` with the error code only) → resolve (`Left`/exception → `Full`, log 8954 `ResolutionFailed`, per Design Choice 6) → store in memo.
-   - When `Applies(capability)` is false: record the skip through every recorder (Design Choice 15); no recorder registered and `AllowUnrecordedSkips` false → return `true` and log 8955 `SkipNotRecordedEnforcing`; a recorder `Left` → return `true` and log 8956 `SkipRecordFailedEnforcing`; recorded → log 8957 `CapabilitySkipped` (Information: request type, capability, tenant; no subject) and return `false`. A skip is recorded once per request and capability (memo).
-   - Background path: same, without the memo.
-2. `Services/ComplianceProfileMemo.cs` (internal, scoped): `ConcurrentDictionary<(string CorrelationId, Type RequestType), ComplianceProfile>` plus the set of recorded skips.
-3. `Pipeline/ComplianceOrchestrationBehavior.cs : IPipelineBehavior<TRequest, TResponse>`: static per-type flag "this request type carries any attribute a gated module reads" (the list is a `ComplianceAttributeRegistry` filled by each module's registration, Phase 4); when true, resolves through the service (warms the memo), opens `encina.compliance.orchestrate`; registered with `TryAddEnumerable` when `AddOrchestrationBehavior` is true. Never returns `Left` for a resolution failure under Design Choice 6 A.
-4. `Pipeline/ComplianceAttributeRegistry.cs` (public sealed, singleton): `Register(Type attributeType, ComplianceCapability capability)`; `bool IsGoverned(Type requestType)` cached per type.
+   - Request path: memo hit for this request instance → answer; miss → build context (contributors by `Order`; a contributor `Left` or exception leaves its fields unknown and logs 8954 `ContributorFailed` with the error code only) → resolve (`Left`/exception → `Full`, log 8955 `ResolutionFailed`, per Design Choice 6) → store in memo.
+   - When `Applies(capability)` is false: record the skip through every recorder (Design Choice 15); no recorder registered and `AllowUnrecordedSkips` false → return `true` and log 8956 `SkipNotRecordedEnforcing`; a recorder `Left` → return `true` and log 8957 `SkipRecordFailedEnforcing`; recorded → log 8958 `CapabilitySkipped` (Information: request type, capability, tenant; no subject) and return `false`. A skip is recorded once per context value and capability (Design Choice 19).
+   - Background and serializer path: no memo; skip records de-duplicated per `skipKey` and capability within `SkipRecordWindow` (Design Choice 20, `IMemoryCache`-free bounded dictionary with `TimeProvider` expiry).
+2. `Services/ComplianceProfileMemo.cs` (internal, scoped): `ConditionalWeakTable<object, ComplianceProfile>` keyed by the request instance, plus the set of recorded `(ComplianceContext, ComplianceCapability)` skips (Design Choice 19); a test sends two requests for two subjects in one scope and expects two resolutions.
+3. `Pipeline/ComplianceOrchestrationBehavior.cs : IPipelineBehavior<TRequest, TResponse>`: static per-type flag from the core `ComplianceAttributeRegistry.IsGoverned` (an optimisation only, Phase 1 task 9b); when true, resolves through the service (warms the memo), opens `encina.compliance.orchestrate`; registered with `TryAddEnumerable` when `AddOrchestrationBehavior` is true. Never returns `Left` for a resolution failure under Design Choice 6 A.
+4. `Services/SkipRecordWindow.cs` (internal, singleton): the per-process de-duplication of Design Choice 20.
 5. `src/Encina.Tenancy/Abstractions/TenantInfo.cs`: `Country`, `ApplicableRegulations`, `SubscriptionTier` as `init` properties (Design Choice 12); `TenancyOptions` binding unchanged (properties are settable through `with`); `PublicAPI.Unshipped.txt`.
-6. `src/Encina.Tenancy/Compliance/TenantComplianceContextContributor.cs` (internal): `ITenantProvider.GetCurrentTenantAsync` → `TenantId`, `TenantCountry`, `TenantRegulations`, `SubscriptionTier`; registered by `AddEncinaTenancy` with `TryAddEnumerable`; a store failure returns `Left` (fields stay unknown).
+6. `src/Encina.Tenancy/Compliance/TenantComplianceContextContributor.cs` (internal): tenant id = `builder.TenantId` (set by the caller, for example the retention enforcer) or else the ambient `ITenantProvider.GetCurrentTenantId()`; then `ITenantStore.GetTenantAsync(tenantId)` → `TenantCountry`, `TenantRegulations`, `SubscriptionTier`. `GetTenantAsync` returns `TenantInfo?` and has no `Left` (`ITenantStore.cs:68`), so an exception is caught and returned as `Left` (fields stay unknown) and a `null` tenant leaves them unknown; registered by `AddEncinaTenancy` with `TryAddEnumerable`. This lets background and serializer contexts, which have no ambient request (`DefaultTenantProvider.cs:44`), still carry the tenant's country.
 7. `src/Encina.Tenancy/Configuration/TenancyOptionsValidator` (existing or new): country code format and regulation ids of `TenancyOptions.Tenants`.
-8. `src/Encina.Compliance.DataResidency/Compliance/RegionComplianceContextContributor.cs` (internal): `IRegionContextProvider.GetCurrentRegionAsync` → `RegionCode = region.Country` (a `Left` leaves it unknown); registered by `AddEncinaDataResidency`.
-9. `src/Encina.Compliance.DataSubjectRights/Compliance/SubjectComplianceContextContributor.cs` (internal): `IDataSubjectIdExtractor` → `SubjectId` and `DataCategories` from `[PersonalData]` (`Attributes/PersonalDataAttribute.cs:45`); registered by `AddEncinaDataSubjectRights`.
-10. Tests: service (memo, every failure path of Design Choices 5, 6 and 15, `AllowUnrecordedSkips`), orchestration behavior (governed and ungoverned types), the three contributors, `TenantInfo` equality with the new properties, DI tests for Tenancy, DataResidency and DSR without the Applicability package (the core default resolves).
+8. `src/Encina.Compliance.DataResidency/Compliance/RegionComplianceContextContributor.cs` (internal): `IRegionContextProvider.GetCurrentRegionAsync` → `RegionCountry = region.Country`, `RegionInEea = region.IsEEA` (`Region.cs:58,77`; a `Left` leaves both unknown); registered by `AddEncinaDataResidency`.
+9. `src/Encina.Compliance.DataSubjectRights/Compliance/SubjectComplianceContextContributor.cs` (internal): `IDataSubjectIdExtractor.ExtractSubjectId(builder.Request, requestContext)` → `SubjectId`, and `DataCategories` from `[PersonalData]` (`Attributes/PersonalDataAttribute.cs:45`); registered by `AddEncinaDataSubjectRights`.
+10. Tests: service (memo per request instance, two subjects in one scope, every failure path of Design Choices 5, 6 and 15, `AllowUnrecordedSkips`, the skip window with `FakeTimeProvider`), orchestration behavior (governed and ungoverned types), the three contributors (tenant id from the builder without an ambient request; throwing store), `TenantInfo` equality with the new properties, DI tests for Tenancy, DataResidency and DSR without the Applicability package (the core default resolves); guard tests for the new public members.
+11. Coverage manifests: `Encina.Compliance.Applicability.json`, `Encina.Tenancy.json`, `Encina.Compliance.DataResidency.json`, `Encina.Compliance.DataSubjectRights.json` for every file of this phase.
 
 </details>
 
@@ -642,14 +707,16 @@ CONTEXT:
 - Plan Design Choices 5, 6, 7, 12 and 15 fix the failure semantics; Maintainer Decisions override them.
 
 TASK:
-Implement ComplianceApplicabilityService, ComplianceProfileMemo, ComplianceOrchestrationBehavior,
-ComplianceAttributeRegistry, the TenantInfo properties and the contributors in Tenancy, DataResidency and DSR,
-with the tests listed in the Phase 3 tasks.
+Implement ComplianceApplicabilityService, ComplianceProfileMemo, SkipRecordWindow, ComplianceOrchestrationBehavior,
+the TenantInfo properties and the contributors in Tenancy, DataResidency and DSR, the coverage manifest entries,
+and the tests listed in the Phase 3 tasks.
 
 KEY RULES:
 - A skip happens only after a successful record, unless AllowUnrecordedSkips is set (logged at start-up).
 - Contributor and resolver failures widen the profile to Full; they never narrow it.
-- One resolution and at most one skip record per request and capability.
+- The memo is keyed by the request instance, never by correlation id (Design Choice 19): two subjects in one scope
+  resolve twice.
+- The tenant contributor takes the tenant id from the builder first and reads ITenantStore, so background contexts work.
 - Time from TimeProvider only; CancellationToken on every async call; exceptions to loggers through ForLogging().
 - No subject id, EncinaError.Message or Metadata values in logs, tags or audit metadata.
 - Each AddEncina* still registers every dependency it resolves (ValidateOnBuild + ValidateScopes tests).
@@ -665,43 +732,40 @@ REFERENCE FILES:
 
 ---
 
-### Phase 4: Module Integration — Request Gates
+### Phase 4a: Module Integration — Request Gates of the GDPR Core (GDPR, Consent, LawfulBasis, DSR)
 
-> **Goal**: The eight behaviors that decide before the handler consult the resolver.
+> **Goal**: The four GDPR-core behaviors that decide before the handler consult the resolver.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-For each behavior: inject `IComplianceApplicability`; after the `Disabled` check and the attribute lookup (Design Choice 10), call `AppliesAsync(request, context, <capability>, cancellationToken)`; `Right(false)` → `return await nextStep()` (the service already logged and recorded); `Right(true)` → current code unchanged; `Left` (only under Design Choice 6 B) → return it. Each module's `AddEncina*` calls `TryAddEncinaComplianceApplicabilityDefaults()` and registers its attribute types in `ComplianceAttributeRegistry` (when the registry is present, `TryAddSingleton`).
+For each behavior: inject `IComplianceApplicability`; after the `Disabled` check and the attribute lookup (Design Choice 10), call `AppliesAsync(request, context, <capability>, cancellationToken)`; `Right(false)` → `return await nextStep()` (the service already logged and recorded); `Right(true)` → current code unchanged; `Left` (only under Design Choice 6 B) → return it. Each module's `AddEncina*` calls `TryAddEncinaComplianceApplicabilityDefaults()` and registers its consult point in the core `ComplianceAttributeRegistry` (Phase 1 task 9b). Behaviors whose dispatcher is a non-async `ValueTask` method returning `nextStep()` directly become async at that point; the phase line estimate includes it.
 
 1. `src/Encina.Compliance.GDPR/GDPRCompliancePipelineBehavior.cs` (after :116-124) → `ProcessingActivity`; `ServiceCollectionExtensions.cs:68`.
 2. `src/Encina.Compliance.Consent/ConsentRequiredPipelineBehavior.cs` (after :110-118, before subject extraction :121) → `Consent`; `ServiceCollectionExtensions.cs:74`.
 3. `src/Encina.Compliance.LawfulBasis/Pipeline/LawfulBasisValidationPipelineBehavior.cs` (after :115-119) → `LawfulBasis`; `ServiceCollectionExtensions.cs:78`.
 4. `src/Encina.Compliance.DataSubjectRights/ProcessingRestrictionPipelineBehavior.cs` (after :147-151) → `ProcessingRestriction`; `ServiceCollectionExtensions.cs:81`.
-5. `src/Encina.Compliance.DataResidency/DataResidencyPipelineBehavior.cs` (`ShouldSkipEnforcement` :177-189 stays synchronous; the async check follows it) → `DataResidency`; `ServiceCollectionExtensions.cs:75`.
-6. `src/Encina.Compliance.CrossBorderTransfer/Pipeline/TransferBlockingPipelineBehavior.cs` (after :137-144) → `CrossBorderTransfer` (Design Choice 8 B); `ServiceCollectionExtensions.cs:71`.
-7. `src/Encina.Compliance.DPIA/DPIARequiredPipelineBehavior.cs` (after :136-144) → `Dpia`; `ServiceCollectionExtensions.cs:100`.
-8. `src/Encina.Compliance.ProcessorAgreements/ProcessorValidationPipelineBehavior.cs` (after :141-149) → `ProcessorAgreements` (Design Choice 8 B); `ServiceCollectionExtensions.cs:75`.
-9. `PublicAPI.Unshipped.txt` of each package if a public constructor changes.
-10. Unit tests per behavior (8 files extended): capability not applicable → handler called, module service `DidNotReceive`; applicable → current behavior; the module's missing-subject or missing-tenant `Left` is not reached when skipped.
+5. `PublicAPI.Unshipped.txt` of each package if a public constructor changes.
+6. Unit and guard tests per behavior (4 files extended): capability not applicable → handler called, module service `DidNotReceive`; applicable → current behavior; the module's missing-subject or missing-tenant `Left` is not reached when skipped.
+7. Coverage manifests of the four packages: targets and justifications for every touched file.
 
 </details>
 
 <details>
-<summary><strong>Prompt for AI Agents — Phase 4</strong></summary>
+<summary><strong>Prompt for AI Agents — Phase 4a</strong></summary>
 
 ```text
-You are implementing Phase 4 of issue #686: the eight pre-handler compliance behaviors consult IComplianceApplicability.
+You are implementing Phase 4a of issue #686: GDPR, Consent, LawfulBasis and DSR behaviors consult IComplianceApplicability.
 
 CONTEXT:
 - Phases 1-3 are merged. IComplianceApplicability (src/Encina/Compliance/) answers per request; the core default
   always answers true; the Applicability package records skips before answering false.
-- Behaviors and lines are listed in the Phase 4 tasks of docs/plans/compliance-applicability-resolver-implementation-plan-686.md.
+- Behaviors and lines are listed in the Phase 4a tasks of docs/plans/compliance-applicability-resolver-implementation-plan-686.md.
 
 TASK:
-Add the applicability check to the eight behaviors at the point named in each task, register each module's attribute
-types in ComplianceAttributeRegistry, call TryAddEncinaComplianceApplicabilityDefaults from each AddEncina*, and
-extend the unit tests as listed.
+Add the applicability check to the four behaviors at the point named in each task, register each module's consult
+point in ComplianceAttributeRegistry, call TryAddEncinaComplianceApplicabilityDefaults from each AddEncina*, update
+the coverage manifests and extend the tests as listed.
 
 KEY RULES:
 - The check goes after the Disabled check and the cached attribute lookup, before any subject extraction or store call.
@@ -721,40 +785,89 @@ REFERENCE FILES:
 
 ---
 
-### Phase 5: Module Integration — After-Handler Behaviors, Regulation Modules and the Retention Enforcer
+### Phase 4b: Module Integration — Residency, Transfer, DPIA and Processor Gates
 
-> **Goal**: The remaining gated behaviors and the retention background service consult the resolver.
+> **Goal**: The other four pre-handler behaviors consult the resolver.
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+Same pattern as Phase 4a.
+
+1. `src/Encina.Compliance.DataResidency/DataResidencyPipelineBehavior.cs` (`ShouldSkipEnforcement` :177-189 stays synchronous; the async check follows it) → `DataResidency`; `ServiceCollectionExtensions.cs:75`.
+2. `src/Encina.Compliance.CrossBorderTransfer/Pipeline/TransferBlockingPipelineBehavior.cs` (after :137-144) → `CrossBorderTransfer` (Design Choice 8 B); `ServiceCollectionExtensions.cs:71`.
+3. `src/Encina.Compliance.DPIA/DPIARequiredPipelineBehavior.cs` (after :136-144; `DispatchAsync` :116-146 becomes async) → `Dpia`; `ServiceCollectionExtensions.cs:100`.
+4. `src/Encina.Compliance.ProcessorAgreements/ProcessorValidationPipelineBehavior.cs` (after :141-149; dispatcher becomes async) → `ProcessorAgreements` (Design Choice 8 B); `ServiceCollectionExtensions.cs:75`.
+5. `PublicAPI.Unshipped.txt` of each package if a public constructor changes.
+6. Unit and guard tests per behavior (4 files extended), as in Phase 4a.
+7. Coverage manifests of the four packages.
+
+</details>
+
+<details>
+<summary><strong>Prompt for AI Agents — Phase 4b</strong></summary>
+
+```text
+You are implementing Phase 4b of issue #686: DataResidency, CrossBorderTransfer, DPIA and ProcessorAgreements
+behaviors consult IComplianceApplicability.
+
+CONTEXT:
+- Phases 1-4a are merged; Phase 4a shows the pattern.
+- Behaviors and lines are listed in the Phase 4b tasks of docs/plans/compliance-applicability-resolver-implementation-plan-686.md.
+
+TASK:
+Add the applicability check to the four behaviors, register their consult points, call
+TryAddEncinaComplianceApplicabilityDefaults from each AddEncina*, update the coverage manifests and extend the tests.
+
+KEY RULES:
+- Same rules as Phase 4a: check after the Disabled check and the attribute lookup; skip means nextStep() only.
+- Making a dispatcher async must not change its behavior when the capability applies.
+- CRAP <= 10 on every changed method.
+
+REFERENCE FILES:
+- Phase 4a changes (same pattern)
+- src/Encina.Compliance.DPIA/DPIARequiredPipelineBehavior.cs
+- docs/engineering/crap-gate-design.md
+```
+
+</details>
+
+---
+
+### Phase 5a: Module Integration — Retention, Anonymization and Breach Detection
+
+> **Goal**: The after-handler behaviors and the retention background service consult the resolver.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
 1. `src/Encina.Compliance.Retention/RetentionValidationPipelineBehavior.cs` (after :144-147, before `nextStep()` at :153) → `Retention`.
-2. `src/Encina.Compliance.Retention/RetentionEnforcementService.cs` (`ExecuteEnforcementCycleAsync` :126): per expired record, `AppliesAsync(ComplianceContext { TenantId, SubjectId?, Operation = Background, DataCategories }, Retention)` inside a scope; not applicable → the record is left in place and counted; `Left` (Design Choice 6 B only) → the cycle fails for that record, never reported as success (AGENTS.md §3).
+2. `src/Encina.Compliance.Retention/RetentionEnforcementService.cs` (`ExecuteEnforcementCycleAsync` :126): per expired record, `AppliesAsync(ComplianceContext { TenantId, SubjectId?, Operation = Background, DataCategories }, Retention, skipKey: record id)` inside a scope (the tenant contributor reads the tenant's country from the store, Phase 3 task 6); not applicable → the record is left in place and counted; `Left` (Design Choice 6 B only) → the cycle fails for that record, never reported as success (AGENTS.md §3).
 3. `src/Encina.Compliance.Anonymization/AnonymizationPipelineBehavior.cs` (after :142-146, before :149) → `Anonymization`.
 4. `src/Encina.Compliance.BreachNotification/BreachDetectionPipelineBehavior.cs` (after :127-130, before :133) → `BreachDetection`. `DefaultBreachNotificationService` and `BreachDeadlineMonitorService` are not touched (Design Choice 8).
-5. `src/Encina.Compliance.PrivacyByDesign/DataMinimizationPipelineBehavior.cs` (after `ShouldSkipEnforcement` :185-210) → `DataMinimization`.
-6. `src/Encina.Compliance.NIS2/NIS2CompliancePipelineBehavior.cs` (after :112-116) → `Nis2`.
-7. `src/Encina.Compliance.AIAct/AIActCompliancePipelineBehavior.cs` (after :118-126) → `AiAct`. The prohibited-practice block (:188-193) is part of the AI Act capability and is skipped with it; XML docs say so.
-8. Each module's `AddEncina*`: `TryAddEncinaComplianceApplicabilityDefaults()` and attribute registration.
-9. Unit tests per behavior (6 files extended) and for the retention cycle with `FakeTimeProvider` (applicable deleted, not applicable kept, skip recorded once per record).
+5. Each module's `AddEncina*`: `TryAddEncinaComplianceApplicabilityDefaults()` and consult-point registration (Retention registers two points: behavior and enforcement service).
+6. Unit and guard tests per behavior (3 files extended) and for the retention cycle with `FakeTimeProvider`: applicable deleted; not applicable kept; across two cycles inside `SkipRecordWindow` one skip record per record; after the window a new one.
+7. Coverage manifests of the three packages.
 
 </details>
 
 <details>
-<summary><strong>Prompt for AI Agents — Phase 5</strong></summary>
+<summary><strong>Prompt for AI Agents — Phase 5a</strong></summary>
 
 ```text
-You are implementing Phase 5 of issue #686: Retention (behavior and enforcement service), Anonymization,
-BreachDetection, PrivacyByDesign, NIS2 and AIAct consult IComplianceApplicability.
+You are implementing Phase 5a of issue #686: Retention (behavior and enforcement service), Anonymization and
+BreachDetection consult IComplianceApplicability.
 
 CONTEXT:
-- Phases 1-4 are merged; Phase 4 shows the pattern on eight behaviors.
+- Phases 1-4b are merged; Phase 4a shows the pattern.
 - Three behaviors act after the handler (Retention :153, Anonymization :149, BreachDetection :133): the check must
   run before nextStep() so a skipped capability does no post-processing.
-- RetentionEnforcementService.cs:126 is a BackgroundService: use the ComplianceContext overload inside a DI scope.
+- RetentionEnforcementService.cs:126 is a BackgroundService: use the ComplianceContext overload with the record id
+  as skipKey inside a DI scope.
 
 TASK:
-Add the check to the six behaviors and the retention cycle as listed in the Phase 5 tasks, with their tests.
+Add the check to the three behaviors and the retention cycle as listed in the Phase 5a tasks, with their tests and
+manifest entries.
 
 KEY RULES:
 - Fulfilment services (DSR service, breach notification service, deadline monitors, DPIA reminders) are not changed.
@@ -764,8 +877,53 @@ KEY RULES:
 
 REFERENCE FILES:
 - src/Encina.Compliance.Retention/RetentionEnforcementService.cs
+- src/Encina.Compliance.Anonymization/AnonymizationPipelineBehavior.cs
+- Phase 4a changes (same pattern)
+```
+
+</details>
+
+---
+
+### Phase 5b: Module Integration — PrivacyByDesign, NIS2 and AIAct
+
+> **Goal**: The data-minimisation and the two non-GDPR regulation modules consult the resolver.
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+1. `src/Encina.Compliance.PrivacyByDesign/DataMinimizationPipelineBehavior.cs` (after `ShouldSkipEnforcement` :185-210) → `DataMinimization`.
+2. `src/Encina.Compliance.NIS2/NIS2CompliancePipelineBehavior.cs` (after :112-116) → `Nis2`.
+3. `src/Encina.Compliance.AIAct/AIActCompliancePipelineBehavior.cs` (after :118-126; dispatcher becomes async) → `AiAct`. The prohibited-practice block (:188-193) is part of the AI Act capability and is skipped with it; XML docs say so.
+4. Each module's `AddEncina*`: `TryAddEncinaComplianceApplicabilityDefaults()` and consult-point registration.
+5. Unit and guard tests per behavior (3 files extended).
+6. Coverage manifests of the three packages.
+
+</details>
+
+<details>
+<summary><strong>Prompt for AI Agents — Phase 5b</strong></summary>
+
+```text
+You are implementing Phase 5b of issue #686: PrivacyByDesign, NIS2 and AIAct consult IComplianceApplicability.
+
+CONTEXT:
+- Phases 1-5a are merged; Phase 4a shows the pattern.
+- The region-based resolver never removes Nis2 or AiAct (plan Design Choice 14); only a tenant, tier or custom
+  resolver can.
+
+TASK:
+Add the check to the three behaviors as listed in the Phase 5b tasks, with their tests and manifest entries.
+
+KEY RULES:
+- Check after the Disabled check and the attribute lookup; skip means nextStep() only.
+- Do not change enforcement modes or their defaults.
+- CRAP <= 10 on changed methods.
+
+REFERENCE FILES:
 - src/Encina.Compliance.AIAct/AIActCompliancePipelineBehavior.cs
-- Phase 4 changes (same pattern)
+- src/Encina.Compliance.NIS2/NIS2CompliancePipelineBehavior.cs
+- Phase 4a changes (same pattern)
 ```
 
 </details>
@@ -779,12 +937,13 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina.Security.Audit/AuditedReadOnlyRepository.cs`: `ShouldAudit` (:211) becomes `ShouldAuditAsync`; after the existing checks, `AppliesAsync(ComplianceContext { TenantId, RequestType = typeof(TEntity), Operation = Read, RequestContext }, ReadAuditing)` from `IRequestContextAccessor`; not applicable → no read-audit entry; the #1193 decorator, when merged, gets the same check.
+1. `src/Encina.Security.Audit/AuditedReadOnlyRepository.cs`: `ShouldAudit` (:211) becomes `ShouldAuditAsync`; after the existing checks, `AppliesAsync(ComplianceContext { TenantId, RequestType = typeof(TEntity), Operation = Read, RequestContext }, ReadAuditing, skipKey: entity type + tenant)` using the `IRequestContext` the decorator already injects (:43); not applicable → no read-audit entry. The read-audit write stays fire-and-forget (:205), but the applicability question (and the skip record it may write) is awaited inline, which adds one memo or resolver call to the read path; the benchmark of Phase 9 measures it. The #1193 decorator, when merged, gets the same check.
 2. `src/Encina.Security.Audit/ServiceCollectionExtensions.cs` (`AddEncinaReadAuditing` :179): `TryAddEncinaComplianceApplicabilityDefaults()`.
-3. `src/Encina.Marten.GDPR/Serialization/CryptoShreddingEngine.cs` (`ResolveWriteSubject` :106-111): under Design Choice 16 A, ask `AppliesAsync(ComplianceContext { SubjectId, TenantId (from the call scope when present), Operation = Write }, CryptoShredding)` through the scope `CryptoShreddingCallScope.cs:145` creates, with the existing sync-over-async bridge; not applicable → the property is written in clear; any failure → encrypt.
-4. `src/Encina.Marten.GDPR/Serialization/` read path: verify a `[CryptoShredded]` property stored in clear deserialises unchanged (add the branch if it does not); a forget request for a subject with plaintext events logs a warning in the Marten.GDPR range (`MartenGDPRCryptoShredding = (8450, 8499)`, next free id).
+3. `src/Encina.Marten.GDPR/Serialization/CryptoShreddingEngine.cs` (`Encrypt` :90-99): under Design Choice 16 A, **after** `GetWriteKey` and the `key.Forgotten` branch (an erased subject is never written in clear), ask `AppliesAsync(ComplianceContext { SubjectId, TenantId (from the call scope when present), Operation = Write }, CryptoShredding, skipKey: tenant + subject)` through the scope `CryptoShreddingCallScope.cs:145` creates, with the existing sync-over-async bridge, at most once per subject per call scope (cached in the frame); not applicable → the value is written as the clear-text envelope `csc1:` + value; any failure → encrypt.
+4. `src/Encina.Marten.GDPR/Serialization/CryptoShreddingEngine.Read.cs` (`ReadToken` :159-164): accept exactly the `csc1:` prefix and return its value; any other non-`cs2:` value still throws `EnvelopeMalformed` (tamper and downgrade detection unchanged). A forget request for a subject with clear-text values logs a warning in the Marten.GDPR range (`MartenGDPRCryptoShredding = (8450, 8499)`, next free id).
 5. `src/Encina.Marten.GDPR/ServiceCollectionExtensions.cs` (:68): `TryAddEncinaComplianceApplicabilityDefaults()`.
-6. Tests: read-audit decorator (applicable, not applicable, failure → audit), crypto engine unit tests (applicable encrypts, not applicable clear, failure encrypts, plaintext read), one Marten integration test on PostgreSQL through Testcontainers (Phase 9).
+6. Tests: read-audit decorator (applicable, not applicable, failure → audit), crypto engine unit tests (applicable encrypts; not applicable writes `csc1:`; failure encrypts; forgotten subject never clear; `csc1:` reads back; a raw string still fails as malformed; one question per subject per call scope), guard tests; one Marten integration test on PostgreSQL through Testcontainers (Phase 9).
+7. Coverage manifests `Encina.Security.Audit.json` and `Encina.Marten.GDPR.json`.
 
 </details>
 
@@ -797,16 +956,19 @@ You are implementing Phase 6 of issue #686: read auditing and crypto-shredding c
 CONTEXT:
 - Phases 1-5 are merged.
 - Read audit: src/Encina.Security.Audit/AuditedReadOnlyRepository.cs (ShouldAudit at line 211).
-- Crypto-shredding: src/Encina.Marten.GDPR/Serialization/CryptoShreddingEngine.cs (ResolveWriteSubject 106-111,
-  sync-over-async justification 33-36), CryptoShreddingCallScope.cs:145 (fresh DI scope, no request scope).
-- Plan Design Choice 16 (Maintainer Decisions override it).
+- Crypto-shredding: src/Encina.Marten.GDPR/Serialization/CryptoShreddingEngine.cs (Encrypt 90-99 with the forgotten
+  branch, sync-over-async justification 33-36), CryptoShreddingEngine.Read.cs (ReadToken 159-164),
+  CryptoShreddingCallScope.cs:145 (fresh DI scope, no request scope).
+- Plan Design Choices 16 and 20 (Maintainer Decisions override them).
 
 TASK:
 Gate read-audit entries and per-subject encryption on the ReadAuditing and CryptoShredding capabilities as listed
-in the Phase 6 tasks, verify the plaintext read path, and write the tests.
+in the Phase 6 tasks, add the csc1: clear-text envelope to the write and read paths, and write the tests.
 
 KEY RULES:
 - Any failure to decide means audit / encrypt (fail closed).
+- The forgotten-subject branch runs before the applicability question; an erased subject is never written in clear.
+- Only the csc1: prefix is accepted as clear text; any other non-cs2: value is still EnvelopeMalformed.
 - Keep the existing sync-over-async pattern and its SuppressMessage justification; add no new blocking pattern.
 - Marten projections and serializers never take IServiceProvider in constructors beyond the existing scope factory.
 - EventIds only inside the package's registered range.
@@ -828,11 +990,12 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina.Security.Audit/Compliance/OperationAuditComplianceDecisionRecorder.cs : IComplianceDecisionRecorder` (scoped): writes `OperationAuditEntry { Action = "compliance.capability_skipped", EntityType = "ComplianceCapability", EntityId = capability name, TenantId, CorrelationId, Outcome = Success, Metadata = { "compliance.capability", "compliance.regulations", "compliance.resolver", "compliance.request_type" } }`; returns the store's `Either`; registered by `AddEncinaAudit` (:79) with `TryAddEnumerable`.
-2. `ComplianceApplicabilityStartupValidator` (hosted, runs once, in the Applicability package): fails start-up when no `IComplianceDecisionRecorder` is registered and `AllowUnrecordedSkips` is false while the configured resolver is not `AlwaysEnforceComplianceResolver` (so the misconfiguration is visible before the first request); logs 8958 `UnrecordedSkipsAllowed` (Warning) when the opt-out is set.
+1. `src/Encina.Security.Audit/Compliance/OperationAuditComplianceDecisionRecorder.cs : IComplianceDecisionRecorder` (scoped): writes `OperationAuditEntry { Action = "compliance.capability_skipped", EntityType = "ComplianceCapability", EntityId = capability name, TenantId, CorrelationId, Outcome = Success, Metadata = { "compliance.capability", "compliance.regulations", "compliance.resolver", "compliance.request_type" } }`; returns the store's `Either`; writes through its own scope (`IServiceScopeFactory`) inside `TransactionScope(TransactionScopeOption.Suppress)`, as `AuditStoreABACDecisionRecorder.cs:100-103` does, so a rolled-back unit of work never erases the evidence; registered by `AddEncinaAudit` (:79) with `TryAddEnumerable`.
+2. `ComplianceApplicabilityStartupValidator` (hosted, runs once, in the Applicability package): fails start-up when no `IComplianceDecisionRecorder` is registered and `AllowUnrecordedSkips` is false while the configured resolver is not `AlwaysEnforceComplianceResolver` (so the misconfiguration is visible before the first request); logs 8959 `UnrecordedSkipsAllowed` (Warning) when the opt-out is set.
 3. Tenancy: the tenant id is on every skip record, metric and span; with tenancy registered and no tenant the context is unknown (Design Choice 5).
 4. Module isolation: `ModuleName` in the context (Phase 2 contributor) and in the skip metadata.
-5. Tests: recorder (entry shape, store `Left` propagated), start-up validator, a two-tenant test (tenant A in `ES` enforces, tenant B in `BR` skips with a record per skip; SPEC-002 AC-043).
+5. Tests: recorder (entry shape, store `Left` propagated, record survives a rolled-back ambient transaction), start-up validator, guard tests, a two-tenant test (tenant A in `ES` enforces; tenant B in `BR` with a request carrying `[DataSubjectCountry] = "BR"` and no `OperatorCountry` skips with a record per skip; SPEC-002 AC-043).
+6. Coverage manifests `Encina.Security.Audit.json` and `Encina.Compliance.Applicability.json`.
 
 </details>
 
@@ -877,8 +1040,9 @@ REFERENCE FILES:
 1. `src/Encina.Compliance.Applicability/Diagnostics/ComplianceApplicabilityDiagnostics.cs`: `ActivitySource` and `Meter` named `Encina.Compliance.Applicability`; spans `encina.compliance.resolve` (tags `tenant.id`, `compliance.region`, `compliance.operation`, `compliance.resolver`, `compliance.profile.full`) and `encina.compliance.orchestrate` (`compliance.regulations`, `compliance.capabilities.count`); no subject id (REQ-062).
 2. Metrics (the issue's names): `encina.compliance.resolution_count` (Counter, tags `resolver`, `outcome`), `encina.compliance.resolution_duration` (Histogram, ms), `encina.compliance.capability_applied` and `encina.compliance.enforcement_skipped` (Counter, tag `capability`), `encina.compliance.regulation_matched` (Counter, tag `regulation`); tenant id as a tag on all (REQ-062).
 3. `Health/ComplianceApplicabilityHealthCheck.cs` (`DefaultName = "encina-compliance-applicability"`, `Tags = ["encina", "compliance", "applicability", "ready"]`, scoped resolution through `IServiceProvider.CreateScope()`): resolves `ComplianceContext.Empty`; `Unhealthy` if the result is not the full profile (Design Choice 5 invariant); `Degraded` when the failure counter passed `FailureDegradedThreshold` in the last window or no recorder is registered; registered when `AddHealthCheck` is true.
-4. Log messages 8959 `HealthProbeFailed` (Warning) and any message added since Phase 3, packed without gaps.
-5. Tests: activity and metric tests with `MeterListener`/`ActivityListener` (tags present, no subject id), health check states.
+4. Log messages 8960 `HealthProbeFailed` (Warning) and any message added since Phase 3, packed without gaps.
+5. Tests: activity and metric tests with `MeterListener`/`ActivityListener` (tags present, no subject id), health check states, guard tests.
+6. Coverage manifest `Encina.Compliance.Applicability.json` for the new files.
 
 </details>
 
@@ -889,7 +1053,7 @@ REFERENCE FILES:
 You are implementing Phase 8 of issue #686: tracing, metrics, logging and the health check of the Applicability package.
 
 CONTEXT:
-- Phases 1-7 are merged; EventIds 8950-8958 are used in ComplianceApplicability = (8950, 8999).
+- Phases 1-7 are merged; EventIds 8950-8959 are used in ComplianceApplicability = (8950, 8999).
 - SPEC-002 REQ-062: ActivitySource, Meter, [LoggerMessage] in a registered range, a health check, no direct subject
   identifiers, the tenant id as an attribute.
 
@@ -900,7 +1064,7 @@ service and the orchestration behavior, add the health check, and test them.
 KEY RULES:
 - Health checks: DefaultName const, Tags static array, scoped resolution via IServiceProvider.CreateScope().
 - No subject id, user id or EncinaError.Message in tags or logs.
-- EventIds packed sequentially from 8959; no sparse allocation.
+- EventIds packed sequentially from 8960; no sparse allocation.
 
 REFERENCE FILES:
 - src/Encina.Compliance.Consent/Diagnostics/ (ConsentDiagnostics)
@@ -919,12 +1083,12 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Coverage manifests**: create `.github/coverage-manifest/Encina.Compliance.Applicability.json` (per-file, per-flag targets with one-sentence justifications); extend `Encina.json`, `Encina.Tenancy.json`, `Encina.Security.Audit.json`, `Encina.Marten.GDPR.json` and the 14 `Encina.Compliance.*.json` manifests for every touched file.
-2. **UnitTests** (`tests/Encina.UnitTests/Compliance/Applicability/` and the module folders): completed in Phases 1-8; add the exhaustiveness test "every `ComplianceCapability` value is consulted by exactly one registered enforcement point" (scans `ComplianceAttributeRegistry` after registering every module).
-3. **GuardTests** (`tests/Encina.GuardTests/Compliance/Applicability/`): every public constructor and method parameter.
+1. **Coverage manifests**: every phase already added its files' targets (AGENTS.md §9, #1762); this phase re-checks them with `--check-justifications` and raises a target where the new integration and contract tests reach more lines.
+2. **UnitTests** (`tests/Encina.UnitTests/Compliance/Applicability/` and the module folders): completed in Phases 1-8; add the exhaustiveness test "every `ComplianceCapability` value has at least one consult point registered in `ComplianceAttributeRegistry`" after registering every module (Retention registers two; crypto-shredding and read auditing register attribute-less points).
+3. **GuardTests** (`tests/Encina.GuardTests/Compliance/Applicability/`): completed per phase; this phase fills any gap the guard flag measurement shows.
 4. **ContractTests** (`tests/Encina.ContractTests/Compliance/Applicability/`): abstract `ComplianceApplicabilityResolverContract` run against `AlwaysEnforce`, `RegionBased`, `TenantAware` and `Composite` (and reused by #687 and #688): empty context → full profile; never throws for any context; deterministic for equal contexts; a profile's capabilities are a subset of the enum. `IComplianceDecisionRecorder` contract against the operation-audit recorder with the InMemory store.
 5. **PropertyTests** (`tests/Encina.PropertyTests/Compliance/Applicability/`, FsCheck through `Encina.Testing.FsCheck`): union is commutative, associative, idempotent and monotonic (a composite never applies fewer capabilities than any child under `MostRestrictive`); for any context with an EU/EEA tenant or subject country, `Gdpr` is in the regulations; for any context with any unknown field the region-based resolver returns `Full`.
-6. **IntegrationTests** (`tests/Encina.IntegrationTests/Compliance/Applicability/`, `[Trait("Category", "Integration")]`): one end-to-end pipeline test with Consent, DSR, DataResidency, GDPR and Retention registered, two tenants (`ES`, `BR`), the composite resolver and the operation-audit recorder on PostgreSQL through the shared `[Collection("ADO-PostgreSQL")]` fixture, asserting enforcement for `ES`, skips with records for `BR`, and full enforcement when the tenant store fails; one crypto-shredding test on Marten PostgreSQL (encrypted for an EU subject, clear for an out-of-scope subject, plaintext read). The gate itself has no provider-specific code, so one provider proves the recorder path (the recorder's store is already tested on the 10 providers).
+6. **IntegrationTests** (`tests/Encina.IntegrationTests/Compliance/Applicability/`, `[Trait("Category", "Integration")]`): one end-to-end pipeline test with **every gated module** of Design Choice 8 registered (one request type per module), two tenants (`ES`, `BR`), the composite resolver and the operation-audit recorder on PostgreSQL through the shared `[Collection("ADO-PostgreSQL")]` fixture, asserting enforcement for `ES`, one skip record per module for `BR`, full enforcement when the tenant store throws, and two subjects in one scope resolved separately; one crypto-shredding test on Marten PostgreSQL (encrypted for an EU subject, `csc1:` for an out-of-scope subject, both read back, forgotten subject never clear). The gate itself has no provider-specific code, so one provider proves the recorder path (the recorder's store is already tested on the 10 providers).
 7. **LoadTests**: `tests/Encina.LoadTests/Compliance/Applicability/ComplianceApplicability.md` justification (stateless in-memory resolution, scoped memo, no shared mutable state; concurrency covered by the memo unit tests).
 8. **BenchmarkTests** (`tests/Encina.BenchmarkTests/Compliance/`): the hot path per the issue: core default (`AlwaysApplies`), memo hit, full resolution with the composite of region and tenant resolvers and two contributors; `BenchmarkSwitcher`, results under `artifacts/performance/`.
 9. **CRAP ≤ 10** on every changed method, measured locally with the crap-gate table before review.
@@ -1057,7 +1221,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| **`Encina.Compliance.Applicability`** | **8950-8999** | **New (`ComplianceApplicability`), the free tail of the compliance block 8100-8999; 8950-8959 planned, packed** |
+| **`Encina.Compliance.Applicability`** | **8950-8999** | **New (`ComplianceApplicability`), the free tail of the compliance block 8100-8999; 8950-8960 planned, packed. It is the last free slot of that block, so #687 and #688 take ranges from the "future compliance modules" block 9800-9999 (header `EventIdRanges.cs:385`)** |
 | `Encina.Marten.GDPR` | 8450-8499 | Existing (`MartenGDPRCryptoShredding`); one new warning (plaintext events on forget) at the next free id |
 | `Encina.Tenancy` | 1800-1899 | Existing; no new message (the contributor's failure is logged by the Applicability service) |
 | `Encina.Security.Audit` | 5000-5099 | Existing; no new message planned |
@@ -1067,15 +1231,15 @@ REFERENCE FILES:
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Core contract (Phase 1) | 15 | `src/Encina/Compliance/`, `AddEncina`, PublicAPI |
-| New package (Phases 2, 3, 7, 8) | ~24 | csproj, options, validator, 3 resolvers, EEA list, merge strategy, builder, claim contributor, service, memo, orchestration behavior, attribute registry, start-up validator, diagnostics, log messages, health check, DI, PublicAPI ×2 |
+| Core contract (Phase 1) | ~19 | `src/Encina/Compliance/` (17), `AddEncina`, csproj grant, PublicAPI |
+| New package (Phases 2, 3, 7, 8) | ~26 | csproj, options, validator, 3 resolvers, EEA list, merge strategy, builder, 2 contributors, service, memo, skip window, orchestration behavior, start-up validator, diagnostics, log messages, health check, DI, PublicAPI ×2 |
 | Contributors and `TenantInfo` (Phase 3) | 6 | Tenancy (3), DataResidency (1), DSR (1), DI edits |
-| Module integration (Phases 4-5) | ~30 modified | 14 behaviors, retention service, 14 registrations, attribute registration |
-| Read audit and crypto-shredding (Phase 6) | ~6 modified | Repository decorator, Marten engine, read path, DI |
+| Module integration (Phases 4a-5b) | ~30 modified | 14 behaviors, retention service, 14 registrations |
+| Read audit and crypto-shredding (Phase 6) | ~6 modified | Repository decorator, Marten engine (write and read), DI |
 | Skip recorder (Phase 7) | 2 | Recorder, registration |
-| Tests (all phases) | ~35 | Unit, guard, contract, property, integration (2), benchmark, load `.md`, manifests (19 edits) |
+| Tests and manifests (all phases) | ~35 | Unit, guard, contract, property, integration (2), benchmark, load `.md`, manifest edits (19) |
 | Documentation (Phase 10) | ~22 | Package README, 17 README notes, feature page, ADR, changelog fragment, INVENTORY/ROADMAP |
-| **Total** | **~95 new or modified source and test files, plus ~22 documents** | |
+| **Total** | **~124 source, test and manifest files, plus ~22 documents** | Each phase stays near 10-25 files; Phases 2 and 3 are the largest |
 
 ---
 
@@ -1100,11 +1264,13 @@ IMPLEMENTATION OVERVIEW:
 Phase 1: core contract in src/Encina/Compliance/ (resolver, profile, context, capability, regulation, operation,
          contributor, IComplianceApplicability, decision recorder, AlwaysEnforce resolver, zero-cost default).
 Phase 2: new package Encina.Compliance.Applicability (references only Encina): options, validator, region-based,
-         tenant-aware and composite resolvers, claim contributor, AddEncinaComplianceApplicability, EventIds 8950-8999.
+         tenant-aware and composite resolvers, request and claim contributors, AddEncinaComplianceApplicability, EventIds 8950-8999.
 Phase 3: resolution service with per-request memo and skip recording, ComplianceOrchestrationBehavior,
          TenantInfo (Country, ApplicableRegulations, SubscriptionTier), contributors in Tenancy, DataResidency, DSR.
-Phase 4: GDPR, Consent, LawfulBasis, DSR, DataResidency, CrossBorderTransfer, DPIA, ProcessorAgreements consult it.
-Phase 5: Retention (behavior + enforcement service), Anonymization, BreachDetection, PrivacyByDesign, NIS2, AIAct.
+Phase 4a: GDPR, Consent, LawfulBasis, DSR consult it.
+Phase 4b: DataResidency, CrossBorderTransfer, DPIA, ProcessorAgreements.
+Phase 5a: Retention (behavior + enforcement service), Anonymization, BreachDetection.
+Phase 5b: PrivacyByDesign, NIS2, AIAct.
 Phase 6: read auditing and crypto-shredding.
 Phase 7: operation-audit skip recorder, start-up validator, tenant and module propagation.
 Phase 8: ActivitySource and Meter "Encina.Compliance.Applicability", five metrics, health check.
@@ -1114,8 +1280,11 @@ Phase 10: XML docs, READMEs, feature page, ADR, changelog fragment, INVENTORY/RO
 
 KEY PATTERNS:
 - Modules ask IComplianceApplicability.AppliesAsync after their Disabled check and attribute lookup, before any work.
-- One resolution per request (scoped memo); requests without a governed attribute never resolve.
-- Unknown, missing or failing context or resolver -> full profile; never a narrower one.
+- One resolution per request instance (scoped memo, never keyed by correlation id); requests without a governed
+  attribute never resolve.
+- Unknown, missing or failing context or resolver -> full profile; never a narrower one; resolvers never abstain.
+- SubjectCountry only from [DataSubjectCountry] or a custom contributor; the caller's claim is CallerCountry.
+- Every phase adds its files' coverage-manifest targets and guard tests.
 - A skip is recorded (operation audit) before it happens; no recorder or a recorder Left -> enforce.
 - Composite default is the union; FirstDecisive is an explicit, logged opt-in.
 - No subject id, user id or EncinaError.Message in logs, tags or audit metadata; tenant id as a tag.
@@ -1142,7 +1311,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ⏭️ Deferred | Per-request memo is included (Phase 3); a cross-request profile cache (by tenant, country and tier, invalidated on tenant change) is deferred, as the issue says: follow-up file `artifacts/issues/plan-686-cross-request-profile-cache.md` |
 | 2 | OpenTelemetry | ✅ Phase 8 | `ActivitySource` and `Meter` "Encina.Compliance.Applicability"; spans `encina.compliance.resolve` and `encina.compliance.orchestrate`; the five metrics of the issue with tenant, capability, regulation and resolver tags; no subject id (REQ-062) |
-| 3 | Structured Logging | ✅ Phases 2-3, 8 | `[LoggerMessage]` EventIds 8950-8959 in the new `ComplianceApplicability` range 8950-8999, registered in `EventIdRanges.cs` first (ADR-021); skip, failure and opt-out messages |
+| 3 | Structured Logging | ✅ Phases 2-3, 8 | `[LoggerMessage]` EventIds 8950-8960 in the new `ComplianceApplicability` range 8950-8999, registered in `EventIdRanges.cs` first (ADR-021); skip, failure and opt-out messages |
 | 4 | Health Checks | ✅ Phase 8 | `ComplianceApplicabilityHealthCheck` resolves an empty context (must be full), reports repeated failures and a missing recorder |
 | 5 | Validation | ✅ Phases 1-3 | Options validator with `ValidateOnStart` (one resolver, country codes, regulation ids); context builder normalises ISO 3166-1 codes; `TenancyOptions` tenant fields validated |
 | 6 | Resilience | ❌ N/A | The built-in resolvers and contributors are in-memory; a failure widens to full enforcement (Design Choice 6). A remote resolver owns its retry and circuit breaker: OPA in #688 |
@@ -1182,8 +1351,8 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. When #686 is picked up, the orchestrator re-checks each Design Choice against the code, runs `decision-extractor` and `adversarial-reviewer` on the register, and asks the maintainer the eleven Dilemmas (1, 3, 6, 7, 8, 9, 11, 12, 15, 16, 17); the answers go into a `Maintainer Decisions` section.
+1. When #686 is picked up, the orchestrator re-checks each Design Choice against the code, runs `decision-extractor` and `adversarial-reviewer` on the register, and asks the maintainer the twelve Dilemmas (1, 3, 6, 7, 8, 9, 11, 12, 15, 16, 17, 20); the answers go into a `Maintainer Decisions` section.
 2. Open the three follow-up issues drafted under `artifacts/issues/` and link them from this plan.
-3. Link this plan from #686 and from #687, #2700 and #688, whose plans build on the contract of Phase 1.
+3. Link this plan from #686 and from #687, #2700 and #688, whose plans build on the contract of Phase 1; update the sketches in the #687 and #688 bodies (they use `ComplianceCapability.DataSubjectRights`, `ComplianceCapability.DPIA`, `ComplianceProfile.FullEnforcement()` and boolean profile properties) to the names this plan fixes once the maintainer has answered Design Choice 3.
 4. Phases 1-3 can ship before the module integration; each phase is one PR referencing #686, and the last one carries `Fixes #686`.
 5. Take the next free ADR number at Phase 10 (058 on 2026-10-28) unless it is reserved for this plan earlier.
