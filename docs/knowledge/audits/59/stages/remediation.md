@@ -1,0 +1,33 @@
+Remediation for #59:
+- code 1 (Major): draft 59-code-1-the-middleware-never-binds-the-caller-identity-to.md
+- code 2 (Major): draft 59-code-2-the-request-context-enrichment-is-a-stub-and.md
+- code 3 (Major): draft 59-code-3-the-tenant-denial-codes-the-package-defines-are.md
+- code 4 (Major): duplicate of #2913 (manual override)
+- code 5 (Minor): draft 59-code-5-the-problem-details-body-is-probably-not-rfc.md
+- code 6 (Minor): draft 59-code-6-the-health-check-registration-depends-on-registration-order.md
+- code 7 (Minor): draft 59-code-7-the-package-metadata-and-readme-claim-queue-and.md
+- tests 1 (Major): draft 59-tests-1-identity-and-correlation-propagation-have-no-test-and.md
+- tests 2 (Major): draft 59-tests-2-no-test-executes-the-http-response-builders-so.md
+- tests 3 (Minor): merged into code 3 (manual override)
+- tests 4 (Minor): merged into code 6 (manual override)
+- tests 5 (Major): draft 59-tests-5-the-contract-tests-of-the-package-were-deleted.md
+- tests 6 (Minor): draft 59-tests-6-the-property-tests-were-deleted-and-the-property.md
+- tests 7 (Minor): draft 59-tests-7-the-guard-target-of-encinaazurefunctionsoptions-cs-is-classi.md
+- tests 8 (Minor): draft 59-tests-8-load-tests-have-no-justification-file-and-the.md
+- docs 1 (Major): draft 59-docs-1-no-docs-site-page-tutorial-or-learning-path.md
+- docs 2 (Major): draft 59-docs-2-the-saga-sample-does-not-compile-against-the.md
+- docs 3 (Major): draft 59-docs-3-the-orchestrator-sample-s-final-match-has-no.md
+- docs 4 (Minor): draft 59-docs-4-emojis-in-the-readme-src-encina-azurefunctions-readme.md
+- docs 5 (Minor): draft 59-docs-5-no-visuals-on-a-493-line-page-that.md
+- docs 6 (Minor): draft 59-docs-6-markdownlint-reports-5-errors-on-the-readme-npx.md
+- docs 7 (Minor): draft 59-docs-7-the-readme-does-not-link-to-any-adjacent.md
+
+## Lessons for the pipeline
+- code 4: recorded as duplicate of #2913 by manual override
+- tests 3: merged into code 3 by manual override
+- tests 4: merged into code 6 by manual override
+- (tests 6) The finding offers property tests or a justification file; the draft commits to property tests, citing AGENTS.md section 9 (property tests for complex non-database logic) and the three identical copies of the status mapping, because a two-way choice would need the needs-decision label, which this run's route does not allow. The verifier may reclassify it as a Dilemma.
+- (tests 6, re-run) The finding offers property tests or a justification file. The draft now states it as a Dilemma with both options spelled out neutrally and the maintainer deciding (whether the logic is "complex" per AGENTS.md section 9); its labels line carries only the route's label and the orchestrator adds needs-decision when opening. The earlier draft pre-decided it.
+- (tests 5, tests 6) The deletion of the contract and property projects by commit 65826302 is stated as the commit history lists it; this agent has no shell and could not re-run git show, so the drafts give the command to confirm it.
+- (code 1, code 3, code 5, tests 2) Several defects are derived from reading the code and were not executed (the ProblemDetails body shape, the identity binding); the drafts say so and keep the check as a regression test.
+- (all drafts) Glob returned no file for paths that exist in the audit worktree (src/Encina.AspNetCore/ProblemDetailsExtensions.cs); existence was confirmed with Read and Grep.
