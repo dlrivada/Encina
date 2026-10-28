@@ -10,7 +10,7 @@ CPM governs direct references only. A package that arrives transitively (project
 
 The property `CentralPackageTransitivePinningEnabled` makes the central version win for transitive packages too. Its failure mode is NU1109: if a transitive package needs a version higher than the central one, restore fails because pinning would downgrade it.
 
-A concrete story, from the repository itself. Advisories on `System.Security.Cryptography.Pkcs` (#2299) and `MessagePack` (#2338) each blocked every pull request. Without the flag, the fix was a central `PackageVersion` plus a direct `PackageReference` in each project that pulls the package in (`Directory.Packages.props:182` and `:184`, with the comments that name the issues). With the flag, the same fix would be the one `PackageVersion` line.
+A concrete story, from the repository itself. Advisories on `System.Security.Cryptography.Pkcs` (#2299) and `MessagePack` (#2338) each blocked every pull request. Without the flag, the fix was a central `PackageVersion` plus a direct `PackageReference` in each project that pulls the package in (`Directory.Packages.props:181-182` and `:183-184`, each a comment naming the issue followed by the `PackageVersion` line). With the flag, the same fix would be the one `PackageVersion` line.
 
 Today the repository has two pin patterns, not one:
 
@@ -29,19 +29,19 @@ Method: from the worktree root, `dotnet restore Encina.slnx --force-evaluate -p:
 
 ### Conflict matrix
 
-Every row is "central pin lower than a transitive requirement". Line numbers refer to `Directory.Packages.props`.
+Every row is "central pin lower than a transitive requirement". Line numbers refer to `Directory.Packages.props`. The effort column is the spike's estimate, not a measurement: every fix is a one-line version bump, so the effort is the verification it needs (XS: restore and build; S: also check the dependent package's behaviour; M: also review changed test output).
 
-| Package | Central version (line) | Required | Chain |
-| --- | --- | --- | --- |
-| Grpc.AspNetCore | 2.76.0 (111) | 2.80.0 | Aspire.Hosting.Testing 13.5.4 -> Grpc.AspNetCore |
-| Grpc.Net.Client | 2.76.0 (110) | 2.80.0 | Aspire.Hosting.Testing -> Grpc.Net.ClientFactory 2.80.0 -> Grpc.Net.Client |
-| Grpc.Tools | 2.71.0 (113) | 2.80.0 via Aspire, 2.76.0 via Grpc.AspNetCore 2.76.0 | Aspire.Hosting.Testing -> Grpc.Tools |
-| Microsoft.Extensions.Http.Resilience | 10.5.0 (78) | 10.8.0 | Aspire.Hosting.Testing -> Http.Resilience |
-| HotChocolate | 15.1.11 (115) | 15.1.14 | HotChocolate.AspNetCore 15.1.14 (line 116) -> HotChocolate |
-| TngTech.ArchUnitNET | 0.13.2 (166) | 0.13.3 | TngTech.ArchUnitNET.xUnitV3 0.13.3 (line 167) -> ArchUnitNET |
-| Verify | 28.16.0 (159) | 31.15.0 | Verify.XunitV3 31.15.0 (line 164) -> Verify |
-| Spectre.Console | 0.55.0 (155) | 0.57.2 | NBomber 6.6.0 -> Serilog.Sinks.SpectreConsole 0.4.0 -> Spectre.Console |
-| System.CommandLine | 2.0.6 (154) | 2.0.7 | NBomber 6.6.0 -> System.CommandLine |
+| Package | Central version (line) | Required | Chain | Effort (estimate) |
+| --- | --- | --- | --- | --- |
+| Grpc.AspNetCore | 2.76.0 (111) | 2.80.0 | Aspire.Hosting.Testing 13.5.4 -> Grpc.AspNetCore | S, with the other two Grpc rows: check `Encina.gRPC` against 2.80.0 |
+| Grpc.Net.Client | 2.76.0 (110) | 2.80.0 | Aspire.Hosting.Testing -> Grpc.Net.ClientFactory 2.80.0 -> Grpc.Net.Client | S (same check) |
+| Grpc.Tools | 2.71.0 (113) | 2.80.0 via Aspire, 2.76.0 via Grpc.AspNetCore 2.76.0 | Aspire.Hosting.Testing -> Grpc.Tools | XS (bump or delete, see below) |
+| Microsoft.Extensions.Http.Resilience | 10.5.0 (78) | 10.8.0 | Aspire.Hosting.Testing -> Http.Resilience | S: check the `Encina.Extensions.Resilience` tests |
+| HotChocolate | 15.1.11 (115) | 15.1.14 | HotChocolate.AspNetCore 15.1.14 (line 116) -> HotChocolate | XS (patch release) |
+| TngTech.ArchUnitNET | 0.13.2 (166) | 0.13.3 | TngTech.ArchUnitNET.xUnitV3 0.13.3 (line 167) -> ArchUnitNET | XS (patch release) |
+| Verify | 28.16.0 (159) | 31.15.0 | Verify.XunitV3 31.15.0 (line 164) -> Verify | M: three major versions, snapshot review |
+| Spectre.Console | 0.55.0 (155) | 0.57.2 | NBomber 6.6.0 -> Serilog.Sinks.SpectreConsole 0.4.0 -> Spectre.Console | S: check `src/` uses of Spectre.Console |
+| System.CommandLine | 2.0.6 (154) | 2.0.7 | NBomber 6.6.0 -> System.CommandLine | S: check `src/` uses of System.CommandLine |
 
 Projects reporting each conflict:
 
@@ -59,13 +59,13 @@ Two limits apply to this matrix:
 - It is a lower bound. A project that fails restore stops the graph evaluation, so fixing these nine may reveal more conflicts. No rebuild after any bump was run.
 - Most reporting projects are tests or benchmarks. Of the `src/` projects, only the gRPC and GraphQL packages (and the Testing family for ArchUnitNET) appear.
 
-The usual fix for each row is NuGet's own hint: raise the central pin to the required version. Grpc.AspNetCore, Grpc.Net.Client and Grpc.Tools would move to 2.80.0 together; Aspire already resolves 2.80.0 at runtime, but compatibility of Grpc.AspNetCore 2.80.0 with the `Encina.gRPC` code generation was not checked. The Verify bump is three major versions (28 to 31), so snapshot tests may change. Whether `src/` code uses a changed `System.CommandLine` API was not checked.
+The usual fix for each row is NuGet's own hint: raise the central pin to the required version. Grpc.AspNetCore, Grpc.Net.Client and Grpc.Tools would move to 2.80.0 together; Aspire already resolves 2.80.0 at runtime, but compatibility of Grpc.AspNetCore 2.80.0 with `Encina.gRPC` was not checked. The Verify bump is three major versions (28 to 31), so snapshot tests may change. Whether `src/` code uses a changed `System.CommandLine` API was not checked.
 
 Roslyn is not involved: no conflict involves an analyzer, so the Roslyn 4.14 concern of the issue did not arise.
 
 ### Grpc.Tools is unreferenced
 
-`Grpc.Tools` appears in exactly one place, `Directory.Packages.props:113`. No `.csproj`, `.props` or `.targets` file references it. The central entry is only a version for transitive resolution.
+`Grpc.Tools` appears in exactly one place, `Directory.Packages.props:113`. No `.csproj`, `.props` or `.targets` file references it, and the repository has no `.proto` file or `Protobuf` item, so nothing generates code with it. With the flag off the central entry has no effect at all; with the flag on it would pin the version that Aspire and Grpc.AspNetCore bring in transitively.
 
 ### Pinned transitives leak into the nuspec
 
@@ -84,7 +84,7 @@ So with the flag on globally, every consumer of a packable Encina package would 
 
 | Claim in the issue | State on 2026-10-28 |
 | --- | --- |
-| `Microsoft.CodeAnalysis.Common` is pinned at 4.14.0 and conflicts with Marten/JasperFx 5.0.0 (NU1605) | There is no `Microsoft.CodeAnalysis.Common` pin. The Roslyn pins are `CSharp.Scripting`, `CSharp` and `CSharp.Workspaces` at 5.0.0 (lines 194-197), Marten is 9.38.0 (line 53). No NU1605 appeared. |
+| `Microsoft.CodeAnalysis.Common` is pinned at 4.14.0 and conflicts with Marten/JasperFx 5.0.0 (NU1605) | There is no `Microsoft.CodeAnalysis.Common` pin. The Roslyn pins are `CSharp.Scripting`, `CSharp` and `CSharp.Workspaces` at 5.0.0 (lines 194 and 196-197), Marten is 9.38.0 (line 53). No NU1605 appeared. |
 | Aspire 13.2.2 pulls Grpc.Tools 2.78.0 | Aspire is 13.5.4 (lines 151-152) and requires Grpc.Tools 2.80.0 or higher. |
 | `Encina.Testing.WireMock`'s reference is the only workaround next to `Encina.OpenTelemetry`'s | A second, older pattern exists (central `PackageVersion` plus direct reference, table above). |
 | Deliverable: update the "Build Environment Known Issues" section of `CLAUDE.md` | The section does not exist. It is obsolete: [AGENTS.md](../../AGENTS.md) section 11 forbids tracking known problems in `AGENTS.md` and `CLAUDE.md`. |
@@ -96,7 +96,7 @@ These are not open; each follows from a written rule.
 | Point | Settled as | Rule |
 | --- | --- | --- |
 | Conflicting central pins | Bump the pin to the required version; never keep a lower one for compatibility | AGENTS.md section 1: pre-1.0, best solution first |
-| The unreferenced `Grpc.Tools` pin (`Directory.Packages.props:113`) | Remove it, do not bump it | AGENTS.md section 3: every line serves a current purpose |
+| The unreferenced `Grpc.Tools` pin (`Directory.Packages.props:113`) | Under B/D, remove it: with the flag off it has no effect. Under A or C' it governs the transitive version, so it is bumped to 2.80.0 instead; which of the two applies follows the open decision | AGENTS.md section 3: every line serves a current purpose |
 | `NoWarn` for NU codes | Not used; conflicts are fixed by a pin or bump. No `NoWarn` with an NU code exists in the tree, and NU1109 is an error that `WarningsAsErrors` already promotes | AGENTS.md section 8: zero warnings |
 | Audit findings | Never suppressed or lowered | SPEC-000 REQ-005 and DEC-004 |
 | `Encina.OpenTelemetry`'s OTLP reference | Stays as is; the edit belongs to #1043, which is open | [#1043 plan](../plans/otlp-exporter-implementation-plan-1043.md) |
@@ -107,6 +107,8 @@ These are not open; each follows from a written rule.
 ## The open decision
 
 Question: which way should Encina pin transitive packages?
+
+The labels follow the issue's options. A is the issue's Option A unchanged. C' narrows the issue's Option C, which turned the flag on for the two projects with OTLP references: C' turns it on for every project with `IsPackable` false, a rule chosen because of the nuspec leak measured above. B / D is the issue's Option B, keeping the flag off, extended to cover the second pin pattern (D) that the issue did not know about.
 
 | Option | What it is | Wins when |
 | --- | --- | --- |
@@ -120,7 +122,7 @@ Recommendation (not a decision): C'. The conflicts and the existing pins sit mos
 
 ## Follow-up work
 
-- An `[INFRA]` issue (AGENTS.md section 11 template table) applying the chosen option: the nine bumps above, deleting the `Grpc.Tools` pin, a rebuild to find the conflicts hidden by failed restores, and a snapshot review after the Verify bump.
+- An `[INFRA]` issue (AGENTS.md section 11 template table) applying the chosen option: the bumps above (with `Grpc.Tools` bumped under A or C', deleted under B/D), a rebuild to find the conflicts hidden by failed restores, and a snapshot review after the Verify bump.
 - A short permanent comment in `Encina.Testing.WireMock.csproj` if the answer is B/D, with the wording of the #1043 plan: "transitive version pin only; no public API consumes OTLP".
 - Retiring the `Encina.Testing.WireMock` OTLP reference follows #1043 and the chosen option, not this spike.
 
