@@ -152,7 +152,7 @@ public sealed class ServiceCollectionExtensionsRecoverabilityRoutersTests
         recoverability.ShouldBe(0);
         transaction.ShouldBeGreaterThan(recoverability);
         outbox.ShouldBeGreaterThan(transaction);
-        inbox.ShouldBeGreaterThan(transaction);
+        inbox.ShouldBeGreaterThan(outbox);
     }
 
     [Fact]
