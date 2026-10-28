@@ -193,7 +193,7 @@ public sealed class AzureServiceBusPublisherIntegrationTests : IAsyncLifetime
         received[0].MessageId.ShouldBe(messageId);
     }
 
-    [Fact(Skip = "Emulator limitation (servicebus-emulator 2.0.1): CancelScheduledMessage returns success but the scheduled message is still delivered at its due time (probed 2026-10-27). Enable when a newer emulator honours the cancel (follow-up issue of #2699).")]
+    [Fact(Skip = "Emulator limitation (servicebus-emulator 2.0.1): CancelScheduledMessage returns success but the scheduled message is still delivered at its due time (probed 2026-10-27). Enable when a newer emulator honours the cancel (#2967).")]
     public async Task CancelScheduledAsync_BeforeTheScheduledTime_PreventsDelivery()
     {
         // Arrange

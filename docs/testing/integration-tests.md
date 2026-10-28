@@ -134,7 +134,7 @@ Pinned tags keep the tests reproducible; none of these fixtures uses a `:latest`
 - **Service Bus emulator licence.** Running the Service Bus emulator tests accepts the Microsoft terms linked in the table: development and testing use only, not production, and no reverse engineering or redistribution. The fixture accepts them explicitly with `WithAcceptLicenseAgreement(true)` (issue #2699).
 - **SQL Server Developer edition.** The emulator needs a SQL Server container, which runs with `ACCEPT_EULA=Y` (set by the `Testcontainers.MsSql` builder) and `MSSQL_PID=Developer` (set explicitly by the fixture). Developer edition is free for non-production use only. Read the [SQL Server terms](https://go.microsoft.com/fwlink/?linkid=857698), the [Docker Hub page](https://hub.docker.com/_/microsoft-mssql-server) and the [environment variable documentation](https://learn.microsoft.com/en-us/sql/linux/sql-server-linux-configure-environment-variables?view=sql-server-ver16).
 - **Azurite flag.** Azurite starts with `--skipApiVersionCheck` because the Azure Storage SDKs request a newer API version than Azurite implements.
-- **Known limitation.** `servicebus-emulator` 2.0.1 accepts `CancelScheduledMessage` but still delivers the message, so that integration test is skipped. A follow-up issue tracks re-enabling the test once the emulator honours the cancel.
+- **Known limitation.** `servicebus-emulator` 2.0.1 accepts `CancelScheduledMessage` but still delivers the message, so that integration test is skipped. Issue #2967 tracks re-enabling the test once the emulator honours the cancel.
 
 ## Collection Fixture Strategy
 
