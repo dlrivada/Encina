@@ -52,7 +52,7 @@ var selfTest = false;
 for (int i = 0; i < args.Length; i++)
 {
     if (args[i] == "--check-flag-assignment") checkFlagAssignment = true;
-    if (args[i] == "--min-lines" && i + 1 < args.Length && (!int.TryParse(args[++i], NumberStyles.None, CultureInfo.InvariantCulture, out minLines) || minLines < 1))
+    if (args[i] == "--min-lines" && (i + 1 >= args.Length || !int.TryParse(args[++i], NumberStyles.None, CultureInfo.InvariantCulture, out minLines) || minLines < 1))
     {
         Console.WriteLine("\nERROR: --min-lines needs a whole number of at least 1.");
         Environment.Exit(1);
@@ -521,7 +521,9 @@ static string FormatGap(double gap)
 
 // Flags that count as assigned to a file: its manifest entry (override ?? defaultTests, a file missing from
 // the manifest gets the report's unit + guard fallback) plus every flag named in its per-file targets.
-// None means the manifest excludes the file on purpose (an empty override and no targets).
+// None means the manifest excludes the file on purpose (an empty override), as the default report does.
+// A per-file target assigns its flag to the "Per-file targets" table, not to the package row (only the
+// override or defaultTests widen that).
 static TestType AssignedFlags(
     Dictionary<string, Dictionary<string, TestType>> manifest,
     Dictionary<string, Dictionary<string, ManifestFileEntry>> fileObligations,
@@ -534,6 +536,9 @@ static TestType AssignedFlags(
         if (files.TryGetValue(relPath, out var byPath)) assigned = byPath;
         else if (files.TryGetValue(fileName, out var byName)) assigned = byName;
     }
+
+    // The default report leaves a file with no applicable flag out entirely, so it stays excluded whatever its targets say.
+    if (assigned == TestType.None) return TestType.None;
 
     var targeted = TestType.None;
     if (fileObligations.TryGetValue(package, out var obligations) &&
@@ -605,7 +610,7 @@ static bool RunCheckFlagAssignment(List<UnassignedFlagFile> rows, int minLines, 
 
     if (failing.Count > 0)
     {
-        Console.WriteLine("  Fix: assign the flag in the manifest with a per-file target and justification when the tests are real, or replace reflection-only tests.");
+        Console.WriteLine("  Fix: add the flag to the file's override in the manifest when the tests are real (a per-file target silences this check but does not change the package row), or replace reflection-only tests.");
         return true;
     }
     Console.WriteLine("  No file reaches the threshold.");
@@ -830,14 +835,20 @@ int RunSelfTest()
             ["src/Pkg/Idle.cs"] = Executed(0, 9),         // nothing executed
             ["src/Other/X.cs"] = Executed(12, 0)          // package without a manifest
         },
-        [TestType.Unit] = new(StringComparer.OrdinalIgnoreCase) { ["src/Pkg/Unit.cs"] = Executed(5, 0) }
+        [TestType.Unit] = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["src/Pkg/Unit.cs"] = Executed(5, 0),
+            ["src/Pkg/ExclTarget.cs"] = Executed(9, 0)    // excluded by an empty override although it has a target
+        }
     };
+    assignManifest["Pkg"]["ExclTarget.cs"] = TestType.None;
+    assignObligations["Pkg"]["ExclTarget.cs"] = new ManifestFileEntry { Targets = new() { ["contract"] = 10 }, Justifications = new() { ["contract"] = "x" } };
     var unassigned = FindUnassignedFlagFiles(contractData, assignManifest, assignObligations);
     Check(unassigned.Count == 2 && unassigned[0] is { Package: "Pkg", File: "Unit.cs", Flag: "contract", ExecutedLines: 12, TotalLines: 15 },
         "a flag that executes a file the manifest does not assign to it is reported with its executed lines");
     Check(unassigned.All(r => r.File != "Override.cs"), "a file assigned through the override is not reported");
     Check(unassigned.All(r => r.File != "Targeted.cs"), "a file assigned only through a per-file target is not reported");
-    Check(unassigned.All(r => r.File is not ("Excluded.cs" or "Gen.g.cs" or "Idle.cs" or "X.cs")), "excluded, generated, idle and unmanifested files are not reported");
+    Check(unassigned.All(r => r.File is not ("Excluded.cs" or "Gen.g.cs" or "Idle.cs" or "X.cs" or "ExclTarget.cs")), "excluded (even with a target), generated, idle and unmanifested files are not reported");
     Check(unassigned.All(r => r.Flag == "contract"), "a flag assigned to the file (unit on Unit.cs) is not reported");
     Check(unassigned.Any(r => r.File == "Small.cs" && r.ExecutedLines == 2), "an unlisted file gets the unit + guard fallback, so contract is unassigned");
     var assignOut = Path.Combine(Path.GetTempPath(), "flag-assignment-selftest-" + Guid.NewGuid().ToString("N"));
@@ -1084,6 +1095,7 @@ if (!Directory.Exists(inputDir))
     return;
 }
 
+var coverageParseFailures = 0;
 var xmlFiles = Directory.GetFiles(inputDir, "coverage.cobertura.xml", SearchOption.AllDirectories);
 Console.WriteLine($"Found {xmlFiles.Length} coverage report(s)");
 
@@ -1186,6 +1198,7 @@ foreach (var xmlFile in xmlFiles)
     catch (Exception ex)
     {
         Console.WriteLine($"  ERROR parsing {relPath}: {ex.Message}");
+        coverageParseFailures++;
     }
 }
 
@@ -1195,11 +1208,14 @@ Console.WriteLine($"\nLoaded data from {coverageByFlag.Count} test type(s): {str
 // It cannot pass vacuously: no manifest, an unparsed manifest or no coverage data is an error.
 if (checkFlagAssignment)
 {
-    if (manifest.Count == 0 || manifestParseFailures.Count > 0 || coverageByFlag.Count == 0)
+    var noSourceLines = !coverageByFlag.Values.Any(d => d.Values.Any(l => l.Count > 0));
+    if (manifest.Count == 0 || manifestParseFailures.Count > 0 || coverageParseFailures > 0 || noSourceLines)
     {
         Console.WriteLine(manifestParseFailures.Count > 0
             ? $"\nERROR: --check-flag-assignment could not parse {manifestParseFailures.Count} coverage manifest(s): {string.Join(", ", manifestParseFailures)}"
-            : "\nERROR: --check-flag-assignment found no coverage manifest or no coverage data; nothing was checked.");
+            : coverageParseFailures > 0
+                ? $"\nERROR: --check-flag-assignment could not parse {coverageParseFailures} Cobertura report(s); the check would be incomplete."
+                : "\nERROR: --check-flag-assignment found no coverage manifest or no executable source lines in the coverage data; nothing was checked.");
         Environment.Exit(1);
     }
 
