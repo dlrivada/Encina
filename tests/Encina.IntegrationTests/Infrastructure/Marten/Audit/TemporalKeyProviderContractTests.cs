@@ -46,11 +46,13 @@ public abstract class TemporalKeyProviderContractTests
         var first = await sut.DestroyKeysBeforeAsync(Cutoff, TemporalKeyGranularity.Monthly, Reference(kind));
         var second = await sut.DestroyKeysBeforeAsync(Cutoff, TemporalKeyGranularity.Monthly, Reference(kind));
 
-        first.IfRight(count => count.ShouldBe(1));
         first.IsRight.ShouldBeTrue();
-        second.IfRight(count => count.ShouldBe(0));
+        ((int)first).ShouldBe(1);
         second.IsRight.ShouldBeTrue();
-        (await sut.IsKeyDestroyedAsync(Period)).IfRight(destroyed => destroyed.ShouldBeTrue());
+        ((int)second).ShouldBe(0);
+        var destroyed = await sut.IsKeyDestroyedAsync(Period);
+        destroyed.IsRight.ShouldBeTrue();
+        ((bool)destroyed).ShouldBeTrue();
         (await sut.GetKeyAsync(Period, 1)).IsLeft.ShouldBeTrue();
         (await sut.GetOrCreateKeyAsync(Period)).IsLeft.ShouldBeTrue("a destroyed period is never re-created");
     }
@@ -84,7 +86,8 @@ public abstract class TemporalKeyProviderContractTests
 
         var result = await sut.DestroyKeysBeforeAsync(new DateTime(1799, 1, 1, 0, 0, 0, DateTimeKind.Utc), TemporalKeyGranularity.Monthly);
 
-        result.IfRight(count => count.ShouldBe(0));
+        result.IsRight.ShouldBeTrue();
+        ((int)result).ShouldBe(0);
         (await sut.GetKeyAsync(Period, 1)).IsRight.ShouldBeTrue();
     }
 }

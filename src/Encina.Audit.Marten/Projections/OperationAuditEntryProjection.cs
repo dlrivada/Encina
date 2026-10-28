@@ -154,10 +154,12 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// If neither an active key nor a destroyed marker exists, the lookup throws
     /// <see cref="KeyNotFoundException"/>. The absence of both documents is not a recorded erasure, so the
     /// projection never persists <c>IsShredded = true</c> for it: that would permanently corrupt the read model.
-    /// <b>The daemon does not retry this exception.</b> With the fail-closed error policy that
-    /// <see cref="ConfigureMartenOperationAuditProjections"/> sets, Marten pauses the shard (verified by
-    /// <c>AuditProjectionUnreadableEventIntegrationTests</c>, issue #2770); without that policy it would skip the
-    /// event silently. Either way the operator restores the key (or the marker) and rebuilds the projection.
+    /// <b>The daemon does not retry this exception.</b> The application sets Marten's store-wide error
+    /// flags (<c>Projections.Errors.SkipApplyErrors</c>, <c>SkipSerializationErrors</c> and the <c>RebuildErrors</c>
+    /// equivalents) to <c>false</c>, and <c>AuditProjectionErrorPolicyStartupGuard</c> refuses to start the host
+    /// otherwise unless <see cref="MartenOperationAuditOptions.AllowSkippedProjectionErrors"/> is set. With the flags
+    /// <c>false</c> Marten pauses the shard (verified by <c>AuditProjectionUnreadableEventIntegrationTests</c>,
+    /// issue #2770); without them Marten would skip the event silently. Either way the operator restores the key (or the marker) and rebuilds the projection.
     /// </item>
     /// </list>
     /// </remarks>

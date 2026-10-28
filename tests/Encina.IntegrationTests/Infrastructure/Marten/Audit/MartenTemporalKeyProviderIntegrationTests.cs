@@ -48,13 +48,11 @@ public sealed class MartenTemporalKeyProviderIntegrationTests : IAsyncLifetime
             Right: _ => { },
             Left: err => Assert.Fail($"GetOrCreateKeyAsync returned Left: {err}"));
         result.IsRight.ShouldBeTrue("Should create key for new period");
-        result.IfRight(info =>
-        {
-            info.Period.ShouldBe(period);
-            info.KeyMaterial.Length.ShouldBe(32);
-            info.Version.ShouldBe(1);
-            info.Status.ShouldBe(TemporalKeyStatus.Active);
-        });
+        var info = result.Match(Right: i => i, Left: err => throw new InvalidOperationException($"GetOrCreateKeyAsync returned Left: {err}"));
+        info.Period.ShouldBe(period);
+        info.KeyMaterial.Length.ShouldBe(32);
+        info.Version.ShouldBe(1);
+        info.Status.ShouldBe(TemporalKeyStatus.Active);
     }
 
     [Fact]
@@ -74,10 +72,8 @@ public sealed class MartenTemporalKeyProviderIntegrationTests : IAsyncLifetime
         first.IsRight.ShouldBeTrue();
         second.IsRight.ShouldBeTrue();
 
-        byte[] firstKey = null!;
-        byte[] secondKey = null!;
-        first.IfRight(k => firstKey = k.KeyMaterial);
-        second.IfRight(k => secondKey = k.KeyMaterial);
+        var firstKey = ((TemporalKeyInfo)first).KeyMaterial;
+        var secondKey = ((TemporalKeyInfo)second).KeyMaterial;
 
         firstKey.SequenceEqual(secondKey).ShouldBeTrue("Same period should return same key");
     }
@@ -98,7 +94,7 @@ public sealed class MartenTemporalKeyProviderIntegrationTests : IAsyncLifetime
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        result.IfRight(info => info.Period.ShouldBe(period));
+        ((TemporalKeyInfo)result).Period.ShouldBe(period);
     }
 
     [Fact]
@@ -134,12 +130,12 @@ public sealed class MartenTemporalKeyProviderIntegrationTests : IAsyncLifetime
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        result.IfRight(count => count.ShouldBeGreaterThan(0));
+        ((int)result).ShouldBeGreaterThan(0);
 
         // Verify destroyed
         var isDestroyed = await sut.IsKeyDestroyedAsync("2020-01");
         isDestroyed.IsRight.ShouldBeTrue();
-        isDestroyed.IfRight(d => d.ShouldBeTrue());
+        ((bool)isDestroyed).ShouldBeTrue();
     }
 
     [Fact]
@@ -156,8 +152,10 @@ public sealed class MartenTemporalKeyProviderIntegrationTests : IAsyncLifetime
         var second = await sut.DestroyKeysBeforeAsync(
             new DateTime(1901, 6, 1, 0, 0, 0, DateTimeKind.Utc), TemporalKeyGranularity.Monthly, new ErasureReference("erasure-10", requested, "dpo"));
 
-        first.IfRight(count => count.ShouldBe(1));
-        second.IfRight(count => count.ShouldBe(0));
+        first.IsRight.ShouldBeTrue();
+        second.IsRight.ShouldBeTrue();
+        ((int)first).ShouldBe(1);
+        ((int)second).ShouldBe(0);
         await using var query = _fixture.Store!.QuerySession();
         var marker = await query.LoadAsync<TemporalKeyDestroyedMarker>(TemporalPeriodHelper.FormatDestroyedMarkerId("1901-05"));
         marker!.HasErasureReference().ShouldBeTrue();
@@ -177,7 +175,8 @@ public sealed class MartenTemporalKeyProviderIntegrationTests : IAsyncLifetime
         var result = await sut.DestroyKeysBeforeAsync(
             new DateTime(1902, 6, 1, 0, 0, 0, DateTimeKind.Utc), TemporalKeyGranularity.Monthly);
 
-        result.IfRight(count => count.ShouldBe(1));
+        result.IsRight.ShouldBeTrue();
+        ((int)result).ShouldBe(1);
         await using var query = _fixture.Store!.QuerySession();
         var marker = await query.LoadAsync<TemporalKeyDestroyedMarker>(TemporalPeriodHelper.FormatDestroyedMarkerId("1902-05"));
         marker!.HasErasureReference().ShouldBeFalse();
@@ -196,7 +195,9 @@ public sealed class MartenTemporalKeyProviderIntegrationTests : IAsyncLifetime
             new DateTime(1903, 6, 1, 0, 0, 0, DateTimeKind.Utc), TemporalKeyGranularity.Monthly, new ErasureReference("", default, ""));
 
         result.IsLeft.ShouldBeTrue();
-        (await sut.IsKeyDestroyedAsync("1903-05")).IfRight(destroyed => destroyed.ShouldBeFalse());
+        var destroyed = await sut.IsKeyDestroyedAsync("1903-05");
+        destroyed.IsRight.ShouldBeTrue();
+        ((bool)destroyed).ShouldBeFalse();
         (await sut.GetKeyAsync("1903-05")).IsRight.ShouldBeTrue();
     }
 
@@ -216,7 +217,7 @@ public sealed class MartenTemporalKeyProviderIntegrationTests : IAsyncLifetime
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        result.IfRight(d => d.ShouldBeFalse());
+        ((bool)result).ShouldBeFalse();
     }
 
     [Fact]
@@ -235,11 +236,9 @@ public sealed class MartenTemporalKeyProviderIntegrationTests : IAsyncLifetime
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        result.IfRight(keys =>
-        {
-            keys.ShouldNotBeEmpty();
-            keys.ShouldContain(k => k.Period == activePeriod);
-            keys.ShouldAllBe(k => k.Status == TemporalKeyStatus.Active);
-        });
+        var keys = result.Match(Right: k => k, Left: err => throw new InvalidOperationException($"GetActiveKeysAsync returned Left: {err}"));
+        keys.ShouldNotBeEmpty();
+        keys.ShouldContain(k => k.Period == activePeriod);
+        keys.ShouldAllBe(k => k.Status == TemporalKeyStatus.Active);
     }
 }
