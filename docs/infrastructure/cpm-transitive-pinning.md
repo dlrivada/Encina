@@ -1,6 +1,6 @@
 # CPM transitive pinning: measured state and options (spike #1051)
 
-This page is for the maintainer who has to choose how Encina pins transitive NuGet packages, and for any contributor who needs to know why the repository has hand-made pin references. It records what was measured on `origin/main` on 2026-10-28, corrects the claims of issue #1051 that no longer hold, and presents the one open decision with its options. The spike only recommends; it changes no build file.
+This page is for the maintainer who has to choose how Encina pins transitive NuGet packages, and for any contributor who needs to know why the repository has hand-made pin references. It records what was measured on `origin/main` on 2026-10-28, corrects the claims of issue #1051 that no longer hold, and records the one decision with its options and the maintainer's choice (C', 2026-10-28). The spike changes no build file; #2976 applies the decision.
 
 ## The problem from the basics
 
@@ -96,17 +96,19 @@ These are not open; each follows from a written rule.
 | Point | Settled as | Rule |
 | --- | --- | --- |
 | Conflicting central pins | Bump the pin to the required version; never keep a lower one for compatibility | AGENTS.md section 1: pre-1.0, best solution first |
-| The unreferenced `Grpc.Tools` pin (`Directory.Packages.props:113`) | Under B/D, remove it: with the flag off it has no effect. Under A or C' it governs the transitive version, so it is bumped to 2.80.0 instead; which of the two applies follows the open decision | AGENTS.md section 3: every line serves a current purpose |
+| The unreferenced `Grpc.Tools` pin (`Directory.Packages.props:113`) | Remove it. With the flag off it has no effect; with the flag on, a package with no central `PackageVersion` is not pinned at all, so deleting the entry also removes its conflict | AGENTS.md section 3: every line serves a current purpose |
 | `NoWarn` for NU codes | Not used; conflicts are fixed by a pin or bump. No `NoWarn` with an NU code exists in the tree, and NU1109 is an error that `WarningsAsErrors` already promotes | AGENTS.md section 8: zero warnings |
 | Audit findings | Never suppressed or lowered | SPEC-000 REQ-005 and DEC-004 |
 | `Encina.OpenTelemetry`'s OTLP reference | Stays as is; the edit belongs to #1043, which is open | [#1043 plan](../plans/otlp-exporter-implementation-plan-1043.md) |
-| `Encina.Testing.WireMock`'s OTLP reference | Keeps `PrivateAssets="all"` until the decision below is implemented | #1043 plan |
+| `Encina.Testing.WireMock`'s OTLP reference | Keeps `PrivateAssets="all"` until #2976 removes it, as the decision below directs | #1043 plan; [decision comment](https://github.com/dlrivada/Encina/issues/1051#issuecomment-6470576758) |
 | CLAUDE.md deliverable | Dropped | AGENTS.md section 11 |
-| Scope of the spike | It recommends only; applying an option is a separate `[INFRA]` issue | Issue #1051, Out of Scope |
+| Scope of the spike | It measures and recommends; applying the chosen option is a separate `[INFRA]` issue (#2976) | Issue #1051, Out of Scope |
 
-## The open decision
+## The decision
 
 Question: which way should Encina pin transitive packages?
+
+**Decided by the maintainer on 2026-10-28: C'** ([decision comment on #1051](https://github.com/dlrivada/Encina/issues/1051#issuecomment-6470576758)). The flag is on only in non-packable projects (`IsPackable` false: test and tooling projects), so pinned transitive versions never reach the dependencies of published Encina packages (AGENTS.md section 1, pay-for-what-you-use). The options as they were presented follow.
 
 The labels follow the issue's options. A is the issue's Option A unchanged. C' narrows the issue's Option C, which turned the flag on for the two projects with OTLP references: C' turns it on for every project with `IsPackable` false, a rule chosen because of the nuspec leak measured above. B / D is the issue's Option B, keeping the flag off, extended to cover the second pin pattern (D) that the issue did not know about.
 
@@ -118,17 +120,17 @@ The labels follow the issue's options. A is the issue's Option A unchanged. C' n
 
 Also considered: NuGet lock files give reproducible resolution but do not pin versions centrally and retire no pin, so they do not answer the question.
 
-Recommendation (not a decision): C'. The conflicts and the existing pins sit mostly in test projects, and C' avoids the nuspec leak, so Encina's consumers get no imposed versions. Caveats to weigh: the matrix is a lower bound, the Verify bump is three majors and may change snapshots, and the issue calls per-project use of the property "poorly documented"; whether restore honours a conditional value per project must be confirmed by the implementing issue (it was not tested here).
+The spike's recommendation, which the maintainer followed, was C'. The conflicts and the existing pins sit mostly in test projects, and C' avoids the nuspec leak, so Encina's consumers get no imposed versions. Caveats to weigh: the matrix is a lower bound, the Verify bump is three majors and may change snapshots, and the issue calls per-project use of the property "poorly documented"; whether restore honours a conditional value per project must be confirmed by the implementing issue (it was not tested here).
 
 ## Follow-up work
 
-- An `[INFRA]` issue (AGENTS.md section 11 template table) applying the chosen option: the bumps above (with `Grpc.Tools` bumped under A or C', deleted under B/D), a rebuild to find the conflicts hidden by failed restores, and a snapshot review after the Verify bump.
-- A short permanent comment in `Encina.Testing.WireMock.csproj` if the answer is B/D, with the wording of the #1043 plan: "transitive version pin only; no public API consumes OTLP".
-- Retiring the `Encina.Testing.WireMock` OTLP reference follows #1043 and the chosen option, not this spike.
+- [#2976](https://github.com/dlrivada/Encina/issues/2976) `[INFRA]` applies C': it confirms that restore honours the conditional flag, makes the bumps above, deletes the `Grpc.Tools` pin, removes the `PrivateAssets="all"` OTLP reference of `Encina.Testing.WireMock`, rebuilds to find the conflicts hidden by failed restores, and reviews the snapshots after the Verify bump.
+- The OTLP reference of `Encina.OpenTelemetry` stays with #1043.
 
 ## Related issues
 
 - [#1051](https://github.com/dlrivada/Encina/issues/1051): this spike.
+- [#2976](https://github.com/dlrivada/Encina/issues/2976): applies the decision.
 - [PR #1041](https://github.com/dlrivada/Encina/pull/1041): related merged pull request, read for this spike.
 - [#1043](https://github.com/dlrivada/Encina/issues/1043): OTLP exporter; owns the `Encina.OpenTelemetry` reference.
 - [#2299](https://github.com/dlrivada/Encina/issues/2299), [#2338](https://github.com/dlrivada/Encina/issues/2338): the later advisory incidents and the direct-pin pattern; PR [#2302](https://github.com/dlrivada/Encina/pull/2302).
