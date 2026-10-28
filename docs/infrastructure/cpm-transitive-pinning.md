@@ -79,6 +79,7 @@ Roslyn is not involved: no conflict involves an analyzer, so the Roslyn 4.14 con
 - Testcontainers 4.15.0
 
 So with the flag on globally, every consumer of a packable Encina package would inherit the central versions as direct dependency floors.
+
 ## Claims of issue #1051 that no longer hold
 
 | Claim in the issue | State on 2026-10-28 |
