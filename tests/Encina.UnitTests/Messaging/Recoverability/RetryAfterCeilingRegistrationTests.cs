@@ -67,7 +67,13 @@ public sealed class RetryAfterCeilingRegistrationTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddEncinaRecoverability(options => options.MaxRetryAfter = TimeSpan.FromHours(3));
+        services.AddEncinaRecoverability(options =>
+        {
+            options.MaxRetryAfter = TimeSpan.FromHours(3);
+            options.EnableDelayedRetries = true;
+        });
+
+        // The store is registered after the recoverability registration, as a raw descriptor.
         services.AddSingleton(Substitute.For<IDelayedRetryStore>());
         services.AddSingleton(Substitute.For<IDelayedRetryMessageFactory>());
 

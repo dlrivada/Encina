@@ -51,6 +51,30 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
     }
 
     [Fact]
+    public async Task EncryptAsync_PrimitiveThrowsCryptographicException_ReturnsEncryptionFailedWithoutLeakingMessage()
+    {
+        // No real input makes AesGcm.Encrypt throw, so the nonce source is made to fail.
+        const string sentinel = "sentinel-primitive-failure";
+        var failingEncryptor = new AesGcmFieldEncryptor(
+            _keyProvider,
+            _ => throw new CryptographicException(sentinel));
+        var context = new EncryptionContext { Purpose = "test" };
+
+        var stringResult = await failingEncryptor.EncryptStringAsync("hello", context);
+        var bytesResult = await failingEncryptor.EncryptBytesAsync(new byte[] { 1, 2, 3 }, context);
+
+        foreach (var result in new[] { stringResult, bytesResult })
+        {
+            result.IsLeft.ShouldBeTrue();
+            var error = result.Match(Right: _ => default!, Left: e => e);
+            error.GetCode().IfNone("").ShouldBe("encryption.encryption_failed");
+            error.GetDetails()["keyId"].ShouldBe(TestKeyId);
+            error.Exception.IsSome.ShouldBeTrue();
+            error.Message.ShouldNotContain(sentinel);
+        }
+    }
+
+    [Fact]
     public async Task EncryptStringAsync_EmptyString_ReturnsEncryptedValue()
     {
         var context = new EncryptionContext { Purpose = "test" };

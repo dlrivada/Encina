@@ -238,6 +238,102 @@ public sealed class RequestContextScopeFactoryTests
         ShouldBeLeftWith(result, RequestIdentityErrorCodes.TenantConflict);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("t1")]
+    [InlineData("t3")]
+    public async Task RunAsPrincipalAsync_WithTwoDistinctTenantClaimsInOneIdentity_IsRefused_AndWorkNeverRuns(string? optionTenant)
+    {
+        var principal = TestIdentity.Principal("alice", claims: [new Claim("tenant_id", "t1-" + Sentinel), new Claim("tenant_id", "t2-" + Sentinel)]);
+        var invoked = false;
+
+        var result = await Factory.RunAsPrincipalAsync(principal, (c, t) =>
+        {
+            invoked = true;
+            return Ok(c, t);
+        }, optionTenant is null ? null : new IdentityScopeOptions(TenantId: optionTenant));
+
+        ShouldBeLeftWith(result, RequestIdentityErrorCodes.ConflictingTenantClaims);
+        invoked.ShouldBeFalse();
+        var record = Records.Single(r => r.Id.Id == 167);
+        record.Level.ShouldBe(LogLevel.Warning);
+        record.Message.ShouldContain(RequestIdentityErrorCodes.ConflictingTenantClaims);
+        NoSentinelInAnyRecord();
+    }
+
+    [Fact]
+    public async Task RunAsPrincipalAsync_WithDifferentValuesAcrossTwoConfiguredClaimTypes_IsRefused()
+    {
+        var principal = TestIdentity.Principal("alice", claims: [new Claim("tenant_id", "t1"), new Claim("tid", "t2")]);
+
+        var result = await Factory.RunAsPrincipalAsync(principal, ScopeTestHost.Capture);
+
+        ShouldBeLeftWith(result, RequestIdentityErrorCodes.ConflictingTenantClaims);
+        _host.Accessor.RequestContext.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task RunAsPrincipalAsync_WithTheSameTenantRepeated_OpensTheScopeWithThatTenant()
+    {
+        var principal = TestIdentity.Principal("alice", claims: [new Claim("tenant_id", "t1"), new Claim("tid", "t1")]);
+
+        var result = await Factory.RunAsPrincipalAsync(principal, ScopeTestHost.Capture, new IdentityScopeOptions(TenantId: "t1"));
+
+        var context = result.ShouldBeSuccess();
+        context.TenantId.ShouldBe("t1");
+        context.Issued().UserId.ShouldBe("alice");
+    }
+
+    [Fact]
+    public async Task RunAsPrincipalAsync_WithConflictingTenantClaims_UnsupportedAccessorWinsOverTheConflict()
+    {
+        var factory = new RequestContextScopeFactory(
+            Substitute.For<IRequestContextAccessor>(), _host.Catalog, _host.IdentityFactory,
+            Microsoft.Extensions.Options.Options.Create(new RequestIdentityOptions()), _host.Time, _host.Logger);
+        var principal = TestIdentity.Principal("alice", claims: [new Claim("tenant_id", "t1"), new Claim("tid", "t2")]);
+
+        var result = await factory.RunAsPrincipalAsync(principal, Ok);
+
+        ShouldBeLeftWith(result, RequestIdentityErrorCodes.UnsupportedAccessor);
+    }
+
+    [Fact]
+    public async Task RunAsPrincipalAsync_WithConflictingTenantClaims_ACancelledTokenWinsOverTheConflict()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        var principal = TestIdentity.Principal("alice", claims: [new Claim("tenant_id", "t1"), new Claim("tid", "t2")]);
+
+        var result = await Factory.RunAsPrincipalAsync(principal, Ok, cancellationToken: cts.Token);
+
+        ShouldBeLeftWith(result, EncinaErrorCodes.RequestCancelled);
+        _host.EventIds.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task RunAsPrincipalAsync_WithConflictingTenantClaims_TheConflictWinsOverTheHolderChainCheck()
+    {
+        var principal = TestIdentity.Principal("bob", claims: [new Claim("tenant_id", "t1"), new Claim("tid", "t2")]);
+
+        await _host.InUserScope("alice", async _ =>
+        {
+            ShouldBeLeftWith(await Factory.RunAsPrincipalAsync(principal, Ok), RequestIdentityErrorCodes.ConflictingTenantClaims);
+            return 0;
+        });
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("t9")]
+    public async Task RunAsPrincipalAsync_WithoutATenantClaim_UsesTheOptionTenantOrNone(string? optionTenant)
+    {
+        var principal = ScopeTestHost.UserPrincipal("alice");
+
+        var result = await Factory.RunAsPrincipalAsync(principal, ScopeTestHost.Capture, new IdentityScopeOptions(TenantId: optionTenant));
+
+        result.ShouldBeSuccess().TenantId.ShouldBe(optionTenant);
+    }
+
     // ── Rule 4: the holder chain ─────────────────────────────────────────
 
     [Fact]
@@ -570,6 +666,15 @@ public sealed class RequestContextScopeFactoryTests
         var error = RequestIdentityErrors.InboundTenantConflict();
 
         error.GetCode().IfNone("none").ShouldBe("encina.identity.inbound_tenant_conflict");
+        error.Message.ShouldNotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public void ConflictingTenantClaims_HasAFixedMessageWithNoTenant()
+    {
+        var error = RequestIdentityErrors.ConflictingTenantClaims();
+
+        error.GetCode().IfNone("none").ShouldBe("encina.identity.conflicting_tenant_claims");
         error.Message.ShouldNotBeNullOrWhiteSpace();
     }
 

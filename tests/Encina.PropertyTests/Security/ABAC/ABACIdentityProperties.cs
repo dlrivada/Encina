@@ -73,6 +73,7 @@ public sealed class ABACIdentityProperties
             Compiler,
             Options.Create(new ABACOptions { EnforcementMode = warnMode ? ABACEnforcementMode.Warn : ABACEnforcementMode.Block }),
             Substitute.For<global::Encina.Security.ABAC.DecisionAudit.IABACDecisionRecorder>(),
+            new NoAccessElevationGate(),
             TimeProvider.System,
             NullLogger<ABACPipelineBehavior<GuardedRequest, string>>.Instance);
 

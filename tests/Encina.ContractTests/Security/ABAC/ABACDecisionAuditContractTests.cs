@@ -77,6 +77,7 @@ public sealed class ABACDecisionAuditContractTests
             Compiler,
             Options.Create(options),
             recorder,
+            new NoAccessElevationGate(),
             TimeProvider.System,
             NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
     }

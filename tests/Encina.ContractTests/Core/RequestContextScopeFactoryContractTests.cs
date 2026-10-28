@@ -81,6 +81,23 @@ public sealed class RequestContextScopeFactoryContractTests : IDisposable
     }
 
     [Fact]
+    public async Task RunAsPrincipalAsync_ConflictingTenantClaims_AreRefusedWithTheirOwnCode_AndNeverInvokeWork()
+    {
+        var invoked = false;
+        var principal = Principal(new Claim("oid", "user-1"), new Claim("org", "tenant-1"), new Claim("org", "tenant-2"));
+
+        var result = await Scopes.RunAsPrincipalAsync(principal, (context, ct) =>
+        {
+            invoked = true;
+            return Capture(context, ct);
+        });
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.ConflictingTenantClaims));
+        invoked.ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task EveryScope_IsInvalidatedWhenWorkCompletes()
     {
         var service = (await Scopes.RunAsServiceAsync(Job, Capture)).ShouldBeSuccess();

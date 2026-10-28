@@ -367,12 +367,16 @@
   let activeFilter = 'all';
   let searchTerm = '';
 
+  // False only for a package the report marked as having a manifest and no measured lines (#2827).
+  const isMeasured = (pkg) => pkg.measured !== false;
+
   // Sort state: { column: string|null, direction: 'asc'|'desc'|null }
   let sortState = { column: null, direction: null };
 
   // Extract sortable value from a package for a given column
   function sortValue(pkg, col) {
     if (col === 'name') return pkg.name.toLowerCase();
+    if (!isMeasured(pkg)) return -Infinity; // not measured sorts below any measured value, including 0% and negative gaps
     if (col === 'lines') return pkg.lines;
     if (col === 'combined') return pkg.coverage;
     if (col === 'gap') {
@@ -412,11 +416,25 @@
       filtered.sort((a, b) => {
         const va = sortValue(a, col), vb = sortValue(b, col);
         if (typeof va === 'string') return va.localeCompare(vb) * dir;
-        return (va - vb) * dir;
+        return va === vb ? 0 : (va - vb) * dir; // equal check keeps two -Infinity values from giving NaN
       });
     }
 
     for (const pkg of filtered) {
+      // A package with a manifest and no measured lines (#2827): one "not measured" cell, never 0%,
+      // never a pass or a fail. Old snapshots have no `measured` field and count as measured.
+      if (!isMeasured(pkg)) {
+        const nm = document.createElement('tr');
+        nm.id = `pkg-${pkg.name}`;
+        nm.className = 'pkg-not-measured';
+        nm.innerHTML = `
+          <td class="pkg-name" data-pkg="${pkg.name}">${pkg.name}</td>
+          <td class="nodata" colspan="19" title="This package has a coverage manifest but no coverage data was measured for it">not measured</td>
+          <td class="cited-in">${citationsHtml(citationsForPackage(pkg.name))}</td>`;
+        pkgBody.appendChild(nm);
+        continue;
+      }
+
       const catTests = null;
 
       // Effective target = weighted by applicable lines per flag (obligations model)
@@ -524,6 +542,28 @@
     section.appendChild(warning);
   }
 
+  // ── Unmeasured packages warning (#2827) ───────────────────────────
+  // Derived from the rows themselves when the list is absent, so it also works on a snapshot that
+  // carries `measured` but not `unmeasuredPackages`.
+  const unmeasuredNames = Array.isArray(data.unmeasuredPackages)
+    ? data.unmeasuredPackages
+    : allPackages.filter(p => !isMeasured(p)).map(p => p.name);
+  if (unmeasuredNames.length > 0) {
+    const section = document.getElementById('package-table').parentElement;
+    const warning = document.createElement('div');
+    warning.className = 'unmeasured-warning';
+    warning.style.cssText = 'margin:1.5rem 0;padding:1rem 1.5rem;border:1px solid #f0ad4e;border-radius:8px;background:rgba(240,173,78,0.08)';
+    const list = unmeasuredNames.map(p => `<li><code>${p}</code></li>`).join('');
+    warning.innerHTML = `
+      <h3 style="margin:0 0 0.5rem;color:#f0ad4e">⚠ Packages Not Measured (${unmeasuredNames.length})</h3>
+      <p style="margin:0 0 0.5rem;opacity:0.85">These packages have a manifest in
+      <code>.github/coverage-manifest/</code> but no coverage data was measured for them. They are shown as
+      <em>not measured</em>, not as 0%, and are not counted as met.</p>
+      <ul style="margin:0.5rem 0;padding-left:1.5rem">${list}</ul>
+    `;
+    section.appendChild(warning);
+  }
+
   // ── Column sorting ─────────────────────────────────────────────────
   function updateSortHeaders() {
     document.querySelectorAll('#package-table th[data-sort]').forEach(th => {
@@ -579,6 +619,10 @@
     const headers = ['Package', 'Unit', 'U Tgt', 'U Lines', 'Guard', 'G Tgt', 'G Lines', 'Contract', 'C Tgt', 'C Lines', 'Property', 'P Tgt', 'P Lines', 'Integ', 'I Tgt', 'I Lines', 'Combined', 'Gap', 'Lines'];
     const rows = [headers.join('\t')];
     for (const pkg of allPackages) {
+      if (!isMeasured(pkg)) {
+        rows.push([pkg.name, ...Array(headers.length - 1).fill('not measured')].join('\t'));
+        continue;
+      }
       const catTests = null;
       const gap = pkg.coverage - effectiveTarget;
       const ft = pkg.perFlagTarget || {};
@@ -762,6 +806,7 @@
 
     let angle = -Math.PI / 2;
     for (const pkg of allPackages.sort((a, b) => b.lines - a.lines)) {
+      if (!isMeasured(pkg) || !(pkg.lines > 0)) continue; // nothing measured, nothing to draw
       const sweep = (pkg.lines / totalLines) * Math.PI * 2;
       const cov = pkgCoverage(pkg);
       // Color based on per-flag target compliance (consistent with table)

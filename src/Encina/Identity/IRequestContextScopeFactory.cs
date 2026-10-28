@@ -99,7 +99,12 @@ public interface IRequestContextScopeFactory
     /// <see cref="RequestIdentityErrorCodes.TenantConflict"/>) and the inbound opt-in.
     /// </param>
     /// <param name="cancellationToken">The cancellation token passed to <paramref name="work"/>.</param>
-    /// <returns>The result of <paramref name="work"/>, or a refusal.</returns>
+    /// <returns>
+    /// The result of <paramref name="work"/>, or a refusal. A principal whose authenticated identities
+    /// carry different tenant claim values (across the configured tenant claim types, or several values
+    /// in one identity) is refused with <see cref="RequestIdentityErrorCodes.ConflictingTenantClaims"/>
+    /// and <paramref name="work"/> is not invoked; the scope never opens as anonymous instead.
+    /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="principal"/> or <paramref name="work"/> is <see langword="null"/>.</exception>
     Task<Either<EncinaError, T>> RunAsPrincipalAsync<T>(
         ClaimsPrincipal principal,

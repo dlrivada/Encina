@@ -1,0 +1,1 @@
+- `RecoverabilityOptions.EnableDelayedRetries` now defaults to `false`: delayed retries are opt-in and need a registered `IDelayedRetryStore` and `IDelayedRetryMessageFactory` (`AddEncinaDelayedRetryStore<TStore, TFactory>()` or a database provider package); the default registration keeps immediate retries and the dead letter path (#2248).

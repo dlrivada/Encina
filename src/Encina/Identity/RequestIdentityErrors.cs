@@ -68,6 +68,16 @@ public static class RequestIdentityErrors
             "The tenant of the request is ambiguous: it disagrees with the tenant of the caller; the request is refused.");
 
     /// <summary>
+    /// Creates the error returned when a principal scope is requested for a principal whose
+    /// authenticated identities carry different tenant claim values.
+    /// </summary>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="RequestIdentityErrorCodes.ConflictingTenantClaims"/>.</returns>
+    public static EncinaError ConflictingTenantClaims()
+        => EncinaErrors.Create(
+            RequestIdentityErrorCodes.ConflictingTenantClaims,
+            "The tenant claims of the principal are ambiguous: they carry different tenant values; the scope is refused.");
+
+    /// <summary>
     /// Creates the error returned when the registered accessor is not the default one.
     /// </summary>
     /// <returns>An <see cref="EncinaError"/> with code <see cref="RequestIdentityErrorCodes.UnsupportedAccessor"/>.</returns>

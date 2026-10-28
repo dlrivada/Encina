@@ -13,6 +13,10 @@ namespace Encina.Security.BreakTheGlass;
 public interface IBreakTheGlassService
 {
     /// <summary>Opens an elevation.</summary>
+    /// <remarks>
+    /// The justification should be operational (for example "on call, unassigned patient, crisis"), not
+    /// clinical detail: data minimisation, GDPR Art. 5(1)(c) and Art. 9.
+    /// </remarks>
     /// <param name="request">The request.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The opened elevation.</returns>

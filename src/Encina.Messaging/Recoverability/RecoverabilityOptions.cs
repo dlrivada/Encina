@@ -103,11 +103,14 @@ public sealed class RecoverabilityOptions
     /// </summary>
     /// <remarks>
     /// When disabled, only immediate retries are used, and messages go to DLQ
-    /// after immediate retries are exhausted. Requires scheduling to be enabled
-    /// in <see cref="MessagingConfiguration.UseScheduling"/>.
+    /// after immediate retries are exhausted. When enabled, an <see cref="IDelayedRetryStore"/> and an
+    /// <see cref="IDelayedRetryMessageFactory"/> must be registered (with
+    /// <c>AddEncinaDelayedRetryStore</c> or a database provider package); otherwise the application
+    /// fails at startup. The flag alone decides: enabled with an empty <see cref="DelayedRetries"/>
+    /// array still requires the store.
     /// </remarks>
-    /// <value>Default: true</value>
-    public bool EnableDelayedRetries { get; set; } = true;
+    /// <value>Default: false</value>
+    public bool EnableDelayedRetries { get; set; }
 
     /// <summary>
     /// Gets or sets whether to add jitter to retry delays.

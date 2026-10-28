@@ -38,6 +38,9 @@ internal sealed record ABACEnforcementVerdict(
     /// </summary>
     internal ABACDecisionInputs? Capture { get; init; }
 
+    /// <summary>The id of the elevation that overrode the denial; <c>null</c> unless <see cref="Enforced"/> is <see cref="ABACEnforcedOutcome.DeniedElevated"/>.</summary>
+    internal Guid? ElevationId { get; init; }
+
     /// <summary>The request is permitted.</summary>
     public static ABACEnforcementVerdict Granted(string? policyId) =>
         new(true, null, ABACEnforcedOutcome.Granted, ABACDecisionAuditSchema.PermitReasonCode, false,
@@ -51,6 +54,13 @@ internal sealed record ABACEnforcementVerdict(
     /// <summary>A definite denial that Warn mode lets through; <paramref name="error"/> is what Block mode would return.</summary>
     public static ABACEnforcementVerdict NotEnforced(EncinaError error, ABACOutcomeTelemetry telemetry) =>
         new(true, null, ABACEnforcedOutcome.DeniedNotEnforced, ReasonOf(error), false, telemetry);
+
+    /// <summary>
+    /// A definite denial that an emergency elevation overrode: the request proceeds, the reason code is
+    /// the original denial code and the decision is always recorded. Telemetry keeps the policy verdict.
+    /// </summary>
+    public static ABACEnforcementVerdict Elevated(EncinaError denial, ABACOutcomeTelemetry telemetry, Guid elevationId) =>
+        new(true, null, ABACEnforcedOutcome.DeniedElevated, ReasonOf(denial), true, telemetry) { ElevationId = elevationId };
 
     private static string ReasonOf(EncinaError error) => error.GetCode().IfNone("encina.unknown");
 }

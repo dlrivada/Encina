@@ -114,6 +114,7 @@ public sealed class ABACDecisionAuditTransactionIsolationTests(EFCoreSqlServerFi
             new EELCompiler(),
             Microsoft.Extensions.Options.Options.Create(options),
             recorder,
+            new NoAccessElevationGate(),
             TimeProvider.System,
             NullLogger<ABACPipelineBehavior<DenyingCommand, string>>.Instance);
     }

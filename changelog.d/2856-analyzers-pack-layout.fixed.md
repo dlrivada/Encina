@@ -1,0 +1,1 @@
+- **`Encina.Security.ABAC.Analyzers` now packs as a Roslyn analyzer** (#2856). The analyzer and code fix ship under `analyzers/dotnet/cs`, the package has no `lib/` assembly, is a development dependency and carries a README, so consumers get the EEL diagnostics for `[RequireCondition]` expressions.

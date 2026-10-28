@@ -118,6 +118,24 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddEncinaAuthorization_Alone_BuildsValidatedProviderAndResolvesTheBehaviorWithTheDefaultGate()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddRouting(); // the ASP.NET Core authorization policy cache needs the routing services
+        services.AddEncinaAuthorization();
+
+        using var provider = BuildValidatedProvider(services);
+        using var scope = provider.CreateScope();
+
+        scope.ServiceProvider.GetRequiredService<IAccessElevationGate>().ShouldBeOfType<NoAccessElevationGate>();
+        scope.ServiceProvider.GetServices<IPipelineBehavior<GateProbeRequest, string>>()
+            .OfType<AuthorizationPipelineBehavior<GateProbeRequest, string>>().Count().ShouldBe(1);
+    }
+
+    private sealed record GateProbeRequest : IRequest<string>;
+
+    [Fact]
     public void AddEncinaAspNetCore_CalledTwice_DoesNotRegisterDuplicateAccessor()
     {
         var services = new ServiceCollection();

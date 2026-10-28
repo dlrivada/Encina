@@ -1,0 +1,1 @@
+- An AES-GCM failure while encrypting no longer reports a decryption error: `AesGcmFieldEncryptor` now returns the new `EncryptionErrors.EncryptionFailed` (code `encryption.encryption_failed`), which records the exception without copying its message into the error message (#2782).

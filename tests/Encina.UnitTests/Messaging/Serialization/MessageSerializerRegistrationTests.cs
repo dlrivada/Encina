@@ -136,7 +136,7 @@ public sealed class MessageSerializerRegistrationTests
     {
         // Arrange
         var services = CreateBaseServices(encryption);
-        services.AddEncinaRecoverability();
+        services.AddEncinaRecoverability(o => o.EnableDelayedRetries = true);
         services.AddEncinaDelayedRetryStore<ProbeDelayedRetryStore, ProbeDelayedRetryMessageFactory>();
         if (encryption == Encryption.RegisteredAfterProvider)
         {

@@ -43,6 +43,13 @@ namespace Encina.AspNetCore;
 /// <para>
 /// Logs and error details record the identity kind, never the user id.
 /// </para>
+/// <para>
+/// <b>Emergency elevation.</b> A definite denial (see <see cref="AccessElevationDenials.IsOverridable"/>)
+/// is offered to the registered <see cref="IAccessElevationGate"/> before it is returned: <c>None</c>
+/// keeps the denial, an error from the gate replaces it, and an elevation lets the request continue
+/// (logged with EventId 207: the identity kind and the elevation id only). An unauthenticated caller is
+/// never offered, and the allow path never calls the gate.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -104,6 +111,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
 
     private readonly IAuthorizationService _authorizationService;
     private readonly AuthorizationConfiguration _configuration;
+    private readonly IAccessElevationGate _elevationGate;
     private readonly ILogger<AuthorizationPipelineBehavior<TRequest, TResponse>> _logger;
 
     /// <summary>
@@ -111,18 +119,25 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
     /// </summary>
     /// <param name="authorizationService">The ASP.NET Core authorization service.</param>
     /// <param name="options">CQRS-aware authorization configuration.</param>
+    /// <param name="elevationGate">
+    /// The gate a definite denial is offered to before it is returned (break-the-glass). The default
+    /// that <c>AddEncina</c> and <c>AddEncinaAuthorization</c> register keeps every denial.
+    /// </param>
     /// <param name="logger">Logger for structured authorization diagnostics.</param>
     public AuthorizationPipelineBehavior(
         IAuthorizationService authorizationService,
         IOptions<AuthorizationConfiguration> options,
+        IAccessElevationGate elevationGate,
         ILogger<AuthorizationPipelineBehavior<TRequest, TResponse>> logger)
     {
         ArgumentNullException.ThrowIfNull(authorizationService);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(elevationGate);
         ArgumentNullException.ThrowIfNull(logger);
 
         _authorizationService = authorizationService;
         _configuration = options.Value;
+        _elevationGate = elevationGate;
         _logger = logger;
     }
 
@@ -143,9 +158,39 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
         }
 
         var denial = await AuthorizeAsync(request, context, requirements).ConfigureAwait(false);
+        if (denial is { } definite)
+        {
+            denial = await OfferToElevationGateAsync(request, context, definite, cancellationToken).ConfigureAwait(false);
+        }
+
         return denial is { } error
             ? Left<EncinaError, TResponse>(error)
             : await nextStep().ConfigureAwait(false);
+    }
+
+    // A definite denial is offered to the elevation gate (break-the-glass) before it is returned.
+    // None keeps the denial, Left replaces it, Some lets the request continue (null). An
+    // unauthenticated caller is never overridable, so it never reaches the gate.
+    private async ValueTask<EncinaError?> OfferToElevationGateAsync(
+        TRequest request, IRequestContext context, EncinaError denial, CancellationToken cancellationToken)
+    {
+        if (!AccessElevationDenials.IsOverridable(denial))
+        {
+            return denial;
+        }
+
+        var offered = await _elevationGate.TryElevateAsync(request, context, denial, cancellationToken).ConfigureAwait(false);
+        // MatchUnsafe: null (the request continues) is a legitimate result here.
+        return offered.MatchUnsafe<EncinaError?>(
+            Left: replacement => replacement,
+            Right: elevation => elevation.MatchUnsafe<EncinaError?>(
+                Some: granted =>
+                {
+                    AuthorizationElevatedLog.AuthorizationElevated(
+                        _logger, typeof(TRequest).FullName!, context.Identity?.Kind ?? IdentityKind.Anonymous, granted.ElevationId);
+                    return null;
+                },
+                None: () => denial));
     }
 
     // The denial of the caller, or null when every requirement passes (logged 200).

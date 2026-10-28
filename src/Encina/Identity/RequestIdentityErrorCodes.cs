@@ -50,6 +50,13 @@ public static class RequestIdentityErrorCodes
     public const string InboundTenantConflict = "encina.identity.inbound_tenant_conflict";
 
     /// <summary>
+    /// A principal scope is refused because the principal's authenticated identities carry different
+    /// tenant claim values (across the configured tenant claim types, or several values in one
+    /// identity), so its tenant is ambiguous.
+    /// </summary>
+    public const string ConflictingTenantClaims = "encina.identity.conflicting_tenant_claims";
+
+    /// <summary>
     /// The registered <see cref="IRequestContextAccessor"/> is not the default
     /// <see cref="RequestContextAccessor"/>, so an identity scope would write to a store the
     /// dispatcher never reads.

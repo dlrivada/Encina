@@ -106,6 +106,7 @@ public sealed class EncinaEventIdAllocationTests
             ["Encina.Security.ABAC"] = [nameof(EventIdRanges.SecurityABAC)],
             ["Encina.Security.AntiTampering"] = [nameof(EventIdRanges.SecurityAntiTampering)],
             ["Encina.Security.Audit"] = [nameof(EventIdRanges.SecurityAuditRead), nameof(EventIdRanges.SecurityAudit)],
+            ["Encina.Security.BreakTheGlass"] = [nameof(EventIdRanges.SecurityBreakTheGlass)],
             ["Encina.Security.PII"] = [nameof(EventIdRanges.SecurityPII)],
             ["Encina.Security.Sanitization"] = [nameof(EventIdRanges.Sanitization)],
             ["Encina.Security.Secrets"] = [nameof(EventIdRanges.SecuritySecrets)],

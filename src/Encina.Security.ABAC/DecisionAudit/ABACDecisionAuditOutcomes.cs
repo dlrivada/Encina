@@ -21,6 +21,13 @@ public enum ABACDecisionAuditOutcomes
     /// </summary>
     NotEnforced = 4,
 
+    /// <summary>
+    /// Definite denials that an emergency elevation overrode (<see cref="ABACEnforcedOutcome.DeniedElevated"/>).
+    /// Such a decision is recorded whatever this selection says, like an error: the flag only keeps
+    /// <see cref="All"/> complete.
+    /// </summary>
+    Elevated = 8,
+
     /// <summary>Every outcome.</summary>
-    All = Granted | Denied | NotEnforced
+    All = Granted | Denied | NotEnforced | Elevated
 }

@@ -15,8 +15,8 @@ public static class EncryptionErrors
     /// <summary>Error code when the requested encryption key is not found.</summary>
     public const string KeyNotFoundCode = "encryption.key_not_found";
 
-    /// <summary>Error code when decryption of a ciphertext fails.</summary>
-    public const string DecryptionFailedCode = "encryption.decryption_failed";
+    /// <summary>Error code when the encryption primitive fails while encrypting a value.</summary>
+    public const string EncryptionFailedCode = "encryption.encryption_failed";
 
     /// <summary>Error code when the ciphertext is invalid or corrupted.</summary>
     public const string InvalidCiphertextCode = "encryption.invalid_ciphertext";
@@ -43,26 +43,24 @@ public static class EncryptionErrors
             });
 
     /// <summary>
-    /// Creates an error when decryption of a value fails.
+    /// Creates an error when the encryption primitive fails while encrypting a value.
     /// </summary>
-    /// <param name="keyId">The key identifier used for the decryption attempt.</param>
-    /// <param name="propertyName">The name of the property being decrypted, if applicable.</param>
-    /// <param name="exception">The exception that caused the failure, if any.</param>
-    /// <returns>An error indicating decryption failed.</returns>
-    public static EncinaError DecryptionFailed(
+    /// <param name="keyId">The key identifier used for the encryption attempt.</param>
+    /// <param name="exception">
+    /// The exception that caused the failure, if any. It is kept on the error's exception
+    /// property only; its message is never copied into the error message.
+    /// </param>
+    /// <returns>An error indicating encryption failed.</returns>
+    public static EncinaError EncryptionFailed(
         string keyId,
-        string? propertyName = null,
         Exception? exception = null) =>
         EncinaErrors.Create(
-            code: DecryptionFailedCode,
-            message: propertyName is not null
-                ? $"Decryption failed for property '{propertyName}' with key '{keyId}'."
-                : $"Decryption failed with key '{keyId}'.",
+            code: EncryptionFailedCode,
+            message: $"Encryption failed with key '{keyId}'.",
             exception: exception,
             details: new Dictionary<string, object?>
             {
                 ["keyId"] = keyId,
-                ["propertyName"] = propertyName,
                 [MetadataKeyStage] = MetadataStageEncryption
             });
 

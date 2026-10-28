@@ -198,6 +198,10 @@ public static class ServiceCollectionExtensions
         services.AddLogging();
         services.AddEncinaRequestIdentity();
 
+        // The gate a definite denial is offered to: the default keeps every denial, so the behavior
+        // resolves without an elevation package. TryAdd: an elevation package or the application wins.
+        services.TryAddSingleton<IAccessElevationGate, NoAccessElevationGate>();
+
         // The [Authorize] gate itself. TryAddEnumerable: it is added even when other behaviors are
         // registered, and once when AddEncina's cfg.AddAuthorization() registered it too.
         services.TryAddEnumerable(ServiceDescriptor.Scoped(typeof(IPipelineBehavior<,>), typeof(AuthorizationPipelineBehavior<,>)));

@@ -26,7 +26,7 @@ public sealed class RecoverabilityOptionsTests
         options.DelayedRetries[3].ShouldBe(TimeSpan.FromHours(2));
         options.OnPermanentFailure.ShouldBeNull();
         options.ErrorClassifier.ShouldBeNull();
-        options.EnableDelayedRetries.ShouldBeTrue();
+        options.EnableDelayedRetries.ShouldBeFalse();
         options.UseJitter.ShouldBeTrue();
         options.MaxJitterPercent.ShouldBe(20);
     }

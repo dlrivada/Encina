@@ -74,6 +74,13 @@ public sealed record ABACDecisionRecord
     /// </summary>
     public required string ReasonCode { get; init; }
 
+    /// <summary>
+    /// The id of the break-the-glass elevation that overrode a denial; set only when
+    /// <see cref="EnforcedOutcome"/> is <see cref="ABACEnforcedOutcome.DeniedElevated"/>, in which case
+    /// <see cref="ReasonCode"/> is the code of the original denial.
+    /// </summary>
+    public Guid? ElevationId { get; init; }
+
     /// <summary>The enforcement mode in force when the decision was made.</summary>
     public required ABACEnforcementMode EnforcementMode { get; init; }
 
