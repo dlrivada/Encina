@@ -520,7 +520,7 @@ FLAG ASSIGNMENT: 33 file/flag pair(s) execute lines under a flag the manifest do
   Encina.Caching                       guard              18     20  Configuration/CachingOptions.cs
   Encina.Caching                       contract            1      1  Abstractions/IQueryCacheKeyGenerator.cs  (below --min-lines)
   JSON:     artifacts\flag-assign\flag-assignment.json
-  Fix: assign the flag in the manifest with a per-file target and justification when the tests are real, or replace reflection-only tests.
+  Fix: add the flag to the file's override in the manifest when the tests are real (a per-file target silences this check but does not change the package row), or replace reflection-only tests.
 ```
 
 | Exit code | When |
