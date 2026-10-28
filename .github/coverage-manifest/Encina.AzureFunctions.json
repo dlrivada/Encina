@@ -18,7 +18,7 @@
       "justifications": {
         "unit": "Success, both Failure overloads, ToEither and both ToActivityResult extensions are executed by ActivityResultTests.",
         "guard": "DurableGuardTests run ToActivityResult on a Right value, which executes the success mapping; the null check in Failure(EncinaError) is unreachable because EncinaError is a struct, and the remaining members are left to the unit flag.",
-        "integration": "Durable orchestrations run only inside a Functions host, which the integration flag does not start; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
+        "integration": "Maintainer decision D11 of #2699 leaves Durable/* to the unit flag until the local-only follow-up on a real Functions host; this file needs no host but the integration flag does not exercise it yet, see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
       }
     },
     "Durable/DurableFunctionsHealthCheck.cs": {
@@ -32,7 +32,7 @@
       "justifications": {
         "unit": "Healthy and every Degraded configuration branch are executed by DurableFunctionsHealthCheckTests.",
         "guard": "DurableGuardTests runs the constructor with null and valid options and reads Name; CheckHealthAsync validation branches are behaviour and belong to the unit flag.",
-        "integration": "Durable orchestrations run only inside a Functions host, which the integration flag does not start; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
+        "integration": "Maintainer decision D11 of #2699 leaves Durable/* to the unit flag until the local-only follow-up on a real Functions host; this file needs no host but the integration flag does not exercise it yet, see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
       }
     },
     "Durable/DurableFunctionsOptions.cs": {
@@ -45,7 +45,7 @@
       "justifications": {
         "unit": "Every option default is read by DurableFunctionsOptionsTests.",
         "guard": "The auto-property initializers are executed when the DurableFunctionsHealthCheck guard test instantiates the options.",
-        "integration": "Durable orchestrations run only inside a Functions host, which the integration flag does not start; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
+        "integration": "Maintainer decision D11 of #2699 leaves Durable/* to the unit flag until the local-only follow-up on a real Functions host; this file needs no host but the integration flag does not exercise it yet, see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
       }
     },
     "Durable/DurableSagaBuilder.cs": {
@@ -80,7 +80,7 @@
       "justifications": {
         "unit": "AddEncinaDurableFunctions registration and option configuration are executed by DurableServiceCollectionExtensionsTests.",
         "guard": "DurableGuardTests call AddEncinaDurableFunctions with a null service collection; the registration body is the unit flag's.",
-        "integration": "Durable orchestrations run only inside a Functions host, which the integration flag does not start; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
+        "integration": "Maintainer decision D11 of #2699 leaves Durable/* to the unit flag until the local-only follow-up on a real Functions host; this file needs no host but the integration flag does not exercise it yet, see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
       }
     },
     "Durable/FanOutFanInExtensions.cs": {
