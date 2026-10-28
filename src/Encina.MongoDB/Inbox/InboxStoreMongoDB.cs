@@ -231,7 +231,8 @@ public sealed class InboxStoreMongoDB : IInboxStore
 
         var result = await _collection.UpdateOneInSessionAsync(session, filter, update, cancellationToken).ConfigureAwait(false);
 
-        if (result.ModifiedCount == 0)
+        // MatchedCount, not ModifiedCount: re-marking an identical row modifies nothing and must not fail.
+        if (result.MatchedCount == 0)
         {
             Log.InboxMessageNotFoundForProcessed(_logger, messageId);
             return false;

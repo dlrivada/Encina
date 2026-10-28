@@ -5,6 +5,7 @@ using LanguageExt;
 using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 using MongoDB.Driver.Core.Clusters;
+using MongoDB.Driver.Core.Servers;
 using static LanguageExt.Prelude;
 
 namespace Encina.MongoDB.Transactions;
@@ -113,6 +114,33 @@ public sealed class MongoSessionAccessor : IMongoSessionAccessor, IAsyncDisposab
     internal static bool IsStandaloneRejection(Exception exception)
         => exception.Message.Contains(StandaloneRejectionFragment, StringComparison.Ordinal);
 
+    /// <summary>
+    /// Gets the cluster type that decides transaction support. A client with <c>directConnection=true</c> reports
+    /// <see cref="ClusterType.Standalone"/> even when the server it talks to is a replica set member or a
+    /// <c>mongos</c> router, so the type of the server itself decides: only a server that is itself standalone
+    /// makes the deployment standalone.
+    /// </summary>
+    internal static ClusterType EffectiveClusterType(ClusterDescription? description)
+    {
+        if (description is null)
+        {
+            return ClusterType.Unknown;
+        }
+
+        if (description.Type != ClusterType.Standalone)
+        {
+            return description.Type;
+        }
+
+        var member = description.Servers.FirstOrDefault(s => s.Type is not (ServerType.Standalone or ServerType.Unknown));
+        if (member is null)
+        {
+            return ClusterType.Standalone;
+        }
+
+        return member.Type == ServerType.ShardRouter ? ClusterType.Sharded : ClusterType.ReplicaSet;
+    }
+
     internal static EncinaError StandaloneNotSupported()
         => EncinaErrors.Create(
             TransactionErrors.NotSupportedCode,
@@ -126,7 +154,7 @@ public sealed class MongoSessionAccessor : IMongoSessionAccessor, IAsyncDisposab
         {
             session = await _mongoClient.StartSessionAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 
-            if (session.Client.Cluster.Description.Type == ClusterType.Standalone)
+            if (EffectiveClusterType(session.Client.Cluster.Description) == ClusterType.Standalone)
             {
                 session.Dispose();
                 Log.TransactionsUnavailable(_logger, TransactionErrors.NotSupportedCode);

@@ -1,4 +1,5 @@
 using Encina.Messaging.Health;
+using Encina.MongoDB.Transactions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
@@ -83,7 +84,7 @@ public sealed class MongoDbHealthCheck : EncinaHealthCheck
         => _serviceProvider.GetService<IOptions<EncinaMongoDbOptions>>()?.Value.UseOutbox == true;
 
     private static ClusterType ClusterTypeOf(IMongoClient mongoClient)
-        => mongoClient.Cluster?.Description?.Type ?? ClusterType.Unknown;
+        => MongoSessionAccessor.EffectiveClusterType(mongoClient.Cluster?.Description);
 
     // crap-exempt: single-question switch — maps the cluster type to the transaction-support verdict
     private HealthCheckResult Verdict(ClusterType clusterType) => clusterType switch
