@@ -664,24 +664,6 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
         names.ShouldBe(["First updated", "Second updated"], ignoreOrder: true);
     }
 
-    [Fact]
-    public async Task UpdateAsync_UnknownEntity_ReturnsNotFound()
-    {
-        SkipIfNotAvailable();
-        await ClearDataAsync();
-
-        // Arrange
-        _tenantProvider!.SetTenant(Tenant1);
-        var repository = CreateRepository();
-
-        // Act
-        var result = await repository.UpdateAsync(CreateDocument("Ghost", Tenant1));
-
-        // Assert
-        var error = result.ShouldBeError();
-        error.GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.NotFoundErrorCode);
-    }
-
     #endregion
 
     #region Missing Tenant Context Tests

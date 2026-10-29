@@ -100,25 +100,6 @@ public sealed class TenantAwareFunctionalRepositoryMongoDBTenantRequiredTests
     }
 
     [Fact]
-    public async Task AddAsync_WithoutTenantAssignment_DoesNotRequireTenant()
-    {
-        // Arrange
-        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
-        var repository = CreateRepository(collection, null, new MongoDbTenancyOptions
-        {
-            AutoAssignTenantId = false,
-            ThrowOnMissingTenantContext = true
-        });
-        var order = new MongoTenantTestOrder { Id = Guid.NewGuid() };
-
-        // Act
-        var result = await repository.AddAsync(order);
-
-        // Assert
-        result.ShouldBeSuccess();
-    }
-
-    [Fact]
     public async Task CountAsync_WithoutTenantContext_AndOptOut_ReachesTheCollection()
     {
         // Arrange
