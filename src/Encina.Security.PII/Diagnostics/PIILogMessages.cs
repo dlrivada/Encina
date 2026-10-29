@@ -100,4 +100,10 @@ internal static partial class PIILogMessages
         Level = LogLevel.Warning,
         Message = "PII masking for audit failed for {TypeName}; no unmasked payload is returned")]
     internal static partial void AuditMaskingFailed(ILogger logger, Exception exception, string typeName);
+
+    [LoggerMessage(
+        EventId = 8023,
+        Level = LogLevel.Warning,
+        Message = "PII masking for logs failed for {TypeName}; no unmasked object is returned")]
+    internal static partial void LogMaskingFailed(ILogger logger, Exception exception, string typeName);
 }

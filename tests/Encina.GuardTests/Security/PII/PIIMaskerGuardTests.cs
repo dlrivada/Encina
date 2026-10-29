@@ -87,6 +87,22 @@ public sealed class PIIMaskerGuardTests
 
     #endregion
 
+    #region MaskForLog Guards
+
+    [Fact]
+    public void MaskForLog_NullObject_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var sut = CreateSut();
+
+        // Act & Assert
+        var act = () => sut.MaskForLog<TestDto>(null!);
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("obj");
+    }
+
+    #endregion
+
     #region MaskForAudit Guards
 
     [Fact]

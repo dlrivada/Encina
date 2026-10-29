@@ -81,7 +81,7 @@ public static class PIILoggerExtensions
 
         try
         {
-            var masked = masker.MaskObject(data);
+            var masked = masker.MaskForLog(data);
 
 #pragma warning disable CA2254 // Template should be a static expression — intentional: this extension forwards the caller's template
             logger.Log(level, message, masked);

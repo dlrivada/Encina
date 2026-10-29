@@ -96,8 +96,8 @@ public interface IPIIMasker
     /// the method throws instead of returning an unmasked object.
     /// </para>
     /// <para>
-    /// <see cref="Attributes.MaskInLogsAttribute"/> is not honoured by this method yet
-    /// (see https://github.com/dlrivada/Encina/issues/1839).
+    /// Properties decorated only with <see cref="Attributes.MaskInLogsAttribute"/> are NOT masked by this
+    /// method: they stay unmasked in responses. Use <see cref="MaskForLog{T}(T)"/> for log output.
     /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">Masking failed.</exception>
@@ -117,4 +117,32 @@ public interface IPIIMasker
     /// </code>
     /// </example>
     T MaskObject<T>(T obj) where T : class;
+
+    /// <summary>
+    /// Creates a copy of the object that is safe to write to a log: properties decorated with
+    /// <see cref="Attributes.PIIAttribute"/>, <see cref="Attributes.SensitiveDataAttribute"/> and
+    /// <see cref="Attributes.MaskInLogsAttribute"/> are all masked.
+    /// </summary>
+    /// <typeparam name="T">The type of object to mask. Must be a reference type.</typeparam>
+    /// <param name="obj">The object to mask for logging.</param>
+    /// <returns>
+    /// A masked copy of <paramref name="obj"/>, or <paramref name="obj"/> itself when
+    /// <see cref="PIIOptions.MaskInLogs"/> is <c>false</c>.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// The log context is a superset of the response context: <see cref="Attributes.MaskInLogsAttribute"/>
+    /// properties are masked here and only here.
+    /// <see cref="MaskingMode.Tokenize"/> is treated as <see cref="MaskingMode.Redact"/> in this context so
+    /// that the raw value is never written to a log.
+    /// </para>
+    /// <para>
+    /// Fails closed: when masking cannot be completed the method throws instead of returning an unmasked
+    /// object.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="obj"/> is <c>null</c>.</exception>
+    /// <exception cref="InvalidOperationException">Masking failed.</exception>
+    /// <exception cref="System.Text.Json.JsonException">The object could not be serialized or deserialized.</exception>
+    T MaskForLog<T>(T obj) where T : class;
 }

@@ -3,6 +3,9 @@ using Encina.Security.PII;
 using Encina.Security.PII.Abstractions;
 using Encina.Security.PII.Attributes;
 using Encina.Security.PII.Health;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Encina.ContractTests.Security.PII;
 
@@ -17,7 +20,7 @@ public sealed class PIIContractTests
     #region IPIIMasker Interface Shape
 
     [Fact]
-    public void IPIIMasker_ShouldHave_ThreeMethods()
+    public void IPIIMasker_ShouldHave_FourMethods()
     {
         // Arrange
         var type = typeof(IPIIMasker);
@@ -26,13 +29,55 @@ public sealed class PIIContractTests
         var methods = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
         // Assert
-        methods.Length.ShouldBe(3,
-            "IPIIMasker must define exactly 3 methods: " +
-            "Mask(string, PIIType), Mask(string, string), MaskObject<T>");
+        methods.Length.ShouldBe(4,
+            "IPIIMasker must define exactly 4 methods: " +
+            "Mask(string, PIIType), Mask(string, string), MaskObject<T>, MaskForLog<T>");
 
         var methodNames = methods.Select(m => m.Name).ToHashSet(StringComparer.Ordinal);
         methodNames.ShouldContain("Mask", "IPIIMasker must have Mask method(s)");
         methodNames.ShouldContain("MaskObject", "IPIIMasker must have MaskObject method");
+        methodNames.ShouldContain("MaskForLog", "IPIIMasker must have MaskForLog method");
+    }
+
+    [Fact]
+    public void IPIIMasker_MaskForLog_IsGenericOverReferenceTypeAndReturnsSameType()
+    {
+        var method = typeof(IPIIMasker).GetMethod("MaskForLog")!;
+
+        method.IsGenericMethodDefinition.ShouldBeTrue();
+        var typeParameter = method.GetGenericArguments().Single();
+        typeParameter.GenericParameterAttributes.HasFlag(GenericParameterAttributes.ReferenceTypeConstraint).ShouldBeTrue();
+        method.ReturnType.ShouldBe(typeParameter);
+        method.GetParameters().Single().ParameterType.ShouldBe(typeParameter);
+    }
+
+    [Fact]
+    public void PIIMasker_MaskForLog_MasksPiiAndLogOnlyPropertiesAndKeepsOthers()
+    {
+        var masker = new PIIMasker(
+            Options.Create(new PIIOptions()),
+            NullLogger<PIIMasker>.Instance,
+            new ServiceCollection().BuildServiceProvider());
+        var dto = new LogContractDto();
+
+        var result = masker.MaskForLog(dto);
+
+        result.ShouldNotBeSameAs(dto);
+        result.Email.ShouldNotBe("john@example.com");
+        result.TrackingId.ShouldNotBe("tracking-12345");
+        result.Visible.ShouldBe("visible");
+        masker.MaskObject(dto).TrackingId.ShouldBe("tracking-12345");
+    }
+
+    private sealed class LogContractDto
+    {
+        [PII(PIIType.Email)]
+        public string Email { get; set; } = "john@example.com";
+
+        [MaskInLogs]
+        public string TrackingId { get; set; } = "tracking-12345";
+
+        public string Visible { get; set; } = "visible";
     }
 
     #endregion
