@@ -1,7 +1,7 @@
 {
   "package": "Encina.Security.BreakTheGlass",
   "generated": "2026-10-22T00:00:00Z",
-  "totalFiles": 33,
+  "totalFiles": 34,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -224,6 +224,19 @@
         "guard": "Guard tests (Gate_Constructor_RejectsEachNullDependency and Gate_Methods) reject the null constructor and method arguments of the gate (measured 28.09%). The guard flag can reach no more because the gate's other lines are decisions, not argument checks.",
         "property": "FsCheck properties cover the expiry window, closed elevations, a required tenant that is missing, a failing store lookup and the reuse of a held grant; the audit-failure branch is driven by the unit tests only (measured 97.75%).",
         "contract": "Contract tests exercise the store and the no-op gate interfaces only, not this gate (measured 0%)."
+      }
+    },
+    "Gate/BreakTheGlassTenant.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Single notion of no tenant: normalises a blank tenant id to null",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "Normalise has one expression; BreakTheGlassBlankTenantTests.Normalise_BlankIsNull_AnythingElseIsKept and the service and gate blank-tenant tests assert null, empty, whitespace and kept values (measured 100%); guard, contract and property flags do not apply to an internal one-line helper."
       }
     },
     "Gate/BreakTheGlassAudit.cs": {

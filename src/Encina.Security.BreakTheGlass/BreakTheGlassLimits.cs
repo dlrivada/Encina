@@ -5,7 +5,8 @@ namespace Encina.Security.BreakTheGlass;
 /// every EF Core configuration so that all ten providers accept exactly the same values.
 /// </summary>
 /// <remarks>
-/// Lengths are measured in characters after trimming. A value over its limit is refused with
+/// Lengths are measured in characters after trimming, except the user id and the tenant id, which are measured as the
+/// identity and the request context supply them (a blank tenant id is "no tenant", not a value). A value over its limit is refused with
 /// <c>break_glass.validation_failed</c> before any store call.
 /// </remarks>
 public static class BreakTheGlassLimits
