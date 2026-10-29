@@ -101,6 +101,7 @@ public class InboxStoreEFTimeProviderTests : IDisposable
             RequestType = "TestRequest",
             ReceivedAtUtc = baseTime.AddDays(-10),
             ExpiresAtUtc = baseTime.AddDays(-1), // expired yesterday
+            ProcessedAtUtc = baseTime.AddDays(-2),
             RetryCount = 0
         };
 
@@ -136,6 +137,7 @@ public class InboxStoreEFTimeProviderTests : IDisposable
             RequestType = "TestRequest",
             ReceivedAtUtc = baseTime.AddDays(-5),
             ExpiresAtUtc = baseTime.AddHours(1), // expires in 1 hour
+            ProcessedAtUtc = baseTime.AddDays(-4),
             RetryCount = 0
         };
 
@@ -205,6 +207,7 @@ public class InboxStoreEFTimeProviderTests : IDisposable
             MessageId = "remove-target-1",
             RequestType = "TestRequest",
             ReceivedAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-10),
+            ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-9),
             ExpiresAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-1),
             RetryCount = 0
         };
@@ -214,6 +217,7 @@ public class InboxStoreEFTimeProviderTests : IDisposable
             MessageId = "remove-target-2",
             RequestType = "TestRequest",
             ReceivedAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-10),
+            ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-9),
             ExpiresAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-1),
             RetryCount = 0
         };
@@ -238,6 +242,78 @@ public class InboxStoreEFTimeProviderTests : IDisposable
         var remaining = await _dbContext.InboxMessages.ToListAsync();
         remaining.Count.ShouldBe(1);
         remaining[0].MessageId.ShouldBe("keep-this");
+    }
+
+    [Fact]
+    public async Task GetExpiredMessagesAsync_UnprocessedAndDeadLetteredRows_AreNeverReturned()
+    {
+        // Arrange
+        var baseTime = _timeProvider.GetUtcNow().UtcDateTime;
+
+        var unprocessed = new InboxMessage
+        {
+            MessageId = "tp-unprocessed",
+            RequestType = "TestRequest",
+            ReceivedAtUtc = baseTime.AddDays(-10),
+            ExpiresAtUtc = baseTime.AddDays(-1),
+            RetryCount = 0
+        };
+
+        var deadLettered = new InboxMessage
+        {
+            MessageId = "tp-dead-lettered",
+            RequestType = "TestRequest",
+            ReceivedAtUtc = baseTime.AddDays(-10),
+            ExpiresAtUtc = baseTime.AddDays(-1),
+            ErrorMessage = "boom",
+            RetryCount = 3
+        };
+
+        await _dbContext.InboxMessages.AddRangeAsync(unprocessed, deadLettered);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var result = (await _store.GetExpiredMessagesAsync(batchSize: 10)).ShouldBeRight();
+
+        // Assert
+        result.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task RemoveExpiredMessagesAsync_UnprocessedAndNotExpiredRows_AreNeverRemoved()
+    {
+        // Arrange
+        var baseTime = _timeProvider.GetUtcNow().UtcDateTime;
+
+        var unprocessed = new InboxMessage
+        {
+            MessageId = "keep-unprocessed",
+            RequestType = "TestRequest",
+            ReceivedAtUtc = baseTime.AddDays(-10),
+            ExpiresAtUtc = baseTime.AddDays(-1),
+            RetryCount = 3
+        };
+
+        var processedNotExpired = new InboxMessage
+        {
+            MessageId = "keep-processed-not-expired",
+            RequestType = "TestRequest",
+            ReceivedAtUtc = baseTime.AddDays(-1),
+            ProcessedAtUtc = baseTime.AddHours(-1),
+            ExpiresAtUtc = baseTime.AddDays(10),
+            RetryCount = 0
+        };
+
+        await _dbContext.InboxMessages.AddRangeAsync(unprocessed, processedNotExpired);
+        await _dbContext.SaveChangesAsync();
+
+        // Act - the ids are passed explicitly: the remove itself must refuse them
+        (await _store.RemoveExpiredMessagesAsync(["keep-unprocessed", "keep-processed-not-expired"])).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
+
+        // Assert
+        var remaining = await _dbContext.InboxMessages.ToListAsync();
+        remaining.Count.ShouldBe(2);
     }
 
     public void Dispose()

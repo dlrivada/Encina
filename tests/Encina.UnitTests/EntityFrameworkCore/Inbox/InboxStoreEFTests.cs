@@ -183,6 +183,7 @@ public class InboxStoreEFTests : IDisposable
             MessageId = "remove-1",
             RequestType = "TestRequest",
             ReceivedAtUtc = DateTime.UtcNow.AddDays(-40),
+            ProcessedAtUtc = DateTime.UtcNow.AddDays(-39),
             ExpiresAtUtc = DateTime.UtcNow.AddDays(-5),
             RetryCount = 0
         };
@@ -192,6 +193,7 @@ public class InboxStoreEFTests : IDisposable
             MessageId = "remove-2",
             RequestType = "TestRequest",
             ReceivedAtUtc = DateTime.UtcNow.AddDays(-40),
+            ProcessedAtUtc = DateTime.UtcNow.AddDays(-39),
             ExpiresAtUtc = DateTime.UtcNow.AddDays(-5),
             RetryCount = 0
         };
