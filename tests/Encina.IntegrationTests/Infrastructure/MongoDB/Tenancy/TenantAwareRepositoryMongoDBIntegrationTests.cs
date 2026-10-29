@@ -527,6 +527,126 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
 
     #endregion
 
+    #region Missing Tenant Context Tests
+
+    public static TheoryData<string, string?> MissingTenantOperations()
+    {
+        var data = new TheoryData<string, string?>();
+        foreach (var tenantId in new string?[] { null, string.Empty })
+        {
+            foreach (var operation in AllOperations)
+            {
+                data.Add(operation, tenantId);
+            }
+        }
+
+        return data;
+    }
+
+    private static readonly string[] AllOperations =
+    [
+        "GetById", "List", "ListSpec", "FirstOrDefault", "Count", "CountSpec", "Any", "AnySpec",
+        "GetPaged", "GetPagedSpec", "Add", "AddRange", "Update", "UpdateRange",
+        "DeleteById", "DeleteEntity", "DeleteRange"
+    ];
+
+    [Theory]
+    [MemberData(nameof(MissingTenantOperations))]
+    public async Task Operation_WithoutTenantContext_ReturnsTenantRequiredLeft_AndChangesNothing(
+        string operation,
+        string? tenantId)
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange - one stored document that must survive untouched
+        var stored = CreateDocument("Stored", Tenant1);
+        await _collection!.InsertOneAsync(stored);
+
+        _tenantProvider!.SetNoTenant(tenantId);
+        var repository = CreateRepository();
+        var spec = new HighValueDocumentSpec();
+        var candidate = CreateDocument("Candidate", Tenant1, 500m);
+
+        // Act
+        var error = operation switch
+        {
+            "GetById" => ErrorOf(await repository.GetByIdAsync(stored.Id)),
+            "List" => ErrorOf(await repository.ListAsync()),
+            "ListSpec" => ErrorOf(await repository.ListAsync(spec)),
+            "FirstOrDefault" => ErrorOf(await repository.FirstOrDefaultAsync(spec)),
+            "Count" => ErrorOf(await repository.CountAsync()),
+            "CountSpec" => ErrorOf(await repository.CountAsync(spec)),
+            "Any" => ErrorOf(await repository.AnyAsync()),
+            "AnySpec" => ErrorOf(await repository.AnyAsync(spec)),
+            "GetPaged" => ErrorOf(await repository.GetPagedAsync(new PaginationOptions(1, 10))),
+            "GetPagedSpec" => ErrorOf(await repository.GetPagedAsync(spec, new PaginationOptions(1, 10))),
+            "Add" => ErrorOf(await repository.AddAsync(candidate)),
+            "AddRange" => ErrorOf(await repository.AddRangeAsync([candidate])),
+            "Update" => ErrorOf(await repository.UpdateAsync(stored)),
+            "UpdateRange" => ErrorOf(await repository.UpdateRangeAsync([stored])),
+            "DeleteById" => ErrorOf(await repository.DeleteAsync(stored.Id)),
+            "DeleteEntity" => ErrorOf(await repository.DeleteAsync(stored)),
+            "DeleteRange" => ErrorOf(await repository.DeleteRangeAsync(spec)),
+            _ => throw new InvalidOperationException($"Unknown operation {operation}")
+        };
+
+        // Assert
+        error.ShouldNotBeNull();
+        error.Value.GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.TenantRequiredErrorCode);
+
+        var count = await _collection!.CountDocumentsAsync(Builders<TenantTestDocument>.Filter.Empty);
+        count.ShouldBe(1);
+        (await _collection.Find(Builders<TenantTestDocument>.Filter.Eq(d => d.Id, stored.Id)).FirstOrDefaultAsync())!
+            .Name.ShouldBe("Stored");
+    }
+
+    [Fact]
+    public async Task ListAsync_WithoutTenantContext_ReturnsAllData_WhenThrowOnMissingTenantContextIsFalse()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        await _collection!.InsertManyAsync([CreateDocument("T1", Tenant1), CreateDocument("T2", Tenant2)]);
+        _tenantProvider!.SetNoTenant(null);
+        _options!.ThrowOnMissingTenantContext = false;
+        var repository = CreateRepository();
+
+        // Act
+        var result = await repository.ListAsync();
+
+        // Assert - opt-out behaviour unchanged: no tenant filter is applied
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Count.ShouldBe(2));
+    }
+
+    [Fact]
+    public async Task AddAsync_WithoutTenantContext_StoresEntityUntouched_WhenThrowOnMissingTenantContextIsFalse()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        _tenantProvider!.SetNoTenant(null);
+        _options!.ThrowOnMissingTenantContext = false;
+        var repository = CreateRepository();
+        var document = CreateDocument("Unscoped", string.Empty);
+
+        // Act
+        var result = await repository.AddAsync(document);
+
+        // Assert - opt-out behaviour unchanged: no tenant id is assigned
+        result.IsRight.ShouldBeTrue();
+        var stored = await _collection!.Find(Builders<TenantTestDocument>.Filter.Eq(d => d.Id, document.Id)).FirstOrDefaultAsync();
+        stored.TenantId.ShouldBe(string.Empty);
+    }
+
+    private static EncinaError? ErrorOf<T>(Either<EncinaError, T> either)
+        => either.Match<EncinaError?>(Right: _ => null, Left: error => error);
+
+    #endregion
+
     #region Helper Methods
 
     private static TenantTestDocument CreateDocument(
@@ -581,6 +701,11 @@ public sealed class TestTenantProvider : ITenantProvider
     private string? _currentTenantId;
 
     public void SetTenant(string tenantId)
+    {
+        _currentTenantId = tenantId;
+    }
+
+    public void SetNoTenant(string? tenantId)
     {
         _currentTenantId = tenantId;
     }

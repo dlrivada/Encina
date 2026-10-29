@@ -64,6 +64,8 @@ public static class RepositoryErrors
     public static EncinaError TenantRequired<TEntity>(string operation)
         where TEntity : class
     {
+        ArgumentNullException.ThrowIfNull(operation);
+
         var entityTypeName = typeof(TEntity).Name;
         var message = $"Operation '{operation}' on tenant entity of type '{entityTypeName}' requires a tenant context, but none is available.";
 

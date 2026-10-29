@@ -84,7 +84,7 @@ public sealed class TenantAwareSpecificationFilterBuilder<TEntity>
         return GetCurrentTenantId(operation).Map(tenantId =>
         {
             var specFilter = _baseBuilder.BuildFilter(specification);
-            var tenantFilter = GetTenantFilter(tenantId);
+            var tenantFilter = GetTenantFilter(tenantId.IfNoneUnsafe(() => null));
 
             return tenantFilter is null
                 ? specFilter
@@ -106,7 +106,7 @@ public sealed class TenantAwareSpecificationFilterBuilder<TEntity>
         ArgumentNullException.ThrowIfNull(operation);
 
         return GetCurrentTenantId(operation).Map(tenantId =>
-            GetTenantFilter(tenantId) ?? Builders<TEntity>.Filter.Empty);
+            GetTenantFilter(tenantId.IfNoneUnsafe(() => null)) ?? Builders<TEntity>.Filter.Empty);
     }
 
     /// <summary>
@@ -125,8 +125,9 @@ public sealed class TenantAwareSpecificationFilterBuilder<TEntity>
     {
         ArgumentNullException.ThrowIfNull(operation);
 
-        return GetCurrentTenantId(operation).Map(tenantId =>
+        return GetCurrentTenantId(operation).Map(currentTenantId =>
         {
+            var tenantId = currentTenantId.IfNoneUnsafe(() => null);
             var tenantFilter = GetTenantFilter(tenantId);
 
             FilterDefinition<TEntity> finalFilter;
@@ -152,28 +153,28 @@ public sealed class TenantAwareSpecificationFilterBuilder<TEntity>
     /// </summary>
     /// <param name="operation">The repository operation name, used in the error when the tenant context is missing.</param>
     /// <returns>
-    /// The current tenant ID (null when tenant filtering does not apply, or when there is no tenant context and
+    /// The current tenant ID (none when tenant filtering does not apply, or when there is no tenant context and
     /// <see cref="MongoDbTenancyOptions.ThrowOnMissingTenantContext"/> is <c>false</c>), or a
     /// <see cref="RepositoryErrors.TenantRequiredErrorCode"/> error when the tenant context is required
     /// but not available.
     /// </returns>
-    public Either<EncinaError, string?> GetCurrentTenantId(string operation)
+    public Either<EncinaError, Option<string>> GetCurrentTenantId(string operation)
     {
         ArgumentNullException.ThrowIfNull(operation);
 
         if (!_mapping.IsTenantEntity || !_options.AutoFilterTenantQueries)
         {
-            return Right<EncinaError, string?>(null);
+            return Right<EncinaError, Option<string>>(Option<string>.None);
         }
 
         var tenantId = _tenantProvider.GetCurrentTenantId();
 
         if (string.IsNullOrEmpty(tenantId) && _options.ThrowOnMissingTenantContext)
         {
-            return Left<EncinaError, string?>(RepositoryErrors.TenantRequired<TEntity>(operation));
+            return Left<EncinaError, Option<string>>(RepositoryErrors.TenantRequired<TEntity>(operation));
         }
 
-        return Right<EncinaError, string?>(tenantId);
+        return Right<EncinaError, Option<string>>(Optional(tenantId));
     }
 
     private FilterDefinition<TEntity>? GetTenantFilter(string? tenantId)

@@ -801,11 +801,11 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
     /// Resolves the tenant id to assign to new entities: <c>null</c> when nothing is to be assigned,
     /// or a <c>Repository.TenantRequired</c> error when the context is required but missing.
     /// </summary>
-    private Either<EncinaError, string?> ResolveTenantIdForAssignment(string operation)
+    private Either<EncinaError, Option<string>> ResolveTenantIdForAssignment(string operation)
     {
         if (!_mapping.IsTenantEntity || !_options.AutoAssignTenantId)
         {
-            return Right<EncinaError, string?>(null);
+            return Right<EncinaError, Option<string>>(Option<string>.None);
         }
 
         var tenantId = _tenantProvider.GetCurrentTenantId();
@@ -813,19 +813,16 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
         if (string.IsNullOrEmpty(tenantId))
         {
             return _options.ThrowOnMissingTenantContext
-                ? Left<EncinaError, string?>(RepositoryErrors.TenantRequired<TEntity>(operation))
-                : Right<EncinaError, string?>(null);
+                ? Left<EncinaError, Option<string>>(RepositoryErrors.TenantRequired<TEntity>(operation))
+                : Right<EncinaError, Option<string>>(Option<string>.None);
         }
 
-        return Right<EncinaError, string?>(tenantId);
+        return Right<EncinaError, Option<string>>(Some(tenantId));
     }
 
-    private void AssignTenantId(TEntity entity, string? tenantId)
+    private void AssignTenantId(TEntity entity, Option<string> tenantId)
     {
-        if (tenantId is not null)
-        {
-            _mapping.SetTenantId(entity, tenantId);
-        }
+        tenantId.IfSome(id => _mapping.SetTenantId(entity, id));
     }
 
     private static bool TryUnwrap<T>(Either<EncinaError, T> either, out T value, out EncinaError error)
