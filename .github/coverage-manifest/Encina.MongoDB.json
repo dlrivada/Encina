@@ -778,7 +778,17 @@
         "integration"
       ],
       "defaultRule": "*RepositoryMongoDB.cs",
-      "reason": "MongoDB repository — needs real MongoDB"
+      "reason": "MongoDB repository — needs real MongoDB",
+      "targets": {
+        "unit": 58,
+        "guard": 3,
+        "integration": 70
+      },
+      "justifications": {
+        "unit": "TenantAwareFunctionalRepositoryMongoDBTenantRequiredTests run the missing-tenant Left of every operation, the opt-out paths and the update and update-range success, not-found and version-conflict paths on a mocked IMongoCollection; the read paths that go through Find (IFindFluent) cannot be mocked, measured 58.5%.",
+        "guard": "TenantAwareFunctionalRepositoryMongoDBGuardTests assert the constructor and argument validation only; every other line is persistence logic, measured 3.3%.",
+        "integration": "TenantAwareRepositoryMongoDBIntegrationTests run reads, paging, specification queries, add, update, delete and the missing-tenant Left against real MongoDB; the lines left are driver exception handlers (duplicate key, MongoException) that need fault injection, measured 70.1%."
+      }
     },
     "Tenancy/TenantAwareMongoCollectionFactory.cs": {
       "defaultTests": [
@@ -794,7 +804,17 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 100,
+        "guard": 27,
+        "integration": 60
+      },
+      "justifications": {
+        "unit": "TenantAwareSpecificationFilterBuilderTests exercise every member and branch, including the TenantRequired Left and the opt-out; measured 100%.",
+        "guard": "TenantAwareSpecFilterBuilderGuardTests assert the argument validation of the constructor and of every public member; the filter composition lines are covered by the unit flag, measured 27.9%.",
+        "integration": "The real MongoDB queries of TenantAwareRepositoryMongoDBIntegrationTests drive the builder through the repository; the lines left are the opt-out and non-tenant-entity branches covered by the unit flag, measured 60.7%."
+      }
     },
     "Tenancy/TenantEntityMappingBuilder.cs": {
       "defaultTests": [
