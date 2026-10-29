@@ -532,7 +532,8 @@ public sealed class MessagingConfiguration
     /// <para>
     /// When enabled, the provider registers its <c>IBreakTheGlassStore</c> implementation from
     /// <c>Encina.Security.BreakTheGlass</c> in place of the in-memory default, so elevations and the
-    /// review queue survive a restart and are shared by every host.
+    /// review queue survive a restart and are shared by every host. The flag is read by the provider
+    /// packages as their stores land (issue #1244, Phase 5); until a provider ships its store it has no effect.
     /// </para>
     /// <para>
     /// <b>Requires</b>: <c>Encina.Security.BreakTheGlass</c> package to be configured.
