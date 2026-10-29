@@ -94,7 +94,7 @@ public sealed class ErasureReferenceTests
         var material = RandomNumberGenerator.GetBytes(32);
         var key = new TemporalKeyDocument { Id = "k", Period = "2026-03", KeyMaterial = material, Version = 1, Status = TemporalKeyStatus.Active };
 
-        var (resultKey, shredded, _) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(key, null, "2026-03");
+        var (resultKey, shredded, _) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(key, null);
 
         resultKey.ShouldBeSameAs(material);
         shredded.ShouldBeFalse();
@@ -104,7 +104,7 @@ public sealed class ErasureReferenceTests
     public void Classify_MarkerWithReference_IsShredded()
     {
         var (resultKey, shredded, _) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
-            null, Marker("erasure-1", Requested, "dpo"), "2020-01");
+            null, Marker("erasure-1", Requested, "dpo"));
 
         resultKey.ShouldBeNull();
         shredded.ShouldBeTrue();
@@ -114,7 +114,7 @@ public sealed class ErasureReferenceTests
     public void Classify_MarkerWithoutReference_FailsTypedWithDestroyedWithoutRecord()
     {
         var ex = Should.Throw<EncryptedFieldDecryptionException>(() =>
-            OperationAuditEntryProjection.ClassifyTemporalKeyLookup(null, Marker(null, null, null), "2020-01"));
+            OperationAuditEntryProjection.ClassifyTemporalKeyLookup(null, Marker(null, null, null)));
 
         ex.Reason.ShouldBe(EncryptedFieldDecryptionFailureReason.KeyDestroyedWithoutErasureRecord);
         ex.Message.ShouldContain(EncryptedFieldDecryptionException.Code);
@@ -125,17 +125,8 @@ public sealed class ErasureReferenceTests
     [Fact]
     public void Classify_MarkerWithPartialReference_FailsTyped() =>
         Should.Throw<EncryptedFieldDecryptionException>(() =>
-            OperationAuditEntryProjection.ClassifyTemporalKeyLookup(null, Marker("erasure-1", Requested, null), "2020-01"))
+            OperationAuditEntryProjection.ClassifyTemporalKeyLookup(null, Marker("erasure-1", Requested, null)))
             .Reason.ShouldBe(EncryptedFieldDecryptionFailureReason.KeyDestroyedWithoutErasureRecord);
-
-    [Fact]
-    public void Classify_NoKeyNoMarker_StillThrowsKeyNotFound_NotTyped()
-    {
-        var ex = Should.Throw<KeyNotFoundException>(() =>
-            OperationAuditEntryProjection.ClassifyTemporalKeyLookup(null, null, "2026-03"));
-
-        ex.ShouldNotBeOfType<EncryptedFieldDecryptionException>();
-    }
 
     // ---- MartenAuditErrors.InvalidErasureReference ----
 
