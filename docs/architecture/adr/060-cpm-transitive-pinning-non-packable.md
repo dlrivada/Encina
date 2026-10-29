@@ -12,7 +12,7 @@ Encina uses Central Package Management: `ManagePackageVersionsCentrally` is `tru
 
 Today the repository fixes advisories by hand: a central `PackageVersion` plus a direct `PackageReference` in every project that pulls the package in (`System.Security.Cryptography.Pkcs`, [#2299](https://github.com/dlrivada/Encina/issues/2299); `MessagePack`, [#2338](https://github.com/dlrivada/Encina/issues/2338)).
 
-The [spike report](../../infrastructure/cpm-transitive-pinning.md) measured that enabling the flag globally leaks the pinned transitive versions into the nuspec of packable projects: the `Encina.Testing.WireMock` nuspec grows from 8 to 23 dependencies. Consumers would inherit versions imposed by Encina, against pay-for-what-you-use (AGENTS.md section 1). Most conflicts and pins sit in test and benchmark projects, which are not packed.
+The [spike report](../../infrastructure/cpm-transitive-pinning.md) measured that enabling the flag globally leaks the pinned transitive versions into the nuspec of packable projects: the `Encina.Testing.WireMock` nuspec grows from 8 to 23 dependencies. Consumers would inherit versions imposed by Encina, against pay-for-what-you-use (AGENTS.md section 1). Most of the projects that report a conflict are tests or benchmarks, which are not packed; the existing hand-made pins also sit in `src/` projects, which are.
 
 ## Decision
 
@@ -21,7 +21,7 @@ The [spike report](../../infrastructure/cpm-transitive-pinning.md) measured that
 - The property is set in a new root `Directory.Build.targets` under `Condition="'$(IsPackable)' == 'false'"`. A `.targets` file is evaluated after the project file, so the condition sees the final value, including a `.csproj` override. `Directory.Build.props` derives the defaults from the path (`tests/` false at lines 48-50, `src/` true at lines 58-60) and lets a project override them, so a condition in the props file could not see an override. An unset `IsPackable` leaves the flag off, which fails safe.
 - MSBuild uses only the nearest `Directory.Build.targets`, and `tests/Directory.Build.targets` already exists, so it imports the root file; there is one definition.
 - Packable projects keep the flag off, so no pinned transitive version reaches the dependencies of a published package. A packable project that needs a transitive version raised keeps the direct-pin pattern.
-- Conflicts are fixed by raising the central pin in `Directory.Packages.props`, never by keeping a lower version (AGENTS.md section 1) and never with `NoWarn` (AGENTS.md section 8). A central entry nothing references is deleted (AGENTS.md section 3). Audit findings are never suppressed.
+- Conflicts are fixed by raising the central pin in `Directory.Packages.props`, never by keeping a lower version (best solution first, AGENTS.md section 1) and never with `NoWarn` for NU codes (zero warnings, AGENTS.md section 8). A central entry nothing references is deleted (AGENTS.md section 3). Audit findings are never suppressed.
 
 [#2976](https://github.com/dlrivada/Encina/issues/2976) applies the decision: the conditional flag, the version bumps the spike measured, the removal of the unreferenced `Grpc.Tools` pin and of the `PrivateAssets="all"` OTLP reference in `Encina.Testing.WireMock`, and a nuspec comparison of the packable projects.
 
