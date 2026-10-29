@@ -197,29 +197,22 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
-        if (_client is not null)
-        {
-            await _client.DisposeAsync();
-        }
+        await DisposeIfNotNullAsync(_client);
+        await DisposeIfNotNullAsync(_container);
+        await DisposeIfNotNullAsync(_sqlContainer);
+        await DisposeIfNotNullAsync(_network);
 
-        if (_container is not null)
-        {
-            await _container.DisposeAsync();
-        }
-
-        if (_sqlContainer is not null)
-        {
-            await _sqlContainer.DisposeAsync();
-        }
-
-        if (_network is not null)
-        {
-            await _network.DisposeAsync();
-        }
-
-        if (_configPath is not null && File.Exists(_configPath))
+        if (_configPath is not null)
         {
             File.Delete(_configPath);
+        }
+    }
+
+    private static async ValueTask DisposeIfNotNullAsync(IAsyncDisposable? disposable)
+    {
+        if (disposable is not null)
+        {
+            await disposable.DisposeAsync();
         }
     }
 
