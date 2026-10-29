@@ -141,8 +141,10 @@
   }
 
   // For TSV export
-  function flagCellText(perFlag, flag, catTests) {
-    const applicable = isApplicableFlag(catTests, flag);
+  function flagCellText(perFlag, flag, catTests, perFlagTarget) {
+    const applicable = perFlagTarget != null
+      ? perFlagTarget[flag] != null
+      : isApplicableFlag(catTests, flag);
     const pct = flagPct(perFlag, flag);
     if (!applicable) return '-';
     if (pct === null) return '?';
@@ -637,11 +639,11 @@
       const fl = (flag) => pkg.perFlag?.[flag]?.total ?? '-';
       rows.push([
         pkg.name,
-        flagCellText(pkg.perFlag, 'unit', catTests), ft.unit != null ? ft.unit + '%' : '-', fl('unit'),
-        flagCellText(pkg.perFlag, 'guard', catTests), ft.guard != null ? ft.guard + '%' : '-', fl('guard'),
-        flagCellText(pkg.perFlag, 'contract', catTests), ft.contract != null ? ft.contract + '%' : '-', fl('contract'),
-        flagCellText(pkg.perFlag, 'property', catTests), ft.property != null ? ft.property + '%' : '-', fl('property'),
-        flagCellText(pkg.perFlag, 'integration', catTests), ft.integration != null ? ft.integration + '%' : '-', fl('integration'),
+        flagCellText(pkg.perFlag, 'unit', catTests, pkg.perFlagTarget), ft.unit != null ? ft.unit + '%' : '-', fl('unit'),
+        flagCellText(pkg.perFlag, 'guard', catTests, pkg.perFlagTarget), ft.guard != null ? ft.guard + '%' : '-', fl('guard'),
+        flagCellText(pkg.perFlag, 'contract', catTests, pkg.perFlagTarget), ft.contract != null ? ft.contract + '%' : '-', fl('contract'),
+        flagCellText(pkg.perFlag, 'property', catTests, pkg.perFlagTarget), ft.property != null ? ft.property + '%' : '-', fl('property'),
+        flagCellText(pkg.perFlag, 'integration', catTests, pkg.perFlagTarget), ft.integration != null ? ft.integration + '%' : '-', fl('integration'),
         Math.round(pkg.coverage) + '%',
         (gap >= 0 ? '+' : '') + Math.round(gap) + '%',
         pkg.lines
