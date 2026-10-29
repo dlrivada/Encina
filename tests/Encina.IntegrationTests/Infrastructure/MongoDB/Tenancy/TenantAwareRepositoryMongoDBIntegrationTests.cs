@@ -525,6 +525,163 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
         stored.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task GetPagedAsync_WithTenantContext_ReturnsOnlyTenantPage()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        await _collection!.InsertManyAsync([
+            CreateDocument("T1 Doc 1", Tenant1),
+            CreateDocument("T1 Doc 2", Tenant1),
+            CreateDocument("T1 Doc 3", Tenant1),
+            CreateDocument("T2 Doc 1", Tenant2)
+        ]);
+        _tenantProvider!.SetTenant(Tenant1);
+        var repository = CreateRepository();
+
+        // Act
+        var page = (await repository.GetPagedAsync(new PaginationOptions(1, 2))).ShouldBeSuccess();
+
+        // Assert
+        page.TotalCount.ShouldBe(3);
+        page.Items.Count.ShouldBe(2);
+        page.Items.ShouldAllBe(d => d.TenantId == Tenant1);
+    }
+
+    [Fact]
+    public async Task GetPagedAsync_WithSpecification_ReturnsOnlyMatchingTenantPage()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        await _collection!.InsertManyAsync([
+            CreateDocument("T1 High", Tenant1, 500m),
+            CreateDocument("T1 Low", Tenant1, 10m),
+            CreateDocument("T2 High", Tenant2, 500m)
+        ]);
+        _tenantProvider!.SetTenant(Tenant1);
+        var repository = CreateRepository();
+
+        // Act
+        var page = (await repository.GetPagedAsync(new HighValueDocumentSpec(), new PaginationOptions(1, 10))).ShouldBeSuccess();
+        var empty = (await repository.GetPagedAsync(new HighValueDocumentSpec(), new PaginationOptions(5, 10))).ShouldBeSuccess();
+
+        // Assert
+        page.TotalCount.ShouldBe(1);
+        page.Items.Single().Name.ShouldBe("T1 High");
+        empty.Items.Count.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task GetPagedAsync_WithNoTenantData_ReturnsEmptyPage()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        await _collection!.InsertOneAsync(CreateDocument("T2 Doc", Tenant2));
+        _tenantProvider!.SetTenant(Tenant1);
+        var repository = CreateRepository();
+
+        // Act
+        var plain = (await repository.GetPagedAsync(new PaginationOptions(1, 10))).ShouldBeSuccess();
+        var withSpec = (await repository.GetPagedAsync(new HighValueDocumentSpec(), new PaginationOptions(1, 10))).ShouldBeSuccess();
+
+        // Assert
+        plain.Items.Count.ShouldBe(0);
+        withSpec.Items.Count.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task FirstOrDefaultAsync_WithSpecification_ReturnsOnlyTenantMatch()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        await _collection!.InsertManyAsync([
+            CreateDocument("T2 High", Tenant2, 500m),
+            CreateDocument("T1 High", Tenant1, 500m)
+        ]);
+        _tenantProvider!.SetTenant(Tenant1);
+        var repository = CreateRepository();
+
+        // Act
+        var found = (await repository.FirstOrDefaultAsync(new HighValueDocumentSpec())).ShouldBeSuccess();
+
+        // Assert
+        found.Name.ShouldBe("T1 High");
+    }
+
+    [Fact]
+    public async Task DeleteRangeAsync_WithSpecification_DeletesOnlyTenantMatches()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        await _collection!.InsertManyAsync([
+            CreateDocument("T1 High", Tenant1, 500m),
+            CreateDocument("T2 High", Tenant2, 500m)
+        ]);
+        _tenantProvider!.SetTenant(Tenant1);
+        var repository = CreateRepository();
+
+        // Act
+        var deleted = (await repository.DeleteRangeAsync(new HighValueDocumentSpec())).ShouldBeSuccess();
+
+        // Assert
+        deleted.ShouldBe(1);
+        (await _collection!.CountDocumentsAsync(Builders<TenantTestDocument>.Filter.Empty)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task UpdateRangeAsync_SameTenant_UpdatesAllEntities()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        var first = CreateDocument("First", Tenant1);
+        var second = CreateDocument("Second", Tenant1);
+        await _collection!.InsertManyAsync([first, second]);
+        _tenantProvider!.SetTenant(Tenant1);
+        var repository = CreateRepository();
+
+        // Act
+        first.Name = "First updated";
+        second.Name = "Second updated";
+        var result = await repository.UpdateRangeAsync([first, second]);
+        var empty = await repository.UpdateRangeAsync([]);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        empty.IsRight.ShouldBeTrue();
+        var names = (await _collection!.Find(Builders<TenantTestDocument>.Filter.Empty).ToListAsync()).Select(d => d.Name);
+        names.ShouldBe(["First updated", "Second updated"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_UnknownEntity_ReturnsNotFound()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        _tenantProvider!.SetTenant(Tenant1);
+        var repository = CreateRepository();
+
+        // Act
+        var result = await repository.UpdateAsync(CreateDocument("Ghost", Tenant1));
+
+        // Assert
+        var error = result.ShouldBeError();
+        error.GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.NotFoundErrorCode);
+    }
+
     #endregion
 
     #region Missing Tenant Context Tests

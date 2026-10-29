@@ -207,6 +207,173 @@ public sealed class TenantAwareFunctionalRepositoryMongoDBTenantRequiredTests
     }
 
     [Fact]
+    public async Task UpdateAsync_WithMatchingDocument_Succeeds()
+    {
+        // Arrange
+        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
+        collection.ReplaceOneAsync(
+                Arg.Any<FilterDefinition<MongoTenantTestOrder>>(),
+                Arg.Any<MongoTenantTestOrder>(),
+                Arg.Any<ReplaceOptions>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ReplaceOneResult>(new ReplaceOneResult.Acknowledged(1, 1, null)));
+        var repository = CreateRepository(collection, "tenant-1", new MongoDbTenancyOptions());
+        var order = new MongoTenantTestOrder { Id = Guid.NewGuid(), TenantId = "tenant-1" };
+
+        // Act
+        var result = await repository.UpdateAsync(order);
+
+        // Assert
+        result.ShouldBeSuccess().ShouldBeSameAs(order);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithoutMatchingDocument_ReturnsNotFound()
+    {
+        // Arrange
+        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
+        collection.ReplaceOneAsync(
+                Arg.Any<FilterDefinition<MongoTenantTestOrder>>(),
+                Arg.Any<MongoTenantTestOrder>(),
+                Arg.Any<ReplaceOptions>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ReplaceOneResult>(new ReplaceOneResult.Acknowledged(0, 0, null)));
+        var repository = CreateRepository(collection, "tenant-1", new MongoDbTenancyOptions());
+
+        // Act
+        var result = await repository.UpdateAsync(new MongoTenantTestOrder { Id = Guid.NewGuid(), TenantId = "tenant-1" });
+
+        // Assert
+        result.ShouldBeError().GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.NotFoundErrorCode);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_VersionedEntity_BumpsVersionAndReportsConflictOnNoMatch()
+    {
+        // Arrange
+        var collection = Substitute.For<IMongoCollection<VersionedTenantOrder>>();
+        collection.ReplaceOneAsync(
+                Arg.Any<FilterDefinition<VersionedTenantOrder>>(),
+                Arg.Any<VersionedTenantOrder>(),
+                Arg.Any<ReplaceOptions>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ReplaceOneResult>(new ReplaceOneResult.Acknowledged(0, 0, null)));
+        var repository = CreateVersionedRepository(collection, "tenant-1");
+        var order = new VersionedTenantOrder { Id = Guid.NewGuid(), TenantId = "tenant-1", Version = 4 };
+
+        // Act
+        var result = await repository.UpdateAsync(order);
+
+        // Assert
+        result.ShouldBeError().GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.ConcurrencyConflictErrorCode);
+        order.Version.ShouldBe(5);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ReadOnlyVersionedEntity_ReportsConflictOnNoMatchWithoutBumpingVersion()
+    {
+        // Arrange
+        var collection = Substitute.For<IMongoCollection<ReadOnlyVersionedTenantOrder>>();
+        collection.ReplaceOneAsync(
+                Arg.Any<FilterDefinition<ReadOnlyVersionedTenantOrder>>(),
+                Arg.Any<ReadOnlyVersionedTenantOrder>(),
+                Arg.Any<ReplaceOptions>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ReplaceOneResult>(new ReplaceOneResult.Acknowledged(0, 0, null)));
+        var repository = CreateRepositoryFor(collection, "tenant-1");
+        var order = new ReadOnlyVersionedTenantOrder { Id = Guid.NewGuid(), TenantId = "tenant-1", Version = 7 };
+
+        // Act
+        var result = await repository.UpdateAsync(order);
+
+        // Assert
+        result.ShouldBeError().GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.ConcurrencyConflictErrorCode);
+        order.Version.ShouldBe(7);
+    }
+
+    [Fact]
+    public async Task UpdateRangeAsync_NonVersionedEntities_Succeeds()
+    {
+        // Arrange
+        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
+        collection.BulkWriteAsync(
+                Arg.Any<IEnumerable<WriteModel<MongoTenantTestOrder>>>(),
+                Arg.Any<BulkWriteOptions?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult<BulkWriteResult<MongoTenantTestOrder>>(
+                new BulkWriteResult<MongoTenantTestOrder>.Acknowledged(
+                    1, 0, 0, 0, 0, call.Arg<IEnumerable<WriteModel<MongoTenantTestOrder>>>().ToList(), [])));
+        var repository = CreateRepository(collection, "tenant-1", new MongoDbTenancyOptions());
+
+        // Act
+        var result = await repository.UpdateRangeAsync([new MongoTenantTestOrder { Id = Guid.NewGuid(), TenantId = "tenant-1" }]);
+
+        // Assert
+        result.ShouldBeSuccess();
+    }
+
+    [Fact]
+    public async Task UpdateRangeAsync_EmptyList_SucceedsWithoutBulkWrite()
+    {
+        // Arrange
+        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
+        var repository = CreateRepository(collection, "tenant-1", new MongoDbTenancyOptions());
+
+        // Act
+        var result = await repository.UpdateRangeAsync([]);
+
+        // Assert
+        result.ShouldBeSuccess();
+        collection.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task UpdateRangeAsync_VersionedEntities_ReportsConflictWhenFewerDocumentsMatch()
+    {
+        // Arrange
+        var collection = Substitute.For<IMongoCollection<VersionedTenantOrder>>();
+        collection.BulkWriteAsync(
+                Arg.Any<IEnumerable<WriteModel<VersionedTenantOrder>>>(),
+                Arg.Any<BulkWriteOptions?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult<BulkWriteResult<VersionedTenantOrder>>(
+                new BulkWriteResult<VersionedTenantOrder>.Acknowledged(
+                    2, 1, 0, 0, 1, call.Arg<IEnumerable<WriteModel<VersionedTenantOrder>>>().ToList(), [])));
+        var repository = CreateVersionedRepository(collection, "tenant-1");
+        var first = new VersionedTenantOrder { Id = Guid.NewGuid(), TenantId = "tenant-1", Version = 1 };
+        var second = new VersionedTenantOrder { Id = Guid.NewGuid(), TenantId = "tenant-1", Version = 2 };
+
+        // Act
+        var result = await repository.UpdateRangeAsync([first, second]);
+
+        // Assert
+        result.ShouldBeError().GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.ConcurrencyConflictErrorCode);
+        first.Version.ShouldBe(2);
+        second.Version.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task UpdateRangeAsync_VersionedEntities_SucceedsWhenAllDocumentsMatch()
+    {
+        // Arrange
+        var collection = Substitute.For<IMongoCollection<VersionedTenantOrder>>();
+        collection.BulkWriteAsync(
+                Arg.Any<IEnumerable<WriteModel<VersionedTenantOrder>>>(),
+                Arg.Any<BulkWriteOptions?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult<BulkWriteResult<VersionedTenantOrder>>(
+                new BulkWriteResult<VersionedTenantOrder>.Acknowledged(
+                    1, 1, 0, 0, 1, call.Arg<IEnumerable<WriteModel<VersionedTenantOrder>>>().ToList(), [])));
+        var repository = CreateVersionedRepository(collection, "tenant-1");
+
+        // Act
+        var result = await repository.UpdateRangeAsync([new VersionedTenantOrder { Id = Guid.NewGuid(), TenantId = "tenant-1" }]);
+
+        // Assert
+        result.ShouldBeSuccess();
+    }
+
+    [Fact]
     public void TenantRequired_Error_HasStableCodeDetailsAndNoTenantId()
     {
         // Act
@@ -241,6 +408,42 @@ public sealed class TenantAwareFunctionalRepositoryMongoDBTenantRequiredTests
 
         return new TenantAwareFunctionalRepositoryMongoDB<MongoTenantTestOrder, Guid>(
             collection, mapping, tenantProvider, options, o => o.Id);
+    }
+
+    private static TenantAwareFunctionalRepositoryMongoDB<VersionedTenantOrder, Guid> CreateVersionedRepository(
+        IMongoCollection<VersionedTenantOrder> collection,
+        string tenantId)
+    {
+        var tenantProvider = Substitute.For<ITenantProvider>();
+        tenantProvider.GetCurrentTenantId().Returns(tenantId);
+
+        var mapping = new TenantEntityMappingBuilder<VersionedTenantOrder, Guid>()
+            .ToCollection("versioned_orders")
+            .HasId(o => o.Id)
+            .HasTenantId(o => o.TenantId)
+            .Build()
+            .ShouldBeSuccess();
+
+        return new TenantAwareFunctionalRepositoryMongoDB<VersionedTenantOrder, Guid>(
+            collection, mapping, tenantProvider, new MongoDbTenancyOptions(), o => o.Id);
+    }
+
+    private static TenantAwareFunctionalRepositoryMongoDB<ReadOnlyVersionedTenantOrder, Guid> CreateRepositoryFor(
+        IMongoCollection<ReadOnlyVersionedTenantOrder> collection,
+        string tenantId)
+    {
+        var tenantProvider = Substitute.For<ITenantProvider>();
+        tenantProvider.GetCurrentTenantId().Returns(tenantId);
+
+        var mapping = new TenantEntityMappingBuilder<ReadOnlyVersionedTenantOrder, Guid>()
+            .ToCollection("versioned_orders")
+            .HasId(o => o.Id)
+            .HasTenantId(o => o.TenantId)
+            .Build()
+            .ShouldBeSuccess();
+
+        return new TenantAwareFunctionalRepositoryMongoDB<ReadOnlyVersionedTenantOrder, Guid>(
+            collection, mapping, tenantProvider, new MongoDbTenancyOptions(), o => o.Id);
     }
 
     private static async Task<EncinaError?> RunAsync(
@@ -278,6 +481,26 @@ public sealed class TenantAwareFunctionalRepositoryMongoDBTenantRequiredTests
 
     private static EncinaError? ErrorOf<T>(Either<EncinaError, T> either)
         => either.Match<EncinaError?>(Right: _ => null, Left: error => error);
+
+    public sealed class VersionedTenantOrder : IVersionedEntity
+    {
+        public Guid Id { get; set; }
+
+        public string TenantId { get; set; } = string.Empty;
+
+        public int Version { get; set; }
+
+        long IVersioned.Version => Version;
+    }
+
+    public sealed class ReadOnlyVersionedTenantOrder : IVersioned
+    {
+        public Guid Id { get; set; }
+
+        public string TenantId { get; set; } = string.Empty;
+
+        public long Version { get; set; }
+    }
 
     private sealed class PagedActiveOrdersSpec : Specification<MongoTenantTestOrder>, IPagedSpecification<MongoTenantTestOrder>
     {
