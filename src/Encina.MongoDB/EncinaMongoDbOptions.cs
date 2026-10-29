@@ -131,7 +131,8 @@ public sealed class EncinaMongoDbOptions
     /// <remarks>
     /// <para>
     /// When enabled, registers <c>IBreakTheGlassStore</c> (from <c>Encina.Security.BreakTheGlass</c>)
-    /// implemented by its MongoDB store, in place of the in-memory default.
+    /// implemented by its MongoDB store, in place of the in-memory default. The flag takes effect when the
+    /// MongoDB store lands (issue #1244, Phase 5); until then it has no effect.
     /// </para>
     /// <para>
     /// The store relies on a partial unique index created with <see cref="CreateIndexes"/> to admit one
