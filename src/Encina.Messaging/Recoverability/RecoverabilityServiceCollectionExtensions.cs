@@ -107,7 +107,8 @@ public static class RecoverabilityServiceCollectionExtensions
     {
         var missing = DelayedRetryStartupCheck.DescribeMissing(
             provider.GetService<IDelayedRetryStore>() is not null,
-            provider.GetService<IDelayedRetryMessageFactory>() is not null);
+            provider.GetService<IDelayedRetryMessageFactory>() is not null,
+            hasEncina: true);
         if (missing is not null)
         {
             throw new InvalidOperationException(DelayedRetryStartupCheck.BuildMessage(missing));

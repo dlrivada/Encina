@@ -1,4 +1,5 @@
 using Encina.Messaging.Recoverability;
+using Encina.Messaging.Serialization;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -114,41 +115,31 @@ public sealed class DelayedRetryProcessorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenEncinaNotConfigured_ContinuesWithoutError()
+    public async Task ExecuteAsync_WhenEncinaNotRegistered_FailsTheCycleWithAnErrorLogAndKeepsRunning()
     {
-        // Arrange
-        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var store = Substitute.For<IDelayedRetryStore>();
-        var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
-        serviceProvider.GetService(typeof(IEncina)).Returns(_ =>
-        {
-            tcs.TrySetResult();
-            return null;
-        });
-
-        var scope = Substitute.For<IServiceScope>();
-        scope.ServiceProvider.Returns(serviceProvider);
-
-        var scopeFactory = Substitute.For<IServiceScopeFactory>();
-        scopeFactory.CreateScope().Returns(scope);
-
-        var options = new RecoverabilityOptions();
-        var logger = NullLogger<DelayedRetryProcessor>.Instance;
-
-        var processor = new DelayedRetryProcessor(scopeFactory, options, logger)
+        // Arrange - a store but no IEncina (no host, so the startup check never ran): the cycle fails
+        // (logged, EventId 2847) instead of skipping silently with a warning.
+        var services = new ServiceCollection();
+        services.AddSingleton(Substitute.For<IDelayedRetryStore>());
+        services.AddSingleton<IMessageSerializer>(new JsonMessageSerializer());
+        using var provider = services.BuildServiceProvider();
+        var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<DelayedRetryProcessor>();
+        var processor = new DelayedRetryProcessor(provider.GetRequiredService<IServiceScopeFactory>(), new RecoverabilityOptions(), logger)
         {
             ProcessingInterval = TimeSpan.FromMilliseconds(10)
         };
 
         using var cts = new CancellationTokenSource();
 
-        // Act - wait for one processing cycle (the IEncina lookup) to confirm the loop
-        // ran with Encina missing, rather than sleeping a fixed duration.
+        // Act - wait for two failed cycles to prove the loop survives the failure.
         await processor.StartAsync(cts.Token);
         try
         {
-            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            while (logger.Collector.GetSnapshot().Count(r => r.Id.Id == 2847) < 2)
+            {
+                await Task.Delay(5, timeout.Token);
+            }
         }
         finally
         {
@@ -156,8 +147,11 @@ public sealed class DelayedRetryProcessorTests
             await processor.StopAsync(default);
         }
 
-        // Assert - should complete without throwing
-        Assert.True(true, "Processor completed without error when Encina not configured");
+        // Assert
+        var failures = logger.Collector.GetSnapshot().Where(r => r.Id.Id == 2847).ToList();
+        failures.Count.ShouldBeGreaterThanOrEqualTo(2);
+        failures.ShouldAllBe(r => r.Level == Microsoft.Extensions.Logging.LogLevel.Error);
+        failures.ShouldAllBe(r => r.Exception != null);
     }
 
     #endregion
@@ -211,6 +205,8 @@ public sealed class DelayedRetryProcessorTests
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
         serviceProvider.GetService(typeof(IEncina)).Returns(encina);
+        serviceProvider.GetService(typeof(IMessageSerializer)).Returns(new JsonMessageSerializer());
+        serviceProvider.GetService(typeof(IDelayedRetryScheduler)).Returns(Substitute.For<IDelayedRetryScheduler>());
 
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(serviceProvider);
@@ -262,6 +258,8 @@ public sealed class DelayedRetryProcessorTests
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
         serviceProvider.GetService(typeof(IEncina)).Returns(encina);
+        serviceProvider.GetService(typeof(IMessageSerializer)).Returns(new JsonMessageSerializer());
+        serviceProvider.GetService(typeof(IDelayedRetryScheduler)).Returns(Substitute.For<IDelayedRetryScheduler>());
 
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(serviceProvider);
@@ -425,6 +423,8 @@ public sealed class DelayedRetryProcessorTests
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
         serviceProvider.GetService(typeof(IEncina)).Returns(encina);
+        serviceProvider.GetService(typeof(IMessageSerializer)).Returns(new JsonMessageSerializer());
+        serviceProvider.GetService(typeof(IDelayedRetryScheduler)).Returns(Substitute.For<IDelayedRetryScheduler>());
 
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(serviceProvider);

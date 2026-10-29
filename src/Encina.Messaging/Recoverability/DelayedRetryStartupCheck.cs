@@ -8,7 +8,8 @@ namespace Encina.Messaging.Recoverability;
 /// <summary>
 /// Checks, when the host starts, that delayed retries have what they need: with
 /// <see cref="RecoverabilityOptions.EnableDelayedRetries"/> on, an <see cref="IDelayedRetryStore"/> and an
-/// <see cref="IDelayedRetryMessageFactory"/> must be registered, otherwise the application fails to start
+/// <see cref="IDelayedRetryMessageFactory"/> and <see cref="IEncina"/> (the processor re-dispatches through it)
+/// must be registered, otherwise the application fails to start
 /// (ADR-050, Critical log with EventId 5457, see EventIdRanges.MessagingRecoverability).
 /// </summary>
 /// <remarks>
@@ -54,7 +55,8 @@ internal sealed class DelayedRetryStartupCheck : IHostedService
 
         var missing = DescribeMissing(
             _serviceProviderIsService.IsService(typeof(IDelayedRetryStore)),
-            _serviceProviderIsService.IsService(typeof(IDelayedRetryMessageFactory)));
+            _serviceProviderIsService.IsService(typeof(IDelayedRetryMessageFactory)),
+            _serviceProviderIsService.IsService(typeof(IEncina)));
         if (missing is null)
         {
             return Task.CompletedTask;
@@ -67,15 +69,34 @@ internal sealed class DelayedRetryStartupCheck : IHostedService
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     /// <summary>
-    /// Names what is missing for delayed retries, or <c>null</c> when both services are registered.
+    /// Names what is missing for delayed retries, or <c>null</c> when everything required is registered.
     /// </summary>
-    internal static string? DescribeMissing(bool hasStore, bool hasFactory) => (hasStore, hasFactory) switch
+    /// <param name="hasStore">Whether an <see cref="IDelayedRetryStore"/> is registered.</param>
+    /// <param name="hasFactory">Whether an <see cref="IDelayedRetryMessageFactory"/> is registered.</param>
+    /// <param name="hasEncina">
+    /// Whether <see cref="IEncina"/> is registered. Only the processor (through the startup check) needs it;
+    /// the scheduler does not, so it passes <c>true</c>.
+    /// </param>
+    internal static string? DescribeMissing(bool hasStore, bool hasFactory, bool hasEncina)
     {
-        (true, true) => null,
-        (false, false) => $"{nameof(IDelayedRetryStore)} and {nameof(IDelayedRetryMessageFactory)}",
-        (false, true) => nameof(IDelayedRetryStore),
-        (true, false) => nameof(IDelayedRetryMessageFactory),
-    };
+        var missing = new List<string>(3);
+        if (!hasStore)
+        {
+            missing.Add(nameof(IDelayedRetryStore));
+        }
+
+        if (!hasFactory)
+        {
+            missing.Add(nameof(IDelayedRetryMessageFactory));
+        }
+
+        if (!hasEncina)
+        {
+            missing.Add(nameof(IEncina));
+        }
+
+        return missing.Count == 0 ? null : string.Join(" and ", missing);
+    }
 
     /// <summary>
     /// Builds the message of the failure: the module, what is missing, ADR-050 and how to fix it.
@@ -84,6 +105,7 @@ internal sealed class DelayedRetryStartupCheck : IHostedService
         $"Recoverability delayed retries are enabled (RecoverabilityOptions.EnableDelayedRetries) but {missing} " +
         "is not registered (ADR-050). Register the store and its message factory with " +
         "AddEncinaDelayedRetryStore<TStore, TFactory>() or through a database provider package, " +
+        "register IEncina with AddEncina(), " +
         "or set RecoverabilityOptions.EnableDelayedRetries to false.";
 }
 
@@ -99,6 +121,6 @@ internal static partial class DelayedRetryStartupCheckLog
     [LoggerMessage(
         EventId = 5457,
         Level = LogLevel.Critical,
-        Message = "Delayed retries are enabled but {Missing} is not registered. Register a delayed retry store and factory (AddEncinaDelayedRetryStore) or disable EnableDelayedRetries")]
+        Message = "Delayed retries are enabled but {Missing} is not registered. Register a delayed retry store and factory (AddEncinaDelayedRetryStore), register IEncina (AddEncina) or disable EnableDelayedRetries")]
     public static partial void StoreMissing(ILogger logger, string missing);
 }

@@ -59,10 +59,12 @@ public sealed class DelayedRetryRegistrationTests
         services.AddScoped<IDelayedRetryMessageFactory, MessageSerializerRegistrationTests.ProbeDelayedRetryMessageFactory>();
     }
 
-    private static ServiceCollection Build(bool enableDelayedRetries, StoreKind kind, StoreOrder order)
+    private static ServiceCollection Build(bool enableDelayedRetries, StoreKind kind, StoreOrder order, bool withEncina = true)
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        if (withEncina)
+            services.AddSingleton(Substitute.For<IEncina>());
         if (order == StoreOrder.BeforeRecoverability)
             AddStore(services, kind);
 
@@ -172,6 +174,46 @@ public sealed class DelayedRetryRegistrationTests
     }
 
     [Fact]
+    public async Task StartupCheck_WithStoreAndFactoryButNoEncina_FailsNamingOnlyEncina()
+    {
+        var services = Build(enableDelayedRetries: true, StoreKind.Helper, StoreOrder.AfterRecoverability, withEncina: false);
+
+        using var provider = services.BuildServiceProvider(Validate);
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => StartupCheckOf(provider).StartAsync(CancellationToken.None));
+        ex.Message.ShouldContain($"but {nameof(IEncina)} is not registered");
+        ex.Message.ShouldNotContain(nameof(IDelayedRetryStore));
+    }
+
+    [Fact]
+    public async Task Host_WithDelayedRetriesOnAndNoEncina_FailsToStartNamingEncina()
+    {
+        using var host = new HostBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddLogging();
+                services.AddEncinaRecoverability(o => o.EnableDelayedRetries = true);
+                AddStore(services, StoreKind.RawDescriptors);
+            })
+            .UseDefaultServiceProvider(o => { o.ValidateOnBuild = true; o.ValidateScopes = true; })
+            .Build();
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => host.StartAsync());
+        ex.Message.ShouldContain(nameof(IEncina));
+    }
+
+    [Fact]
+    public void WithoutAHost_DelayedRetriesOnAndNoEncina_TheSchedulerStillResolves()
+    {
+        var services = Build(enableDelayedRetries: true, StoreKind.Helper, StoreOrder.AfterRecoverability, withEncina: false);
+
+        using var provider = services.BuildServiceProvider(Validate);
+        using var scope = provider.CreateScope();
+
+        scope.ServiceProvider.GetRequiredService<IDelayedRetryScheduler>().ShouldBeOfType<DelayedRetryScheduler>();
+    }
+
+    [Fact]
     public async Task StartupCheck_WithDelayedRetriesOnAndAnEmptyDelayedRetriesArray_StillRequiresTheStore()
     {
         var services = new ServiceCollection();
@@ -260,10 +302,13 @@ public sealed class DelayedRetryRegistrationTests
     [Fact]
     public void DescribeMissing_CoversEveryCombination()
     {
-        DelayedRetryStartupCheck.DescribeMissing(true, true).ShouldBeNull();
-        DelayedRetryStartupCheck.DescribeMissing(false, false).ShouldBe($"{nameof(IDelayedRetryStore)} and {nameof(IDelayedRetryMessageFactory)}");
-        DelayedRetryStartupCheck.DescribeMissing(false, true).ShouldBe(nameof(IDelayedRetryStore));
-        DelayedRetryStartupCheck.DescribeMissing(true, false).ShouldBe(nameof(IDelayedRetryMessageFactory));
+        DelayedRetryStartupCheck.DescribeMissing(true, true, true).ShouldBeNull();
+        DelayedRetryStartupCheck.DescribeMissing(false, false, true).ShouldBe($"{nameof(IDelayedRetryStore)} and {nameof(IDelayedRetryMessageFactory)}");
+        DelayedRetryStartupCheck.DescribeMissing(false, true, true).ShouldBe(nameof(IDelayedRetryStore));
+        DelayedRetryStartupCheck.DescribeMissing(true, false, true).ShouldBe(nameof(IDelayedRetryMessageFactory));
+        DelayedRetryStartupCheck.DescribeMissing(true, true, false).ShouldBe(nameof(IEncina));
+        DelayedRetryStartupCheck.DescribeMissing(false, false, false)
+            .ShouldBe($"{nameof(IDelayedRetryStore)} and {nameof(IDelayedRetryMessageFactory)} and {nameof(IEncina)}");
     }
 
     [Fact]
