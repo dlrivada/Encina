@@ -201,7 +201,7 @@ services.AddEncinaMessaging(config =>
         UseExponentialBackoffForImmediateRetries = true,
 
         // Delayed retries (persistent, scheduled). Off by default; turning them on
-        // requires an IDelayedRetryStore and an IDelayedRetryMessageFactory (see below)
+        // requires an IDelayedRetryStore, an IDelayedRetryMessageFactory and IEncina (see below)
         EnableDelayedRetries = true,
         DelayedRetries = [
             TimeSpan.FromSeconds(30),
@@ -244,7 +244,7 @@ services.AddEncinaMessaging(config =>
 });
 ```
 
-When `EnableDelayedRetries` is `true`, an `IDelayedRetryStore` and an `IDelayedRetryMessageFactory` must be registered, even if `DelayedRetries` is empty: the flag alone decides. Otherwise the application fails at startup with an `InvalidOperationException` that names what is missing, [ADR-050](../../docs/architecture/adr/050-modules-may-require-modules.md) and the fix. Without a generic host, the failure happens when the scheduler or the behavior is resolved. The startup check is interim and moves into the requirements validator of [#2382](https://github.com/dlrivada/Encina/issues/2382).
+When `EnableDelayedRetries` is `true`, an `IDelayedRetryStore`, an `IDelayedRetryMessageFactory` and `IEncina` (registered with `AddEncina()`) must be registered, even if `DelayedRetries` is empty: the flag alone decides. Otherwise the application fails at startup with an `InvalidOperationException` that names what is missing, [ADR-050](../../docs/architecture/adr/050-modules-may-require-modules.md) and the fix. Without a generic host, the failure happens when the scheduler or the behavior is resolved. The startup check is interim and moves into the requirements validator of [#2382](https://github.com/dlrivada/Encina/issues/2382).
 
 **Error Classification**:
 
