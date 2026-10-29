@@ -1,0 +1,1 @@
+- `Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL` and `Encina.ADO.MySQL`: `InboxStoreADO.RemoveExpiredMessagesAsync` now passes the message ids as command parameters, in chunks of 1000 ids per statement, instead of concatenating escaped ids into the SQL text (#3008).
