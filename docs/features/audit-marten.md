@@ -142,7 +142,7 @@ flowchart TD
     B -- "destroyed marker with only an ErasureReference" --> E["[SHREDDED] projected<br/>shard keeps running"]
     B -- "destroyed marker with only a RetentionReference" --> H["[EXPIRED] projected<br/>shard keeps running"]
     B -- "destroyed marker with no reference, or with both" --> F
-    B -- "no key and no marker" --> G["KeyNotFoundException<br/>shard paused"]
+    B -- "no key and no marker" --> G["EncryptedFieldDecryptionException<br/>reason KeyMissing<br/>shard paused"]
 ```
 
 The shards are `OperationAuditEntryProjection:All` and `ReadAuditEntryProjection:All`. A paused shard does not retry. Marten applies events in ranges as one batch, so the healthy events of the failing range are also not projected until the shard runs again. Nothing is projected wrongly, and the read side keeps serving the last projected state meanwhile.
@@ -170,7 +170,7 @@ To start with skipping enabled anyway, set `MartenOperationAuditOptions.AllowSki
 ### Recognise it
 
 1. Look for an Error entry in the logger you gave to `BuildProjectionDaemonAsync` (category `Marten.Daemon` in the integration test) that reads "Subscription OperationAuditEntryProjection:All failed while creating a SQL batch", with an inner `JasperFx.Events.Daemon.ApplyEventException` ("Failure to apply event #`<sequence>` Id(`<event guid>`)") whose inner exception is the one below.
-2. `EncryptedFieldDecryptionException` derives from `CryptographicException`. Its message is fixed and holds only the code `audit.marten.encrypted_field_unreadable`. Its `Reason` property says which of the five cases applies.
+2. `EncryptedFieldDecryptionException` derives from `CryptographicException`. Its message is fixed and holds only the code `audit.marten.encrypted_field_unreadable`. Its `Reason` property says which of the six cases applies.
 3. The message never contains plaintext, a key id, a period or the envelope. Use the sequence number or event id from the log to find the row in the `mt_events` table, and read its stream and period from there.
 4. A daemon check shows the same thing: `IProjectionDaemon.StatusFor(shard)` is `AgentStatus.Paused`, and `HasAnyPaused()` is `true`.
 
@@ -181,8 +181,9 @@ To start with skipping enabled anyway, set `MartenOperationAuditOptions.AllowSki
 | `InvalidKeyOrParameters` | The key material, nonce or tag has the wrong size | Restore the key document or the event data |
 | `IntegrityCheckFailed` | The authentication tag did not verify: tampered ciphertext or tag, or a key that does not match | Treat as a security incident, then restore the data or the correct key |
 | `KeyDestroyedWithoutErasureRecord` | The period's key was destroyed, but the marker has neither an erasure nor a retention reference, or has both (damaged or tampered, not trusted) | Restore the key, or add the reference only for a real erasure request or a real retention execution (see [Retention expiry reads [EXPIRED]](#retention-expiry-reads-expired)) |
+| `KeyMissing` | The event's period has neither an active key document nor a destroyed marker. This is not a recorded erasure, so the field is not projected as `[SHREDDED]` or `[EXPIRED]` | Restore the key document from a backup |
 
-A key with neither an active key document nor a destroyed marker for the event's period throws `KeyNotFoundException` instead (the message names the period and says there is no active key and no destroyed marker). The daemon does not retry it either: the shard pauses. Restore the key document.
+The `KeyMissing` failure uses the same fixed message as the other reasons, so it names no period or key. The daemon does not retry it: the shard pauses until the cause is repaired.
 
 ### Repair the cause and rebuild
 
