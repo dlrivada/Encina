@@ -104,8 +104,12 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
     {
         try
         {
+            if (!TryUnwrap(_filterBuilder.BuildTenantFilter("GetById"), out var tenantFilter, out var tenantError))
+            {
+                return Left<EncinaError, TEntity>(tenantError);
+            }
+
             var idFilter = BuildIdFilter(id);
-            var tenantFilter = _filterBuilder.BuildTenantFilter();
             var combinedFilter = Builders<TEntity>.Filter.And(idFilter, tenantFilter);
 
             var entity = await _collection.Find(combinedFilter)
@@ -129,7 +133,11 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
     {
         try
         {
-            var filter = _filterBuilder.BuildTenantFilter();
+            if (!TryUnwrap(_filterBuilder.BuildTenantFilter("List"), out var filter, out var tenantError))
+            {
+                return Left<EncinaError, IReadOnlyList<TEntity>>(tenantError);
+            }
+
             var entities = await _collection.Find(filter)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -152,7 +160,11 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
 
         try
         {
-            var filter = _filterBuilder.BuildFilter(specification);
+            if (!TryUnwrap(_filterBuilder.BuildFilter(specification, "List"), out var filter, out var tenantError))
+            {
+                return Left<EncinaError, IReadOnlyList<TEntity>>(tenantError);
+            }
+
             var entities = await _collection.Find(filter)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -180,7 +192,11 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
 
         try
         {
-            var filter = _filterBuilder.BuildFilter(specification);
+            if (!TryUnwrap(_filterBuilder.BuildFilter(specification, "FirstOrDefault"), out var filter, out var tenantError))
+            {
+                return Left<EncinaError, TEntity>(tenantError);
+            }
+
             var entity = await _collection.Find(filter)
                 .FirstOrDefaultAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -208,7 +224,11 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
     {
         try
         {
-            var filter = _filterBuilder.BuildTenantFilter();
+            if (!TryUnwrap(_filterBuilder.BuildTenantFilter("Count"), out var filter, out var tenantError))
+            {
+                return Left<EncinaError, int>(tenantError);
+            }
+
             var count = await _collection.CountDocumentsAsync(
                 filter,
                 cancellationToken: cancellationToken)
@@ -232,7 +252,11 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
 
         try
         {
-            var filter = _filterBuilder.BuildFilter(specification);
+            if (!TryUnwrap(_filterBuilder.BuildFilter(specification, "Count"), out var filter, out var tenantError))
+            {
+                return Left<EncinaError, int>(tenantError);
+            }
+
             var count = await _collection.CountDocumentsAsync(
                 filter,
                 cancellationToken: cancellationToken)
@@ -261,7 +285,11 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
 
         try
         {
-            var filter = _filterBuilder.BuildFilter(specification);
+            if (!TryUnwrap(_filterBuilder.BuildFilter(specification, "Any"), out var filter, out var tenantError))
+            {
+                return Left<EncinaError, bool>(tenantError);
+            }
+
             var count = await _collection.CountDocumentsAsync(
                 filter,
                 new CountOptions { Limit = 1 },
@@ -288,7 +316,11 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
     {
         try
         {
-            var filter = _filterBuilder.BuildTenantFilter();
+            if (!TryUnwrap(_filterBuilder.BuildTenantFilter("Any"), out var filter, out var tenantError))
+            {
+                return Left<EncinaError, bool>(tenantError);
+            }
+
             var count = await _collection.CountDocumentsAsync(
                 filter,
                 new CountOptions { Limit = 1 },
@@ -313,7 +345,10 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
 
         try
         {
-            var filter = _filterBuilder.BuildTenantFilter();
+            if (!TryUnwrap(_filterBuilder.BuildTenantFilter("GetPaged"), out var filter, out var tenantError))
+            {
+                return Left<EncinaError, PagedResult<TEntity>>(tenantError);
+            }
 
             // Get total count
             var totalCount = (int)await _collection.CountDocumentsAsync(
@@ -355,7 +390,10 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
 
         try
         {
-            var filter = _filterBuilder.BuildFilter(specification);
+            if (!TryUnwrap(_filterBuilder.BuildFilter(specification, "GetPaged"), out var filter, out var tenantError))
+            {
+                return Left<EncinaError, PagedResult<TEntity>>(tenantError);
+            }
 
             // Get total count with specification filter
             var totalCount = (int)await _collection.CountDocumentsAsync(
@@ -427,7 +465,12 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
         try
         {
             // Auto-assign tenant ID if enabled
-            AssignTenantIdIfNeeded(entity);
+            if (!TryUnwrap(ResolveTenantIdForAssignment("Add"), out var tenantId, out var tenantError))
+            {
+                return Left<EncinaError, TEntity>(tenantError);
+            }
+
+            AssignTenantId(entity, tenantId);
 
             // Populate audit fields before persistence
             AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
@@ -458,10 +501,15 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
         try
         {
             // Validate tenant ownership if enabled
-            var validationResult = ValidateTenantOwnership(entity);
+            var validationResult = ValidateTenantOwnership(entity, "Update");
             if (validationResult.IsLeft)
             {
                 return validationResult.Map(_ => entity);
+            }
+
+            if (!TryUnwrap(_filterBuilder.BuildTenantFilter("Update"), out var tenantFilter, out var tenantError))
+            {
+                return Left<EncinaError, TEntity>(tenantError);
             }
 
             // Populate audit fields before persistence
@@ -469,7 +517,6 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
 
             var id = _compiledIdSelector(entity);
             var idFilter = BuildIdFilter(id);
-            var tenantFilter = _filterBuilder.BuildTenantFilter();
             var combinedFilter = Builders<TEntity>.Filter.And(idFilter, tenantFilter);
 
             // Handle versioned entities for optimistic concurrency
@@ -522,8 +569,12 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
     {
         try
         {
+            if (!TryUnwrap(_filterBuilder.BuildTenantFilter("Delete"), out var tenantFilter, out var tenantError))
+            {
+                return Left<EncinaError, Unit>(tenantError);
+            }
+
             var idFilter = BuildIdFilter(id);
-            var tenantFilter = _filterBuilder.BuildTenantFilter();
             var combinedFilter = Builders<TEntity>.Filter.And(idFilter, tenantFilter);
 
             var result = await _collection.DeleteOneAsync(combinedFilter, cancellationToken)
@@ -551,7 +602,7 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
         ArgumentNullException.ThrowIfNull(entity);
 
         // Validate tenant ownership if enabled
-        var validationResult = ValidateTenantOwnership(entity);
+        var validationResult = ValidateTenantOwnership(entity, "Delete");
         if (validationResult.IsLeft)
         {
             return validationResult;
@@ -573,9 +624,14 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
         try
         {
             // Auto-assign tenant ID to all entities if enabled
+            if (!TryUnwrap(ResolveTenantIdForAssignment("AddRange"), out var tenantId, out var tenantError))
+            {
+                return Left<EncinaError, IReadOnlyList<TEntity>>(tenantError);
+            }
+
             foreach (var entity in entityList)
             {
-                AssignTenantIdIfNeeded(entity);
+                AssignTenantId(entity, tenantId);
                 AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
             }
 
@@ -609,11 +665,16 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
             // Validate tenant ownership for all entities if enabled
             foreach (var entity in entityList)
             {
-                var validationResult = ValidateTenantOwnership(entity);
+                var validationResult = ValidateTenantOwnership(entity, "UpdateRange");
                 if (validationResult.IsLeft)
                 {
                     return validationResult;
                 }
+            }
+
+            if (!TryUnwrap(_filterBuilder.BuildTenantFilter("UpdateRange"), out var tenantFilter, out var tenantError))
+            {
+                return Left<EncinaError, Unit>(tenantError);
             }
 
             // Populate audit fields before persistence
@@ -621,8 +682,6 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
             {
                 AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
             }
-
-            var tenantFilter = _filterBuilder.BuildTenantFilter();
 
             // Track whether we're dealing with versioned entities for conflict detection
             var hasVersionedEntities = entityList.Count > 0 && entityList[0] is IVersioned;
@@ -681,7 +740,10 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
 
         try
         {
-            var filter = _filterBuilder.BuildFilter(specification);
+            if (!TryUnwrap(_filterBuilder.BuildFilter(specification, "DeleteRange"), out var filter, out var tenantError))
+            {
+                return Left<EncinaError, int>(tenantError);
+            }
 
             // Safety check: prevent accidental deletion of all documents
             if (filter == Builders<TEntity>.Filter.Empty)
@@ -735,30 +797,60 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
         return Builders<TEntity>.Filter.Where(lambda);
     }
 
-    private void AssignTenantIdIfNeeded(TEntity entity)
+    /// <summary>
+    /// Resolves the tenant id to assign to new entities: <c>null</c> when nothing is to be assigned,
+    /// or a <c>Repository.TenantRequired</c> error when the context is required but missing.
+    /// </summary>
+    private Either<EncinaError, string?> ResolveTenantIdForAssignment(string operation)
     {
         if (!_mapping.IsTenantEntity || !_options.AutoAssignTenantId)
         {
-            return;
+            return Right<EncinaError, string?>(null);
         }
 
         var tenantId = _tenantProvider.GetCurrentTenantId();
 
         if (string.IsNullOrEmpty(tenantId))
         {
-            if (_options.ThrowOnMissingTenantContext)
-            {
-                throw new InvalidOperationException(
-                    $"Cannot add tenant entity {typeof(TEntity).Name} without tenant context.");
-            }
-
-            return;
+            return _options.ThrowOnMissingTenantContext
+                ? Left<EncinaError, string?>(RepositoryErrors.TenantRequired<TEntity>(operation))
+                : Right<EncinaError, string?>(null);
         }
 
-        _mapping.SetTenantId(entity, tenantId);
+        return Right<EncinaError, string?>(tenantId);
     }
 
-    private Either<EncinaError, Unit> ValidateTenantOwnership(TEntity entity)
+    private void AssignTenantId(TEntity entity, string? tenantId)
+    {
+        if (tenantId is not null)
+        {
+            _mapping.SetTenantId(entity, tenantId);
+        }
+    }
+
+    private static bool TryUnwrap<T>(Either<EncinaError, T> either, out T value, out EncinaError error)
+    {
+        var capturedValue = default(T)!;
+        var capturedError = default(EncinaError);
+
+        var isRight = either.Match(
+            Right: right =>
+            {
+                capturedValue = right;
+                return true;
+            },
+            Left: left =>
+            {
+                capturedError = left;
+                return false;
+            });
+
+        value = capturedValue;
+        error = capturedError;
+        return isRight;
+    }
+
+    private Either<EncinaError, Unit> ValidateTenantOwnership(TEntity entity, string operation)
     {
         if (!_mapping.IsTenantEntity || !_options.ValidateTenantOnModify)
         {
@@ -772,10 +864,7 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
         {
             if (_options.ThrowOnMissingTenantContext)
             {
-                return Left<EncinaError, Unit>(
-                    RepositoryErrors.InvalidOperation<TEntity>(
-                        "Modify",
-                        $"Cannot modify tenant entity {typeof(TEntity).Name} without tenant context."));
+                return Left<EncinaError, Unit>(RepositoryErrors.TenantRequired<TEntity>(operation));
             }
 
             return Right<EncinaError, Unit>(Unit.Default);

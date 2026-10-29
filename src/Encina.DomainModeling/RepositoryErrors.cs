@@ -46,6 +46,40 @@ public static class RepositoryErrors
     private const string EntityNotTrackedCode = "Repository.EntityNotTracked";
     private const string UpdateFailedCode = "Repository.UpdateFailed";
     private const string OperationNotSupportedCode = "Repository.OperationNotSupported";
+    private const string TenantRequiredCode = "Repository.TenantRequired";
+
+    /// <summary>
+    /// Creates a TenantRequired error when a tenant-scoped repository operation runs without a tenant context.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="operation">The operation that was attempted (e.g., "GetById", "Add", "DeleteRange").</param>
+    /// <returns>An <see cref="EncinaError"/> representing the missing tenant context.</returns>
+    /// <remarks>
+    /// <para>
+    /// The caller did not establish a tenant (no tenant id, or an empty one) and the repository is
+    /// configured to reject that case. The operation did not reach the database and nothing was changed.
+    /// The message never contains a tenant identifier.
+    /// </para>
+    /// </remarks>
+    public static EncinaError TenantRequired<TEntity>(string operation)
+        where TEntity : class
+    {
+        var entityTypeName = typeof(TEntity).Name;
+        var message = $"Operation '{operation}' on tenant entity of type '{entityTypeName}' requires a tenant context, but none is available.";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["Operation"] = operation
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(TenantRequiredCode, message, details: details);
+    }
+
+    /// <summary>
+    /// Gets the error code for a Tenant Required error.
+    /// </summary>
+    public static string TenantRequiredErrorCode => TenantRequiredCode;
 
     /// <summary>
     /// Creates a NotFound error when an entity with the specified ID is not found.

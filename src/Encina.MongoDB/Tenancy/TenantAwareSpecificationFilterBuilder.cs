@@ -1,7 +1,9 @@
 using Encina.DomainModeling;
 using Encina.MongoDB.Repository;
 using Encina.Tenancy;
+using LanguageExt;
 using MongoDB.Driver;
+using static LanguageExt.Prelude;
 
 namespace Encina.MongoDB.Tenancy;
 
@@ -28,8 +30,9 @@ namespace Encina.MongoDB.Tenancy;
 ///     mapping, tenantProvider, tenancyOptions);
 ///
 /// // This filter will include both the tenant filter and the specification filter
-/// var filter = builder.BuildFilter(new ActiveOrdersSpec());
-/// // Equivalent to: { TenantId: "tenant-123", Status: "Active" }
+/// var filter = builder.BuildFilter(new ActiveOrdersSpec(), "List");
+/// // Right: { TenantId: "tenant-123", Status: "Active" }
+/// // Left (Repository.TenantRequired) when there is no tenant context
 /// </code>
 /// </example>
 public sealed class TenantAwareSpecificationFilterBuilder<TEntity>
@@ -65,97 +68,112 @@ public sealed class TenantAwareSpecificationFilterBuilder<TEntity>
     /// Builds a MongoDB filter from a specification, including tenant filtering.
     /// </summary>
     /// <param name="specification">The specification to convert.</param>
-    /// <returns>A MongoDB filter definition with tenant filtering applied.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when tenant context is required but not available and
-    /// <see cref="MongoDbTenancyOptions.ThrowOnMissingTenantContext"/> is <c>true</c>.
-    /// </exception>
-    public FilterDefinition<TEntity> BuildFilter(Specification<TEntity> specification)
+    /// <param name="operation">The repository operation name, used in the error when the tenant context is missing.</param>
+    /// <returns>
+    /// A MongoDB filter definition with tenant filtering applied, or a
+    /// <see cref="RepositoryErrors.TenantRequiredErrorCode"/> error when the tenant context is required
+    /// but not available and <see cref="MongoDbTenancyOptions.ThrowOnMissingTenantContext"/> is <c>true</c>.
+    /// </returns>
+    public Either<EncinaError, FilterDefinition<TEntity>> BuildFilter(
+        Specification<TEntity> specification,
+        string operation)
     {
         ArgumentNullException.ThrowIfNull(specification);
+        ArgumentNullException.ThrowIfNull(operation);
 
-        var specFilter = _baseBuilder.BuildFilter(specification);
-        var tenantFilter = GetTenantFilter();
-
-        if (tenantFilter is null)
+        return GetCurrentTenantId(operation).Map(tenantId =>
         {
-            return specFilter;
-        }
+            var specFilter = _baseBuilder.BuildFilter(specification);
+            var tenantFilter = GetTenantFilter(tenantId);
 
-        return Builders<TEntity>.Filter.And(tenantFilter, specFilter);
+            return tenantFilter is null
+                ? specFilter
+                : Builders<TEntity>.Filter.And(tenantFilter, specFilter);
+        });
     }
 
     /// <summary>
     /// Builds a MongoDB filter for the current tenant only (no specification).
     /// </summary>
-    /// <returns>A MongoDB filter for tenant filtering, or empty filter if no tenant context.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when tenant context is required but not available and
-    /// <see cref="MongoDbTenancyOptions.ThrowOnMissingTenantContext"/> is <c>true</c>.
-    /// </exception>
-    public FilterDefinition<TEntity> BuildTenantFilter()
+    /// <param name="operation">The repository operation name, used in the error when the tenant context is missing.</param>
+    /// <returns>
+    /// A MongoDB filter for tenant filtering (the empty filter when tenant filtering does not apply), or a
+    /// <see cref="RepositoryErrors.TenantRequiredErrorCode"/> error when the tenant context is required
+    /// but not available and <see cref="MongoDbTenancyOptions.ThrowOnMissingTenantContext"/> is <c>true</c>.
+    /// </returns>
+    public Either<EncinaError, FilterDefinition<TEntity>> BuildTenantFilter(string operation)
     {
-        var tenantFilter = GetTenantFilter();
-        return tenantFilter ?? Builders<TEntity>.Filter.Empty;
+        ArgumentNullException.ThrowIfNull(operation);
+
+        return GetCurrentTenantId(operation).Map(tenantId =>
+            GetTenantFilter(tenantId) ?? Builders<TEntity>.Filter.Empty);
     }
 
     /// <summary>
     /// Builds a MongoDB filter from a specification, optionally including tenant filtering.
     /// </summary>
     /// <param name="specification">The specification to convert, or null for no spec filter.</param>
-    /// <returns>A tuple containing the filter and the current tenant ID (if any).</returns>
-    public (FilterDefinition<TEntity> Filter, string? TenantId) BuildFilterWithTenantId(
-        Specification<TEntity>? specification)
+    /// <param name="operation">The repository operation name, used in the error when the tenant context is missing.</param>
+    /// <returns>
+    /// A tuple containing the filter and the current tenant ID (if any), or a
+    /// <see cref="RepositoryErrors.TenantRequiredErrorCode"/> error when the tenant context is required
+    /// but not available and <see cref="MongoDbTenancyOptions.ThrowOnMissingTenantContext"/> is <c>true</c>.
+    /// </returns>
+    public Either<EncinaError, (FilterDefinition<TEntity> Filter, string? TenantId)> BuildFilterWithTenantId(
+        Specification<TEntity>? specification,
+        string operation)
     {
-        var tenantId = GetCurrentTenantId();
-        var tenantFilter = GetTenantFilter(tenantId);
+        ArgumentNullException.ThrowIfNull(operation);
 
-        FilterDefinition<TEntity> finalFilter;
-
-        if (specification is not null)
+        return GetCurrentTenantId(operation).Map(tenantId =>
         {
-            var specFilter = _baseBuilder.BuildFilter(specification);
-            finalFilter = tenantFilter is not null
-                ? Builders<TEntity>.Filter.And(tenantFilter, specFilter)
-                : specFilter;
-        }
-        else
-        {
-            finalFilter = tenantFilter ?? Builders<TEntity>.Filter.Empty;
-        }
+            var tenantFilter = GetTenantFilter(tenantId);
 
-        return (finalFilter, tenantId);
+            FilterDefinition<TEntity> finalFilter;
+
+            if (specification is not null)
+            {
+                var specFilter = _baseBuilder.BuildFilter(specification);
+                finalFilter = tenantFilter is not null
+                    ? Builders<TEntity>.Filter.And(tenantFilter, specFilter)
+                    : specFilter;
+            }
+            else
+            {
+                finalFilter = tenantFilter ?? Builders<TEntity>.Filter.Empty;
+            }
+
+            return (finalFilter, tenantId);
+        });
     }
 
     /// <summary>
     /// Gets the current tenant ID from the provider, validating context if required.
     /// </summary>
-    /// <returns>The current tenant ID, or null if no tenant context and not required to throw.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when tenant context is required but not available.
-    /// </exception>
-    public string? GetCurrentTenantId()
+    /// <param name="operation">The repository operation name, used in the error when the tenant context is missing.</param>
+    /// <returns>
+    /// The current tenant ID (null when tenant filtering does not apply, or when there is no tenant context and
+    /// <see cref="MongoDbTenancyOptions.ThrowOnMissingTenantContext"/> is <c>false</c>), or a
+    /// <see cref="RepositoryErrors.TenantRequiredErrorCode"/> error when the tenant context is required
+    /// but not available.
+    /// </returns>
+    public Either<EncinaError, string?> GetCurrentTenantId(string operation)
     {
+        ArgumentNullException.ThrowIfNull(operation);
+
         if (!_mapping.IsTenantEntity || !_options.AutoFilterTenantQueries)
         {
-            return null;
+            return Right<EncinaError, string?>(null);
         }
 
         var tenantId = _tenantProvider.GetCurrentTenantId();
 
         if (string.IsNullOrEmpty(tenantId) && _options.ThrowOnMissingTenantContext)
         {
-            throw new InvalidOperationException(
-                $"Cannot execute query on tenant entity {typeof(TEntity).Name} without tenant context.");
+            return Left<EncinaError, string?>(RepositoryErrors.TenantRequired<TEntity>(operation));
         }
 
-        return tenantId;
-    }
-
-    private FilterDefinition<TEntity>? GetTenantFilter()
-    {
-        var tenantId = GetCurrentTenantId();
-        return GetTenantFilter(tenantId);
+        return Right<EncinaError, string?>(tenantId);
     }
 
     private FilterDefinition<TEntity>? GetTenantFilter(string? tenantId)
