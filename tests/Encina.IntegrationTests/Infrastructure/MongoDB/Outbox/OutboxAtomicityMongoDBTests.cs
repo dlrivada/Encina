@@ -5,11 +5,11 @@ using Encina.Messaging.Transactions;
 using Encina.MongoDB;
 using Encina.MongoDB.Outbox;
 using Encina.MongoDB.Transactions;
-using Microsoft.Extensions.Logging.Abstractions;
 using Encina.TestInfrastructure.Fixtures;
 using Encina.Testing.Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using Shouldly;
@@ -154,11 +154,20 @@ public sealed class OutboxAtomicityMongoDBTests : IAsyncLifetime
         {
             (await sagas.AddAsync(new global::Encina.MongoDB.Sagas.SagaState
             {
-                SagaId = sagaId, SagaType = "S", Data = "{}", Status = "Running", StartedAtUtc = DateTime.UtcNow, LastUpdatedAtUtc = DateTime.UtcNow
+                SagaId = sagaId,
+                SagaType = "S",
+                Data = "{}",
+                Status = "Running",
+                StartedAtUtc = DateTime.UtcNow,
+                LastUpdatedAtUtc = DateTime.UtcNow
             })).ShouldBeRight();
             (await scheduled.AddAsync(new global::Encina.MongoDB.Scheduling.ScheduledMessage
             {
-                Id = scheduledId, RequestType = "R", Content = "{}", ScheduledAtUtc = DateTime.UtcNow.AddHours(1), CreatedAtUtc = DateTime.UtcNow
+                Id = scheduledId,
+                RequestType = "R",
+                Content = "{}",
+                ScheduledAtUtc = DateTime.UtcNow.AddHours(1),
+                CreatedAtUtc = DateTime.UtcNow
             })).ShouldBeRight();
             // Read-your-writes inside the session.
             (await sagas.GetAsync(sagaId)).ShouldBeRight().IsSome.ShouldBeTrue();
