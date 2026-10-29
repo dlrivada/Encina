@@ -6,10 +6,10 @@ Durable Functions support of `Encina.AzureFunctions` (`DurableSagaBuilder`, `Fan
 
 ## Justification
 
-1. **Durable orchestrations only run inside a Functions host.** `TaskOrchestrationContext` and the durable task client are created by the Durable Task extension of the host; the orchestrator replays, checkpoints and schedules activities through a storage provider. No type in `Microsoft.Azure.Functions.Worker.Extensions.DurableTask` lets a test run an orchestration in process.
+1. **Durable orchestrations run inside a Functions host.** `TaskOrchestrationContext` and the durable task client are created by the Durable Task extension of the host; the orchestrator replays, checkpoints and schedules activities through a storage provider. `Microsoft.Azure.Functions.Worker.Extensions.DurableTask` offers no way to run an orchestration in process. A preview in-process test host exists on NuGet (`Microsoft.DurableTask.InProcessTestHost`); it was not evaluated, and the follow-up issue should decide on it.
 2. **A real host needs infrastructure this repository does not have.** It needs the Azure Functions Core Tools or the host image, a compiled function app that references `Encina.AzureFunctions`, and a storage account for `AzureWebJobsStorage` (Azurite locally). None of them is in `Directory.Packages.props`, the Docker compose profiles or the shared fixtures; `Testcontainers.Azurite` is the subject of the `Cloud-Azurite` fixture of PR #2971.
 3. **Doubling the orchestration context would not be an integration test.** The unit flag already runs the builder, the fan-out helpers and the activity result with substituted contexts (`tests/Encina.UnitTests/AzureFunctions/Durable`); repeating that in the integration project would execute the same lines with the same doubles and prove nothing about a host.
-4. **The health check never touches the host.** `DurableFunctionsHealthCheck` verifies option values only, so it needs no host; its lines are covered by the unit flag.
+4. **Four Durable files need no host but are left to the unit flag for now.** `ActivityResult`, `DurableFunctionsOptions`, `DurableServiceCollectionExtensions` and `DurableFunctionsHealthCheck` (which verifies option values only) could run in process; maintainer decision D11 of #2699 leaves all of `Durable/*` to the unit flag until the local-only follow-up, so their integration target is 0.
 
 ## Adequate Coverage from Other Test Types
 

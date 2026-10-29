@@ -160,6 +160,8 @@ public sealed class LambdaContextIntegrationTests
         // Arrange
         var context = new TestLambdaContext();
         var withClaims = Request(authorizer: """{"claims":{"sub":"user-1"}}""");
+        // The principalId is set as a string by hand: a request deserialized from JSON holds a JsonElement there,
+        // which GetUserId does not read (follow-up bug issue drafted from #2699).
         var withPrincipal = Request();
         withPrincipal.RequestContext.Authorizer = new APIGatewayCustomAuthorizerContext { ["principalId"] = "principal-1" };
 
