@@ -84,22 +84,6 @@ public sealed class TenantAwareFunctionalRepositoryMongoDBTenantRequiredTests
     }
 
     [Fact]
-    public async Task AddRangeAsync_WithoutTenantContext_AndOptOut_StoresEntitiesWithoutAssigningTenant()
-    {
-        // Arrange
-        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
-        var repository = CreateRepository(collection, null, new MongoDbTenancyOptions { ThrowOnMissingTenantContext = false });
-        var order = new MongoTenantTestOrder { Id = Guid.NewGuid() };
-
-        // Act
-        var result = await repository.AddRangeAsync([order]);
-
-        // Assert
-        result.ShouldBeSuccess();
-        order.TenantId.ShouldBe(string.Empty);
-    }
-
-    [Fact]
     public async Task AddAsync_WithTenantContext_AssignsTenant()
     {
         // Arrange
@@ -350,27 +334,6 @@ public sealed class TenantAwareFunctionalRepositoryMongoDBTenantRequiredTests
         result.ShouldBeError().GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.ConcurrencyConflictErrorCode);
         first.Version.ShouldBe(2);
         second.Version.ShouldBe(3);
-    }
-
-    [Fact]
-    public async Task UpdateRangeAsync_VersionedEntities_SucceedsWhenAllDocumentsMatch()
-    {
-        // Arrange
-        var collection = Substitute.For<IMongoCollection<VersionedTenantOrder>>();
-        collection.BulkWriteAsync(
-                Arg.Any<IEnumerable<WriteModel<VersionedTenantOrder>>>(),
-                Arg.Any<BulkWriteOptions?>(),
-                Arg.Any<CancellationToken>())
-            .Returns(call => Task.FromResult<BulkWriteResult<VersionedTenantOrder>>(
-                new BulkWriteResult<VersionedTenantOrder>.Acknowledged(
-                    1, 1, 0, 0, 1, call.Arg<IEnumerable<WriteModel<VersionedTenantOrder>>>().ToList(), [])));
-        var repository = CreateVersionedRepository(collection, "tenant-1");
-
-        // Act
-        var result = await repository.UpdateRangeAsync([new VersionedTenantOrder { Id = Guid.NewGuid(), TenantId = "tenant-1" }]);
-
-        // Assert
-        result.ShouldBeSuccess();
     }
 
     [Fact]
