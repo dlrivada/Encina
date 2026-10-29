@@ -204,6 +204,7 @@ public sealed class InboxStoreEFSqlServerTests : IAsyncLifetime
             RequestType = "Expired",
             ReceivedAtUtc = DateTime.UtcNow.AddDays(-10),
             ExpiresAtUtc = DateTime.UtcNow.AddDays(-1), // Expired yesterday
+            ProcessedAtUtc = DateTime.UtcNow.AddDays(-2),
             RetryCount = 0
         };
 
@@ -226,5 +227,36 @@ public sealed class InboxStoreEFSqlServerTests : IAsyncLifetime
         var messageList = expiredMessages.ToList();
         messageList.Count.ShouldBe(1);
         messageList.ShouldContain(m => m.MessageId == expired.MessageId);
+    }
+
+    [Fact]
+    public async Task ExpiredPurge_OnlyProcessedExpiredRowsAreReturnedAndRemoved()
+    {
+        await EnsureSchemaAsync();
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        var store = new InboxStoreEF(context);
+
+        await global::Encina.IntegrationTests.Messaging.InboxExpiryScenario.AssertOnlyProcessedExpiredRowsArePurgedAsync(
+            store,
+            async rows =>
+            {
+                await using var seedContext = _fixture.CreateDbContext<TestEFDbContext>();
+                seedContext.Set<InboxMessage>().AddRange(rows.Select(r => new InboxMessage
+                {
+                    MessageId = r.MessageId,
+                    RequestType = "Expiry",
+                    ReceivedAtUtc = DateTime.UtcNow.AddDays(-10),
+                    ExpiresAtUtc = r.ExpiresAtUtc,
+                    ProcessedAtUtc = r.ProcessedAtUtc,
+                    RetryCount = r.RetryCount
+                }));
+                await seedContext.SaveChangesAsync();
+            },
+            async () =>
+            {
+                await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+                return (await verifyContext.Set<InboxMessage>().Select(m => m.MessageId).ToListAsync()).AsReadOnly();
+            },
+            () => context.SaveChangesAsync());
     }
 }

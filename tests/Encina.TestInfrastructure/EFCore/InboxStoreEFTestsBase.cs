@@ -175,6 +175,7 @@ public abstract class InboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase
             RequestType = "Expired",
             ReceivedAtUtc = DateTime.UtcNow.AddDays(-10),
             ExpiresAtUtc = DateTime.UtcNow.AddDays(-1), // Expired yesterday
+            ProcessedAtUtc = DateTime.UtcNow.AddDays(-2),
             RetryCount = 0
         };
 
@@ -213,6 +214,7 @@ public abstract class InboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase
             RequestType = "Expired",
             ReceivedAtUtc = DateTime.UtcNow.AddDays(-10),
             ExpiresAtUtc = DateTime.UtcNow.AddDays(-1),
+            ProcessedAtUtc = DateTime.UtcNow.AddDays(-2),
             RetryCount = 0
         };
 

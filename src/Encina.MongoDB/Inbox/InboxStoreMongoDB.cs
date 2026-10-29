@@ -146,7 +146,7 @@ public sealed class InboxStoreMongoDB : IInboxStore
         {
             var now = _timeProvider.GetUtcNow().UtcDateTime;
 
-            var filter = Builders<InboxMessage>.Filter.Lt(m => m.ExpiresAtUtc, now);
+            var filter = ExpiredProcessedFilter(now);
 
             var messages = await _collection
                 .Find(filter)
@@ -174,12 +174,23 @@ public sealed class InboxStoreMongoDB : IInboxStore
                 return;
             }
 
-            var filter = Builders<InboxMessage>.Filter.In(m => m.MessageId, idList);
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+            var filter = Builders<InboxMessage>.Filter.And(
+                Builders<InboxMessage>.Filter.In(m => m.MessageId, idList),
+                ExpiredProcessedFilter(now));
             var result = await _collection.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
 
             Log.RemovedExpiredInboxMessages(_logger, result.DeletedCount);
         }, "inbox.remove_expired_failed").ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Expired means past <c>ExpiresAtUtc</c> and processed; an unprocessed or dead-lettered row is never expired.
+    /// </summary>
+    private static FilterDefinition<InboxMessage> ExpiredProcessedFilter(DateTime now) =>
+        Builders<InboxMessage>.Filter.And(
+            Builders<InboxMessage>.Filter.Lt(m => m.ExpiresAtUtc, now),
+            Builders<InboxMessage>.Filter.Ne(m => m.ProcessedAtUtc, null));
 
     /// <inheritdoc />
     public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
