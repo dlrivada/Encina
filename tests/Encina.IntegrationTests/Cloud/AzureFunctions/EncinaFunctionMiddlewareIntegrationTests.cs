@@ -106,6 +106,7 @@ public sealed class EncinaFunctionMiddlewareIntegrationTests
         var failure = records[^1];
         failure.Level.ShouldBe(LogLevel.Error);
         failure.Message.ShouldNotContain("secret detail");
-        failure.Exception.ShouldBeOfType<InvalidOperationException>();
+        var logged = failure.Exception.ShouldBeOfType<global::Encina.Diagnostics.RedactedException>();
+        logged.Message.ShouldBe(typeof(InvalidOperationException).FullName);
     }
 }

@@ -140,7 +140,8 @@ public sealed class SqsMessageHandlerIntegrationTests
         var failure = logger.Collector.GetSnapshot().ShouldHaveSingleItem();
         failure.Level.ShouldBe(LogLevel.Error);
         failure.Message.ShouldNotContain("secret detail");
-        failure.Exception.ShouldBeOfType<InvalidOperationException>();
+        var logged = failure.Exception.ShouldBeOfType<global::Encina.Diagnostics.RedactedException>();
+        logged.Message.ShouldBe(typeof(InvalidOperationException).FullName);
     }
 
     [Fact]
