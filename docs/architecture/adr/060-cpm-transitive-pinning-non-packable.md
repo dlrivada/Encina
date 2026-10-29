@@ -40,7 +40,7 @@ The [spike report](../../infrastructure/cpm-transitive-pinning.md) measured that
 
 ## Related
 
-- [CPM transitive pinning spike report](../../infrastructure/cpm-transitive-pinning.md)
+- [CPM transitive pinning spike report](../../infrastructure/cpm-transitive-pinning.md), added by [PR #2944](https://github.com/dlrivada/Encina/pull/2944)
 - [SPEC-000](../../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) (REQ-005)
 - [ADR-056](056-mutation-testing-scope.md), precedent of a policy ADR
 - Issues: [#1051](https://github.com/dlrivada/Encina/issues/1051), [#2976](https://github.com/dlrivada/Encina/issues/2976), [#2299](https://github.com/dlrivada/Encina/issues/2299), [#2338](https://github.com/dlrivada/Encina/issues/2338), [#1043](https://github.com/dlrivada/Encina/issues/1043) (owns the `Encina.OpenTelemetry` OTLP reference)
