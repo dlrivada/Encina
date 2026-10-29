@@ -80,6 +80,9 @@ public sealed class HttpResponseDataIntegrationTests
 
         // Assert
         response.StatusCode.ShouldBe(System.Net.HttpStatusCode.NotFound);
+        using var body = JsonDocument.Parse(((TestHttpResponseData)response).ReadBody());
+        body.RootElement.GetProperty("extensions").GetProperty("errorCode").GetString()
+            .ShouldBe(global::Encina.EncinaErrorCodes.RequestHandlerMissing);
     }
 
     [Fact]

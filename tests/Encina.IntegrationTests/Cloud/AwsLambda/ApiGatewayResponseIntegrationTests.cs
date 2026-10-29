@@ -72,6 +72,9 @@ public sealed class ApiGatewayResponseIntegrationTests
         // Assert
         response.StatusCode.ShouldBe(404);
         response.Headers["Content-Type"].ShouldBe("application/problem+json");
+        using var body = JsonDocument.Parse(response.Body);
+        body.RootElement.GetProperty("extensions").GetProperty("errorCode").GetString()
+            .ShouldBe(global::Encina.EncinaErrorCodes.RequestHandlerMissing);
     }
 
     [Fact]

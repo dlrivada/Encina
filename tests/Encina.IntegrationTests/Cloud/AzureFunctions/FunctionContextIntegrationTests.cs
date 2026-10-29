@@ -58,6 +58,21 @@ public sealed class FunctionContextIntegrationTests
     }
 
     [Fact]
+    public void GetCorrelationId_WithAnEmptyRequestHeader_FallsBackToTheContextItem()
+    {
+        // Arrange
+        var context = NewContext();
+        context.Items["Encina.CorrelationId"] = "from-context";
+        var request = NewRequest(context, "X-Correlation-ID", string.Empty);
+
+        // Act
+        var correlationId = context.GetCorrelationId(request);
+
+        // Assert
+        correlationId.ShouldBe("from-context");
+    }
+
+    [Fact]
     public void GetUserId_ReadsTheNameIdentifierClaimThenTheContextItem()
     {
         // Arrange
