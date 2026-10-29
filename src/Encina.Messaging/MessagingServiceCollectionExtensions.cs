@@ -127,7 +127,7 @@ public static class MessagingServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="config">The messaging configuration.</param>
-    private static void RegisterRoutingSlips(IServiceCollection services, MessagingConfiguration config)
+    internal static void RegisterRoutingSlips(IServiceCollection services, MessagingConfiguration config)
     {
         if (!config.UseRoutingSlips) return;
 
@@ -141,7 +141,7 @@ public static class MessagingServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="config">The messaging configuration.</param>
-    private static void RegisterRecoverability(IServiceCollection services, MessagingConfiguration config)
+    internal static void RegisterRecoverability(IServiceCollection services, MessagingConfiguration config)
     {
         if (!config.UseRecoverability) return;
 
@@ -158,7 +158,7 @@ public static class MessagingServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="config">The messaging configuration.</param>
-    private static void RegisterContentRouter(IServiceCollection services, MessagingConfiguration config)
+    internal static void RegisterContentRouter(IServiceCollection services, MessagingConfiguration config)
     {
         if (!config.UseContentRouter) return;
 
@@ -172,7 +172,7 @@ public static class MessagingServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="config">The messaging configuration.</param>
-    private static void RegisterScatterGather(IServiceCollection services, MessagingConfiguration config)
+    internal static void RegisterScatterGather(IServiceCollection services, MessagingConfiguration config)
     {
         if (!config.UseScatterGather) return;
 
@@ -210,8 +210,11 @@ public static class MessagingServiceCollectionExtensions
     /// drives Transactions, Routing Slips, Recoverability, Content Router, Scatter-Gather and Soft
     /// Delete through the generic <c>Encina.Messaging.TransactionPipelineBehavior{TRequest, TResponse}</c>
     /// and the other shared, provider-agnostic behaviors. EF Core and MongoDB call this method
-    /// directly instead: EF Core has its own DbContext-bound transaction behavior and does not
-    /// (yet) support those other patterns, and MongoDB's <c>EncinaMongoDbOptions</c> is not a
+    /// directly instead. EF Core has its own DbContext-bound transaction behavior and gets
+    /// Recoverability, Routing Slips, Content Router and Scatter-Gather by calling the same internal
+    /// registration helpers as <c>AddMessagingServices</c>; soft delete is handled by its
+    /// interceptor, not the pipeline behavior. MongoDB does not support those other
+    /// patterns yet (#2826). Its <c>EncinaMongoDbOptions</c> is not a
     /// <see cref="MessagingConfiguration"/> at all, though it exposes the same Outbox, Inbox, Saga
     /// and Scheduling flags and option types. Either way, the Outbox, Inbox and Saga
     /// registrations - including <see cref="ISagaRunner"/> and <see cref="ISagaNotFoundDispatcher"/> -
