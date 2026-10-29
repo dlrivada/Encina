@@ -501,13 +501,9 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
         try
         {
             // Validate tenant ownership if enabled
-            var validationResult = ValidateTenantOwnership(entity, "Update");
-            if (validationResult.IsLeft)
-            {
-                return validationResult.Map(_ => entity);
-            }
-
-            if (!TryUnwrap(_filterBuilder.BuildTenantFilter("Update"), out var tenantFilter, out var tenantError))
+            var prepared = ValidateTenantOwnership(entity, "Update")
+                .Bind(_ => _filterBuilder.BuildTenantFilter("Update"));
+            if (!TryUnwrap(prepared, out var tenantFilter, out var tenantError))
             {
                 return Left<EncinaError, TEntity>(tenantError);
             }
@@ -652,22 +648,14 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
         try
         {
             // Validate tenant ownership for all entities if enabled
-            var validationResult = ValidateAllTenantOwnership(entityList, "UpdateRange");
-            if (validationResult.IsLeft)
-            {
-                return validationResult;
-            }
-
-            if (!TryUnwrap(_filterBuilder.BuildTenantFilter("UpdateRange"), out var tenantFilter, out var tenantError))
+            var prepared = ValidateAllTenantOwnership(entityList, "UpdateRange")
+                .Bind(_ => _filterBuilder.BuildTenantFilter("UpdateRange"));
+            if (!TryUnwrap(prepared, out var tenantFilter, out var tenantError))
             {
                 return Left<EncinaError, Unit>(tenantError);
             }
 
-            // Populate audit fields before persistence
-            foreach (var entity in entityList)
-            {
-                AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
-            }
+            PopulateUpdateAudit(entityList);
 
             var bulkOps = entityList.Select(entity => BuildReplaceModel(entity, tenantFilter)).ToList();
 
@@ -853,6 +841,14 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
         }
 
         return Right<EncinaError, Unit>(Unit.Default);
+    }
+
+    private void PopulateUpdateAudit(List<TEntity> entities)
+    {
+        foreach (var entity in entities)
+        {
+            AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+        }
     }
 
     private ReplaceOneModel<TEntity> BuildReplaceModel(TEntity entity, FilterDefinition<TEntity> tenantFilter)
