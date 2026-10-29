@@ -126,6 +126,21 @@ public sealed class EncinaMongoDbOptions
     public bool UseReadAuditStore { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the Break-the-glass Store.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <c>IBreakTheGlassStore</c> (from <c>Encina.Security.BreakTheGlass</c>)
+    /// implemented by its MongoDB store, in place of the in-memory default.
+    /// </para>
+    /// <para>
+    /// The store relies on a partial unique index created with <see cref="CreateIndexes"/> to admit one
+    /// effective elevation per tenant, user, subject and scope; turning index creation off removes that guarantee.
+    /// </para>
+    /// </remarks>
+    public bool UseBreakTheGlassStore { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to use the Anonymization stores.
     /// </summary>
     /// <remarks>
@@ -322,6 +337,11 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for read audit entries.
     /// </summary>
     public string ReadAuditEntries { get; set; } = "read_audit_entries";
+
+    /// <summary>
+    /// Gets or sets the collection name for break-the-glass elevations.
+    /// </summary>
+    public string BreakTheGlassElevations { get; set; } = "break_glass_elevations";
 
     /// <summary>
     /// Gets or sets the collection name for token mappings (anonymization).

@@ -29,6 +29,7 @@ public sealed class MessagingConfigurationPatternFlagsTests
         nameof(MessagingConfiguration.UseAuditLogStore),
         nameof(MessagingConfiguration.UseOperationAuditStore),
         nameof(MessagingConfiguration.UseReadAuditStore),
+        nameof(MessagingConfiguration.UseBreakTheGlassStore),
         nameof(MessagingConfiguration.UseSoftDelete),
         nameof(MessagingConfiguration.UseTemporalTables),
         nameof(MessagingConfiguration.UseQueryCache),
