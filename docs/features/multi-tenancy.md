@@ -373,7 +373,9 @@ services.AddTenantAwareRepository<Order, Guid>(mapping =>
            .MapProperty(o => o.Total));
 
 // Usage in handlers
-public class GetOrdersHandler : IQueryHandler<GetOrdersQuery, IEnumerable<Order>>
+public sealed record GetOrdersQuery : IQuery<IReadOnlyList<Order>>;
+
+public class GetOrdersHandler : IQueryHandler<GetOrdersQuery, IReadOnlyList<Order>>
 {
     private readonly IFunctionalReadRepository<Order, Guid> _repository;
 
@@ -382,13 +384,12 @@ public class GetOrdersHandler : IQueryHandler<GetOrdersQuery, IEnumerable<Order>
         _repository = repository;
     }
 
-    public async ValueTask<Either<EncinaError, IEnumerable<Order>>> Handle(
+    public Task<Either<EncinaError, IReadOnlyList<Order>>> Handle(
         GetOrdersQuery query,
-        IRequestContext context,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         // Automatically filtered by current tenant
-        return await _repository.GetAllAsync(ct);
+        return _repository.ListAsync(cancellationToken);
     }
 }
 ```
@@ -858,33 +859,28 @@ tenancy.ThrowOnMissingTenantContext = false;
 
 ### How do I implement multi-database tenancy with connection pooling?
 
-Use the `TenantConnectionFactory`:
+Use the `ITenantConnectionFactory` that `AddEncinaDapperWithTenancy` (or the ADO.NET equivalent) registers. It resolves the connection string of the current tenant, or of an explicit tenant, and returns the connection in an `Either`; connection pooling is handled by the ADO.NET provider.
 
 ```csharp
-public class TenantConnectionFactory : ITenantConnectionFactory
+using Encina.Dapper.SqlServer.Tenancy;
+
+public class TenantReport(ITenantConnectionFactory connectionFactory)
 {
-    private readonly ConcurrentDictionary<string, string> _connectionCache = new();
-    private readonly ITenantStore _tenantStore;
-
-    public async ValueTask<IDbConnection> GetConnectionAsync(
+    public async Task<Either<EncinaError, int>> CountOrdersAsync(
         string tenantId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
-        if (!_connectionCache.TryGetValue(tenantId, out var connectionString))
-        {
-            var tenant = await _tenantStore.GetTenantAsync(tenantId, cancellationToken);
-            if (tenant is null)
-                throw new TenantNotFoundException(tenantId);
+        var connection = await connectionFactory.CreateConnectionForTenantAsync(tenantId, cancellationToken);
 
-            connectionString = tenant.ConnectionString
-                ?? throw new InvalidOperationException(
-                    $"Tenant {tenantId} does not have a connection string configured.");
-
-            _connectionCache[tenantId] = connectionString;
-        }
-
-        // Connection pooling handled by ADO.NET
-        return new SqlConnection(connectionString);
+        return await connection.MatchAsync<Either<EncinaError, int>>(
+            RightAsync: async db =>
+            {
+                using (db)
+                {
+                    return await db.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Orders");
+                }
+            },
+            Left: error => error);
     }
 }
 ```
@@ -902,7 +898,7 @@ services.AddTenantAwareRepository<Order, Guid>(mapping =>
            .MapProperty(o => o.Total));
 
 // Global products (no tenant filtering)
-services.AddRepository<Product, Guid>(mapping =>
+services.AddTenantAwareRepository<Product, Guid>(mapping =>
     mapping.ToTable("Products")
            .HasId(p => p.Id)
            // No HasTenantId() = no tenant filtering
