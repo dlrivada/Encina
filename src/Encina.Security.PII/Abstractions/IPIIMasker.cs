@@ -83,8 +83,7 @@ public interface IPIIMasker
     /// <remarks>
     /// <para>
     /// This method inspects all properties decorated with <see cref="Attributes.PIIAttribute"/>,
-    /// <see cref="Attributes.SensitiveDataAttribute"/>, or <see cref="Attributes.MaskInLogsAttribute"/>
-    /// and applies the appropriate masking strategy.
+    /// or <see cref="Attributes.SensitiveDataAttribute"/> and applies the appropriate masking strategy.
     /// </para>
     /// <para>
     /// Property metadata is cached after the first invocation for each type to avoid
