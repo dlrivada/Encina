@@ -1,0 +1,1 @@
+- A coverage target ratchet (`.github/scripts/check-target-ratchet.cs`): a pull request can no longer lower or drop a coverage target in `.github/coverage-manifest/*.json` unless it carries the `target-change-approved` label (#2895).
