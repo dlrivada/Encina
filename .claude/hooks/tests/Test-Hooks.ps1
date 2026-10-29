@@ -5113,14 +5113,50 @@ The fluent builder chain described in the documentation is fictional. The parame
     Write-StubIssue 9004 'No prefix at all' (Get-TemplateBody 'technical_debt.md')
     Write-StubIssue 9005 '[FEATURE] compliant feature' (Get-TemplateBody 'feature_request.md')
     Write-StubIssue 9006 '[FEATURE] feature with a debt body' (Get-TemplateBody 'technical_debt.md')
+    # #2900: stub issues for the size gate. The file-list section (Component Affected / Location) names the given paths.
+    Write-StubIssue 9007 '[EPIC] compliant epic' (Get-TemplateBody 'epic.md')
+    function Get-PathBody([string]$TemplateFile, [string]$SectionHeader, [string[]]$Paths, [string[]]$Reference = @()) {
+        $hs = @(Get-Content -LiteralPath (Join-Path $repo ".github/ISSUE_TEMPLATE/$TemplateFile") | Where-Object { $_ -cmatch '^## \S' } | ForEach-Object { $_.Trim() })
+        # The section holds the "- **File(s)**" bullet with one nested numbered item per path, then (when given)
+        # a "Who does what" bullet whose reference paths must not be counted.
+        return (($hs | ForEach-Object { if ($_ -ceq $SectionHeader) { "$_`n`n- **File(s)** ($($Paths.Count), none outside this list):`n" + ((1..$Paths.Count | ForEach-Object { "  $_. ``$($Paths[$_ - 1])`` (change)" }) -join "`n") + "`n  - No fragment (see ``changelog.d/README.md``)`n" + $(if ($Reference) { "- **Who does what**: " + (($Reference | ForEach-Object { "``$_``" }) -join ', ') + "`n" }) + "- **Environment**: ``pwsh`` 7" } else { "$_`ntext" } }) -join "`n`n")
+    }
+    $paths15 = 1..15 | ForEach-Object { "src/Pkg/File$_.cs" }
+    Write-StubIssue 9008 '[INFRA] 15 paths' (Get-PathBody 'infrastructure.md' '## Component Affected' $paths15)
+    Write-StubIssue 9009 '[INFRA] 16 paths' (Get-PathBody 'infrastructure.md' '## Component Affected' (1..16 | ForEach-Object { "src/Pkg/File$_.cs" }))
+    Write-StubIssue 9010 '[INFRA] 3 paths' (Get-PathBody 'infrastructure.md' '## Component Affected' @('src/A/One.cs', 'src\A\Two.cs', 'tests/A/Three.cs'))
+    Write-StubIssue 9011 '[INFRA] one path repeated' (Get-PathBody 'infrastructure.md' '## Component Affected' (1..20 | ForEach-Object { 'src/A/Same.cs' }))
+    Write-StubIssue 9012 '[DEBT] 3 paths in Location' (Get-PathBody 'technical_debt.md' '## Location' @('src/A/One.cs', 'src/A/Two.cs', 'src/A/Three.cs'))
+    # The shape of #2900: 5 listed paths plus 3 reference paths in other bullets (the nested "No fragment" item also names one).
+    Write-StubIssue 9013 '[INFRA] 5 listed, 3 reference' (Get-PathBody 'infrastructure.md' '## Component Affected' @('a/1.ps1', 'a/2.ps1', 'a/3.md', 'a/4.md', 'a/5.md') @('.claude/hooks/ref1.ps1', '.claude/hooks/ref2.ps1', '.claude/agents/ref3.md'))
+    # The shape of the repository templates: paths on the File(s) first line (3), then nested "-" and "*" items (2 more), tab-indented.
+    Write-StubIssue 9015 '[DEBT] inline and nested paths' ((Get-TemplateBody 'technical_debt.md') -replace '(?m)^(## Location\r?\n)text', ('$1' + "- **File(s)**: ``src/C/One.cs``, ``src/C/Two.cs``, ``src/C/Three.cs```n  - ``src/C/Four.cs`` (x)`n`t* ``src/C/Five.cs`` (y)`n- **Notes**: ``src/C/Ref.cs``"))
+    # Root-level files count (docker-compose.yml + src/A.cs = 2); a backticked Foo.Bar token also counts (pinned behaviour).
+    Write-StubIssue 9016 '[INFRA] root-level file' ((Get-TemplateBody 'infrastructure.md') -replace '(?m)^(## Component Affected\r?\n)text', ('$1' + "- **File(s)**: ``docker-compose.yml``, ``src/A.cs```n- **Environment**: ``ref.json``"))
+    Write-StubIssue 9017 '[INFRA] dotted token' ((Get-TemplateBody 'infrastructure.md') -replace '(?m)^(## Component Affected\r?\n)text', ('$1' + "- **File(s)**: ``Foo.Bar``, ``src/A.cs``"))
+    # A section without a File(s) bullet: paths in plain prose are not counted, so the check is skipped.
+    Write-StubIssue 9014 '[INFRA] no File(s) bullet' ((Get-TemplateBody 'infrastructure.md') -replace '(?m)^(## Component Affected\r?\n)text', ('$1' + ((1..20 | ForEach-Object { "- ``src/B/F$_.cs``" }) -join "`n")))
     # The stub returns no state: the hook reads only title and body, so a closed issue is checked the same way.
     $savedStubGh = $env:ENCINA_ISSUE_GH; $savedStubDir = $env:ENCINA_STUB_DIR
     $env:ENCINA_ISSUE_GH = Join-Path $stubDir 'gh-stub.ps1'; $env:ENCINA_STUB_DIR = $stubDir
     try {
-        function Invoke-TargetCase([string]$Subagent, [string]$Prompt, [int]$Expected, [string]$Label, [string]$AgentType) {
+        # #2900: the size gate needs a Size line in every brief, so a case gets a default one appended (small, so the
+        # earlier cases keep their meaning); -NoSize leaves the prompt as given for the cases that test the line itself.
+        function Invoke-TargetCase([string]$Subagent, [string]$Prompt, [int]$Expected, [string]$Label, [string]$AgentType, [switch]$NoSize) {
+            if (-not $NoSize) { $Prompt = "$Prompt`nSize: 1 files, 100 lines" }
             $payloadObject = @{ tool_name = 'Agent'; cwd = $work; tool_input = @{ subagent_type = $Subagent; prompt = $Prompt } }
             if ($AgentType) { $payloadObject.agent_type = $AgentType }
             Invoke-HookCase $targetGate ($payloadObject | ConvertTo-Json -Compress) $Expected $Label
+        }
+        # Same payload, but passes only when the denial message (stderr) matches the pattern.
+        function Invoke-TargetMessage([string]$Subagent, [string]$Prompt, [string]$Pattern, [string]$Label) {
+            $json = @{ tool_name = 'Agent'; cwd = $work; tool_input = @{ subagent_type = $Subagent; prompt = $Prompt } } | ConvertTo-Json -Compress
+            $out = ($json | pwsh -NoProfile -File $targetGate 2>&1) -join ' '
+            $ok = ($LASTEXITCODE -eq 2) -and ($out -match $Pattern)
+            $script:total++
+            if (-not $ok) { $script:failed++ }
+            "{0} [{1}, expected 2, message /{2}/] check-target-issue-template.ps1: {3}" -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $LASTEXITCODE, $Pattern, $Label
+            if (-not $ok) { "      output: $out" }
         }
         Invoke-TargetCase 'issue-worker' 'Issue #9001 (read it). Worktree x.' 0 'spawn gate: compliant body is allowed'
         Invoke-TargetCase 'docs-writer' 'Issue #9001 (read it). Worktree x.' 0 'spawn gate: compliant body is allowed for docs-writer'
@@ -5142,6 +5178,58 @@ The fluent builder chain described in the documentation is fictional. The parame
         Invoke-TargetCase 'docs-writer' "Issue #9002 write the page." 2 'spawn gate: an issue-worker spawning docs-writer with a prompt that names an issue is gated' 'issue-worker'
         Invoke-TargetCase 'issue-worker' "Context: follows up Issue #9001.`nImplement the thing." 2 'spawn gate: an issue number that is not on the first line is not taken'
         Invoke-TargetCase 'issue-worker' "`nIssue #9001 (leading blank line)`nmore" 0 'spawn gate: the first non-empty line names the issue'
+
+        # ---- #2900: size gate ----
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 15 files, 1500 lines" 0 'size gate: 15 files and 1500 lines (the limits) pass' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 16 files, 100 lines" 2 'size gate: 16 files is denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 3 files, 1501 lines" 2 'size gate: 1501 lines is denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 0 files, 10 lines" 2 'size gate: 0 files is denied' -NoSize
+        Invoke-TargetMessage 'issue-worker' "Issue #9001 go.`nSize: 99999999999999999999 files, 10 lines" 'declares 99999999999999999999 files' 'size gate: a number beyond int range is denied with its value, not a crash'
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize:`n3 files, 100 lines" 2 'size gate: a Size line split across lines is denied' -NoSize
+        Invoke-TargetCase 'issue-worker' 'Issue #9001 go.' 2 'size gate: a brief with no Size line is denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nsize: 3 files, 100 lines" 2 'size gate: a lowercase size line is denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: three files, 100 lines" 2 'size gate: a malformed Size line is denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nGoal: x`nSize: 3 files, 100 lines`nRules:" 0 'size gate: a Size line on the third line passes' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`n  Size: 1 file, 1 line" 0 'size gate: singular units and indentation pass' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9007 go.`nSize: 3 files, 100 lines" 2 'size gate: an [EPIC] issue with a valid Size line is denied' -NoSize
+        Invoke-TargetCase 'docs-writer' "Issue #9001 go.`nSize: 16 files, 100 lines" 2 'size gate: docs-writer over the file limit is denied' -NoSize
+        Invoke-TargetCase 'docs-writer' 'Issue #9001 go.' 2 'size gate: docs-writer with no Size line is denied' -NoSize
+        Invoke-TargetCase 'docs-writer' "Issue #9001 go.`nSize: 2 files, 100 lines" 0 'size gate: docs-writer within the limits passes' -NoSize
+        Invoke-TargetCase 'docs-writer' 'Write the page.' 0 'size gate: an issue-worker spawning docs-writer without an issue still passes' 'issue-worker' -NoSize
+        Invoke-TargetCase 'mechanical-fixer' 'Implement the thing.' 0 'size gate: mechanical-fixer needs no Size line' -NoSize
+        Invoke-TargetCase 'Explore' 'Issue #9007 look around.' 0 'size gate: Explore needs no Size line' -NoSize
+        Invoke-TargetMessage 'issue-worker' 'Issue #9001 go.' 'Size: <files> files, <lines> lines.*at most 15 files and 1500 changed lines' 'size gate: the missing-line message names the format and the limits'
+        Invoke-TargetMessage 'issue-worker' "Issue #9001 go.`nSize: 16 files, 100 lines" '16 files and 100 lines.*at most 15 files and 1500.*Decompose the issue into sub-issues of one package or provider each' 'size gate: the over-limit message names the numbers and says to decompose'
+        Invoke-TargetMessage 'issue-worker' "Issue #9007 go.`nSize: 3 files, 100 lines" 'an EPIC is never briefed; brief one of its ready sub-issues' 'size gate: the EPIC message says to brief a sub-issue'
+        # Path count of the issue's own file list (Component Affected / Location).
+        Invoke-TargetCase 'issue-worker' "Issue #9008 go.`nSize: 15 files, 100 lines" 0 'size gate: an issue listing 15 paths with Size 15 passes' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9009 go.`nSize: 15 files, 100 lines" 2 'size gate: an issue listing 16 paths is denied' -NoSize
+        Invoke-TargetMessage 'issue-worker' "Issue #9009 go.`nSize: 15 files, 100 lines" 'the issue lists 16 files; decompose it' 'size gate: the 16-path message names the count'
+        Invoke-TargetCase 'issue-worker' "Issue #9010 go.`nSize: 2 files, 100 lines" 2 'size gate: Size below the 3 paths the issue lists is denied' -NoSize
+        Invoke-TargetMessage 'issue-worker' "Issue #9010 go.`nSize: 2 files, 100 lines" 'declares 2 files but the issue lists 3' 'size gate: the mismatch message names both numbers'
+        Invoke-TargetCase 'issue-worker' "Issue #9010 go.`nSize: 3 files, 100 lines" 0 'size gate: Size equal to the 3 paths (one with backslashes) passes' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9011 go.`nSize: 1 files, 100 lines" 0 'size gate: a path repeated 20 times counts once' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9012 go.`nSize: 2 files, 100 lines" 2 'size gate: a technical-debt Location section is counted the same way (denied)' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9012 go.`nSize: 3 files, 100 lines" 0 'size gate: a technical-debt Location section is counted the same way (passes)' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9013 go.`nSize: 5 files, 200 lines" 0 'size gate: reference paths outside the File(s) bullet are ignored (5 listed + 3 references, Size 5 passes)' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9013 go.`nSize: 4 files, 200 lines" 2 'size gate: the 5 listed paths still bind the declaration (Size 4 denied)' -NoSize
+        Invoke-TargetMessage 'issue-worker' "Issue #9013 go.`nSize: 4 files, 200 lines" 'declares 4 files but the issue lists 5' 'size gate: the count is 5, not 8'
+        Invoke-TargetCase 'issue-worker' "Issue #9015 go.`nSize: 5 files, 100 lines" 0 'size gate: paths on the File(s) first line plus nested - and * items count 5, the Notes reference is ignored' -NoSize
+        Invoke-TargetMessage 'issue-worker' "Issue #9015 go.`nSize: 4 files, 100 lines" 'declares 4 files but the issue lists 5' 'size gate: the first-line paths are counted (deleting that branch gives 2)'
+        Invoke-TargetCase 'issue-worker' "Issue #9016 go.`nSize: 1 files, 100 lines" 2 'size gate: a File(s) bullet with a root-level file and a path counts 2 (Size 1 denied)' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9016 go.`nSize: 2 files, 100 lines" 0 'size gate: the same bullet passes with Size 2 (reference ref.json elsewhere ignored)' -NoSize
+        Invoke-TargetMessage 'issue-worker' "Issue #9017 go.`nSize: 1 files, 100 lines" 'declares 1 files but the issue lists 2' 'size gate: a backticked Foo.Bar token is counted (pinned)'
+        # Exactly one Size line, and nothing after "lines" on it.
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 3 files, 100 lines`nSize: 20 files, 100 lines" 2 'size gate: two Size lines (valid first, over-limit second) are denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 20 files, 100 lines`nSize: 3 files, 100 lines" 2 'size gate: two Size lines (over-limit first, valid second) are denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 3 files, 100 lines`nSize: 3 files, 100 lines" 2 'size gate: two identical Size lines are denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: see below`nSize: 3 files, 100 lines" 2 'size gate: a prose Size line next to the valid one is denied (two Size lines)' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nsize: 20 files, 9 lines`nSize: 3 files, 100 lines" 2 'size gate: a lowercase size line next to the valid one is denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 3 files, 100 lines and more text" 2 'size gate: text after lines on the Size line is denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`r`nGoal: x`r`nSize: 3 files, 100 lines`r`nRules:" 0 'size gate: a single valid Size line with CRLF line endings passes' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 3 files, 100 lines   " 0 'size gate: trailing blanks after the Size line pass' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9014 go.`nSize: 1 files, 100 lines" 0 'size gate: a section without a File(s) bullet skips the path check (20 prose paths ignored)' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9005 go.`nSize: 1 files, 100 lines" 0 'size gate: an issue whose template has neither section skips the path check' -NoSize
 
         # A hung gh is denied once the bound passes (settings.json gives the hook 30 s; a hook timeout would allow).
         Set-Content (Join-Path $stubDir 'gh-slow.ps1') 'Start-Sleep -Seconds 60'
