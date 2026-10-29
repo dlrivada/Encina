@@ -859,9 +859,10 @@ tenancy.ThrowOnMissingTenantContext = false;
 
 ### How do I implement multi-database tenancy with connection pooling?
 
-Use the `ITenantConnectionFactory` that `AddEncinaDapperWithTenancy` (or the ADO.NET equivalent) registers. It resolves the connection string of the current tenant, or of an explicit tenant, and returns the connection in an `Either`; connection pooling is handled by the ADO.NET provider.
+Use the `ITenantConnectionFactory` that `AddEncinaDapperWithTenancy` (or `AddEncinaADOWithTenancy` for ADO.NET) registers. Each provider package declares its own `ITenantConnectionFactory` in its own `.Tenancy` namespace; the sample uses `Encina.Dapper.SqlServer.Tenancy`. It resolves the connection string of the current tenant, or of an explicit tenant, and returns the connection in an `Either`; connection pooling is handled by the ADO.NET provider.
 
 ```csharp
+using Dapper;
 using Encina.Dapper.SqlServer.Tenancy;
 
 public class TenantReport(ITenantConnectionFactory connectionFactory)
