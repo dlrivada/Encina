@@ -200,7 +200,8 @@ public sealed class AuditProjectionUnreadableEventIntegrationTests(MartenFixture
 
     /// <summary>
     /// D20 evidence: an event whose period has neither an active key nor a destroyed marker throws
-    /// <see cref="KeyNotFoundException"/>. The test records what the daemon does, then stores the missing key and
+    /// <see cref="EncryptedFieldDecryptionException"/> with reason <see cref="EncryptedFieldDecryptionFailureReason.KeyMissing"/>
+    /// (issue #3012). The test records what the daemon does, then stores the missing key and
     /// reports whether the event ever gets projected (that is, whether the daemon retried it).
     /// </summary>
     [Fact]
@@ -219,6 +220,16 @@ public sealed class AuditProjectionUnreadableEventIntegrationTests(MartenFixture
 
         var statusBefore = _daemon!.StatusFor(OperationShard);
         var afterProjectedBefore = await IsProjectedAsync(after);
+
+        // The lookup the projections run fails typed, with the fixed message and no period text.
+        await using (var query = _store!.QuerySession())
+        {
+            var failure = await Should.ThrowAsync<EncryptedFieldDecryptionException>(() =>
+                OperationAuditEntryProjection.LoadTemporalKeyAsync(query, period, CancellationToken.None));
+            failure.Reason.ShouldBe(EncryptedFieldDecryptionFailureReason.KeyMissing);
+            failure.Message.ShouldContain(EncryptedFieldDecryptionException.Code);
+            failure.Message.ShouldNotContain(period);
+        }
 
         await using (var session = _store!.LightweightSession())
         {
@@ -243,8 +254,12 @@ public sealed class AuditProjectionUnreadableEventIntegrationTests(MartenFixture
         TestContext.Current.SendDiagnosticMessage(evidence);
 
         statusBefore.ShouldBe(AgentStatus.Paused);
-        statusAfter.ShouldBe(AgentStatus.Paused, "the daemon does not retry a projection that throws KeyNotFoundException");
+        statusAfter.ShouldBe(AgentStatus.Paused, "the daemon does not retry a projection that throws EncryptedFieldDecryptionException");
         recovered.ShouldBeFalse();
+        var captured = string.Join("\n", _logs.Entries);
+        captured.ShouldContain(EncryptedFieldDecryptionException.Code, Case.Sensitive);
+        captured.ShouldNotContain(period);
+        captured.ShouldNotContain("KeyNotFoundException", Case.Sensitive);
         afterProjectedBefore.ShouldBeFalse();
         (await IsProjectedAsync(first)).ShouldBeFalse("the failing batch commits nothing");
     }
