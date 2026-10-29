@@ -28,7 +28,7 @@ This guide explains how to implement multi-tenant applications using Encina's co
 Multi-tenancy allows a single application instance to serve multiple customers (tenants) while keeping their data isolated. Encina provides **three isolation strategies** that work consistently across all supported data providers:
 
 | Strategy | Isolation Level | Use Case |
-|----------|-----------------|----------|
+| -------- | --------------- | -------- |
 | **SharedSchema** | Row-level (TenantId column) | Cost-effective, many small tenants |
 | **SchemaPerTenant** | Schema-level | Balance of isolation and cost |
 | **DatabasePerTenant** | Database-level | Maximum isolation, compliance requirements |
@@ -848,13 +848,14 @@ It depends on your configuration:
 `ThrowOnMissingTenantContext` is declared by the provider tenancy options (`EfCoreTenancyOptions`, `DapperTenancyOptions`, `ADOTenancyOptions`, `MongoDbTenancyOptions`), not by the core `TenancyOptions`:
 
 ```csharp
-// Strict mode (recommended for production)
-options.ThrowOnMissingTenantContext = true;
+// Strict mode (recommended for production; the default)
+tenancy.ThrowOnMissingTenantContext = true;
 // → Throws InvalidOperationException
 
 // Lenient mode (useful for development/migration)
-options.ThrowOnMissingTenantContext = false;
-// → Queries run without tenant filter (DANGEROUS in production!)
+tenancy.ThrowOnMissingTenantContext = false;
+// → Dapper, ADO.NET and MongoDB: queries run without the tenant filter (DANGEROUS in production!)
+// → Entity Framework Core: saves skip tenant assignment and validation (see the table above)
 ```
 
 ### How do I implement multi-database tenancy with connection pooling?
