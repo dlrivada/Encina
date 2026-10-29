@@ -275,7 +275,7 @@ public sealed class MongoSessionAccessor : IMongoSessionAccessor, IAsyncDisposab
             }
 
             _disposed = true;
-            Complete(_completed ? TransactionActivitySource.OutcomeCommitted : TransactionActivitySource.OutcomeRolledBack);
+            Complete(TransactionActivitySource.OutcomeRolledBack);
 
             // Disposing a session with an open transaction aborts it.
             Session.Dispose();

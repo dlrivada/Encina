@@ -171,11 +171,22 @@ public sealed class PlaceOrderHandler(IMongoClient client, IMongoSessionAccessor
     public async Task<Either<EncinaError, int>> Handle(PlaceOrder request, CancellationToken cancellationToken)
     {
         var orders = client.GetDatabase("MyApp").GetCollection<BsonDocument>("Orders");
-        await orders.InsertOneAsync(accessor.CurrentSession!, new BsonDocument("_id", request.OrderId), cancellationToken: cancellationToken);
+        var document = new BsonDocument("_id", request.OrderId);
+        if (accessor.CurrentSession is { } session)
+        {
+            await orders.InsertOneAsync(session, document, cancellationToken: cancellationToken);
+        }
+        else
+        {
+            await orders.InsertOneAsync(document, cancellationToken: cancellationToken);
+        }
+
         return request.OrderId;
     }
 }
 ```
+
+The session exists only inside the transactional outbox or a unit of work; outside them `CurrentSession` is `null` and the write is a plain call.
 
 Stores that do not use the session (default, soft-delete and tenant repositories, bulk operations, dead-letter, audit, anonymization, ABAC) write outside the transaction without failing ([#1934](https://github.com/dlrivada/Encina/issues/1934)).
 
