@@ -418,13 +418,52 @@ public sealed class DelayedRetryProcessorTests
         stored.ShouldNotContain("12345");
     }
 
-    private static DelayedRetryProcessor CreateProcessor(IDelayedRetryStore store, IEncina encina, RecoverabilityOptions options)
+    [Fact]
+    public async Task ExecuteAsync_WhenTheSchedulerIsNotRegistered_FailsTheChainOnce_AndReportsThePermanentFailure()
+    {
+        // Arrange - a retriable Left with a further delayed retry configured, but no scheduler (no host, no startup check).
+        var message = CreateRetriedCommandMessage(value: 1);
+        var store = Substitute.For<IDelayedRetryStore>();
+        store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(new[] { message }, System.Array.Empty<IDelayedRetryMessage>());
+        var encina = Substitute.For<IEncina>();
+        encina.Send(Arg.Any<IRequest<int>>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, int>>(Left<EncinaError, int>(
+                EncinaErrors.Create("payment.gateway.down", "payment gateway down"))));
+
+        var reported = new TaskCompletionSource<FailedMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var options = new RecoverabilityOptions
+        {
+            DelayedRetries = [TimeSpan.FromMilliseconds(1), TimeSpan.FromMilliseconds(1)],
+            OnPermanentFailure = (failedMessage, _) => { reported.TrySetResult(failedMessage); return Task.CompletedTask; }
+        };
+        var processor = CreateProcessor(store, encina, options, withScheduler: false);
+        using var cts = new CancellationTokenSource();
+
+        // Act
+        await processor.StartAsync(cts.Token);
+        try
+        {
+            await reported.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(default);
+        }
+
+        // Assert
+        await store.Received(1).MarkAsFailedAsync(message.Id, Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    private static DelayedRetryProcessor CreateProcessor(
+        IDelayedRetryStore store, IEncina encina, RecoverabilityOptions options, bool withScheduler = true)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
         serviceProvider.GetService(typeof(IEncina)).Returns(encina);
         serviceProvider.GetService(typeof(IMessageSerializer)).Returns(new JsonMessageSerializer());
-        serviceProvider.GetService(typeof(IDelayedRetryScheduler)).Returns(Substitute.For<IDelayedRetryScheduler>());
+        if (withScheduler)
+            serviceProvider.GetService(typeof(IDelayedRetryScheduler)).Returns(Substitute.For<IDelayedRetryScheduler>());
 
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(serviceProvider);

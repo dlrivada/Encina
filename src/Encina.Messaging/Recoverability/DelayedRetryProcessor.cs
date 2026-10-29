@@ -425,8 +425,6 @@ public sealed class DelayedRetryProcessor : BackgroundService
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
 
-        var scheduler = scope.ServiceProvider.GetRequiredService<IDelayedRetryScheduler>();
-
         // Reconstruct context from the serialized data
         var context = RestoreContext(originalMessage.ContextContent);
         context.IncrementDelayedRetry();
@@ -443,6 +441,9 @@ public sealed class DelayedRetryProcessor : BackgroundService
 
         try
         {
+            // Required: a missing scheduler throws here and is a failed schedule like any other (below).
+            var scheduler = scope.ServiceProvider.GetRequiredService<IDelayedRetryScheduler>();
+
             var scheduled = await InvokeScheduleRetryAsync(
                 scheduler, originalMessage.RequestType, request, context, delay, nextDelayedRetryAttempt, cancellationToken).ConfigureAwait(false);
 
