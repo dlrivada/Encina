@@ -230,8 +230,9 @@ static List<Violation> Evaluate(
     var result = new List<Violation>();
     foreach (var c in changes)
     {
-        var baseJson = c.BasePath is null ? null : readBase(c.BasePath);
-        if (baseJson is null) continue; // new manifest: nothing to ratchet against
+        if (c.BasePath is null) continue; // new manifest: nothing to ratchet against
+        var baseJson = readBase(c.BasePath);
+        if (baseJson is null) { errors.Add($"base manifest {c.BasePath} could not be read"); continue; }
 
         var b = Manifest.Parse(baseJson, c.BasePath!);
         if (b is null) { errors.Add($"base manifest {c.BasePath} is not a readable manifest"); continue; }
@@ -253,7 +254,9 @@ static List<Violation> Evaluate(
 static void Compare(Manifest b, Manifest? h, HashSet<string> csprojNames, HashSet<string> headTree, List<Violation> result)
 {
     var name = h?.Package ?? b.Package;
-    var packageLives = csprojNames.Contains(name);
+    // Existence is judged under both the base and the head package name, so renaming the
+    // "package" field cannot make the source look gone.
+    var packageLives = csprojNames.Contains(b.Package) || csprojNames.Contains(name);
 
     foreach (var (flag, bv) in b.Targets)
     {
@@ -271,7 +274,7 @@ static void Compare(Manifest b, Manifest? h, HashSet<string> csprojNames, HashSe
     {
         Dictionary<string, double>? headFlags = null;
         h?.Files.TryGetValue(file, out headFlags);
-        var sourceLives = headTree.Contains($"src/{name}/{file}");
+        var sourceLives = headTree.Contains($"src/{name}/{file}") || headTree.Contains($"src/{b.Package}/{file}");
         foreach (var (flag, bv) in flags)
         {
             if (headFlags is not null && headFlags.TryGetValue(flag, out var hv))
@@ -385,6 +388,10 @@ static int SelfTest()
     Check("renamed manifest with lower targets is R-LOW",
         Eval(ren, oldJson, J("Pkg", "unit=40", ("A.cs", "unit=90")), live) is [{ Package: "Pkg", Scope: "package", Flag: "unit", Base: 50, Head: 40 }]);
 
+    Check("an unreadable base of a modified manifest fails closed",
+        Eval(same, null, b0, live) is [{ Package: "ERR" }]);
+    Check("renaming the package field does not hide a dropped target",
+        Eval(same, b0, J("Ghost", "unit=50", ("A.cs", "unit=90,guard=0")), live) is [{ Scope: "package", Flag: "guard", Head: null }]);
     Check("manifest changed to invalid JSON fails closed",
         Eval(same, b0, "{ not json", live) is [{ Package: "ERR" }]);
 
