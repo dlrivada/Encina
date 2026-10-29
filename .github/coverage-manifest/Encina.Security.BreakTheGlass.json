@@ -1,7 +1,7 @@
 {
   "package": "Encina.Security.BreakTheGlass",
   "generated": "2026-10-22T00:00:00Z",
-  "totalFiles": 32,
+  "totalFiles": 33,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -80,6 +80,19 @@
         "unit": "Every factory method and its error code are asserted by the error unit tests (measured 100%).",
         "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
         "property": "No invariant beyond the gate expiry property; behaviour is covered by example-based unit tests (measured 0%)."
+      }
+    },
+    "BreakTheGlassLimits.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Compile-time length constants shared by validators, stores and schemas",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "The file declares only const fields, which the compiler inlines, so it has no executable lines; BreakTheGlassLimitsTests asserts every value and the validator and service boundary tests use them (measured: no executable lines)."
       }
     },
     "BreakTheGlassOptions.cs": {
@@ -488,12 +501,12 @@
       "reason": "Service orchestrating open, review and query flows",
       "targets": {
         "unit": 98,
-        "guard": 14,
+        "guard": 13,
         "property": 0
       },
       "justifications": {
-        "unit": "The open, review, revoke, queue and get flows, the tenant rule of every operation and their refusal branches are asserted with fakes (measured 98.55%).",
-        "guard": "Service_Constructor_RejectsEachNullDependency and Service_Methods reject the null arguments; the flows past those checks are covered by the unit flag (measured 14.01%).",
+        "unit": "The open, review, revoke, queue and get flows, the tenant rule of every operation and their refusal branches are asserted with fakes (measured 98.64%).",
+        "guard": "Service_Constructor_RejectsEachNullDependency and Service_Methods reject the null arguments; the flows past those checks, including the id and note length limits, are covered by the unit flag (measured 13.18%).",
         "property": "No FsCheck property covers this file; it is covered by example-based unit tests (measured 0%)."
       }
     },
@@ -528,14 +541,14 @@
       "defaultRule": "*Validator.cs",
       "reason": "Validates the break-the-glass options at start",
       "targets": {
-        "unit": 95,
-        "guard": 2,
+        "unit": 100,
+        "guard": 1,
         "contract": 100,
         "property": 0
       },
       "justifications": {
-        "unit": "BreakTheGlassOptionsValidatorTests cover every rule and Enabled=false (measured 100%).",
-        "guard": "OptionsValidator_NullOptions rejects a null options argument (measured 2.2%).",
+        "unit": "BreakTheGlassOptionsValidatorTests cover every rule, the scope-name length boundary and Enabled=false (measured 100%).",
+        "guard": "OptionsValidator_NullOptions rejects a null options argument (measured 1.92%).",
         "contract": "OptionsValidator_IsRegisteredAsIValidateOptions_AndRejectsInvalidOptions resolves the validator from the container (measured 100%).",
         "property": "No invariant beyond the examples; the rules are asserted by example-based unit tests (measured 0%)."
       }
@@ -549,12 +562,12 @@
       "reason": "Validation logic with invariants",
       "targets": {
         "unit": 100,
-        "guard": 15,
+        "guard": 12,
         "property": 0
       },
       "justifications": {
         "unit": "Every validation rule and its ValidationError is asserted by the unit tests (measured 100%).",
-        "guard": "Guard tests reject the null request argument only; the rule bodies are behaviour covered by the unit flag (measured 15%).",
+        "guard": "Guard tests reject the null request argument only; the rule bodies are behaviour covered by the unit flag (measured 12.82%).",
         "property": "No FsCheck property covers this file; it is covered by example-based unit tests (measured 0%)."
       }
     }
