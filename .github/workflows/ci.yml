@@ -623,6 +623,12 @@ jobs:
           dotnet run .github/scripts/coverage-history.cs -- --self-test
           dotnet run .github/scripts/coverage-report.cs -- --check-justifications
 
+      # #2838: every src/<dir> holds a project file, so a package removed without its folder cannot linger.
+      - name: Check that every src directory has a project
+        run: |
+          dotnet run .github/scripts/check-src-projects.cs -- --self-test
+          dotnet run .github/scripts/check-src-projects.cs
+
   # Every fragment under changelog.d/ must have a valid name, section and entry content
   # (#1097). Runs on every PR, docs-only included, needs no build. fetch-depth: 0 also gives the
   # unreleased-unchanged check below the base commit to diff against.
