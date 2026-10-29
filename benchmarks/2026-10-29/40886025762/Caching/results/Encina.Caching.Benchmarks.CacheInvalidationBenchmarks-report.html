@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Caching.Benchmarks.CacheInvalidationBenchmarks-20261029-143120</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+INTEL XEON PLATINUM 8573C 3.10GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]   : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                   </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Invalidation_NoMatchingKeys</td><td>32.54 &mu;s</td><td>4.759 &mu;s</td><td>0.261 &mu;s</td><td>1.00</td><td>0.01</td><td>0.1831</td><td>17.22 KB</td><td>1.00</td>
+</tr><tr><td>Invalidation_WithMatchingKeys</td><td>54.15 &mu;s</td><td>126.370 &mu;s</td><td>6.927 &mu;s</td><td>1.66</td><td>0.18</td><td>0.1831</td><td>19.51 KB</td><td>1.13</td>
+</tr><tr><td>Invalidation_SequentialCommands</td><td>339.09 &mu;s</td><td>3.675 &mu;s</td><td>0.201 &mu;s</td><td>10.42</td><td>0.07</td><td>1.9531</td><td>171.69 KB</td><td>9.97</td>
+</tr></tbody></table>
+</body>
+</html>
