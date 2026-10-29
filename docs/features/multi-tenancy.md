@@ -833,12 +833,10 @@ var systemTenant = new TenantInfo(
     Name: "System Operations",
     Strategy: TenantIsolationStrategy.SharedSchema);
 
-// Option 3: Create a TenantBypass scope
-using (var scope = _tenantProvider.CreateBypassScope())
-{
-    // Operations here ignore tenant filtering
-    await _repository.GetAllUnfilteredAsync(ct);
-}
+// Option 3 (Entity Framework Core): bypass the tenant filter in one query only
+var all = await dbContext.Orders
+    .IgnoreQueryFilters(["Encina.Tenancy"])
+    .ToListAsync(ct);
 ```
 
 ### What happens if tenant resolution fails?
@@ -850,7 +848,7 @@ It depends on your configuration:
 ```csharp
 // Strict mode (recommended for production; the default)
 tenancy.ThrowOnMissingTenantContext = true;
-// → Throws InvalidOperationException
+// → Throws InvalidOperationException (Entity Framework Core: only when the core TenancyOptions.RequireTenant is also true)
 
 // Lenient mode (useful for development/migration)
 tenancy.ThrowOnMissingTenantContext = false;
