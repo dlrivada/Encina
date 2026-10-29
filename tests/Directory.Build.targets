@@ -1,5 +1,8 @@
 <Project>
 
+  <!-- MSBuild loads only the nearest Directory.Build.targets: chain to the root one. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)../'))" Condition="Exists('$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)../'))')" />
+
   <!--
     Marten 9 ships the JasperFx.Events source generator as a transitive analyzer. It scans every
     referencing assembly for aggregate/projection conventions (static Create(...), Apply(...)) and
