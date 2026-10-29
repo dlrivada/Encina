@@ -6,7 +6,7 @@ nav_exclude: true
 
 This page is for a module author, someone who maintains an Encina package and wants to know how that package will contribute operator commands to `encina` and to the administration surface, and why the contract is shaped the way it is. It explains the decisions of [ADR-058](../architecture/adr/058-encina-cli-command-architecture.md); it is not a how-to and not a reference.
 
-**Status:** the contract is **not built yet**. Nothing named below exists in `src/`, and the type names used here (`IEncinaCommand`, `AddEncinaCommand<T>()`, `IOutboxAdministration`, `ISagaAdministration`) are **illustrative**: the implementation plan of the command-host child of [EPIC #2614](https://github.com/dlrivada/Encina/issues/2614) (to be opened) fixes the final names. What is settled is the shape and the rules. **Issue:** [#2605](https://github.com/dlrivada/Encina/issues/2605). Encina is pre-1.0, so none of this is a stable API.
+**Status:** the contract is **not built yet**. The command-host and administration type names used here (`IEncinaCommand`, `AddEncinaCommand<T>()`, `IOutboxAdministration`, `ISagaAdministration`) do not exist in `src/` and are **illustrative**: the implementation plan of the command-host child of [EPIC #2614](https://github.com/dlrivada/Encina/issues/2614), [#2983](https://github.com/dlrivada/Encina/issues/2983), fixes the final names. The other types named below (`IOutboxStore`, `ISagaStore`, `IOperationAuditStore`, `IReadAuditStore`) exist today. What is settled is the shape and the rules. **Issue:** [#2605](https://github.com/dlrivada/Encina/issues/2605). Encina is pre-1.0, so none of this is a stable API.
 
 ## 1. The picture
 
@@ -71,7 +71,7 @@ The rules, all settled by existing decisions ([ADR-018](../architecture/adr/018-
 
 ## 6. Administration interfaces, kept apart from the runtime stores
 
-Runtime stores such as `IOutboxStore` and `ISagaStore` serve the processors and have no list, purge or inspect operations. ADR-058 D21 does not grow them. Operator operations live in separate administration interfaces (illustrative: `IOutboxAdministration`, `ISagaAdministration`), with these properties that matter to a module author:
+Runtime stores such as `IOutboxStore` and `ISagaStore` serve the processors and have no operator-oriented list, inspect or purge operations (`ISagaStore` does read single and stuck or expired sagas, `GetAsync`, `GetStuckSagasAsync`, `GetExpiredSagasAsync`, for the runtime). ADR-058 D21 does not grow them. Operator operations live in separate administration interfaces (illustrative: `IOutboxAdministration`, `ISagaAdministration`), with these properties that matter to a module author:
 
 - A command depends on the administration interface and on no provider type, so it works on every provider (AGENTS.md section 5).
 - A module whose pattern is provider-dependent supplies the administration implementation for all 10 database providers, as it does for its store.

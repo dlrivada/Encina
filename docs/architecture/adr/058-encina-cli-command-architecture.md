@@ -16,7 +16,7 @@ Every command beyond scaffolding needs the user's real configuration and depende
 - A module contributes commands only when it is registered (pay-for-what-you-use, AGENTS.md section 1).
 - Mutating commands carry the safety rules of EPIC #2614: dry-run by default with explicit confirmation, fail closed when context such as the tenant is missing (AGENTS.md section 3), and every execution audited ([ADR-018](018-cross-cutting-integration-principle.md) function 12).
 
-The store abstractions do not have the operations an operator needs. `IOutboxStore` (`src/Encina.Messaging/Outbox/IOutboxStore.cs`) and `ISagaStore` (`src/Encina.Messaging/Sagas/ISagaStore.cs`) have no list, purge or inspect operation; their members serve the runtime processors (`AddAsync`, `GetPendingMessagesAsync`, `GetStuckSagasAsync`, and so on).
+The store abstractions do not have the operations an operator needs. `IOutboxStore` (`src/Encina.Messaging/Outbox/IOutboxStore.cs`) and `ISagaStore` (`src/Encina.Messaging/Sagas/ISagaStore.cs`) have no operator-oriented list, inspect or purge operation; their members serve the runtime processors (`AddAsync`, `GetPendingMessagesAsync`, and the saga reads `GetAsync`, `GetStuckSagasAsync` and `GetExpiredSagasAsync`, among others).
 
 ## Decision
 
@@ -65,13 +65,13 @@ The operator authenticates interactively against the application's own identity 
 - The tenant is always an explicit `--tenant`, and the authenticated identity must have access to it.
 - The operating-system user is recorded only as context in the audit, never as the identity.
 - Encina does not become an identity provider (C1b): it uses the OIDC provider the application already configures. With none configured, the command is denied (AGENTS.md section 3).
-- The same identity model serves the console, the administration surface (#2972) and the web.
+- The same identity model serves the console, the administration surface (#2972) and the web. `--tenant` is how the console carries the explicit tenant; how the administration surface and the web carry it, with the same fail-closed rule, is designed in #2972.
 
 This replaces the earlier recommendation (c), the operating-system user as actor.
 
 ### D21 (b): separate administration interfaces
 
-Separate administration interfaces (for example `IOutboxAdministration` and `ISagaAdministration`, illustrative names) hold the operator operations: list, inspect, purge, replay. They are implemented on all 10 database providers (AGENTS.md section 5) and registered only when command hosting or the administration surface is enabled. The runtime store interfaces stay minimal, and purge and replay never reach business code.
+Separate administration interfaces (for example `IOutboxAdministration` and `ISagaAdministration`, illustrative names) hold the operator operations: list, inspect, purge, replay. They are implemented on all 10 database providers (AGENTS.md section 5) and registered only when command hosting or the administration surface is enabled. The runtime store interfaces stay minimal, and purge and replay never reach business code. Conditional registration alone does not enforce that boundary, so the implementation plans define how business services are kept from resolving the administration interfaces and prove it with a test.
 
 ### Left to the implementation plans
 
