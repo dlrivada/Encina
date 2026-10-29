@@ -21,6 +21,8 @@ namespace Encina.Security.BreakTheGlass;
 /// </remarks>
 public sealed class InMemoryBreakTheGlassStore : IBreakTheGlassStore
 {
+    private const string StaleCloseReason = "expired";
+
     private readonly ConcurrentDictionary<(string? TenantId, Guid ElevationId), BreakTheGlassElevation> _rows = new();
     private readonly object _addLock = new();
 
@@ -30,12 +32,23 @@ public sealed class InMemoryBreakTheGlassStore : IBreakTheGlassStore
         ArgumentNullException.ThrowIfNull(elevation);
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Check and insert under one lock: the conditional add is atomic.
+        // Check, close and insert under one lock: the conditional add is atomic.
         lock (_addLock)
         {
-            if (_rows.Values.Any(row => ConflictsWith(row, elevation)))
+            var active = _rows.Values.Where(row => SameKey(row, elevation) && row.Status == BreakTheGlassStatus.Active).ToList();
+            if (active.Any(row => row.IsEffectiveAt(elevation.OpenedAtUtc)))
             {
                 return Done(Left<EncinaError, Unit>(BreakTheGlassErrors.AlreadyActive()));
+            }
+
+            // Active rows past their expiry are closed as Expired before the insert; ExpiryRecordedAtUtc stays null so the sweeper still audits them.
+            // A compare-and-swap, so a racing close or review of the same row is never overwritten; the row is re-read when it lost.
+            foreach (var stale in active)
+            {
+                TryUpdate(
+                    (stale.TenantId, stale.ElevationId),
+                    row => row.Status == BreakTheGlassStatus.Active,
+                    row => row with { Status = BreakTheGlassStatus.Expired, CloseReason = StaleCloseReason, ClosedAtUtc = elevation.OpenedAtUtc });
             }
 
             _rows[(elevation.TenantId, elevation.ElevationId)] = elevation;
@@ -50,12 +63,11 @@ public sealed class InMemoryBreakTheGlassStore : IBreakTheGlassStore
         && row.ReviewedAtUtc < reviewedBeforeUtc
         && (row.Status != BreakTheGlassStatus.Expired || row.ExpiryRecordedAtUtc is not null);
 
-    private static bool ConflictsWith(BreakTheGlassElevation row, BreakTheGlassElevation added) =>
+    private static bool SameKey(BreakTheGlassElevation row, BreakTheGlassElevation added) =>
         row.TenantId == added.TenantId
         && string.Equals(row.UserId, added.UserId, StringComparison.Ordinal)
         && string.Equals(row.SubjectId, added.SubjectId, StringComparison.Ordinal)
-        && string.Equals(row.Scope, added.Scope, StringComparison.Ordinal)
-        && row.IsEffectiveAt(added.OpenedAtUtc);
+        && string.Equals(row.Scope, added.Scope, StringComparison.Ordinal);
 
     /// <inheritdoc />
     public ValueTask<Either<EncinaError, Option<BreakTheGlassElevation>>> GetByIdAsync(string? tenantId, Guid elevationId, CancellationToken cancellationToken = default)

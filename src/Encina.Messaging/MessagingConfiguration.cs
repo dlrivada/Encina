@@ -526,6 +526,30 @@ public sealed class MessagingConfiguration
     public bool UseReadAuditStore { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to use a database store for break-the-glass elevations.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, the provider registers its <c>IBreakTheGlassStore</c> implementation from
+    /// <c>Encina.Security.BreakTheGlass</c> in place of the in-memory default, so elevations and the
+    /// review queue survive a restart and are shared by every host.
+    /// </para>
+    /// <para>
+    /// <b>Requires</b>: <c>Encina.Security.BreakTheGlass</c> package to be configured.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseBreakTheGlassStore = true;
+    /// });
+    /// </code>
+    /// </example>
+    public bool UseBreakTheGlassStore { get; set; }
+
+    /// <summary>
     /// Gets or sets whether to enable SQL Server temporal table support.
     /// </summary>
     /// <remarks>
@@ -998,6 +1022,7 @@ public sealed class MessagingConfiguration
         UseAuditLogStore,
         UseOperationAuditStore,
         UseReadAuditStore,
+        UseBreakTheGlassStore,
         UseSoftDelete,
         UseTemporalTables,
         UseQueryCache,
