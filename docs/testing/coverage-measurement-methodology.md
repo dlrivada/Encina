@@ -230,6 +230,53 @@ Target attainment and the obligations figure measure different things and neithe
 
 Each entry of `history.json` also carries the `attainment` object, copied by `coverage-history.cs` (`BuildEntry`) from `overall.attainment`. Entries from before the metric existed do not have it and are not backfilled. A recalculated run keeps the attainment object it was published with; attainment is not recomputed (no backfill, #2542 D8).
 
+### Target ratchet
+
+The target ratchet stops a pull request from lowering or removing a coverage target without anyone noticing. `.github/scripts/check-target-ratchet.cs` compares every `.github/coverage-manifest/*.json` file except `defaults.json` between the merge base of the pull request's base branch and `HEAD` (read with `git show`, renames followed). It checks the package-level `targets` and each file's `files[*].targets`. It only stops targets from falling; it does not raise any (targets rise gradually, see the obligations policy in [AGENTS.md section 9](../../AGENTS.md)).
+
+| Rule | Violation |
+|---|---|
+| R-LOW | The head value of a target is lower than its base value. |
+| R-DROP | The base has a target for a flag or file and the head has none, while the source still exists in the head tree (`src/<Package>/<file>` for a file target; a `src/**/<Package>.csproj` for a package target). |
+
+What is allowed:
+
+- A value equal to its base is never a change, so a target that is already `0` is never flagged.
+- A new manifest or a new file entry.
+- Dropping the entry of a deleted or renamed source file, or of a retired package whose project is gone.
+- A renamed manifest is compared old against new. A deleted manifest whose project still exists is an R-DROP for every target it held.
+
+A new `0` in `unit`, `guard` or `contract` is not covered by these rules; it is tracked separately in #2898 and is not implemented.
+
+The script prints one line per violation, for example the real case from commit `1309055ef` (#2780):
+
+```text
+Encina.Cdc.PostgreSql  package  unit  50 -> 41
+```
+
+A dropped target prints the head side as `(dropped)`, for example `50 -> (dropped)`. Exit codes: 0 when clean or approved by the label, 1 on a violation without the label, 2 for invalid arguments.
+
+When nothing is wrong it prints `Target ratchet: N manifests changed, 0 violations`.
+
+#### CI job and the label exception
+
+The `target-ratchet` job in `.github/workflows/ci.yml` runs on `pull_request` only (it is skipped on push to `main`), checks out with `fetch-depth: 0`, and has job-level permissions `contents: read` and `pull-requests: read`, with `GH_TOKEN` taken from `github.token`. Violations also go to the job summary.
+
+A pull request may carry the label `target-change-approved`. The script reads the labels at run time with `gh pr view <n> --json labels`, not from the event payload, because `ci.yml` has no `labeled` trigger. After adding the label, use "Re-run failed jobs". With the label the script exits 0 and prints each line as `APPROVED by target-change-approved`; without it the script exits 1. If `gh` fails or `--pr` is missing, the script fails closed (exit 1).
+
+The label is a tripwire against a silent change, not protection against an author who labels their own pull request; maintainers read the job summary of labelled pull requests.
+
+#### Run it locally
+
+From the repository root:
+
+```powershell
+dotnet run --file .github/scripts/check-target-ratchet.cs -- --base origin/main --head HEAD --no-label-lookup
+dotnet run --file .github/scripts/check-target-ratchet.cs -- --self-test
+```
+
+`--self-test` runs the built-in cases. `--no-label-lookup` skips the `gh` call; `--assume-label` pretends the label is present. Both are test flags.
+
 ### Per-package targets
 
 Each manifest declares per-flag coverage targets in its `targets` section:
