@@ -144,6 +144,7 @@ internal sealed class MessagePurgeService : BackgroundService
         MessagePurgeLog.CycleFailed(_logger, pattern, errorCode);
     }
 
+    // At least 1 ms: a zero delay completes without waiting, which would skip the start-up pause.
     private static TimeSpan NextStartupJitter()
-        => TimeSpan.FromMilliseconds(RandomNumberGenerator.GetInt32(0, (int)MaxStartupJitter.TotalMilliseconds));
+        => TimeSpan.FromMilliseconds(RandomNumberGenerator.GetInt32(1, (int)MaxStartupJitter.TotalMilliseconds));
 }
