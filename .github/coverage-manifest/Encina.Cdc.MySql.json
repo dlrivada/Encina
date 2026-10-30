@@ -1,7 +1,7 @@
 {
   "package": "Encina.Cdc.MySql",
   "generated": "2026-04-13T00:00:00Z",
-  "totalFiles": 7,
+  "totalFiles": 9,
   "targets": {
     "guard": 15,
     "property": 10,
@@ -21,12 +21,46 @@
       "defaultRule": "*HealthCheck.cs",
       "reason": "Health check with mockeable service dependencies"
     },
+    "IMySqlBinlogStatusClient.cs": {
+      "defaultTests": [],
+      "defaultRule": "none",
+      "reason": "Internal interface with no executable lines; exercised through the hand-written fake in the connector unit tests."
+    },
+    "MySqlBinlogStatusClient.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*Client.cs",
+      "reason": "Runs SHOW BINARY LOG STATUS against a server; only constructor guard is unit-testable, the query needs MySQL 8.4/9.x (integration tests: #3052)",
+      "targets": {
+        "unit": 30,
+        "guard": 30,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "Unit tests execute the constructor null check (measured 30.8%); the query lines need a live server.",
+        "guard": "Guard tests execute the constructor ThrowIfNull (measured 30.8%).",
+        "integration": "Integration tests against real MySQL 8.4 and 9.x are sub-issue #3052 of #2859; the zero target is explicit until they land."
+      }
+    },
     "MySqlCdcConnector.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*CdcConnector.cs",
-      "reason": "CDC connector requires real MySQL with binlog+GTID — integration tests not feasible without specialized Docker config (see tests/Encina.IntegrationTests/Cdc/MySql/MySql.md). Unit tests cover DI and configuration paths."
+      "reason": "CDC connector: GetCurrentPositionAsync is unit tested through the IMySqlBinlogStatusClient seam; streaming needs a real MySQL 8.4/9.x with binlog (integration tests: #3052).",
+      "targets": {
+        "unit": 21,
+        "guard": 13,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "GetCurrentPositionAsync and the constructor run through a hand-written fake of IMySqlBinlogStatusClient (row, empty result, throwing, cancelled), measured 21.8%; StreamChangesAsync and the event mapping need a live binlog.",
+        "guard": "Guard tests execute the four constructor ThrowIfNull lines (measured 13.7%).",
+        "integration": "StreamChangesAsync and the event mapping need a live binlog; the MySQL 8.4/9.x integration tests are #3052 of #2859, so the zero target is explicit until they land."
+      }
     },
     "MySqlCdcOptions.cs": {
       "defaultTests": [
@@ -57,7 +91,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with ThrowIfNull guard"
+      "reason": "ServiceCollection extensions with ThrowIfNull guard",
+      "targets": {
+        "unit": 100,
+        "guard": 11
+      },
+      "justifications": {
+        "unit": "Unit tests execute every line, including the IMySqlBinlogStatusClient registration and a ValidateOnBuild/ValidateScopes build (measured 100%).",
+        "guard": "Guard tests execute the two ThrowIfNull lines (measured 11.1%); the remaining lines are registration code covered by the unit flag."
+      }
     }
   }
 }
