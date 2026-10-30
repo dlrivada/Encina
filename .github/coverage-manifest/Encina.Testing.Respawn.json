@@ -23,7 +23,7 @@
         "guard": 15
       },
       "justifications": {
-        "unit": "Unit tests drive InitializeAsync, ResetAsync, adapter selection, option translation and disposal through a scripted connection; only the line for a failure of the Respawn reset against a real server is left.",
+        "unit": "Unit tests drive InitializeAsync, ResetAsync, adapter selection, option translation and disposal through a scripted connection; only the lock re-check line reached by two overlapping initializations is left.",
         "guard": "Guard tests only reach the cancellation checks of the shared entry points through the provider subclasses; the rest is behavior covered by the unit flag."
       }
     },
@@ -39,7 +39,7 @@
         "guard": 60
       },
       "justifications": {
-        "unit": "Unit tests cover the constructor, options, FromBuilder and the connection failure of a refused loopback port; a successful connection and reset need a real MySQL server and belong to the integration flag.",
+        "unit": "Unit tests cover the constructor, options, FromBuilder and the connection failure of a refused loopback port; the Adapter getter runs only after a successful connection to a real MySQL server (integration flag) and the ConnectionString getter is never read by the package.",
         "guard": "Guard tests cover the constructor and FromBuilder argument checks, which are most of this small file."
       }
     },
@@ -55,7 +55,7 @@
         "guard": 60
       },
       "justifications": {
-        "unit": "Unit tests cover the constructor, options, FromBuilder and the connection failure of a refused loopback port; a successful connection and reset need a real PostgreSQL server and belong to the integration flag.",
+        "unit": "Unit tests cover the constructor, options, FromBuilder and the connection failure of a refused loopback port; the Adapter getter runs only after a successful connection to a real PostgreSQL server (integration flag) and the ConnectionString getter is never read by the package.",
         "guard": "Guard tests cover the constructor and FromBuilder argument checks, which are most of this small file."
       }
     },
@@ -71,7 +71,7 @@
         "guard": 10
       },
       "justifications": {
-        "unit": "Unit tests cover Create, CreateSqlite and every InferAdapter parsing branch including the verbose diagnostics callback.",
+        "unit": "Unit tests cover Create, CreateSqlite, the InferAdapter parsing branches that the provider connection string builders accept and the verbose diagnostics callback; the Port=3306 return is unreachable because the SQL Server builder rejects the Port keyword.",
         "guard": "Guard tests cover the null and blank connection string checks and the unsupported adapter errors of the factory; the parsing branches are behavior covered by the unit flag."
       }
     },
@@ -106,7 +106,7 @@
         "guard": 15
       },
       "justifications": {
-        "unit": "Unit tests run discovery, ignore lists, reset, reseed and the missing sqlite_sequence case against a real in-memory SQLite database.",
+        "unit": "Unit tests run discovery, ignore lists, reset, reseed and the missing sqlite_sequence case against a real in-memory SQLite database; only the lock re-check line reached by two overlapping initializations is left.",
         "guard": "Guard tests cover the constructor argument check and the cancellation of InitializeAsync and ResetAsync; the rest is behavior covered by the unit flag."
       }
     },
@@ -122,7 +122,7 @@
         "guard": 60
       },
       "justifications": {
-        "unit": "Unit tests cover the constructor, options, FromBuilder and the connection failure of a refused loopback port; a successful connection and reset need a real SqlServer server and belong to the integration flag.",
+        "unit": "Unit tests cover the constructor, options, FromBuilder and the connection failure of a refused loopback port; the Adapter getter runs only after a successful connection to a real SQL Server (integration flag) and the ConnectionString getter is never read by the package.",
         "guard": "Guard tests cover the constructor and FromBuilder argument checks, which are most of this small file."
       }
     }
