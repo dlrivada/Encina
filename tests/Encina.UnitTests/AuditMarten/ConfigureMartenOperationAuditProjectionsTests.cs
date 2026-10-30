@@ -86,6 +86,24 @@ public sealed class ConfigureMartenOperationAuditProjectionsTests
     }
 
     [Fact]
+    public void Configure_LeavesTheStoreWideErrorFlagsToTheApplication()
+    {
+        // Issue #2770 (D22): the flags are store-wide, so Encina neither sets nor resets them; the startup guard checks them.
+        var storeOptions = new StoreOptions();
+        storeOptions.Projections.Errors.SkipApplyErrors = true;
+        storeOptions.Projections.Errors.SkipSerializationErrors = false;
+        storeOptions.Projections.RebuildErrors.SkipApplyErrors = false;
+        storeOptions.Projections.RebuildErrors.SkipSerializationErrors = true;
+
+        CreateSut().Configure(storeOptions);
+
+        storeOptions.Projections.Errors.SkipApplyErrors.ShouldBeTrue();
+        storeOptions.Projections.Errors.SkipSerializationErrors.ShouldBeFalse();
+        storeOptions.Projections.RebuildErrors.SkipApplyErrors.ShouldBeFalse();
+        storeOptions.Projections.RebuildErrors.SkipSerializationErrors.ShouldBeTrue();
+    }
+
+    [Fact]
     public void Configure_CustomShreddedPlaceholder_PassesMartenProjectionValidation()
     {
         // Arrange

@@ -24,7 +24,7 @@ namespace Encina.UnitTests.AuditMarten;
 public sealed class OperationAuditEntryProjectionTests
 {
     private static OperationAuditEntryProjection CreateProjection(string placeholder = "[SHREDDED]") =>
-        new(placeholder, NullLogger<OperationAuditEntryProjection>.Instance);
+        new(placeholder, MartenOperationAuditOptions.DefaultExpiredPlaceholder, NullLogger<OperationAuditEntryProjection>.Instance);
 
     [Fact]
     public void Constructor_Parameterless_SetsNameAndUsesDefaultShreddedPlaceholder()
@@ -71,14 +71,14 @@ public sealed class OperationAuditEntryProjectionTests
     public void Constructor_NullPlaceholder_ThrowsArgumentNullException()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new OperationAuditEntryProjection(null!, NullLogger<OperationAuditEntryProjection>.Instance));
+            new OperationAuditEntryProjection(null!, MartenOperationAuditOptions.DefaultExpiredPlaceholder, NullLogger<OperationAuditEntryProjection>.Instance));
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new OperationAuditEntryProjection("[SHREDDED]", null!));
+            new OperationAuditEntryProjection("[SHREDDED]", MartenOperationAuditOptions.DefaultExpiredPlaceholder, null!));
     }
 
     [Fact]
@@ -237,7 +237,7 @@ public sealed class OperationAuditEntryProjectionTests
         };
 
         // Act
-        var (resultKey, isShredded) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
+        var (resultKey, isShredded, _) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
             activeKey, destroyedMarker: null, "2026-03");
 
         // Assert
@@ -254,11 +254,14 @@ public sealed class OperationAuditEntryProjectionTests
             Id = "temporal-destroyed:2020-01",
             Period = "2020-01",
             DestroyedAtUtc = DateTimeOffset.UtcNow,
-            KeyVersionsDestroyed = 3
+            KeyVersionsDestroyed = 3,
+            ErasureRequestId = "erasure-1",
+            ErasureRequestedAtUtc = DateTimeOffset.UtcNow,
+            ErasureActor = "dpo"
         };
 
         // Act
-        var (resultKey, isShredded) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
+        var (resultKey, isShredded, _) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
             activeKey: null, destroyedMarker, "2020-01");
 
         // Assert
@@ -279,8 +282,8 @@ public sealed class OperationAuditEntryProjectionTests
                 activeKey: null, destroyedMarker: null, "2026-03"));
 
         ex.Message.ShouldContain("2026-03");
-        ex.Message.ShouldContain("transient inconsistency");
-        ex.Message.ShouldContain("retry");
+        ex.Message.ShouldContain("no active key and no destroyed marker");
+        ex.Message.ShouldContain("pauses the shard");
     }
 
     [Fact]
@@ -310,7 +313,7 @@ public sealed class OperationAuditEntryProjectionTests
         };
 
         // Act
-        var (resultKey, isShredded) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
+        var (resultKey, isShredded, _) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
             activeKey, destroyedMarker, "2026-03");
 
         // Assert

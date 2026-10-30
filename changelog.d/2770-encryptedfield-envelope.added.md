@@ -1,0 +1,1 @@
+- **Encina.Audit.Marten: `MartenOperationAuditOptions.RetentionPolicyId`** (#2770). Default `null`; it names the approved retention policy recorded in the retention marker of purged keys. When unset the policy id stays `audit-retention:<ISO 8601 RetentionPeriod>`.

@@ -40,6 +40,11 @@ public sealed class MartenOperationAuditOptions
     public const string DefaultShreddedPlaceholder = "[SHREDDED]";
 
     /// <summary>
+    /// Default placeholder value for PII fields of audit entries whose keys were destroyed by a retention execution.
+    /// </summary>
+    public const string DefaultExpiredPlaceholder = "[EXPIRED]";
+
+    /// <summary>
     /// Default retention period in days (~7 years for SOX compliance).
     /// </summary>
     public const int DefaultRetentionDays = 2555;
@@ -103,6 +108,46 @@ public sealed class MartenOperationAuditOptions
     public TimeSpan RetentionPeriod { get; set; } = TimeSpan.FromDays(DefaultRetentionDays);
 
     /// <summary>
+    /// Gets or sets the identifier of the approved retention policy that the audit purges name in the
+    /// <see cref="Crypto.RetentionReference"/> they record for every key they destroy.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When <c>null</c>, the policy id is derived from <see cref="RetentionPeriod"/> as
+    /// <c>audit-retention:&lt;ISO 8601 duration&gt;</c> (for example <c>audit-retention:P2555D</c>). Operators who run
+    /// purges manually (<c>PurgeEntriesAsync</c>) should set this to the identifier of the retention policy their
+    /// organisation approved, so the destroyed-key marker (GDPR Art. 5(2) evidence) names that policy. Both the
+    /// automatic and the manual purge use it.
+    /// </para>
+    /// <para>
+    /// When set, it must not be empty or whitespace; <c>AddEncinaAuditMarten</c> rejects it otherwise.
+    /// </para>
+    /// </remarks>
+    /// <value>Defaults to <c>null</c> (derived from <see cref="RetentionPeriod"/>).</value>
+    public string? RetentionPolicyId { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the audit projections may start when Marten's store-wide projection error flags skip
+    /// failing events. This is an explicit opt-out of a fail-closed check.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// At startup the audit projections require <c>StoreOptions.Projections.Errors</c> and
+    /// <c>StoreOptions.Projections.RebuildErrors</c> to have <c>SkipApplyErrors</c> and <c>SkipSerializationErrors</c>
+    /// set to <c>false</c> by the application, so an audit event that cannot be projected pauses the shard instead
+    /// of vanishing from the read model. Marten has no per-projection policy: those flags are store-wide and also
+    /// govern the application's own projections. Marten skips by default, so the application must set them.
+    /// </para>
+    /// <para>
+    /// Setting this to <c>true</c> lets the host start with skipping enabled and logs a warning at startup. An
+    /// audit event skipped that way is lost from the read model without a stop; use it only when the application
+    /// needs skipping for its other projections and accepts that risk.
+    /// </para>
+    /// </remarks>
+    /// <value>Defaults to <c>false</c> (fail closed).</value>
+    public bool AllowSkippedProjectionErrors { get; set; }
+
+    /// <summary>
     /// Gets or sets whether to enable automatic crypto-shredding of expired audit entries.
     /// </summary>
     /// <remarks>
@@ -138,6 +183,18 @@ public sealed class MartenOperationAuditOptions
     /// </remarks>
     /// <value>Defaults to <c>"[SHREDDED]"</c>.</value>
     public string ShreddedPlaceholder { get; set; } = DefaultShreddedPlaceholder;
+
+    /// <summary>
+    /// Gets or sets the placeholder value substituted for PII fields of audit entries whose temporal keys were
+    /// destroyed by a retention execution.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="ShreddedPlaceholder"/>, which is reserved for a destruction that answers a recorded
+    /// erasure request. A retention expiry is an expected, lawful event: the projection shows this placeholder and
+    /// keeps running (issue #2770).
+    /// </remarks>
+    /// <value>Defaults to <c>"[EXPIRED]"</c>.</value>
+    public string ExpiredPlaceholder { get; set; } = DefaultExpiredPlaceholder;
 
     /// <summary>
     /// Gets or sets whether to register a health check for the Marten audit store.

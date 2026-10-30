@@ -11,6 +11,12 @@ grand_parent: Architecture
 
 Accepted
 
+> Superseded in part by the 2026-10-27 amendment below: a retention purge now records a retention reference, reads `[EXPIRED]` and does not pause the shard. **Amendment 2026-10-26 ([#2770](https://github.com/dlrivada/Encina/issues/2770)):** this narrows every statement below that a destroyed key (section 2, section 5 steps 3-4 and the shredded-entry list, section 7, and Negative consequence 3) reads as `[SHREDDED]`. The placeholder is shown only for a key destruction recorded with an erasure reference (request id, request date and actor). Any other destroyed or unreadable key, including every retention purge (`PurgeEntriesAsync`, `EnableAutoPurge`), fails typed with `EncryptedFieldDecryptionException` and the Marten daemon pauses the shard. A retention purge is not a lawful erasure and must not read as one. The procedure is in [Recover from an unreadable audit event](../../features/audit-marten.md#recover-from-an-unreadable-audit-event); the original text below is kept as decided.
+>
+> **Amendment 2026-10-27 ([#2770](https://github.com/dlrivada/Encina/issues/2770), decision Q3):** a retention purge is an expected lawful event (GDPR Art. 5(1)(e)), not a fault, so the paragraph above is refined. `KeyDestructionReference` is now a closed record with two derivations, `ErasureReference` and `RetentionReference` (policy id, cutoff, execution time, actor); one destruction never carries both. `PurgeEntriesAsync` and auto-purge destroy keys with a `RetentionReference` (policy `audit-retention:<ISO 8601 RetentionPeriod>`, actor `system`). The projections now apply three outcomes to a destroyed key: only an erasure reference reads `[SHREDDED]`, only a retention reference reads `[EXPIRED]` (`MartenOperationAuditOptions.ExpiredPlaceholder`), and both shards keep running, so a rebuild passes over purged periods. A marker with neither reference, or with both (damaged or tampered), still fails typed with `EncryptedFieldDecryptionException` (`KeyDestroyedWithoutErasureRecord`) and pauses the shard. The marker still records why a field is unreadable (Art. 5(2)). This supersedes the 2026-10-26 statement that every retention purge fails typed. Operator resolution for a marker with no reference remains future work. See [Retention expiry reads [EXPIRED]](../../features/audit-marten.md#retention-expiry-reads-expired).
+>
+> **Amendment 2026-10-27 ([#2770](https://github.com/dlrivada/Encina/issues/2770), decisions D21 and D22):** two further decisions refine the paragraphs above. (D22) Encina no longer sets Marten's store-wide `Projections.Errors` and `Projections.RebuildErrors` flags (`SkipApplyErrors`, `SkipSerializationErrors`). They also govern the application's own projections, so the application owns them: Marten skips by default, and the application must set all four to `false` in its `AddMarten` configuration. `AuditProjectionErrorPolicyStartupGuard` checks the final store options at startup and stops the host with `InvalidOperationException` when any of the four is `true`; `MartenOperationAuditOptions.AllowSkippedProjectionErrors = true` is the explicit, logged opt-out, with the risk that an audit event can be lost from the read model without a stop. (D21) The new option `MartenOperationAuditOptions.RetentionPolicyId` replaces the derived policy id `audit-retention:<ISO 8601 RetentionPeriod>` in the retention reference of both the automatic and the manual purge when set, so the marker names the approved policy (Art. 5(2)). See [Recover from an unreadable audit event](../../features/audit-marten.md#recover-from-an-unreadable-audit-event).
+
 ## Date
 
 2026-03-19
@@ -130,6 +136,8 @@ The `MartenOperationAuditStore` uses an **inline projection** that maintains a d
 3. **On purge**: Delete temporal keys → mark affected read model entries as `[SHREDDED]`
 4. **On rebuild**: Events with deleted temporal keys produce `[SHREDDED]` entries
 
+*Amended 2026-10-26 (#2770): step 3 and 4 read `[SHREDDED]` only for a destruction recorded with an erasure reference; a retention purge reads `[EXPIRED]` (amended 2026-10-27, see the amendments at the top).*
+
 **Shredded entries in query results**:
 
 - Shredded entries are **included** in query results (not skipped)
@@ -169,6 +177,8 @@ OperationAuditEntry.UserId = Encrypt(temporal_key, Encrypt(subject_key, "user-42
 - **Temporal purge** (retention): Deletes temporal key → all PII in that period becomes `[SHREDDED]` for all users
 - **Decryption**: Requires both keys. If either is missing, the field is `[SHREDDED]`
 
+*Amended 2026-10-26 (#2770): the temporal purge and the missing-key rules above read as `[SHREDDED]` only when the destruction carries an erasure reference; a retention reference reads `[EXPIRED]`; with neither, projection fails typed and pauses the shard (amended 2026-10-27).*
+
 This layered approach satisfies both compliance requirements independently.
 
 ## Consequences
@@ -186,7 +196,7 @@ This layered approach satisfies both compliance requirements independently.
 
 1. **PostgreSQL-only**: Marten requires PostgreSQL (consistent with ADR-019)
 2. **Operational complexity**: Master key management for temporal key encryption
-3. **Projection rebuild cost**: Rebuilding projections with shredded keys produces `[SHREDDED]` entries
+3. **Projection rebuild cost**: Rebuilding projections with shredded keys produces `[SHREDDED]` entries (amended 2026-10-26, #2770: `[SHREDDED]` only for destructions with an erasure reference; a retention-purged period reads `[EXPIRED]` and the rebuild passes over it, amended 2026-10-27)
 4. **Return value approximation**: `PurgeEntriesAsync` count is estimated from projection, not exact
 5. **Dual encryption overhead**: When both subject and temporal keys are active, double encryption/decryption cost
 

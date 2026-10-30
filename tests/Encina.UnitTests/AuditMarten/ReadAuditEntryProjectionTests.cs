@@ -21,7 +21,7 @@ namespace Encina.UnitTests.AuditMarten;
 public sealed class ReadAuditEntryProjectionTests
 {
     private static ReadAuditEntryProjection CreateProjection(string placeholder = "[SHREDDED]") =>
-        new(placeholder, NullLogger<ReadAuditEntryProjection>.Instance);
+        new(placeholder, MartenOperationAuditOptions.DefaultExpiredPlaceholder, NullLogger<ReadAuditEntryProjection>.Instance);
 
     [Fact]
     public void Constructor_Parameterless_SetsName()
@@ -41,14 +41,14 @@ public sealed class ReadAuditEntryProjectionTests
     public void Constructor_NullPlaceholder_ThrowsArgumentNullException()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new ReadAuditEntryProjection(null!, NullLogger<ReadAuditEntryProjection>.Instance));
+            new ReadAuditEntryProjection(null!, MartenOperationAuditOptions.DefaultExpiredPlaceholder, NullLogger<ReadAuditEntryProjection>.Instance));
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new ReadAuditEntryProjection("[SHREDDED]", null!));
+            new ReadAuditEntryProjection("[SHREDDED]", MartenOperationAuditOptions.DefaultExpiredPlaceholder, null!));
     }
 
     [Fact]
