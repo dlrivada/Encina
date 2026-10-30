@@ -8,9 +8,10 @@ namespace Encina.Security.BreakTheGlass;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Every operation is tenant-scoped (a <see langword="null"/> tenant means tenancy is off; null is the only
-/// "no tenant" value, because the service and the gate normalise a blank tenant id to null before any store call) except
-/// the two sweeper operations, which run across tenants. Status and review changes are
+/// Every operation is tenant-scoped (a <see langword="null"/> tenant means tenancy is off) except
+/// the two sweeper operations, which run across tenants. A blank or whitespace tenant is normalised to null; null is the
+/// only no-tenant value. Every provider store must do the same, so the active key COALESCE(TenantId,'') (plan decision 29)
+/// is unambiguous. Status and review changes are
 /// <b>conditional</b>: they apply once, so several hosts can run the sweeper and several reviewers
 /// can race without a distributed lock.
 /// </para>
