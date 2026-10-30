@@ -181,7 +181,7 @@ To start with skipping enabled anyway, set `MartenOperationAuditOptions.AllowSki
 | `InvalidKeyOrParameters` | The key material, nonce or tag has the wrong size | Restore the key document or the event data |
 | `IntegrityCheckFailed` | The authentication tag did not verify: tampered ciphertext or tag, or a key that does not match | Treat as a security incident, then restore the data or the correct key |
 | `KeyDestroyedWithoutErasureRecord` | The period's key was destroyed, but the marker has neither an erasure nor a retention reference, or has both (damaged or tampered, not trusted) | Restore the key, or add the reference only for a real erasure request or a real retention execution (see [Retention expiry reads [EXPIRED]](#retention-expiry-reads-expired)) |
-| `KeyMissing` | The event's period has neither an active key document nor a destroyed marker. This is not a recorded erasure, so the field is not projected as `[SHREDDED]` or `[EXPIRED]` | Restore the key document from a backup |
+| `KeyMissing` | The event's period has neither an active key document nor a destroyed marker. This is not a recorded erasure, so the field is not projected as `[SHREDDED]` or `[EXPIRED]` | Restore or write the key document for the period (it may never have been written) |
 
 The `KeyMissing` failure uses the same fixed message as the other reasons, so it names no period or key. The daemon does not retry it: the shard pauses until the cause is repaired.
 
