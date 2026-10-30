@@ -6,6 +6,7 @@ namespace Encina.UnitTests.Testing.Respawn;
 /// <summary>
 /// Unit tests for <see cref="RespawnerFactory"/>.
 /// </summary>
+[Collection(RespawnerFactoryStaticStateDefinition.Name)]
 public sealed class RespawnerFactoryTests
 {
     #region Create Tests
