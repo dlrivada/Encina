@@ -1,0 +1,1 @@
+- The Dapper SQL Server and MySQL inbox stores now delete expired messages in chunks of 1000 ids, so `RemoveExpiredMessagesAsync` no longer exceeds the provider parameter limit (2100 on SQL Server) when `InboxOptions.PurgeBatchSize` is large (#3045).
