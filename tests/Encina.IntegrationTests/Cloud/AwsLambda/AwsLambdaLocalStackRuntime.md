@@ -19,7 +19,7 @@ The in-process integration tests of this folder drive `Encina.AwsLambda` with re
 
 ## Recommended Alternative
 
-Open a follow-up `[TEST]` issue for a LocalStack Lambda smoke test: a `Cloud-LocalStack` fixture variant (or an option of the current one) that mounts the Docker socket, a small function project published for `provided.al2023`, and a decision on whether `Amazon.Lambda.RuntimeSupport` and `AWSSDK.Lambda` enter `Directory.Packages.props`. Until then, the package README states that AWS Lambda support is tested only locally in-process and that running it in a real Lambda runtime is the user's responsibility.
+Follow-up #3048 (`[TEST]`, LocalStack Lambda smoke test): a `Cloud-LocalStack` fixture variant (or an option of the current one) that mounts the Docker socket, a small function project published for `provided.al2023`, and a decision on whether `Amazon.Lambda.RuntimeSupport` and `AWSSDK.Lambda` enter `Directory.Packages.props`. Until then, the package README states that AWS Lambda support is tested only locally in-process and that running it in a real Lambda runtime is the user's responsibility.
 
 ## Related Files
 
@@ -27,6 +27,7 @@ Open a follow-up `[TEST]` issue for a LocalStack Lambda smoke test: a `Cloud-Loc
 - `tests/Encina.TestInfrastructure/Fixtures/LocalStackFixture.cs`
 - `src/Encina.AwsLambda/README.md`
 - `.github/coverage-manifest/Encina.AwsLambda.json`
+- #3048 - LocalStack Lambda smoke test (follow-up)
 
 ## Date: 2026-10-28
 
