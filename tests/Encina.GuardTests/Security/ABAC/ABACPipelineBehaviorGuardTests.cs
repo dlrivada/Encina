@@ -38,6 +38,7 @@ public class ABACPipelineBehaviorGuardTests
             Compiler,
             Options.Create(new ABACOptions()),
             Substitute.For<IABACDecisionRecorder>(),
+            new NoAccessElevationGate(),
             TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
@@ -55,6 +56,7 @@ public class ABACPipelineBehaviorGuardTests
             Compiler,
             Options.Create(new ABACOptions()),
             Substitute.For<IABACDecisionRecorder>(),
+            new NoAccessElevationGate(),
             TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
@@ -72,6 +74,7 @@ public class ABACPipelineBehaviorGuardTests
             Compiler,
             Options.Create(new ABACOptions()),
             Substitute.For<IABACDecisionRecorder>(),
+            new NoAccessElevationGate(),
             TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
@@ -89,6 +92,7 @@ public class ABACPipelineBehaviorGuardTests
             null!,
             Options.Create(new ABACOptions()),
             Substitute.For<IABACDecisionRecorder>(),
+            new NoAccessElevationGate(),
             TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
@@ -106,6 +110,7 @@ public class ABACPipelineBehaviorGuardTests
             Compiler,
             null!,
             Substitute.For<IABACDecisionRecorder>(),
+            new NoAccessElevationGate(),
             TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
@@ -123,6 +128,7 @@ public class ABACPipelineBehaviorGuardTests
             Compiler,
             Options.Create(new ABACOptions()),
             null!,
+            new NoAccessElevationGate(),
             TimeProvider.System,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
@@ -140,6 +146,7 @@ public class ABACPipelineBehaviorGuardTests
             Compiler,
             Options.Create(new ABACOptions()),
             Substitute.For<IABACDecisionRecorder>(),
+            new NoAccessElevationGate(),
             null!,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
@@ -157,6 +164,7 @@ public class ABACPipelineBehaviorGuardTests
             Compiler,
             Options.Create(new ABACOptions()),
             Substitute.For<IABACDecisionRecorder>(),
+            new NoAccessElevationGate(),
             TimeProvider.System,
             null!);
 
@@ -434,7 +442,7 @@ public class ABACPipelineBehaviorGuardTests
 
         return new ABACPipelineBehavior<TestRequest, string>(
             pdp, attributeProvider, obligationExecutor, Compiler, options,
-            recorder ?? Substitute.For<IABACDecisionRecorder>(), TimeProvider.System, logger);
+            recorder ?? Substitute.For<IABACDecisionRecorder>(), new NoAccessElevationGate(), TimeProvider.System, logger);
     }
 
     private static IAttributeProvider CreateDefaultAttributeProvider()

@@ -42,11 +42,21 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <_ProjectDirectoryNormalized>$([System.String]::Copy('$(MSBuildProjectDirectory)').Replace('\\','/').ToLowerInvariant())</_ProjectDirectoryNormalized>
+    <_ProjectDirectoryNormalized>$([System.String]::Copy('$(MSBuildProjectDirectory)').Replace('\','/').ToLowerInvariant())</_ProjectDirectoryNormalized>
   </PropertyGroup>
 
   <PropertyGroup Condition="$([System.String]::Copy('$(_ProjectDirectoryNormalized)').Contains('/tests/'))">
     <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
+  </PropertyGroup>
+
+  <!--
+    Every project under src/ ships as a NuGet package (SPEC-000 REQ-001: one authoritative list of
+    what ships; the path rule derives that list from src/ instead of repeating it in each csproj).
+    An exception is a single <IsPackable>false</IsPackable> in its csproj, recorded by the package
+    manifest of #1362. Projects under tools/ are not covered; they set IsPackable themselves.
+  -->
+  <PropertyGroup Condition="$([System.String]::Copy('$(_ProjectDirectoryNormalized)').Contains('/src/'))">
+    <IsPackable Condition="'$(IsPackable)' == ''">true</IsPackable>
   </PropertyGroup>
 
   <!-- xunit.analyzers (test projects only) -->

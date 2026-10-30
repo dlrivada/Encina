@@ -47,7 +47,7 @@ namespace Encina.Audit.Marten.Crypto;
 ///
 /// // Later, crypto-shred entries older than 7 years
 /// var cutoff = DateTime.UtcNow.AddDays(-2555);
-/// var destroyResult = await keyProvider.DestroyKeysBeforeAsync(cutoff, cancellationToken);
+/// var destroyResult = await keyProvider.DestroyKeysBeforeAsync(cutoff, TemporalKeyGranularity.Monthly, cancellationToken: cancellationToken);
 /// </code>
 /// </example>
 public interface ITemporalKeyProvider
@@ -107,10 +107,18 @@ public interface ITemporalKeyProvider
     /// <param name="granularity">
     /// The temporal granularity to use when determining which periods are affected.
     /// </param>
+    /// <param name="reference">
+    /// Why the keys are destroyed, recorded in the destroyed marker of every period destroyed: an
+    /// <see cref="ErasureReference"/> from an erasure request (no flow in the repository passes one yet, issue #2847; fields then read <c>[SHREDDED]</c>) or a
+    /// <see cref="RetentionReference"/> from a retention execution (fields then read <c>[EXPIRED]</c> and the shard
+    /// keeps running). With <c>null</c> the destruction is unrecorded: the audit projections do not treat it as a
+    /// lawful erasure or expiry and fail with <see cref="Events.EncryptedFieldDecryptionException"/> (issue #2770).
+    /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>
     /// <c>Right&lt;int&gt;</c> with the number of periods whose keys were destroyed, or
-    /// <c>Left&lt;EncinaError&gt;</c> if the destruction fails.
+    /// <c>Left&lt;EncinaError&gt;</c> if the destruction fails or <paramref name="reference"/> is not valid
+    /// (<see cref="KeyDestructionReference.IsValid"/>), in which case nothing is destroyed.
     /// </returns>
     /// <remarks>
     /// <para>
@@ -128,6 +136,7 @@ public interface ITemporalKeyProvider
     ValueTask<Either<EncinaError, int>> DestroyKeysBeforeAsync(
         DateTime olderThanUtc,
         TemporalKeyGranularity granularity,
+        KeyDestructionReference? reference = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -141,8 +150,9 @@ public interface ITemporalKeyProvider
     /// <c>Left&lt;EncinaError&gt;</c> if the check fails.
     /// </returns>
     /// <remarks>
-    /// Used by projections and read models to determine whether to show placeholder values
-    /// (e.g., <c>[SHREDDED]</c>) instead of attempting decryption.
+    /// Reports destruction only; it does not say why. The audit projections show <c>[SHREDDED]</c> only when the
+    /// destroyed marker carries an <see cref="ErasureReference"/> and <c>[EXPIRED]</c> only when it carries a
+    /// <see cref="RetentionReference"/>.
     /// </remarks>
     ValueTask<Either<EncinaError, bool>> IsKeyDestroyedAsync(
         string period,

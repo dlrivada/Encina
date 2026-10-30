@@ -541,7 +541,7 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
     [Fact]
     public async Task HealthCheck_DecryptPhaseFailure_FailsClosed()
     {
-        var failing = new StubFieldEncryptor(StubValue(), EncryptionErrors.DecryptionFailed(KeyId));
+        var failing = new StubFieldEncryptor(StubValue(), EncryptionErrors.InvalidCiphertext());
         var services = new ServiceCollection();
         services.AddSingleton<IKeyProvider>(_keys);
         services.AddSingleton<IFieldEncryptor>(failing);
@@ -550,7 +550,7 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
         var result = await new EncryptionHealthCheck(provider).CheckHealthAsync(new HealthCheckContext());
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldNotBeNull().ShouldContain(EncryptionErrors.DecryptionFailedCode);
+        result.Description.ShouldNotBeNull().ShouldContain(EncryptionErrors.InvalidCiphertextCode);
     }
 
     [Fact]
@@ -641,22 +641,23 @@ public sealed class EncryptionBehaviorContractTests : IDisposable
     public void EncryptionErrors_CarryCodeStageAndRelevantMetadata()
     {
         var notFound = EncryptionErrors.KeyNotFound("k1");
-        var failed = EncryptionErrors.DecryptionFailed("k1", "Email", new CryptographicException("boom"));
+        var failed = EncryptionErrors.EncryptionFailed("k1", new CryptographicException("boom"));
         var invalid = EncryptionErrors.InvalidCiphertext("Email");
         var unsupported = EncryptionErrors.AlgorithmNotSupported(EncryptionAlgorithm.Aes256Gcm);
         var rotation = EncryptionErrors.KeyRotationFailed(new InvalidOperationException());
 
         notFound.GetCode().IfNone("").ShouldBe(EncryptionErrors.KeyNotFoundCode);
         notFound.Message.ShouldContain("k1");
-        failed.GetCode().IfNone("").ShouldBe(EncryptionErrors.DecryptionFailedCode);
-        failed.Message.ShouldContain("Email");
+        failed.GetCode().IfNone("").ShouldBe(EncryptionErrors.EncryptionFailedCode);
+        failed.Message.ShouldContain("k1");
+        failed.Message.ShouldNotContain("boom");
         failed.GetCause().IsSome.ShouldBeTrue();
         invalid.GetCode().IfNone("").ShouldBe(EncryptionErrors.InvalidCiphertextCode);
         invalid.Message.ShouldContain("Email");
         unsupported.GetCode().IfNone("").ShouldBe(EncryptionErrors.AlgorithmNotSupportedCode);
         unsupported.Message.ShouldContain("Aes256Gcm");
         rotation.GetCode().IfNone("").ShouldBe(EncryptionErrors.KeyRotationFailedCode);
-        EncryptionErrors.DecryptionFailed("k1").Message.ShouldNotContain("property");
+        EncryptionErrors.EncryptionFailed("k1").Message.ShouldNotContain("property");
         EncryptionErrors.InvalidCiphertext().Message.ShouldNotContain("property");
     }
 

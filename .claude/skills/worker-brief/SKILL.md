@@ -18,6 +18,8 @@ The orchestrator itself does not edit `src/` or `tests/` (the `guard-orchestrato
 
    **Template check (maintainer decision of 2026-10-07, #1980).** An issue whose body does not follow its template (title prefix to `.github/ISSUE_TEMPLATE/<template>`, level-2 headers verbatim and in order) is first rewritten to the template, content preserved and re-checked against today's code, before the brief is written, even months after it was opened. The PreToolUse hook `.claude/hooks/check-target-issue-template.ps1` enforces it: it denies the spawn of `issue-worker` or `docs-writer` when the issue named by the `Issue #<n>` that opens the brief's first line lacks the headers, so the brief must start with `Issue #<n>`.
 
+   **Size rule (EPIC #2845 working rule, #2900).** A worker is briefed only on a ready sub-issue: one worker PR, **one package or provider, at most 15 files and 1500 changed lines**, with an exact file list, a measured baseline (with the command that measured it), per-file targets each with a one-sentence justification (for `src/` changes) and verifiable acceptance (commands). An EPIC, or any issue larger than that, is decomposed into sub-issues first and the sub-issue is briefed. The brief declares the size on a line `Size: <files> files, <lines> lines` directly under the `Issue #<n>` line; the same hook, `.claude/hooks/check-target-issue-template.ps1`, denies the spawn when the line is missing, malformed, followed by other text or not the only `Size:` line of the brief, when it is over 15 files or 1500 lines or below 1 file, when the issue's title starts with `[EPIC]`, and when the distinct backticked paths listed in the `- **File(s)**` bullet of the issue's `## Component Affected` or `## Location` section exceed 15 or exceed the declared files. Counted are the backticked paths on the File(s) bullet's first line and the ones that open its nested list items; reference paths in other bullets or sections are ignored, and an issue without a File(s) bullet skips the check. The hook checks the declaration, not the diff: `adversarial-reviewer` compares `git diff --shortstat` with the `Size:` line in review, and the CI check of the real size is #2901.
+
 2. Create the worktree: `git worktree add D:\Proyectos\Encina\.claude\worktrees\<name> -b <branch> <base>`.
 3. Choose the agent: `docs-writer` when the issue is documentation (pages under `docs/`, package READMEs, `CONTRIBUTING.md`); `issue-worker` for everything else, including code changes that also need documentation (the issue-worker spawns `docs-writer` for that part).
 4. Choose the model. Workers run on Sonnet. Pass `model: opus` to the Agent call only when the brief states why in one line: the root cause is unknown, or the task is design-heavy. Keep the brief small (this fixed part plus a closed variable part), so the worker finishes within its turn limit: a resume re-reads the whole context it had already paid for.
@@ -29,6 +31,7 @@ The orchestrator itself does not edit `src/` or `tests/` (the `guard-orchestrato
 
 ```text
 Issue #<n> (read it with its comments: gh issue view <n> --repo dlrivada/Encina --comments). Worktree <wt>, branch <branch>, base <base>.
+Size: <files> files, <lines> lines
 
 Rules:
 - Use ABSOLUTE paths for every read and write, inside the worktree only. Your shell starts in the main
@@ -142,5 +145,7 @@ Scope: <files, packages, providers in and out>.
 Decisions: <every design choice already made, with its reason; say which ones the worker may not revisit>.
 Acceptance: <numbered, checkable criteria; the tests or commands that prove each one>.
 ```
+
+Decompose first (#2900): when the issue is an EPIC or its file list or estimate exceeds 15 files or 1500 lines, do not write this part; split it into ready sub-issues (section 1, Size rule) and brief one of them. The `Size:` line of the fixed part states the sub-issue's size.
 
 Short is better: the fixed part carries the protocol, and the agent definition carries the rest.

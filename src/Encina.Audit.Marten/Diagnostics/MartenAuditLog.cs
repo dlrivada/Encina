@@ -20,6 +20,7 @@ namespace Encina.Audit.Marten.Diagnostics;
 /// <item><term>2560-2569</term><description>Query operations (read from projections)</description></item>
 /// <item><term>2570-2579</term><description>Crypto-shredding / purge operations</description></item>
 /// <item><term>2580-2589</term><description>Key management and retention service</description></item>
+/// <item><term>2590-2599</term><description>Startup validation</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -237,4 +238,35 @@ internal static partial class MartenAuditLog
     internal static partial void TemporalKeyNotFound(
         ILogger logger,
         string period);
+
+    // ========================================================================
+    // Startup validation (2590-2592)
+    // ========================================================================
+
+    /// <summary>The fail-closed projection error-policy check was skipped through the explicit opt-out.</summary>
+    [LoggerMessage(
+        EventId = 2590,
+        Level = LogLevel.Warning,
+        Message = "Marten audit projection error-policy check bypassed: {OptionName} is enabled and {SkippingFlagCount} projection error flag(s) skip failing events; an audit event that fails to project can be lost from the read model without a stop")]
+    internal static partial void ProjectionErrorPolicyCheckSkipped(
+        ILogger logger,
+        string optionName,
+        int skippingFlagCount);
+
+    /// <summary>The audit projections cannot start because Marten's projection error flags skip failing events.</summary>
+    [LoggerMessage(
+        EventId = 2591,
+        Level = LogLevel.Error,
+        Message = "Marten audit projections cannot start: {SkippingFlagCount} projection error flag(s) skip failing events and AllowSkippedProjectionErrors is not enabled")]
+    internal static partial void ProjectionErrorPolicyViolated(
+        ILogger logger,
+        int skippingFlagCount);
+
+    /// <summary>The audit projections cannot start because the store's projection error flags cannot be read.</summary>
+    [LoggerMessage(
+        EventId = 2592,
+        Level = LogLevel.Error,
+        Message = "Marten audit projections cannot start: the store's projection error flags cannot be read, so the fail-closed check cannot run")]
+    internal static partial void ProjectionErrorPolicyUnverifiable(
+        ILogger logger);
 }

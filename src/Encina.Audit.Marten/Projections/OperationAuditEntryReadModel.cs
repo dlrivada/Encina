@@ -133,6 +133,13 @@ public sealed class OperationAuditEntryReadModel
     public bool IsShredded { get; set; }
 
     /// <summary>
+    /// Indicates whether this entry's PII fields expired under a retention policy: the temporal keys were destroyed
+    /// by a recorded retention execution, so the PII fields contain the expired placeholder (default <c>[EXPIRED]</c>).
+    /// Mutually exclusive with <see cref="IsShredded"/>.
+    /// </summary>
+    public bool IsExpired { get; set; }
+
+    /// <summary>
     /// The temporal key period used to encrypt this entry's PII fields (e.g., <c>"2026-03"</c>).
     /// </summary>
     public string TemporalKeyPeriod { get; set; } = string.Empty;

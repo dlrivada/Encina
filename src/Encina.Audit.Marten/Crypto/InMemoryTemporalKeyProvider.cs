@@ -185,12 +185,14 @@ public sealed class InMemoryTemporalKeyProvider : ITemporalKeyProvider
     public ValueTask<Either<EncinaError, int>> DestroyKeysBeforeAsync(
         DateTime olderThanUtc,
         TemporalKeyGranularity granularity,
+        KeyDestructionReference? reference = null,
         CancellationToken cancellationToken = default)
     {
-        if (cancellationToken.IsCancellationRequested)
+        // The reference is validated but not kept: this provider has no destroyed marker and no projection reads it.
+        var rejection = RejectDestroyRequest(olderThanUtc, reference, cancellationToken);
+        if (rejection is { } error)
         {
-            return ValueTask.FromResult<Either<EncinaError, int>>(
-                Left(MartenAuditErrors.KeyDestructionFailed(olderThanUtc)));
+            return ValueTask.FromResult<Either<EncinaError, int>>(Left(error));
         }
 
         try
@@ -203,31 +205,9 @@ public sealed class InMemoryTemporalKeyProvider : ITemporalKeyProvider
             {
                 var period = kvp.Key;
                 var state = kvp.Value;
-
-                lock (state.SyncRoot)
+                if (TryDestroyPeriod(state, cutoff, now))
                 {
-                    if (state.IsDestroyed)
-                    {
-                        continue;
-                    }
-
-                    // Check if all keys in this period are older than cutoff
-                    if (state.Keys.Count == 0 || !state.Keys.TrueForAll(k => k.CreatedAtUtc < cutoff))
-                    {
-                        continue;
-                    }
-
-                    // Destroy all keys
-                    foreach (var key in state.Keys)
-                    {
-                        CryptographicOperations.ZeroMemory(key.KeyMaterial);
-                    }
-
-                    state.Keys.Clear();
-                    state.IsDestroyed = true;
-                    state.DestroyedAtUtc = now;
                     destroyedCount++;
-
                     _logger.LogInformation(
                         "Destroyed temporal keys for period {Period} (crypto-shredding)",
                         period);
@@ -240,6 +220,45 @@ public sealed class InMemoryTemporalKeyProvider : ITemporalKeyProvider
         {
             return ValueTask.FromResult<Either<EncinaError, int>>(
                 Left(MartenAuditErrors.KeyDestructionFailed(olderThanUtc, ex)));
+        }
+    }
+
+    private static EncinaError? RejectDestroyRequest(
+        DateTime olderThanUtc,
+        KeyDestructionReference? reference,
+        CancellationToken cancellationToken)
+    {
+        if (MartenAuditErrors.RejectInvalidReference(reference) is { } invalid)
+        {
+            return invalid;
+        }
+
+        return cancellationToken.IsCancellationRequested
+            ? MartenAuditErrors.KeyDestructionFailed(olderThanUtc)
+            : (EncinaError?)null;
+    }
+
+    /// <summary>
+    /// Destroys the keys of one period when every key predates the cutoff and the period is not destroyed yet.
+    /// </summary>
+    private static bool TryDestroyPeriod(PeriodState state, DateTimeOffset cutoff, DateTimeOffset now)
+    {
+        lock (state.SyncRoot)
+        {
+            if (state.IsDestroyed || state.Keys.Count == 0 || !state.Keys.TrueForAll(k => k.CreatedAtUtc < cutoff))
+            {
+                return false;
+            }
+
+            foreach (var key in state.Keys)
+            {
+                CryptographicOperations.ZeroMemory(key.KeyMaterial);
+            }
+
+            state.Keys.Clear();
+            state.IsDestroyed = true;
+            state.DestroyedAtUtc = now;
+            return true;
         }
     }
 

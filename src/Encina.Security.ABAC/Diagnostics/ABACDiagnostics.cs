@@ -149,6 +149,9 @@ internal static class ABACDiagnostics
     internal const string TagFailureMode = "abac.failure_mode";
     internal const string TagErrorType = "error.type";
 
+    // Break-the-glass: a boolean only, never an elevation or subject id (SPEC-002 REQ-062).
+    internal const string TagBreakGlass = "abac.break_glass";
+
     // PAP-specific tags
     internal const string TagOperation = "abac.operation";
     internal const string TagEntityType = "abac.entity_type";
@@ -182,6 +185,10 @@ internal static class ABACDiagnostics
         activity?.SetTag(TagPolicyId, policyId);
         activity?.SetStatus(ActivityStatusCode.Error, reason);
     }
+
+    // The policy verdict stays Deny (counters, span status); the tag marks that an elevation overrode it.
+    internal static void RecordBreakGlass(Activity? activity) =>
+        activity?.SetTag(TagBreakGlass, true);
 
     internal static void RecordIndeterminate(Activity? activity, string reason)
     {

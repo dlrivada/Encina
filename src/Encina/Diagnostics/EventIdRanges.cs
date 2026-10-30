@@ -359,7 +359,8 @@ public static class EventIdRanges
     /// <summary>
     /// Encina.Security.ABAC — attribute-based access control.
     /// The ABAC [LoggerMessage] ids are allocated inside 9000-9099 (see ABACLogMessages.cs, PersistentPolicyAdministrationPoint.cs and ABACPolicySeedingHostedService.cs).
-    /// Unused ids to reuse first: 9006-9007, 9016-9019, 9023-9029, 9041-9049, 9056-9057.
+    /// Unused ids to reuse first: 9007, 9016-9019, 9023-9029, 9041-9049, 9056-9057.
+    /// Used: 9006 by the break-the-glass gate integration of #1244 (ABAC enforcement overridden by an emergency elevation).
     /// Used: 9079-9090 by the decision audit of #751 (9084, 9086 and 9087 are its startup check).
     /// </summary>
     public static readonly (int Min, int Max) SecurityABAC = (9000, 9099);
@@ -389,6 +390,9 @@ public static class EventIdRanges
 
     /// <summary>Encina.Compliance.Attestation — tamper-evident audit attestation.</summary>
     public static readonly (int Min, int Max) ComplianceAttestation = (9600, 9699);
+
+    /// <summary>Encina.Security.BreakTheGlass — break-the-glass emergency access (gate, sweeper, health, start-up).</summary>
+    public static readonly (int Min, int Max) SecurityBreakTheGlass = (9750, 9799);
 
     /// <summary>
     /// Returns all registered ranges for validation and diagnostics.

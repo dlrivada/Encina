@@ -60,8 +60,11 @@ public sealed record ABACDecisionAuditRecord
     /// <summary>The reason code of the outcome (an <see cref="ABACErrors"/> code, or <see cref="ABACDecisionAuditSchema.PermitReasonCode"/>).</summary>
     public string? ReasonCode { get; init; }
 
-    /// <summary><c>false</c> for a definite denial that Warn mode let through; <c>true</c> otherwise.</summary>
+    /// <summary><c>false</c> for a definite denial that Warn mode let through or that an elevation overrode; <c>true</c> otherwise.</summary>
     public required bool Enforced { get; init; }
+
+    /// <summary>The id of the break-the-glass elevation that overrode a denial; <c>null</c> for every other decision.</summary>
+    public Guid? ElevationId { get; init; }
 
     /// <summary>The enforcement mode in force when the decision was made, when stored.</summary>
     public ABACEnforcementMode? EnforcementMode { get; init; }

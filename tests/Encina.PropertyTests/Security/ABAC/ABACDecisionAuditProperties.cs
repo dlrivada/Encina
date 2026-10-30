@@ -88,6 +88,7 @@ public sealed class ABACDecisionAuditProperties
             Compiler,
             Options.Create(options),
             recorder,
+            new NoAccessElevationGate(),
             TimeProvider.System,
             NullLogger<ABACPipelineBehavior<GuardedRequest, string>>.Instance);
 

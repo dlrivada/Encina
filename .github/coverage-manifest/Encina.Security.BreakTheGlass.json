@@ -1,7 +1,7 @@
 {
   "package": "Encina.Security.BreakTheGlass",
   "generated": "2026-10-22T00:00:00Z",
-  "totalFiles": 23,
+  "totalFiles": 32,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -92,13 +92,13 @@
       "reason": "Configuration POCO with defaults and validation",
       "targets": {
         "unit": 100,
-        "guard": 40,
-        "property": 30
+        "guard": 45,
+        "property": 40
       },
       "justifications": {
         "unit": "The option defaults, the elevation duration and the review settings are asserted by the options unit tests (measured 100%).",
-        "guard": "Guard tests (Options_DeclareScope) exercise the argument validation of DeclareScope; the other option properties have no guard test (measured 44.44%).",
-        "property": "Covered incidentally by BreakTheGlassGateProperties, which builds default BreakTheGlassOptions for the gate; no property targets option values or duration bounds (measured 33.33%)."
+        "guard": "Guard tests (Options_DeclareScope) exercise the argument validation of DeclareScope; the other option properties have no guard test (measured 46.15%).",
+        "property": "Covered incidentally by BreakTheGlassGateProperties, which builds default BreakTheGlassOptions for the gate; no property targets option values or duration bounds (measured 42.31%)."
       }
     },
     "BreakTheGlassReadAudit.cs": {
@@ -110,6 +110,86 @@
       },
       "justifications": {
         "unit": "The file holds only const strings, so it has no coverable lines."
+      }
+    },
+    "ServiceCollectionExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "DI registration extensions with the gate, store, hosted service and health check precedence rules",
+      "targets": {
+        "unit": 100,
+        "guard": 8,
+        "contract": 95,
+        "property": 95
+      },
+      "justifications": {
+        "unit": "BreakTheGlassRegistrationTests build the provider with ValidateOnBuild and ValidateScopes in both registration orders and cover gate and store precedence, hosted services and the health check (measured 100%).",
+        "guard": "BreakTheGlassOperationsGuardTests.AddEncinaBreakTheGlass_RejectsNullArguments rejects the null registration arguments (measured 8.82%).",
+        "contract": "BreakTheGlassOperationsContractTests register and start the services through AddEncinaBreakTheGlass (measured 97.06%).",
+        "property": "BreakTheGlassGateProperties.ExpiredElevation_IsNeverHonouredAgain_AndRecordedOnce_AcrossSweeperRuns builds the container for every generated case (measured 97.06%)."
+      }
+    },
+    "Diagnostics/BreakTheGlassDiagnostics.cs": {
+      "defaultTests": [
+        "unit",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Static counters for break-the-glass accesses and sweeper expiries",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "contract": 0,
+        "property": 95
+      },
+      "justifications": {
+        "unit": "BreakTheGlassAccessGateTests and BreakTheGlassExpiryServiceTests drive every counter this class declares (measured 100%).",
+        "guard": "The class holds static counters with no parameters to guard (measured 0%).",
+        "contract": "The static counters are not part of a contract (measured 0%).",
+        "property": "The sweeper property and the gate properties (access path) drive the counters for generated elevations, so the expiry and access counters are exercised on every generated case (measured 100%)."
+      }
+    },
+    "Diagnostics/BreakTheGlassLogMessages.cs": {
+      "defaultTests": [],
+      "defaultRule": "*LogMessages.cs",
+      "reason": "Source-generated [LoggerMessage] partial methods",
+      "targets": {
+        "unit": 0,
+        "guard": 0,
+        "contract": 0,
+        "property": 0
+      },
+      "justifications": {
+        "unit": "Source-generated [LoggerMessage] partial methods have no coverable lines; the messages are asserted by event id in BreakTheGlassAccessGateTests, BreakTheGlassExpiryServiceTests and BreakTheGlassOperationsTests; event id 9765 (access refused for a missing tenant) is asserted in BreakTheGlassAccessGateTests (measured no data).",
+        "guard": "The source-generated partials take no parameters that a guard could check (measured no data).",
+        "contract": "Log messages are not part of a public contract; they are asserted by event id in the unit tests (measured no data).",
+        "property": "No invariant applies to log message declarations; they are asserted by event id in the unit tests (measured no data)."
+      }
+    },
+    "Health/BreakTheGlassHealthCheck.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*HealthCheck.cs",
+      "reason": "Health check reporting the break-the-glass service state",
+      "targets": {
+        "unit": 95,
+        "guard": 9,
+        "contract": 75,
+        "property": 0
+      },
+      "justifications": {
+        "unit": "BreakTheGlassOperationsTests Health_* drive the probe result, the Degraded and Unhealthy mappings and the ready tag (measured 100%).",
+        "guard": "BreakTheGlassOperationsGuardTests.HealthCheck_RejectsEachNullDependency rejects the null dependencies (measured 9.76%). The remaining lines are the probe-to-state mapping, which no argument check reaches.",
+        "contract": "BreakTheGlassOperationsContractTests.HealthCheck_* read the probe through IHealthCheck (measured 75.61%).",
+        "property": "No invariant beyond the examples; the health states are asserted by example-based unit tests (measured 0%)."
       }
     },
     "Gate/BreakTheGlassAccessGate.cs": {
@@ -127,9 +207,9 @@
         "contract": 0
       },
       "justifications": {
-        "unit": "Every grant, refusal and fail-closed branch of the gate, including the single read of the request identity, is asserted by the unit tests (measured 100%).",
-        "guard": "Guard tests (Gate_Constructor_RejectsEachNullDependency and Gate_Methods) reject the null constructor and method arguments of the gate (measured 28.95%).",
-        "property": "FsCheck properties over the elevation expiry check the gate outcome for generated instants (measured 95%).",
+        "unit": "Every grant, refusal and fail-closed branch of the gate, including the single read of the request identity and the RequireTenant refusal before any store call, is asserted by the unit tests (measured 100%).",
+        "guard": "Guard tests (Gate_Constructor_RejectsEachNullDependency and Gate_Methods) reject the null constructor and method arguments of the gate (measured 28.09%). The guard flag can reach no more because the gate's other lines are decisions, not argument checks.",
+        "property": "FsCheck properties cover the expiry window, closed elevations, a required tenant that is missing, a failing store lookup and the reuse of a held grant; the audit-failure branch is driven by the unit tests only (measured 97.75%).",
         "contract": "Contract tests exercise the store and the no-op gate interfaces only, not this gate (measured 0%)."
       }
     },
@@ -313,6 +393,91 @@
         "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%)."
       }
     },
+    "Services/BreakTheGlassExpiryService.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property"
+      ],
+      "defaultRule": "*Service.cs",
+      "reason": "Background sweeper that records each expired elevation exactly once",
+      "targets": {
+        "unit": 90,
+        "guard": 12,
+        "contract": 75,
+        "property": 68
+      },
+      "justifications": {
+        "unit": "BreakTheGlassExpiryServiceTests cover Active-past-expiry, Expired-unrecorded, two sweepers, audit failures that continue, store failures that stop, cycles not marked completed and the loop (measured 94.2%).",
+        "guard": "ExpiryService_RejectsEachNullDependency rejects the null constructor arguments (measured 12.38%).",
+        "contract": "ExpirySweeper_FollowsTheStoreContract_ClosedRowsAreRecordedOnce and HostedServices_StartAndStopCleanly_InRegistrationOrder run the sweeper through the store contract (measured 78.1%). The contract tests never drive the failure paths of the sweep, which only the unit flag reaches.",
+        "property": "ExpiredElevation_IsNeverHonouredAgain_AndRecordedOnce_AcrossSweeperRuns sweeps generated expired elevations (measured 69.52%). The property sweeps one tenant and one scope; the batch-limit and failure paths stay with the unit flag."
+      }
+    },
+    "Services/BreakTheGlassPurgeService.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*Service.cs",
+      "reason": "Opt-in background purge of closed break-the-glass rows past retention",
+      "targets": {
+        "unit": 90,
+        "guard": 18,
+        "contract": 28,
+        "property": 0
+      },
+      "justifications": {
+        "unit": "BreakTheGlassOperationsTests Purge_* cover the retention cutoff and the purge cycle (measured 95.7%).",
+        "guard": "PurgeService_RejectsEachNullDependency rejects the null constructor arguments (measured 18%).",
+        "contract": "HostedServices_StartAndStopCleanly_InRegistrationOrder starts and stops the purge service (measured 28%). The contract flag only starts and stops the service; the retention cycle itself is behaviour for the unit flag.",
+        "property": "No invariant beyond the examples; the example tests cover retention (measured 0%)."
+      }
+    },
+    "Services/BreakTheGlassStartupValidator.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Start-up check of the break-the-glass prerequisites per environment",
+      "targets": {
+        "unit": 92,
+        "guard": 13,
+        "contract": 55,
+        "property": 0
+      },
+      "justifications": {
+        "unit": "BreakTheGlassOperationsTests Startup_* cover the missing audit store, the in-memory audit and elevation stores per environment, the tenancy rule with and without opt-out, the eligible types and Enabled=false (measured 96.6%).",
+        "guard": "StartupValidator_RejectsEachNullDependency rejects the null constructor arguments (measured 13.79%).",
+        "contract": "HostedServices_StartAndStopCleanly_InRegistrationOrder runs the validator as a hosted service (measured 56.32%).",
+        "property": "No invariant beyond the examples; the start-up rules are asserted by example-based tests (measured 1.1%)."
+      }
+    },
+    "Services/BreakTheGlassSweepState.cs": {
+      "defaultTests": [
+        "unit",
+        "contract",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Thread-safe sweep state read by the sweeper and the health check",
+      "targets": {
+        "unit": 95,
+        "guard": 0,
+        "contract": 80,
+        "property": 16
+      },
+      "justifications": {
+        "unit": "The sweeper and health tests read and write the sweep state on every cycle (measured 100%).",
+        "guard": "The class validates no arguments and exposes no guarded member (measured 0%).",
+        "contract": "The sweeper contract test reads the state after each cycle (measured 83.33%).",
+        "property": "The sweeper property reads the state for generated expired elevations (measured 16.67%). The property flag can reach no more: the sweeper property only writes the completion time of generated cycles, and the started-at and read members are driven by the unit and contract tests."
+      }
+    },
     "Services/DefaultBreakTheGlassService.cs": {
       "defaultTests": [
         "unit",
@@ -352,6 +517,27 @@
         "guard": "Guard tests reject the null arguments of the store methods only; the store bodies are behaviour covered by the unit flag (measured 10%).",
         "contract": "Contract tests run the store through IBreakTheGlassStore for add, lookup, tenant isolation, conditional updates, review listing and purge (measured 88.78%).",
         "property": "Covered incidentally by BreakTheGlassGateProperties, which adds generated elevations to the store and reads them back through the gate (measured 23.47%)."
+      }
+    },
+    "Validation/BreakTheGlassOptionsValidator.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*Validator.cs",
+      "reason": "Validates the break-the-glass options at start",
+      "targets": {
+        "unit": 95,
+        "guard": 2,
+        "contract": 100,
+        "property": 0
+      },
+      "justifications": {
+        "unit": "BreakTheGlassOptionsValidatorTests cover every rule and Enabled=false (measured 100%).",
+        "guard": "OptionsValidator_NullOptions rejects a null options argument (measured 2.2%).",
+        "contract": "OptionsValidator_IsRegisteredAsIValidateOptions_AndRejectsInvalidOptions resolves the validator from the container (measured 100%).",
+        "property": "No invariant beyond the examples; the rules are asserted by example-based unit tests (measured 0%)."
       }
     },
     "Validation/BreakTheGlassRequestValidator.cs": {

@@ -12,12 +12,23 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <IsRoslynComponent>true</IsRoslynComponent>
+    <!-- Roslyn analyzer packaging: the DLL ships under analyzers/dotnet/cs, never as a lib/ assembly -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <!-- Disable analyzers that don't apply to netstandard2.0 analyzer projects -->
     <EnableNETAnalyzers>false</EnableNETAnalyzers>
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
     <!-- Suppress warnings specific to netstandard2.0 constraints -->
-    <NoWarn>$(NoWarn);IDE0130;CA1014;RS1038</NoWarn>
+    <!-- NU5128: an analyzer-only package has no lib/ or ref/ assembly by design -->
+    <NoWarn>$(NoWarn);IDE0130;CA1014;RS1038;NU5128</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
