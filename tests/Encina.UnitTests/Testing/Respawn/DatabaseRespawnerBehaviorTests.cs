@@ -214,7 +214,8 @@ public sealed class DatabaseRespawnerBehaviorTests
         await Should.ThrowAsync<NotSupportedException>(() => respawner.InitializeAsync());
 
         // Assert - a second attempt fails the same way instead of blocking on the lock
-        await Should.ThrowAsync<NotSupportedException>(() => respawner.InitializeAsync());
+        await Should.ThrowAsync<NotSupportedException>(
+            () => respawner.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(5)));
     }
 
     [Fact]
@@ -248,7 +249,7 @@ public sealed class DatabaseRespawnerBehaviorTests
     }
 
     [Fact]
-    public async Task Options_WhenReplaced_AreUsedByTheNextInitialization()
+    public async Task Options_WithSchemaFiltersAndTemporalCheck_AreAcceptedByInitialization()
     {
         // Arrange
         await using var respawner = new TestRespawner(

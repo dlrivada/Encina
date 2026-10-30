@@ -64,6 +64,16 @@ public sealed class RespawnerFactoryTests
     }
 
     [Fact]
+    public void Create_UndefinedAdapter_ThrowsNotSupportedException()
+    {
+        // Act & Assert
+        var exception = Should.Throw<NotSupportedException>(() =>
+            RespawnerFactory.Create((RespawnAdapter)999, "Server=localhost"));
+
+        exception.Message.ShouldContain("999");
+    }
+
+    [Fact]
     public void Create_WithOptions_AppliesOptions()
     {
         // Arrange

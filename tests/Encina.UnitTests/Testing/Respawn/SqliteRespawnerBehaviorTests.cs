@@ -159,7 +159,8 @@ public sealed class SqliteRespawnerBehaviorTests : IAsyncLifetime
         await Should.ThrowAsync<SqliteException>(() => respawner.InitializeAsync());
 
         // Assert - a second attempt fails the same way instead of blocking on the lock
-        await Should.ThrowAsync<SqliteException>(() => respawner.InitializeAsync());
+        await Should.ThrowAsync<SqliteException>(
+            () => respawner.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(5)));
     }
 
     [Fact]
