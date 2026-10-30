@@ -21,8 +21,16 @@
 #     alone) whose pathspecs resolve there or to a checkout root;
 #   - `git apply` / `git am` whose patch names a file there, or whose patch cannot be read (stdin, a variable);
 #   - `dotnet run <file>.cs` / `dotnet run --file <file>.cs` / `pwsh`/`powershell -File <file>.ps1`: the hook
-#     reads the named script's own text and denies when it both references src/ or tests/ and contains a
-#     file-write API (_write-targets.ps1, Test-ScriptHasWriteApi/Test-ScriptReferencesPath), so a throwaway
+#     reads the named script's own text. A .ps1 is judged by its write targets (#2892,
+#     Test-ScriptWritesAreSafe in _write-targets.ps1: Set-Content, Add-Content, Out-File, New-Item, Copy-Item,
+#     redirections, [IO.File]:: and StreamWriter calls, resolved through the script's literal variables,
+#     Join-Path, concatenation and the literal arguments of its own functions): it is denied when a target
+#     resolves under src/ or tests/ (a relative target with a src or tests segment counts), and when it both
+#     references src/ or tests/ in its text and writes files that the analysis cannot show to be elsewhere
+#     (an unresolved target, a command or call it does not know, a nested launch). A mention of src/ or tests/
+#     in a string, comment or here-string is never a target by itself. Any other script (`dotnet run <file>.cs`)
+#     is denied when it both references src/ or tests/ and contains a file-write API
+#     (Test-ScriptHasWriteApi/Test-ScriptReferencesPath), so a throwaway
 #     probe script or `gh` stub outside src/ and tests/ runs freely (a relative path resolves against the
 #     payload cwd or a prior Set-Location; call-operator and quoted paths count). A script that the same
 #     command creates or overwrites is trusted only when every write to it is a literal in the command text: a
@@ -343,9 +351,18 @@ try {
         $candidates = [System.Collections.Generic.List[string]]::new()
         if (-not $sanctioned) { $candidates.Add($text) }
         if (@($own | Where-Object { $_.Append }).Count -gt 0 -and $null -ne $newText) { $candidates.Add($text + "`n" + $newText) }
+        # #2892: a PowerShell script is judged by where it writes, not by the words in its text. A write target that
+        # resolves under src/ or tests/ denies it; a text mention of those folders denies it only when the script
+        # writes files and the analysis cannot show that every write target is elsewhere (Test-ScriptWritesAreSafe,
+        # _write-targets.ps1). Other scripts (`dotnet run <file>.cs`) keep the text rule.
         foreach ($candidate in $candidates) {
-            if ((Test-ScriptHasWriteApi $candidate) -and (Test-ScriptReferencesPath $candidate $guardedTokens)) {
-                Write-Block "runs '$($s.Full)' ($($s.Kind)), which references src/ or tests/ and writes files$(if ($own.Count -gt 0) { ' (the text the same command writes into it is judged too)' })"
+            $analysis = if ($s.Full -match '(?i)\.ps1$') { Test-ScriptWritesAreSafe -Text $candidate -ScriptFull $s.Full -Base $s.Base -Layout $layout } else { $null }
+            $note = if ($own.Count -gt 0) { ' (the text the same command writes into it is judged too)' } else { '' }
+            if ($null -ne $analysis -and $analysis.Verdict -eq 'Guarded') {
+                Write-Block "runs '$($s.Full)' ($($s.Kind)), which writes to src/ or tests/ ($($analysis.Detail))$note"
+            }
+            if ((Test-ScriptHasWriteApi $candidate) -and (Test-ScriptReferencesPath $candidate $guardedTokens) -and ($null -eq $analysis -or $analysis.Verdict -ne 'Safe')) {
+                Write-Block "runs '$($s.Full)' ($($s.Kind)), which references src/ or tests/ and writes files$note$(if ($null -ne $analysis -and $analysis.Detail) { " (the hook could not show that every write target is outside them: $($analysis.Detail))" })"
             }
         }
     }
