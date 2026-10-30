@@ -465,6 +465,39 @@ Set-Content $scriptWritesDocs 'File.WriteAllText("docs/x.md", "y");'
 Set-Content $scriptWritesTestsPs1 "Set-Content 'tests/x.cs' 'y'"
 Set-Content $scriptWritesDocsPs1 "Set-Content 'docs/x.md' 'y'"
 
+# #2892: a .ps1 is judged by where it writes, not by the src/ and tests/ words in its text. Each script is the
+# text of one scenario; $main is interpolated, every script variable is escaped with a backtick.
+$ps1Scripts = [ordered]@{
+    HereStringArtifacts = "`$dir = '$main\artifacts\issues\drafts'`n`$body = @'`nNew tests: tests/Encina.UnitTests/X.cs`nSource: src/Encina.MongoDB/Y.cs`n'@`nSet-Content -Path (Join-Path `$dir 'a.md') -Value `$body`n"
+    SrcLiteral          = "Set-Content -Path '$main\src\Encina\X.cs' -Value 'y'`n"
+    UnresolvedVariable  = "`$p = `$env:ENCINA_HOOK_TEST_UNSET_VARIABLE`nSet-Content -Path `$p -Value 'src/ tests/'`n"
+    JoinPathSrc         = "`$root = '$main'`nSet-Content -Path (Join-Path (Join-Path `$root 'src') 'X.cs') -Value 'y'`n"
+    JoinPathArtifacts   = "`$root = '$main'`nSet-Content -Path (Join-Path `$root 'artifacts\a.md') -Value 'see src/ and tests/'`n"
+    RedirectTests       = "'y' > '$main\tests\X.cs'`n"
+    RedirectArtifacts   = "'see src/ and tests/' > '$main\artifacts\a.md'`n"
+    AddContentSrc       = "Add-Content -LiteralPath '$main\src\X.cs' -Value 'y'`n"
+    OutFileTests        = "'y' | Out-File -FilePath '$main\tests\X.cs'`n"
+    NewItemSrc          = "New-Item -ItemType File -Path '$main\src' -Name 'X.cs' | Out-Null`n"
+    NewItemArtifacts    = "New-Item -ItemType File -Path '$main\artifacts' -Name 'a.md' -Value 'src/ tests/' | Out-Null`n"
+    VariableAliasSrc    = "`$a = '$main\src\X.cs'`n`$b = `$a`nSet-Content `$b 'y'`n"
+    ConcatSrc           = "`$d = '$main\sr' + 'c'`nSet-Content (`$d + '\X.cs') 'y'`n"
+    IoFileSrc           = "[IO.File]::WriteAllText('$main\src\X.cs', 'y')`n"
+    CopyItemSrc         = "Copy-Item '$main\artifacts\a.md' '$main\src\X.cs'`n"
+    MoveItemTests       = "Move-Item -Path '$main\artifacts\a.md' -Destination '$main\tests\X.cs'`n"
+    DotDotSrc           = "Set-Content '$main\artifacts\..\src\X.cs' 'y'`n"
+    RelativeSrc         = "Set-Content 'src\X.cs' 'y'`n"
+    SplatSrc            = "`$h = @{ Path = '$main\src\X.cs'; Value = 'y' }`nSet-Content @h`n"
+    NestedLaunch        = "& '$main\artifacts\other.ps1'`n# mentions src/ and tests/`nSet-Content '$main\artifacts\a.md' 'y'`n"
+    InvokeExpression    = "`$c = 'Set-Content src/X.cs y'`nInvoke-Expression `$c`nSet-Content '$main\artifacts\a.md' 'src/'`n"
+    ForEachArtifacts    = "foreach (`$n in 'a','b') { Set-Content (Join-Path '$main\artifacts' `"`$n.md`") 'src/ tests/' }`n"
+    ForEachSrc          = "foreach (`$n in 'artifacts','src') { Set-Content (Join-Path '$main' `"`$n\X.cs`") 'y' }`n"
+}
+$ps1ScriptPath = @{}
+foreach ($name in $ps1Scripts.Keys) {
+    $ps1ScriptPath[$name] = Join-Path $work "ps1-$name.ps1"
+    Set-Content -LiteralPath $ps1ScriptPath[$name] -Value $ps1Scripts[$name] -NoNewline
+}
+
 # tool, tool_input, cwd, expected, label[, CLAUDE_PROJECT_DIR (default $main)[, environment overrides[, stdout regex]]]
 $warned = 'additionalContext'
 $writeCases = @(
@@ -976,7 +1009,34 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "dotnet run '$scriptWritesSrc'" }, $main, 'a1b2', 0, 'mechanical-fixer: exempt from the script check', 'mechanical-fixer'),
     # #1345: the same call-operator / dot-source detection applies with no -Agent (guard-orchestrator-writes).
     @('PowerShell', @{ command = "& '$scriptWritesTestsPs1'" }, $main, $null, 2, 'main session: call operator of a script that writes tests/'),
-    @('PowerShell', @{ command = ". '$scriptWritesTestsPs1'" }, $main, $null, 2, 'main session: dot-source of a script that writes tests/')
+    @('PowerShell', @{ command = ". '$scriptWritesTestsPs1'" }, $main, $null, 2, 'main session: dot-source of a script that writes tests/'),
+    # #2892: the .ps1 is judged by its resolved write targets. Allowed: writes only outside src/ and tests/ even when
+    # the text names them. Denied: a target under src/ or tests/ however it is built, or one that cannot be resolved.
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.HereStringArtifacts)'" }, $main, $null, 0, 'main session (#2892): writes artifacts/, here-string names src/ and tests/: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.HereStringArtifacts)'" }, $main, 'a1b2', 0, 'general-purpose subagent (#2892): writes artifacts/, here-string names src/ and tests/: allowed', 'general-purpose'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.JoinPathArtifacts)'" }, $main, $null, 0, 'main session (#2892): Join-Path into artifacts/ with src/ in a string: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.RedirectArtifacts)'" }, $main, $null, 0, 'main session (#2892): redirection into artifacts/: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.NewItemArtifacts)'" }, $main, $null, 0, 'main session (#2892): New-Item into artifacts/ with a value naming src/: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ForEachArtifacts)'" }, $main, $null, 0, 'main session (#2892): foreach over literals into artifacts/: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.SrcLiteral)'" }, $main, $null, 2, 'main session (#2892): Set-Content to a literal src/ path: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.SrcLiteral)'" }, $main, 'a1b2', 2, 'general-purpose subagent (#2892): Set-Content to a literal src/ path: denied', 'general-purpose'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UnresolvedVariable)'" }, $main, $null, 2, 'main session (#2892): target is an unresolvable variable: denied (fail closed)'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.JoinPathSrc)'" }, $main, $null, 2, 'main session (#2892): nested Join-Path into src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.RedirectTests)'" }, $main, $null, 2, 'main session (#2892): redirection into tests/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.AddContentSrc)'" }, $main, $null, 2, 'main session (#2892): Add-Content -LiteralPath into src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.OutFileTests)'" }, $main, $null, 2, 'main session (#2892): Out-File -FilePath into tests/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.NewItemSrc)'" }, $main, $null, 2, 'main session (#2892): New-Item -Path src -Name: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.VariableAliasSrc)'" }, $main, $null, 2, 'main session (#2892): src/ path through a variable alias: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ConcatSrc)'" }, $main, $null, 2, 'main session (#2892): src/ path built by concatenation: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.IoFileSrc)'" }, $main, $null, 2, 'main session (#2892): [IO.File]::WriteAllText into src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.CopyItemSrc)'" }, $main, $null, 2, 'main session (#2892): Copy-Item destination in src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.MoveItemTests)'" }, $main, $null, 2, 'main session (#2892): Move-Item -Destination in tests/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.DotDotSrc)'" }, $main, $null, 2, 'main session (#2892): artifacts\..\src target: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.RelativeSrc)'" }, $main, $null, 2, 'main session (#2892): relative src\ target: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.SplatSrc)'" }, $main, $null, 2, 'main session (#2892): splatted parameters naming src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.NestedLaunch)'" }, $main, $null, 2, 'main session (#2892): nested script launch plus a text mention of src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.InvokeExpression)'" }, $main, $null, 2, 'main session (#2892): Invoke-Expression of a src/ write: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ForEachSrc)'" }, $main, $null, 2, 'main session (#2892): foreach over literals reaching src/: denied')
 )
 
 # require-specialists.ps1 (Stop gate) runs against a fake project with a real git worktree.
