@@ -157,6 +157,22 @@ public abstract class BreakTheGlassStoreContract : IAsyncLifetime
         Ok(await Store.FindEffectiveAsync(" ", User, Subject, Scope, Now())).IsSome.ShouldBeTrue();
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task EveryTenantTakingMethod_TreatsABlankTenantAsNull(string blank)
+    {
+        var added = New(tenantId: blank);
+        Ok(await Store.AddAsync(added));
+        (await GetRequiredAsync(null, added.ElevationId)).TenantId.ShouldBeNull();
+
+        Ok(await Store.QueryReviewQueueAsync(blank, new BreakTheGlassReviewQuery())).TotalCount.ShouldBe(1);
+        Ok(await Store.TryCloseAsync(blank, added.ElevationId, BreakTheGlassStatus.Expired, "expired", Now())).ShouldBeTrue();
+        Ok(await Store.MarkExpiryRecordedAsync(blank, added.ElevationId, Now()));
+        (await GetRequiredAsync(null, added.ElevationId)).ExpiryRecordedAtUtc.ShouldNotBeNull();
+        Ok(await Store.TryRecordReviewAsync(blank, added.ElevationId, BreakTheGlassReviewOutcome.Justified, "reviewer", null, Now())).ShouldBeTrue();
+    }
+
     [Fact]
     public async Task Add_ABlankTenantAfterANullTenantForTheSameKey_IsAlreadyActive()
     {
