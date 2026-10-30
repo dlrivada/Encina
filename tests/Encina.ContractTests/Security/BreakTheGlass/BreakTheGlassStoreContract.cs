@@ -144,15 +144,27 @@ public abstract class BreakTheGlassStoreContract : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Get_NullIsTheOnlyNoTenantValue_ABlankTenantIsAnotherTenant()
+    public async Task Get_ABlankOrWhitespaceTenantIsTheSameTenantAsNull()
     {
-        // The service normalises a blank tenant to null before it calls the store, so the store never has to map it.
+        // Every provider normalises a blank tenant to null, so the active key COALESCE(TenantId,'') is unambiguous.
         var blank = New(tenantId: string.Empty);
         Ok(await Store.AddAsync(blank));
 
         Ok(await Store.GetByIdAsync(string.Empty, blank.ElevationId)).IsSome.ShouldBeTrue();
-        Ok(await Store.GetByIdAsync(null, blank.ElevationId)).IsNone.ShouldBeTrue();
-        Ok(await Store.FindEffectiveAsync(null, User, Subject, Scope, Now())).IsNone.ShouldBeTrue();
+        Ok(await Store.GetByIdAsync(" ", blank.ElevationId)).IsSome.ShouldBeTrue();
+        Ok(await Store.GetByIdAsync(null, blank.ElevationId)).IsSome.ShouldBeTrue();
+        Ok(await Store.FindEffectiveAsync(null, User, Subject, Scope, Now())).IsSome.ShouldBeTrue();
+        Ok(await Store.FindEffectiveAsync(" ", User, Subject, Scope, Now())).IsSome.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Add_ABlankTenantAfterANullTenantForTheSameKey_IsAlreadyActive()
+    {
+        Ok(await Store.AddAsync(New(tenantId: null)));
+
+        var result = await Store.AddAsync(New(tenantId: string.Empty));
+
+        CodeOf(result).ShouldBe(BreakTheGlassErrors.AlreadyActiveCode);
     }
 
     // ---------------------------------------------------------------- atomic conditional add
