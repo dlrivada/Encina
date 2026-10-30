@@ -19,6 +19,13 @@ Event-sourced `IOperationAuditStore` implementation using Marten (PostgreSQL) wi
 services.AddMarten(options =>
 {
     options.Connection("Host=localhost;Database=myapp;...");
+
+    // Required: the application owns Marten's store-wide projection error flags (Marten skips by default).
+    // The host fails at startup if any of the four is true.
+    options.Projections.Errors.SkipApplyErrors = false;
+    options.Projections.Errors.SkipSerializationErrors = false;
+    options.Projections.RebuildErrors.SkipApplyErrors = false;
+    options.Projections.RebuildErrors.SkipSerializationErrors = false;
 });
 
 // 2. Register a PII masker (required: the host fails at startup without one),
@@ -50,7 +57,10 @@ services.AddEncinaAuditMarten(options =>
 | `RetentionPeriod` | 2555 days | Retention before crypto-shredding |
 | `EnableAutoPurge` | `false` | Background crypto-shredding service |
 | `PurgeIntervalHours` | 24 | Auto-purge interval |
-| `ShreddedPlaceholder` | `[SHREDDED]` | Placeholder for destroyed PII |
+| `RetentionPolicyId` | `null` | Policy id recorded in the retention reference of every purge; when `null` it is `audit-retention:<ISO 8601 RetentionPeriod>`. Set it for manual purges so the marker names the approved policy. Blank is rejected at registration |
+| `AllowSkippedProjectionErrors` | `false` | Explicit opt-out of the startup check on Marten's projection error flags; starting with skipping enabled is logged (event 2590) and an audit event can then be lost from the read model without a stop |
+| `ShreddedPlaceholder` | `[SHREDDED]` | Placeholder for PII whose key was destroyed with an erasure reference |
+| `ExpiredPlaceholder` | `[EXPIRED]` | Placeholder for PII whose key was destroyed by a retention execution (retention reference) |
 | `AddHealthCheck` | `false` | Register health check |
 
 ## How Crypto-Shredding Works
@@ -58,7 +68,7 @@ services.AddEncinaAuditMarten(options =>
 1. **Record**: PII fields encrypted with temporal key for the entry's month/quarter/year
 2. **Query**: Async projections decrypt PII into queryable read models
 3. **Purge**: `PurgeEntriesAsync` destroys temporal keys (not events)
-4. **After purge**: PII fields show `[SHREDDED]`, structural fields remain queryable
+4. **After purge**: read-model entries already projected keep their state. `PurgeEntriesAsync` (and auto-purge) destroys keys with a `RetentionReference` (policy `RetentionPolicyId`, or `audit-retention:<ISO 8601 RetentionPeriod>` when unset, cutoff, execution time, actor `system`), so projecting events of a purged period, for example in a rebuild, reads `[EXPIRED]` and the shard keeps running. `[SHREDDED]` is reserved for a destruction recorded with an `ErasureReference` (request id, request date and actor). A marker with neither reference, or with both, throws `EncryptedFieldDecryptionException` (`KeyDestroyedWithoutErasureRecord`) and the Marten daemon pauses the shard. See [Recover from an unreadable audit event](../../docs/features/audit-marten.md#recover-from-an-unreadable-audit-event).
 
 ## Performance
 

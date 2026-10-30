@@ -166,6 +166,27 @@ public sealed class ServiceCollectionExtensionsGuardTests
     }
 
     [Fact]
+    public void AddEncinaEntityFrameworkCore_AllRoutingFlagsEnabled_DoesNotThrow()
+    {
+        // Arrange - exercises the recoverability and router registration branches
+        var services = new ServiceCollection();
+        services.AddDbContext<TestExtDbContext>(options =>
+            options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+
+        // Act
+        var act = () => services.AddEncinaEntityFrameworkCore<TestExtDbContext>(config =>
+        {
+            config.UseRecoverability = true;
+            config.UseRoutingSlips = true;
+            config.UseContentRouter = true;
+            config.UseScatterGather = true;
+        });
+
+        // Assert
+        Should.NotThrow(act);
+    }
+
+    [Fact]
     public void AddEncinaEntityFrameworkCore_NoPatternsEnabled_OnlyRegistersBaseServices()
     {
         // Arrange - exercises: config creation, all if-checks fail, only base registrations

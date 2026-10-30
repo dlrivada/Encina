@@ -84,7 +84,8 @@ public sealed class EncryptedFieldTests
         var field = EncryptedField.Encrypt(plaintext, encryptKey, keyId);
 
         // Act & Assert
-        Should.Throw<Exception>(() => field.Decrypt(wrongKey));
+        Should.Throw<EncryptedFieldDecryptionException>(() => field.Decrypt(wrongKey))
+            .ShouldBeAssignableTo<CryptographicException>();
     }
 
     [Fact]
