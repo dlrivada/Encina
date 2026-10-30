@@ -1,0 +1,1 @@
+- Bumped MySqlConnector from 2.5.0 to 2.6.1 to fix advisory GHSA-473q-m89c-ghf8 (account password disclosed to a man-in-the-middle in zero-configuration TLS mode); restore failed with NU1902 on every project using the MySQL driver (#2993).
