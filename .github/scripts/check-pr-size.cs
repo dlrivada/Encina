@@ -65,6 +65,12 @@ if (assume is not null && assume is not ("none" or ExceptionLabel))
     return 2;
 }
 
+if (assume is not null && pr is not null)
+{
+    Console.Error.WriteLine("--pr and --assume-label are mutually exclusive.");
+    return 2;
+}
+
 if (assume is null && !(pr is not null && int.TryParse(pr, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n > 0))
 {
     Console.Error.WriteLine("Give --pr <number> (positive integer) or --assume-label.");
@@ -82,6 +88,12 @@ return Evaluate(shortstat, assume is not null ? () => (bool?)(assume == Exceptio
 
 static int Evaluate(string shortstat, Func<bool?> hasLabel)
 {
+    if (!string.IsNullOrWhiteSpace(shortstat) && !Regex.IsMatch(shortstat, @"\d+ files? changed"))
+    {
+        Console.Error.WriteLine("FAIL: unrecognized git --shortstat output (failing closed).");
+        return 1;
+    }
+
     var (files, lines) = ParseShortstat(shortstat);
     Console.WriteLine($"files: {files}, lines: {lines} (limits {MaxFiles} / {MaxLines})");
     if (files <= MaxFiles && lines <= MaxLines)
@@ -210,7 +222,8 @@ static int SelfTest()
     Expect("label absent fails", Quiet(" 20 files changed, 5 deletions(-)", Absent) == 1);
     Expect("gh failure fails closed", Quiet(" 16 files changed, 10 insertions(+)", GhFails) == 1);
     Expect("gh failure within limits does not matter", Quiet(" 1 file changed, 1 insertion(+)", GhFails) == 0);
-    Expect("empty diff passes", Quiet("", MustNotBeCalled) == 0);
+    Expect("unrecognized shortstat fails closed", Quiet(" 1 fichier modifie, 3 insertions(+)", Absent) == 1);
+    Expect("empty diff passes",Quiet("", MustNotBeCalled) == 0);
     Expect("files only (mode change)", ParseShortstat(" 4 files changed") == (4, 0));
     Expect("insertions only", ParseShortstat(" 1 file changed, 7 insertions(+)") == (1, 7));
     Expect("deletions only", ParseShortstat(" 1 file changed, 1 deletion(-)") == (1, 1));
