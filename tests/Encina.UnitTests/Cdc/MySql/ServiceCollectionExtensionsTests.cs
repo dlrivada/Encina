@@ -15,6 +15,12 @@ namespace Encina.UnitTests.Cdc.MySql;
 /// </summary>
 public sealed class ServiceCollectionExtensionsTests
 {
+    private sealed class CustomBinlogStatusClient : IMySqlBinlogStatusClient
+    {
+        public Task<(string File, long Position)?> GetBinlogStatusAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<(string File, long Position)?>(null);
+    }
+
     private static void Valid(MySqlCdcOptions options)
     {
         options.Hostname = "mysql.example.com";
@@ -67,6 +73,47 @@ public sealed class ServiceCollectionExtensionsTests
         services.ShouldContain(d =>
             d.ServiceType == typeof(ICdcConnector) &&
             d.Lifetime == ServiceLifetime.Singleton);
+    }
+
+    [Fact]
+    public void AddEncinaCdcMySql_RegistersBinlogStatusClientAsSingleton()
+    {
+        var services = new ServiceCollection();
+
+        services.AddEncinaCdcMySql(Valid);
+
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IMySqlBinlogStatusClient) &&
+            d.ImplementationType == typeof(MySqlBinlogStatusClient) &&
+            d.Lifetime == ServiceLifetime.Singleton);
+    }
+
+    [Fact]
+    public void AddEncinaCdcMySql_ValidateOnBuild_ResolvesClientConnectorAndHealthCheck()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(Substitute.For<ICdcPositionStore>());
+        services.AddEncinaCdcMySql(Valid);
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+
+        provider.GetRequiredService<IMySqlBinlogStatusClient>().ShouldBeOfType<MySqlBinlogStatusClient>();
+        provider.GetRequiredService<ICdcConnector>().ShouldBeOfType<MySqlCdcConnector>();
+        provider.GetRequiredService<MySqlCdcHealthCheck>().ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void AddEncinaCdcMySql_ApplicationClientRegistration_IsNotOverridden()
+    {
+        var services = new ServiceCollection();
+        var custom = new CustomBinlogStatusClient();
+        services.AddSingleton<IMySqlBinlogStatusClient>(custom);
+
+        services.AddEncinaCdcMySql(Valid);
+
+        services.BuildServiceProvider().GetRequiredService<IMySqlBinlogStatusClient>().ShouldBeSameAs(custom);
     }
 
     [Fact]
