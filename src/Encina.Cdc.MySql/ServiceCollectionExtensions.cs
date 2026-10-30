@@ -50,6 +50,7 @@ public static class ServiceCollectionExtensions
 
         // The connector takes the concrete options; resolve them through IOptions so validation always runs.
         services.TryAddSingleton(sp => sp.GetRequiredService<IOptions<MySqlCdcOptions>>().Value);
+        services.TryAddSingleton<IMySqlBinlogStatusClient, MySqlBinlogStatusClient>();
         services.TryAddSingleton<ICdcConnector, MySqlCdcConnector>();
         services.TryAddSingleton<MySqlCdcHealthCheck>();
 
