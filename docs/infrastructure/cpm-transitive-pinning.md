@@ -1,6 +1,6 @@
 # CPM transitive pinning: measured state and options (spike #1051)
 
-This page is for the maintainer who has to choose how Encina pins transitive NuGet packages, and for any contributor who needs to know why the repository has hand-made pin references. It records what was measured on `origin/main` on 2026-10-28, corrects the claims of issue #1051 that no longer hold, and records the one decision with its options and the maintainer's choice (C', 2026-10-28). The spike changes no build file; #2976 applies the decision.
+This page is for the maintainer who has to choose how Encina pins transitive NuGet packages, and for any contributor who needs to know why the repository has hand-made pin references. It records what was measured on `origin/main` on 2026-10-28, corrects the claims of issue #1051 that no longer hold, and records the one decision with its options and the maintainer's choice (C', 2026-10-28). The spike itself changed no build file; #2976 applied the decision (see [Implemented](#implemented)).
 
 ## The problem from the basics
 
@@ -124,8 +124,19 @@ The spike's recommendation, which the maintainer followed, was C'. The conflicts
 
 ## Follow-up work
 
-- [#2976](https://github.com/dlrivada/Encina/issues/2976) `[INFRA]` applies C': it confirms that restore honours the conditional flag, makes the bumps above, deletes the `Grpc.Tools` pin, removes the `PrivateAssets="all"` OTLP reference of `Encina.Testing.WireMock`, rebuilds to find the conflicts hidden by failed restores, and reviews the snapshots after the Verify bump.
+- [#2976](https://github.com/dlrivada/Encina/issues/2976) `[INFRA]` applied C': it confirmed that restore honours the conditional flag, made the bumps above, deleted the `Grpc.Tools` pin, removed the `PrivateAssets="all"` OTLP reference of `Encina.Testing.WireMock`, rebuilt to find the conflicts hidden by failed restores, and reviewed the snapshots after the Verify bump (see [Implemented](#implemented)).
 - The OTLP reference of `Encina.OpenTelemetry` stays with #1043.
+
+## Implemented
+
+Issue [#2976](https://github.com/dlrivada/Encina/issues/2976) applied option C'. The decision is recorded as ADR-060 (PR #3034, issue #3033).
+
+- The new root `Directory.Build.targets` sets `CentralPackageTransitivePinningEnabled` to `true` only when the final value of `IsPackable` is false. `tests/Directory.Build.targets` imports it, because MSBuild loads only the nearest file.
+- Central versions were raised: `Grpc.AspNetCore` and `Grpc.Net.Client` 2.80.0, `Microsoft.Extensions.Http.Resilience` and `Microsoft.Extensions.Resilience` 10.8.0, `HotChocolate` 15.1.14, `TngTech.ArchUnitNET` 0.13.3, `Verify` 31.15.0, `Spectre.Console` 0.57.2 and `System.CommandLine` 2.0.7.
+- The unreferenced `Grpc.Tools` pin was deleted.
+- Direct references were removed: the OTLP exporter reference of `Encina.Testing.WireMock`, the MessagePack reference of `tests/Encina.NBomber` and the four direct `Humanizer` test references. The central `Humanizer` pin now resolves NU1608 by itself; restore was verified.
+- A nuspec comparison of all 108 packages against `origin/main` showed that only three version floors changed: `Encina.gRPC` (Grpc 2.80.0), `Encina.Extensions.Resilience` (10.8.0) and `Encina.Testing.Verify` (Verify 31.15.0). `Encina.Testing.WireMock` is identical.
+- No Verify snapshot changed.
 
 ## Related issues
 
