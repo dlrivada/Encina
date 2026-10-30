@@ -101,12 +101,18 @@ internal sealed class DelayedRetryStartupCheck : IHostedService
     /// <summary>
     /// Builds the message of the failure: the module, what is missing, ADR-050 and how to fix it.
     /// </summary>
-    internal static string BuildMessage(string missing) =>
-        $"Recoverability delayed retries are enabled (RecoverabilityOptions.EnableDelayedRetries) but {missing} " +
-        "is not registered (ADR-050). Register the store and its message factory with " +
-        "AddEncinaDelayedRetryStore<TStore, TFactory>() or through a database provider package, " +
-        "register IEncina with AddEncina(), " +
-        "or set RecoverabilityOptions.EnableDelayedRetries to false.";
+    internal static string BuildMessage(string missing)
+    {
+        var encinaHint = missing.Contains(nameof(IEncina), StringComparison.Ordinal)
+            ? "register IEncina with AddEncina(), "
+            : string.Empty;
+
+        return $"Recoverability delayed retries are enabled (RecoverabilityOptions.EnableDelayedRetries) but {missing} " +
+            "is not registered (ADR-050). Register the store and its message factory with " +
+            "AddEncinaDelayedRetryStore<TStore, TFactory>() or through a database provider package, " +
+            encinaHint +
+            "or set RecoverabilityOptions.EnableDelayedRetries to false.";
+    }
 }
 
 /// <summary>

@@ -312,6 +312,16 @@ public sealed class DelayedRetryRegistrationTests
     }
 
     [Fact]
+    public void BuildMessage_MentionsAddEncinaOnlyWhenIEncinaIsMissing()
+    {
+        var storeOnly = DelayedRetryStartupCheck.BuildMessage(nameof(IDelayedRetryStore));
+        var encinaMissing = DelayedRetryStartupCheck.BuildMessage(nameof(IEncina));
+
+        storeOnly.ShouldNotContain("AddEncina()");
+        encinaMissing.ShouldContain("register IEncina with AddEncina()");
+    }
+
+    [Fact]
     public void StartupCheck_WithNullArguments_Throws()
     {
         var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<DelayedRetryStartupCheck>.Instance;
