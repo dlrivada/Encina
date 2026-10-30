@@ -243,7 +243,7 @@ public sealed class EncryptionPropertyTests
         var errors = new[]
         {
             EncryptionErrors.KeyNotFound(keyId.Get),
-            EncryptionErrors.DecryptionFailed(keyId.Get),
+            EncryptionErrors.EncryptionFailed(keyId.Get),
             EncryptionErrors.InvalidCiphertext(),
             EncryptionErrors.AlgorithmNotSupported(EncryptionAlgorithm.Aes256Gcm),
             EncryptionErrors.KeyRotationFailed()

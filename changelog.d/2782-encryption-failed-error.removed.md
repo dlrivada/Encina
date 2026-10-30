@@ -1,0 +1,1 @@
+- `EncryptionErrors.DecryptionFailed` and `EncryptionErrors.DecryptionFailedCode` (`encryption.decryption_failed`) are removed from `Encina.Security.Encryption`; decrypt failures return `InvalidCiphertext`, encrypt failures return `EncryptionFailed` (#2782).

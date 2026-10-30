@@ -363,12 +363,12 @@ public sealed class EncryptionContractTests
         // Assert
         constants.Count.ShouldBe(5,
             "EncryptionErrors must define exactly 5 error code constants: " +
-            "KeyNotFoundCode, DecryptionFailedCode, InvalidCiphertextCode, " +
+            "KeyNotFoundCode, EncryptionFailedCode, InvalidCiphertextCode, " +
             "AlgorithmNotSupportedCode, KeyRotationFailedCode");
 
         var names = constants.Select(f => f.Name).ToHashSet(StringComparer.Ordinal);
         names.ShouldContain(nameof(EncryptionErrors.KeyNotFoundCode));
-        names.ShouldContain(nameof(EncryptionErrors.DecryptionFailedCode));
+        names.ShouldContain(nameof(EncryptionErrors.EncryptionFailedCode));
         names.ShouldContain(nameof(EncryptionErrors.InvalidCiphertextCode));
         names.ShouldContain(nameof(EncryptionErrors.AlgorithmNotSupportedCode));
         names.ShouldContain(nameof(EncryptionErrors.KeyRotationFailedCode));

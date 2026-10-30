@@ -163,7 +163,8 @@ public sealed class ABACPipelineDecisionAuditTests
         IAttributeProvider? attributes = null,
         ObligationExecutor? executor = null,
         ILogger<ABACPipelineBehavior<TRequest, string>>? logger = null,
-        ABACDecisionAuditHealthState? healthState = null)
+        ABACDecisionAuditHealthState? healthState = null,
+        IAccessElevationGate? elevationGate = null)
         where TRequest : IRequest<string> =>
         new(
             pdp,
@@ -172,6 +173,7 @@ public sealed class ABACPipelineDecisionAuditTests
             Compiler,
             Microsoft.Extensions.Options.Options.Create(options),
             recorder,
+            elevationGate ?? new NoAccessElevationGate(),
             timeProvider ?? new FakeTimeProvider(Start),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance,
             healthState);
@@ -209,6 +211,153 @@ public sealed class ABACPipelineDecisionAuditTests
     {
         recorder.Records.Count.ShouldBe(1);
         return recorder.Records[0];
+    }
+
+    #endregion
+
+    #region Emergency elevation (break-the-glass gate)
+
+    private static IAccessElevationGate Gate(Either<EncinaError, Option<AccessElevation>> answer)
+    {
+        var gate = Substitute.For<IAccessElevationGate>();
+        gate.TryElevateAsync(Arg.Any<PolicyARequest>(), Arg.Any<IRequestContext>(), Arg.Any<EncinaError>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(answer));
+        return gate;
+    }
+
+    private static Either<EncinaError, Option<AccessElevation>> Grant(Guid id) =>
+        Right<EncinaError, Option<AccessElevation>>(Some(new AccessElevation(id, "scope", Start.AddHours(1))));
+
+    private static Task GateNeverCalled(IAccessElevationGate gate)
+    {
+        _ = gate.DidNotReceiveWithAnyArgs().TryElevateAsync<PolicyARequest>(default!, default!, default, default);
+        return Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task DenyInBlockMode_ElevationGranted_ProceedsAndRecordsDeniedElevatedEvenWhenOutcomesExcludeIt()
+    {
+        var recorder = new RecordingRecorder();
+        var elevationId = Guid.NewGuid();
+        var behavior = Behavior<PolicyARequest>(
+            Pdp(Effect.Deny), Options(outcomes: ABACDecisionAuditOutcomes.None), recorder, elevationGate: Gate(Grant(elevationId)));
+
+        var (result, next) = await SendAsync(behavior, new PolicyARequest());
+
+        next.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue();
+        var record = Single(recorder);
+        record.EnforcedOutcome.ShouldBe(ABACEnforcedOutcome.DeniedElevated);
+        record.ElevationId.ShouldBe(elevationId);
+        record.ReasonCode.ShouldBe(ABACErrors.AccessDeniedCode);
+        record.Effect.ShouldBe(Effect.Deny);
+    }
+
+    [Fact]
+    public async Task ElevatedRecord_MapsToSuccessWithElevationMetadataAndReadsBack()
+    {
+        var recorder = new RecordingRecorder();
+        var elevationId = Guid.NewGuid();
+        var behavior = Behavior<PolicyARequest>(Pdp(Effect.Deny), Options(), recorder, elevationGate: Gate(Grant(elevationId)));
+        await SendAsync(behavior, new PolicyARequest());
+
+        var entry = ABACDecisionAuditEntryMapper.ToOperationAuditEntry(Single(recorder));
+        entry.Outcome.ShouldBe(global::Encina.Security.Audit.AuditOutcome.Success);
+        entry.ErrorMessage.ShouldBe(ABACErrors.AccessDeniedCode);
+        entry.Metadata![ABACDecisionAuditSchema.MetadataElevationId].ShouldBe(elevationId.ToString("D"));
+        entry.Metadata[ABACDecisionAuditSchema.MetadataEnforced].ShouldBe("false");
+
+        var read = ABACDecisionAuditEntryMapper.ToDecisionAuditRecord(entry);
+        read.Enforced.ShouldBeFalse();
+        read.ElevationId.ShouldBe(elevationId);
+        read.Schema.ShouldBe("encina.abac.decision/2");
+    }
+
+    [Fact]
+    public async Task DenyInBlockMode_GateReturnsNone_KeepsTheDenial()
+    {
+        var recorder = new RecordingRecorder();
+        var gate = Gate(Right<EncinaError, Option<AccessElevation>>(Option<AccessElevation>.None));
+        var behavior = Behavior<PolicyARequest>(Pdp(Effect.Deny), Options(), recorder, elevationGate: gate);
+
+        var (result, next) = await SendAsync(behavior, new PolicyARequest());
+
+        next.ShouldBeFalse();
+        Code(result).ShouldBe(ABACErrors.AccessDeniedCode);
+        Single(recorder).EnforcedOutcome.ShouldBe(ABACEnforcedOutcome.Denied);
+        Single(recorder).ElevationId.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task DenyInBlockMode_GateReturnsLeft_ReplacesTheDenial()
+    {
+        var recorder = new RecordingRecorder();
+        var gate = Gate(Left<EncinaError, Option<AccessElevation>>(EncinaErrors.Create("break_glass.audit_failed", "audit")));
+        var behavior = Behavior<PolicyARequest>(Pdp(Effect.Deny), Options(), recorder, elevationGate: gate);
+
+        var (result, next) = await SendAsync(behavior, new PolicyARequest());
+
+        next.ShouldBeFalse();
+        Code(result).ShouldBe("break_glass.audit_failed");
+        Single(recorder).EnforcedOutcome.ShouldBe(ABACEnforcedOutcome.Denied);
+    }
+
+    [Fact]
+    public async Task DenyInWarnMode_NeverCallsTheGate()
+    {
+        var recorder = new RecordingRecorder();
+        var gate = Gate(Grant(Guid.NewGuid()));
+        var behavior = Behavior<PolicyARequest>(Pdp(Effect.Deny), Options(ABACEnforcementMode.Warn), recorder, elevationGate: gate);
+
+        var (_, next) = await SendAsync(behavior, new PolicyARequest());
+
+        next.ShouldBeTrue();
+        Single(recorder).EnforcedOutcome.ShouldBe(ABACEnforcedOutcome.DeniedNotEnforced);
+        await GateNeverCalled(gate);
+    }
+
+    [Fact]
+    public async Task PermitIndeterminateUnauthenticatedAndFailure_NeverCallTheGate()
+    {
+        var gate = Gate(Grant(Guid.NewGuid()));
+
+        await SendAsync(Behavior<PolicyARequest>(Pdp(Effect.Permit), Options(), new RecordingRecorder(), elevationGate: gate), new PolicyARequest());
+        await SendAsync(Behavior<PolicyARequest>(Pdp(Effect.Indeterminate), Options(), new RecordingRecorder(), elevationGate: gate), new PolicyARequest());
+        await SendAsync(
+            Behavior<PolicyARequest>(Pdp(Effect.Deny), Options(), new RecordingRecorder(), elevationGate: gate),
+            new PolicyARequest(),
+            TestRequestContext.For(TestIdentity.Anonymous));
+        var throwing = Substitute.For<IAttributeProvider>();
+        throwing.GetSubjectAttributesAsync(Arg.Any<RequestIdentity>(), Arg.Any<CancellationToken>()).ReturnsForAnyArgs<ValueTask<IReadOnlyDictionary<string, object>>>(_ => throw new InvalidOperationException("x"));
+        await SendAsync(Behavior<PolicyARequest>(Pdp(Effect.Deny), Options(), new RecordingRecorder(), attributes: throwing, elevationGate: gate), new PolicyARequest());
+
+        await GateNeverCalled(gate);
+    }
+
+    [Fact]
+    public async Task GateThatThrows_IsAnEvaluationFailureThatDenies()
+    {
+        var recorder = new RecordingRecorder();
+        var gate = Substitute.For<IAccessElevationGate>();
+        gate.TryElevateAsync(Arg.Any<PolicyARequest>(), Arg.Any<IRequestContext>(), Arg.Any<EncinaError>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, Option<AccessElevation>>>>(_ => throw new InvalidOperationException("boom"));
+        var behavior = Behavior<PolicyARequest>(Pdp(Effect.Deny), Options(), recorder, elevationGate: gate);
+
+        var (result, next) = await SendAsync(behavior, new PolicyARequest());
+
+        next.ShouldBeFalse();
+        Code(result).ShouldBe(ABACErrors.EvaluationFailedCode);
+    }
+
+    [Fact]
+    public void Constructor_NullElevationGate_Throws()
+    {
+        var act = () => new ABACPipelineBehavior<PolicyARequest, string>(
+            Pdp(Effect.Deny), Attributes(), new ObligationExecutor([], Microsoft.Extensions.Logging.Abstractions.NullLogger<ObligationExecutor>.Instance),
+            Compiler, Microsoft.Extensions.Options.Options.Create(Options()), new RecordingRecorder(), null!, new FakeTimeProvider(Start),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<ABACPipelineBehavior<PolicyARequest, string>>.Instance);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("elevationGate");
     }
 
     #endregion

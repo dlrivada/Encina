@@ -53,6 +53,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
     private readonly ITemporalKeyProvider _keyProvider;
     private readonly MartenOperationAuditOptions _options;
     private readonly ILogger<MartenReadAuditStore> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MartenReadAuditStore"/> class.
@@ -62,12 +63,14 @@ public sealed class MartenReadAuditStore : IReadAuditStore
     /// <param name="keyProvider">The temporal key provider for crypto-shredding operations.</param>
     /// <param name="options">The Marten audit configuration options.</param>
     /// <param name="logger">Logger for structured diagnostic logging.</param>
+    /// <param name="timeProvider">Provider of the execution time recorded in the retention reference of a purge; defaults to <see cref="TimeProvider.System"/>.</param>
     public MartenReadAuditStore(
         IDocumentSession session,
         AuditEventEncryptor encryptor,
         ITemporalKeyProvider keyProvider,
         IOptions<MartenOperationAuditOptions> options,
-        ILogger<MartenReadAuditStore> logger)
+        ILogger<MartenReadAuditStore> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(encryptor);
@@ -80,6 +83,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
         _keyProvider = keyProvider;
         _options = options.Value;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -235,7 +239,9 @@ public sealed class MartenReadAuditStore : IReadAuditStore
     /// <remarks>
     /// <b>Crypto-shredding semantics</b>: Destroys temporal encryption keys for all time periods
     /// older than <paramref name="olderThanUtc"/>. After key destruction, PII fields in affected
-    /// read audit entries become permanently unreadable during async projection rebuilds.
+    /// read audit entries become permanently unreadable. The destruction records a
+    /// <see cref="RetentionReference"/> (policy, cutoff, execution time, actor <c>system</c>), so the async
+    /// projection shows <c>[EXPIRED]</c> for those fields and keeps running, also on a rebuild.
     /// </remarks>
     public async ValueTask<Either<EncinaError, int>> PurgeEntriesAsync(
         DateTimeOffset olderThanUtc,
@@ -250,6 +256,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
             var result = await _keyProvider.DestroyKeysBeforeAsync(
                 olderThanUtc.UtcDateTime,
                 _options.TemporalGranularity,
+                RetentionReference.ForPurge(_options, olderThanUtc, _timeProvider.GetUtcNow()),
                 cancellationToken).ConfigureAwait(false);
 
             return result.Match<Either<EncinaError, int>>(
@@ -325,7 +332,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
     {
         if (!string.IsNullOrWhiteSpace(query.Purpose))
         {
-            // Purpose is a PII field — after shredding, purpose contains "[SHREDDED]".
+            // Purpose is a PII field — after shredding, purpose contains "[SHREDDED]" ("[EXPIRED]" after retention).
             // StringComparison.OrdinalIgnoreCase is not directly supported by Marten LINQ.
             // Use exact match here; for case-insensitive search, use QueryAsync overloads.
             q = q.Where(m => m.Purpose != null && m.Purpose.Contains(query.Purpose));
@@ -366,6 +373,8 @@ public sealed class MartenReadAuditStore : IReadAuditStore
     internal static ReadAuditEntry MapToReadAuditEntry(ReadAuditEntryReadModel model)
     {
         IReadOnlyDictionary<string, object?> metadata = model.MetadataJson is not null
+                && !model.IsShredded
+                && !model.IsExpired
                 && model.MetadataJson != MartenOperationAuditOptions.DefaultShreddedPlaceholder
             ? JsonSerializer.Deserialize<Dictionary<string, object?>>(model.MetadataJson, MetadataJsonOptions)
                 ?? new Dictionary<string, object?>()

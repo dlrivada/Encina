@@ -58,6 +58,13 @@ internal static partial class ABACLogMessages
         ILogger logger, string requestType, string errorCode);
 
     [LoggerMessage(
+        EventId = 9006,
+        Level = LogLevel.Warning,
+        Message = "ABAC denial {ErrorCode} for {RequestType} was overridden by an emergency elevation {ElevationId}. Allowing request to proceed")]
+    internal static partial void EnforcementElevated(
+        ILogger logger, string requestType, string errorCode, Guid elevationId);
+
+    [LoggerMessage(
         EventId = 9008,
         Level = LogLevel.Warning,
         Message = "ABAC: Indeterminate for {RequestType}: {Reason}")]

@@ -90,6 +90,7 @@ public sealed class ABACRegistrationTests
         behaviors.OfType<ABACPipelineBehavior<GuardedRequest, string>>().Count().ShouldBe(1);
         scope.ServiceProvider.GetRequiredService<IRequestContextAccessor>().ShouldBeOfType<RequestContextAccessor>();
         scope.ServiceProvider.GetRequiredService<IRequestContextScopeFactory>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<IAccessElevationGate>().ShouldBeOfType<NoAccessElevationGate>();
     }
 
     [Fact]

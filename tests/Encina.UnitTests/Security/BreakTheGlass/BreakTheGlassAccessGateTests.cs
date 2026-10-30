@@ -76,7 +76,9 @@ public sealed class BreakTheGlassAccessGateTests
             AuditStore = Audit;
         }
 
-        public BreakTheGlassAccessGate Gate() => new(Store, AuditStore, ReadAudit, Grants, BreakTheGlassTestKit.Wrap(Options), Time);
+        public Microsoft.Extensions.Logging.Testing.FakeLogger<BreakTheGlassAccessGate> Logger { get; } = new();
+
+        public BreakTheGlassAccessGate Gate() => new(Store, AuditStore, ReadAudit, Grants, BreakTheGlassTestKit.Wrap(Options), Time, Logger);
 
         public async Task<BreakTheGlassElevation> OpenAsync(string user = "clin-1", string subject = Subject, string? tenant = "tenant-1", TimeSpan? duration = null)
         {
@@ -251,16 +253,55 @@ public sealed class BreakTheGlassAccessGateTests
 
     // ── Failures replace the denial ─────────────────────────────────────
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task RequireTenant_MissingTenant_KeepsDenial_WithoutStoreCall_AndLogsNoIdentifiers(string? tenant)
+    {
+        var h = new Harness();
+        var store = Substitute.For<IBreakTheGlassStore>();
+        h.Store = store;
+        h.Options.RequireTenant = true;
+
+        var result = await h.TryAsync(new EligibleGateRequest(Subject), tenant: tenant);
+
+        Granted(result).IsNone.ShouldBeTrue();
+        store.ReceivedCalls().ShouldBeEmpty();
+        var entry = h.Logger.Collector.GetSnapshot().Single(e => e.Id.Id == 9765);
+        entry.Message.ShouldNotContain(Subject);
+        entry.Message.ShouldNotContain("clin-1");
+    }
+
     [Fact]
-    public async Task StoreFailure_ReplacesDenialWithStoreFailed()
+    public async Task RequireTenantOff_MissingTenant_StillFindsATenantlessElevation()
+    {
+        var h = new Harness();
+        await h.OpenAsync(tenant: null);
+        h.Options.RequireTenant = false;
+
+        Granted(await h.TryAsync(new EligibleGateRequest(Subject), tenant: null)).IsSome.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task StoreLookupFailure_KeepsTheDenial_LogsTheCodeAndNoIdentifiers()
     {
         var h = new Harness();
         var store = Substitute.For<IBreakTheGlassStore>();
         store.FindEffectiveAsync(default, default!, default!, default!, default, default)
-            .ReturnsForAnyArgs(ValueTask.FromResult(Left<EncinaError, Option<BreakTheGlassElevation>>(EncinaError.New("boom"))));
+            .ReturnsForAnyArgs(ValueTask.FromResult(Left<EncinaError, Option<BreakTheGlassElevation>>(
+                EncinaErrors.Create(BreakTheGlassErrors.StoreFailedCode, "secret-store-message"))));
         h.Store = store;
 
-        CodeOfLeft(await h.TryAsync(new EligibleGateRequest(Subject))).ShouldBe(BreakTheGlassErrors.StoreFailedCode);
+        var result = await h.TryAsync(new EligibleGateRequest(Subject));
+
+        Granted(result).IsNone.ShouldBeTrue();
+        var entry = h.Logger.Collector.GetSnapshot().Single(e => e.Id.Id == 9750);
+        entry.Message.ShouldContain(BreakTheGlassErrors.StoreFailedCode);
+        entry.Message.ShouldNotContain(Subject);
+        entry.Message.ShouldNotContain("clin-1");
+        entry.Message.ShouldNotContain("secret-store-message");
+        entry.StructuredState!.Select(p => p.Value).ShouldNotContain(Subject);
     }
 
     [Fact]

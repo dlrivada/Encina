@@ -1009,10 +1009,17 @@ static class Evaluators
         var v = c.Value("coverage-flags");
         var failing = J.Objs(v?["failing"]).ToList();
         var packages = J.Int(v?["packages"]) ?? 0;
-        if (packages == 0) return Outcome.Fail("the coverage data lists no package with per-flag targets");
-        if (failing.Count == 0) return Outcome.Pass($"all {packages} package(s) meet every per-flag target in the published data");
-        var sample = string.Join("; ", failing.Take(3).Select(f => $"{J.Str(f["package"])} {J.Str(f["flag"])} {J.Str(f["coverage"])}<{J.Str(f["target"])}"));
-        return Outcome.Fail($"{failing.Count} package/flag pair(s) below target in {packages} package(s), e.g. {sample}");
+        var unmeasured = J.Strs(v?["unmeasured"]).ToList();
+        var problems = new List<string>();
+        if (unmeasured.Count > 0) problems.Add($"{unmeasured.Count} package(s) not measured (no coverage data, a package without data fails): {string.Join(", ", unmeasured.Take(10))}{(unmeasured.Count > 10 ? ", ..." : "")}");
+        if (packages == 0 && unmeasured.Count == 0) return Outcome.Fail("the coverage data lists no package with per-flag targets");
+        if (failing.Count > 0)
+        {
+            var sample = string.Join("; ", failing.Take(3).Select(f => $"{J.Str(f["package"])} {J.Str(f["flag"])} {J.Str(f["coverage"])}<{J.Str(f["target"])}"));
+            problems.Add($"{failing.Count} package/flag pair(s) below target in {packages} measured package(s), e.g. {sample}");
+        }
+        if (problems.Count > 0) return Outcome.Fail(string.Join("; ", problems));
+        return Outcome.Pass($"all {packages} package(s) meet every per-flag target in the published data");
     }
 
     static Outcome BranchProtection(Item i, EvalCtx c)
@@ -1620,8 +1627,14 @@ static class Collectors
         var data = await f.HttpJsonAsync(url);
         var failing = new JsonArray();
         var evaluated = 0;
+        // A package with no coverage data is its own fact (measured:false or listed in unmeasuredPackages), with or
+        // without manifest targets; it is never reported as a per-flag miss.
+        var unmeasured = new SortedSet<string>(J.Strs(data?["unmeasuredPackages"]), StringComparer.Ordinal);
+        foreach (var p in J.Objs(data?["packages"]))
+            if (J.Bool(p["measured"]) == false && J.Str(p["name"]) is { } unmeasuredName) unmeasured.Add(unmeasuredName);
         foreach (var p in J.Objs(data?["packages"]))
         {
+            if (J.Str(p["name"]) is { } name && unmeasured.Contains(name)) continue;
             if (p["perFlagTarget"] is not JsonObject targets || targets.Count == 0) continue;
             evaluated++;
             foreach (var (flag, targetNode) in targets)
@@ -1632,8 +1645,10 @@ static class Collectors
                     failing.Add(new JsonObject { ["package"] = J.Str(p["name"]), ["flag"] = flag, ["coverage"] = cov?.ToString("0.##", CultureInfo.InvariantCulture) ?? "n/a", ["target"] = target.ToString("0.##", CultureInfo.InvariantCulture) });
             }
         }
-        if (evaluated == 0) throw new CollectException("the published coverage data exposes no per-package perFlagTarget; per-flag status cannot be assumed green", url);
-        return (new JsonObject { ["timestamp"] = J.Str(data?["timestamp"]), ["packages"] = evaluated, ["failing"] = failing }, url);
+        if (evaluated == 0 && unmeasured.Count == 0) throw new CollectException("the published coverage data exposes no per-package perFlagTarget; per-flag status cannot be assumed green", url);
+        var notMeasured = new JsonArray();
+        foreach (var n in unmeasured) notMeasured.Add(JsonValue.Create(n));
+        return (new JsonObject { ["timestamp"] = J.Str(data?["timestamp"]), ["packages"] = evaluated, ["failing"] = failing, ["unmeasured"] = notMeasured }, url);
     }
 
     // ---- Local checkout (synchronous; the source link points at the release commit) ----
@@ -1933,7 +1948,7 @@ sealed class FixedTime(DateTimeOffset now) : TimeProvider
     public override DateTimeOffset GetUtcNow() => now;
 }
 
-sealed class FakeRemote(Func<string, string?, Response> gh) : IRemote
+sealed class FakeRemote(Func<string, string?, Response> gh, Func<string, Response>? http = null) : IRemote
 {
     public List<(string Endpoint, string? Token)> Calls { get; } = [];
 
@@ -1943,7 +1958,7 @@ sealed class FakeRemote(Func<string, string?, Response> gh) : IRemote
         return Task.FromResult(gh(endpoint, token));
     }
 
-    public Task<Response> HttpAsync(string url) => Task.FromResult(new Response(0, "", new Dictionary<string, string>(), "no network in self-test"));
+    public Task<Response> HttpAsync(string url) => Task.FromResult(http?.Invoke(url) ?? new Response(0, "", new Dictionary<string, string>(), "no network in self-test"));
 }
 
 static class SelfTest
@@ -2175,8 +2190,8 @@ static class SelfTest
 
     static async Task CollectorCases(Env env, string fx)
     {
-        CollectCtx Ctx(IRemote remote, string? token, List<TimeSpan>? delays = null) =>
-            new(TestEnv(env, new StringWriter(), new StringWriter(), fx, remote, null, delays), "dlrivada/Encina", fx, "0.14.0", "rc", Sha, token);
+        CollectCtx Ctx(IRemote remote, string? token, List<TimeSpan>? delays = null, string? root = null) =>
+            new(TestEnv(env, new StringWriter(), new StringWriter(), fx, remote, null, delays), "dlrivada/Encina", root ?? fx, "0.14.0", "rc", Sha, token);
         static Response Json(string body, int status = 200, params (string, string)[] headers) =>
             new(status, body, headers.ToDictionary(h => h.Item1, h => h.Item2, StringComparer.OrdinalIgnoreCase), null);
         var secretReq = new FactRequest("secret-scanning-alerts", "secret-scanning", new JsonObject());
@@ -2209,6 +2224,23 @@ static class SelfTest
             var remote = new FakeRemote((_, _) => Json("[]"));
             var f = OneSync(secretReq, Ctx(remote, null));
             return Expect(f.Error is not null && f.Error.Contains(Cli.AppTokenVariable) && remote.Calls.Count == 0, $"error {f.Error}, calls {remote.Calls.Count}");
+        });
+        var coverageReq = new FactRequest("coverage-flags", "coverage-flags", new JsonObject());
+        var coverageBody = "{\"timestamp\":\"2026-10-20T00:00:00Z\",\"unmeasuredPackages\":[\"Encina.NoData\",\"Encina.NoTargets\"],\"packages\":["
+            + "{\"name\":\"Encina.Good\",\"perFlagTarget\":{\"unit\":50},\"perFlag\":{\"unit\":{\"coverage\":80}}},"
+            + "{\"name\":\"Encina.Low\",\"perFlagTarget\":{\"unit\":50},\"perFlag\":{\"unit\":{\"coverage\":10}}},"
+            + "{\"name\":\"Encina.NoData\",\"measured\":false,\"perFlagTarget\":{\"unit\":50,\"guard\":50},\"perFlag\":{}},"
+            + "{\"name\":\"Encina.NoTargets\",\"measured\":false}]}";
+        Case("coverage flags: an unmeasured package is its own failing fact, per-flag failures stay for measured packages", () =>
+        {
+            var remote = new FakeRemote((_, _) => Json("{}"), _ => Json(coverageBody));
+            var f = OneSync(coverageReq, Ctx(remote, null, null, Cli.FindRepoRoot(fx)));
+            var item = new Item("c", "c", ["#104"], [], "auto", "Release", "coverage-flags-green", new JsonObject(), new Dictionary<string, string> { ["rc"] = "block" }, null, null, null);
+            var run = Engine.Run(new Registry([], [item]), new EvalCtx(new FactsFile(1, "0.14.0", "rc", Sha, "2026-10-20T00:00:00Z", "t", new Dictionary<string, Fact> { ["coverage-flags"] = f }), Signoff.Empty, Now), null);
+            var r = run.Results[0];
+            return Expect(f.Error is null && r.Status == "FAIL" && r.Reason.Contains("2 package(s) not measured", StringComparison.Ordinal) && r.Reason.Contains("Encina.NoData, Encina.NoTargets", StringComparison.Ordinal)
+                && r.Reason.Contains("1 package/flag pair(s) below target", StringComparison.Ordinal) && r.Reason.Contains("Encina.Low unit 10<50", StringComparison.Ordinal) && !r.Reason.Contains("n/a", StringComparison.Ordinal),
+                $"{f.Error} {f.Value?.ToJsonString()} {r.Reason}");
         });
         var protectionReq = new FactRequest("branch-protection", "branch-protection", new JsonObject());
         Case("branch protection: read with the App token, keeping only the AC-020 fields", () =>

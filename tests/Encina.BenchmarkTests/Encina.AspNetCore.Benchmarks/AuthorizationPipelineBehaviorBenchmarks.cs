@@ -50,13 +50,22 @@ public class AuthorizationPipelineBehaviorBenchmarks
         var options = Options.Create(new AuthorizationConfiguration());
 
         _noAuthBehavior = new AuthorizationPipelineBehavior<UnauthorizedRequest, string>(
-            authService, options, NullLogger<AuthorizationPipelineBehavior<UnauthorizedRequest, string>>.Instance);
+            authService, options, new KeepDenialGate(), NullLogger<AuthorizationPipelineBehavior<UnauthorizedRequest, string>>.Instance);
         _authBehavior = new AuthorizationPipelineBehavior<AuthorizedRequest, string>(
-            authService, options, NullLogger<AuthorizationPipelineBehavior<AuthorizedRequest, string>>.Instance);
+            authService, options, new KeepDenialGate(), NullLogger<AuthorizationPipelineBehavior<AuthorizedRequest, string>>.Instance);
         _roleBehavior = new AuthorizationPipelineBehavior<RoleBasedRequest, string>(
-            authService, options, NullLogger<AuthorizationPipelineBehavior<RoleBasedRequest, string>>.Instance);
+            authService, options, new KeepDenialGate(), NullLogger<AuthorizationPipelineBehavior<RoleBasedRequest, string>>.Instance);
         _policyBehavior = new AuthorizationPipelineBehavior<PolicyBasedRequest, string>(
-            authService, options, NullLogger<AuthorizationPipelineBehavior<PolicyBasedRequest, string>>.Instance);
+            authService, options, new KeepDenialGate(), NullLogger<AuthorizationPipelineBehavior<PolicyBasedRequest, string>>.Instance);
+    }
+
+    // Same behavior as the core default gate (which is internal): every denial is kept.
+    private sealed class KeepDenialGate : IAccessElevationGate
+    {
+        public ValueTask<Either<EncinaError, Option<AccessElevation>>> TryElevateAsync<TRequest>(
+            TRequest request, IRequestContext context, EncinaError denial, CancellationToken cancellationToken)
+            where TRequest : notnull =>
+            ValueTask.FromResult(Right<EncinaError, Option<AccessElevation>>(Option<AccessElevation>.None));
     }
 
     [Benchmark(Baseline = true)]

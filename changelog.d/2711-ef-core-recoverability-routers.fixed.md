@@ -1,0 +1,1 @@
+- `AddEncinaEntityFrameworkCore` now honours `UseRecoverability`, `UseRoutingSlips`, `UseContentRouter` and `UseScatterGather` like the ADO.NET and Dapper registrations, with Recoverability registered outermost, outside the EF transaction behavior; EF soft delete stays the interceptor plus the `Encina.SoftDelete` query filter (#2711)

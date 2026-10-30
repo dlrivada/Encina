@@ -1,3 +1,4 @@
+using Encina.Audit.Marten;
 using Encina.Audit.Marten.Events;
 using Encina.Audit.Marten.Projections;
 
@@ -29,14 +30,14 @@ public class OperationAuditEntryProjectionGuardTests
     public void OperationAuditEntryProjection_Constructor_NullPlaceholder_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new OperationAuditEntryProjection(null!, NullLogger<OperationAuditEntryProjection>.Instance));
+            new OperationAuditEntryProjection(null!, MartenOperationAuditOptions.DefaultExpiredPlaceholder, NullLogger<OperationAuditEntryProjection>.Instance));
     }
 
     [Fact]
     public void OperationAuditEntryProjection_Constructor_NullLogger_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new OperationAuditEntryProjection("[SHREDDED]", null!));
+            new OperationAuditEntryProjection("[SHREDDED]", MartenOperationAuditOptions.DefaultExpiredPlaceholder, null!));
     }
 
     [Fact]
@@ -80,14 +81,14 @@ public class OperationAuditEntryProjectionGuardTests
     public void ReadAuditEntryProjection_Constructor_NullPlaceholder_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new ReadAuditEntryProjection(null!, NullLogger<ReadAuditEntryProjection>.Instance));
+            new ReadAuditEntryProjection(null!, MartenOperationAuditOptions.DefaultExpiredPlaceholder, NullLogger<ReadAuditEntryProjection>.Instance));
     }
 
     [Fact]
     public void ReadAuditEntryProjection_Constructor_NullLogger_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new ReadAuditEntryProjection("[SHREDDED]", null!));
+            new ReadAuditEntryProjection("[SHREDDED]", MartenOperationAuditOptions.DefaultExpiredPlaceholder, null!));
     }
 
     [Fact]
