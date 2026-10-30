@@ -5,6 +5,8 @@
 > **Complexity**: Medium-High (7 phases, 7 PRs, one package, Marten only)
 > **Estimated Scope**: ~700-900 lines of production code, ~1,800-2,200 lines of tests, 4 docs files
 
+> **TODO (draft, work stopped on the orchestrator's order, reviewer findings not yet applied)**: (M1) add `MartenOperationAuditStore.MapToAuditEntry` and `MartenReadAuditStore.MapToReadAuditEntry` to Phase 2 or 3: `[UNREADABLE]` in `MetadataJson` is not valid JSON and would break queries; (M2) Phase 3 must make `LoadTemporalKeyAsync` and `ClassifyTemporalKeyLookup` return an outcome instead of throwing; (M3) #3012 is an open `[BUG]` issue, not a pull request: fix the wording in Summary, Prerequisites and Phase 3, and schedule it or fold it into Phase 3; then apply minor findings m1-m14 and replace every `Verified: pending adversarial review` with the `adversarial-reviewer <date>` mark.
+
 ---
 
 ## Summary
