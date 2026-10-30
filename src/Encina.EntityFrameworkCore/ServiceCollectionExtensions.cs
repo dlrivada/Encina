@@ -170,6 +170,11 @@ public static class ServiceCollectionExtensions
         // DbContext transaction accessor), unlike the generic Encina.Messaging behavior ADO.NET
         // and Dapper share, so this pattern stays registered here instead of going through the
         // shared helper. It registers first so it runs outside the transactional outbox behavior.
+        //
+        // Recoverability registers before it, so it is the outermost Encina behavior: a retry begins a
+        // new transaction instead of re-running inside the failed one (ADR-050). The helper is the
+        // one AddMessagingServices uses for ADO.NET and Dapper, so the flag behaves identically.
+        MessagingServiceCollectionExtensions.RegisterRecoverability(services, config);
         RegisterTransactionBehavior(services, config.UseTransactions);
 
         // Register the Outbox, Inbox, Saga and Scheduling patterns through the shared helper, the
@@ -191,6 +196,17 @@ public static class ServiceCollectionExtensions
             config.UseSagas, config.SagaOptions,
             config.UseScheduling, config.SchedulingOptions,
             OutboxWritePath.TransactionalBehavior);
+
+        // Routing slips, content router and scatter-gather are plain services (no pipeline behavior),
+        // registered through the same helpers as ADO.NET and Dapper.
+        //
+        // Soft delete is deliberately not registered through the pipeline here: AddMessagingServices
+        // adds SoftDeleteQueryFilterBehavior and ISoftDeleteFilterContext for ADO.NET and Dapper, but EF
+        // Core soft delete is SoftDeleteInterceptor plus the named query filter Encina.SoftDelete
+        // (see RegisterSoftDeleteInterceptor), so the behavior would be a second, unused mechanism (#2711).
+        MessagingServiceCollectionExtensions.RegisterRoutingSlips(services, config);
+        MessagingServiceCollectionExtensions.RegisterContentRouter(services, config);
+        MessagingServiceCollectionExtensions.RegisterScatterGather(services, config);
 
         services.AddDeadLetterQueueServices<DeadLetterStoreEF, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions);
 
