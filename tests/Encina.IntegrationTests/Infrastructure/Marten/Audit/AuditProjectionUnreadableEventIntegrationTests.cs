@@ -265,6 +265,41 @@ public sealed class AuditProjectionUnreadableEventIntegrationTests(MartenFixture
     }
 
     /// <summary>
+    /// Issue #3012: the read-audit projection shares the key lookup, so its <c>Create</c> path propagates the same
+    /// typed failure when the period has neither an active key nor a destruction marker.
+    /// </summary>
+    [Fact]
+    public async Task ReadAuditProjection_NoActiveKeyAndNoMarker_FailsTypedWithKeyMissing()
+    {
+        SkipWhenUnavailable();
+        const string period = "2018-03";
+        var key = RandomNumberGenerator.GetBytes(32);
+        var evt = new ReadAuditEntryRecordedEvent
+        {
+            Id = Guid.NewGuid(),
+            EntityType = "Patient",
+            EntityId = "patient-1",
+            AccessedAtUtc = DateTimeOffset.UtcNow,
+            AccessMethod = 0,
+            EntityCount = 1,
+            EncryptedUserId = EncryptedField.Encrypt(Plaintext, key, $"temporal:{period}:v1"),
+            TemporalKeyPeriod = period
+        };
+        var projection = new ReadAuditEntryProjection(
+            MartenOperationAuditOptions.DefaultShreddedPlaceholder,
+            MartenOperationAuditOptions.DefaultExpiredPlaceholder,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<ReadAuditEntryProjection>.Instance);
+
+        await using var session = _store!.LightweightSession();
+        var failure = await Should.ThrowAsync<EncryptedFieldDecryptionException>(() =>
+            projection.Create(evt, session, CancellationToken.None));
+
+        failure.Reason.ShouldBe(EncryptedFieldDecryptionFailureReason.KeyMissing);
+        failure.Message.ShouldContain(EncryptedFieldDecryptionException.Code);
+        failure.Message.ShouldNotContain(period);
+    }
+
+    /// <summary>
     /// The recovery the runbook documents: after the operator repairs the cause (here, the missing key is restored),
     /// rebuilding the projection projects every event, including the one that stopped the shard.
     /// </summary>
