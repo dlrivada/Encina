@@ -5,15 +5,20 @@ namespace Encina.Cdc.MySql.Benchmarks.Infrastructure;
 /// <summary>
 /// Spins up a MySQL container with binary logging enabled so the CDC
 /// <c>GetCurrentPositionAsync</c> benchmark can actually read binlog state via
-/// <c>SHOW MASTER STATUS</c>.
+/// <c>SHOW BINARY LOG STATUS</c>.
 /// </summary>
 /// <remarks>
-/// Uses <c>mysql:8.0</c> rather than 9.x because the Encina MySQL CDC connector queries
-/// <c>SHOW MASTER STATUS</c>, which was removed in MySQL 9.0. Enables <c>--log-bin</c>
+/// Uses the repository's 9.x MySQL image. The Encina MySQL CDC connector queries
+/// <c>SHOW BINARY LOG STATUS</c>, the statement that replaced <c>SHOW MASTER STATUS</c>,
+/// which was removed in MySQL 8.4 (MySQL 8.4 Reference Manual). Enables <c>--log-bin</c>
 /// explicitly so we do not depend on the image's default binlog configuration.
 /// </remarks>
 public sealed class MySqlCdcBenchmarkContainer : IAsyncDisposable
 {
+    // Same 9.x tag as MySqlFixture (tests/Encina.TestInfrastructure/Fixtures/MySqlFixture.cs).
+    // This project does not reference Encina.TestInfrastructure; keep both in step.
+    private const string MySqlImage = "mysql:9.1";
+
     private readonly MySqlContainer _container;
 
     /// <summary>
@@ -22,7 +27,7 @@ public sealed class MySqlCdcBenchmarkContainer : IAsyncDisposable
     /// </summary>
     public MySqlCdcBenchmarkContainer()
     {
-        _container = new MySqlBuilder("mysql:8.0")
+        _container = new MySqlBuilder(MySqlImage)
             .WithDatabase("encina_cdc_bench")
             .WithUsername("root")
             .WithPassword("mysql")
