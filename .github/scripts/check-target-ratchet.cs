@@ -191,7 +191,8 @@ static LabelResult LookupLabel(string root, int pr)
 static bool IsManifest(string? path) =>
     path is not null && path.StartsWith(ManifestDir, StringComparison.Ordinal)
     && path.EndsWith(".json", StringComparison.Ordinal)
-    && !path.EndsWith("/defaults.json", StringComparison.Ordinal);
+    && path.IndexOf('/', ManifestDir.Length) < 0 // top level only: coverage-report.cs loads GetFiles(dir, "*.json")
+    && path != ManifestDir + "defaults.json";
 
 // git diff --name-status -z: "<status>\0<path>\0" or, for R/C, "<status>\0<old>\0<new>\0".
 static List<Change> ParseDiff(string raw)
@@ -230,15 +231,17 @@ static List<Violation> Evaluate(
     var result = new List<Violation>();
     foreach (var c in changes)
     {
-        if (c.BasePath is null) continue; // new manifest: nothing to ratchet against
-        var baseJson = readBase(c.BasePath);
+        if (!IsManifest(c.BasePath)) continue; // new manifest (or one moved in): nothing to ratchet against
+        var baseJson = readBase(c.BasePath!);
         if (baseJson is null) { errors.Add($"base manifest {c.BasePath} could not be read"); continue; }
 
         var b = Manifest.Parse(baseJson, c.BasePath!);
         if (b is null) { errors.Add($"base manifest {c.BasePath} is not a readable manifest"); continue; }
 
         Manifest? h = null;
-        var headJson = c.HeadPath is null ? null : readHead(c.HeadPath);
+        // A head path the coverage report does not load (renamed to .json.disabled, moved into a
+        // subfolder) is a deleted manifest.
+        var headJson = IsManifest(c.HeadPath) ? readHead(c.HeadPath!) : null;
         if (headJson is not null)
         {
             h = Manifest.Parse(headJson, c.HeadPath!);
@@ -388,6 +391,15 @@ static int SelfTest()
     Check("renamed manifest with lower targets is R-LOW",
         Eval(ren, oldJson, J("Pkg", "unit=40", ("A.cs", "unit=90")), live) is [{ Package: "Pkg", Scope: "package", Flag: "unit", Base: 50, Head: 40 }]);
 
+    var disabled = Eval(new Change(P("Pkg"), P("Pkg") + ".disabled"), b0, b0, live);
+    Check("renaming a manifest to .json.disabled is a deleted manifest (R-DROP)",
+        disabled.Count == 4 && disabled.All(v => v.Head is null));
+    Check("moving a manifest into a subfolder is a deleted manifest (R-DROP)",
+        Eval(new Change(P("Pkg"), ".github/coverage-manifest/sub/Pkg.json"), b0, b0, live).Count == 4);
+    Check("renaming away a manifest whose project is gone is allowed",
+        Eval(new Change(P("Pkg"), P("Pkg") + ".disabled"), b0, b0, Tree("src/Other/Other.csproj")).Count == 0);
+    Check("a file moved into the manifest folder from outside is a new manifest",
+        Eval(new Change(P("Pkg") + ".disabled", P("Pkg")), b0, J("Pkg", "unit=1"), live).Count == 0);
     Check("an unreadable base of a modified manifest fails closed",
         Eval(same, null, b0, live) is [{ Package: "ERR" }]);
     Check("renaming the package field does not hide a dropped target",
