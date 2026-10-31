@@ -590,6 +590,70 @@ public sealed class InboxStoreADOTests : IAsyncLifetime
         var retrieved = retrievedOption.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some")); // Should still exist
     }
 
+    [Fact]
+    public async Task RemoveExpiredMessagesAsync_IdsWithQuoteAndBackslash_ShouldDeleteExactlyThoseRows()
+    {
+        // Arrange
+        string[] hostileIds = ["o'brien", "'; DROP TABLE x; --", "ends-with-backslash\\", "plain-id"];
+        string[] survivorIds = ["o''brien", "ends-with-backslash", "survivor"];
+        foreach (var id in hostileIds.Concat(survivorIds))
+        {
+            (await _store.AddAsync(new InboxMessage
+            {
+                MessageId = id,
+                RequestType = "TestRequest",
+                ReceivedAtUtc = DateTime.UtcNow.AddDays(-40),
+                ProcessedAtUtc = DateTime.UtcNow.AddDays(-35),
+                ExpiresAtUtc = DateTime.UtcNow.AddDays(-5),
+                RetryCount = 0
+            })).ShouldBeRight();
+        }
+
+        // Act
+        (await _store.RemoveExpiredMessagesAsync(hostileIds)).ShouldBeRight();
+
+        // Assert
+        foreach (var id in hostileIds)
+        {
+            (await _store.GetMessageAsync(id)).ShouldBeRight().IsNone.ShouldBeTrue();
+        }
+
+        foreach (var id in survivorIds)
+        {
+            (await _store.GetMessageAsync(id)).ShouldBeRight().IsSome.ShouldBeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task RemoveExpiredMessagesAsync_MoreIdsThanOneChunk_ShouldDeleteExactlyThoseRows()
+    {
+        // Arrange: 2500 ids span three chunks of 1000; 5 extra rows must survive.
+        var idsToRemove = Enumerable.Range(0, 2500).Select(i => $"remove-{i}").ToArray();
+        var survivorIds = Enumerable.Range(0, 5).Select(i => $"keep-{i}").ToArray();
+        foreach (var id in idsToRemove.Concat(survivorIds))
+        {
+            (await _store.AddAsync(new InboxMessage
+            {
+                MessageId = id,
+                RequestType = "TestRequest",
+                ReceivedAtUtc = DateTime.UtcNow.AddDays(-40),
+                ProcessedAtUtc = DateTime.UtcNow.AddDays(-35),
+                ExpiresAtUtc = DateTime.UtcNow.AddDays(-5),
+                RetryCount = 0
+            })).ShouldBeRight();
+        }
+
+        // Act
+        (await _store.RemoveExpiredMessagesAsync(idsToRemove)).ShouldBeRight();
+
+        // Assert
+        var remaining = (await _store.GetExpiredMessagesAsync(10000)).ShouldBeRight()
+            .Select(m => m.MessageId)
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToArray();
+        remaining.ShouldBe(survivorIds.OrderBy(id => id, StringComparer.Ordinal).ToArray());
+    }
+
     #endregion
 
     #region SaveChangesAsync Tests
