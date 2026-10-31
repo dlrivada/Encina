@@ -77,7 +77,7 @@ if (assume is null && !(pr is not null && int.TryParse(pr, NumberStyles.None, Cu
     return 2;
 }
 
-var (ok, shortstat) = Run("git", "diff", "--shortstat", $"{baseRef}...{headRef}");
+var (ok, shortstat) = Run("git", DiffArguments(baseRef, headRef));
 if (!ok)
 {
     Console.Error.WriteLine("FAIL: git diff --shortstat failed (failing closed).");
@@ -85,6 +85,13 @@ if (!ok)
 }
 
 return Evaluate(shortstat, assume is not null ? () => (bool?)(assume == ExceptionLabel) : () => PrHasLabel(pr!));
+
+// The measurement must not depend on the pull request's own tree. `--attr-source=<empty tree>`
+// (git 2.40+) ignores every .gitattributes, so a PR cannot hide lines with `*.cs -diff`; `--text`
+// counts the lines of files git considers binary; `--no-renames` counts a rename as delete + add.
+// (--text alone does not override a `-diff` attribute: verified with a scratch repository.)
+static string[] DiffArguments(string baseRef, string headRef) =>
+    ["--attr-source=4b825dc642cb6eb9a060e54bf8d69288fbee4904", "diff", "--text", "--no-renames", "--shortstat", $"{baseRef}...{headRef}"];
 
 static int Evaluate(string shortstat, Func<bool?> hasLabel)
 {
@@ -134,7 +141,7 @@ static (int Files, int Lines) ParseShortstat(string text)
 // null: gh failed or its output is unreadable.
 static bool? PrHasLabel(string pr)
 {
-    var (ok, json) = Run("gh", "pr", "view", pr, "--json", "labels");
+    var (ok, json) = Run("gh", ["pr", "view", pr, "--json", "labels"]);
     return ok ? ParseLabels(json) : null;
 }
 
@@ -157,7 +164,7 @@ static bool? ParseLabels(string json)
     }
 }
 
-static (bool Ok, string Output) Run(string file, params string[] arguments)
+static (bool Ok, string Output) Run(string file, string[] arguments, string? workDir = null)
 {
     try
     {
@@ -167,6 +174,8 @@ static (bool Ok, string Output) Run(string file, params string[] arguments)
             RedirectStandardError = true,
             UseShellExecute = false,
         };
+        psi.Environment["LC_ALL"] = "C"; // git/gh output parsing must not depend on the runner locale
+        if (workDir is not null) psi.WorkingDirectory = workDir;
         foreach (var a in arguments) psi.ArgumentList.Add(a);
         using var proc = Process.Start(psi);
         if (proc is null) return (false, "");
@@ -234,6 +243,38 @@ static int SelfTest()
     Expect("labels parse: empty", ParseLabels("{\"labels\":[]}") == false);
     Expect("labels parse: garbage fails closed", ParseLabels("not json") is null);
     Expect("labels parse: no labels property fails closed", ParseLabels("{}") is null);
+
+    var diffArgs = DiffArguments("A", "B");
+    Expect("diff command ignores .gitattributes", diffArgs.Any(a => a.StartsWith("--attr-source=", StringComparison.Ordinal)));
+    Expect("diff command uses --text", diffArgs.Contains("--text"));
+    Expect("diff command uses --no-renames", diffArgs.Contains("--no-renames"));
+    Expect("diff command is a three-dot shortstat", diffArgs.Contains("--shortstat") && diffArgs.Contains("A...B"));
+
+    // End to end: a PR that adds `*.cs -diff` and two renamed-and-edited files must still count fully.
+    var scratch = Path.Combine(Path.GetTempPath(), "check-pr-size-selftest-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        Directory.CreateDirectory(scratch);
+        bool Git(params string[] a) => Run("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", .. a], scratch).Ok;
+        string Head() => Run("git", ["rev-parse", "HEAD"], scratch).Output.Trim();
+        var body = string.Join("\n", Enumerable.Range(1, 100).Select(i => $"line {i}")) + "\n";
+        File.WriteAllText(Path.Combine(scratch, "old.txt"), body);
+        var setup = Git("init", "-q") && Git("add", "-A") && Git("commit", "-q", "-m", "base");
+        var baseSha = setup ? Head() : "";
+        for (var i = 1; i <= 3; i++) File.WriteAllText(Path.Combine(scratch, $"f{i}.cs"), body);
+        File.WriteAllText(Path.Combine(scratch, ".gitattributes"), "*.cs -diff\n");
+        setup = setup && Git("add", "-A") && Git("commit", "-q", "-m", "pr");
+        var headSha = setup ? Head() : "";
+        Expect("scratch repository built", setup);
+        var (diffOk, stat) = Run("git", DiffArguments(baseSha, headSha), scratch);
+        Expect("scratch diff succeeds", diffOk);
+        Expect("`*.cs -diff` cannot hide lines (301 expected)", ParseShortstat(stat) == (4, 301));
+    }
+    finally
+    {
+        try { Directory.Delete(scratch, recursive: true); } catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
 
     if (failures == 0)
     {
