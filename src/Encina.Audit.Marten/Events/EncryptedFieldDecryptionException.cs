@@ -25,6 +25,9 @@ public enum EncryptedFieldDecryptionFailureReason
 
     /// <summary>The period's key was destroyed but its destruction marker carries neither a complete erasure reference nor a complete retention reference, or carries both (an error, tampering, or a marker written before the references existed), so the destruction is not a recorded erasure or retention expiry.</summary>
     KeyDestroyedWithoutErasureRecord = 4,
+
+    /// <summary>The period has neither an active temporal key nor a destruction marker (the key was never written or was lost). A missing key with no record is not a recorded erasure or retention expiry, so it is never read as <c>[SHREDDED]</c> or <c>[EXPIRED]</c>.</summary>
+    KeyMissing = 5,
 }
 
 /// <summary>

@@ -238,7 +238,7 @@ public sealed class OperationAuditEntryProjectionTests
 
         // Act
         var (resultKey, isShredded, _) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
-            activeKey, destroyedMarker: null, "2026-03");
+            activeKey, destroyedMarker: null);
 
         // Assert
         resultKey.ShouldBeSameAs(keyMaterial);
@@ -262,7 +262,7 @@ public sealed class OperationAuditEntryProjectionTests
 
         // Act
         var (resultKey, isShredded, _) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
-            activeKey: null, destroyedMarker, "2020-01");
+            activeKey: null, destroyedMarker);
 
         // Assert
         resultKey.ShouldBeNull();
@@ -270,20 +270,19 @@ public sealed class OperationAuditEntryProjectionTests
     }
 
     [Fact]
-    public void ClassifyTemporalKeyLookup_WithNeitherActiveKeyNorDestroyedMarker_ThrowsKeyNotFound()
+    public void ClassifyTemporalKeyLookup_WithNeitherActiveKeyNorDestroyedMarker_ThrowsTypedKeyMissing()
     {
-        // Arrange: simulates transient inconsistency — no active key written yet AND no
-        // destroyed marker. This MUST throw so the Marten async daemon retries on the next
-        // pass instead of persisting a read model with IsShredded=true (which would advance
-        // the high-water mark and permanently corrupt the read model).
+        // Arrange: no active key AND no destroyed marker. This is not a recorded erasure, so it MUST fail typed
+        // (the daemon pauses the shard) instead of persisting a read model with IsShredded=true.
         // Act + Assert
-        var ex = Should.Throw<KeyNotFoundException>(() =>
-            OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
-                activeKey: null, destroyedMarker: null, "2026-03"));
+        var ex = Should.Throw<EncryptedFieldDecryptionException>(() =>
+            OperationAuditEntryProjection.ClassifyTemporalKeyLookup(activeKey: null, destroyedMarker: null));
 
-        ex.Message.ShouldContain("2026-03");
-        ex.Message.ShouldContain("no active key and no destroyed marker");
-        ex.Message.ShouldContain("pauses the shard");
+        ex.Reason.ShouldBe(EncryptedFieldDecryptionFailureReason.KeyMissing);
+        ex.Message.ShouldContain(EncryptedFieldDecryptionException.Code);
+        ex.Message.ShouldNotContain("2026-03");
+        ex.Message.ShouldNotContain("temporal", Case.Insensitive);
+        ex.InnerException.ShouldBeNull();
     }
 
     [Fact]
@@ -314,7 +313,7 @@ public sealed class OperationAuditEntryProjectionTests
 
         // Act
         var (resultKey, isShredded, _) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
-            activeKey, destroyedMarker, "2026-03");
+            activeKey, destroyedMarker);
 
         // Assert
         resultKey.ShouldBeSameAs(keyMaterial);

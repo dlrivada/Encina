@@ -1,0 +1,1 @@
+- A period with neither an active temporal key nor a destruction marker now fails the audit projections with the typed `EncryptedFieldDecryptionException` (new reason `EncryptedFieldDecryptionFailureReason.KeyMissing`, fixed message without period text) instead of a `KeyNotFoundException`; the shard pauses (#3012).

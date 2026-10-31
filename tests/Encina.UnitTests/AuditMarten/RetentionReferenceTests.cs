@@ -122,18 +122,18 @@ public sealed class RetentionReferenceTests
         var material = RandomNumberGenerator.GetBytes(32);
         var key = new TemporalKeyDocument { Id = "k", Period = "2026-03", KeyMaterial = material, Version = 1, Status = TemporalKeyStatus.Active };
 
-        OperationAuditEntryProjection.ClassifyTemporalKeyLookup(key, Marker(true, true), "2026-03")
+        OperationAuditEntryProjection.ClassifyTemporalKeyLookup(key, Marker(true, true))
             .ShouldBe((material, false, false));
     }
 
     [Fact]
     public void Classify_ErasureOnly_IsShredded() =>
-        OperationAuditEntryProjection.ClassifyTemporalKeyLookup(null, Marker(true, false), "2020-01")
+        OperationAuditEntryProjection.ClassifyTemporalKeyLookup(null, Marker(true, false))
             .ShouldBe((null, true, false));
 
     [Fact]
     public void Classify_RetentionOnly_IsExpired() =>
-        OperationAuditEntryProjection.ClassifyTemporalKeyLookup(null, Marker(false, true), "2020-01")
+        OperationAuditEntryProjection.ClassifyTemporalKeyLookup(null, Marker(false, true))
             .ShouldBe((null, false, true));
 
     [Theory]
@@ -142,16 +142,10 @@ public sealed class RetentionReferenceTests
     public void Classify_NeitherOrBothReferences_FailsTyped(bool erasure, bool retention)
     {
         var ex = Should.Throw<EncryptedFieldDecryptionException>(() =>
-            OperationAuditEntryProjection.ClassifyTemporalKeyLookup(null, Marker(erasure, retention), "2020-01"));
+            OperationAuditEntryProjection.ClassifyTemporalKeyLookup(null, Marker(erasure, retention)));
 
         ex.Reason.ShouldBe(EncryptedFieldDecryptionFailureReason.KeyDestroyedWithoutErasureRecord);
     }
-
-    [Fact]
-    public void Classify_NoKeyNoMarker_StillThrowsKeyNotFound() =>
-        Should.Throw<KeyNotFoundException>(() =>
-            OperationAuditEntryProjection.ClassifyTemporalKeyLookup(null, null, "2026-03"))
-            .ShouldNotBeOfType<EncryptedFieldDecryptionException>();
 
     // ---- errors ----
 
