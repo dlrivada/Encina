@@ -100,6 +100,81 @@ public sealed class TenantAwareFunctionalRepositoryMongoDBTenantRequiredTests
     }
 
     [Fact]
+    public async Task AddAsync_WhenTheDriverThrows_ReturnsPersistenceErrorLeft()
+    {
+        // Arrange
+        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
+        collection.InsertOneAsync(
+                Arg.Any<MongoTenantTestOrder>(),
+                Arg.Any<InsertOneOptions?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new MongoException("driver failure")));
+        var repository = CreateRepository(collection, "tenant-1", new MongoDbTenancyOptions());
+
+        // Act
+        var result = await repository.AddAsync(new MongoTenantTestOrder { Id = Guid.NewGuid() });
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task AddRangeAsync_WhenTheDriverThrows_ReturnsPersistenceErrorLeft()
+    {
+        // Arrange
+        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
+        collection.InsertManyAsync(
+                Arg.Any<IEnumerable<MongoTenantTestOrder>>(),
+                Arg.Any<InsertManyOptions?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new MongoException("driver failure")));
+        var repository = CreateRepository(collection, "tenant-1", new MongoDbTenancyOptions());
+
+        // Act
+        var result = await repository.AddRangeAsync([new MongoTenantTestOrder { Id = Guid.NewGuid() }]);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task CountAsync_WhenTheDriverThrows_ReturnsPersistenceErrorLeft()
+    {
+        // Arrange
+        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
+        collection.CountDocumentsAsync(
+                Arg.Any<FilterDefinition<MongoTenantTestOrder>>(),
+                Arg.Any<CountOptions?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<long>(new MongoException("driver failure")));
+        var repository = CreateRepository(collection, "tenant-1", new MongoDbTenancyOptions());
+
+        // Act
+        var result = await repository.CountAsync();
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenTheDriverThrows_ReturnsPersistenceErrorLeft()
+    {
+        // Arrange
+        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
+        collection.DeleteOneAsync(
+                Arg.Any<FilterDefinition<MongoTenantTestOrder>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<DeleteResult>(new MongoException("driver failure")));
+        var repository = CreateRepository(collection, "tenant-1", new MongoDbTenancyOptions());
+
+        // Act
+        var result = await repository.DeleteAsync(Guid.NewGuid());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task CountAsync_WithoutTenantContext_AndOptOut_ReachesTheCollection()
     {
         // Arrange

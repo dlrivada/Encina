@@ -803,10 +803,44 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
         };
     }
 
+    [Fact]
+    public async Task GetPagedAsync_WithPagedSpecification_ReturnsOnlyMatchingTenantPage()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        await _collection!.InsertManyAsync([
+            CreateDocument("T1 High", Tenant1, 500m),
+            CreateDocument("T1 Low", Tenant1, 10m),
+            CreateDocument("T2 High", Tenant2, 500m)
+        ]);
+        _tenantProvider!.SetTenant(Tenant1);
+        var repository = CreateRepository();
+
+        // Act
+        var page = (await repository.GetPagedAsync(new HighValuePagedDocumentSpec())).ShouldBeSuccess();
+
+        // Assert
+        page.TotalCount.ShouldBe(1);
+        page.Items.Single().Name.ShouldBe("T1 High");
+    }
+
     #endregion
 }
 
 #region Test Entity and Specifications
+
+/// <summary>
+/// Paged specification for high-value documents (Amount > 100), first page of ten.
+/// </summary>
+public class HighValuePagedDocumentSpec : Specification<TenantTestDocument>, IPagedSpecification<TenantTestDocument>
+{
+    public PaginationOptions Pagination { get; } = new(1, 10);
+
+    public override Expression<Func<TenantTestDocument, bool>> ToExpression()
+        => d => d.Amount > 100;
+}
 
 /// <summary>
 /// Test document for MongoDB tenancy integration tests.
