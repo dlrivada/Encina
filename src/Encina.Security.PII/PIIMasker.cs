@@ -229,6 +229,29 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         }
     }
 
+    /// <inheritdoc />
+    public T MaskForLog<T>(T obj) where T : class
+    {
+        ArgumentNullException.ThrowIfNull(obj);
+
+        if (!_options.MaskInLogs)
+        {
+            return obj;
+        }
+
+        try
+        {
+            return MaskObjectInternal(obj, logContextOnly: true, out _);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Fail closed: the caller gets the exception instead of an unmasked copy; the log helpers
+            // write a placeholder. No activity or metrics on the log path (hot path), only this warning.
+            PIILogMessages.LogMaskingFailed(_logger, ex.ForLogging(), typeof(T).Name);
+            throw;
+        }
+    }
+
     /// <inheritdoc cref="IPiiMasker.MaskForAudit{T}(T)" />
     public T MaskForAudit<T>(T request) where T : notnull
     {
@@ -393,7 +416,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
             return false;
         }
 
-        maskedValue = MaskPropertyValue(originalValue, prop);
+        maskedValue = MaskPropertyValue(originalValue, prop, logContextOnly);
         jsonObj[propertyName] = maskedValue;
 
         // Trace-level log per property
@@ -473,7 +496,12 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         return result;
     }
 
-    private string MaskPropertyValue(string value, PropertyMaskingMetadata metadata)
+    // Tokenize has no vault yet and every strategy returns the raw value for it, so the log context
+    // downgrades it to Redact: the log path must never print the raw value.
+    private static MaskingMode EffectiveMode(MaskingMode mode, bool logContext) =>
+        logContext && mode == MaskingMode.Tokenize ? MaskingMode.Redact : mode;
+
+    private string MaskPropertyValue(string value, PropertyMaskingMetadata metadata, bool logContext)
     {
         // Custom replacement takes priority
         if (metadata.Replacement is not null)
@@ -490,7 +518,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
 
         // Strategy-based masking
         var strategy = GetStrategy(metadata.Type);
-        var options = ResolveMaskingOptions(metadata.Type, metadata.Mode);
+        var options = ResolveMaskingOptions(metadata.Type, EffectiveMode(metadata.Mode, logContext));
         return strategy.Apply(value, options);
     }
 

@@ -97,6 +97,78 @@ public sealed class RequestContextScopeFactoryContractTests : IDisposable
         invoked.ShouldBeFalse();
     }
 
+    [Theory]
+    [InlineData("missing", RequestIdentityErrorCodes.MissingSubjectClaim)]
+    [InlineData("malformed", RequestIdentityErrorCodes.MalformedSubjectClaim)]
+    [InlineData("reserved", RequestIdentityErrorCodes.ReservedSubjectClaim)]
+    [InlineData("conflicting", RequestIdentityErrorCodes.ConflictingSubjectClaims)]
+    public async Task AnAuthenticatedPrincipalWithAnUnusableSubject_IsRefusedWithItsCode_OnBothPaths_AndNeverInvokesWork(string cause, string code)
+    {
+        var invoked = false;
+        var principal = cause switch
+        {
+            "missing" => Principal(new Claim("sub", "ignored-by-the-map")),
+            "malformed" => Principal(new Claim("oid", " padded ")),
+            "reserved" => Principal(new Claim("oid", "service:job")),
+            _ => Principal(new Claim("oid", "user-1"), new Claim("oid", "user-2"))
+        };
+
+        var asPrincipal = await Scopes.RunAsPrincipalAsync(principal, (context, ct) =>
+        {
+            invoked = true;
+            return Capture(context, ct);
+        });
+        var inbound = await Scopes.RunInboundAsync(new InboundRequestInfo(principal), (context, ct) =>
+        {
+            invoked = true;
+            return Capture(context, ct);
+        });
+
+        asPrincipal.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(code));
+        inbound.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(code));
+        asPrincipal.IsLeft.ShouldBeTrue();
+        inbound.IsLeft.ShouldBeTrue();
+        invoked.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task ABadSubject_WinsOverABadTenant_OnBothPaths_AndAnUnauthenticatedPrincipalStaysAnonymous()
+    {
+        var bad = Principal(new Claim("sub", "ignored-by-the-map"), new Claim("org", "t1"), new Claim("org", "t2"));
+        var unauthenticated = new ClaimsPrincipal(new ClaimsIdentity([new Claim("oid", "user-1")]));
+
+        var asPrincipal = await Scopes.RunAsPrincipalAsync(bad, Capture);
+        var inbound = await Scopes.RunInboundAsync(new InboundRequestInfo(bad), Capture);
+        var anonymousPrincipal = (await Scopes.RunAsPrincipalAsync(unauthenticated, Capture)).ShouldBeSuccess();
+        var anonymousInbound = (await Scopes.RunInboundAsync(new InboundRequestInfo(unauthenticated), Capture)).ShouldBeSuccess();
+
+        asPrincipal.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.MissingSubjectClaim));
+        inbound.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.MissingSubjectClaim));
+        asPrincipal.IsLeft.ShouldBeTrue();
+        inbound.IsLeft.ShouldBeTrue();
+        Issued(anonymousPrincipal).Kind.ShouldBe(IdentityKind.Anonymous);
+        Issued(anonymousInbound).Kind.ShouldBe(IdentityKind.Anonymous);
+    }
+
+    [Fact]
+    public async Task ABadSubject_InsideAUserScope_IsStillRefusedWithTheSubjectCode_OnThePrincipalPath()
+    {
+        var user = Principal(new Claim("oid", "alice"));
+        var bad = Principal(new Claim("sub", "x"));
+
+        var innerCode = "not-run";
+
+        var outcome = await Scopes.RunAsPrincipalAsync(user, async (_, ct) =>
+        {
+            var inner = await Scopes.RunAsPrincipalAsync(bad, Capture, cancellationToken: ct);
+            innerCode = inner.Match(Right: _ => "opened", Left: error => error.GetCode().IfNone("none"));
+            return Right<EncinaError, int>(1);
+        });
+
+        outcome.IsRight.ShouldBeTrue();
+        innerCode.ShouldBe(RequestIdentityErrorCodes.MissingSubjectClaim);
+    }
+
     [Fact]
     public async Task EveryScope_IsInvalidatedWhenWorkCompletes()
     {

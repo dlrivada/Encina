@@ -891,6 +891,7 @@ Encina.Messaging.Transactions.DbTransactionAccessor.Current.get -> System.Data.I
 Encina.Messaging.Transactions.DbTransactionAccessor.DbTransactionAccessor(System.Data.IDbConnection! connection, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Transactions.DbTransactionAccessor!>! logger) -> void
 Encina.Messaging.Transactions.DbTransactionAccessor.Dispose() -> void
 Encina.Messaging.Transactions.DbTransactionAccessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Encina.Messaging.Transactions.DbTransactionAccessor.DbSystem.get -> string!
 Encina.Messaging.Transactions.DbTransactionAccessor.HasActiveTransaction.get -> bool
 Encina.Messaging.Transactions.IDbTransactionAccessor
 Encina.Messaging.Transactions.IDbTransactionAccessor.BeginOrJoinAsync(System.Data.IsolationLevel? isolationLevel, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Transactions.IDbTransactionLease!>>
@@ -904,6 +905,7 @@ Encina.Messaging.Transactions.ITransactionLease.IsOwner.get -> bool
 Encina.Messaging.Transactions.ITransactionLease.RollbackAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
 Encina.Messaging.Transactions.ITransactionLeaseSource
 Encina.Messaging.Transactions.ITransactionLeaseSource.BeginOrJoinAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Transactions.ITransactionLease!>>
+Encina.Messaging.Transactions.ITransactionLeaseSource.DbSystem.get -> string!
 Encina.Messaging.Transactions.ITransactionLeaseSource.HasActiveTransaction.get -> bool
 Encina.Messaging.Transactions.TransactionErrors
 const Encina.Messaging.Transactions.TransactionErrors.BeginFailedCode = "transaction.begin_failed" -> string!
@@ -912,8 +914,10 @@ const Encina.Messaging.Transactions.TransactionErrors.IsolationLevelMismatchCode
 const Encina.Messaging.Transactions.TransactionErrors.LeaseDisposedCode = "transaction.lease_disposed" -> string!
 const Encina.Messaging.Transactions.TransactionErrors.NotSupportedCode = "transaction.not_supported" -> string!
 const Encina.Messaging.Transactions.TransactionErrors.RollbackOnlyCode = "transaction.rollback_only" -> string!
+const Encina.Messaging.Transactions.TransactionErrors.ErrorLabelDetailKey = "errorLabel" -> string!
 static Encina.Messaging.Transactions.TransactionErrors.BeginFailed(System.Exception! exception) -> Encina.EncinaError
 static Encina.Messaging.Transactions.TransactionErrors.CommitFailed(System.Exception! exception) -> Encina.EncinaError
+static Encina.Messaging.Transactions.TransactionErrors.CommitFailed(System.Exception! exception, string? errorLabel) -> Encina.EncinaError
 static Encina.Messaging.Transactions.TransactionErrors.IsolationLevelMismatch(System.Data.IsolationLevel requested, System.Data.IsolationLevel active) -> Encina.EncinaError
 static Encina.Messaging.Transactions.TransactionErrors.LeaseDisposed() -> Encina.EncinaError
 static Encina.Messaging.Transactions.TransactionErrors.NotSupported(System.Type! connectionType) -> Encina.EncinaError
