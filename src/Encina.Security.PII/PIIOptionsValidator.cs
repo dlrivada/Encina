@@ -16,6 +16,7 @@ internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
 {
     private readonly ILogger _logger;
     private int _warned;
+    private int _warnedMaskInLogs;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PIIOptionsValidator"/> class.
@@ -44,6 +45,12 @@ internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
         if (options.HashKey is null && options.AllowUnkeyedHash && Interlocked.Exchange(ref _warned, 1) == 0)
         {
             PIILogMessages.UnkeyedHashAllowed(_logger);
+        }
+
+        // Disabling log masking is an explicit opt-out and is always logged, once per process.
+        if (!options.MaskInLogs && Interlocked.Exchange(ref _warnedMaskInLogs, 1) == 0)
+        {
+            PIILogMessages.MaskInLogsDisabled(_logger);
         }
 
         return ValidateOptionsResult.Success;

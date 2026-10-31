@@ -22,8 +22,10 @@ internal readonly record struct PropertyMaskingMetadata
         string? pattern,
         string? replacement,
         bool logOnly,
-        Action<object, object?>? setter)
+        Action<object, object?>? setter,
+        bool unmaskable = false)
     {
+        Unmaskable = unmaskable;
         Property = property;
         Type = type;
         Mode = mode;
@@ -62,6 +64,12 @@ internal readonly record struct PropertyMaskingMetadata
     /// Whether this property should only be masked in logging contexts.
     /// </summary>
     internal bool LogOnly { get; }
+
+    /// <summary>
+    /// Whether the property is marked for log masking but cannot be masked (it is not a <see cref="string"/>).
+    /// The log context fails closed for such a property; the other contexts ignore it.
+    /// </summary>
+    internal bool Unmaskable { get; }
 
     /// <summary>
     /// Compiled setter delegate for setting the property value without reflection overhead;

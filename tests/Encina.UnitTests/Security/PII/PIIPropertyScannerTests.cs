@@ -246,6 +246,120 @@ public sealed class PIIPropertyScannerTests : IDisposable
         Should.Throw<InvalidOperationException>(() => email.SetValue(new ReadOnlyPropertyDto(), "x"));
     }
 
+    [MaskInLogs(MaskingMode.Redact)]
+    private sealed class ClassLevelLogOnlyDto
+    {
+        public string First { get; set; } = "";
+
+        public string Second { get; set; } = "";
+
+        public int Count { get; set; }
+    }
+
+    [PII(PIIType.Email)]
+    private sealed class PiiClassWithLogOnlyPropertyDto
+    {
+        [MaskInLogs(MaskingMode.Full)]
+        public string Email { get; set; } = "";
+    }
+
+    [SensitiveData(MaskingMode.Redact)]
+    private sealed class SensitiveClassWithLogOnlyPropertyDto
+    {
+        [MaskInLogs(MaskingMode.Full)]
+        public string Note { get; set; } = "";
+    }
+
+    [MaskInLogs(MaskingMode.Redact)]
+    private sealed class LogOnlyClassWithPiiPropertyDto
+    {
+        [PII(PIIType.Phone)]
+        public string Phone { get; set; } = "";
+
+        public string Other { get; set; } = "";
+    }
+
+    [MaskInLogs(MaskingMode.Redact)]
+    private sealed class LogOnlyClassWithLogOnlyPropertyDto
+    {
+        [MaskInLogs(MaskingMode.Full)]
+        public string Id { get; set; } = "";
+    }
+
+    private sealed class NonStringLogOnlyDto
+    {
+        [MaskInLogs]
+        public Guid TrackingId { get; set; }
+
+        [PII(PIIType.Custom)]
+        public int Ignored { get; set; }
+
+        public string Plain { get; set; } = "";
+    }
+
+    [Fact]
+    public void GetProperties_ClassLevelMaskInLogs_AppliesToEveryStringPropertyAsLogOnly()
+    {
+        var properties = PIIPropertyScanner.GetProperties(typeof(ClassLevelLogOnlyDto));
+
+        properties.Length.ShouldBe(2);
+        properties.ShouldAllBe(p => p.Type == PIIType.Custom
+            && p.Mode == MaskingMode.Redact
+            && p.LogOnly
+            && !p.Unmaskable
+            && p.Setter != null);
+    }
+
+    [Fact]
+    public void GetProperties_PropertyMaskInLogsUnderClassPii_KeepsTheClassAlwaysMaskedMetadata()
+    {
+        var email = PIIPropertyScanner.GetProperties(typeof(PiiClassWithLogOnlyPropertyDto)).ShouldHaveSingleItem();
+
+        email.LogOnly.ShouldBeFalse();
+        email.Type.ShouldBe(PIIType.Email);
+    }
+
+    [Fact]
+    public void GetProperties_PropertyMaskInLogsUnderClassSensitiveData_KeepsTheClassAlwaysMaskedMetadata()
+    {
+        var note = PIIPropertyScanner.GetProperties(typeof(SensitiveClassWithLogOnlyPropertyDto)).ShouldHaveSingleItem();
+
+        note.LogOnly.ShouldBeFalse();
+        note.Mode.ShouldBe(MaskingMode.Redact);
+    }
+
+    [Fact]
+    public void GetProperties_ClassMaskInLogsWithPropertyPii_KeepsThePropertyPii()
+    {
+        var properties = PIIPropertyScanner.GetProperties(typeof(LogOnlyClassWithPiiPropertyDto));
+
+        var phone = properties.Single(p => p.Property.Name == "Phone");
+        phone.LogOnly.ShouldBeFalse();
+        phone.Type.ShouldBe(PIIType.Phone);
+        var other = properties.Single(p => p.Property.Name == "Other");
+        other.LogOnly.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void GetProperties_PropertyMaskInLogsOverClassMaskInLogs_PropertyModeWins()
+    {
+        var id = PIIPropertyScanner.GetProperties(typeof(LogOnlyClassWithLogOnlyPropertyDto)).ShouldHaveSingleItem();
+
+        id.LogOnly.ShouldBeTrue();
+        id.Mode.ShouldBe(MaskingMode.Full);
+    }
+
+    [Fact]
+    public void GetProperties_NonStringMaskInLogs_IsKeptAsUnmaskableAndNeverThrows()
+    {
+        var properties = PIIPropertyScanner.GetProperties(typeof(NonStringLogOnlyDto));
+
+        var tracking = properties.ShouldHaveSingleItem();
+        tracking.Property.Name.ShouldBe(nameof(NonStringLogOnlyDto.TrackingId));
+        tracking.Unmaskable.ShouldBeTrue();
+        tracking.LogOnly.ShouldBeTrue();
+    }
+
     [Fact]
     public void ClearCache_AllowsFreshDiscovery()
     {

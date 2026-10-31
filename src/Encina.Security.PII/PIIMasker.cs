@@ -408,6 +408,13 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
             return false;
         }
 
+        // A [MaskInLogs] value that cannot be masked (not a string) must not reach the log in clear.
+        if (prop.Unmaskable)
+        {
+            throw new InvalidOperationException(
+                $"Property '{prop.Property.Name}' is marked [MaskInLogs] but is not a string and cannot be masked.");
+        }
+
         var propertyName = ResolveJsonPropertyName(prop);
 
         var originalValue = (jsonObj[propertyName] as JsonValue)?.ToString();
