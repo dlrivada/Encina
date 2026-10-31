@@ -272,7 +272,17 @@ static int SelfTest()
     }
     finally
     {
-        try { Directory.Delete(scratch, recursive: true); } catch (IOException) { }
+        try
+        {
+            // git writes object files read-only, which blocks the delete on Windows.
+            foreach (var f in Directory.EnumerateFiles(scratch, "*", SearchOption.AllDirectories))
+            {
+                File.SetAttributes(f, FileAttributes.Normal);
+            }
+
+            Directory.Delete(scratch, recursive: true);
+        }
+        catch (IOException) { }
         catch (UnauthorizedAccessException) { }
     }
 
