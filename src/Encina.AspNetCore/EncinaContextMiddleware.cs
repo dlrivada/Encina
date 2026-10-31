@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using LanguageExt;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -25,7 +26,11 @@ namespace Encina.AspNetCore;
 /// <item><description>Any other request runs inside one inbound scope opened with the identity
 /// mapped from <see cref="HttpContext.User"/>; when the request completes the scope ends, so a task
 /// that outlives it reads the anonymous identity.</description></item>
-/// <item><description>A refused scope answers 500 without running the rest of the pipeline (a host
+/// <item><description>A scope refused because the caller's identity is ambiguous (the tenant header
+/// disagrees with the tenant claim, conflicting tenant claims, or an authenticated principal with a
+/// missing, malformed, reserved or conflicting subject) answers 403 <c>application/problem+json</c>
+/// without running the rest of the pipeline and without any claim value in the body.</description></item>
+/// <item><description>Any other refused scope answers 500 without running the rest of the pipeline (a host
 /// misconfiguration, such as <c>UseEncinaContext()</c> registered twice); a request aborted before
 /// the scope opened gets no response.</description></item>
 /// <item><description>When no endpoint was resolved before the middleware and the request ended on a
@@ -41,6 +46,19 @@ namespace Encina.AspNetCore;
 /// </remarks>
 internal sealed class EncinaContextMiddleware
 {
+    private const string TenantDetail = "The tenant of the request could not be resolved unambiguously.";
+    private const string SubjectDetail = "The identity of the caller could not be resolved unambiguously.";
+
+    // The refusals of an authenticated caller whose identity is ambiguous: 403, never a value in the body.
+    private static readonly FrozenDictionary<string, string> ForbiddenDetails = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        [RequestIdentityErrorCodes.InboundTenantConflict] = TenantDetail,
+        [RequestIdentityErrorCodes.MissingSubjectClaim] = SubjectDetail,
+        [RequestIdentityErrorCodes.MalformedSubjectClaim] = SubjectDetail,
+        [RequestIdentityErrorCodes.ReservedSubjectClaim] = SubjectDetail,
+        [RequestIdentityErrorCodes.ConflictingSubjectClaims] = SubjectDetail
+    }.ToFrozenDictionary(StringComparer.Ordinal);
+
     private readonly RequestDelegate _next;
     private readonly EncinaAspNetCoreOptions _options;
     private readonly ILogger _logger;
@@ -139,7 +157,8 @@ internal sealed class EncinaContextMiddleware
     }
 
     // A refused scope never ran the pipeline: an aborted request gets nothing, an ambiguous tenant
-    // (header against claim, or conflicting claims) is answered 403 problem+json with no tenant value,
+    // (header against claim, or conflicting claims) or an unusable subject (missing, malformed,
+    // reserved or conflicting) is answered 403 problem+json with a fixed detail and no claim value,
     // any other refusal is a host misconfiguration (the factory already logged its code) and fails
     // closed with 500.
     private async Task Complete(HttpContext context, Either<EncinaError, Unit> result, Endpoint? endpointBefore, PathString pathBefore)
@@ -151,17 +170,14 @@ internal sealed class EncinaContextMiddleware
         }
 
         var error = result.LeftToList()[0];
-        var code = error.GetCode();
-        if (code.Exists(static value => value == RequestIdentityErrorCodes.InboundTenantConflict))
+        var code = error.GetCode().IfNone(string.Empty);
+        if (ForbiddenDetails.TryGetValue(code, out var detail))
         {
-            await Results.Problem(
-                    statusCode: StatusCodes.Status403Forbidden,
-                    title: "Forbidden",
-                    detail: "The tenant of the request could not be resolved unambiguously.")
+            await Results.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Forbidden", detail: detail)
                 .ExecuteAsync(context)
                 .ConfigureAwait(false);
         }
-        else if (!code.Exists(static value => value == EncinaErrorCodes.RequestCancelled))
+        else if (code != EncinaErrorCodes.RequestCancelled)
         {
             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
         }

@@ -744,13 +744,13 @@ public sealed class RequestContextScopeFactoryTests
     }
 
     [Fact]
-    public async Task AReservedSubject_MapsToAnonymous_NeverToAService()
+    public async Task AReservedSubject_IsRefused_NeverOpenedAsAServiceOrAnonymous()
     {
         var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "service:test-job")], "bearer"));
 
-        var context = (await Factory.RunInboundAsync(new InboundRequestInfo(principal), ScopeTestHost.Capture)).ShouldBeSuccess();
+        var result = await Factory.RunInboundAsync(new InboundRequestInfo(principal), ScopeTestHost.Capture);
 
-        context.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
+        ShouldBeLeftWith(result, RequestIdentityErrorCodes.ReservedSubjectClaim);
     }
 
     [Fact]
