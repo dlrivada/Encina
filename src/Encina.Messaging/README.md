@@ -107,6 +107,34 @@ var result1 = await Encina.Send(command); // Processes
 var result2 = await Encina.Send(command); // Returns cached result
 ```
 
+**Automatic purge of processed messages.** When `UseInbox` is `true`, a hosted service removes processed inbox messages whose retention period has passed. It is on by default; with `EnableAutomaticPurge = false` nothing is registered or run.
+
+```csharp
+services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseInbox = true;
+    config.InboxOptions.MessageRetentionPeriod = TimeSpan.FromDays(14);
+    config.InboxOptions.PurgeInterval = TimeSpan.FromHours(6);
+    config.InboxOptions.PurgeBatchSize = 500;
+    // To disable automatic purge:
+    // config.InboxOptions.EnableAutomaticPurge = false;
+});
+```
+
+| Option | Default | Valid values |
+|--------|---------|--------------|
+| `EnableAutomaticPurge` | `true` | `true` or `false` |
+| `MessageRetentionPeriod` | 30 days | greater than zero |
+| `PurgeInterval` | 24 hours | greater than zero |
+| `PurgeBatchSize` | 100 | 1 or more, no upper limit (the stores split a batch that exceeds a database limit) |
+
+A value outside the valid range throws `ArgumentOutOfRangeException` when you set it.
+
+- **Schedule**: the service waits a random pause of up to 30 seconds after start, runs one cycle, then runs one every `PurgeInterval`.
+- **Cycle**: it deletes expired processed messages through `IInboxStore` in batches of `PurgeBatchSize` until a batch comes back shorter than that. The ADO.NET and Dapper stores remove processed messages only. The EF Core and MongoDB stores currently select by expiry time alone, so they can also remove an unprocessed message that is past its expiry (provider gap, reported separately).
+- **Scope**: there is no distributed lock because the deletes are bounded and idempotent, so several hosts may run the purge at the same time. There is no tenant filter; the purge covers the whole deployment.
+- **Failures**: a `Left` or an exception from the store fails that cycle only. It is logged with the error code or the exception type (EventIds 2110 and 2111, never the error message), counted in a failure counter on the Encina meter, and the next cycle still runs.
+
 ### 3. **Saga Pattern** (Distributed Transactions)
 
 **Problem**: Multi-step business processes spanning services/aggregates can fail mid-way.
