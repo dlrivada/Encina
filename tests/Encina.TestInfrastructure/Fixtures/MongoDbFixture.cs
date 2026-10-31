@@ -78,6 +78,26 @@ public sealed class MongoDbFixture : IAsyncLifetime
     }
 
     /// <summary>
+    /// Deletes every document of every collection of the test database, keeping the collections and their indexes.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that completes when the database is empty.</returns>
+    public async Task ClearAllDataAsync(CancellationToken cancellationToken = default)
+    {
+        if (Database is null)
+        {
+            return;
+        }
+
+        using var names = await Database.ListCollectionNamesAsync(cancellationToken: cancellationToken);
+        foreach (var name in await names.ToListAsync(cancellationToken))
+        {
+            await Database.GetCollection<BsonDocument>(name)
+                .DeleteManyAsync(FilterDefinition<BsonDocument>.Empty, cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// Registers the GUID serializer with Standard representation.
     /// This is necessary for MongoDB driver to serialize Guid properties.
     /// </summary>

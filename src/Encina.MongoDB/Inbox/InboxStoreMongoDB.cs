@@ -1,4 +1,5 @@
 using Encina.Messaging.Inbox;
+using Encina.MongoDB.Transactions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,9 +12,14 @@ namespace Encina.MongoDB.Inbox;
 /// </summary>
 public sealed class InboxStoreMongoDB : IInboxStore
 {
+    internal const string MarkProcessedNotFoundCode = "inbox.mark_processed_not_found";
+    internal const string CacheNotFoundCode = "inbox.cache_handler_error_not_found";
+    internal const string FailedNotFoundCode = "inbox.mark_failed_not_found";
+
     private readonly IMongoCollection<InboxMessage> _collection;
     private readonly ILogger<InboxStoreMongoDB> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly IMongoSessionAccessor? _sessionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InboxStoreMongoDB"/> class.
@@ -22,11 +28,21 @@ public sealed class InboxStoreMongoDB : IInboxStore
     /// <param name="options">The MongoDB options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="timeProvider">The time provider. Defaults to <see cref="TimeProvider.System"/> if not specified.</param>
+    /// <param name="sessionAccessor">
+    /// The scope's transaction accessor. Following ADR-048, the success <c>MarkAsProcessedAsync</c> and
+    /// <c>RemoveExpiredMessagesAsync</c> run in its client session when a transaction is active;
+    /// <c>AddAsync</c>, <c>MarkAsFailedAsync</c> and <c>CacheHandlerErrorAsync</c> always run without a session, so
+    /// the inbox record and a cached handler error survive a rollback of the request. <c>GetMessageAsync</c> and
+    /// <c>GetExpiredMessagesAsync</c> are plain reads: a MongoDB transaction reads from a snapshot taken at its
+    /// first operation, so an in-session read before the independent <c>AddAsync</c> would hide the new record
+    /// from the enlisted processed mark.
+    /// </param>
     public InboxStoreMongoDB(
         IMongoClient mongoClient,
         IOptions<EncinaMongoDbOptions> options,
         ILogger<InboxStoreMongoDB> logger,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IMongoSessionAccessor? sessionAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(mongoClient);
         ArgumentNullException.ThrowIfNull(options);
@@ -37,7 +53,10 @@ public sealed class InboxStoreMongoDB : IInboxStore
         _collection = database.GetCollection<InboxMessage>(config.Collections.Inbox);
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _sessionAccessor = sessionAccessor;
     }
+
+    private IClientSessionHandle? Session => _sessionAccessor?.CurrentSession;
 
     /// <inheritdoc />
     public async Task<Either<EncinaError, Option<IInboxMessage>>> GetMessageAsync(string messageId, CancellationToken cancellationToken = default)
@@ -46,8 +65,10 @@ public sealed class InboxStoreMongoDB : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
+            // A plain read, not in the session: the transaction snapshot starts at its first operation, and the
+            // independent AddAsync that follows must be visible to the enlisted processed mark (#718, ADR-048).
             var message = await _collection
-                .Find(m => m.MessageId == messageId)
+                .Find(Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId))
                 .FirstOrDefaultAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -81,6 +102,7 @@ public sealed class InboxStoreMongoDB : IInboxStore
                 NextRetryAtUtc = message.NextRetryAtUtc
             };
 
+            // Independent (ADR-048): the inbox record is written without the request's session.
             await _collection.InsertOneAsync(mongoMessage, cancellationToken: cancellationToken).ConfigureAwait(false);
             Log.AddedInboxMessage(_logger, message.MessageId);
         }, "inbox.add_failed").ConfigureAwait(false);
@@ -91,9 +113,17 @@ public sealed class InboxStoreMongoDB : IInboxStore
     {
         ArgumentException.ThrowIfNullOrEmpty(messageId);
 
-        return await EitherHelpers.TryAsync(
-            async () => await SetProcessedAsync(messageId, response, cancellationToken).ConfigureAwait(false),
+        // Enlisted (ADR-048): the processed mark commits or aborts with the request. A mark that matches no
+        // document is an error, never a silent success.
+        var marked = await EitherHelpers.TryAsync(
+            async () => await SetProcessedAsync(Session, messageId, response, cancellationToken).ConfigureAwait(false),
             "inbox.mark_processed_failed").ConfigureAwait(false);
+
+        return marked.Bind(found => found
+            ? Prelude.Right<EncinaError, Unit>(Unit.Default)
+            : Prelude.Left<EncinaError, Unit>(EncinaErrors.Create(
+                MarkProcessedNotFoundCode,
+                "The inbox message to mark as processed was not found.")));
     }
 
     /// <inheritdoc />
@@ -102,10 +132,16 @@ public sealed class InboxStoreMongoDB : IInboxStore
         // MongoDB writes are immediate and have no pipeline transaction to leave, so this is the same write as MarkAsProcessedAsync.
         ArgumentException.ThrowIfNullOrEmpty(messageId);
 
-        return await EitherHelpers.TryAsync(
-            async () => await SetProcessedAsync(messageId, response, cancellationToken).ConfigureAwait(false),
+        // Independent (ADR-048): written without the request's session so it survives a rollback.
+        var cached = await EitherHelpers.TryAsync(
+            async () => await SetProcessedAsync(null, messageId, response, cancellationToken).ConfigureAwait(false),
             "inbox.cache_handler_error_failed").ConfigureAwait(false);
+
+        return cached.Bind(found => found ? Prelude.Right<EncinaError, Unit>(Unit.Default) : NotFound(CacheNotFoundCode));
     }
+
+    private static Either<EncinaError, Unit> NotFound(string code)
+        => Prelude.Left<EncinaError, Unit>(EncinaErrors.Create(code, "The inbox message was not found."));
 
     /// <inheritdoc />
     public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
@@ -116,7 +152,7 @@ public sealed class InboxStoreMongoDB : IInboxStore
     {
         ArgumentException.ThrowIfNullOrEmpty(messageId);
 
-        return await EitherHelpers.TryAsync(async () =>
+        var marked = await EitherHelpers.TryAsync(async () =>
         {
             var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
             var update = Builders<InboxMessage>.Update
@@ -126,15 +162,17 @@ public sealed class InboxStoreMongoDB : IInboxStore
 
             var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 
-            if (result.ModifiedCount == 0)
+            if (result.MatchedCount == 0)
             {
                 Log.InboxMessageNotFoundForFailed(_logger, messageId);
+                return false;
             }
-            else
-            {
-                Log.MarkedInboxMessageAsFailed(_logger, messageId, errorMessage);
-            }
+
+            Log.MarkedInboxMessageAsFailed(_logger, messageId, errorMessage);
+            return true;
         }, "inbox.mark_failed_failed").ConfigureAwait(false);
+
+        return marked.Bind(found => found ? Prelude.Right<EncinaError, Unit>(Unit.Default) : NotFound(FailedNotFoundCode));
     }
 
     /// <inheritdoc />
@@ -175,7 +213,7 @@ public sealed class InboxStoreMongoDB : IInboxStore
             }
 
             var filter = Builders<InboxMessage>.Filter.In(m => m.MessageId, idList);
-            var result = await _collection.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
+            var result = await _collection.DeleteManyInSessionAsync(Session, filter, cancellationToken).ConfigureAwait(false);
 
             Log.RemovedExpiredInboxMessages(_logger, result.DeletedCount);
         }, "inbox.remove_expired_failed").ConfigureAwait(false);
@@ -192,7 +230,11 @@ public sealed class InboxStoreMongoDB : IInboxStore
     /// Marks the message as processed with its response and clears any recorded error.
     /// Shared by <see cref="MarkAsProcessedAsync"/> and <see cref="CacheHandlerErrorAsync"/>.
     /// </summary>
-    private async Task SetProcessedAsync(string messageId, string response, CancellationToken cancellationToken)
+    private async Task<bool> SetProcessedAsync(
+        IClientSessionHandle? session,
+        string messageId,
+        string response,
+        CancellationToken cancellationToken)
     {
         var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
         var update = Builders<InboxMessage>.Update
@@ -200,15 +242,16 @@ public sealed class InboxStoreMongoDB : IInboxStore
             .Set(m => m.Response, response)
             .Unset(m => m.ErrorMessage);
 
-        var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var result = await _collection.UpdateOneInSessionAsync(session, filter, update, cancellationToken).ConfigureAwait(false);
 
-        if (result.ModifiedCount == 0)
+        // MatchedCount, not ModifiedCount: re-marking an identical row modifies nothing and must not fail.
+        if (result.MatchedCount == 0)
         {
             Log.InboxMessageNotFoundForProcessed(_logger, messageId);
+            return false;
         }
-        else
-        {
-            Log.MarkedInboxMessageAsProcessed(_logger, messageId);
-        }
+
+        Log.MarkedInboxMessageAsProcessed(_logger, messageId);
+        return true;
     }
 }

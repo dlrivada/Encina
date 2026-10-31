@@ -39,6 +39,7 @@ public sealed class TransactionalOutboxPipelineBehaviorTests
     {
         _lease.IsOwner.Returns(true);
         _source.HasActiveTransaction.Returns(true);
+        _source.DbSystem.Returns(DbSystemName.Other);
         _lease.CommitAsync(Arg.Any<CancellationToken>()).Returns(new ValueTask<Either<EncinaError, Unit>>(Unit.Default));
         _source.BeginOrJoinAsync(Arg.Any<CancellationToken>()).Returns(
             new ValueTask<Either<EncinaError, ITransactionLease>>(Either<EncinaError, ITransactionLease>.Right(_lease)));

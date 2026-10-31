@@ -28,7 +28,7 @@ This guide explains how to implement multi-tenant applications using Encina's co
 Multi-tenancy allows a single application instance to serve multiple customers (tenants) while keeping their data isolated. Encina provides **three isolation strategies** that work consistently across all supported data providers:
 
 | Strategy | Isolation Level | Use Case |
-|----------|-----------------|----------|
+| -------- | --------------- | -------- |
 | **SharedSchema** | Row-level (TenantId column) | Cost-effective, many small tenants |
 | **SchemaPerTenant** | Schema-level | Balance of isolation and cost |
 | **DatabasePerTenant** | Database-level | Maximum isolation, compliance requirements |
@@ -241,16 +241,13 @@ sequenceDiagram
 services.AddEncinaTenancy(options =>
 {
     // Default isolation strategy for all tenants
-    options.Strategy = TenantIsolationStrategy.SharedSchema;
+    options.DefaultStrategy = TenantIsolationStrategy.SharedSchema;
 
     // Require tenant context for all operations (the default is true; set false to opt out)
     options.RequireTenant = true;
 
     // Custom property name for tenant ID (default: "TenantId")
     options.TenantIdPropertyName = "TenantId";
-
-    // Throw if tenant context missing (vs. silently skip filtering)
-    options.ThrowOnMissingTenantContext = true;
 });
 ```
 
@@ -285,21 +282,16 @@ services.AddSingleton<ITenantStore>(new InMemoryTenantStore(
 
 ### Entity Framework Core
 
-```csharp
-// Configure tenancy for EF Core
-services.AddEncinaEntityFrameworkCoreWithTenancy<AppDbContext>(
-    config =>
-    {
-        config.ConnectionString = "Server=localhost;Database=MultiTenantApp;...";
-    },
-    tenancy =>
-    {
-        tenancy.AutoFilterTenantQueries = true;    // Global query filter
-        tenancy.AutoAssignTenantId = true;         // Set TenantId on insert
-        tenancy.ValidateTenantOnModify = true;     // Prevent cross-tenant updates
-    });
+This section shows how to turn on tenant isolation for an Entity Framework Core `DbContext` and what each option does. Tenancy is opt-in: `config.UseTenancy` is `false` until you set it. The package is `Encina.EntityFrameworkCore`; the API is pre-1.0.
 
-// Entity with TenantId
+```csharp
+using Encina.EntityFrameworkCore;
+using Encina.EntityFrameworkCore.Tenancy;
+using Encina.Tenancy;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+
+// Entity: implements ITenantEntity, whose only member is string TenantId { get; set; }
 public class Order : ITenantEntity
 {
     public Guid Id { get; set; }
@@ -307,34 +299,59 @@ public class Order : ITenantEntity
     public decimal Total { get; set; }
 }
 
-// DbContext configuration
-public class AppDbContext : DbContext
+// DbContext: derive from TenantDbContext, not DbContext
+public class AppDbContext : TenantDbContext
 {
-    private readonly string? _tenantId;
-
     public AppDbContext(
         DbContextOptions<AppDbContext> options,
-        ITenantProvider tenantProvider)
-        : base(options)
+        ITenantProvider tenantProvider,
+        IOptions<EfCoreTenancyOptions> tenancyOptions,
+        IOptions<TenancyOptions> coreOptions,
+        ITenantSchemaConfigurator? schemaConfigurator = null)
+        : base(options, tenantProvider, tenancyOptions, coreOptions, schemaConfigurator)
     {
-        _tenantId = tenantProvider.GetCurrentTenantId();
     }
+
+    public DbSet<Order> Orders => Set<Order>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // Automatic tenant filter (when AutoFilterTenantQueries = true)
-        modelBuilder.Entity<Order>()
-            .HasQueryFilter(o => o.TenantId == _tenantId);
+        base.OnModelCreating(modelBuilder); // applies the tenant query filter
+        // Additional configuration...
     }
 }
+
+// Registration
+services.AddEncinaTenancy();                       // registers ITenantProvider and the core TenancyOptions
+services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
+services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseTenancy = true;
+    config.TenancyOptions.AutoAssignTenantId = true;
+    config.TenancyOptions.ValidateTenantOnSave = true;
+    config.TenancyOptions.UseQueryFilters = true;
+    config.TenancyOptions.ThrowOnMissingTenantContext = true;
+});
 ```
+
+`AddEncinaEntityFrameworkCore<TDbContext>` copies the four values of `config.TenancyOptions` into an `EfCoreTenancyOptions` singleton when `UseTenancy` is `true`. It does not register the tenant provider, so call `AddEncinaTenancy()` as well. The four values below are all `true` by default, so the assignments in the sample only make the defaults visible.
+
+| Option | Default | Effect |
+| ------ | :-----: | ------ |
+| `AutoAssignTenantId` | `true` | On save, every added `ITenantEntity` gets `TenantId` set from `ITenantProvider.GetCurrentTenantId()`. |
+| `ValidateTenantOnSave` | `true` | On save, every modified or deleted `ITenantEntity` must have a `TenantId` equal (ordinal comparison) to the current tenant; otherwise `InvalidOperationException` ("Tenant mismatch"). |
+| `UseQueryFilters` | `true` | `TenantDbContext.OnModelCreating` adds a named query filter, `e.TenantId == CurrentTenantId`, to every entity type that implements `ITenantEntity`. |
+| `ThrowOnMissingTenantContext` | `true` | With no current tenant, saving an added entity (when `AutoAssignTenantId` is on) or a modified or deleted one (when `ValidateTenantOnSave` is on) throws `InvalidOperationException`, provided the core `TenancyOptions.RequireTenant` is also `true`. When `false`, the save proceeds without assignment or validation, which can break isolation. |
+
+The tenant filter has the key `"Encina.Tenancy"`. To bypass it in one query, pass that key to the keyed overload: `IgnoreQueryFilters(["Encina.Tenancy"])`. The parameterless `IgnoreQueryFilters()` also drops the other named filters of the entity, such as the soft-delete filter. A plain `DbContext` with a hand-written `HasQueryFilter` does not get any of this behaviour: assignment, validation and the named filter come from `TenantDbContext`.
 
 ### Dapper (SQL Server, PostgreSQL, MySQL)
 
 ```csharp
-// Configure tenancy for Dapper
-services.AddEncinaDapperSqlServerWithTenancy(
-    "Server=localhost;Database=MultiTenantApp;...",
+// Configure tenancy for Dapper. The connection string is not a parameter: it comes from the
+// resolved tenant's ConnectionString or from TenancyOptions.DefaultConnectionString (AddEncinaTenancy).
+// The method has the same name in Encina.Dapper.SqlServer, Encina.Dapper.PostgreSQL and Encina.Dapper.MySQL.
+services.AddEncinaDapperWithTenancy(
     config =>
     {
         config.UseOutbox = true;
@@ -356,7 +373,9 @@ services.AddTenantAwareRepository<Order, Guid>(mapping =>
            .MapProperty(o => o.Total));
 
 // Usage in handlers
-public class GetOrdersHandler : IQueryHandler<GetOrdersQuery, IEnumerable<Order>>
+public sealed record GetOrdersQuery : IQuery<IReadOnlyList<Order>>;
+
+public class GetOrdersHandler : IQueryHandler<GetOrdersQuery, IReadOnlyList<Order>>
 {
     private readonly IFunctionalReadRepository<Order, Guid> _repository;
 
@@ -365,13 +384,12 @@ public class GetOrdersHandler : IQueryHandler<GetOrdersQuery, IEnumerable<Order>
         _repository = repository;
     }
 
-    public async ValueTask<Either<EncinaError, IEnumerable<Order>>> Handle(
+    public Task<Either<EncinaError, IReadOnlyList<Order>>> Handle(
         GetOrdersQuery query,
-        IRequestContext context,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         // Automatically filtered by current tenant
-        return await _repository.GetAllAsync(ct);
+        return _repository.ListAsync(cancellationToken);
     }
 }
 ```
@@ -379,9 +397,15 @@ public class GetOrdersHandler : IQueryHandler<GetOrdersQuery, IEnumerable<Order>
 ### ADO.NET
 
 ```csharp
-// Configure tenancy for ADO.NET
-services.AddEncinaADOSqlServerWithTenancy(
-    "Server=localhost;Database=MultiTenantApp;...",
+// Configure tenancy for ADO.NET (SQL Server). The connection string is not a parameter: it comes from the
+// resolved tenant's ConnectionString or from TenancyOptions.DefaultConnectionString (AddEncinaTenancy).
+// PostgreSQL and MySQL use AddEncinaADOPostgreSQLWithTenancy and AddEncinaADOMySQLWithTenancy.
+services.AddEncinaADOWithTenancy(
+    config =>
+    {
+        config.UseOutbox = true;
+        config.UseInbox = true;
+    },
     tenancy =>
     {
         tenancy.AutoFilterTenantQueries = true;
@@ -765,11 +789,18 @@ Encina provides multiple layers of protection:
 2. **Tenant Validation on Modify**: Updates/deletes verify the entity belongs to current tenant
 3. **Auto-Assignment on Insert**: New entities automatically get the current tenant ID
 
+All three are enabled by default. The option names depend on the provider:
+
 ```csharp
-// All enabled by default
+// Dapper, ADO.NET and MongoDB (DapperTenancyOptions, ADOTenancyOptions, MongoDbTenancyOptions)
 tenancy.AutoFilterTenantQueries = true;
 tenancy.AutoAssignTenantId = true;
 tenancy.ValidateTenantOnModify = true;
+
+// Entity Framework Core (config.TenancyOptions inside AddEncinaEntityFrameworkCore<TDbContext>)
+config.TenancyOptions.UseQueryFilters = true;
+config.TenancyOptions.AutoAssignTenantId = true;
+config.TenancyOptions.ValidateTenantOnSave = true;
 ```
 
 ### Can I have tenant-specific configuration?
@@ -803,57 +834,54 @@ var systemTenant = new TenantInfo(
     Name: "System Operations",
     Strategy: TenantIsolationStrategy.SharedSchema);
 
-// Option 3: Create a TenantBypass scope
-using (var scope = _tenantProvider.CreateBypassScope())
-{
-    // Operations here ignore tenant filtering
-    await _repository.GetAllUnfilteredAsync(ct);
-}
+// Option 3 (Entity Framework Core): bypass the tenant filter in one query only
+var all = await dbContext.Orders
+    .IgnoreQueryFilters(["Encina.Tenancy"])
+    .ToListAsync(ct);
 ```
 
 ### What happens if tenant resolution fails?
 
 It depends on your configuration:
 
+`ThrowOnMissingTenantContext` is declared by the provider tenancy options (`EfCoreTenancyOptions`, `DapperTenancyOptions`, `ADOTenancyOptions`, `MongoDbTenancyOptions`), not by the core `TenancyOptions`:
+
 ```csharp
-// Strict mode (recommended for production)
-options.ThrowOnMissingTenantContext = true;
-// → Throws InvalidOperationException
+// Strict mode (recommended for production; the default)
+tenancy.ThrowOnMissingTenantContext = true;
+// → Throws InvalidOperationException (Entity Framework Core: only when the core TenancyOptions.RequireTenant is also true)
 
 // Lenient mode (useful for development/migration)
-options.ThrowOnMissingTenantContext = false;
-// → Queries run without tenant filter (DANGEROUS in production!)
+tenancy.ThrowOnMissingTenantContext = false;
+// → Dapper, ADO.NET and MongoDB: queries run without the tenant filter (DANGEROUS in production!)
+// → Entity Framework Core: saves skip tenant assignment and validation (see the table above)
 ```
 
 ### How do I implement multi-database tenancy with connection pooling?
 
-Use the `TenantConnectionFactory`:
+Use the `ITenantConnectionFactory` that `AddEncinaDapperWithTenancy` (or `AddEncinaADOWithTenancy` for ADO.NET) registers. Each provider package declares its own `ITenantConnectionFactory` in its own `.Tenancy` namespace; the sample uses `Encina.Dapper.SqlServer.Tenancy`. It resolves the connection string of the current tenant, or of an explicit tenant, and returns the connection in an `Either`; connection pooling is handled by the ADO.NET provider.
 
 ```csharp
-public class TenantConnectionFactory : ITenantConnectionFactory
+using Dapper;
+using Encina.Dapper.SqlServer.Tenancy;
+
+public class TenantReport(ITenantConnectionFactory connectionFactory)
 {
-    private readonly ConcurrentDictionary<string, string> _connectionCache = new();
-    private readonly ITenantStore _tenantStore;
-
-    public async ValueTask<IDbConnection> GetConnectionAsync(
+    public async Task<Either<EncinaError, int>> CountOrdersAsync(
         string tenantId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
-        if (!_connectionCache.TryGetValue(tenantId, out var connectionString))
-        {
-            var tenant = await _tenantStore.GetTenantAsync(tenantId, cancellationToken);
-            if (tenant is null)
-                throw new TenantNotFoundException(tenantId);
+        var connection = await connectionFactory.CreateConnectionForTenantAsync(tenantId, cancellationToken);
 
-            connectionString = tenant.ConnectionString
-                ?? throw new InvalidOperationException(
-                    $"Tenant {tenantId} does not have a connection string configured.");
-
-            _connectionCache[tenantId] = connectionString;
-        }
-
-        // Connection pooling handled by ADO.NET
-        return new SqlConnection(connectionString);
+        return await connection.MatchAsync<Either<EncinaError, int>>(
+            RightAsync: async db =>
+            {
+                using (db)
+                {
+                    return await db.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Orders");
+                }
+            },
+            Left: error => error);
     }
 }
 ```
@@ -871,7 +899,7 @@ services.AddTenantAwareRepository<Order, Guid>(mapping =>
            .MapProperty(o => o.Total));
 
 // Global products (no tenant filtering)
-services.AddRepository<Product, Guid>(mapping =>
+services.AddTenantAwareRepository<Product, Guid>(mapping =>
     mapping.ToTable("Products")
            .HasId(p => p.Id)
            // No HasTenantId() = no tenant filtering

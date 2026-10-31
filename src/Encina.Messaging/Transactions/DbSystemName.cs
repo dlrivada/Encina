@@ -39,13 +39,4 @@ internal static class DbSystemName
         _ when ns.StartsWith("MySql", StringComparison.Ordinal) => MySql,
         _ => Other
     };
-
-    /// <summary>
-    /// Gets the <c>db.system</c> value of a transaction source: its connection's when it is relational,
-    /// <see cref="Other"/> otherwise.
-    /// </summary>
-    /// <param name="source">The transaction source.</param>
-    /// <returns>The <c>db.system</c> value.</returns>
-    internal static string From(ITransactionLeaseSource source)
-        => source is IDbTransactionAccessor accessor ? From(accessor.Connection) : Other;
 }

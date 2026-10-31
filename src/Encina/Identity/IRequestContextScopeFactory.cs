@@ -103,7 +103,12 @@ public interface IRequestContextScopeFactory
     /// The result of <paramref name="work"/>, or a refusal. A principal whose authenticated identities
     /// carry different tenant claim values (across the configured tenant claim types, or several values
     /// in one identity) is refused with <see cref="RequestIdentityErrorCodes.ConflictingTenantClaims"/>
-    /// and <paramref name="work"/> is not invoked; the scope never opens as anonymous instead.
+    /// and <paramref name="work"/> is not invoked; the scope never opens as anonymous instead. The same
+    /// holds for an authenticated principal whose subject is unusable, with one code per cause:
+    /// <see cref="RequestIdentityErrorCodes.MissingSubjectClaim"/>,
+    /// <see cref="RequestIdentityErrorCodes.MalformedSubjectClaim"/>,
+    /// <see cref="RequestIdentityErrorCodes.ReservedSubjectClaim"/> or
+    /// <see cref="RequestIdentityErrorCodes.ConflictingSubjectClaims"/>. A bad subject wins over a bad tenant.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="principal"/> or <paramref name="work"/> is <see langword="null"/>.</exception>
     Task<Either<EncinaError, T>> RunAsPrincipalAsync<T>(
@@ -125,7 +130,13 @@ public interface IRequestContextScopeFactory
     /// <see cref="RequestIdentityErrorCodes.UnsupportedAccessor"/>, <see cref="EncinaErrorCodes.RequestCancelled"/>
     /// and <see cref="RequestIdentityErrorCodes.ScopeConflict"/>, or
     /// <see cref="RequestIdentityErrorCodes.InboundTenantConflict"/> when the tenant header disagrees
-    /// with the principal's tenant claim or the principal carries conflicting tenant claims. All other
+    /// with the principal's tenant claim or the principal carries conflicting tenant claims, or, for an
+    /// authenticated principal whose subject is unusable, one of
+    /// <see cref="RequestIdentityErrorCodes.MissingSubjectClaim"/>,
+    /// <see cref="RequestIdentityErrorCodes.MalformedSubjectClaim"/>,
+    /// <see cref="RequestIdentityErrorCodes.ReservedSubjectClaim"/> and
+    /// <see cref="RequestIdentityErrorCodes.ConflictingSubjectClaims"/> (it never opens as anonymous; a bad
+    /// subject wins over a bad tenant). An unauthenticated principal opens the anonymous scope. All other
     /// client-controlled input is normalized, never refused (see <see cref="InboundRequestInfo"/>).
     /// </returns>
     /// <remarks>

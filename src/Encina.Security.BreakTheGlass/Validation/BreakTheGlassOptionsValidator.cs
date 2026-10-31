@@ -86,6 +86,10 @@ internal sealed class BreakTheGlassOptionsValidator : IValidateOptions<BreakTheG
     {
         Require(!string.IsNullOrWhiteSpace(scopeName), "A break-the-glass scope name must not be blank.", failures);
         Require(
+            scopeName.Length <= BreakTheGlassLimits.ScopeMaxLength,
+            $"A break-the-glass scope name must be at most {BreakTheGlassLimits.ScopeMaxLength} characters.",
+            failures);
+        Require(
             scope.OpenerRoles.Count + scope.OpenerPermissions.Count > 0,
             $"Break-the-glass scope '{scopeName}' must name an opener role or an opener permission.",
             failures);
