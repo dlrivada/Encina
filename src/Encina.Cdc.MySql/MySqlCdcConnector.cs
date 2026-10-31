@@ -32,6 +32,7 @@ internal sealed class MySqlCdcConnector : ICdcConnector
     private readonly MySqlCdcOptions _options;
     private readonly ICdcPositionStore _positionStore;
     private readonly ILogger<MySqlCdcConnector> _logger;
+    private readonly IMySqlBinlogStatusClient _binlogStatusClient;
     private readonly TimeProvider _timeProvider;
     private readonly Dictionary<long, TableMapEvent> _tableMap = new();
 
@@ -41,20 +42,24 @@ internal sealed class MySqlCdcConnector : ICdcConnector
     /// <param name="options">MySQL CDC options.</param>
     /// <param name="positionStore">Position store for tracking progress.</param>
     /// <param name="logger">Logger for diagnostics.</param>
+    /// <param name="binlogStatusClient">Client that reads the binary log coordinates of the server.</param>
     /// <param name="timeProvider">The time provider for testing.</param>
     public MySqlCdcConnector(
         MySqlCdcOptions options,
         ICdcPositionStore positionStore,
         ILogger<MySqlCdcConnector> logger,
+        IMySqlBinlogStatusClient binlogStatusClient,
         TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(positionStore);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(binlogStatusClient);
 
         _options = options;
         _positionStore = positionStore;
         _logger = logger;
+        _binlogStatusClient = binlogStatusClient;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -67,24 +72,16 @@ internal sealed class MySqlCdcConnector : ICdcConnector
     {
         try
         {
-            await using var connection = new MySqlConnector.MySqlConnection(_options.ConnectionString);
-            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            var status = await _binlogStatusClient.GetBinlogStatusAsync(cancellationToken).ConfigureAwait(false);
 
-            await using var command = connection.CreateCommand();
-            command.CommandText = "SHOW MASTER STATUS";
-
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-
-            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            if (status is not { } current)
             {
                 return Left(CdcErrors.ConnectionFailed(
-                    "Binary logging is not enabled. Enable it with: SET GLOBAL log_bin = ON"));
+                    "Binary logging is not enabled. It is enabled at server start with --log-bin " +
+                    "(on by default in MySQL 8.4 and later); it cannot be switched on with SET GLOBAL."));
             }
 
-            var file = reader.GetString(reader.GetOrdinal("File"));
-            var position = reader.GetInt64(reader.GetOrdinal("Position"));
-
-            return Right<EncinaError, CdcPosition>(new MySqlCdcPosition(file, position));
+            return Right<EncinaError, CdcPosition>(new MySqlCdcPosition(current.File, current.Position));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
