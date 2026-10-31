@@ -105,7 +105,8 @@ public sealed class RecoverabilityOptions
     /// When disabled, only immediate retries are used, and messages go to DLQ
     /// after immediate retries are exhausted. When enabled, an <see cref="IDelayedRetryStore"/> and an
     /// <see cref="IDelayedRetryMessageFactory"/> must be registered (with
-    /// <c>AddEncinaDelayedRetryStore</c> or a database provider package); otherwise the application
+    /// <c>AddEncinaDelayedRetryStore</c> or a database provider package), and so must <see cref="IEncina"/>
+    /// (with <c>AddEncina</c>), because the processor re-dispatches through it; otherwise the application
     /// fails at startup. The flag alone decides: enabled with an empty <see cref="DelayedRetries"/>
     /// array still requires the store.
     /// </remarks>

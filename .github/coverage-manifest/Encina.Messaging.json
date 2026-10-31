@@ -986,9 +986,9 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 90, "guard": 5 },
+      "targets": { "unit": 95, "guard": 5 },
       "justifications": {
-        "unit": "Retry-After, ceiling and non-idempotent chain tests in DelayedRetryChainTests; the reflection scheduling fallbacks for an unresolvable type stay uncovered (measured 95%).",
+        "unit": "Retry-After, ceiling and non-idempotent chain tests in DelayedRetryChainTests, and the required-dependency failure of the cycle in DelayedRetryProcessorTests; the reflection scheduling fallbacks for an unresolvable type stay uncovered (measured 96%).",
         "guard": "Only the constructor guards exist for this type; the processing loop takes no caller parameters (measured 6%)."
       }
     },
@@ -1028,13 +1028,13 @@
         "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Internal hosted startup check of the delayed retry store and factory (ADR-050)",
+      "reason": "Internal hosted startup check of the delayed retry store, factory and IEncina (ADR-050)",
       "targets": {
         "unit": 95,
         "guard": 0
       },
       "justifications": {
-        "unit": "DelayedRetryRegistrationTests start the check with the store, the factory, both, or neither missing, with the flag off and with an empty DelayedRetries array, and through a real host (measured 100%).",
+        "unit": "DelayedRetryRegistrationTests start the check with the store, the factory, IEncina, any combination of them missing, with the flag off and with an empty DelayedRetries array, and through a real host (measured 100%).",
         "guard": "The type is internal and the guard test project has no access to internals; its constructor null checks are asserted in the unit project (DelayedRetryRegistrationTests.StartupCheck_WithNullArguments_Throws)."
       }
     },

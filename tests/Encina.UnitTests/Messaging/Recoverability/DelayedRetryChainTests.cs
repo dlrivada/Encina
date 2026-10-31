@@ -206,7 +206,8 @@ public sealed class DelayedRetryChainTests
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
         serviceProvider.GetService(typeof(IEncina)).Returns(Substitute.For<IEncina>());
-        serviceProvider.GetService(typeof(IMessageSerializer)).Returns(serializer);
+        serviceProvider.GetService(typeof(IMessageSerializer)).Returns(serializer ?? new JsonMessageSerializer());
+        serviceProvider.GetService(typeof(IDelayedRetryScheduler)).Returns(Substitute.For<IDelayedRetryScheduler>());
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(serviceProvider);
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
@@ -606,6 +607,8 @@ public sealed class DelayedRetryChainTests
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
         serviceProvider.GetService(typeof(IEncina)).Returns(encina);
+        serviceProvider.GetService(typeof(IMessageSerializer)).Returns(new JsonMessageSerializer());
+        serviceProvider.GetService(typeof(IDelayedRetryScheduler)).Returns(Substitute.For<IDelayedRetryScheduler>());
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(serviceProvider);
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
@@ -995,6 +998,8 @@ public sealed class DelayedRetryChainTests
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
         serviceProvider.GetService(typeof(IEncina)).Returns(Substitute.For<IEncina>());
+        serviceProvider.GetService(typeof(IMessageSerializer)).Returns(new JsonMessageSerializer());
+        serviceProvider.GetService(typeof(IDelayedRetryScheduler)).Returns(Substitute.For<IDelayedRetryScheduler>());
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(serviceProvider);
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
@@ -1044,6 +1049,8 @@ public sealed class DelayedRetryChainTests
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
         serviceProvider.GetService(typeof(IEncina)).Returns(Substitute.For<IEncina>());
+        serviceProvider.GetService(typeof(IMessageSerializer)).Returns(new JsonMessageSerializer());
+        serviceProvider.GetService(typeof(IDelayedRetryScheduler)).Returns(Substitute.For<IDelayedRetryScheduler>());
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(serviceProvider);
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
@@ -1234,6 +1241,7 @@ public sealed class DelayedRetryChainTests
             serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(Store);
             serviceProvider.GetService(typeof(IEncina)).Returns(encina);
             serviceProvider.GetService(typeof(IDelayedRetryScheduler)).Returns(Scheduler);
+            serviceProvider.GetService(typeof(IMessageSerializer)).Returns(new JsonMessageSerializer());
 
             var scope = Substitute.For<IServiceScope>();
             scope.ServiceProvider.Returns(serviceProvider);
