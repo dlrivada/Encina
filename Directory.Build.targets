@@ -1,0 +1,13 @@
+<Project>
+
+  <!--
+    Transitive pinning (CPM) applies only to projects that do not ship: a pin on a packable project
+    would add a dependency to its nuspec (#2976, docs/infrastructure/cpm-transitive-pinning.md).
+    This is a .targets file on purpose: it sees the final IsPackable, including csproj overrides;
+    Directory.Build.props only sets the defaults.
+  -->
+  <PropertyGroup Condition="'$(IsPackable)' == 'false'">
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+</Project>
