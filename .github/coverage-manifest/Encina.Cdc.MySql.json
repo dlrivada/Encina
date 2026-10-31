@@ -4,6 +4,7 @@
   "totalFiles": 9,
   "targets": {
     "guard": 15,
+    "integration": 63,
     "property": 10,
     "unit": 50
   },
@@ -37,30 +38,31 @@
       "targets": {
         "unit": 63,
         "guard": 21,
-        "integration": 0
+        "integration": 100
       },
       "justifications": {
         "unit": "ReadPositionAsync runs against a real DbDataReader built from a DataTable (row, empty result, null/missing column, cancellation) and the constructor and the cancelled-connect path run too, measured 63.16%; the connection open, command creation and reader execution need a live MySQL (#3052).",
         "guard": "Guard tests execute the constructor ThrowIfNull line through reflection (measured 21.05%); the remaining lines are covered by the unit flag.",
-        "integration": "Integration tests against real MySQL 8.4 and 9.x are sub-issue #3052 of #2859; the zero target is explicit until they land."
+        "integration": "Integration tests run every line against real MySQL 8.4 and 9.x servers (measured 100%), including the empty result of a server without binary logging."
       }
     },
     "MySqlCdcConnector.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*CdcConnector.cs",
-      "reason": "CDC connector: GetCurrentPositionAsync is unit tested through the IMySqlBinlogStatusClient seam; streaming needs a real MySQL 8.4/9.x with binlog (integration tests: #3052).",
+      "reason": "CDC connector: GetCurrentPositionAsync is unit tested through the IMySqlBinlogStatusClient seam; position reads and the insert streaming path run on real MySQL 8.4 and 9.x in the integration tests (#3052); update/delete mapping and reconnect branches are left to #2839.",
       "targets": {
         "unit": 19,
         "guard": 10,
-        "integration": 0
+        "integration": 63
       },
       "justifications": {
         "unit": "GetCurrentPositionAsync and the constructor run through a hand-written fake of IMySqlBinlogStatusClient (row, empty result, throwing, cancelled), measured 19.51%; StreamChangesAsync and the event mapping need a live binlog.",
         "guard": "Guard tests execute the four constructor ThrowIfNull lines (measured 10.98%).",
-        "integration": "StreamChangesAsync and the event mapping need a live binlog; the MySQL 8.4/9.x integration tests are #3052 of #2859, so the zero target is explicit until they land."
+        "integration": "Integration tests on real MySQL 8.4 and 9.x run GetCurrentPositionAsync and the streaming path of an insert (measured 63.4%); update and delete mapping, table-map eviction and reconnect branches are left to the larger sibling #2839."
       }
     },
     "MySqlCdcOptions.cs": {
