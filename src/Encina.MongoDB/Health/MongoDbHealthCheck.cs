@@ -1,7 +1,10 @@
 using Encina.Messaging.Health;
+using Encina.MongoDB.Transactions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using MongoDB.Driver.Core.Clusters;
 
 namespace Encina.MongoDB.Health;
 
@@ -14,6 +17,12 @@ public sealed class MongoDbHealthCheck : EncinaHealthCheck
     /// The default name for the MongoDB health check.
     /// </summary>
     public const string DefaultName = "encina-mongodb";
+
+    /// <summary>The reason code of an <c>Unhealthy</c> result: the outbox is on but the server cannot run transactions.</summary>
+    internal const string StandaloneReasonCode = "transactions_unavailable_standalone";
+
+    /// <summary>The reason code of a <c>Degraded</c> result: the cluster type is not discovered yet.</summary>
+    internal const string ClusterTypeUnknownReasonCode = "cluster_type_unknown";
 
     private readonly IServiceProvider _serviceProvider;
     private readonly ProviderHealthCheckOptions _options;
@@ -47,7 +56,7 @@ public sealed class MongoDbHealthCheck : EncinaHealthCheck
             var pingCommand = new BsonDocument("ping", 1);
             await adminDb.RunCommandAsync<BsonDocument>(pingCommand, cancellationToken: linkedCts.Token).ConfigureAwait(false);
 
-            return HealthCheckResult.Healthy($"{Name} is reachable");
+            return EvaluateTransactionSupport(mongoClient);
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
         {
@@ -58,4 +67,30 @@ public sealed class MongoDbHealthCheck : EncinaHealthCheck
             return HealthCheckResult.Unhealthy($"{Name} health check failed: {ex.GetType().Name}");
         }
     }
+
+    /// <summary>
+    /// When the transactional outbox is on, the deployment must support transactions: a standalone server is
+    /// <c>Unhealthy</c> (every request with notifications fails closed there), an undiscovered cluster type is
+    /// <c>Degraded</c>, and replica sets and sharded clusters are healthy. Results carry reason codes only.
+    /// </summary>
+    private HealthCheckResult EvaluateTransactionSupport(IMongoClient mongoClient)
+    {
+        return IsOutboxEnabled()
+            ? Verdict(ClusterTypeOf(mongoClient))
+            : HealthCheckResult.Healthy($"{Name} is reachable");
+    }
+
+    private bool IsOutboxEnabled()
+        => _serviceProvider.GetService<IOptions<EncinaMongoDbOptions>>()?.Value.UseOutbox == true;
+
+    private static ClusterType ClusterTypeOf(IMongoClient mongoClient)
+        => MongoSessionAccessor.EffectiveClusterType(mongoClient.Cluster?.Description);
+
+    // crap-exempt: single-question switch — maps the cluster type to the transaction-support verdict
+    private HealthCheckResult Verdict(ClusterType clusterType) => clusterType switch
+    {
+        ClusterType.Standalone => HealthCheckResult.Unhealthy($"{Name}: {StandaloneReasonCode}"),
+        ClusterType.Unknown => HealthCheckResult.Degraded($"{Name}: {ClusterTypeUnknownReasonCode}"),
+        _ => HealthCheckResult.Healthy($"{Name} is reachable")
+    };
 }

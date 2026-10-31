@@ -34,6 +34,18 @@ public sealed class RequestIdentityGuardTests
         factory.Create(null).ShouldBeSameAs(RequestIdentity.Anonymous);
         factory.TryResolveTenantId(null, out var tenantId).ShouldBeTrue();
         tenantId.ShouldBeNull();
+        factory.CheckSubject(null).ShouldBeNull();
+    }
+
+    [Fact]
+    public void ClaimsRequestIdentityFactory_AnAuthenticatedPrincipalWithoutSubject_IsRefusedNotThrown()
+    {
+        var factory = new ClaimsRequestIdentityFactory(Options.Create(new RequestIdentityOptions()));
+        var principal = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity([new("email", "alice@example.test")], "test"));
+
+        factory.CheckSubject(principal).GetValueOrDefault().GetCode().IfNone("none")
+            .ShouldBe(RequestIdentityErrorCodes.MissingSubjectClaim);
     }
 
     [Fact]

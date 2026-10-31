@@ -6,13 +6,13 @@ parent: "Features"
 
 # How to write the outbox inside the request's transaction
 
-This guide shows you how to make the events a request emits and the business change it makes commit or roll back together, on the ADO.NET, Dapper and EF Core providers (SQL Server, PostgreSQL, MySQL). It assumes you already use one of the `Encina.ADO.*`, `Encina.Dapper.*` or `Encina.EntityFrameworkCore` packages and know what the outbox is. The code samples use ADO.NET; on Dapper, pass `transaction: accessor.Current` to each Dapper call instead of setting `command.Transaction`, and register with `AddEncinaDapper`. On EF Core, see [the EF Core section](#ef-core-one-transaction-per-request). The API is pre-1.0 and may still change.
+This guide shows you how to make the events a request emits and the business change it makes commit or roll back together, on the ADO.NET, Dapper and EF Core providers (SQL Server, PostgreSQL, MySQL) and on MongoDB. It assumes you already use one of the `Encina.ADO.*`, `Encina.Dapper.*`, `Encina.EntityFrameworkCore` or `Encina.MongoDB` packages and know what the outbox is. The code samples use ADO.NET; on Dapper, pass `transaction: accessor.Current` to each Dapper call instead of setting `command.Transaction`, and register with `AddEncinaDapper`. On EF Core, see [the EF Core section](#ef-core-one-transaction-per-request). The API is pre-1.0 and may still change.
 
 The reasons behind the design (one shared transaction, join and rollback-only, the interim per-family switch) are in [ADR-037](../architecture/adr/037-transactional-outbox.md). The members of every type are in the generated API reference (`/api/` on the site).
 
 ## Which providers write inside the transaction
 
-Encina delivers this one provider family at a time. The ADO.NET, Dapper and EF Core providers write the outbox inside the request's transaction today.
+Encina delivers this one provider family at a time. The ADO.NET, Dapper, EF Core and MongoDB providers write the outbox inside the request's transaction today.
 
 | Provider | Outbox row written | Status |
 | --- | --- | --- |
@@ -25,9 +25,7 @@ Encina delivers this one provider family at a time. The ADO.NET, Dapper and EF C
 | EF Core SQL Server (`Encina.EntityFrameworkCore`) | inside the request's transaction | done, proven on a real database ([#718](https://github.com/dlrivada/Encina/issues/718)) |
 | EF Core PostgreSQL (`Encina.EntityFrameworkCore`) | inside the request's transaction | done, proven on a real database ([#718](https://github.com/dlrivada/Encina/issues/718)) |
 | EF Core MySQL (`Encina.EntityFrameworkCore`) | inside the request's transaction | the code is shared; its EF tests are skipped until Pomelo supports EF Core 10 ([#2086](https://github.com/dlrivada/Encina/issues/2086)) |
-| MongoDB | after the pipeline, outside the transaction | not yet |
-
-On MongoDB, `OutboxPostProcessor` still writes the outbox row after the pipeline. If you use it, the guarantee of this guide does not apply to you yet. The post-processor returns the first `Left` of the outbox store instead of swallowing it, so a failed write is reported to the caller, but the business change is already committed. MongoDB is a later slice of [#718](https://github.com/dlrivada/Encina/issues/718).
+| MongoDB (`Encina.MongoDB`) | inside the request's transaction (one client-session transaction) | done, on a replica set or sharded cluster ([#718](https://github.com/dlrivada/Encina/issues/718)); see [the MongoDB section](#mongodb-one-client-session-transaction-per-request) |
 
 ## Step 1: Enable the outbox and the transaction
 
@@ -148,7 +146,7 @@ public sealed class PlaceOrderHandler(AppDbContext db) : IRequestHandler<PlaceOr
 }
 ```
 
-`OrderPlaced` and `IHasNotifications` are the ones of Step 2. `OutboxPostProcessor` is no longer used for EF Core (MongoDB still uses it).
+`OrderPlaced` and `IHasNotifications` are the ones of Step 2. `OutboxPostProcessor` is no longer used for EF Core.
 
 ### What you enable
 
@@ -172,15 +170,51 @@ If the application began `Database.CurrentTransaction` on the request scope's `D
 
 Encina dispatches every request in its own DI scope. A transaction begun on a `DbContext` of the caller's scope is therefore not visible to the request. Share it from application code that runs inside the request pipeline (for example an outermost pipeline behavior). Encina opens its transaction before the handler runs, so a transaction begun in the handler is not seen.
 
+## MongoDB: one client-session transaction per request
+
+On `Encina.MongoDB` the shared transaction is the client session of the scope. `MongoSessionAccessor` (registered as `IMongoSessionAccessor` and `ITransactionLeaseSource`, with `TryAdd`, so your own registration wins) owns the session and its transaction; `UnitOfWorkMongoDB`, `TransactionalOutboxPipelineBehavior<,>` and the four messaging stores share it, with the join and rollback-only semantics above. There is no `UseTransactions` option and no transaction behavior for MongoDB: the outbox behavior begins the transaction itself for a request that implements `IHasNotifications`.
+
+Requirements:
+
+- A replica set or a sharded cluster. On a standalone server the request fails closed with `transaction.not_supported` before a transaction starts (a single-node replica set is enough for development). When `UseOutbox` is on, `MongoDbHealthCheck` reports `Unhealthy` on a standalone server, and `Degraded` while the cluster type is not discovered yet. A `directConnection=true` client to a replica set member is recognised as a replica set.
+- The server version the fixtures run is `mongo:7` with driver 3.12; no other version is claimed.
+
+```csharp
+services.AddEncinaMongoDB(config =>
+{
+    config.ConnectionString = "mongodb://localhost:27017/?replicaSet=rs0";
+    config.DatabaseName = "MyApp";
+    config.UseOutbox = true;
+});
+```
+
+A handler that writes with its own collection handle must pass the scope's session to the driver, or its write is not part of the transaction:
+
+```csharp
+public sealed class PlaceOrderHandler(IMongoClient client, IMongoSessionAccessor accessor, IOptions<EncinaMongoDbOptions> options)
+    : IRequestHandler<PlaceOrder, int>
+{
+    public async Task<Either<EncinaError, int>> Handle(PlaceOrder request, CancellationToken cancellationToken)
+    {
+        var orders = client.GetDatabase(options.Value.DatabaseName).GetCollection<BsonDocument>("Orders");
+        var session = accessor.CurrentSession!;
+        await orders.InsertOneAsync(session, new BsonDocument("_id", request.OrderId), cancellationToken: cancellationToken);
+        return request.OrderId;
+    }
+}
+```
+
+`PlaceOrder` and `OrderPlaced` are the ones of Step 2. `CurrentSession` is not `null` inside the outbox behavior's transaction and `null` when no transaction is active. The commit never retries by itself: a failed commit returns `transaction.commit_failed` with the driver's error label (`TransientTransactionError` or `UnknownTransactionCommitResult`) as metadata, and re-running the request is the application's decision ([ADR-037](../architecture/adr/037-transactional-outbox.md)).
+
 ## Errors you can get
 
 | Code | When |
 | --- | --- |
 | `transaction.rollback_only` | a participant rolled back; the owner's commit rolled the transaction back instead |
-| `transaction.commit_failed` | the commit itself failed; a rollback was attempted, but the commit may have completed, so the outcome may be unknown and an automatic retry is not safe |
+| `transaction.commit_failed` | the commit itself failed; a rollback was attempted, but the commit may have completed, so the outcome may be unknown and an automatic retry is not safe. On MongoDB the error label is in the error metadata |
 | `transaction.begin_failed` | the connection could not open or the transaction could not begin |
 | `transaction.isolation_level_mismatch` | a joiner asked for another isolation level than the active one |
-| `transaction.not_supported` | the scope's connection is not a `System.Data.Common.DbConnection` |
+| `transaction.not_supported` | the scope's connection is not a `System.Data.Common.DbConnection`; on EF Core, a retrying execution strategy; on MongoDB, a standalone server |
 | `transaction.lease_disposed` | a lease was used after it was disposed or after its transaction ended |
 
 The codes are the constants of `TransactionErrors`. A failed outbox write returns the error code of the outbox store (for example `outbox.add_failed`).
@@ -193,8 +227,14 @@ The codes are the constants of `TransactionErrors`. A failed outbox write return
 
 ## Limits
 
-- Only the ADO.NET, Dapper and EF Core providers write inside the transaction today (table above).
-- On the MongoDB path the outbox is still written after the business commit: retrying a request whose outbox write failed repeats a change that was already committed (until its slice lands).
+- All ten database providers write inside the transaction today (table above).
+- A committed request leaves one outbox row per notification per delivery of the request. A duplicate delivery of an idempotent request still writes its notifications again until [#2559](https://github.com/dlrivada/Encina/issues/2559) is fixed.
+- MongoDB: a replica set or a sharded cluster is required.
+- MongoDB: the server's transaction lifetime limit (60 seconds by default) and write conflicts (`TransientTransactionError`) now apply to every request that implements `IHasNotifications`.
+- MongoDB: a client configured with read concern `available` or `linearizable` is rejected by the server inside a transaction. Encina sets only the read preference (primary) and inherits the read and write concern from the client.
+- MongoDB: stores outside the session do not fail, they escape it silently: the default, soft-delete and tenant repositories, bulk operations, the dead-letter store, audit, anonymization and ABAC stores ([#2987](https://github.com/dlrivada/Encina/issues/2987), [#1934](https://github.com/dlrivada/Encina/issues/1934)). Use the unit-of-work repository or `IMongoSessionAccessor.CurrentSession` for writes that must be atomic with the outbox.
+- MongoDB: mixing EF Core and MongoDB in one host registers the first `ITransactionLeaseSource` only; the first registration wins ([#2709](https://github.com/dlrivada/Encina/issues/2709)).
+- MongoDB: the inbox reads (`GetMessageAsync`, `GetExpiredMessagesAsync`) run outside the session; see [ADR-048](../architecture/adr/048-inbox-record-vs-business-transaction.md).
 - EF Core: a retrying execution strategy refuses a transaction Encina would begin (`transaction.not_supported`, above).
 - EF Core: domain events are dispatched by `DomainEventDispatcherInterceptor` in `SavedChangesAsync`, which is before an explicit transaction commits. They are published before the commit, and the interceptor is unchanged (maintainer decision D3=A, 2026-10-22).
 - EF Core: read/write separation and database-per-tenant contexts (`TenantDbContextFactory`) are separate `DbContext` instances and are not enlisted. The accessor binds to the single scoped `DbContext`.

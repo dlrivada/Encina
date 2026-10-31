@@ -182,6 +182,8 @@ public sealed class PIIHealthCheckTests
         public string Mask(string value, string pattern) => value;
 
         public T MaskObject<T>(T obj) where T : class => throw _exception;
+
+        public T MaskForLog<T>(T obj) where T : class => throw _exception;
     }
 
     [Fact]

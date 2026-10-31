@@ -42,9 +42,9 @@ public sealed class BreakTheGlassRequestValidator
         var scope = Normalise(request.Scope);
         var justification = Normalise(request.Justification);
 
-        if (subjectId.Length == 0)
+        if (IdentifierViolation(subjectId, scope) is { } identifierError)
         {
-            return Left(BreakTheGlassErrors.ValidationFailed("subject_required"));
+            return Left(identifierError);
         }
 
         if (!options.Scopes.TryGetValue(scope, out var scopeOptions))
@@ -58,6 +58,24 @@ public sealed class BreakTheGlassRequestValidator
             : Right(request with { SubjectId = subjectId, Scope = scope, Justification = justification });
     }
 
+    // The subject must be present; the subject and the scope must fit their columns (checked before the scope lookup).
+    private static EncinaError? IdentifierViolation(string subjectId, string scope)
+    {
+        if (subjectId.Length == 0)
+        {
+            return BreakTheGlassErrors.ValidationFailed("subject_required");
+        }
+
+        if (subjectId.Length > BreakTheGlassLimits.SubjectIdMaxLength)
+        {
+            return BreakTheGlassErrors.ValidationFailed("subject_too_long");
+        }
+
+        return scope.Length > BreakTheGlassLimits.ScopeMaxLength
+            ? BreakTheGlassErrors.ValidationFailed("scope_too_long")
+            : default(EncinaError?);
+    }
+
     private static EncinaError? JustificationViolation(string justification, BreakTheGlassOptions options)
     {
         if (justification.Length < options.MinimumJustificationLength || justification.Length == 0)
@@ -65,7 +83,7 @@ public sealed class BreakTheGlassRequestValidator
             return BreakTheGlassErrors.ValidationFailed("justification_too_short");
         }
 
-        return justification.Length > BreakTheGlassOptions.MaxJustificationLength
+        return justification.Length > BreakTheGlassLimits.JustificationMaxLength
             ? BreakTheGlassErrors.ValidationFailed("justification_too_long")
             : default(EncinaError?);
     }

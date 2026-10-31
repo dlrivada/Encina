@@ -13,6 +13,12 @@ namespace Encina.ADO.MySQL.Inbox;
 /// </summary>
 public sealed class InboxStoreADO : IInboxStore
 {
+    /// <summary>
+    /// Maximum number of message ids sent in one DELETE statement. MySQL allows 65535 placeholders
+    /// per prepared statement; the purge splits larger id lists into chunks well below that limit.
+    /// </summary>
+    private const int RemoveChunkSize = 1000;
+
     // Column name constants
     private const string ColumnMessageId = "MessageId";
     private const string ColumnRequestType = "RequestType";
@@ -264,23 +270,32 @@ public sealed class InboxStoreADO : IInboxStore
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
-        if (!messageIds.Any())
+        var ids = messageIds as string[] ?? messageIds.ToArray();
+        if (ids.Length == 0)
             return Unit.Default;
 
         return await EitherHelpers.TryAsync(async () =>
         {
             using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
-            var idList = string.Join(",", messageIds.Select(id => $"'{id.Replace("'", "''", StringComparison.Ordinal)}'"));
-            var sql = $@"
-                DELETE FROM {_tableName}
-                WHERE {ColumnMessageId} IN ({idList})";
-
-            using var command = lease.CreateCommand();
-            command.CommandText = sql;
 
             await lease.EnsureOpenAsync(cancellationToken);
 
-            await ExecuteNonQueryAsync(command, cancellationToken);
+            foreach (var chunk in ids.Chunk(RemoveChunkSize))
+            {
+                var parameterNames = Enumerable.Range(0, chunk.Length).Select(i => $"@p{i}").ToArray();
+                var sql = $@"
+                DELETE FROM {_tableName}
+                WHERE {ColumnMessageId} IN ({string.Join(",", parameterNames)})";
+
+                using var command = lease.CreateCommand();
+                command.CommandText = sql;
+                for (var i = 0; i < chunk.Length; i++)
+                {
+                    AddParameter(command, parameterNames[i], chunk[i]);
+                }
+
+                await ExecuteNonQueryAsync(command, cancellationToken);
+            }
         }, "inbox.remove_expired_failed").ConfigureAwait(false);
     }
 
