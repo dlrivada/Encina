@@ -1,0 +1,1 @@
+- `.github/scripts/check-pr-size.cs` fails a pull request over 15 files or 1500 changed lines (insertions plus deletions, nothing excluded) unless it carries the maintainer label `size-exception-approved`, read at run time with `gh pr view`; a `gh` failure fails closed (#2901).
