@@ -256,7 +256,7 @@ The script prints one line per violation, for example the real case from commit 
 Encina.Cdc.PostgreSql  package  unit  50 -> 41
 ```
 
-A dropped target prints the head side as `(dropped)`, for example `50 -> (dropped)`. Exit codes: 0 when clean or approved by the label, 1 on a violation without the label, 2 for invalid arguments.
+A dropped target prints the head side as `(dropped)`, for example `50 -> (dropped)`. Exit codes: 0 when clean or approved by the label, 1 on a violation without the label or on any git, parse or `gh` failure, 2 for invalid arguments.
 
 When nothing is wrong it prints `Target ratchet: N manifests changed, 0 violations`.
 
