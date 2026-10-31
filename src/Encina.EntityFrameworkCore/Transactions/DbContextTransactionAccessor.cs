@@ -71,6 +71,9 @@ public sealed class DbContextTransactionAccessor : IDbTransactionAccessor, IAsyn
     public bool HasActiveTransaction => _dbContext.Database.CurrentTransaction is not null;
 
     /// <inheritdoc />
+    public string DbSystem => DbSystemName.From(Connection);
+
+    /// <inheritdoc />
     public async ValueTask<Either<EncinaError, ITransactionLease>> BeginOrJoinAsync(CancellationToken cancellationToken = default)
     {
         var lease = await BeginOrJoinAsync(isolationLevel: null, cancellationToken).ConfigureAwait(false);

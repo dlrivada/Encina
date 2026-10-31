@@ -1,8 +1,11 @@
 using Encina.Messaging.Health;
+using Encina.MongoDB;
 using Encina.MongoDB.Health;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using MongoDB.Driver.Core.Clusters;
 using NSubstitute;
 using Shouldly;
 
@@ -120,5 +123,29 @@ public sealed class MongoDbHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain("timed out");
+    }
+
+    [Theory]
+    [InlineData(true, ClusterType.Standalone, HealthStatus.Unhealthy, MongoDbHealthCheck.StandaloneReasonCode)]
+    [InlineData(true, ClusterType.ReplicaSet, HealthStatus.Healthy, "reachable")]
+    [InlineData(true, ClusterType.Sharded, HealthStatus.Healthy, "reachable")]
+    [InlineData(true, ClusterType.Unknown, HealthStatus.Degraded, MongoDbHealthCheck.ClusterTypeUnknownReasonCode)]
+    [InlineData(false, ClusterType.Standalone, HealthStatus.Healthy, "reachable")]
+    public async Task CheckHealthAsync_ChecksTransactionSupportOnlyWhenOutboxIsOn(
+        bool useOutbox, ClusterType clusterType, HealthStatus expected, string reason)
+    {
+        _database.RunCommandAsync<BsonDocument>(
+            Arg.Any<Command<BsonDocument>>(), Arg.Any<ReadPreference>(), Arg.Any<CancellationToken>())
+            .Returns(new BsonDocument("ok", 1));
+        var cluster = Substitute.For<ICluster>();
+        cluster.Description.Returns(new ClusterDescription(new ClusterId(), false, null, clusterType, []));
+        _mongoClient.Cluster.Returns(cluster);
+        _serviceProvider.GetService(typeof(IOptions<EncinaMongoDbOptions>))
+            .Returns(Options.Create(new EncinaMongoDbOptions { UseOutbox = useOutbox }));
+
+        var result = await new MongoDbHealthCheck(_serviceProvider, null).CheckHealthAsync();
+
+        result.Status.ShouldBe(expected);
+        result.Description!.ShouldContain(reason);
     }
 }

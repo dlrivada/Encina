@@ -1,4 +1,5 @@
 using Encina.Messaging.Outbox;
+using Encina.MongoDB.Transactions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -15,6 +16,7 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
     private readonly IMongoCollection<OutboxMessage> _collection;
     private readonly ILogger<OutboxStoreMongoDB> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly IMongoSessionAccessor? _sessionAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxStoreMongoDB"/> class.
@@ -23,11 +25,16 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
     /// <param name="options">The MongoDB options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="timeProvider">The time provider. Defaults to <see cref="TimeProvider.System"/> if not specified.</param>
+    /// <param name="sessionAccessor">
+    /// The scope's transaction accessor. When it has an active transaction every operation of the store runs in its
+    /// client session; without one (or when null) the store runs without a session, as the background processor does.
+    /// </param>
     public OutboxStoreMongoDB(
         IMongoClient mongoClient,
         IOptions<EncinaMongoDbOptions> options,
         ILogger<OutboxStoreMongoDB> logger,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IMongoSessionAccessor? sessionAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(mongoClient);
         ArgumentNullException.ThrowIfNull(options);
@@ -38,7 +45,10 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
         _collection = database.GetCollection<OutboxMessage>(config.Collections.Outbox);
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _sessionAccessor = sessionAccessor;
     }
+
+    private IClientSessionHandle? Session => _sessionAccessor?.CurrentSession;
 
     /// <inheritdoc />
     public async Task<Either<EncinaError, Unit>> AddAsync(IOutboxMessage message, CancellationToken cancellationToken = default)
@@ -59,7 +69,7 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
                 NextRetryAtUtc = message.NextRetryAtUtc
             };
 
-            await _collection.InsertOneAsync(mongoMessage, cancellationToken: cancellationToken).ConfigureAwait(false);
+            await _collection.InsertOneInSessionAsync(Session, mongoMessage, cancellationToken).ConfigureAwait(false);
             Log.AddedOutboxMessage(_logger, message.Id);
         }, "outbox.add_failed").ConfigureAwait(false);
     }
@@ -84,7 +94,7 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
             );
 
             var messages = await _collection
-                .Find(filter)
+                .FindInSession(Session, filter)
                 .SortBy(m => m.CreatedAtUtc)
                 .Limit(batchSize)
                 .ToListAsync(cancellationToken)
@@ -104,7 +114,7 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
             var update = Builders<OutboxMessage>.Update
                 .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime);
 
-            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var result = await _collection.UpdateOneInSessionAsync(Session, filter, update, cancellationToken).ConfigureAwait(false);
 
             if (result.ModifiedCount == 0)
             {
@@ -132,7 +142,7 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
                 .Set(m => m.NextRetryAtUtc, nextRetryAtUtc)
                 .Inc(m => m.RetryCount, 1);
 
-            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var result = await _collection.UpdateOneInSessionAsync(Session, filter, update, cancellationToken).ConfigureAwait(false);
 
             if (result.ModifiedCount == 0)
             {
@@ -174,7 +184,7 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
             var update = Builders<OutboxMessage>.Update.Pipeline(
                 PipelineDefinition<OutboxMessage, OutboxMessage>.Create([stage]));
 
-            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var result = await _collection.UpdateOneInSessionAsync(Session, filter, update, cancellationToken).ConfigureAwait(false);
 
             if (result.ModifiedCount == 0)
             {
@@ -200,7 +210,7 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
                 Builders<OutboxMessage>.Filter.Eq(m => m.ProcessedAtUtc, null),
                 Builders<OutboxMessage>.Filter.Lt(m => m.RetryCount, maxRetries));
 
-            var count = await _collection.CountDocumentsAsync(filter, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var count = await _collection.CountInSessionAsync(Session, filter, cancellationToken).ConfigureAwait(false);
             return checked((int)count);
         }, "outbox.get_pending_count_failed").ConfigureAwait(false);
     }
@@ -214,7 +224,7 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
-            var count = await _collection.CountDocumentsAsync(ExhaustedFilter(maxRetries), cancellationToken: cancellationToken).ConfigureAwait(false);
+            var count = await _collection.CountInSessionAsync(Session, ExhaustedFilter(maxRetries), cancellationToken).ConfigureAwait(false);
             return checked((int)count);
         }, "outbox.get_exhausted_count_failed").ConfigureAwait(false);
     }
@@ -245,7 +255,7 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
                 .Set(m => m.NextRetryAtUtc, null)
                 .Set(m => m.ErrorMessage, null);
 
-            var result = await _collection.UpdateManyAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var result = await _collection.UpdateManyInSessionAsync(Session, filter, update, cancellationToken).ConfigureAwait(false);
             return checked((int)result.ModifiedCount);
         }, "outbox.requeue_exhausted_failed").ConfigureAwait(false);
     }
