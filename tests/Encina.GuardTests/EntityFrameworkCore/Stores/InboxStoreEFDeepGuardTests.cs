@@ -255,14 +255,16 @@ public sealed class InboxStoreEFDeepGuardTests
             MessageId = "expired-1",
             RequestType = "Cmd",
             ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc)
+            ExpiresAtUtc = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc),
+            ProcessedAtUtc = new DateTime(2026, 2, 15, 0, 0, 0, DateTimeKind.Utc)
         };
         var msg2 = new InboxMessage
         {
             MessageId = "expired-2",
             RequestType = "Cmd",
             ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc)
+            ExpiresAtUtc = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc),
+            ProcessedAtUtc = new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc)
         };
         await dbContext.Set<InboxMessage>().AddRangeAsync(msg1, msg2);
         await dbContext.SaveChangesAsync();
@@ -304,8 +306,9 @@ public sealed class InboxStoreEFDeepGuardTests
         {
             MessageId = "to-remove",
             RequestType = "Cmd",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow
+            ReceivedAtUtc = DateTime.UtcNow.AddDays(-2),
+            ProcessedAtUtc = DateTime.UtcNow.AddDays(-2),
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(-1)
         };
         await dbContext.Set<InboxMessage>().AddAsync(msg);
         await dbContext.SaveChangesAsync();

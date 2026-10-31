@@ -480,12 +480,12 @@
       ],
       "defaultRule": "*StoreEF.cs",
       "reason": "EF Core store — needs real DbContext",
-      "targets": { "unit": 92, "guard": 80, "contract": 75, "integration": 83 },
+      "targets": { "unit": 92, "guard": 80, "contract": 75, "integration": 84 },
       "justifications": {
         "unit": "The in-memory provider covers the non-relational fallback, the isolation guards and the registration check; the relational UPDATE branch needs a real database.",
         "guard": "Argument checks of every public method; the isolated-context paths are not guard-reachable.",
         "contract": "The store contract tests drive add, mark processed, mark failed, expiry and removal.",
-        "integration": "Real SQL Server and PostgreSQL runs cover the relational UPDATE and the pipeline scenarios; the non-relational fallback and the skipped EF MySQL variant (#2086) are not reachable there."
+        "integration": "Real SQL Server and PostgreSQL runs cover the relational UPDATE, the processed-only expiry purge (#3010) and the pipeline scenarios; the non-relational fallback and the skipped EF MySQL variant (#2086) are not reachable there."
       }
     },
     "ITransactionalCommand.cs": {

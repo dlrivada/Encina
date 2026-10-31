@@ -257,7 +257,7 @@ public sealed class InboxStoreEF : IInboxStore
             var now = _timeProvider.GetUtcNow().UtcDateTime;
 
             var messages = await _dbContext.Set<InboxMessage>()
-                .Where(m => m.ExpiresAtUtc <= now)
+                .Where(m => m.ExpiresAtUtc < now && m.ProcessedAtUtc != null)
                 .OrderBy(m => m.ExpiresAtUtc)
                 .Take(batchSize)
                 .ToListAsync(cancellationToken);
@@ -275,8 +275,13 @@ public sealed class InboxStoreEF : IInboxStore
 
         return await EitherHelpers.TryAsync(async () =>
         {
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+
+            // Same predicate as GetExpiredMessagesAsync: an unprocessed or dead-lettered row is never removed.
             var messages = await _dbContext.Set<InboxMessage>()
-                .Where(m => messageIds.Contains(m.MessageId))
+                .Where(m => messageIds.Contains(m.MessageId)
+                    && m.ExpiresAtUtc < now
+                    && m.ProcessedAtUtc != null)
                 .ToListAsync(cancellationToken);
 
             _dbContext.Set<InboxMessage>().RemoveRange(messages);

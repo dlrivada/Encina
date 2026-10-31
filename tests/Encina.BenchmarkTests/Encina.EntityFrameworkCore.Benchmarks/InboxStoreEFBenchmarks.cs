@@ -139,7 +139,8 @@ public class InboxStoreEFBenchmarks
                 MessageId = Guid.NewGuid().ToString(),
                 RequestType = $"CleanupTest{i}",
                 ReceivedAtUtc = now.AddDays(-10),
-                ExpiresAtUtc = isExpired ? now.AddDays(-1) : now.AddDays(7)
+                ExpiresAtUtc = isExpired ? now.AddDays(-1) : now.AddDays(7),
+                ProcessedAtUtc = isExpired ? now.AddDays(-2) : null
             });
         }
         await _context.SaveChangesAsync();

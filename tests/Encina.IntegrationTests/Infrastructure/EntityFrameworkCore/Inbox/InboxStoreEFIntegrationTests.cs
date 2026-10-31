@@ -102,6 +102,7 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
             RequestType = "TestRequest",
             ReceivedAtUtc = DateTime.UtcNow.AddDays(-10),
             ExpiresAtUtc = DateTime.UtcNow.AddMinutes(-10),
+            ProcessedAtUtc = DateTime.UtcNow.AddMinutes(-20),
             RetryCount = 0
         };
 
@@ -111,6 +112,7 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
             RequestType = "TestRequest",
             ReceivedAtUtc = DateTime.UtcNow.AddDays(-5),
             ExpiresAtUtc = DateTime.UtcNow.AddMinutes(-5),
+            ProcessedAtUtc = DateTime.UtcNow.AddMinutes(-15),
             RetryCount = 0
         };
 
@@ -213,6 +215,7 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
             RequestType = "TestRequest",
             ReceivedAtUtc = DateTime.UtcNow.AddDays(-10),
             ExpiresAtUtc = DateTime.UtcNow.AddDays(-1), // Expired
+            ProcessedAtUtc = DateTime.UtcNow.AddDays(-2),
             RetryCount = 0
         };
 

@@ -203,6 +203,7 @@ public class InboxStoreEFAdditionalTests : IDisposable
                 MessageId = $"expired-{i}",
                 RequestType = "TestRequest",
                 ReceivedAtUtc = DateTime.UtcNow.AddDays(-40),
+                ProcessedAtUtc = DateTime.UtcNow.AddDays(-39),
                 ExpiresAtUtc = DateTime.UtcNow.AddDays(-5 - i),
                 RetryCount = 0
             });
