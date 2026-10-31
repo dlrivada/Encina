@@ -35,6 +35,20 @@
     return d.total > 0 ? d.coverage : 0;
   }
 
+  // Effective target = per-flag targets weighted by each flag's applicable lines (obligations
+  // model). 0 when the package has no targets or no applicable lines. Shared by the package
+  // table and the Copy to Excel handler so both report the same number.
+  function effectiveTargetOf(pkg) {
+    if (!pkg.perFlagTarget || !pkg.perFlag) return 0;
+    let totalApplicable = 0, totalTargetLines = 0;
+    for (const [flag, flagTarget] of Object.entries(pkg.perFlagTarget)) {
+      const applicable = pkg.perFlag?.[flag]?.total ?? 0;
+      totalApplicable += applicable;
+      totalTargetLines += Math.round(applicable * flagTarget / 100);
+    }
+    return totalApplicable > 0 ? Math.round(totalTargetLines * 100 / totalApplicable * 100) / 100 : 0;
+  }
+
   // Map category short codes to flag names
   const FLAG_SHORT = { U: 'unit', G: 'guard', C: 'contract', P: 'property', I: 'integration' };
 
@@ -127,8 +141,10 @@
   }
 
   // For TSV export
-  function flagCellText(perFlag, flag, catTests) {
-    const applicable = isApplicableFlag(catTests, flag);
+  function flagCellText(perFlag, flag, catTests, perFlagTarget) {
+    const applicable = perFlagTarget != null
+      ? perFlagTarget[flag] != null
+      : isApplicableFlag(catTests, flag);
     const pct = flagPct(perFlag, flag);
     if (!applicable) return '-';
     if (pct === null) return '?';
@@ -438,20 +454,17 @@
       const catTests = null;
 
       // Effective target = weighted by applicable lines per flag (obligations model)
-      let effectiveTarget = 0;
+      const effectiveTarget = effectiveTargetOf(pkg);
       let allFlagsMeetTarget = true;
       let sumNegativeGapLines = 0;
       let sumPositiveGapLines = 0;
       let hasNegativeGaps = false;
       if (pkg.perFlagTarget && pkg.perFlag) {
-        let totalApplicable = 0, totalTargetLines = 0;
         for (const [flag, flagTarget] of Object.entries(pkg.perFlagTarget)) {
           const d = pkg.perFlag?.[flag];
           const flagApplicable = d?.total ?? 0;
           const flagCovered = d?.covered ?? 0;
           const flagTargetLines = Math.round(flagApplicable * flagTarget / 100);
-          totalApplicable += flagApplicable;
-          totalTargetLines += flagTargetLines;
           const pct = d ? (d.total > 0 ? d.coverage : 0) : 0;
           const roundedPct = Math.round(pct);
           if (roundedPct < flagTarget) {
@@ -461,9 +474,6 @@
           } else {
             sumPositiveGapLines += (flagCovered - flagTargetLines); // positive value
           }
-        }
-        if (totalApplicable > 0) {
-          effectiveTarget = Math.round(totalTargetLines * 100 / totalApplicable * 100) / 100;
         }
       } else {
         allFlagsMeetTarget = true;
@@ -619,21 +629,20 @@
     const headers = ['Package', 'Unit', 'U Tgt', 'U Lines', 'Guard', 'G Tgt', 'G Lines', 'Contract', 'C Tgt', 'C Lines', 'Property', 'P Tgt', 'P Lines', 'Integ', 'I Tgt', 'I Lines', 'Combined', 'Gap', 'Lines'];
     const rows = [headers.join('\t')];
     for (const pkg of allPackages) {
-      if (!isMeasured(pkg)) {
-        rows.push([pkg.name, ...Array(headers.length - 1).fill('not measured')].join('\t'));
-        continue;
-      }
+      // Unmeasured packages are skipped (#2827, #2922): the table lists them as "not measured";
+      // a spreadsheet gets only rows with numbers.
+      if (!isMeasured(pkg)) continue;
       const catTests = null;
-      const gap = pkg.coverage - effectiveTarget;
+      const gap = pkg.coverage - effectiveTargetOf(pkg);
       const ft = pkg.perFlagTarget || {};
       const fl = (flag) => pkg.perFlag?.[flag]?.total ?? '-';
       rows.push([
         pkg.name,
-        flagCellText(pkg.perFlag, 'unit', catTests), ft.unit != null ? ft.unit + '%' : '-', fl('unit'),
-        flagCellText(pkg.perFlag, 'guard', catTests), ft.guard != null ? ft.guard + '%' : '-', fl('guard'),
-        flagCellText(pkg.perFlag, 'contract', catTests), ft.contract != null ? ft.contract + '%' : '-', fl('contract'),
-        flagCellText(pkg.perFlag, 'property', catTests), ft.property != null ? ft.property + '%' : '-', fl('property'),
-        flagCellText(pkg.perFlag, 'integration', catTests), ft.integration != null ? ft.integration + '%' : '-', fl('integration'),
+        flagCellText(pkg.perFlag, 'unit', catTests, pkg.perFlagTarget), ft.unit != null ? ft.unit + '%' : '-', fl('unit'),
+        flagCellText(pkg.perFlag, 'guard', catTests, pkg.perFlagTarget), ft.guard != null ? ft.guard + '%' : '-', fl('guard'),
+        flagCellText(pkg.perFlag, 'contract', catTests, pkg.perFlagTarget), ft.contract != null ? ft.contract + '%' : '-', fl('contract'),
+        flagCellText(pkg.perFlag, 'property', catTests, pkg.perFlagTarget), ft.property != null ? ft.property + '%' : '-', fl('property'),
+        flagCellText(pkg.perFlag, 'integration', catTests, pkg.perFlagTarget), ft.integration != null ? ft.integration + '%' : '-', fl('integration'),
         Math.round(pkg.coverage) + '%',
         (gap >= 0 ? '+' : '') + Math.round(gap) + '%',
         pkg.lines
