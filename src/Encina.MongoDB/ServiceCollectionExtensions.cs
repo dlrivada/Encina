@@ -12,6 +12,7 @@ using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Messaging.SoftDelete;
+using Encina.Messaging.Transactions;
 using Encina.Modules.Isolation;
 using Encina.MongoDB.Auditing;
 using Encina.MongoDB.BulkOperations;
@@ -25,6 +26,7 @@ using Encina.MongoDB.Repository;
 using Encina.MongoDB.Sagas;
 using Encina.MongoDB.Scheduling;
 using Encina.MongoDB.SoftDelete;
+using Encina.MongoDB.Transactions;
 using Encina.MongoDB.UnitOfWork;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
@@ -495,8 +497,20 @@ public static class ServiceCollectionExtensions
 
         // Only register if not already registered
         services.TryAddScoped<IUnitOfWork, UnitOfWorkMongoDB>();
+        AddMongoSessionAccessor(services);
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers the scope's shared transaction: <see cref="IMongoSessionAccessor"/> and the neutral
+    /// <see cref="ITransactionLeaseSource"/> resolved from the same instance (TryAdd, so the application wins and
+    /// repeated calls share one accessor).
+    /// </summary>
+    private static void AddMongoSessionAccessor(IServiceCollection services)
+    {
+        services.TryAddScoped<IMongoSessionAccessor, MongoSessionAccessor>();
+        services.TryAddScoped<ITransactionLeaseSource>(sp => sp.GetRequiredService<IMongoSessionAccessor>());
     }
 
     /// <summary>
@@ -607,7 +621,8 @@ public static class ServiceCollectionExtensions
             options.UseOutbox, options.OutboxOptions,
             options.UseInbox, options.InboxOptions,
             options.UseSagas, options.SagaOptions,
-            options.UseScheduling, options.SchedulingOptions);
+            options.UseScheduling, options.SchedulingOptions,
+            OutboxWritePath.TransactionalBehavior);
 
         services.AddDeadLetterQueueServices<DeadLetterStoreMongoDB, DeadLetterMessageFactory>(options.UseDeadLetterQueue, options.DeadLetterOptions);
     }
@@ -618,6 +633,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     private static void RegisterCommonServices(IServiceCollection services, EncinaMongoDbOptions options)
     {
+        AddMongoSessionAccessor(services);
         RegisterMessagingPatterns(services, options);
         RegisterAuditLogStore(services, options);
         RegisterOperationAuditStore(services, options);

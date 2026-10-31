@@ -97,7 +97,7 @@ public sealed class DefaultBreakTheGlassService : IBreakTheGlassService
         var elevation = new BreakTheGlassElevation
         {
             ElevationId = Guid.CreateVersion7(now),
-            TenantId = caller.Context.TenantId,
+            TenantId = caller.TenantId,
             UserId = caller.UserId,
             SubjectId = valid.SubjectId,
             Scope = valid.Scope,
@@ -131,6 +131,11 @@ public sealed class DefaultBreakTheGlassService : IBreakTheGlassService
             return BreakTheGlassErrors.ValidationFailed("reason_required");
         }
 
+        if (reason.Trim().Length > BreakTheGlassLimits.CloseReasonMaxLength)
+        {
+            return BreakTheGlassErrors.ValidationFailed("reason_too_long");
+        }
+
         var loaded = await LoadAsync(caller, elevationId, cancellationToken).ConfigureAwait(false);
         if (!loaded.TryUnwrap(out var elevation, out var loadError))
         {
@@ -154,7 +159,7 @@ public sealed class DefaultBreakTheGlassService : IBreakTheGlassService
             return unauthenticated;
         }
 
-        var loaded = await LoadForReviewAsync(caller, elevationId, cancellationToken).ConfigureAwait(false);
+        var loaded = await LoadForReviewAsync(caller, elevationId, note, cancellationToken).ConfigureAwait(false);
         if (!loaded.TryUnwrap(out var elevation, out var loadError))
         {
             return loadError;
@@ -187,7 +192,7 @@ public sealed class DefaultBreakTheGlassService : IBreakTheGlassService
         }
 
         return IsReviewer(caller.Identity)
-            ? await _store.QueryReviewQueueAsync(caller.Context.TenantId, query, cancellationToken).ConfigureAwait(false)
+            ? await _store.QueryReviewQueueAsync(caller.TenantId, query, cancellationToken).ConfigureAwait(false)
             : BreakTheGlassErrors.ReviewerNotEligible();
     }
 
@@ -213,15 +218,38 @@ public sealed class DefaultBreakTheGlassService : IBreakTheGlassService
             return false;
         }
 
-        if (IsTenantMissing(context))
+        if (ContextViolation(context, userId) is { } violation)
         {
-            refusal = BreakTheGlassErrors.TenantRequired();
+            refusal = violation;
             return false;
         }
 
         caller = new Caller(context, identity, userId);
         refusal = default;
         return true;
+    }
+
+    // A missing tenant (when required) or an id too long for its bounded column; the ids come from the identity.
+    private EncinaError? ContextViolation(IRequestContext context, string userId)
+    {
+        if (IsTenantMissing(context))
+        {
+            return BreakTheGlassErrors.TenantRequired();
+        }
+
+        return IdentifierViolation(userId, BreakTheGlassTenant.Normalise(context.TenantId));
+    }
+
+    private static EncinaError? IdentifierViolation(string userId, string? tenantId)
+    {
+        if (userId.Length > BreakTheGlassLimits.UserIdMaxLength)
+        {
+            return BreakTheGlassErrors.ValidationFailed("user_id_too_long");
+        }
+
+        return tenantId?.Length > BreakTheGlassLimits.TenantIdMaxLength
+            ? BreakTheGlassErrors.ValidationFailed("tenant_id_too_long")
+            : default(EncinaError?);
     }
 
     private bool IsTenantMissing(IRequestContext context) =>
@@ -253,7 +281,7 @@ public sealed class DefaultBreakTheGlassService : IBreakTheGlassService
     // Only the opener and a reviewer may see or act on an elevation; anyone else is refused.
     private async ValueTask<Either<EncinaError, BreakTheGlassElevation>> LoadAsync(Caller caller, Guid elevationId, CancellationToken cancellationToken)
     {
-        var found = await _store.GetByIdAsync(caller.Context.TenantId, elevationId, cancellationToken).ConfigureAwait(false);
+        var found = await _store.GetByIdAsync(caller.TenantId, elevationId, cancellationToken).ConfigureAwait(false);
         if (!TryGetElevation(found, out var elevation, out var error))
         {
             return error;
@@ -264,9 +292,15 @@ public sealed class DefaultBreakTheGlassService : IBreakTheGlassService
             : BreakTheGlassErrors.NotEligible();
     }
 
-    private async ValueTask<Either<EncinaError, BreakTheGlassElevation>> LoadForReviewAsync(Caller caller, Guid elevationId, CancellationToken cancellationToken)
+    // Refuses an over-long note before any store call, then loads the elevation and asks the authorizer.
+    private async ValueTask<Either<EncinaError, BreakTheGlassElevation>> LoadForReviewAsync(Caller caller, Guid elevationId, string? note, CancellationToken cancellationToken)
     {
-        var found = await _store.GetByIdAsync(caller.Context.TenantId, elevationId, cancellationToken).ConfigureAwait(false);
+        if (note?.Trim().Length > BreakTheGlassLimits.ReviewNoteMaxLength)
+        {
+            return BreakTheGlassErrors.ValidationFailed("note_too_long");
+        }
+
+        var found = await _store.GetByIdAsync(caller.TenantId, elevationId, cancellationToken).ConfigureAwait(false);
         if (!TryGetElevation(found, out var elevation, out var findError))
         {
             return findError;
@@ -298,7 +332,7 @@ public sealed class DefaultBreakTheGlassService : IBreakTheGlassService
     private async ValueTask<Option<EncinaError>> FindConflictAsync(Caller caller, BreakTheGlassRequest valid, CancellationToken cancellationToken)
     {
         var active = await _store.FindEffectiveAsync(
-            caller.Context.TenantId, caller.UserId, valid.SubjectId, valid.Scope, _timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+            caller.TenantId, caller.UserId, valid.SubjectId, valid.Scope, _timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
         if (!active.TryUnwrap(out var existing, out _))
         {
             return BreakTheGlassErrors.StoreFailed();
@@ -418,7 +452,7 @@ public sealed class DefaultBreakTheGlassService : IBreakTheGlassService
         string action, AuditOutcome outcome, Caller caller, BreakTheGlassElevation elevation, IReadOnlyDictionary<string, object?> metadata, CancellationToken cancellationToken)
     {
         var entry = BreakTheGlassAudit.Create(
-            action, outcome, elevation.ElevationId, caller.Context.CorrelationId, caller.UserId, caller.Context.TenantId, _timeProvider.GetUtcNow(), metadata);
+            action, outcome, elevation.ElevationId, caller.Context.CorrelationId, caller.UserId, caller.TenantId, _timeProvider.GetUtcNow(), metadata);
         return BreakTheGlassAudit.WriteAsync(_auditStore, entry, cancellationToken);
     }
 
@@ -437,7 +471,11 @@ public sealed class DefaultBreakTheGlassService : IBreakTheGlassService
                 cancellationToken)
             : ValueTask.FromResult<Either<EncinaError, Unit>>(unit);
 
-    private readonly record struct Caller(IRequestContext Context, RequestIdentity Identity, string UserId);
+    private readonly record struct Caller(IRequestContext Context, RequestIdentity Identity, string UserId)
+    {
+        /// <summary>Gets the tenant, with a blank id normalised to null before any store call or audit write.</summary>
+        public string? TenantId { get; } = BreakTheGlassTenant.Normalise(Context.TenantId);
+    }
 }
 
 /// <summary>Unwraps an <c>Either</c> into an out value and an out error.</summary>
