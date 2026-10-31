@@ -246,6 +246,8 @@ What is allowed:
 - Dropping the entry of a deleted or renamed source file, or of a retired package whose project is gone.
 - A renamed manifest is compared old against new. A deleted manifest whose project still exists is an R-DROP for every target it held.
 
+Only top-level `*.json` files under `.github/coverage-manifest/`, except `defaults.json`, count as manifests; this is the set `coverage-report.cs` loads. A manifest renamed to a name that is not a top-level `.json` (for example `Encina.Foo.json.disabled`) or moved into a subfolder is treated as a deleted manifest, so it is an R-DROP while the package's `src` project still exists. A rename to another top-level `.json` name is compared old against new.
+
 A new `0` in `unit`, `guard` or `contract` is not covered by these rules; it is tracked separately in #2898 and is not implemented.
 
 The script prints one line per violation, for example the real case from commit `1309055ef` (#2780):
@@ -260,9 +262,9 @@ When nothing is wrong it prints `Target ratchet: N manifests changed, 0 violatio
 
 #### CI job and the label exception
 
-The `target-ratchet` job in `.github/workflows/ci.yml` runs on `pull_request` only (it is skipped on push to `main`), checks out with `fetch-depth: 0`, and has job-level permissions `contents: read` and `pull-requests: read`, with `GH_TOKEN` taken from `github.token`. Violations also go to the job summary.
+The script is not wired into CI yet. A `target-ratchet` job will be added to `.github/workflows/ci.yml` once the script is merged. It is planned to run on `pull_request` only (skipped on push to `main`), check out with `fetch-depth: 0`, and have job-level permissions `contents: read` and `pull-requests: read`, with `GH_TOKEN` taken from `github.token`. Violations will also go to the job summary.
 
-A pull request may carry the label `target-change-approved`. The script reads the labels at run time with `gh pr view <n> --json labels`, not from the event payload, because `ci.yml` has no `labeled` trigger. After adding the label, use "Re-run failed jobs". With the label the script exits 0 and prints each line as `APPROVED by target-change-approved`; without it the script exits 1. If `gh` fails or `--pr` is missing, the script fails closed (exit 1).
+A pull request will be able to carry the label `target-change-approved`. The script reads the labels at run time with `gh pr view <n> --json labels`, not from the event payload, because `ci.yml` has no `labeled` trigger; so after the label is added, the job will need "Re-run failed jobs". With the label the script exits 0 and prints each line as `APPROVED by target-change-approved`; without it the script exits 1. If `gh` fails or `--pr` is missing, the script fails closed (exit 1).
 
 The label is a tripwire against a silent change, not protection against an author who labels their own pull request; maintainers read the job summary of labelled pull requests.
 
