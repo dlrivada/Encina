@@ -198,7 +198,14 @@ internal static partial class Log
     [LoggerMessage(EventId = 3161, Level = LogLevel.Error, Message = "Failed to purge audit entries older than {OlderThanUtc}")]
     public static partial void FailedToPurgeAuditEntries(ILogger logger, Exception exception, DateTime olderThanUtc);
 
-    // DeadLetterStoreMongoDB: EventIds 3165-3166 (3163-3164 are reserved by #718)
+    // MongoSessionAccessor (transactional outbox, #718): EventIds 3163-3164
+    [LoggerMessage(EventId = 3163, Level = LogLevel.Error, Message = "MongoDB transactions are unavailable on a standalone server; the request fails closed ({ErrorCode})")]
+    public static partial void TransactionsUnavailable(ILogger logger, string errorCode);
+
+    [LoggerMessage(EventId = 3164, Level = LogLevel.Warning, Message = "MongoDB transaction ended with error label {ErrorLabel}")]
+    public static partial void TransientTransactionLabel(ILogger logger, string errorLabel);
+
+    // DeadLetterStoreMongoDB: EventIds 3165-3166
     [LoggerMessage(EventId = 3165, Level = LogLevel.Debug, Message = "Added dead letter message {MessageId} from {SourcePattern}")]
     public static partial void AddedDeadLetterMessage(ILogger logger, Guid messageId, string sourcePattern);
 

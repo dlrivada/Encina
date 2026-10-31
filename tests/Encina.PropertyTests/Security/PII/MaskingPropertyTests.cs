@@ -31,6 +31,25 @@ public sealed class MaskingPropertyTests
     }
 
     [Property(MaxTest = 100)]
+    public bool MaskForLog_MaskInLogsProperty_NeverContainsTheOriginalValue(NonEmptyString value)
+    {
+        var text = value.Get;
+
+        // Lone surrogates cannot round-trip through JSON, and a value made only of the mask character is
+        // legitimately unchanged by the full-masking strategy: both are outside the invariant.
+        if (text.Any(char.IsSurrogate) || text.All(c => c == '*'))
+        {
+            return true;
+        }
+
+        var masker = CreateMasker();
+
+        var result = masker.MaskForLog(new LogOnlyDto { TrackingId = text });
+
+        return result.TrackingId != text;
+    }
+
+    [Property(MaxTest = 100)]
     public bool MaskByPattern_InvalidPattern_AlwaysMasksTheWholeValue(NonEmptyString value)
     {
         var masker = CreateMasker();
@@ -222,6 +241,12 @@ public sealed class MaskingPropertyTests
     #endregion
 
     #region Test Types
+
+    private sealed class LogOnlyDto
+    {
+        [MaskInLogs]
+        public string TrackingId { get; set; } = string.Empty;
+    }
 
     private sealed class TestDto
     {

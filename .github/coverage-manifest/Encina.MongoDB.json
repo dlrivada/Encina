@@ -268,7 +268,17 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "unit": 95,
+        "guard": 12,
+        "integration": 55
+      },
+      "justifications": {
+        "unit": "Unit tests cover every verdict of the health check with mocked services (measured 100%).",
+        "guard": "Guard tests cover the constructor and argument checks (measured 15%).",
+        "integration": "Integration tests run the check against a real server (measured 59%); the Standalone verdict needs a standalone server with UseOutbox and is covered by the unit tests."
+      }
     },
     "Inbox/InboxMessage.cs": {
       "defaultTests": [
@@ -294,10 +304,10 @@
       ],
       "defaultRule": "*StoreMongoDB.cs",
       "reason": "MongoDB store — needs real MongoDB",
-      "targets": { "integration": 92, "unit": 9, "guard": 10 },
+      "targets": { "integration": 92, "unit": 92, "guard": 10 },
       "justifications": {
         "integration": "Real-database retry contract tests drive the store through the orchestrator; the uncovered lines are provider error branches.",
-        "unit": "Pure-logic part covered without a database; driver paths need the integration flag.",
+        "unit": "The unit tests drive the store against a mocked collection and cover the pure logic without a database (measured 97%); the driver paths are covered by the integration flag.",
         "guard": "Only the argument checks are guard-reachable."
       }
     },
@@ -386,9 +396,9 @@
       ],
       "defaultRule": "*StoreMongoDB.cs",
       "reason": "MongoDB store — needs real MongoDB",
-      "targets": { "unit": 0, "guard": 10, "contract": 0, "property": 0, "integration": 92 },
+      "targets": { "unit": 90, "guard": 10, "contract": 0, "property": 0, "integration": 92 },
       "justifications": {
-        "unit": "A MongoDB store is meaningful only against a real server; a mocked driver would assert nothing (a 0 with this reason).",
+        "unit": "The unit tests drive the store against a mocked collection and cover its branches without a database (measured 95%).",
         "guard": "Guard tests reject the invalid arguments of MarkAsExhaustedAsync before any driver call (measured 13%).",
         "contract": "Internal behavior is covered by the integration flag; there is no separate public contract beyond IOutboxStore (a 0 with this reason).",
         "property": "No numeric invariants beyond the integration scenarios (a 0 with this reason).",
@@ -526,7 +536,17 @@
         "integration"
       ],
       "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "reason": "MongoDB store — needs real MongoDB",
+      "targets": {
+        "unit": 92,
+        "guard": 12,
+        "integration": 95
+      },
+      "justifications": {
+        "unit": "Unit tests drive the saga store against a mocked collection (measured 97%).",
+        "guard": "Guard tests cover the argument checks of the store methods (measured 15%).",
+        "integration": "The integration tests run every saga store method against a real MongoDB (measured 100%)."
+      }
     },
     "Scheduling/ScheduledMessage.cs": {
       "defaultTests": [
@@ -549,7 +569,17 @@
         "integration"
       ],
       "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "reason": "MongoDB store — needs real MongoDB",
+      "targets": {
+        "unit": 92,
+        "guard": 10,
+        "integration": 95
+      },
+      "justifications": {
+        "unit": "Unit tests drive the scheduled message store against a mocked collection (measured 96%).",
+        "guard": "Guard tests cover the argument checks of the store methods (measured 12%).",
+        "integration": "The integration tests run every scheduled message store method against a real MongoDB (measured 97%)."
+      }
     },
     "Serializers/IdGenerationSerializerRegistration.cs": {
       "defaultTests": [
@@ -804,13 +834,86 @@
       "defaultRule": "*Builder.cs",
       "reason": "Fluent builder with validation"
     },
+    "Transactions/IMongoSessionAccessor.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interface with no executable lines",
+      "targets": {
+        "unit": 0,
+        "guard": 0,
+        "contract": 0,
+        "property": 0,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "A 0 with the reason: interface, no executable lines.",
+        "guard": "A 0 with the reason: interface, no executable lines.",
+        "contract": "A 0 with the reason: interface, no executable lines.",
+        "property": "A 0 with the reason: interface, no executable lines.",
+        "integration": "A 0 with the reason: interface, no executable lines."
+      }
+    },
+    "Transactions/MongoCollectionSessionExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal extension helpers that dispatch to the session or plain collection overloads",
+      "targets": {
+        "unit": 95,
+        "guard": 0,
+        "integration": 95
+      },
+      "justifications": {
+        "unit": "Unit tests cover the session and plain overloads that the helpers dispatch to (measured 100%).",
+        "guard": "The helpers are internal and only dispatch to the session or plain overload, so their null checks belong to the driver (a 0 with this reason; measured 0%).",
+        "integration": "The integration tests run the helpers against a real replica set (measured 100%)."
+      }
+    },
+    "Transactions/MongoSessionAccessor.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Scoped owner of the MongoDB session lease: begin or join, commit, rollback",
+      "targets": {
+        "unit": 95,
+        "guard": 2,
+        "contract": 55,
+        "property": 50,
+        "integration": 75
+      },
+      "justifications": {
+        "unit": "Unit tests run the accessor against a mocked client (measured 99%).",
+        "guard": "Guard tests cover the two constructor null checks only (measured 2%).",
+        "contract": "The lease contract tests run over a mocked client against this accessor (measured 60%).",
+        "property": "The commit-iff-owner-commits invariant is property-tested over a mocked client (measured 57%).",
+        "integration": "The integration tests run the accessor against a real replica set (measured 77%); the uncovered lines are the commit-failure labels and server-side branches."
+      }
+    },
     "UnitOfWork/UnitOfWorkMongoDB.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 85,
+        "guard": 10,
+        "integration": 85
+      },
+      "justifications": {
+        "unit": "Unit tests drive the unit-of-work paths against a mocked client (measured 89%).",
+        "guard": "Only the constructor and argument checks are guard-reachable (measured 11%).",
+        "integration": "The integration tests run the unit of work against a real replica set (measured 88%)."
+      }
     },
     "UnitOfWork/UnitOfWorkRepositoryMongoDB.cs": {
       "defaultTests": [
