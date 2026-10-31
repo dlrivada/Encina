@@ -629,10 +629,9 @@
     const headers = ['Package', 'Unit', 'U Tgt', 'U Lines', 'Guard', 'G Tgt', 'G Lines', 'Contract', 'C Tgt', 'C Lines', 'Property', 'P Tgt', 'P Lines', 'Integ', 'I Tgt', 'I Lines', 'Combined', 'Gap', 'Lines'];
     const rows = [headers.join('\t')];
     for (const pkg of allPackages) {
-      if (!isMeasured(pkg)) {
-        rows.push([pkg.name, ...Array(headers.length - 1).fill('not measured')].join('\t'));
-        continue;
-      }
+      // Unmeasured packages are skipped (#2827, #2922): the table lists them as "not measured";
+      // a spreadsheet gets only rows with numbers.
+      if (!isMeasured(pkg)) continue;
       const catTests = null;
       const gap = pkg.coverage - effectiveTargetOf(pkg);
       const ft = pkg.perFlagTarget || {};
