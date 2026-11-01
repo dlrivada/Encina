@@ -1,0 +1,38 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon 6975P-C 2.70GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  MediumRun  : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+
+
+```
+| Method              | Job        | IterationCount | LaunchCount | WarmupCount | Mean      | Error    | StdDev   | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|-------------------- |----------- |--------------- |------------ |------------ |----------:|---------:|---------:|------:|--------:|-------:|----------:|------------:|
+| Email_Partial       | Job-YFEFPZ | 10             | Default     | 3           |  80.73 ns | 0.238 ns | 0.142 ns |  1.00 |    0.00 | 0.0026 |     224 B |        1.00 |
+| Phone_Partial       | Job-YFEFPZ | 10             | Default     | 3           | 332.70 ns | 1.642 ns | 1.086 ns |  4.12 |    0.01 | 0.0062 |     520 B |        2.32 |
+| CreditCard_Partial  | Job-YFEFPZ | 10             | Default     | 3           | 394.99 ns | 1.485 ns | 0.983 ns |  4.89 |    0.01 | 0.0062 |     544 B |        2.43 |
+| SSN_Partial         | Job-YFEFPZ | 10             | Default     | 3           | 322.17 ns | 4.177 ns | 2.763 ns |  3.99 |    0.03 | 0.0062 |     520 B |        2.32 |
+| Name_Partial        | Job-YFEFPZ | 10             | Default     | 3           | 148.79 ns | 0.838 ns | 0.554 ns |  1.84 |    0.01 | 0.0033 |     280 B |        1.25 |
+| Address_Partial     | Job-YFEFPZ | 10             | Default     | 3           |  93.63 ns | 2.426 ns | 1.604 ns |  1.16 |    0.02 | 0.0038 |     328 B |        1.46 |
+| DateOfBirth_Partial | Job-YFEFPZ | 10             | Default     | 3           | 192.36 ns | 2.932 ns | 1.940 ns |  2.38 |    0.02 | 0.0045 |     384 B |        1.71 |
+| IPAddress_Partial   | Job-YFEFPZ | 10             | Default     | 3           | 140.87 ns | 0.929 ns | 0.614 ns |  1.75 |    0.01 | 0.0031 |     264 B |        1.18 |
+| Custom_FullMasking  | Job-YFEFPZ | 10             | Default     | 3           |  46.60 ns | 0.392 ns | 0.259 ns |  0.58 |    0.00 | 0.0015 |     128 B |        0.57 |
+| Email_Short         | Job-YFEFPZ | 10             | Default     | 3           |  57.46 ns | 1.348 ns | 0.892 ns |  0.71 |    0.01 | 0.0014 |     128 B |        0.57 |
+| Email_Long          | Job-YFEFPZ | 10             | Default     | 3           |  83.09 ns | 2.130 ns | 1.409 ns |  1.03 |    0.02 | 0.0038 |     328 B |        1.46 |
+| RegexPattern        | Job-YFEFPZ | 10             | Default     | 3           | 452.00 ns | 0.657 ns | 0.435 ns |  5.60 |    0.01 | 0.0043 |     392 B |        1.75 |
+|                     |            |                |             |             |           |          |          |       |         |        |           |             |
+| Email_Partial       | MediumRun  | 15             | 2           | 10          |  79.55 ns | 2.267 ns | 3.393 ns |  1.00 |    0.06 | 0.0026 |     224 B |        1.00 |
+| Phone_Partial       | MediumRun  | 15             | 2           | 10          | 327.80 ns | 1.620 ns | 2.374 ns |  4.13 |    0.17 | 0.0062 |     520 B |        2.32 |
+| CreditCard_Partial  | MediumRun  | 15             | 2           | 10          | 388.44 ns | 0.686 ns | 1.026 ns |  4.89 |    0.20 | 0.0062 |     544 B |        2.43 |
+| SSN_Partial         | MediumRun  | 15             | 2           | 10          | 318.80 ns | 1.935 ns | 2.896 ns |  4.01 |    0.17 | 0.0062 |     520 B |        2.32 |
+| Name_Partial        | MediumRun  | 15             | 2           | 10          | 147.26 ns | 0.885 ns | 1.297 ns |  1.85 |    0.08 | 0.0033 |     280 B |        1.25 |
+| Address_Partial     | MediumRun  | 15             | 2           | 10          |  92.54 ns | 0.985 ns | 1.444 ns |  1.17 |    0.05 | 0.0038 |     328 B |        1.46 |
+| DateOfBirth_Partial | MediumRun  | 15             | 2           | 10          | 192.39 ns | 0.609 ns | 0.893 ns |  2.42 |    0.10 | 0.0045 |     384 B |        1.71 |
+| IPAddress_Partial   | MediumRun  | 15             | 2           | 10          | 137.59 ns | 0.746 ns | 1.094 ns |  1.73 |    0.07 | 0.0031 |     264 B |        1.18 |
+| Custom_FullMasking  | MediumRun  | 15             | 2           | 10          |  45.97 ns | 1.533 ns | 2.295 ns |  0.58 |    0.04 | 0.0015 |     128 B |        0.57 |
+| Email_Short         | MediumRun  | 15             | 2           | 10          |  54.86 ns | 0.741 ns | 1.110 ns |  0.69 |    0.03 | 0.0015 |     128 B |        0.57 |
+| Email_Long          | MediumRun  | 15             | 2           | 10          |  83.04 ns | 1.510 ns | 2.117 ns |  1.05 |    0.05 | 0.0038 |     328 B |        1.46 |
+| RegexPattern        | MediumRun  | 15             | 2           | 10          | 436.46 ns | 1.267 ns | 1.857 ns |  5.50 |    0.22 | 0.0043 |     392 B |        1.75 |

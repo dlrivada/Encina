@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Sharding.ReferenceTableBenchmarks-20261101-011820</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 3.56GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  DefaultJob : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  MediumRun  : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                              </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean      </th><th>Error   </th><th>StdDev  </th><th>Median    </th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Hash 100 rows&#39;</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>58,848.266 ns</td><td>775.4694 ns</td><td>725.3745 ns</td><td>59,112.072 ns</td><td>1.000</td><td>0.02</td><td>6</td><td>0.8545</td><td>-</td><td>14560 B</td><td>1.000</td>
+</tr><tr><td>&#39;Hash 1000 rows&#39;</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>620,705.447 ns</td><td>1,450.3913 ns</td><td>1,211.1424 ns</td><td>620,500.318 ns</td><td>10.549</td><td>0.13</td><td>7</td><td>7.8125</td><td>-</td><td>140560 B</td><td>9.654</td>
+</tr><tr><td>&#39;Hash 5000 rows&#39;</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>3,390,486.828 ns</td><td>5,374.2921 ns</td><td>5,027.1162 ns</td><td>3,389,628.543 ns</td><td>57.622</td><td>0.69</td><td>8</td><td>39.0625</td><td>7.8125</td><td>700560 B</td><td>48.115</td>
+</tr><tr><td>&#39;Hash empty collection&#39;</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>10.169 ns</td><td>0.1241 ns</td><td>0.1100 ns</td><td>10.171 ns</td><td>0.000</td><td>0.00</td><td>3</td><td>0.0014</td><td>-</td><td>24 B</td><td>0.002</td>
+</tr><tr><td>&#39;Registry.IsRegistered (hit)&#39;</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>5.901 ns</td><td>0.0082 ns</td><td>0.0072 ns</td><td>5.902 ns</td><td>0.000</td><td>0.00</td><td>1</td><td>-</td><td>-</td><td>-</td><td>0.000</td>
+</tr><tr><td>Registry.GetConfiguration</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>7.063 ns</td><td>0.0637 ns</td><td>0.0497 ns</td><td>7.075 ns</td><td>0.000</td><td>0.00</td><td>2</td><td>-</td><td>-</td><td>-</td><td>0.000</td>
+</tr><tr><td>Registry.GetAllConfigurations</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>108.945 ns</td><td>0.6008 ns</td><td>0.5017 ns</td><td>109.024 ns</td><td>0.002</td><td>0.00</td><td>5</td><td>0.0067</td><td>-</td><td>112 B</td><td>0.008</td>
+</tr><tr><td>&#39;EntityMetadataCache.GetOrCreate (cached)&#39;</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>12.587 ns</td><td>0.0062 ns</td><td>0.0058 ns</td><td>12.586 ns</td><td>0.000</td><td>0.00</td><td>4</td><td>-</td><td>-</td><td>-</td><td>0.000</td>
+</tr><tr><td>&#39;Hash 100 rows&#39;</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>59,637.939 ns</td><td>378.4699 ns</td><td>554.7564 ns</td><td>59,423.706 ns</td><td>1.000</td><td>0.01</td><td>6</td><td>0.8545</td><td>-</td><td>14560 B</td><td>1.000</td>
+</tr><tr><td>&#39;Hash 1000 rows&#39;</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>628,866.446 ns</td><td>3,366.3300 ns</td><td>4,493.9542 ns</td><td>628,088.453 ns</td><td>10.546</td><td>0.12</td><td>7</td><td>7.8125</td><td>-</td><td>140560 B</td><td>9.654</td>
+</tr><tr><td>&#39;Hash 5000 rows&#39;</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3,447,263.803 ns</td><td>28,009.6777 ns</td><td>41,056.2258 ns</td><td>3,478,027.953 ns</td><td>57.808</td><td>0.85</td><td>8</td><td>39.0625</td><td>7.8125</td><td>700560 B</td><td>48.115</td>
+</tr><tr><td>&#39;Hash empty collection&#39;</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>8.755 ns</td><td>0.2311 ns</td><td>0.3459 ns</td><td>8.866 ns</td><td>0.000</td><td>0.00</td><td>3</td><td>0.0014</td><td>-</td><td>24 B</td><td>0.002</td>
+</tr><tr><td>&#39;Registry.IsRegistered (hit)&#39;</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>5.744 ns</td><td>0.0056 ns</td><td>0.0075 ns</td><td>5.744 ns</td><td>0.000</td><td>0.00</td><td>1</td><td>-</td><td>-</td><td>-</td><td>0.000</td>
+</tr><tr><td>Registry.GetConfiguration</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>7.094 ns</td><td>0.0079 ns</td><td>0.0105 ns</td><td>7.091 ns</td><td>0.000</td><td>0.00</td><td>2</td><td>-</td><td>-</td><td>-</td><td>0.000</td>
+</tr><tr><td>Registry.GetAllConfigurations</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>109.384 ns</td><td>1.5138 ns</td><td>2.2658 ns</td><td>109.272 ns</td><td>0.002</td><td>0.00</td><td>5</td><td>0.0067</td><td>-</td><td>112 B</td><td>0.008</td>
+</tr><tr><td>&#39;EntityMetadataCache.GetOrCreate (cached)&#39;</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>12.328 ns</td><td>0.0245 ns</td><td>0.0336 ns</td><td>12.318 ns</td><td>0.000</td><td>0.00</td><td>4</td><td>-</td><td>-</td><td>-</td><td>0.000</td>
+</tr></tbody></table>
+</body>
+</html>

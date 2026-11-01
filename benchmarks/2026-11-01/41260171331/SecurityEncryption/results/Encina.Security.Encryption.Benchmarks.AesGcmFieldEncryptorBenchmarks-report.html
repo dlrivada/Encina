@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Security.Encryption.Benchmarks.AesGcmFieldEncryptorBenchmarks-20261101-015023</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.58GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method           </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>EncryptString_Medium</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>4.922 &mu;s</td><td>0.0154 &mu;s</td><td>0.0080 &mu;s</td><td>4.924 &mu;s</td><td>1.05</td><td>0.00</td><td>0.0687</td><td>-</td><td>1168 B</td><td>2.61</td>
+</tr><tr><td>EncryptDecryptRoundtrip</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>8.605 &mu;s</td><td>0.0326 &mu;s</td><td>0.0216 &mu;s</td><td>8.599 &mu;s</td><td>1.84</td><td>0.01</td><td>0.0305</td><td>-</td><td>664 B</td><td>1.48</td>
+</tr><tr><td>EncryptBytes_Short</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>5.000 &mu;s</td><td>0.0110 &mu;s</td><td>0.0066 &mu;s</td><td>5.002 &mu;s</td><td>1.07</td><td>0.00</td><td>0.0229</td><td>-</td><td>448 B</td><td>1.00</td>
+</tr><tr><td>EncryptBytes_Medium</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>4.832 &mu;s</td><td>0.0502 &mu;s</td><td>0.0332 &mu;s</td><td>4.816 &mu;s</td><td>1.04</td><td>0.01</td><td>0.0687</td><td>-</td><td>1168 B</td><td>2.61</td>
+</tr><tr><td>DecryptString_Short</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>3.167 &mu;s</td><td>0.0044 &mu;s</td><td>0.0026 &mu;s</td><td>3.168 &mu;s</td><td>0.68</td><td>0.00</td><td>0.0191</td><td>-</td><td>320 B</td><td>0.71</td>
+</tr><tr><td>EncryptString_Long</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>7.400 &mu;s</td><td>0.1230 &mu;s</td><td>0.0814 &mu;s</td><td>7.393 &mu;s</td><td>1.59</td><td>0.02</td><td>0.7553</td><td>0.0305</td><td>12688 B</td><td>28.32</td>
+</tr><tr><td>EncryptString_Short</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>4.666 &mu;s</td><td>0.0144 &mu;s</td><td>0.0086 &mu;s</td><td>4.664 &mu;s</td><td>1.00</td><td>0.00</td><td>0.0229</td><td>-</td><td>448 B</td><td>1.00</td>
+</tr><tr><td>EncryptString_Medium</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>5.136 &mu;s</td><td>0.0944 &mu;s</td><td>0.1383 &mu;s</td><td>5.251 &mu;s</td><td>1.10</td><td>0.03</td><td>0.0687</td><td>-</td><td>1168 B</td><td>2.61</td>
+</tr><tr><td>EncryptDecryptRoundtrip</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>8.380 &mu;s</td><td>0.2474 &mu;s</td><td>0.3626 &mu;s</td><td>8.057 &mu;s</td><td>1.79</td><td>0.08</td><td>0.0305</td><td>-</td><td>664 B</td><td>1.48</td>
+</tr><tr><td>EncryptBytes_Short</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>4.700 &mu;s</td><td>0.0135 &mu;s</td><td>0.0198 &mu;s</td><td>4.700 &mu;s</td><td>1.00</td><td>0.00</td><td>0.0229</td><td>-</td><td>448 B</td><td>1.00</td>
+</tr><tr><td>EncryptBytes_Medium</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>5.018 &mu;s</td><td>0.1361 &mu;s</td><td>0.1953 &mu;s</td><td>4.859 &mu;s</td><td>1.07</td><td>0.04</td><td>0.0687</td><td>-</td><td>1168 B</td><td>2.61</td>
+</tr><tr><td>DecryptString_Short</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3.325 &mu;s</td><td>0.0890 &mu;s</td><td>0.1305 &mu;s</td><td>3.207 &mu;s</td><td>0.71</td><td>0.03</td><td>0.0191</td><td>-</td><td>320 B</td><td>0.71</td>
+</tr><tr><td>EncryptString_Long</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>7.524 &mu;s</td><td>0.1928 &mu;s</td><td>0.2885 &mu;s</td><td>7.495 &mu;s</td><td>1.60</td><td>0.06</td><td>0.7477</td><td>0.0305</td><td>12688 B</td><td>28.32</td>
+</tr><tr><td>EncryptString_Short</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>4.690 &mu;s</td><td>0.0058 &mu;s</td><td>0.0087 &mu;s</td><td>4.690 &mu;s</td><td>1.00</td><td>0.00</td><td>0.0229</td><td>-</td><td>448 B</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>
