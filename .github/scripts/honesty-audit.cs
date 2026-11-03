@@ -63,7 +63,17 @@ if (selfTest)
     return SelfTest.Run();
 }
 
-var root = rootArg is not null ? Path.GetFullPath(rootArg) : Audit.FindRoot(Directory.GetCurrentDirectory());
+string? root;
+try
+{
+    root = rootArg is not null ? Path.GetFullPath(rootArg) : Audit.FindRoot(Directory.GetCurrentDirectory());
+}
+catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
+{
+    Console.Error.WriteLine($"Invalid --root: {ex.GetType().Name}");
+    return 2;
+}
+
 if (root is null || !Directory.Exists(Path.Combine(root, ".github", "coverage-manifest")))
 {
     Console.Error.WriteLine("Repository root not found (no .github/coverage-manifest); run from the repository root or pass --root.");
@@ -101,7 +111,7 @@ if (baselinePath is not null)
     {
         baseline = Baseline.Load(Path.GetFullPath(baselinePath));
     }
-    catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or InvalidOperationException or UnauthorizedAccessException)
+    catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or InvalidOperationException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
     {
         Console.Error.WriteLine($"Cannot read the baseline '{baselinePath}': {ex.GetType().Name}");
         return 2;
@@ -127,7 +137,7 @@ try
         File.AppendAllText(summaryPath, summary + Environment.NewLine);
     }
 }
-catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
 {
     Console.Error.WriteLine($"Cannot write the output: {ex.GetType().Name}");
     return 2;
