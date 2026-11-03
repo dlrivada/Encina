@@ -4897,7 +4897,7 @@ The fluent builder chain described in the documentation is fictional. The parame
     # anything under the orchestrator's own tooling folders (regression guard for the #1181 rule).
     $nonSanctionedFixturePath = Join-Path $repo 'artifacts\x-1368-fixture.ps1'
     New-Item -ItemType Directory -Force (Split-Path -Parent $nonSanctionedFixturePath) | Out-Null
-    Set-Content -LiteralPath $nonSanctionedFixturePath -Value "# Mentions src/Foo.cs in guidance text.`nSet-Content 'x.log' 'y'`n"
+    Set-Content -LiteralPath $nonSanctionedFixturePath -Value "# Writes src/Foo.cs (#2892: only a resolved target counts, a mention does not).`nSet-Content 'src/Foo.cs' 'y'`n"
     Invoke-HookCase $orchestrator (@{ tool_name = 'PowerShell'; cwd = $repo; tool_input = @{ command = "pwsh -NoProfile -File '$nonSanctionedFixturePath'" } } | ConvertTo-Json -Compress) 2 'orchestrator: a script under artifacts/ that writes and references src/ is still blocked (#1368 regression guard)'
     Remove-Item -Force $nonSanctionedFixturePath -ErrorAction SilentlyContinue
 
@@ -4906,7 +4906,7 @@ The fluent builder chain described in the documentation is fictional. The parame
     # is deliberately a repository-relative path check, not a name match (decision 5).
     $outsideLookalikePath = Join-Path $work 'tools\ai\audit\lookalike.ps1'
     New-Item -ItemType Directory -Force (Split-Path -Parent $outsideLookalikePath) | Out-Null
-    Set-Content -LiteralPath $outsideLookalikePath -Value "# Mentions tests/Bar.cs in guidance text.`nSet-Content 'x.log' 'y'`n"
+    Set-Content -LiteralPath $outsideLookalikePath -Value "# Writes tests/Bar.cs (#2892: only a resolved target counts, a mention does not).`nSet-Content 'tests/Bar.cs' 'y'`n"
     Invoke-HookCase $orchestrator (@{ tool_name = 'PowerShell'; cwd = $repo; tool_input = @{ command = "pwsh -NoProfile -File '$outsideLookalikePath'" } } | ConvertTo-Json -Compress) 2 'orchestrator: a script outside the repository is not exempt just because its path looks sanctioned (#1368 decision 5)'
 
     # (f): Get-FlatOutput reconstructs a phrase that a narrow console wrapped across two output lines, so the
@@ -4962,7 +4962,7 @@ The fluent builder chain described in the documentation is fictional. The parame
     Invoke-Probe1854 'adversarial-reviewer' "'Set-Content src/Encina/X.cs 1' | Set-Content -LiteralPath '$scratch1854\made4.ps1'; & '$scratch1854\made4.ps1'" 2 'adversarial-reviewer: the pipeline form of a created script that names src/ is blocked too (#1854)' 'literal that references src/ or tests/'
     Invoke-Probe1854 'adversarial-reviewer' "Get-Content '$scratch1854\evil.ps1' | Set-Content -LiteralPath '$scratch1854\made5.ps1'; & '$scratch1854\made5.ps1'" 2 'adversarial-reviewer: a script created from the content of another file is blocked (#1854)' 'not a quoted literal'
     Invoke-Probe1854 'adversarial-reviewer' "Copy-Item '$scratch1854\evil.ps1' '$scratch1854\made6.ps1'; & '$scratch1854\made6.ps1'" 2 'adversarial-reviewer: a script created by Copy-Item is blocked (#1854)' 'not a quoted literal'
-    Invoke-Probe1854 'adversarial-reviewer' "& '$scratch1854\evil.ps1'" 2 'adversarial-reviewer: an existing script that references src/ and writes files is still blocked (#1854)' 'references src/ or tests/ and writes files'
+    Invoke-Probe1854 'adversarial-reviewer' "& '$scratch1854\evil.ps1'" 2 'adversarial-reviewer: an existing script that references src/ and writes files is still blocked (#1854)' 'which writes to src/ or tests/'
     Invoke-Probe1854 'adversarial-reviewer' "& '$scratch1854\missing.ps1'" 2 'adversarial-reviewer: a script that does not exist and is not created by the command is blocked, naming the tried path (#1854)' 'which does not exist \(resolved from .*missing\.ps1.* against base'
     Invoke-Probe1854 'pr-reviewer' "dotnet run absent.cs" 2 'pr-reviewer: dotnet run of a relative script missing from the payload cwd is blocked, naming the tried path (#1854)' 'hooks-1854-[0-9a-f]+\\absent\.cs'
     Invoke-Probe1854 'pr-reviewer' 'dotnet run $unknownDir\probe.cs' 2 'pr-reviewer: dotnet run of a script path that depends on an unknown variable is blocked, naming the raw argument (#1854)' 'cannot resolve \(tried .\$unknownDir'
@@ -4990,7 +4990,7 @@ The fluent builder chain described in the documentation is fictional. The parame
             @("Add-Content '$s\benign3.ps1' -Value 'Set-Content src/Encina/X.cs 1'; & '$s\benign3.ps1'", 'appending a literal that writes src/ to an existing script'),
             @("& '$s\evil.ps1'; Set-Content '$s\evil.ps1' -Value 'Write-Output 1'", 'running an existing evil script, then overwriting it with a benign literal'),
             @("Set-Content '$s\gl.ps1' -Value 'Write-Output 1'; echo x > `$out; & '$s\gl.ps1'", 'a write the hook cannot resolve next to the creating one'))) {
-        Invoke-Probe1854 'adversarial-reviewer' $case[0] 2 "adversarial-reviewer: $($case[1]) is blocked (#1854 review)" "$opaque|references src/ or tests/ and writes files|cannot resolve|writes a literal that references|which the same command writes, next to"
+        Invoke-Probe1854 'adversarial-reviewer' $case[0] 2 "adversarial-reviewer: $($case[1]) is blocked (#1854 review)" "$opaque|references src/ or tests/ and writes files|which writes to src/ or tests/|cannot resolve|writes a literal that references|which the same command writes, next to"
     }
     Invoke-Probe1854 'adversarial-reviewer' "`$p = '$s\vv2.ps1'; Set-Content `$p -Value 'Write-Output 1'; & `$p" 2 'adversarial-reviewer: & $variable is an unresolvable script path, denied with the raw argument and the base (#1854 review)' 'cannot resolve \(tried .\$p. against base .[^ ]*hooks-1854'
     Invoke-Probe1854 'pr-reviewer' "Set-Content '$scratch1854\d.ps1' -Value 'Write-Output 1'; . `$p" 2 'pr-reviewer: dot-sourcing $variable next to a file write is an unresolvable script path (#1854 review)' 'cannot resolve \(tried .\$p'
@@ -5053,8 +5053,8 @@ The fluent builder chain described in the documentation is fictional. The parame
         Invoke-Probe1854 'adversarial-reviewer' $case[0] 0 "adversarial-reviewer: $($case[1]) is allowed (#2009)"
         Invoke-Probe1854 'pr-reviewer' $case[0] 0 "pr-reviewer: $($case[1]) is allowed (#2009)"
     }
-    Invoke-Probe1854 'adversarial-reviewer' "`$wt = '$s'; pwsh -NoProfile -File `"`$wt\evil.ps1`"" 2 'adversarial-reviewer: a resolved variable path to a script that references src/ and writes files is blocked (#2009)' 'evil\.ps1.* which references src/ or tests/ and writes files'
-    Invoke-Probe1854 'pr-reviewer' "`$wt = '$s'; & `"`$wt\evil.ps1`"" 2 'pr-reviewer: the call operator through a resolved variable to a harmful script is blocked (#2009)' 'references src/ or tests/ and writes files'
+    Invoke-Probe1854 'adversarial-reviewer' "`$wt = '$s'; pwsh -NoProfile -File `"`$wt\evil.ps1`"" 2 'adversarial-reviewer: a resolved variable path to a script that references src/ and writes files is blocked (#2009)' 'evil\.ps1.* which writes to src/ or tests/'
+    Invoke-Probe1854 'pr-reviewer' "`$wt = '$s'; & `"`$wt\evil.ps1`"" 2 'pr-reviewer: the call operator through a resolved variable to a harmful script is blocked (#2009)' 'which writes to src/ or tests/'
     Invoke-Probe1854 'adversarial-reviewer' "`$wt = '$s'; pwsh -NoProfile -File `"`$wt\missing.ps1`"" 2 'adversarial-reviewer: a resolved variable path to a missing script is blocked (#2009)' 'which does not exist'
     Set-Content -LiteralPath (Join-Path $s 'rebind.ps1') -Value "`$global:wt = 'C:\other'`n"
     foreach ($case in @(
