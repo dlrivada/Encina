@@ -22,13 +22,11 @@ internal static class AuditResolutionIds
     /// <see cref="AuditResolutionField.All"/> on either, otherwise only the fields of that trail's read model.
     /// </summary>
     internal static bool IsValid(AuditResolutionTrail trail, AuditResolutionField field) =>
-        Enum.IsDefined(trail) && Enum.IsDefined(field)
-        && (field == AuditResolutionField.All
-        || (OperationFields.Contains(field) && trail == AuditResolutionTrail.Operation)
-        || (ReadFields.Contains(field) && trail == AuditResolutionTrail.Read));
+        ValidFields.TryGetValue(trail, out var fields) && fields.Contains(field);
 
     private static readonly HashSet<AuditResolutionField> OperationFields =
     [
+        AuditResolutionField.All,
         AuditResolutionField.UserId,
         AuditResolutionField.IpAddress,
         AuditResolutionField.UserAgent,
@@ -39,8 +37,16 @@ internal static class AuditResolutionIds
 
     private static readonly HashSet<AuditResolutionField> ReadFields =
     [
+        AuditResolutionField.All,
         AuditResolutionField.UserId,
         AuditResolutionField.Purpose,
         AuditResolutionField.MetadataJson
     ];
+
+    // Declared after the sets it references: static initialisers run in textual order.
+    private static readonly Dictionary<AuditResolutionTrail, HashSet<AuditResolutionField>> ValidFields = new()
+    {
+        [AuditResolutionTrail.Operation] = OperationFields,
+        [AuditResolutionTrail.Read] = ReadFields
+    };
 }
