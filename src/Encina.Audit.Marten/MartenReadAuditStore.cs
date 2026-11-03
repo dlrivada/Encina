@@ -370,15 +370,9 @@ public sealed class MartenReadAuditStore : IReadAuditStore
     /// Maps a <see cref="ReadAuditEntryReadModel"/> projected document to a <see cref="ReadAuditEntry"/>
     /// domain record.
     /// </summary>
-    internal static ReadAuditEntry MapToReadAuditEntry(ReadAuditEntryReadModel model)
+    internal ReadAuditEntry MapToReadAuditEntry(ReadAuditEntryReadModel model)
     {
-        IReadOnlyDictionary<string, object?> metadata = model.MetadataJson is not null
-                && !model.IsShredded
-                && !model.IsExpired
-                && model.MetadataJson != MartenOperationAuditOptions.DefaultShreddedPlaceholder
-            ? JsonSerializer.Deserialize<Dictionary<string, object?>>(model.MetadataJson, MetadataJsonOptions)
-                ?? new Dictionary<string, object?>()
-            : new Dictionary<string, object?>();
+        var metadata = ParseMetadata(model.MetadataJson);
 
         return new ReadAuditEntry
         {
@@ -394,5 +388,24 @@ public sealed class MartenReadAuditStore : IReadAuditStore
             EntityCount = model.EntityCount,
             Metadata = metadata
         };
+    }
+
+    /// <summary>
+    /// Parses the projected metadata JSON unless it is one of the three configured placeholders. The decision is
+    /// value-based: a resolution can leave readable metadata beside a set flag, and a placeholder such as
+    /// <c>[UNREADABLE]</c> is not JSON.
+    /// </summary>
+    private Dictionary<string, object?> ParseMetadata(string? metadataJson)
+    {
+        if (metadataJson is null
+            || metadataJson == _options.ShreddedPlaceholder
+            || metadataJson == _options.ExpiredPlaceholder
+            || metadataJson == _options.UnreadablePlaceholder)
+        {
+            return new Dictionary<string, object?>();
+        }
+
+        return JsonSerializer.Deserialize<Dictionary<string, object?>>(metadataJson, MetadataJsonOptions)
+            ?? new Dictionary<string, object?>();
     }
 }

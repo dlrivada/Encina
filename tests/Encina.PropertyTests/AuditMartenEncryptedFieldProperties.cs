@@ -42,6 +42,34 @@ public sealed class AuditMartenEncryptedFieldProperties
         return OnlyTypedFailureOrExactly(new EncryptedField { Value = value }, "plain-secret");
     }
 
+    [Property(MaxTest = 300)]
+    public bool NonThrowingRead_AgreesWithTheThrowingRead(string? garbage, bool withMarker, bool corruptValid, NonNegativeInt position, byte replacement)
+    {
+        string value;
+        if (corruptValid)
+        {
+            var chars = EncryptedField.Encrypt("plain-secret", Key, "kid-1").Value!.ToCharArray();
+            chars[position.Get % chars.Length] = (char)replacement;
+            value = new string(chars);
+        }
+        else
+        {
+            value = (withMarker ? "{\"__enc\":true" : string.Empty) + (garbage ?? string.Empty);
+        }
+
+        var field = new EncryptedField { Value = value };
+        var ok = field.TryDecrypt(Key, out var plaintext, out var reason);
+
+        try
+        {
+            return ok && field.Decrypt(Key) == plaintext;
+        }
+        catch (EncryptedFieldDecryptionException ex)
+        {
+            return !ok && plaintext is null && ex.Reason == reason;
+        }
+    }
+
     [Property(MaxTest = 200)]
     public bool RoundTrip_ReturnsThePlaintext(string? plaintext)
     {

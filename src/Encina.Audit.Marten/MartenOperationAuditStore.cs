@@ -542,15 +542,9 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
     /// Maps an <see cref="OperationAuditEntryReadModel"/> projected document to an <see cref="OperationAuditEntry"/>
     /// domain record.
     /// </summary>
-    internal static OperationAuditEntry MapToAuditEntry(OperationAuditEntryReadModel model)
+    internal OperationAuditEntry MapToAuditEntry(OperationAuditEntryReadModel model)
     {
-        IReadOnlyDictionary<string, object?> metadata = model.MetadataJson is not null
-                && !model.IsShredded
-                && !model.IsExpired
-                && model.MetadataJson != MartenOperationAuditOptions.DefaultShreddedPlaceholder
-            ? JsonSerializer.Deserialize<Dictionary<string, object?>>(model.MetadataJson, MetadataJsonOptions)
-                ?? new Dictionary<string, object?>()
-            : new Dictionary<string, object?>();
+        var metadata = ParseMetadata(model.MetadataJson);
 
         return new OperationAuditEntry
         {
@@ -573,5 +567,24 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
             ResponsePayload = model.ResponsePayload,
             Metadata = metadata
         };
+    }
+
+    /// <summary>
+    /// Parses the projected metadata JSON unless it is one of the three configured placeholders. The decision is
+    /// value-based: a resolution can leave readable metadata beside a set flag, and a placeholder such as
+    /// <c>[UNREADABLE]</c> is not JSON.
+    /// </summary>
+    private Dictionary<string, object?> ParseMetadata(string? metadataJson)
+    {
+        if (metadataJson is null
+            || metadataJson == _options.ShreddedPlaceholder
+            || metadataJson == _options.ExpiredPlaceholder
+            || metadataJson == _options.UnreadablePlaceholder)
+        {
+            return new Dictionary<string, object?>();
+        }
+
+        return JsonSerializer.Deserialize<Dictionary<string, object?>>(metadataJson, MetadataJsonOptions)
+            ?? new Dictionary<string, object?>();
     }
 }

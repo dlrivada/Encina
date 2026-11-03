@@ -62,11 +62,12 @@ public sealed class MartenOperationAuditStoreQueryTests
         Model(user: "alice", entityType: "Order", entityId: "e3", at: Base.AddHours(2), correlation: "c3", durationSeconds: 5)
     ];
 
-    private static (MartenOperationAuditStore Store, FakeLogger<MartenOperationAuditStore> Logger, IDocumentSession Session) CreateStore()
+    private static (MartenOperationAuditStore Store, FakeLogger<MartenOperationAuditStore> Logger, IDocumentSession Session) CreateStore(
+        MartenOperationAuditOptions? auditOptions = null)
     {
         var session = Substitute.For<IDocumentSession>();
         var keyProvider = new InMemoryTemporalKeyProvider(TimeProvider.System, NullLogger<InMemoryTemporalKeyProvider>.Instance);
-        var options = Options.Create(new MartenOperationAuditOptions());
+        var options = Options.Create(auditOptions ?? new MartenOperationAuditOptions());
         var encryptor = new AuditEventEncryptor(keyProvider, options, NullLogger<AuditEventEncryptor>.Instance);
         var logger = new FakeLogger<MartenOperationAuditStore>();
         return (new MartenOperationAuditStore(session, encryptor, keyProvider, options, logger), logger, session);
@@ -212,7 +213,7 @@ public sealed class MartenOperationAuditStoreQueryTests
         model.RequestPayloadHash = "hash";
         model.UserAgent = "agent";
 
-        var entry = MartenOperationAuditStore.MapToAuditEntry(model);
+        var entry = CreateStore().Store.MapToAuditEntry(model);
 
         entry.Id.ShouldBe(model.Id);
         entry.UserId.ShouldBe("alice");
@@ -231,7 +232,7 @@ public sealed class MartenOperationAuditStoreQueryTests
     [Fact]
     public void MapToAuditEntry_WithoutMetadata_ReturnsEmptyMetadata()
     {
-        var entry = MartenOperationAuditStore.MapToAuditEntry(Model());
+        var entry = CreateStore().Store.MapToAuditEntry(Model());
 
         entry.Metadata.ShouldBeEmpty();
     }
@@ -242,9 +243,45 @@ public sealed class MartenOperationAuditStoreQueryTests
         var model = Model();
         model.MetadataJson = MartenOperationAuditOptions.DefaultShreddedPlaceholder;
 
-        var entry = MartenOperationAuditStore.MapToAuditEntry(model);
+        var entry = CreateStore().Store.MapToAuditEntry(model);
 
         entry.Metadata.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void MapToAuditEntry_WithUnreadableMetadataPlaceholder_DoesNotThrowAndReturnsEmptyMetadata()
+    {
+        var model = Model(user: "alice");
+        model.MetadataJson = MartenOperationAuditOptions.DefaultUnreadablePlaceholder;
+        model.IsUnreadable = true;
+
+        var entry = CreateStore().Store.MapToAuditEntry(model);
+
+        entry.UserId.ShouldBe("alice");
+        entry.Metadata.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void MapToAuditEntry_WithShreddedFlagButReadableMetadata_KeepsTheMetadata()
+    {
+        var model = Model(user: MartenOperationAuditOptions.DefaultShreddedPlaceholder);
+        model.MetadataJson = "{\"key\":\"value\"}";
+        model.IsShredded = true;
+
+        var entry = CreateStore().Store.MapToAuditEntry(model);
+
+        entry.UserId.ShouldBe(MartenOperationAuditOptions.DefaultShreddedPlaceholder);
+        entry.Metadata.ShouldContainKey("key");
+    }
+
+    [Fact]
+    public void MapToAuditEntry_WithCustomPlaceholders_SkipsThemByValue()
+    {
+        var (store, _, _) = CreateStore(new MartenOperationAuditOptions { UnreadablePlaceholder = "<cannot-read>" });
+        var model = Model();
+        model.MetadataJson = "<cannot-read>";
+
+        store.MapToAuditEntry(model).Metadata.ShouldBeEmpty();
     }
 
     [Fact]
@@ -253,7 +290,7 @@ public sealed class MartenOperationAuditStoreQueryTests
         var model = Model();
         model.MetadataJson = "null";
 
-        var entry = MartenOperationAuditStore.MapToAuditEntry(model);
+        var entry = CreateStore().Store.MapToAuditEntry(model);
 
         entry.Metadata.ShouldBeEmpty();
     }

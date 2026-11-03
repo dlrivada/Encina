@@ -135,28 +135,70 @@ public sealed record EncryptedField
     {
         ArgumentNullException.ThrowIfNull(keyMaterial);
 
+        return TryDecrypt(keyMaterial, out var plaintext, out var reason)
+            ? plaintext
+            : throw new EncryptedFieldDecryptionException(reason);
+    }
+
+    /// <summary>
+    /// Reads this field without throwing for any stored-value or key failure; the failure reason is the only
+    /// output of a failure (never a message, an envelope or a key identifier).
+    /// </summary>
+    /// <param name="keyMaterial">The key material for the temporal period.</param>
+    /// <param name="plaintext">
+    /// The decrypted text, or <c>null</c> when the stored value is <c>null</c> or the read failed.
+    /// </param>
+    /// <param name="reason">Why the read failed; meaningful only when the method returns <c>false</c>.</param>
+    /// <returns><c>true</c> when the field was read (including a <c>null</c> value); otherwise <c>false</c>.</returns>
+    internal bool TryDecrypt(byte[] keyMaterial, out string? plaintext, out EncryptedFieldDecryptionFailureReason reason)
+    {
+        plaintext = null;
+        reason = default;
+
         if (Value is null)
         {
-            return null;
+            return true;
         }
 
-        var parsed = ParseEnvelope(Value);
-        ValidateSizes(keyMaterial, parsed);
+        if (!TryParseEnvelope(Value, out var parsed, out reason))
+        {
+            return false;
+        }
 
-        var plaintext = new byte[parsed.Ciphertext.Length];
+        if (!HasValidSizes(keyMaterial, parsed))
+        {
+            reason = EncryptedFieldDecryptionFailureReason.InvalidKeyOrParameters;
+            return false;
+        }
+
+        return TryAuthenticate(keyMaterial, parsed, out plaintext, out reason);
+    }
+
+    private static bool TryAuthenticate(
+        byte[] keyMaterial,
+        ParsedEnvelope parsed,
+        out string? plaintext,
+        out EncryptedFieldDecryptionFailureReason reason)
+    {
+        var buffer = new byte[parsed.Ciphertext.Length];
 
         try
         {
             using var aesGcm = new AesGcm(keyMaterial, TagSizeInBytes);
-            aesGcm.Decrypt(parsed.Nonce, parsed.Ciphertext, parsed.Tag, plaintext);
+            aesGcm.Decrypt(parsed.Nonce, parsed.Ciphertext, parsed.Tag, buffer);
         }
         catch (CryptographicException)
         {
-            // Deliberately drops the cause: its message must never reach the daemon logs (AGENTS.md section 3).
-            throw new EncryptedFieldDecryptionException(EncryptedFieldDecryptionFailureReason.IntegrityCheckFailed);
+            // The framework offers no Try variant; the cause is dropped here because its message must never
+            // reach the daemon logs (AGENTS.md section 3).
+            plaintext = null;
+            reason = EncryptedFieldDecryptionFailureReason.IntegrityCheckFailed;
+            return false;
         }
 
-        return Encoding.UTF8.GetString(plaintext);
+        plaintext = Encoding.UTF8.GetString(buffer);
+        reason = default;
+        return true;
     }
 
     /// <summary>
@@ -227,62 +269,70 @@ public sealed record EncryptedField
     /// <summary>
     /// Parses a stored value as an encrypted field envelope.
     /// </summary>
-    /// <returns>The parsed components.</returns>
-    /// <exception cref="EncryptedFieldDecryptionException">
-    /// The value has no <c>__enc</c> marker, is not valid JSON, or lacks a Base64 string <c>ct</c>, <c>n</c> or <c>t</c>.
-    /// </exception>
-    private static ParsedEnvelope ParseEnvelope(string json)
+    /// <returns>
+    /// <c>true</c> with the parsed components; otherwise <c>false</c> with <see cref="EncryptedFieldDecryptionFailureReason.NotEncrypted"/>
+    /// (no <c>__enc</c> marker) or <see cref="EncryptedFieldDecryptionFailureReason.EnvelopeMalformed"/> (not valid JSON, or
+    /// no Base64 string <c>ct</c>, <c>n</c> or <c>t</c>).
+    /// </returns>
+    private static bool TryParseEnvelope(string json, out ParsedEnvelope parsed, out EncryptedFieldDecryptionFailureReason reason)
     {
+        parsed = default;
+
         if (!json.StartsWith(EncryptedMarkerPrefix, StringComparison.Ordinal))
         {
-            throw new EncryptedFieldDecryptionException(EncryptedFieldDecryptionFailureReason.NotEncrypted);
+            reason = EncryptedFieldDecryptionFailureReason.NotEncrypted;
+            return false;
         }
+
+        reason = EncryptedFieldDecryptionFailureReason.EnvelopeMalformed;
 
         try
         {
             using var document = JsonDocument.Parse(StrictUtf8.GetBytes(json));
-            var root = document.RootElement;
-
-            return new ParsedEnvelope(
-                Ciphertext: ReadBase64(root, "ct"),
-                Nonce: ReadBase64(root, "n"),
-                Tag: ReadBase64(root, "t"));
+            return TryReadEnvelope(document.RootElement, out parsed);
         }
         catch (JsonException)
         {
-            throw Malformed();
+            // The BCL has no TryParse for JsonDocument; the exception never leaves this method.
+            return false;
         }
         catch (EncoderFallbackException)
         {
-            throw Malformed();
+            return false;
         }
     }
 
-    private static byte[] ReadBase64(JsonElement root, string name)
+    private static bool TryReadEnvelope(JsonElement root, out ParsedEnvelope parsed)
     {
-        if (root.ValueKind == JsonValueKind.Object
+        if (TryReadBase64(root, "ct", out var ciphertext)
+            && TryReadBase64(root, "n", out var nonce)
+            && TryReadBase64(root, "t", out var tag))
+        {
+            parsed = new ParsedEnvelope(ciphertext, nonce, tag);
+            return true;
+        }
+
+        parsed = default;
+        return false;
+    }
+
+    private static bool TryReadBase64(JsonElement root, string name, out byte[] bytes)
+    {
+        byte[]? decoded = null;
+
+        var read = root.ValueKind == JsonValueKind.Object
             && root.TryGetProperty(name, out var element)
             && element.ValueKind == JsonValueKind.String
-            && element.TryGetBytesFromBase64(out var bytes))
-        {
-            return bytes;
-        }
+            && element.TryGetBytesFromBase64(out decoded);
 
-        throw Malformed();
+        bytes = decoded ?? [];
+        return read;
     }
 
-    private static EncryptedFieldDecryptionException Malformed() =>
-        new(EncryptedFieldDecryptionFailureReason.EnvelopeMalformed);
-
-    private static void ValidateSizes(byte[] keyMaterial, ParsedEnvelope parsed)
-    {
-        if (keyMaterial.Length != KeySizeInBytes
-            || parsed.Nonce.Length != NonceSizeInBytes
-            || parsed.Tag.Length != TagSizeInBytes)
-        {
-            throw new EncryptedFieldDecryptionException(EncryptedFieldDecryptionFailureReason.InvalidKeyOrParameters);
-        }
-    }
+    private static bool HasValidSizes(byte[] keyMaterial, ParsedEnvelope parsed) =>
+        keyMaterial.Length == KeySizeInBytes
+        && parsed.Nonce.Length == NonceSizeInBytes
+        && parsed.Tag.Length == TagSizeInBytes;
 
     /// <summary>
     /// Parsed components of an encrypted field envelope.

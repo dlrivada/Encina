@@ -321,7 +321,7 @@ public sealed class RetentionReferenceTests
     {
         var model = new OperationAuditEntryReadModel { Id = Guid.NewGuid(), MetadataJson = "[EXPIRED]", IsExpired = true };
 
-        MartenOperationAuditStore.MapToAuditEntry(model).Metadata.ShouldBeEmpty();
+        NewOperationStore().MapToAuditEntry(model).Metadata.ShouldBeEmpty();
     }
 
     [Fact]
@@ -329,6 +329,22 @@ public sealed class RetentionReferenceTests
     {
         var model = new ReadAuditEntryReadModel { Id = Guid.NewGuid(), MetadataJson = "[EXPIRED]", IsExpired = true };
 
-        MartenReadAuditStore.MapToReadAuditEntry(model).Metadata.ShouldBeEmpty();
+        NewReadStore().MapToReadAuditEntry(model).Metadata.ShouldBeEmpty();
+    }
+
+    private static MartenOperationAuditStore NewOperationStore()
+    {
+        var keyProvider = new InMemoryTemporalKeyProvider(TimeProvider.System, NullLogger<InMemoryTemporalKeyProvider>.Instance);
+        var options = Options.Create(new MartenOperationAuditOptions());
+        var encryptor = new AuditEventEncryptor(keyProvider, options, NullLogger<AuditEventEncryptor>.Instance);
+        return new MartenOperationAuditStore(Substitute.For<IDocumentSession>(), encryptor, keyProvider, options, NullLogger<MartenOperationAuditStore>.Instance);
+    }
+
+    private static MartenReadAuditStore NewReadStore()
+    {
+        var keyProvider = new InMemoryTemporalKeyProvider(TimeProvider.System, NullLogger<InMemoryTemporalKeyProvider>.Instance);
+        var options = Options.Create(new MartenOperationAuditOptions());
+        var encryptor = new AuditEventEncryptor(keyProvider, options, NullLogger<AuditEventEncryptor>.Instance);
+        return new MartenReadAuditStore(Substitute.For<IDocumentSession>(), encryptor, keyProvider, options, NullLogger<MartenReadAuditStore>.Instance);
     }
 }
