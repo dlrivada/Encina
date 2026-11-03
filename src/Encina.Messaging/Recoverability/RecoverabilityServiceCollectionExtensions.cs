@@ -32,6 +32,7 @@ public static class RecoverabilityServiceCollectionExtensions
     /// <list type="bullet">
     /// <item><description><see cref="IDelayedRetryStore"/> - Provider-specific implementation</description></item>
     /// <item><description><see cref="IDelayedRetryMessageFactory"/> - Provider-specific factory</description></item>
+    /// <item><description><see cref="IEncina"/> - Registered with <c>AddEncina</c>; the processor re-dispatches through it</description></item>
     /// </list>
     /// An empty <see cref="RecoverabilityOptions.DelayedRetries"/> array with the flag on still requires the store.
     /// </para>
@@ -107,7 +108,8 @@ public static class RecoverabilityServiceCollectionExtensions
     {
         var missing = DelayedRetryStartupCheck.DescribeMissing(
             provider.GetService<IDelayedRetryStore>() is not null,
-            provider.GetService<IDelayedRetryMessageFactory>() is not null);
+            provider.GetService<IDelayedRetryMessageFactory>() is not null,
+            hasEncina: true);
         if (missing is not null)
         {
             throw new InvalidOperationException(DelayedRetryStartupCheck.BuildMessage(missing));
