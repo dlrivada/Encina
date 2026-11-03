@@ -177,6 +177,9 @@ public sealed class DurableFunctionsInProcessIntegrationTests
         issues.Count.ShouldBe(5);
         var description = result.Description.ShouldNotBeNull();
         description.ShouldContain("DefaultMaxRetries cannot be negative");
+        description.ShouldContain("DefaultFirstRetryInterval must be positive");
+        description.ShouldContain("DefaultBackoffCoefficient must be positive");
+        description.ShouldContain("DefaultMaxRetryInterval must be positive");
         description.ShouldContain("DefaultSagaTimeout must be positive if set");
     }
 
@@ -230,7 +233,9 @@ public sealed class DurableFunctionsInProcessIntegrationTests
         // Assert
         result.IsSuccess.ShouldBeFalse();
         result.Value.ShouldBeNull();
-        either.IsLeft.ShouldBeTrue();
+        var error = either.Match(_ => throw new InvalidOperationException("Expected a failure"), e => e);
+        error.GetCode().IfNone(string.Empty).ShouldBe("order.invalid");
+        error.Message.ShouldBe("Order is invalid");
     }
 
     [Fact]

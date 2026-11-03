@@ -477,7 +477,7 @@ Encina tests cloud features only locally, never against the real cloud. If you r
 
 The package is tested in process. The tests in `tests/Encina.IntegrationTests/Cloud/AzureFunctions` use concrete `Microsoft.Azure.Functions.Worker` types (a function context, HTTP request and response data, and a worker application builder) to drive `EncinaFunctionMiddleware`, `FunctionContextExtensions`, `HttpResponseDataExtensions`, the health check and `AddEncinaAzureFunctions` with a real `IEncina` pipeline.
 
-Durable Functions (the `Durable/*` types, such as `DurableSagaBuilder` and the fan-out/fan-in and orchestration helpers) are not tested on a real Functions host, so their use is your responsibility. The [justification](../../tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md) explains why. A local-only follow-up with a real Functions host and Azurite is tracked in [#523](https://github.com/dlrivada/Encina/issues/523).
+The Durable Functions types that need no host (`ActivityResult`, `DurableFunctionsOptions`, `DurableServiceCollectionExtensions` and `DurableFunctionsHealthCheck`) are covered by in-process integration tests in `DurableFunctionsInProcessIntegrationTests.cs`. The host-bound types (`DurableSagaBuilder`, the fan-out/fan-in helpers and the orchestration context extensions) are not tested on a real Functions host, so their use is your responsibility. The [justification](../../tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md) explains why. The follow-up, orchestrations on a real local Functions host with Azurite, is tracked in [#3114](https://github.com/dlrivada/Encina/issues/3114); [#523](https://github.com/dlrivada/Encina/issues/523) is related.
 
 ## Best Practices
 
