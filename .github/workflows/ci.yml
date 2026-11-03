@@ -597,6 +597,9 @@ jobs:
         shell: pwsh
         run: dotnet run --file .github/scripts/generate-coverage-manifest.cs -- --self-test
 
+      - name: Self-test release-readiness.cs
+        run: dotnet run --file .github/scripts/release-readiness.cs -- --self-test
+
       - name: Check coverage citations for dangling DocRefs
         run: |
           dotnet run .github/scripts/cov-docs-render.cs -- \
