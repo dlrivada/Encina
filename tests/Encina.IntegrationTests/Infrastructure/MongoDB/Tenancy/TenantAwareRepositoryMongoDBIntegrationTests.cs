@@ -568,11 +568,14 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
         // Act
         var page = (await repository.GetPagedAsync(new HighValueDocumentSpec(), new PaginationOptions(1, 10))).ShouldBeSuccess();
         var empty = (await repository.GetPagedAsync(new HighValueDocumentSpec(), new PaginationOptions(5, 10))).ShouldBeSuccess();
+        var viaPagedSpec = (await repository.GetPagedAsync(new HighValuePagedDocumentSpec())).ShouldBeSuccess();
 
         // Assert
         page.TotalCount.ShouldBe(1);
         page.Items.Single().Name.ShouldBe("T1 High");
         empty.Items.Count.ShouldBe(0);
+        viaPagedSpec.TotalCount.ShouldBe(1);
+        viaPagedSpec.Items.Single().Name.ShouldBe("T1 High");
     }
 
     [Fact]
@@ -741,7 +744,7 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
     }
 
     [Fact]
-    public async Task ListAsync_WithoutTenantContext_ReturnsAllData_WhenThrowOnMissingTenantContextIsFalse()
+    public async Task Operations_WithoutTenantContext_AreUnchanged_WhenThrowOnMissingTenantContextIsFalse()
     {
         SkipIfNotAvailable();
         await ClearDataAsync();
@@ -751,32 +754,15 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
         _tenantProvider!.SetNoTenant(null);
         _options!.ThrowOnMissingTenantContext = false;
         var repository = CreateRepository();
-
-        // Act
-        var result = await repository.ListAsync();
-
-        // Assert - opt-out behaviour unchanged: no tenant filter is applied
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(list => list.Count.ShouldBe(2));
-    }
-
-    [Fact]
-    public async Task AddAsync_WithoutTenantContext_StoresEntityUntouched_WhenThrowOnMissingTenantContextIsFalse()
-    {
-        SkipIfNotAvailable();
-        await ClearDataAsync();
-
-        // Arrange
-        _tenantProvider!.SetNoTenant(null);
-        _options!.ThrowOnMissingTenantContext = false;
-        var repository = CreateRepository();
         var document = CreateDocument("Unscoped", string.Empty);
 
         // Act
-        var result = await repository.AddAsync(document);
+        var list = (await repository.ListAsync()).ShouldBeSuccess();
+        var added = await repository.AddAsync(document);
 
-        // Assert - opt-out behaviour unchanged: no tenant id is assigned
-        result.IsRight.ShouldBeTrue();
+        // Assert - no tenant filter is applied and no tenant id is assigned
+        list.Count.ShouldBe(2);
+        added.IsRight.ShouldBeTrue();
         var stored = await _collection!.Find(Builders<TenantTestDocument>.Filter.Eq(d => d.Id, document.Id)).FirstOrDefaultAsync();
         stored.TenantId.ShouldBe(string.Empty);
     }
@@ -801,29 +787,6 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
             TenantId = tenantId,
             CreatedAtUtc = DateTime.UtcNow
         };
-    }
-
-    [Fact]
-    public async Task GetPagedAsync_WithPagedSpecification_ReturnsOnlyMatchingTenantPage()
-    {
-        SkipIfNotAvailable();
-        await ClearDataAsync();
-
-        // Arrange
-        await _collection!.InsertManyAsync([
-            CreateDocument("T1 High", Tenant1, 500m),
-            CreateDocument("T1 Low", Tenant1, 10m),
-            CreateDocument("T2 High", Tenant2, 500m)
-        ]);
-        _tenantProvider!.SetTenant(Tenant1);
-        var repository = CreateRepository();
-
-        // Act
-        var page = (await repository.GetPagedAsync(new HighValuePagedDocumentSpec())).ShouldBeSuccess();
-
-        // Assert
-        page.TotalCount.ShouldBe(1);
-        page.Items.Single().Name.ShouldBe("T1 High");
     }
 
     #endregion

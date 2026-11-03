@@ -99,136 +99,62 @@ public sealed class TenantAwareFunctionalRepositoryMongoDBTenantRequiredTests
         order.TenantId.ShouldBe("tenant-1");
     }
 
-    [Fact]
-    public async Task AddAsync_WhenTheDriverThrows_ReturnsPersistenceErrorLeft()
+    [Theory]
+    [InlineData("Add")]
+    [InlineData("AddRange")]
+    [InlineData("Count")]
+    [InlineData("Delete")]
+    public async Task Operation_WhenTheDriverThrows_ReturnsLeft(string operation)
     {
         // Arrange
         var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
-        collection.InsertOneAsync(
-                Arg.Any<MongoTenantTestOrder>(),
-                Arg.Any<InsertOneOptions?>(),
-                Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new MongoException("driver failure")));
+        var failure = new MongoException("driver failure");
+        collection.InsertOneAsync(Arg.Any<MongoTenantTestOrder>(), Arg.Any<InsertOneOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(failure));
+        collection.InsertManyAsync(Arg.Any<IEnumerable<MongoTenantTestOrder>>(), Arg.Any<InsertManyOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(failure));
+        collection.CountDocumentsAsync(Arg.Any<FilterDefinition<MongoTenantTestOrder>>(), Arg.Any<CountOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<long>(failure));
+        collection.DeleteOneAsync(Arg.Any<FilterDefinition<MongoTenantTestOrder>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<DeleteResult>(failure));
         var repository = CreateRepository(collection, "tenant-1", new MongoDbTenancyOptions());
+        var order = new MongoTenantTestOrder { Id = Guid.NewGuid() };
 
         // Act
-        var result = await repository.AddAsync(new MongoTenantTestOrder { Id = Guid.NewGuid() });
+        var error = operation switch
+        {
+            "Add" => ErrorOf(await repository.AddAsync(order)),
+            "AddRange" => ErrorOf(await repository.AddRangeAsync([order])),
+            "Count" => ErrorOf(await repository.CountAsync()),
+            _ => ErrorOf(await repository.DeleteAsync(order.Id))
+        };
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        error.ShouldNotBeNull();
     }
 
     [Fact]
-    public async Task AddRangeAsync_WhenTheDriverThrows_ReturnsPersistenceErrorLeft()
+    public async Task Operations_WithoutTenantContext_AndOptOut_ReachTheCollection()
     {
         // Arrange
         var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
-        collection.InsertManyAsync(
-                Arg.Any<IEnumerable<MongoTenantTestOrder>>(),
-                Arg.Any<InsertManyOptions?>(),
-                Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new MongoException("driver failure")));
-        var repository = CreateRepository(collection, "tenant-1", new MongoDbTenancyOptions());
-
-        // Act
-        var result = await repository.AddRangeAsync([new MongoTenantTestOrder { Id = Guid.NewGuid() }]);
-
-        // Assert
-        result.IsLeft.ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task CountAsync_WhenTheDriverThrows_ReturnsPersistenceErrorLeft()
-    {
-        // Arrange
-        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
-        collection.CountDocumentsAsync(
-                Arg.Any<FilterDefinition<MongoTenantTestOrder>>(),
-                Arg.Any<CountOptions?>(),
-                Arg.Any<CancellationToken>())
-            .Returns(Task.FromException<long>(new MongoException("driver failure")));
-        var repository = CreateRepository(collection, "tenant-1", new MongoDbTenancyOptions());
-
-        // Act
-        var result = await repository.CountAsync();
-
-        // Assert
-        result.IsLeft.ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task DeleteAsync_WhenTheDriverThrows_ReturnsPersistenceErrorLeft()
-    {
-        // Arrange
-        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
-        collection.DeleteOneAsync(
-                Arg.Any<FilterDefinition<MongoTenantTestOrder>>(),
-                Arg.Any<CancellationToken>())
-            .Returns(Task.FromException<DeleteResult>(new MongoException("driver failure")));
-        var repository = CreateRepository(collection, "tenant-1", new MongoDbTenancyOptions());
-
-        // Act
-        var result = await repository.DeleteAsync(Guid.NewGuid());
-
-        // Assert
-        result.IsLeft.ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task CountAsync_WithoutTenantContext_AndOptOut_ReachesTheCollection()
-    {
-        // Arrange
-        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
-        collection.CountDocumentsAsync(
-                Arg.Any<FilterDefinition<MongoTenantTestOrder>>(),
-                Arg.Any<CountOptions?>(),
-                Arg.Any<CancellationToken>())
+        collection.CountDocumentsAsync(Arg.Any<FilterDefinition<MongoTenantTestOrder>>(), Arg.Any<CountOptions?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(3L));
-        var repository = CreateRepository(collection, null, new MongoDbTenancyOptions { ThrowOnMissingTenantContext = false });
-
-        // Act
-        var result = await repository.CountAsync();
-
-        // Assert
-        result.ShouldBeSuccess().ShouldBe(3);
-    }
-
-    [Fact]
-    public async Task DeleteAsync_WithoutTenantContext_AndOptOut_ReachesTheCollection()
-    {
-        // Arrange
-        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
-        collection.DeleteOneAsync(
-                Arg.Any<FilterDefinition<MongoTenantTestOrder>>(),
-                Arg.Any<CancellationToken>())
+        collection.DeleteOneAsync(Arg.Any<FilterDefinition<MongoTenantTestOrder>>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DeleteResult>(new DeleteResult.Acknowledged(1)));
-        var repository = CreateRepository(collection, null, new MongoDbTenancyOptions { ThrowOnMissingTenantContext = false });
-
-        // Act
-        var result = await repository.DeleteAsync(Guid.NewGuid());
-
-        // Assert
-        result.ShouldBeSuccess();
-    }
-
-    [Fact]
-    public async Task UpdateAsync_WithoutTenantContext_AndOptOut_IsNotRejected()
-    {
-        // Arrange
-        var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
-        collection.ReplaceOneAsync(
-                Arg.Any<FilterDefinition<MongoTenantTestOrder>>(),
-                Arg.Any<MongoTenantTestOrder>(),
-                Arg.Any<ReplaceOptions>(),
-                Arg.Any<CancellationToken>())
+        collection.ReplaceOneAsync(Arg.Any<FilterDefinition<MongoTenantTestOrder>>(), Arg.Any<MongoTenantTestOrder>(), Arg.Any<ReplaceOptions>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<ReplaceOneResult>(new ReplaceOneResult.Acknowledged(1, 1, null)));
         var repository = CreateRepository(collection, null, new MongoDbTenancyOptions { ThrowOnMissingTenantContext = false });
 
         // Act
-        var result = await repository.UpdateAsync(new MongoTenantTestOrder { Id = Guid.NewGuid() });
+        var count = await repository.CountAsync();
+        var delete = await repository.DeleteAsync(Guid.NewGuid());
+        var update = await repository.UpdateAsync(new MongoTenantTestOrder { Id = Guid.NewGuid() });
 
         // Assert
-        result.ShouldBeSuccess();
+        count.ShouldBeSuccess().ShouldBe(3);
+        delete.ShouldBeSuccess();
+        update.ShouldBeSuccess();
     }
 
     [Fact]
