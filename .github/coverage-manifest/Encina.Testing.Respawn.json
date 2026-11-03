@@ -6,6 +6,10 @@
     "guard": 15,
     "unit": 60
   },
+  "justifications": {
+    "unit": "Unit tests run the real SQLite respawner on an in-memory database, the Respawn discovery and reset code through a scripted ADO.NET connection, and the factory parsing branches; only the provider CreateConnection bodies need a reachable server and belong to the integration flag.",
+    "guard": "Guard tests cover the argument checks of every constructor, FromBuilder and the factory plus cancellation of the async entry points, a small share of the lines; behavior is covered by the unit flag."
+  },
   "files": {
     "DatabaseRespawner.cs": {
       "defaultTests": [
@@ -13,7 +17,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 15
+      },
+      "justifications": {
+        "unit": "Unit tests drive InitializeAsync, ResetAsync, adapter selection, option translation and disposal through a scripted connection; only the lock re-check line reached by two overlapping initializations is left.",
+        "guard": "Guard tests only reach the cancellation checks of the shared entry points through the provider subclasses; the rest is behavior covered by the unit flag."
+      }
     },
     "MySqlRespawner.cs": {
       "defaultTests": [
@@ -21,7 +33,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 75,
+        "guard": 60
+      },
+      "justifications": {
+        "unit": "Unit tests cover the constructor, options, FromBuilder and the connection failure of a refused loopback port; the Adapter getter runs only after a successful connection to a real MySQL server (integration flag) and the ConnectionString getter is never read by the package.",
+        "guard": "Guard tests cover the constructor and FromBuilder argument checks, which are most of this small file."
+      }
     },
     "PostgreSqlRespawner.cs": {
       "defaultTests": [
@@ -29,7 +49,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 75,
+        "guard": 60
+      },
+      "justifications": {
+        "unit": "Unit tests cover the constructor, options, FromBuilder and the connection failure of a refused loopback port; the Adapter getter runs only after a successful connection to a real PostgreSQL server (integration flag) and the ConnectionString getter is never read by the package.",
+        "guard": "Guard tests cover the constructor and FromBuilder argument checks, which are most of this small file."
+      }
     },
     "RespawnerFactory.cs": {
       "defaultTests": [
@@ -37,14 +65,34 @@
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Factory with creation logic",
+      "targets": {
+        "unit": 95,
+        "guard": 10
+      },
+      "justifications": {
+        "unit": "Unit tests cover Create, CreateSqlite, the InferAdapter parsing branches that the provider connection string builders accept and the verbose diagnostics callback; the Port=3306 return is unreachable because the SQL Server builder rejects the Port keyword.",
+        "guard": "Guard tests cover the null and blank connection string checks and the unsupported adapter errors of the factory; the parsing branches are behavior covered by the unit flag."
+      }
     },
     "RespawnOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "override": [
+        "unit",
+        "guard"
+      ],
+      "targets": {
+        "unit": 100,
+        "guard": 20
+      },
+      "justifications": {
+        "unit": "The options class is a plain property bag fully executed by the unit tests.",
+        "guard": "The class has no guarded parameters; the guard tests execute its property initializers incidentally when they build respawners."
+      }
     },
     "SqliteRespawner.cs": {
       "defaultTests": [
@@ -52,7 +100,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 15
+      },
+      "justifications": {
+        "unit": "Unit tests run discovery, ignore lists, reset, reseed and the missing sqlite_sequence case against a real in-memory SQLite database; only the lock re-check line reached by two overlapping initializations is left.",
+        "guard": "Guard tests cover the constructor argument check and the cancellation of InitializeAsync and ResetAsync; the rest is behavior covered by the unit flag."
+      }
     },
     "SqlServerRespawner.cs": {
       "defaultTests": [
@@ -60,7 +116,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 75,
+        "guard": 60
+      },
+      "justifications": {
+        "unit": "Unit tests cover the constructor, options, FromBuilder and the connection failure of a refused loopback port; the Adapter getter runs only after a successful connection to a real SQL Server (integration flag) and the ConnectionString getter is never read by the package.",
+        "guard": "Guard tests cover the constructor and FromBuilder argument checks, which are most of this small file."
+      }
     }
   }
 }

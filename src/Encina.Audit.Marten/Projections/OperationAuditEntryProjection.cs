@@ -152,7 +152,8 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// </item>
     /// <item>
     /// If neither an active key nor a destroyed marker exists, the lookup throws
-    /// <see cref="KeyNotFoundException"/>. The absence of both documents is not a recorded erasure, so the
+    /// <see cref="EncryptedFieldDecryptionException"/> with reason
+    /// <see cref="EncryptedFieldDecryptionFailureReason.KeyMissing"/>. The absence of both documents is not a recorded erasure, so the
     /// projection never persists <c>IsShredded = true</c> for it: that would permanently corrupt the read model.
     /// <b>The daemon does not retry this exception.</b> The application sets Marten's store-wide error
     /// flags (<c>Projections.Errors.SkipApplyErrors</c>, <c>SkipSerializationErrors</c> and the <c>RebuildErrors</c>
@@ -163,9 +164,10 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// </item>
     /// </list>
     /// </remarks>
-    /// <exception cref="KeyNotFoundException">
-    /// Thrown when neither an active key nor a destroyed marker exists for the given period,
-    /// indicating an inconsistency the operator must resolve. The Marten async projection daemon pauses the shard.
+    /// <exception cref="EncryptedFieldDecryptionException">
+    /// Thrown (reason <see cref="EncryptedFieldDecryptionFailureReason.KeyMissing"/>) when neither an active key nor a
+    /// destroyed marker exists for the given period, indicating an inconsistency the operator must resolve. The Marten
+    /// async projection daemon pauses the shard.
     /// </exception>
     internal static async Task<(byte[]? KeyMaterial, bool IsShredded, bool IsExpired)> LoadTemporalKeyAsync(
         IQuerySession session,
@@ -188,7 +190,7 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
                 cancellationToken).ConfigureAwait(false);
         }
 
-        return ClassifyTemporalKeyLookup(activeKey, destroyedDoc, period);
+        return ClassifyTemporalKeyLookup(activeKey, destroyedDoc);
     }
 
     /// <summary>
@@ -202,7 +204,6 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// The destruction marker for the period, or <c>null</c> if the period has not been
     /// crypto-shredded. Only consulted when <paramref name="activeKey"/> is <c>null</c>.
     /// </param>
-    /// <param name="period">The temporal period identifier (used in the error message).</param>
     /// <returns>
     /// A tuple where:
     /// <list type="bullet">
@@ -215,10 +216,10 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// Thrown (reason <see cref="EncryptedFieldDecryptionFailureReason.KeyDestroyedWithoutErasureRecord"/>) when the
     /// destroyed marker carries neither a complete erasure nor a complete retention reference, or carries both.
     /// </exception>
-    /// <exception cref="KeyNotFoundException">
-    /// Thrown when both <paramref name="activeKey"/> and <paramref name="destroyedMarker"/>
-    /// are <c>null</c>. This indicates an inconsistency the daemon does not retry — see
-    /// <see cref="LoadTemporalKeyAsync"/> for the full rationale.
+    /// <exception cref="EncryptedFieldDecryptionException">
+    /// Thrown (reason <see cref="EncryptedFieldDecryptionFailureReason.KeyMissing"/>) when both
+    /// <paramref name="activeKey"/> and <paramref name="destroyedMarker"/> are <c>null</c>. This indicates an
+    /// inconsistency the daemon does not retry — see <see cref="LoadTemporalKeyAsync"/> for the full rationale.
     /// </exception>
     /// <remarks>
     /// This function is extracted and exposed as <c>internal</c> so the three decision paths
@@ -226,8 +227,7 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// </remarks>
     internal static (byte[]? KeyMaterial, bool IsShredded, bool IsExpired) ClassifyTemporalKeyLookup(
         TemporalKeyDocument? activeKey,
-        TemporalKeyDestroyedMarker? destroyedMarker,
-        string period)
+        TemporalKeyDestroyedMarker? destroyedMarker)
     {
         if (activeKey is not null)
         {
@@ -247,10 +247,9 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
             };
         }
 
-        throw new KeyNotFoundException(
-            $"Temporal key for period '{period}' not found: no active key and no destroyed marker. " +
-            "The key may not be written yet (replication lag, pending write) or may be lost. " +
-            "The Marten async projection daemon does not retry: it pauses the shard until the operator restores the key.");
+        // Neither a key nor a marker: not a recorded erasure, so fail typed (D15 amended, issue #3012). The exception
+        // carries only the reason code: no period or key text.
+        throw new EncryptedFieldDecryptionException(EncryptedFieldDecryptionFailureReason.KeyMissing);
     }
 
     /// <summary>
