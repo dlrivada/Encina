@@ -61,19 +61,6 @@ public class OperationAuditEntryModelsGuardTests
         model.EntityType.ShouldBe(string.Empty);
         model.TemporalKeyPeriod.ShouldBe(string.Empty);
         model.IsShredded.ShouldBeFalse();
-        model.IsExpired.ShouldBeFalse();
-        model.IsUnreadable.ShouldBeFalse();
-        model.IsUnreadable = true;
-        model.IsUnreadable.ShouldBeTrue();
-    }
-
-    [Fact]
-    public void ReadAuditEntryReadModel_UnreadableFlag_DefaultsToFalseAndIsSettable()
-    {
-        var model = new ReadAuditEntryReadModel();
-        model.IsUnreadable.ShouldBeFalse();
-        model.IsUnreadable = true;
-        model.IsUnreadable.ShouldBeTrue();
     }
 
     [Fact]

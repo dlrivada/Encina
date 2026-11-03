@@ -1,4 +1,5 @@
 using Encina.Audit.Marten.Events;
+using Encina.Audit.Marten.Projections;
 
 namespace Encina.GuardTests.AuditMarten;
 
@@ -43,6 +44,25 @@ public class EncryptedFieldGuardTests
         var field = EncryptedField.Encrypt("test", key, "key-1");
 
         Should.Throw<ArgumentNullException>(() => field.Decrypt(null!));
+    }
+
+    [Fact]
+    public void OperationAuditEntryReadModel_UnreadableFlag_DefaultsToFalseAndIsSettable()
+    {
+        var model = new OperationAuditEntryReadModel();
+        model.IsExpired.ShouldBeFalse();
+        model.IsUnreadable.ShouldBeFalse();
+        model.IsUnreadable = true;
+        model.IsUnreadable.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ReadAuditEntryReadModel_UnreadableFlag_DefaultsToFalseAndIsSettable()
+    {
+        var model = new ReadAuditEntryReadModel();
+        model.IsUnreadable.ShouldBeFalse();
+        model.IsUnreadable = true;
+        model.IsUnreadable.ShouldBeTrue();
     }
 
     [Fact]
