@@ -402,17 +402,9 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
     {
         maskedValue = string.Empty;
 
-        // Skip log-only properties when not in log context
-        if (prop.LogOnly && !logContextOnly)
+        if (SkipsContext(prop, logContextOnly))
         {
             return false;
-        }
-
-        // A [MaskInLogs] value that cannot be masked (not a string) must not reach the log in clear.
-        if (prop.Unmaskable)
-        {
-            throw new InvalidOperationException(
-                $"Property '{prop.Property.Name}' is marked [MaskInLogs] but is not a string and cannot be masked.");
         }
 
         var propertyName = ResolveJsonPropertyName(prop);
@@ -433,6 +425,24 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         }
 
         return true;
+    }
+
+    // Log-only properties are skipped outside the log context. In the log context a [MaskInLogs]
+    // value that cannot be masked (not a string) must not reach the log in clear: fail closed.
+    private static bool SkipsContext(PropertyMaskingMetadata prop, bool logContextOnly)
+    {
+        if (prop.LogOnly && !logContextOnly)
+        {
+            return true;
+        }
+
+        if (prop.Unmaskable)
+        {
+            throw new InvalidOperationException(
+                $"Property '{prop.Property.Name}' is marked [MaskInLogs] but is not a string and cannot be masked.");
+        }
+
+        return false;
     }
 
     private string ResolveJsonPropertyName(PropertyMaskingMetadata prop) =>
