@@ -286,7 +286,7 @@ The honesty audit looks for places where the coverage numbers could look better 
 #### What is counted
 
 | Check | What it counts | Effect on the run |
-|---|---|---|
+| --- | --- | --- |
 | H1 zero targets | Per-file flag targets equal to `0` in `.github/coverage-manifest/*.json`. | Informational only: the total is reported and never fails the run. A gating rule for zeros in files that have executable lines waits for the classifier of #2890. |
 | H2 justification files | `.md` files under `tests/` whose heading is `Status: Not Implemented`, per test project. "Forbidden" are those in `Encina.UnitTests`, `Encina.GuardTests` or `Encina.ContractTests`, where [AGENTS.md section 9](../../AGENTS.md) never allows a justification. "Stale candidates" are benchmark or load-test files whose every named package already has that test type (a proxy: the package name appears in the project's `.cs` files). | Only the forbidden count gates. The total and the stale candidates are reported. |
 | H3 contract tests without product code | Files of `tests/Encina.ContractTests` that contain `[Fact]` or `[Theory]` and none of the tokens that mean product code runs: `new`, `Create...(`, `await`, `Substitute.For`, `BuildServiceProvider`, `GetRequiredService`, `.Invoke(`, `.Compute(`, `.Validate...(`. Comments and string literals are removed first. This is the heuristic of issue #1749. | Both the number of files and the number of attributes gate. |
@@ -296,7 +296,7 @@ A reflection-only contract test executes no package code, so it contributes no c
 
 #### The baseline is shrink-only
 
-`.github/honesty-audit-baseline.json` holds, for each gating check, the accepted ceiling and the accepted items. It also has an `h1` entry with a null ceiling, ready for when H1 gates.
+`.github/honesty-audit-baseline.json` holds the accepted ceiling of each gating count (H2 forbidden files, H3 files and H3 attributes) and the accepted items of the file counts. It also has an `h1` entry with a null ceiling, ready for when H1 gates.
 
 - A count above its ceiling fails the run, and the summary lists the first 20 new items.
 - A count below its ceiling is reported as "below baseline". The pull request that fixes the drift lowers the baseline; `--print-baseline` prints the new file text.
@@ -312,7 +312,7 @@ dotnet run --file .github/scripts/honesty-audit.cs -- --self-test
 dotnet run --file .github/scripts/honesty-audit.cs -- --print-baseline
 ```
 
-Add `--summary <file>` to also write the Markdown summary. Without `--baseline` the run only reports. Exit codes: 0 when no gating count is above its ceiling (or no baseline was given), 1 when a gating count is above its ceiling, 2 for invalid arguments or an invalid baseline.
+Add `--summary <file>` to also write the Markdown summary. Without `--baseline` the run only reports. Exit codes: 0 when no gating count is above its ceiling (or no baseline was given), 1 when a gating count is above its ceiling, 2 for invalid arguments, an unreadable repository or an invalid or unreadable baseline.
 
 The weekly workflow `honesty-audit.yml` (Monday 06:47 UTC and manual dispatch) is not wired yet: it is added by the maintainer's follow-up, and until then you run the script by hand. Once added, it will publish `report.json` and a run history to the `dashboard-data` branch under `honesty-audit/`.
 
