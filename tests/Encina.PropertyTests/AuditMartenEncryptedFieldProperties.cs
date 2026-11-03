@@ -62,7 +62,7 @@ public sealed class AuditMartenEncryptedFieldProperties
 
         try
         {
-            return ok && field.Decrypt(Key) == plaintext;
+            return field.Decrypt(Key) == plaintext && ok;
         }
         catch (EncryptedFieldDecryptionException ex)
         {
