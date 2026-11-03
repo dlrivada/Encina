@@ -33,13 +33,42 @@ public sealed class InboxOptions
     /// duplicate delay (typically 7-30 days).
     /// </remarks>
     /// <value>Default: 30 days</value>
-    public TimeSpan MessageRetentionPeriod { get; set; } = TimeSpan.FromDays(30);
+    /// <exception cref="ArgumentOutOfRangeException">The value is not greater than zero.</exception>
+    public TimeSpan MessageRetentionPeriod
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero, nameof(MessageRetentionPeriod));
+            field = value;
+        }
+    } = TimeSpan.FromDays(30);
 
     /// <summary>
     /// Gets or sets the interval at which expired messages are purged.
     /// </summary>
+    /// <remarks>
+    /// The interval is awaited with <c>Task.Delay</c>, which accepts at most
+    /// <c>uint.MaxValue - 1</c> milliseconds (about 49.7 days); a larger value is rejected here so the
+    /// misconfiguration fails at configuration time instead of inside the purge loop.
+    /// </remarks>
     /// <value>Default: 24 hours</value>
-    public TimeSpan PurgeInterval { get; set; } = TimeSpan.FromHours(24);
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The value is not greater than zero, or is greater than <c>uint.MaxValue - 1</c> milliseconds.
+    /// </exception>
+    public TimeSpan PurgeInterval
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero, nameof(PurgeInterval));
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, MaxPurgeInterval, nameof(PurgeInterval));
+            field = value;
+        }
+    } = TimeSpan.FromHours(24);
+
+    /// <summary>The longest delay <c>Task.Delay</c> accepts: <c>uint.MaxValue - 1</c> milliseconds.</summary>
+    private static readonly TimeSpan MaxPurgeInterval = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
 
     /// <summary>
     /// Gets or sets whether to enable automatic purging of expired messages.
@@ -50,6 +79,18 @@ public sealed class InboxOptions
     /// <summary>
     /// Gets or sets the batch size for purging expired messages.
     /// </summary>
+    /// <remarks>
+    /// There is no upper bound: the stores split a batch that exceeds a database limit.
+    /// </remarks>
     /// <value>Default: 100</value>
-    public int PurgeBatchSize { get; set; } = 100;
+    /// <exception cref="ArgumentOutOfRangeException">The value is less than 1.</exception>
+    public int PurgeBatchSize
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1, nameof(PurgeBatchSize));
+            field = value;
+        }
+    } = 100;
 }
