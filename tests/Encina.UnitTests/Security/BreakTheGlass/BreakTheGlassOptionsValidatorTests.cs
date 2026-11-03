@@ -51,6 +51,24 @@ public sealed class BreakTheGlassOptionsValidatorTests
     }
 
     [Fact]
+    public void ScopeNameAtMaxLength_Succeeds()
+    {
+        var options = BreakTheGlassTestKit.Options();
+        options.DeclareScope(new string('c', BreakTheGlassLimits.ScopeMaxLength), scope => scope.OpenerRoles.Add("clinician"));
+
+        Validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ScopeNameOverMaxLength_Fails()
+    {
+        var options = BreakTheGlassTestKit.Options();
+        options.DeclareScope(new string('c', BreakTheGlassLimits.ScopeMaxLength + 1), scope => scope.OpenerRoles.Add("clinician"));
+
+        Failures(options).ShouldHaveSingleItem().ShouldContain($"at most {BreakTheGlassLimits.ScopeMaxLength} characters");
+    }
+
+    [Fact]
     public void NoReviewerRole_Fails()
     {
         var options = BreakTheGlassTestKit.Options();

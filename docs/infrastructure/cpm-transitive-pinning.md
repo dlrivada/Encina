@@ -1,6 +1,6 @@
 # CPM transitive pinning: measured state and options (spike #1051)
 
-This page is for the maintainer who has to choose how Encina pins transitive NuGet packages, and for any contributor who needs to know why the repository has hand-made pin references. It records what was measured on `origin/main` on 2026-10-28, corrects the claims of issue #1051 that no longer hold, and records the one decision with its options and the maintainer's choice (C', 2026-10-28). The spike changes no build file; #2976 applies the decision.
+This page is for the maintainer who has to choose how Encina pins transitive NuGet packages, and for any contributor who needs to know why the repository has hand-made pin references. It records what was measured on `origin/main` on 2026-10-28, corrects the claims of issue #1051 that no longer hold, and records the one decision with its options and the maintainer's choice (C', 2026-10-28). The spike changes no build file; #2976 applies the decision. The decision is recorded in [ADR-060](../architecture/adr/060-cpm-transitive-pinning-non-packable.md).
 
 ## The problem from the basics
 

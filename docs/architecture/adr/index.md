@@ -56,6 +56,7 @@ has_children: true
 | [056](056-mutation-testing-scope.md) | Mutation Testing Scope: A Risk-Based List That Only Grows, Toward All Packages (Accepted) |
 | [057](057-verifactu-boundary.md) | The Verifactu Boundary: Regulation-Neutral Primitives Only (Accepted) |
 | [058](058-encina-cli-command-architecture.md) | Encina.Cli Command Architecture: An In-App Command Host and One Command Contract (Accepted) |
+| [060](060-cpm-transitive-pinning-non-packable.md) | Central Package Management Transitive Pinning Only in Non-Packable Projects (Accepted) |
 
 ## Reserved numbers
 
@@ -75,3 +76,4 @@ An ADR takes the next number that is neither used nor reserved. A plan or spike 
 | 044 | [aiact-marten-event-sourcing-implementation-plan-847.md](../../plans/aiact-marten-event-sourcing-implementation-plan-847.md) (#847) | Deterministic natural-key stream identity for compliance aggregates | Reserved, ADR not written |
 | 045 | [special-category-conditions-implementation-plan-1196.md](../../plans/special-category-conditions-implementation-plan-1196.md) (#1196) | Legal grounds: Art. 6 basis and Art. 9(2) condition as one model | Reserved, ADR not written |
 | 049 | [pipeline-execution-order-implementation-plan-2184.md](../../plans/pipeline-execution-order-implementation-plan-2184.md) (#2184) | Pipeline behavior execution-order contract (named stages) | Reserved, ADR not written |
+| 059 | [#2770](https://github.com/dlrivada/Encina/issues/2770) (PR 2b) | AES-GCM decrypt sites (DefaultTokenizer, DefaultPseudonymizer, Audit.Marten EncryptedField) | Reserved, ADR not written |

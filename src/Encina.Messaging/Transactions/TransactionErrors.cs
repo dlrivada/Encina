@@ -41,6 +41,28 @@ public static class TransactionErrors
     public static EncinaError CommitFailed(Exception exception)
         => EncinaErrors.FromException(CommitFailedCode, exception, "The transaction could not be committed.");
 
+    /// <summary>The detail key under which <see cref="CommitFailed(Exception, string?)"/> carries the provider's error label.</summary>
+    public const string ErrorLabelDetailKey = "errorLabel";
+
+    /// <summary>
+    /// Creates the error for a commit that failed, carrying the provider's error label (for MongoDB
+    /// <c>TransientTransactionError</c> or <c>UnknownTransactionCommitResult</c>) so the caller can decide whether
+    /// retrying the request is safe. The label is metadata only; the exception message is never copied.
+    /// </summary>
+    /// <param name="exception">The exception raised by the commit.</param>
+    /// <param name="errorLabel">The provider's error label, or <see langword="null"/> when it has none.</param>
+    /// <returns>The error, with code <see cref="CommitFailedCode"/> and the label under <see cref="ErrorLabelDetailKey"/>.</returns>
+    public static EncinaError CommitFailed(Exception exception, string? errorLabel)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        var details = errorLabel is null
+            ? null
+            : new Dictionary<string, object?> { [ErrorLabelDetailKey] = errorLabel };
+
+        return EncinaErrors.FromException(CommitFailedCode, exception, "The transaction could not be committed.", details);
+    }
+
     /// <summary>Creates the error for a commit refused because a participant rolled back.</summary>
     /// <returns>The error, with code <see cref="RollbackOnlyCode"/>.</returns>
     public static EncinaError RollbackOnly()

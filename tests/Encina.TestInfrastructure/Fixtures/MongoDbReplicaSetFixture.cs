@@ -1,4 +1,6 @@
 using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 using Testcontainers.MongoDb;
 using Xunit;
@@ -22,6 +24,9 @@ namespace Encina.TestInfrastructure.Fixtures;
 /// </remarks>
 public sealed class MongoDbReplicaSetFixture : IAsyncLifetime
 {
+    private static readonly object s_serializerLock = new();
+    private static bool s_serializerRegistered;
+
     private MongoDbContainer? _container;
 
     /// <summary>
@@ -59,6 +64,8 @@ public sealed class MongoDbReplicaSetFixture : IAsyncLifetime
     /// <inheritdoc/>
     public async ValueTask InitializeAsync()
     {
+        RegisterGuidSerializer();
+
         _container = new MongoDbBuilder()
             .WithImage("mongo:7")
             .WithReplicaSet(ReplicaSetName)
@@ -85,6 +92,48 @@ public sealed class MongoDbReplicaSetFixture : IAsyncLifetime
         {
             await _container.StopAsync();
             await _container.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Deletes every document of every collection of the test database, keeping the collections and their indexes.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that completes when the database is empty.</returns>
+    public async Task ClearAllDataAsync(CancellationToken cancellationToken = default)
+    {
+        if (Database is null)
+        {
+            return;
+        }
+
+        using var names = await Database.ListCollectionNamesAsync(cancellationToken: cancellationToken);
+        foreach (var name in await names.ToListAsync(cancellationToken))
+        {
+            await Database.GetCollection<BsonDocument>(name)
+                .DeleteManyAsync(FilterDefinition<BsonDocument>.Empty, cancellationToken);
+        }
+    }
+
+    private static void RegisterGuidSerializer()
+    {
+        lock (s_serializerLock)
+        {
+            if (s_serializerRegistered)
+            {
+                return;
+            }
+
+            try
+            {
+                BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
+            }
+            catch (BsonSerializationException)
+            {
+                // Serializer already registered by another fixture.
+            }
+
+            s_serializerRegistered = true;
         }
     }
 

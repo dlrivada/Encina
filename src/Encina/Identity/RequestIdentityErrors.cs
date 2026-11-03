@@ -78,6 +78,44 @@ public static class RequestIdentityErrors
             "The tenant claims of the principal are ambiguous: they carry different tenant values; the scope is refused.");
 
     /// <summary>
+    /// Creates the error returned when an authenticated principal carries no usable subject claim.
+    /// </summary>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="RequestIdentityErrorCodes.MissingSubjectClaim"/>.</returns>
+    public static EncinaError MissingSubjectClaim()
+        => EncinaErrors.Create(
+            RequestIdentityErrorCodes.MissingSubjectClaim,
+            "The authenticated principal carries no subject claim; the scope is refused.");
+
+    /// <summary>
+    /// Creates the error returned when the subject claim of an authenticated principal is malformed.
+    /// </summary>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="RequestIdentityErrorCodes.MalformedSubjectClaim"/>.</returns>
+    public static EncinaError MalformedSubjectClaim()
+        => EncinaErrors.Create(
+            RequestIdentityErrorCodes.MalformedSubjectClaim,
+            "The subject claim of the authenticated principal is malformed; the scope is refused.");
+
+    /// <summary>
+    /// Creates the error returned when the subject claim of an authenticated principal uses the
+    /// reserved service prefix.
+    /// </summary>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="RequestIdentityErrorCodes.ReservedSubjectClaim"/>.</returns>
+    public static EncinaError ReservedSubjectClaim()
+        => EncinaErrors.Create(
+            RequestIdentityErrorCodes.ReservedSubjectClaim,
+            "The subject claim of the authenticated principal uses a reserved prefix; the scope is refused.");
+
+    /// <summary>
+    /// Creates the error returned when the authenticated identities of a principal carry different
+    /// subject values.
+    /// </summary>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="RequestIdentityErrorCodes.ConflictingSubjectClaims"/>.</returns>
+    public static EncinaError ConflictingSubjectClaims()
+        => EncinaErrors.Create(
+            RequestIdentityErrorCodes.ConflictingSubjectClaims,
+            "The subject claims of the principal are ambiguous: they carry different subject values; the scope is refused.");
+
+    /// <summary>
     /// Creates the error returned when the registered accessor is not the default one.
     /// </summary>
     /// <returns>An <see cref="EncinaError"/> with code <see cref="RequestIdentityErrorCodes.UnsupportedAccessor"/>.</returns>

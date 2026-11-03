@@ -28,6 +28,13 @@ public interface ITransactionLeaseSource
     bool HasActiveTransaction { get; }
 
     /// <summary>
+    /// Gets the OpenTelemetry <c>db.system</c> value of the database behind this source (for example
+    /// <c>mssql</c>, <c>postgresql</c>, <c>mysql</c> or <c>mongodb</c>), used to tag the transaction's activity
+    /// and metrics.
+    /// </summary>
+    string DbSystem { get; }
+
+    /// <summary>
     /// Begins the scope's transaction, or joins it when one is already active.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for beginning the transaction.</param>
