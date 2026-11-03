@@ -101,7 +101,9 @@ Registers the request identity model (`AddEncinaRequestIdentity()`) and a scoped
 | Inside a circuit activity (UI event, JavaScript interop call) | The user of the current `AuthenticationState`, in one inbound identity scope per activity |
 | The authentication state changed | The new state, applied at the next activity |
 | Outside an activity (a continuation that outlives it, a timer) | Anonymous |
-| The scope is refused | The activity still runs, anonymous, under a masking scope |
+| The host refuses the scope (`ScopeConflict`, `UnsupportedAccessor`) | The activity still runs, anonymous, under a masking scope |
+| An authenticated principal has no usable subject (`MissingSubjectClaim`, `MalformedSubjectClaim`, `ReservedSubjectClaim`, `ConflictingSubjectClaims`) or conflicting tenant claims (`InboundTenantConflict`) | The activity does not run, never as anonymous: the handler throws an `InvalidOperationException` whose fixed text carries only the error code (no claim value), Blazor reports an unhandled circuit exception (error UI on the client, circuit terminated) and the factory logs Warning 167 |
+| The principal is null or unauthenticated | Anonymous; this is not a refusal |
 
 ## Dependencies
 
