@@ -24,6 +24,7 @@ using Encina.Messaging.ReadWriteSeparation;
 using Encina.Modules.Isolation;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
+using Encina.Security.BreakTheGlass;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -106,6 +107,15 @@ public static class ServiceCollectionExtensions
             // IReadAuditStore the application registered itself is never removed (#1269).
             RemoveInMemoryDefault<IReadAuditStore, InMemoryReadAuditStore>(services);
             services.TryAddScoped<IReadAuditStore, Auditing.ReadAuditStoreADO>();
+        }
+
+        // Register the break-the-glass elevation store if enabled
+        if (config.UseBreakTheGlassStore)
+        {
+            // The database-backed store wins regardless of registration order; a custom
+            // IBreakTheGlassStore the application registered itself is never removed.
+            RemoveInMemoryDefault<IBreakTheGlassStore, InMemoryBreakTheGlassStore>(services);
+            services.TryAddScoped<IBreakTheGlassStore, BreakTheGlass.BreakTheGlassStoreADO>();
         }
     }
 

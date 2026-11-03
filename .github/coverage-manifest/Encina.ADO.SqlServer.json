@@ -72,6 +72,21 @@
         "integration": "The integration tests on a real SQL Server database run every read audit query path, every filter and the stable-order paging (measured 88.13%); the uncovered lines are the catch blocks that turn a database failure into an error for each method and the Task.Run fallbacks of the ExecuteReader/ExecuteNonQuery/ExecuteScalar/ReadAsync helpers, which run only for non-native command types."
       }
     },
+    "BreakTheGlass/BreakTheGlassStoreADO.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreADO.cs",
+      "reason": "ADO.NET store with raw SQL — needs real database",
+      "targets": {
+        "unit": 25,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "Unit tests cover the registration, the argument guards and the store_failed path of every method on an unusable connection; the SQL itself is covered by the integration flag, which a mocked connection cannot exercise.",
+        "integration": "The shared BreakTheGlassStoreContract runs on a real SQL Server database and executes every method, the atomic add arbitration by the unique ActiveKey index, the concurrency facts and the paging (measured 99%); the few uncovered lines are the helper branches that run only for non-DbCommand command types."
+      }
+    },
     "BulkOperations/BulkOperationsADO.cs": {
       "defaultTests": [
         "integration"
