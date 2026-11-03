@@ -42,6 +42,18 @@ public sealed class AuditResolutionTableIntegrationTests(MartenFixture fixture)
                 Options.Create(new MartenOperationAuditOptions()), NullLoggerFactory.Instance).Configure(options);
         });
 
+        try
+        {
+            await ExerciseAsync(store, schema);
+        }
+        finally
+        {
+            await store.Advanced.Clean.CompletelyRemoveAllAsync();
+        }
+    }
+
+    private async Task ExerciseAsync(DocumentStore store, string schema)
+    {
         await store.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
 
         await using (var connection = new NpgsqlConnection(fixture.ConnectionString))

@@ -12,10 +12,14 @@ public sealed class AuditResolutionGuardTests
     [Fact]
     public void ResolutionErrorFactories_NeverThrowAndCarryTheirCodes()
     {
-        MartenAuditErrors.ResolutionConflict().Message.ShouldNotBeNullOrWhiteSpace();
-        MartenAuditErrors.ResolutionPrincipalRequired().Message.ShouldNotBeNullOrWhiteSpace();
-        MartenAuditErrors.InvalidResolutionReason().Message.ShouldNotBeNullOrWhiteSpace();
-        MartenAuditErrors.ResolutionEventNotFound().Message.ShouldNotBeNullOrWhiteSpace();
+        MartenAuditErrors.ResolutionConflict().GetCode().IfNone(string.Empty)
+            .ShouldBe(MartenAuditErrors.ResolutionConflictCode);
+        MartenAuditErrors.ResolutionPrincipalRequired().GetCode().IfNone(string.Empty)
+            .ShouldBe(MartenAuditErrors.ResolutionPrincipalRequiredCode);
+        MartenAuditErrors.InvalidResolutionReason().GetCode().IfNone(string.Empty)
+            .ShouldBe(MartenAuditErrors.InvalidResolutionReasonCode);
+        MartenAuditErrors.ResolutionEventNotFound().GetCode().IfNone(string.Empty)
+            .ShouldBe(MartenAuditErrors.ResolutionEventNotFoundCode);
         MartenAuditErrors.InvalidResolutionField().GetCode().IfNone(string.Empty)
             .ShouldBe(MartenAuditErrors.InvalidResolutionFieldCode);
     }

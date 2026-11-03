@@ -516,12 +516,12 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "unit": 0,
+        "unit": 100,
         "guard": 100,
         "integration": 100
       },
       "justifications": {
-        "unit": "The unit project never instantiates the document; its auto-properties are executed by the guard and integration flags.",
+        "unit": "Unit tests instantiate the document, assign every property and read it back (measured 100%).",
         "guard": "Guard test assigns and reads every property (measured 100%).",
         "integration": "The fresh-store integration test stores the resolution and loads it back (measured 100%)."
       }
@@ -536,12 +536,12 @@
       "targets": {
         "unit": 100,
         "guard": 0,
-        "integration": 14
+        "integration": 11
       },
       "justifications": {
         "unit": "Format and IsValid are executed by every id and field-set test (measured 100%).",
         "guard": "Internal type and the guard test project has no InternalsVisibleTo, so no guard test can execute it.",
-        "integration": "The table test only calls Format; the static field set initialisers are not exercised by it (measured 14%)."
+        "integration": "The fresh-store table test only calls Format; the field-set lookup is covered by unit tests (measured 11.5%)."
       }
     },
     "Resolution/AuditResolutionRecord.cs": {
@@ -552,12 +552,12 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "unit": 0,
+        "unit": 100,
         "guard": 25,
         "integration": 0
       },
       "justifications": {
-        "unit": "Not instantiated by unit tests; the guard flag covers the record.",
+        "unit": "Unit tests build the record from a document's values, compare, and use `with` (measured 100%).",
         "guard": "The guard test builds one instance and compares it; the compiler-generated members are not all executed (measured 25%).",
         "integration": "The integration test does not use this record."
       }
