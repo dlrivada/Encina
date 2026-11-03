@@ -1,0 +1,54 @@
+Remediation for #60:
+- code 1 (Major): draft 60-code-1-encina-awslambda-never-binds-the-caller-identity-or.md
+- code 2 (Major): draft 60-code-2-five-options-seven-log-methods-and-a-suppression.md
+- code 3 (Major): draft 60-code-3-sqsmessagehandler-processbatchasync-breaks-ordering-on-fifo.md
+- code 4 (Major): draft 60-code-4-the-eventbridge-and-processallasync-adapters-turn-every-fail.md
+- code 5 (Major): draft 60-code-5-the-cold-start-optimized-acceptance-criterion-cannot-be.md
+- code 6 (Minor): draft 60-code-6-header-lookups-are-case-sensitive-so-a-lower.md
+- code 7 (Minor): draft 60-code-7-http-api-v2-is-half-supported-and-only.md
+- code 8 (Minor): draft 60-code-8-the-problem-details-body-is-not-rfc-7807.md
+- code 9 (Minor): draft 60-code-9-getuserid-throws-on-valid-but-non-string-claims.md
+- code 10 (Minor): draft 60-code-10-the-sqs-and-eventbridge-callbacks-cannot-observe-cancellatio.md
+- tests 1 (Major): draft 60-tests-1-src-encina-awslambda-lambdacontextextensions-cs-266-273-280.md
+- tests 2 (Major): merged into tests 3 (manual override)
+- tests 3 (Major): draft 60-tests-3-github-coverage-manifest-encina-awslambda-json-four-files.md
+- tests 4 (Minor): merged into tests 3 (manual override)
+- tests 5 (Major): draft 60-tests-5-contract-tests-of-a-public-api-were-deleted.md
+- tests 6 (Minor): draft 60-tests-6-property-tests-were-deleted-by-658263027-without-a.md
+- tests 7 (Minor): merged into tests 8 (manual override)
+- tests 8 (Minor): draft 60-tests-8-reachable-branches-with-no-test-in-the-unit.md
+- tests 9 (Major): draft 60-tests-9-tests-pin-the-defects-the-code-stage-reported.md
+- tests 10 (Minor): merged into tests 3 (manual override)
+- tests 11 (Minor): draft 60-tests-11-tests-encina-unittests-awslambda-servicecollectionextensions.md
+- tests 12 (Minor): draft 60-tests-12-no-justification-file-exists-for-the-test-types.md
+- docs 1 (Major): merged into code 2 (manual override)
+- docs 2 (Major): merged into code 3 (manual override)
+- docs 3 (Major): merged into code 4 (manual override)
+- docs 4 (Major): merged into code 5 (manual override)
+- docs 5 (Major): duplicate of #2951 (manual override)
+- docs 6 (Minor): draft 60-docs-6-src-encina-awslambda-readme-md-65-81-89.md
+- docs 7 (Minor): draft 60-docs-7-src-encina-awslambda-readme-md-178-188-error.md
+- docs 8 (Minor): draft 60-docs-8-src-encina-awslambda-readme-md-7-and-10.md
+- docs 9 (Minor): draft 60-docs-9-rule-a-point-1-src-encina-awslambda-readme.md
+- docs 10 (Minor): draft 60-docs-10-neighbours-and-placement-src-encina-awslambda-readme-md.md
+- docs 11 (Minor): duplicate of #1299 (manual override)
+- docs 12 (Minor): duplicate of #1371 (manual override)
+- docs 13 (Minor): duplicate of #2280 (manual override)
+
+## Lessons for the pipeline
+- docs 5: recorded as duplicate of #2951 by manual override
+- docs 11: recorded as duplicate of #1299 by manual override
+- docs 12: recorded as duplicate of #1371 by manual override
+- docs 13: recorded as duplicate of #2280 by manual override
+- docs 6: kept out of location merges by manual override
+- docs 1: merged into code 2 by manual override
+- docs 2: merged into code 3 by manual override
+- docs 3: merged into code 4 by manual override
+- docs 4: merged into code 5 by manual override
+- tests 2: merged into tests 3 by manual override
+- tests 4: merged into tests 3 by manual override
+- tests 10: merged into tests 3 by manual override
+- tests 7: merged into tests 8 by manual override
+- (2026-10-30, #60) (code 2, code 3, code 5, code 7, tests 6) Findings with two valid options are written as neutral Dilemmas with a route-only labels line; the orchestrator adds `needs-decision` at opening. The AWS behaviours (FIFO partial-batch contract, HTTP API v2 lower-case headers) and the consolidation commit `658263027` are stated as the stages recorded them: this agent cannot fetch AWS documentation or read git history. Bug drafts carry Related Issues inside Additional Context because the bug template has no such header. (state unfetched external facts as recorded; keep Related Issues inside Additional Context for the bug template)
+- (2026-10-30, #60) (tests 3) The tests stage's package guard figure (32 covered of 393 lines) was recomputed to 8.14% for the Current Coverage table; proposed targets stay labelled derived until a measured run. Issue titles for #727, #1389 and #2948 come from the findings or the manifest where present; those without a manifest title were cited by number with the finding's description. (keep derived targets labelled; cite untitled issues with the finding's description)
+- (2026-10-30, #60) (code 2, docs 1) Re-run after the verifier FAIL: the earlier draft pre-decided its Dilemma by saying the page-side fix is to list only the options that are read. The README defect is now stated as a fact only; what the README says is written inside Option A (lists only what is read) and Option B (keeps the options, now true), and the CA1848 false suppression is Part 1, independent of the Dilemma. The draft file was not on disk when this run started, so it was rewritten and its facts re-read in the audit worktree (`EncinaAwsLambdaOptions.cs`, `Log.cs`, `GlobalSuppressions.cs`, `AwsLambdaHealthCheck.cs:42-44`, `README.md:7-11, 112-140`, `ServiceCollectionExtensions.cs:44,46`). The Description also notes that `IncludeExceptionDetailsInResponse` is not even echoed by the health check, which the code stage did not say. (keep a README fix inside the options of a Dilemma; state a fact before the options)
