@@ -42,13 +42,23 @@
       "reason": "Configuration POCO with defaults and validation"
     },
     "PIIErrors.cs": { "defaultTests": ["unit"], "reason": "Static error factories — no guards" },
-    "PIILoggerExtensions.cs": { "defaultTests": ["unit", "guard"], "reason": "Logger extensions with ThrowIfNull guards" },
+    "PIILoggerExtensions.cs": {
+      "defaultTests": ["unit", "guard"],
+      "reason": "Logger extensions with ThrowIfNull guards",
+      "targets": { "unit": 95, "guard": 25 },
+      "justifications": {
+        "unit": "Every branch of LogMasked (disabled level, success through MaskForLog, failure placeholder) runs with the real masker and mocks (measured 100%).",
+        "guard": "Guard tests cover the logger and masker null checks of LogMasked and its three level wrappers (measured 28%); the rest is behaviour covered by unit tests."
+      }
+    },
     "PIIMasker.cs": {
       "defaultTests": ["unit", "guard", "property"],
       "reason": "Core masker with ThrowIfNull guards and masking invariants. Property tests verify round-trip and format invariants.",
-      "targets": { "unit": 0 },
+      "targets": { "unit": 90, "guard": 10, "property": 40 },
       "justifications": {
-        "unit": "Only two comments changed in this file; its behavior is covered by the existing masker tests."
+        "unit": "MaskForLog (option off, success, failure rethrow with EventId 8023) and the Tokenize-as-Redact branch of the log context are executed by the log-context unit tests with the real masker (measured 93%).",
+        "guard": "Guard tests only exercise the ThrowIfNull lines of the public methods including MaskForLog (measured 11%), the rest of the masking engine is behaviour covered by unit tests.",
+        "property": "Property tests run the object-masking engine through MaskObject and MaskForLog with generated strings (measured 44%); the remaining lines are option and failure branches covered by unit tests."
       }
     },
     "PIIMaskingPipelineBehavior.cs": { "defaultTests": ["unit", "guard"], "reason": "Pipeline behavior with ThrowIfNull guards on constructor" },

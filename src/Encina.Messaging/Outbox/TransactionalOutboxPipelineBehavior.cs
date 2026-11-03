@@ -172,7 +172,7 @@ public sealed class TransactionalOutboxPipelineBehavior<TRequest, TResponse> : I
 
         using var activity = OutboxActivitySource.StartEnqueue(notifications.Count);
         var written = await _writer.WriteAsync(notifications, cancellationToken).ConfigureAwait(false);
-        var dbSystem = DbSystemName.From(_transactionSource);
+        var dbSystem = _transactionSource.DbSystem;
 
         if (written.IsLeft)
         {

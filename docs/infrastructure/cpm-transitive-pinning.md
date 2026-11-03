@@ -1,6 +1,6 @@
 # CPM transitive pinning: measured state and options (spike #1051)
 
-This page is for the maintainer who has to choose how Encina pins transitive NuGet packages, and for any contributor who needs to know why the repository has hand-made pin references. It records what was measured on `origin/main` on 2026-10-28, corrects the claims of issue #1051 that no longer hold, and records the one decision with its options and the maintainer's choice (C', 2026-10-28). The spike itself changed no build file; #2976 applied the decision (see [Implemented](#implemented)).
+This page is for the maintainer who has to choose how Encina pins transitive NuGet packages, and for any contributor who needs to know why the repository has hand-made pin references. It records what was measured on `origin/main` on 2026-10-28, corrects the claims of issue #1051 that no longer hold, and records the one decision with its options and the maintainer's choice (C', 2026-10-28). The spike itself changed no build file; #2976 applied the decision (see [Implemented](#implemented)). The decision is recorded in [ADR-060](../architecture/adr/060-cpm-transitive-pinning-non-packable.md).
 
 ## The problem from the basics
 
@@ -129,7 +129,7 @@ The spike's recommendation, which the maintainer followed, was C'. The conflicts
 
 ## Implemented
 
-Issue [#2976](https://github.com/dlrivada/Encina/issues/2976) applied option C'. The decision is recorded as ADR-060 (PR #3034, issue #3033).
+Issue [#2976](https://github.com/dlrivada/Encina/issues/2976) applied option C'. The decision is recorded as [ADR-060](../architecture/adr/060-cpm-transitive-pinning-non-packable.md) (PR #3034, issue #3033).
 
 - The new root `Directory.Build.targets` sets `CentralPackageTransitivePinningEnabled` to `true` only when the final value of `IsPackable` is false. `tests/Directory.Build.targets` imports it, because MSBuild loads only the nearest file.
 - Central versions were raised: `Grpc.AspNetCore` and `Grpc.Net.Client` 2.80.0, `Microsoft.Extensions.Http.Resilience` and `Microsoft.Extensions.Resilience` 10.8.0, `HotChocolate` 15.1.14, `TngTech.ArchUnitNET` 0.13.3, `Verify` 31.15.0, `Spectre.Console` 0.57.2 and `System.CommandLine` 2.0.7.

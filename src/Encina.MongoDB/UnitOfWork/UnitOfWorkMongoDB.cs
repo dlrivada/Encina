@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using Encina;
 using Encina.DomainModeling;
+using Encina.Messaging.Transactions;
 using Encina.MongoDB.Repository;
+using Encina.MongoDB.Transactions;
 using LanguageExt;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
@@ -20,8 +22,14 @@ namespace Encina.MongoDB.UnitOfWork;
 /// </para>
 /// <para>
 /// <strong>Important:</strong> MongoDB transactions require a replica set deployment.
-/// Standalone MongoDB servers do not support multi-document transactions.
+/// Standalone MongoDB servers do not support multi-document transactions, so
+/// <c>BeginTransactionAsync</c> fails with a transaction-start error there.
 /// For development, consider using a single-node replica set.
+/// </para>
+/// <para>
+/// The unit of work does not own a private session: it takes a lease on the scope's
+/// <see cref="IMongoSessionAccessor"/>, so it shares one transaction with the transactional outbox and the
+/// messaging stores. This type is disposed asynchronously only (<see cref="IAsyncDisposable"/>).
 /// </para>
 /// <para>
 /// The implementation:
@@ -61,11 +69,11 @@ namespace Encina.MongoDB.UnitOfWork;
 /// </example>
 public sealed class UnitOfWorkMongoDB : IUnitOfWork
 {
-    private readonly IMongoClient _mongoClient;
     private readonly IMongoDatabase _database;
+    private readonly IMongoSessionAccessor _sessionAccessor;
     private readonly IServiceProvider _serviceProvider;
     private readonly ConcurrentDictionary<Type, object> _repositories = new();
-    private IClientSessionHandle? _session;
+    private ITransactionLease? _lease;
     private bool _disposed;
 
     /// <summary>
@@ -73,27 +81,37 @@ public sealed class UnitOfWorkMongoDB : IUnitOfWork
     /// </summary>
     /// <param name="mongoClient">The MongoDB client.</param>
     /// <param name="options">The MongoDB options containing database configuration.</param>
+    /// <param name="sessionAccessor">
+    /// The scope's session accessor: the unit of work takes a lease on the transaction the scope shares with the
+    /// transactional outbox and the messaging stores, instead of owning a private session.
+    /// </param>
     /// <param name="serviceProvider">The service provider for resolving dependencies.</param>
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="mongoClient"/>, <paramref name="options"/>,
-    /// or <paramref name="serviceProvider"/> is null.
+    /// <paramref name="sessionAccessor"/> or <paramref name="serviceProvider"/> is null.
     /// </exception>
     public UnitOfWorkMongoDB(
         IMongoClient mongoClient,
         IOptions<EncinaMongoDbOptions> options,
+        IMongoSessionAccessor sessionAccessor,
         IServiceProvider serviceProvider)
     {
         ArgumentNullException.ThrowIfNull(mongoClient);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(sessionAccessor);
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
-        _mongoClient = mongoClient;
         _database = mongoClient.GetDatabase(options.Value.DatabaseName);
+        _sessionAccessor = sessionAccessor;
         _serviceProvider = serviceProvider;
     }
 
     /// <inheritdoc/>
-    public bool HasActiveTransaction => _session?.IsInTransaction == true;
+    /// <remarks>
+    /// <see langword="true"/> while this unit of work holds a lease on the scope's transaction, whether it began
+    /// the transaction or joined one the transactional outbox already opened.
+    /// </remarks>
+    public bool HasActiveTransaction => _lease is not null;
 
     /// <summary>
     /// Gets the current client session, if one is active.
@@ -102,7 +120,7 @@ public sealed class UnitOfWorkMongoDB : IUnitOfWork
     /// This property is used internally by repositories to participate in the transaction.
     /// Returns null when no session is active.
     /// </remarks>
-    internal IClientSessionHandle? CurrentSession => _session;
+    internal IClientSessionHandle? CurrentSession => _sessionAccessor.CurrentSession;
 
     /// <summary>
     /// Gets the MongoDB database.
@@ -166,27 +184,25 @@ public sealed class UnitOfWorkMongoDB : IUnitOfWork
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (_session?.IsInTransaction == true)
+        // TransactionAlreadyActive only when THIS unit of work holds a lease; a transaction another participant
+        // of the scope owns is joined, not refused.
+        if (_lease is not null)
         {
             return Left<EncinaError, Unit>(UnitOfWorkErrors.TransactionAlreadyActive());
         }
 
         try
         {
-            // Start a new session if we don't have one
-            _session = await _mongoClient.StartSessionAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-            _session.StartTransaction();
+            var begun = await _sessionAccessor.BeginOrJoinAsync(cancellationToken).ConfigureAwait(false);
 
-            return Right<EncinaError, Unit>(Unit.Default);
-        }
-        catch (NotSupportedException ex) when (ex.Message.Contains("replica set", StringComparison.OrdinalIgnoreCase))
-        {
-            // MongoDB standalone servers don't support transactions
-            return Left<EncinaError, Unit>(UnitOfWorkErrors.TransactionStartFailed(
-                new InvalidOperationException(
-                    "MongoDB transactions require a replica set deployment. " +
-                    "Standalone MongoDB servers do not support multi-document transactions.",
-                    ex)));
+            return begun.Match(
+                Right: lease =>
+                {
+                    _lease = lease;
+                    return Right<EncinaError, Unit>(Unit.Default);
+                },
+                Left: error => Left<EncinaError, Unit>(
+                    UnitOfWorkErrors.TransactionStartFailed(TransactionErrors.AsException(error))));
         }
         catch (Exception ex)
         {
@@ -199,23 +215,17 @@ public sealed class UnitOfWorkMongoDB : IUnitOfWork
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (_session is null || !_session.IsInTransaction)
+        if (_lease is null)
         {
             return Left<EncinaError, Unit>(UnitOfWorkErrors.NoActiveTransaction());
         }
 
-        try
-        {
-            await _session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
-            await DisposeSessionAsync().ConfigureAwait(false);
+        // A joined lease's commit is a no-op; only the owner commits, and a rollback-only transaction is
+        // aborted and refused.
+        var committed = await _lease.CommitAsync(cancellationToken).ConfigureAwait(false);
+        await ReleaseLeaseAsync().ConfigureAwait(false);
 
-            return Right<EncinaError, Unit>(Unit.Default);
-        }
-        catch (Exception ex)
-        {
-            await AbortInternalAsync().ConfigureAwait(false);
-            return Left<EncinaError, Unit>(UnitOfWorkErrors.CommitFailed(ex));
-        }
+        return committed.MapLeft(error => UnitOfWorkErrors.CommitFailed(TransactionErrors.AsException(error)));
     }
 
     /// <inheritdoc/>
@@ -223,7 +233,7 @@ public sealed class UnitOfWorkMongoDB : IUnitOfWork
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        await AbortInternalAsync().ConfigureAwait(false);
+        await RollbackInternalAsync().ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -268,45 +278,34 @@ public sealed class UnitOfWorkMongoDB : IUnitOfWork
         _disposed = true;
 
         // Auto-abort uncommitted transaction
-        await AbortInternalAsync().ConfigureAwait(false);
+        await RollbackInternalAsync().ConfigureAwait(false);
 
         _repositories.Clear();
 
         GC.SuppressFinalize(this);
     }
 
-    private async Task AbortInternalAsync()
+    private async Task RollbackInternalAsync()
     {
-        if (_session is null)
+        if (_lease is null)
         {
             return;
         }
 
-        try
-        {
-            if (_session.IsInTransaction)
-            {
-                await _session.AbortTransactionAsync().ConfigureAwait(false);
-            }
-        }
-        catch
-        {
-            // Swallow abort exceptions - we're already in an error/cleanup path
-        }
-        finally
-        {
-            await DisposeSessionAsync().ConfigureAwait(false);
-        }
+        // The lease's rollback never throws and runs to completion; a joined lease marks the shared
+        // transaction rollback-only instead.
+        await _lease.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+        await ReleaseLeaseAsync().ConfigureAwait(false);
     }
 
-    private ValueTask DisposeSessionAsync()
+    private async Task ReleaseLeaseAsync()
     {
-        if (_session is not null)
-        {
-            _session.Dispose();
-            _session = null;
-        }
+        var lease = _lease;
+        _lease = null;
 
-        return ValueTask.CompletedTask;
+        if (lease is not null)
+        {
+            await lease.DisposeAsync().ConfigureAwait(false);
+        }
     }
 }

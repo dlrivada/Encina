@@ -157,11 +157,8 @@ public sealed class TransactionLeaseStateTests
     {
         var wrapper = Substitute.For<IWrapper>();
         wrapper.InnerConnection.Returns(new Npgsql.NpgsqlConnection());
-        var accessor = Substitute.For<IDbTransactionAccessor>();
-        accessor.Connection.Returns(wrapper);
 
-        DbSystemName.From(accessor).ShouldBe(DbSystemName.PostgreSql);
-        DbSystemName.From(Substitute.For<ITransactionLeaseSource>()).ShouldBe(DbSystemName.Other);
+        DbSystemName.From(wrapper).ShouldBe(DbSystemName.PostgreSql);
     }
 
     [Fact]
