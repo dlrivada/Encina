@@ -18,7 +18,8 @@ namespace Encina.UnitTests.Testing.Architecture;
 /// The scan covers every shipped <c>Encina*</c> assembly in the test output directory, so a post-processor added
 /// to any package is checked without editing this file. A violation is a class implementing
 /// <see cref="IRequestPostProcessor{TRequest, TResponse}"/> that holds an <see cref="IOutboxStore"/> (or the
-/// internal writer) in a field, property or constructor parameter.
+/// internal writer) in a field, property or constructor parameter. It is a guard against the direct regression, not
+/// a proof that no post-processor can reach the outbox through another service.
 /// </remarks>
 public sealed class NoPostProcessorWritesToOutboxTests
 {

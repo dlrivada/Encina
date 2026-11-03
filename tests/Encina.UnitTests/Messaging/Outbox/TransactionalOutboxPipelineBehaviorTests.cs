@@ -226,6 +226,20 @@ public sealed class TransactionalOutboxPipelineBehaviorTests
     }
 
     [Fact]
+    public async Task Handle_StoreThrowsWhileSaving_RollsBackAndRethrows()
+    {
+        _store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<Either<EncinaError, Unit>>(new InvalidOperationException("store down")));
+
+        var act = async () => await Create<WithNotifications>().Handle(
+            new WithNotifications(new Note("a")), _context, Ok(), CancellationToken.None);
+
+        (await act.ShouldThrowAsync<InvalidOperationException>()).Message.ShouldBe("store down");
+        await _lease.Received(1).RollbackAsync(CancellationToken.None);
+        await _lease.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Handle_Cancelled_RollsBackAndRethrows()
     {
         RequestHandlerCallback<string> next = () => throw new OperationCanceledException();
