@@ -794,20 +794,6 @@
         "integration": "The outbox store and dead letter end-to-end suites run the orchestrator against real databases (measured 87%)."
       }
     },
-    "Outbox/OutboxPostProcessor.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Interim post-processor for the families still on the post-processor write path",
-      "targets": { "unit": 95, "guard": 0, "contract": 0 },
-      "justifications": {
-        "unit": "Process delegates to the writer and returns the first Left; the constructor and both outcomes are driven by OutboxPostProcessorTests (measured 100%).",
-        "guard": "Constructor null checks are asserted in the unit tests; the guard project has no separate tests for this interim class.",
-        "contract": "A concrete scoped processor with no public contract beyond IRequestPostProcessor, covered by ProcessorContracts for the interface."
-      }
-    },
     "Outbox/OutboxProcessorBase.cs": {
       "defaultTests": [
         "unit",
@@ -833,17 +819,6 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
-    },
-    "Outbox/OutboxWritePath.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Interim switch enum with no executable lines",
-      "targets": { "unit": 0 },
-      "justifications": {
-        "unit": "An enum declaration has no executable lines, so there is nothing to cover; the registration tests drive both values."
-      }
     },
     "Outbox/OutboxWriter.cs": {
       "defaultTests": [

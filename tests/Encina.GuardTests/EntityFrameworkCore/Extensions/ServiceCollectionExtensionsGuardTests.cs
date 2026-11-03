@@ -61,7 +61,7 @@ public sealed class ServiceCollectionExtensionsGuardTests
     {
         // Arrange - exercises: config.UseOutbox branch (lines 151-157):
         // AddSingleton OutboxOptions, AddScoped IOutboxStore, AddScoped IOutboxMessageFactory,
-        // AddScoped IRequestPostProcessor, AddHostedService OutboxProcessor
+        // AddScoped TransactionalOutboxPipelineBehavior, AddHostedService OutboxProcessor
         var services = new ServiceCollection();
         services.AddDbContext<TestExtDbContext>(options =>
             options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
