@@ -279,6 +279,50 @@ dotnet run --file .github/scripts/check-target-ratchet.cs -- --self-test
 
 `--self-test` runs the built-in cases. `--no-label-lookup` skips the `gh` call; `--assume-label` pretends the label is present. Both are test flags.
 
+### Honesty audit
+
+The honesty audit looks for places where the coverage numbers could look better than the tests deserve: targets set to zero, justification files where a test type is forbidden, contract tests that run no product code, and justification text that is copied instead of written. `.github/scripts/honesty-audit.cs` is a C# 14 file-based app that only reads files. It does not build and does not run tests. Figures are never copied into this page: the generated `report.json` holds the current counts and `.github/honesty-audit-baseline.json` holds the accepted ones.
+
+#### What is counted
+
+| Check | What it counts | Effect on the run |
+|---|---|---|
+| H1 zero targets | Per-file flag targets equal to `0` in `.github/coverage-manifest/*.json`. | Informational only: the total is reported and never fails the run. A gating rule for zeros in files that have executable lines waits for the classifier of #2890. |
+| H2 justification files | `.md` files under `tests/` whose heading is `Status: Not Implemented`, per test project. "Forbidden" are those in `Encina.UnitTests`, `Encina.GuardTests` or `Encina.ContractTests`, where [AGENTS.md section 9](../../AGENTS.md) never allows a justification. "Stale candidates" are benchmark or load-test files whose every named package already has that test type (a proxy: the package name appears in the project's `.cs` files). | Only the forbidden count gates. The total and the stale candidates are reported. |
+| H3 contract tests without product code | Files of `tests/Encina.ContractTests` that contain `[Fact]` or `[Theory]` and none of the tokens that mean product code runs: `new`, `Create...(`, `await`, `Substitute.For`, `BuildServiceProvider`, `GetRequiredService`, `.Invoke(`, `.Compute(`, `.Validate...(`. Comments and string literals are removed first. This is the heuristic of issue #1749. | Both the number of files and the number of attributes gate. |
+| H4 justification strings | Total, distinct and most repeated justification strings in the manifests. | Reported only. Format validation belongs to #2844. |
+
+A reflection-only contract test executes no package code, so it contributes no contract coverage (see the rule that tests execute real package code in [AGENTS.md section 9](../../AGENTS.md)).
+
+#### The baseline is shrink-only
+
+`.github/honesty-audit-baseline.json` holds, for each gating check, the accepted ceiling and the accepted items. It also has an `h1` entry with a null ceiling, ready for when H1 gates.
+
+- A count above its ceiling fails the run, and the summary lists the first 20 new items.
+- A count below its ceiling is reported as "below baseline". The pull request that fixes the drift lowers the baseline; `--print-baseline` prints the new file text.
+- A run never raises a ceiling. A deliberate rise is accepted only through a pull request that raises the baseline and carries the maintainer's label, as the target ratchet does with `target-change-approved`. There is no dispatch input to silence a run.
+
+#### Run it locally
+
+From the repository root:
+
+```powershell
+dotnet run --file .github/scripts/honesty-audit.cs -- --output artifacts/honesty-audit/report.json --baseline .github/honesty-audit-baseline.json
+dotnet run --file .github/scripts/honesty-audit.cs -- --self-test
+dotnet run --file .github/scripts/honesty-audit.cs -- --print-baseline
+```
+
+Add `--summary <file>` to also write the Markdown summary. Without `--baseline` the run only reports. Exit codes: 0 when no gating count is above its ceiling (or no baseline was given), 1 when a gating count is above its ceiling, 2 for invalid arguments or an invalid baseline.
+
+The weekly workflow `honesty-audit.yml` (Monday 06:47 UTC and manual dispatch) is not wired yet: it is added by the maintainer's follow-up, and until then you run the script by hand. Once added, it will publish `report.json` and a run history to the `dashboard-data` branch under `honesty-audit/`.
+
+#### Read a drift and fix it
+
+Open the job summary or `report.json` and find the check that is above its ceiling.
+
+- **H2 forbidden:** move the content to the right place, or delete the file when the test type is now implemented. Never justify a unit, guard or contract gap.
+- **H3:** change the flagged contract test so that it instantiates and calls a real implementation, then lower the baseline.
+
 ### Per-package targets
 
 Each manifest declares per-flag coverage targets in its `targets` section:
