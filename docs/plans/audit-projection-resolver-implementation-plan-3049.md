@@ -59,7 +59,7 @@ The size rule of the EPIC #2845 working rule (#2900, `.claude/skills/worker-brie
 
 ## Design Choices
 
-Maintainer decisions are quoted from the comments of #2770 and recorded dated in the last section. The decision register with every option is `artifacts/decisions/2770-2b.md` (ids D1-D56, DL1-DL9); the orchestrator screening is `artifacts/decisions/2770-2b-screen.md`. Both are working files; each block below carries the citation that makes it checkable. Choices 1 to 3, 5 to 10, 12 and 17 are Settled, choices 11 and 16 are Trivial; choices 13, 14 and 15 are open Dilemmas for the maintainer (recommendations only, entries in the last section); choice 4 was a Dilemma and the maintainer answered it on 2026-10-30.
+Maintainer decisions are quoted from the comments of #2770 and recorded dated in the last section. The decision register with every option is `artifacts/decisions/2770-2b.md` (ids D1-D56, DL1-DL9); the orchestrator screening is `artifacts/decisions/2770-2b-screen.md`. Both are working files; each block below carries the citation that makes it checkable. Choices 1 to 3, 5 to 10, 12 and 17 are Settled, choices 11 and 16 are Trivial; choices 13, 14, 15 and 18 are open Dilemmas for the maintainer (recommendations only, entries in the last section); choice 4 was a Dilemma and the maintainer answered it on 2026-10-30.
 
 <details>
 <summary><strong>1. Storage model — a mutable `AuditResolution` document, deterministic string id, same Marten store and schema</strong></summary>
@@ -178,7 +178,7 @@ Register: D27 (screen D26, DL5), D43, D45.
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A different kind returns `Left` `audit.marten.resolution_conflict`; an identical repeat returns `Right` and writes no second audit entry; change only after an audited `RemoveAsync`** | Write-once principle; clean history; no lock (the deterministic id and the store's own uniqueness serialise concurrent writers) | One extra step to change |
+| **A) A different kind returns `Left` `audit.marten.resolution_conflict`; an identical repeat returns `Right` and writes no second audit entry; change only after an audited `RemoveAsync`** | Write-once principle; clean history; no lock (primary-key uniqueness decides concurrent inserts; a revision-checked delete decides concurrent removals) | One extra step to change |
 | B) Last write wins | Operator speed | Silently replaces `[SHREDDED]` evidence |
 | C) Versioned documents | In-store history | Latest-version query on the failure path for little gain over the audit trail |
 
@@ -212,7 +212,7 @@ Register: D31, D32 (screen D27, DL6).
 
 ### Rationale
 
-- Canonical fields: trail, event id, field, kind, erasure request id or retention policy id. An auditor recomputes and compares.
+- Canonical fields, every one that identifies or evidences the resolution: format version (`v1`), trail, event id, field, kind, the whole applicable reference (erasure: request id, request date, actor; retention: policy id, cutoff date, execution date, actor; absent parts are empty), the resolver identity (`ResolvedBy`) and the resolution time (`ResolvedAtUtc`). Serialization (fixed, so an auditor recomputes it): one `name=value` entry per field in the order above, joined with a line feed (`\n`) and encoded UTF-8; each value is written as `<length>:<text>` (length in UTF-16 code units, so no value can imitate a separator); the event id is the lowercase `D` Guid format; dates are UTC ISO 8601 round-trip (`O`); the digest is SHA-256 in lowercase hexadecimal, stored in `RequestPayloadHash`. Tests (Phase 4): a golden vector, and a property test that changing any single field, including each reference date and actor, changes the hash.
 - A package-wide integrity design (keys, markers, resolutions together) is a separate spike, opened only if SPEC-002 needs it.
 
 **Class:** Settled
@@ -459,6 +459,56 @@ Register: new (D23 = (d) asks for "a bulk helper" without a shape; PR #3085 revi
 </details>
 
 <details>
+<summary><strong>18. Reading `MetadataJson` independent of the configured placeholders</strong></summary>
+
+Register: new (Copilot thread on #3085, 2026-11-03).
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A persisted discriminator on both read models, set by the projection when it masks `MetadataJson` (`bool MetadataJsonMasked`, rebuild-deterministic); the query stores parse `MetadataJson` only when it is false** | Independent of any option value; field-specific resolutions work (other fields masked, metadata readable); no heuristic | A new public read-model property; rows written before it exist only after a rebuild (pre-1.0: acceptable) |
+| B) Value rule: placeholders never parse; treat the current options plus the built-in defaults as placeholders | No new property; interim rule of Phase 2 | Breaks when a placeholder is changed twice or set to a custom string after rows were written |
+| C) Parse defensively: attempt JSON parsing and treat a parse failure as the stored text | No schema change; configuration independent | Swallows a real corruption error (AGENTS.md section 3: errors are never swallowed) and cannot tell masked text from damaged metadata |
+
+### Chosen Option: **Recommended, not decided: A** (B stays as the interim rule until A ships)
+
+### Rationale
+
+- A is the only option that is both configuration independent and does not hide a real error; B is cheaper and wins where options never change after go-live; C wins only where metadata is never trusted anyway.
+- Phase 2 (already under way) keeps the interim rule of B including the three built-in defaults and its test; if A is chosen, Phase 3 adds the property, the projection sets it and the stores switch to it, with a test that querying existing rows after the options change still works.
+
+**Class:** Dilemma
+**Settled by:** n/a (entry 18 of Maintainer Decisions)
+**Verified:** n/a (Dilemma)
+
+</details>
+
+<details>
+<summary><strong>19. Audited removal under concurrency — a revision-checked delete</strong></summary>
+
+Register: new (Copilot thread on #3085, 2026-11-03).
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Marten numeric revisions on `AuditResolution`; `RemoveAsync` deletes the loaded instance with its revision; a concurrency exception maps to `Left` conflict plus a linked `Error` audit entry** | Uses the database's own optimistic mechanism; no lock provider; the audit entry names the revision seen | Needs a day-1 check that Marten 9.38 enforces the revision on delete (fallback: conditional `DeleteWhere` on `Id` and `Revision`) |
+| B) A per-key distributed lock around load, audit and delete | Serialises removers | Pulls in `IDistributedLockProvider` (not pay-for-what-you-use), a new failure mode, and nothing prevents SQL writers |
+
+### Chosen Option: **A — revision-checked delete**
+
+### Rationale
+
+- A removal must delete the document the audit entry describes; an unconditional delete could delete a later document B under the same id.
+
+**Class:** Settled
+**Settled by:** AGENTS.md section 1 (pay-for-what-you-use) and section 6 function 7 (concurrent access to shared state is covered by the store's own mechanism: deterministic id for inserts, revision for removals); AGENTS.md section 3 (fail closed; errors never swallowed)
+**Verified:** pending adversarial review
+
+</details>
+
+<details>
 <summary><strong>16. Reason limit — a public constant of 500 characters, counted after trimming</strong></summary>
 
 Register: D30 (limit value), PR #3085 review.
@@ -535,9 +585,10 @@ public interface IAuditProjectionResolver
 - Validation returns `Left`: invalid trail and field combination, `Excluded` with a field other than `All`, blank or over-500-character reason, invalid reference (`MartenAuditErrors.RejectInvalidReference`, codes `audit.marten.invalid_erasure_reference` and `audit.marten.invalid_retention_reference`), unknown event (existence check by `IEvent.Id` against `mt_events` and the trail's event type), conflict (`audit.marten.resolution_conflict`), no principal (`audit.marten.resolution_principal_required`).
 - **Key-level outcome (M2, chosen design)**: today `LoadTemporalKeyAsync` and `ClassifyTemporalKeyLookup` throw on a key-level failure (no reference on the marker, both references, and after #3012 `KeyMissing`) before any resolution can be consulted. Phase 3 refactors them to return an outcome type, `TemporalKeyOutcome` (internal): `Key(material)`, `Shredded`, `Expired` or `Failure(reason)`. No exception is used for control flow (AGENTS.md section 3, ADR-006), and the alternative (one `catch (EncryptedFieldDecryptionException)` in the projection that looks up and rethrows) is rejected because it makes the projection catch its own exception and keeps a try/catch around an asynchronous lookup. The throwing contract is kept only where the projection has no resolution: it throws `new EncryptedFieldDecryptionException(reason)` itself. The existing `ClassifyTemporalKeyLookup` unit tests change to assert outcomes.
 - **Projection lookup algorithm** (failure path only): the projection computes the key outcome, then for each non-null encrypted field the field outcome (`Value(text)` or `Failure(reason)`, from the Phase 2 non-throwing read; a `Failure` key outcome fails the event, key-first, exactly as today (D14, D15 and #3083): its reason applies to every field, the candidate ids are `All` plus the trail's fields that are non-null in the event, and without a resolution the projection throws even when the event's encrypted fields are all null; in that all-null case only an `All` resolution can resolve it, covered by a Phase 3 test). If neither the key nor a field failed, build the read model with no extra query. Otherwise log 2593, load the `All` resolution (one primary-key load) and the resolution of each failing field (one load per field). Precedence (choice 14, pending the decision recorded there): an `Excluded` resolution (only valid under `All`) wins and yields no row; otherwise an `All` resolution of another kind applies to every failing field and a field-specific resolution applies to its own field (the field-specific one wins over `All` for that field). `Unreadable`, `Shredded` or `Expired` substitutes the matching placeholder and sets the matching flag; a failing field with no resolution makes the projection throw the typed failure (the first failing field's reason). Different ids never conflict under the choice 5 rule, so precedence is a read-time rule (choice 14) tested in Phase 3; a hand-written `Excluded` document under a field other than `All` fails closed (typed throw), it is neither honoured nor ignored. Shard rebuild determinism: the output depends only on the event, the stored `Kind` and references, and the three placeholder strings from the options.
-- **Query stores (M1)**: `MartenOperationAuditStore.MapToAuditEntry` and `MartenReadAuditStore.MapToReadAuditEntry` deserialize `MetadataJson` as JSON unless the model is shredded, expired or the value equals the shredded placeholder; `[UNREADABLE]` is not JSON and a per-field `Shredded`/`Expired` resolution can leave a readable `MetadataJson` beside a set flag. Phase 2 changes the decision to the value: `MetadataJson` is parsed only when it is not one of the three configured placeholders, so a flag no longer drops readable metadata and a placeholder never reaches the JSON parser.
+- **Query stores (M1)**: `MartenOperationAuditStore.MapToAuditEntry` and `MartenReadAuditStore.MapToReadAuditEntry` deserialize `MetadataJson` as JSON unless the model is shredded, expired or the value equals the shredded placeholder; `[UNREADABLE]` is not JSON and a per-field `Shredded`/`Expired` resolution can leave a readable `MetadataJson` beside a set flag. Phase 2 changes the decision to the value as an interim rule: `MetadataJson` is parsed only when it is not one of the three placeholders, so a flag no longer drops readable metadata and a placeholder never reaches the JSON parser. That rule depends on the current options: a stored row masked with another placeholder string (the options changed since the row was projected) would reach the parser. The configuration-independent rule is choice 18 (a persisted discriminator, implemented in Phase 3 once decided); until then the stores also treat the three built-in defaults (`DefaultShreddedPlaceholder`, `DefaultExpiredPlaceholder`, `DefaultUnreadablePlaceholder`) as placeholders, and Phase 2 carries a test that rows written with the defaults are read after the options change to other strings.
 - **Null guards**: `MartenAuditErrors.RejectInvalidReference(null)` returns `null` (valid), so `MarkShreddedAsync` and `MarkExpiredAsync` throw `ArgumentNullException` for a null reference (guard test) and call `RejectInvalidReference` only for a non-null one.
-- **Concurrent writers**: the flow audits first, then inserts. On a duplicate-key error from the insert the loser reloads the stored document and compares: identical returns `Right`, different returns `Left` conflict. A race can therefore leave one extra audit entry for the loser, even when its resolution is identical: this is the one accepted exception to "no second audit entry" (the entry exists before the insert and cannot be withdrawn). The Phase 4 flow has the reload step and an integration test with two concurrent identical resolutions.
+- **Concurrent writers (every attempt is audited)**: the flow writes a write-ahead audit entry first (precedent: `PersistentPolicyAdministrationPoint`, `writeAheadEntryId`), then inserts. The write-ahead entry cannot be withdrawn, so a later outcome is recorded by a linked entry carrying its id in `Metadata` (`writeAheadEntryId`). On a duplicate-key error from the insert the loser reloads the stored document and compares: a *different* kind returns `Left` `audit.marten.resolution_conflict` and writes a linked entry with outcome `Error` and `ErrorMessage` `audit.marten.resolution_conflict`, so the losing decision has a failure record and its write-ahead entry is explained; an *identical* duplicate returns `Right` (idempotent) and writes a linked entry with outcome `Success` and `Metadata` `duplicateOf` naming the winning document's audit entry id when known. Any other failed save writes the linked `Error` entry too. Tests (Phase 4 integration, real Marten): two concurrent different resolutions give one `Right`, one `Left` conflict and one linked `Error` entry; two concurrent identical ones give two `Right` results, one document and a linked `Success` entry.
+- **Audited removals (revision-checked delete)**: a primary key protects inserts, not removals: remover 1 loads document A and awaits its audit write; remover 2 deletes A and a third caller inserts B under the same id; an unconditional delete by remover 1 would then delete B on the strength of an audit entry for A. `AuditResolution` therefore carries a Marten numeric revision (`Schema.For<AuditResolution>().UseNumericRevisions(true)` and a `Revision` property on the document, both added in Phase 4 by amending the Phase 1 registration line and document) and `RemoveAsync` deletes the loaded instance with its revision, so a changed or already-removed document raises Marten's concurrency exception, mapped to `Left` `audit.marten.resolution_conflict` plus a linked `Error` entry (the write-ahead entry names the revision it saw). Day-1 check in Phase 4: Marten 9.38 enforces the revision on `Delete` of a loaded instance; if it does not, the fallback is a conditional `DeleteWhere` on `Id` and `Revision` followed by an existence re-read in the same session. Test: the remove / remove / re-insert interleaving (the second remover must return the conflict, and B must survive).
 - **Day-1 integration experiment (Phase 3)**: before any other Phase 3 code, extend `AuditProjectionUnreadableEventIntegrationTests` with a throwaway projection that returns `null` from `Create` for a marked event and assert the daemon does not fail and progress passes that event; and that `Create(IEvent<T>, IDocumentOperations, CancellationToken)` is accepted by the Marten 9.38 validator. If `null` is not accepted, use the `Project`-method fallback of choice 3 (the resolution then calls `operations.Store` only for non-excluded events). The result decides the code shape; record it in the PR.
 
 ### Phase 1: Resolution Model, Document Registration & Error Codes
@@ -579,7 +630,7 @@ REFERENCE FILES: src/Encina.Audit.Marten/Crypto/TemporalKeyDestroyedMarker.cs, s
 2. `MartenOperationAuditOptions.cs`: `public const string DefaultUnreadablePlaceholder = "[UNREADABLE]"` and `UnreadablePlaceholder { get; set; }` with XML docs like `ExpiredPlaceholder`.
 3. `Projections/OperationAuditEntryReadModel.cs` and `ReadAuditEntryReadModel.cs`: `bool IsUnreadable`; amend the `IsShredded`/`IsExpired` doc comments (no longer mutually exclusive).
 4. `MartenOperationAuditStore.cs` (`MapToAuditEntry`) and `MartenReadAuditStore.cs` (`MapToReadAuditEntry`): parse `MetadataJson` only when it is not one of the three configured placeholders (the existing `[SHREDDED]`/`[EXPIRED]` skip, extended to `[UNREADABLE]` and made value-based, M1); the stores read the placeholders from their injected `MartenOperationAuditOptions`. `MapToAuditEntry` and `MapToReadAuditEntry` are `internal static` with one parameter today, so they become instance methods (or take the options); the existing tests that call them statically change.
-5. `PublicAPI.Unshipped.txt`, coverage manifest. Per-file targets for later phases' files are staged: each phase adds the targets of the files it touches, a temporary 0 only with a one-sentence reason naming the later phase.
+5. `PublicAPI.Unshipped.txt`, coverage manifest. Coverage rule for every code phase (AGENTS.md section 9): the PR that adds or touches a `src/` file carries the tests that reach demanding, realistic per-flag targets for that file in `.github/coverage-manifest/Encina.Audit.Marten.json`: unit and guard tests always, contract tests for new public interfaces and enums, property tests for the logic that is complex (ids, hash, outcome mapping), integration tests where the file needs real Marten. A target of 0 is allowed only where the flag cannot exercise the file (coverage methodology, "Per-file targets and justifications"); "the tests arrive in a later phase" never justifies a 0. A phase that cannot carry its tests within the size rule is split further instead.
 6. Tests: query tests that a resolved event (`[UNREADABLE]` metadata, per-field `Shredded` with readable metadata) does not throw and returns the expected entry, in the existing store test files; update `EncryptedFieldTests.cs`, `EncryptedFieldUnreadableTests.cs` (every failure reason through the non-throwing read), `MartenOperationAuditOptionsTests.cs`; property test `AuditMartenEncryptedFieldProperties.cs` (the throwing and non-throwing reads agree).
 
 </details>
@@ -634,7 +685,7 @@ REFERENCE FILES: src/Encina.Audit.Marten/Projections/OperationAuditEntryProjecti
 
 1. `Resolution/IAuditProjectionResolver.cs`, `AuditProjectionResolver.cs` (internal sealed, scoped), `AuditResolutionDecision.cs`, `AuditResolutionBatchResult.cs`. Constructor dependencies (proposal): `IDocumentSession`, `IServiceScopeFactory` (the audit store is resolved in its own scope, as `PersistentPolicyAdministrationPoint` does, so a failed document write cannot taint the audit session), `IRequestContextAccessor`, `IOptions<MartenOperationAuditOptions>`, `TimeProvider`, `ILogger<AuditProjectionResolver>`.
 1a. Open decisions first (choices 13 and 15): the permission gate of option C, if chosen (option, validation, `Left` `audit.marten.resolution_forbidden`, checked before validation and before any audit write) and the bulk result shape; plus `AuditResolutionLimits.ReasonMaxLength = 500` (choice 16, counted after trimming; a new public type: PublicAPI line and manifest entry, one more file in the Phase 4 count).
-2. Flow per write: read the actor once (`Left` `audit.marten.resolution_principal_required` when anonymous) → validate (field set, reason, reference, event exists by `IEvent.Id`) → load the existing document (identical → `Right`, no second entry; different kind → `Left` conflict) → write the audit entry and await it (a `Left`, an exception or the 30 s timeout fails the resolution) → insert the document and save → on a duplicate-key error reload the stored document and compare (identical returns `Right`, different returns `Left` conflict); on any other failed save write a second entry with outcome `Error` and return `Left`. `RemoveAsync` follows the same order with its own action.
+2. Flow per write: read the actor once (`Left` `audit.marten.resolution_principal_required` when anonymous) → validate (field set, reason, reference, event exists by `IEvent.Id`) → load the existing document (identical → `Right`, no new entry; different kind → `Left` conflict) → write the write-ahead audit entry and await it (a `Left`, an exception or the 30 s timeout fails the resolution) → insert the document and save → on a duplicate-key error reload and compare: identical returns `Right` with a linked `Success` entry, different returns `Left` conflict with a linked `Error` entry; any other failed save writes a linked `Error` entry and returns `Left` (every attempt is audited, see the algorithm section). `RemoveAsync` follows the same order with its own action and deletes the loaded instance with its revision (`Revision` on the document, numeric revisions on the table), mapping a concurrency exception to `Left` conflict plus a linked `Error` entry. The hash serialization is fixed in choice 6.
 3. `ServiceCollectionExtensions.cs`: `TryAddScoped<IAuditProjectionResolver, AuditProjectionResolver>()` and `TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>()`.
 4. `PublicAPI.Unshipped.txt`, coverage manifest.
 5. Tests: unit (every `Left` path, idempotent repeat writes no second entry, audit failure persists no document, entry content: no reason in the document, hash recomputable), guard (every public method and constructor), DI test (`ValidateOnBuild` and `ValidateScopes`, store wins in any registration order); integration of the resolver against real Marten for at least `MarkUnreadableAsync` and the audit-failure case.
@@ -682,7 +733,7 @@ REFERENCE FILES: src/Encina.Audit.Marten/Diagnostics/MartenAuditMeter.cs, src/En
 
 ### Phase 6: Testing — Full-Flow Integration, Property, Contract & Justification Files
 
-> **Goal**: Every coverage flag reaches its target and the issue's acceptance tests exist. **Size**: 9 files, ~800 lines. PR 6, `Refs #3049`.
+> **Goal**: The cross-phase acceptance tests exist and the final coverage proof is run. Each earlier code phase already carries the unit, guard, contract and property tests of its own files at their per-file targets (see the coverage rule in Phase 2); this PR adds the full-flow integration scenarios, the cross-phase property tests and the justification files. **Size**: 9 files, ~800 lines. PR 6, `Refs #3049`.
 
 <details>
 <summary><strong>Tasks</strong></summary>
@@ -835,7 +886,7 @@ REFERENCE FILES: docs/plans/audit-projection-resolver-implementation-plan-3049.m
 | 4 | Health Checks | ⏭️ | The resolver's only dependency is the Marten store the existing check already probes; a check for a paused shard needs an in-process daemon and is tracked by #3027 (D40). |
 | 5 | Validation | ✅ | The resolver validates trail and field, kind, reason, references and event existence and returns `Left` (D41, Phase 4). |
 | 6 | Resilience | ❌ | No external system beyond the Marten store; one awaited write with the 30 s audit-write timeout copied from `PersistentPolicyAdministrationPoint` (D42). |
-| 7 | Distributed Locks | ❌ | Concurrent resolutions of one key are serialised by the deterministic id and the store's uniqueness plus the conflict rule (D43). |
+| 7 | Distributed Locks | ❌ | Concurrent inserts of one key are decided by the deterministic id (primary-key uniqueness) and concurrent removals by a revision-checked delete (numeric revisions), each with the conflict rule and a linked audit entry for the loser (D43); no lock provider is needed. |
 | 8 | Transactions | ❌ | One document write per resolution; audit-first ordering replaces a shared unit of work (D44). |
 | 9 | Idempotency | ✅ | An identical repeat returns `Right` and writes no second audit entry (D45, Phase 4). |
 | 10 | Multi-Tenancy | ✅ | The document copies the event's `TenantId`; the entry carries the actor's tenant; no isolation check because the shard is global across tenants (D34, D46). |
@@ -897,3 +948,4 @@ REFERENCE FILES: docs/plans/audit-projection-resolver-implementation-plan-3049.m
 13. (2026-11-03) **Dilemma, awaiting the maintainer's answer**: who may call the resolver (choice 13). Options: A host-side authorisation, C required permission `audit:resolve` in `MartenOperationAuditOptions` with no opt-out (recommended), D replaceable authorizer. Phase 4 does not start before the answer.
 14. (2026-11-03) **Dilemma, awaiting the maintainer's answer**: precedence between an `All`, a field-specific and an `Excluded` resolution (choice 14). Recommended: `Excluded` wins, a field-specific resolution wins over `All` for its own field. The precedence code of Phase 3 does not start before the answer.
 15. (2026-11-03) **Dilemma, awaiting the maintainer's answer**: shape of the bulk helper (choice 15). Options: stop at the first `Left`, continue with per-event results, or the hybrid (recommended). Phase 4 does not start before the answer.
+18. (2026-11-03) **Dilemma, awaiting the maintainer's answer**: how the query stores read `MetadataJson` independently of the configured placeholders (choice 18). Options: a persisted `MetadataJsonMasked` discriminator on the read models (recommended), a value rule over current options plus built-in defaults (interim in Phase 2), or defensive parsing. The Phase 3 discriminator work does not start before the answer.
