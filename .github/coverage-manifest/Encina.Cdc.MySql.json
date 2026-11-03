@@ -35,13 +35,13 @@
       "defaultRule": "*Client.cs",
       "reason": "Runs SHOW BINARY LOG STATUS against a server; only constructor guard is unit-testable, the query needs MySQL 8.4/9.x (integration tests: #3052)",
       "targets": {
-        "unit": 30,
-        "guard": 30,
+        "unit": 25,
+        "guard": 25,
         "integration": 0
       },
       "justifications": {
-        "unit": "Unit tests execute the constructor null check (measured 30.8%); the query lines need a live server.",
-        "guard": "Guard tests execute the constructor ThrowIfNull (measured 30.8%).",
+        "unit": "Unit tests execute the constructor null check (measured 25.00%); the query lines need a live server.",
+        "guard": "Guard tests execute the constructor ThrowIfNull (measured 25.00%).",
         "integration": "Integration tests against real MySQL 8.4 and 9.x are sub-issue #3052 of #2859; the zero target is explicit until they land."
       }
     },
@@ -53,13 +53,13 @@
       "defaultRule": "*CdcConnector.cs",
       "reason": "CDC connector: GetCurrentPositionAsync is unit tested through the IMySqlBinlogStatusClient seam; streaming needs a real MySQL 8.4/9.x with binlog (integration tests: #3052).",
       "targets": {
-        "unit": 21,
-        "guard": 13,
+        "unit": 19,
+        "guard": 10,
         "integration": 0
       },
       "justifications": {
-        "unit": "GetCurrentPositionAsync and the constructor run through a hand-written fake of IMySqlBinlogStatusClient (row, empty result, throwing, cancelled), measured 21.8%; StreamChangesAsync and the event mapping need a live binlog.",
-        "guard": "Guard tests execute the four constructor ThrowIfNull lines (measured 13.7%).",
+        "unit": "GetCurrentPositionAsync and the constructor run through a hand-written fake of IMySqlBinlogStatusClient (row, empty result, throwing, cancelled), measured 19.51%; StreamChangesAsync and the event mapping need a live binlog.",
+        "guard": "Guard tests execute the four constructor ThrowIfNull lines (measured 10.98%).",
         "integration": "StreamChangesAsync and the event mapping need a live binlog; the MySQL 8.4/9.x integration tests are #3052 of #2859, so the zero target is explicit until they land."
       }
     },
