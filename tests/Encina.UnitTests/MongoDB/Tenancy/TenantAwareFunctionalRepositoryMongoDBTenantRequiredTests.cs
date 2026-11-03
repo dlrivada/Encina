@@ -50,7 +50,7 @@ public sealed class TenantAwareFunctionalRepositoryMongoDBTenantRequiredTests
         var validateOnModify = !operation.EndsWith("NoOwnershipCheck", StringComparison.Ordinal);
         var repository = CreateRepository(collection, tenantId, new MongoDbTenancyOptions
         {
-            ThrowOnMissingTenantContext = true,
+            RequireTenantContext = true,
             ValidateTenantOnModify = validateOnModify
         });
         var order = new MongoTenantTestOrder { Id = Guid.NewGuid(), IsActive = true };
@@ -71,7 +71,7 @@ public sealed class TenantAwareFunctionalRepositoryMongoDBTenantRequiredTests
     {
         // Arrange
         var collection = Substitute.For<IMongoCollection<MongoTenantTestOrder>>();
-        var repository = CreateRepository(collection, null, new MongoDbTenancyOptions { ThrowOnMissingTenantContext = false });
+        var repository = CreateRepository(collection, null, new MongoDbTenancyOptions { RequireTenantContext = false });
         var order = new MongoTenantTestOrder { Id = Guid.NewGuid() };
 
         // Act
@@ -144,7 +144,7 @@ public sealed class TenantAwareFunctionalRepositoryMongoDBTenantRequiredTests
             .Returns(Task.FromResult<DeleteResult>(new DeleteResult.Acknowledged(1)));
         collection.ReplaceOneAsync(Arg.Any<FilterDefinition<MongoTenantTestOrder>>(), Arg.Any<MongoTenantTestOrder>(), Arg.Any<ReplaceOptions>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<ReplaceOneResult>(new ReplaceOneResult.Acknowledged(1, 1, null)));
-        var repository = CreateRepository(collection, null, new MongoDbTenancyOptions { ThrowOnMissingTenantContext = false });
+        var repository = CreateRepository(collection, null, new MongoDbTenancyOptions { RequireTenantContext = false });
 
         // Act
         var count = await repository.CountAsync();

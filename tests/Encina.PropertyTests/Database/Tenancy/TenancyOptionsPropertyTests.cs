@@ -129,7 +129,7 @@ public sealed class TenancyOptionsPropertyTests
         options.AutoFilterTenantQueries.ShouldBeTrue("AutoFilter must default to true for security");
         options.AutoAssignTenantId.ShouldBeTrue("AutoAssign must default to true for convenience");
         options.ValidateTenantOnModify.ShouldBeTrue("Validation must default to true for security");
-        options.ThrowOnMissingTenantContext.ShouldBeTrue("Throw must default to true to prevent data leaks");
+        options.RequireTenantContext.ShouldBeTrue("RequireTenantContext must default to true to prevent data leaks");
         options.TenantFieldName.ShouldBe("TenantId", "Default field name must be 'TenantId'");
     }
 

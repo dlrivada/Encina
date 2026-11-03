@@ -74,7 +74,7 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
             AutoFilterTenantQueries = true,
             AutoAssignTenantId = true,
             ValidateTenantOnModify = true,
-            ThrowOnMissingTenantContext = true
+            RequireTenantContext = true
         };
 
         return ValueTask.CompletedTask;
@@ -744,7 +744,7 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
     }
 
     [Fact]
-    public async Task Operations_WithoutTenantContext_AreUnchanged_WhenThrowOnMissingTenantContextIsFalse()
+    public async Task Operations_WithoutTenantContext_AreUnchanged_WhenRequireTenantContextIsFalse()
     {
         SkipIfNotAvailable();
         await ClearDataAsync();
@@ -752,7 +752,7 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
         // Arrange
         await _collection!.InsertManyAsync([CreateDocument("T1", Tenant1), CreateDocument("T2", Tenant2)]);
         _tenantProvider!.SetNoTenant(null);
-        _options!.ThrowOnMissingTenantContext = false;
+        _options!.RequireTenantContext = false;
         var repository = CreateRepository();
         var document = CreateDocument("Unscoped", string.Empty);
 

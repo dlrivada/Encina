@@ -61,17 +61,18 @@ public sealed class TenancyMessagingOptions
     public bool UseQueryFilters { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets whether to throw exceptions when tenant context is missing.
+    /// Gets or sets whether an operation that needs a tenant context is refused when none is resolved.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// When enabled, operations requiring a tenant context (like saving tenant entities)
-    /// will throw an exception if no tenant is resolved.
+    /// This is the messaging-level declaration of the setting; the messaging package itself reads no
+    /// behaviour from it. Each provider's own tenancy options (for example
+    /// <c>MongoDbTenancyOptions.RequireTenantContext</c>) decide how a refusal is reported.
     /// </para>
     /// <para>
-    /// Disable this for scenarios where admin/system operations run without tenant context.
+    /// Set it to <c>false</c> for scenarios where admin/system operations run without tenant context.
     /// </para>
     /// </remarks>
     /// <value>Default: true</value>
-    public bool ThrowOnMissingTenantContext { get; set; } = true;
+    public bool RequireTenantContext { get; set; } = true;
 }
