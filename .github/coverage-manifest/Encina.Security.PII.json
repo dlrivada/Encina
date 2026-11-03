@@ -17,20 +17,22 @@
     "Diagnostics/PIILogMessages.cs": { "defaultTests": [], "reason": "Source-generated [LoggerMessage] — no guards" },
     "Health/PIIHealthCheck.cs": { "defaultTests": ["unit"], "reason": "Health check — no constructor guards" },
     "Internal/PIIPropertyScanner.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit", "property"],
+      "reason": "Reflection-based property scanner; its branches are reached through unit tests and generated DTOs",
+      "targets": { "unit": 95, "property": 70 },
+      "justifications": {
+        "unit": "Every branch (property, class, log-only, precedence, non-string unmaskable, get-only) is reached through GetProperties by the scanner unit tests; only the ArgumentException catch of CompileSetter is unreachable with a plain DTO (measured 97%).",
+        "property": "Property tests run the scanner through MaskObject and MaskForLog on generated DTOs; the unmaskable and class-level log branches are covered by unit tests (measured 76%)."
+      }
     },
     "Internal/PropertyMaskingMetadata.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit", "property"],
+      "reason": "Compiled property accessor metadata used by the scanner",
+      "targets": { "unit": 90, "property": 70 },
+      "justifications": {
+        "unit": "Constructor, GetValue and the throwing SetValue branch of the no-setter case are exercised by the scanner and masker unit tests (measured 91%).",
+        "property": "Property tests build the metadata through the scanner and read and set values on generated DTOs (measured 77%); the no-setter branch is covered by unit tests."
+      }
     },
     "MaskingMode.cs": { "defaultTests": ["unit"], "reason": "Enum — no guards" },
     "MaskingOptions.cs": {
@@ -62,8 +64,24 @@
       }
     },
     "PIIMaskingPipelineBehavior.cs": { "defaultTests": ["unit", "guard"], "reason": "Pipeline behavior with ThrowIfNull guards on constructor" },
-    "PIIOptions.cs": { "defaultTests": ["unit", "guard"], "reason": "Options with ThrowIfNull validation guards" },
-    "PIIOptionsValidator.cs": { "defaultTests": ["unit", "guard"], "reason": "Options validator with a ThrowIfNull guard on Validate" },
+    "PIIOptions.cs": {
+      "defaultTests": ["unit", "guard"],
+      "reason": "Options with ThrowIfNull validation guards",
+      "targets": { "unit": 95, "guard": 50 },
+      "justifications": {
+        "unit": "Defaults, setters, validation and ToString of the options are exercised by PIIOptionsTests (measured 100%).",
+        "guard": "Guard tests cover the null and range checks of the options setters (measured 57%); the remaining lines are defaults and ToString covered by unit tests."
+      }
+    },
+    "PIIOptionsValidator.cs": {
+      "defaultTests": ["unit", "guard"],
+      "reason": "Options validator with a ThrowIfNull guard on Validate",
+      "targets": { "unit": 95, "guard": 75 },
+      "justifications": {
+        "unit": "Both opt-out warnings (AllowUnkeyedHash and MaskInLogs = false, EventId 8019 and 8024) and their once-per-process behaviour run with a FakeLogger and the real validator (measured 100%).",
+        "guard": "Guard tests execute the ThrowIfNull of Validate and the failure paths up to the log branches (measured 78%); the opt-out logging is behaviour covered by unit tests."
+      }
+    },
     "PIIType.cs": { "defaultTests": ["unit"], "reason": "Enum — no guards" },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": ["unit", "guard"],
