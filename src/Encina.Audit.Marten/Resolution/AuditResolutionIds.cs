@@ -21,15 +21,25 @@ internal static class AuditResolutionIds
     /// Returns whether <paramref name="field"/> may be resolved on <paramref name="trail"/>:
     /// <see cref="AuditResolutionField.All"/> on either, otherwise only the fields of that trail's read model.
     /// </summary>
-    internal static bool IsValid(AuditResolutionTrail trail, AuditResolutionField field) => (trail, field) switch
-    {
-        (_, AuditResolutionField.All) => true,
-        (_, AuditResolutionField.UserId or AuditResolutionField.MetadataJson) => Enum.IsDefined(trail),
-        (AuditResolutionTrail.Operation, AuditResolutionField.IpAddress
-            or AuditResolutionField.UserAgent
-            or AuditResolutionField.RequestPayload
-            or AuditResolutionField.ResponsePayload) => true,
-        (AuditResolutionTrail.Read, AuditResolutionField.Purpose) => true,
-        _ => false
-    };
+    internal static bool IsValid(AuditResolutionTrail trail, AuditResolutionField field) =>
+        field == AuditResolutionField.All
+        || (OperationFields.Contains(field) && trail == AuditResolutionTrail.Operation)
+        || (ReadFields.Contains(field) && trail == AuditResolutionTrail.Read);
+
+    private static readonly HashSet<AuditResolutionField> OperationFields =
+    [
+        AuditResolutionField.UserId,
+        AuditResolutionField.IpAddress,
+        AuditResolutionField.UserAgent,
+        AuditResolutionField.RequestPayload,
+        AuditResolutionField.ResponsePayload,
+        AuditResolutionField.MetadataJson
+    ];
+
+    private static readonly HashSet<AuditResolutionField> ReadFields =
+    [
+        AuditResolutionField.UserId,
+        AuditResolutionField.Purpose,
+        AuditResolutionField.MetadataJson
+    ];
 }

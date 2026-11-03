@@ -1,3 +1,4 @@
+using Encina.Audit.Marten;
 using Encina.Audit.Marten.Resolution;
 
 namespace Encina.GuardTests.AuditMarten;
@@ -8,6 +9,17 @@ namespace Encina.GuardTests.AuditMarten;
 /// </summary>
 public sealed class AuditResolutionGuardTests
 {
+    [Fact]
+    public void ResolutionErrorFactories_NeverThrowAndCarryTheirCodes()
+    {
+        MartenAuditErrors.ResolutionConflict().Message.ShouldNotBeNullOrWhiteSpace();
+        MartenAuditErrors.ResolutionPrincipalRequired().Message.ShouldNotBeNullOrWhiteSpace();
+        MartenAuditErrors.InvalidResolutionReason().Message.ShouldNotBeNullOrWhiteSpace();
+        MartenAuditErrors.ResolutionEventNotFound().Message.ShouldNotBeNullOrWhiteSpace();
+        MartenAuditErrors.InvalidResolutionField().GetCode().IfNone(string.Empty)
+            .ShouldBe(MartenAuditErrors.InvalidResolutionFieldCode);
+    }
+
     [Fact]
     public void Document_DefaultsAreEmptyAndCarryNoReasonProperty()
     {
