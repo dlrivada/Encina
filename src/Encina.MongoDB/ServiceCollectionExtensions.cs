@@ -621,8 +621,7 @@ public static class ServiceCollectionExtensions
             options.UseOutbox, options.OutboxOptions,
             options.UseInbox, options.InboxOptions,
             options.UseSagas, options.SagaOptions,
-            options.UseScheduling, options.SchedulingOptions,
-            OutboxWritePath.TransactionalBehavior);
+            options.UseScheduling, options.SchedulingOptions);
 
         services.AddDeadLetterQueueServices<DeadLetterStoreMongoDB, DeadLetterMessageFactory>(options.UseDeadLetterQueue, options.DeadLetterOptions);
     }

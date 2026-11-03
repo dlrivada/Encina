@@ -86,7 +86,7 @@ Connection strings are defined in `tests/appsettings.Testing.json`:
 |------------|-------------------------------------------------------|--------------|
 | SQL Server | `mcr.microsoft.com/mssql/server:2022-latest`          | ~15 seconds  |
 | PostgreSQL | `postgres:16-alpine`                                  | ~5 seconds   |
-| MySQL      | `mysql:8.0`                                           | ~10 seconds  |
+| MySQL      | `mysql:8.4`                                           | ~10 seconds  |
 | MongoDB    | `mongo:7`                                             | ~5 seconds   |
 
 #### Messaging

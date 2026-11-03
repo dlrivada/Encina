@@ -525,6 +525,251 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
         stored.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task GetPagedAsync_WithTenantContext_ReturnsOnlyTenantPage()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        await _collection!.InsertManyAsync([
+            CreateDocument("T1 Doc 1", Tenant1),
+            CreateDocument("T1 Doc 2", Tenant1),
+            CreateDocument("T1 Doc 3", Tenant1),
+            CreateDocument("T2 Doc 1", Tenant2)
+        ]);
+        _tenantProvider!.SetTenant(Tenant1);
+        var repository = CreateRepository();
+
+        // Act
+        var page = (await repository.GetPagedAsync(new PaginationOptions(1, 2))).ShouldBeSuccess();
+
+        // Assert
+        page.TotalCount.ShouldBe(3);
+        page.Items.Count.ShouldBe(2);
+        page.Items.ShouldAllBe(d => d.TenantId == Tenant1);
+    }
+
+    [Fact]
+    public async Task GetPagedAsync_WithSpecification_ReturnsOnlyMatchingTenantPage()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        await _collection!.InsertManyAsync([
+            CreateDocument("T1 High", Tenant1, 500m),
+            CreateDocument("T1 Low", Tenant1, 10m),
+            CreateDocument("T2 High", Tenant2, 500m)
+        ]);
+        _tenantProvider!.SetTenant(Tenant1);
+        var repository = CreateRepository();
+
+        // Act
+        var page = (await repository.GetPagedAsync(new HighValueDocumentSpec(), new PaginationOptions(1, 10))).ShouldBeSuccess();
+        var empty = (await repository.GetPagedAsync(new HighValueDocumentSpec(), new PaginationOptions(5, 10))).ShouldBeSuccess();
+        var viaPagedSpec = (await repository.GetPagedAsync(new HighValuePagedDocumentSpec())).ShouldBeSuccess();
+
+        // Assert
+        page.TotalCount.ShouldBe(1);
+        page.Items.Single().Name.ShouldBe("T1 High");
+        empty.Items.Count.ShouldBe(0);
+        viaPagedSpec.TotalCount.ShouldBe(1);
+        viaPagedSpec.Items.Single().Name.ShouldBe("T1 High");
+    }
+
+    [Fact]
+    public async Task GetPagedAsync_WithNoTenantData_ReturnsEmptyPage()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        await _collection!.InsertOneAsync(CreateDocument("T2 Doc", Tenant2));
+        _tenantProvider!.SetTenant(Tenant1);
+        var repository = CreateRepository();
+
+        // Act
+        var plain = (await repository.GetPagedAsync(new PaginationOptions(1, 10))).ShouldBeSuccess();
+        var withSpec = (await repository.GetPagedAsync(new HighValueDocumentSpec(), new PaginationOptions(1, 10))).ShouldBeSuccess();
+
+        // Assert
+        plain.Items.Count.ShouldBe(0);
+        withSpec.Items.Count.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task FirstOrDefaultAsync_WithSpecification_ReturnsOnlyTenantMatch()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        await _collection!.InsertManyAsync([
+            CreateDocument("T2 High", Tenant2, 500m),
+            CreateDocument("T1 High", Tenant1, 500m)
+        ]);
+        _tenantProvider!.SetTenant(Tenant1);
+        var repository = CreateRepository();
+
+        // Act
+        var found = (await repository.FirstOrDefaultAsync(new HighValueDocumentSpec())).ShouldBeSuccess();
+
+        // Assert
+        found.Name.ShouldBe("T1 High");
+    }
+
+    [Fact]
+    public async Task DeleteRangeAsync_WithSpecification_DeletesOnlyTenantMatches()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        await _collection!.InsertManyAsync([
+            CreateDocument("T1 High", Tenant1, 500m),
+            CreateDocument("T2 High", Tenant2, 500m)
+        ]);
+        _tenantProvider!.SetTenant(Tenant1);
+        var repository = CreateRepository();
+
+        // Act
+        var deleted = (await repository.DeleteRangeAsync(new HighValueDocumentSpec())).ShouldBeSuccess();
+
+        // Assert
+        deleted.ShouldBe(1);
+        (await _collection!.CountDocumentsAsync(Builders<TenantTestDocument>.Filter.Empty)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task UpdateRangeAsync_SameTenant_UpdatesAllEntities()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        var first = CreateDocument("First", Tenant1);
+        var second = CreateDocument("Second", Tenant1);
+        await _collection!.InsertManyAsync([first, second]);
+        _tenantProvider!.SetTenant(Tenant1);
+        var repository = CreateRepository();
+
+        // Act
+        first.Name = "First updated";
+        second.Name = "Second updated";
+        var result = await repository.UpdateRangeAsync([first, second]);
+        var empty = await repository.UpdateRangeAsync([]);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        empty.IsRight.ShouldBeTrue();
+        var names = (await _collection!.Find(Builders<TenantTestDocument>.Filter.Empty).ToListAsync()).Select(d => d.Name);
+        names.ShouldBe(["First updated", "Second updated"], ignoreOrder: true);
+    }
+
+    #endregion
+
+    #region Missing Tenant Context Tests
+
+    public static TheoryData<string, string?> MissingTenantOperations()
+    {
+        var data = new TheoryData<string, string?>();
+        foreach (var tenantId in new string?[] { null, string.Empty })
+        {
+            foreach (var operation in AllOperations)
+            {
+                data.Add(operation, tenantId);
+            }
+        }
+
+        return data;
+    }
+
+    private static readonly string[] AllOperations =
+    [
+        "GetById", "List", "ListSpec", "FirstOrDefault", "Count", "CountSpec", "Any", "AnySpec",
+        "GetPaged", "GetPagedSpec", "Add", "AddRange", "Update", "UpdateRange",
+        "DeleteById", "DeleteEntity", "DeleteRange"
+    ];
+
+    [Theory]
+    [MemberData(nameof(MissingTenantOperations))]
+    public async Task Operation_WithoutTenantContext_ReturnsTenantRequiredLeft_AndChangesNothing(
+        string operation,
+        string? tenantId)
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange - one stored document that must survive untouched
+        var stored = CreateDocument("Stored", Tenant1);
+        await _collection!.InsertOneAsync(stored);
+
+        _tenantProvider!.SetNoTenant(tenantId);
+        var repository = CreateRepository();
+        var spec = new HighValueDocumentSpec();
+        var candidate = CreateDocument("Candidate", Tenant1, 500m);
+
+        // Act
+        var error = operation switch
+        {
+            "GetById" => ErrorOf(await repository.GetByIdAsync(stored.Id)),
+            "List" => ErrorOf(await repository.ListAsync()),
+            "ListSpec" => ErrorOf(await repository.ListAsync(spec)),
+            "FirstOrDefault" => ErrorOf(await repository.FirstOrDefaultAsync(spec)),
+            "Count" => ErrorOf(await repository.CountAsync()),
+            "CountSpec" => ErrorOf(await repository.CountAsync(spec)),
+            "Any" => ErrorOf(await repository.AnyAsync()),
+            "AnySpec" => ErrorOf(await repository.AnyAsync(spec)),
+            "GetPaged" => ErrorOf(await repository.GetPagedAsync(new PaginationOptions(1, 10))),
+            "GetPagedSpec" => ErrorOf(await repository.GetPagedAsync(spec, new PaginationOptions(1, 10))),
+            "Add" => ErrorOf(await repository.AddAsync(candidate)),
+            "AddRange" => ErrorOf(await repository.AddRangeAsync([candidate])),
+            "Update" => ErrorOf(await repository.UpdateAsync(stored)),
+            "UpdateRange" => ErrorOf(await repository.UpdateRangeAsync([stored])),
+            "DeleteById" => ErrorOf(await repository.DeleteAsync(stored.Id)),
+            "DeleteEntity" => ErrorOf(await repository.DeleteAsync(stored)),
+            "DeleteRange" => ErrorOf(await repository.DeleteRangeAsync(spec)),
+            _ => throw new InvalidOperationException($"Unknown operation {operation}")
+        };
+
+        // Assert
+        error.ShouldNotBeNull();
+        error.Value.GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.TenantRequiredErrorCode);
+
+        var count = await _collection!.CountDocumentsAsync(Builders<TenantTestDocument>.Filter.Empty);
+        count.ShouldBe(1);
+        (await _collection.Find(Builders<TenantTestDocument>.Filter.Eq(d => d.Id, stored.Id)).FirstOrDefaultAsync())!
+            .Name.ShouldBe("Stored");
+    }
+
+    [Fact]
+    public async Task Operations_WithoutTenantContext_AreUnchanged_WhenThrowOnMissingTenantContextIsFalse()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange
+        await _collection!.InsertManyAsync([CreateDocument("T1", Tenant1), CreateDocument("T2", Tenant2)]);
+        _tenantProvider!.SetNoTenant(null);
+        _options!.ThrowOnMissingTenantContext = false;
+        var repository = CreateRepository();
+        var document = CreateDocument("Unscoped", string.Empty);
+
+        // Act
+        var list = (await repository.ListAsync()).ShouldBeSuccess();
+        var added = await repository.AddAsync(document);
+
+        // Assert - no tenant filter is applied and no tenant id is assigned
+        list.Count.ShouldBe(2);
+        added.IsRight.ShouldBeTrue();
+        var stored = await _collection!.Find(Builders<TenantTestDocument>.Filter.Eq(d => d.Id, document.Id)).FirstOrDefaultAsync();
+        stored.TenantId.ShouldBe(string.Empty);
+    }
+
+    private static EncinaError? ErrorOf<T>(Either<EncinaError, T> either)
+        => either.Match<EncinaError?>(Right: _ => null, Left: error => error);
+
     #endregion
 
     #region Helper Methods
@@ -548,6 +793,17 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
 }
 
 #region Test Entity and Specifications
+
+/// <summary>
+/// Paged specification for high-value documents (Amount > 100), first page of ten.
+/// </summary>
+public class HighValuePagedDocumentSpec : Specification<TenantTestDocument>, IPagedSpecification<TenantTestDocument>
+{
+    public PaginationOptions Pagination { get; } = new(1, 10);
+
+    public override Expression<Func<TenantTestDocument, bool>> ToExpression()
+        => d => d.Amount > 100;
+}
 
 /// <summary>
 /// Test document for MongoDB tenancy integration tests.
@@ -581,6 +837,11 @@ public sealed class TestTenantProvider : ITenantProvider
     private string? _currentTenantId;
 
     public void SetTenant(string tenantId)
+    {
+        _currentTenantId = tenantId;
+    }
+
+    public void SetNoTenant(string? tenantId)
     {
         _currentTenantId = tenantId;
     }
