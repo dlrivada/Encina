@@ -70,6 +70,50 @@ public sealed class AuditMartenEncryptedFieldProperties
         }
     }
 
+    [Property(MaxTest = 50)]
+    public bool NullPlaintext_StaysNullInEveryRead(NonNegativeInt unused)
+    {
+        var field = EncryptedField.Encrypt(null, Key, "kid-1");
+
+        return field.TryDecrypt(Key, out var plaintext, out _)
+            && plaintext is null
+            && field.Decrypt(Key) is null
+            && field.DecryptOrPlaceholder(null) is null;
+    }
+
+    [Property(MaxTest = 200)]
+    public bool LoneSurrogateInMarkedValue_IsMalformedInBothReads(NonNegativeInt offset)
+    {
+        var surrogate = (char)(0xD800 + (offset.Get % 0x400));
+        var field = new EncryptedField { Value = "{\"__enc\":true,\"kid\":\"" + surrogate + "\"}" };
+
+        return !field.TryDecrypt(Key, out _, out var reason)
+            && reason == EncryptedFieldDecryptionFailureReason.EnvelopeMalformed
+            && Throws(field, EncryptedFieldDecryptionFailureReason.EnvelopeMalformed);
+    }
+
+    [Property(MaxTest = 100)]
+    public bool DestroyedKey_ReadsAsPlaceholderWithoutTouchingTheEnvelope(string? placeholder)
+    {
+        var text = string.IsNullOrWhiteSpace(placeholder) ? "[SHREDDED]" : placeholder;
+        var field = EncryptedField.Encrypt("plain-secret", Key, "kid-1");
+
+        return field.DecryptOrPlaceholder(null, text) == text;
+    }
+
+    private static bool Throws(EncryptedField field, EncryptedFieldDecryptionFailureReason reason)
+    {
+        try
+        {
+            field.Decrypt(Key);
+            return false;
+        }
+        catch (EncryptedFieldDecryptionException ex)
+        {
+            return ex.Reason == reason;
+        }
+    }
+
     [Property(MaxTest = 200)]
     public bool RoundTrip_ReturnsThePlaintext(string? plaintext)
     {

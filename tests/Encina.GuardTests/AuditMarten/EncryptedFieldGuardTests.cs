@@ -44,4 +44,44 @@ public class EncryptedFieldGuardTests
 
         Should.Throw<ArgumentNullException>(() => field.Decrypt(null!));
     }
+
+    [Fact]
+    public void Decrypt_UnmarkedValue_ThrowsTypedFailure()
+    {
+        var field = new EncryptedField { Value = "not-an-envelope" };
+
+        Should.Throw<EncryptedFieldDecryptionException>(() => field.Decrypt(new byte[32]))
+            .Reason.ShouldBe(EncryptedFieldDecryptionFailureReason.NotEncrypted);
+    }
+
+    [Fact]
+    public void Decrypt_MalformedEnvelope_ThrowsTypedFailure()
+    {
+        var field = new EncryptedField { Value = "{\"__enc\":true,\"ct\":" };
+
+        Should.Throw<EncryptedFieldDecryptionException>(() => field.Decrypt(new byte[32]))
+            .Reason.ShouldBe(EncryptedFieldDecryptionFailureReason.EnvelopeMalformed);
+    }
+
+    [Fact]
+    public void Decrypt_WrongKeyLength_ThrowsTypedFailure()
+    {
+        var key = new byte[32];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(key);
+        var field = EncryptedField.Encrypt("test", key, "key-1");
+
+        Should.Throw<EncryptedFieldDecryptionException>(() => field.Decrypt(new byte[16]))
+            .Reason.ShouldBe(EncryptedFieldDecryptionFailureReason.InvalidKeyOrParameters);
+    }
+
+    [Fact]
+    public void Decrypt_WrongKey_ThrowsIntegrityFailure()
+    {
+        var key = new byte[32];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(key);
+        var field = EncryptedField.Encrypt("test", key, "key-1");
+
+        Should.Throw<EncryptedFieldDecryptionException>(() => field.Decrypt(new byte[32]))
+            .Reason.ShouldBe(EncryptedFieldDecryptionFailureReason.IntegrityCheckFailed);
+    }
 }
