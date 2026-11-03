@@ -258,7 +258,7 @@ public sealed class TransactionalOutboxRegistrationTests
             FakeInboxStore, StubInboxFactory,
             FakeSagaStore, StubSagaFactory,
             FakeScheduledMessageStore, StubScheduledFactory,
-            StubOutboxProcessor>(AllBehaviors(), OutboxWritePath.TransactionalBehavior);
+            StubOutboxProcessor>(AllBehaviors());
 
         BehaviorOrder(services).ShouldBe(
         [
@@ -267,26 +267,7 @@ public sealed class TransactionalOutboxRegistrationTests
             typeof(TransactionalOutboxPipelineBehavior<,>),
             typeof(InboxPipelineBehavior<,>)
         ]);
-    }
-
-    [Fact]
-    public void AddMessagingServices_PostProcessorPath_KeepsRecoverabilityOutsideTheTransaction()
-    {
-        var services = new ServiceCollection();
-        services.AddMessagingServices<
-            FakeOutboxStore, FakeOutboxMessageFactory,
-            FakeInboxStore, StubInboxFactory,
-            FakeSagaStore, StubSagaFactory,
-            FakeScheduledMessageStore, StubScheduledFactory,
-            StubOutboxProcessor>(AllBehaviors());
-
-        BehaviorOrder(services).ShouldBe(
-        [
-            typeof(RecoverabilityPipelineBehavior<,>),
-            typeof(TransactionPipelineBehavior<,>),
-            typeof(InboxPipelineBehavior<,>)
-        ]);
-        services.ShouldContain(d => d.ServiceType == typeof(IRequestPostProcessor<,>));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IRequestPostProcessor<,>));
     }
 
     [Fact]
@@ -296,7 +277,7 @@ public sealed class TransactionalOutboxRegistrationTests
         services.AddMessagingServicesCore<
             FakeOutboxStore, FakeOutboxMessageFactory,
             FakeInboxStore, StubInboxFactory,
-            StubOutboxProcessor>(AllBehaviors(), OutboxWritePath.TransactionalBehavior);
+            StubOutboxProcessor>(AllBehaviors());
 
         BehaviorOrder(services).ShouldBe(
         [
@@ -306,10 +287,11 @@ public sealed class TransactionalOutboxRegistrationTests
             typeof(InboxPipelineBehavior<,>)
         ]);
         services.ShouldContain(d => d.ServiceType == typeof(IDbTransactionAccessor));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IRequestPostProcessor<,>));
     }
 
     [Fact]
-    public void AddOutboxInboxSagaSchedulingServices_Public_RegistersNoAccessorAndTheInterimPostProcessor()
+    public void AddOutboxInboxSagaSchedulingServices_Public_RegistersNoAccessorAndTheTransactionalBehavior()
     {
         var services = new ServiceCollection();
 
@@ -325,8 +307,8 @@ public sealed class TransactionalOutboxRegistrationTests
             useScheduling: false, new SchedulingOptions());
 
         services.ShouldNotContain(d => d.ServiceType == typeof(IDbTransactionAccessor));
-        services.ShouldContain(d => d.ServiceType == typeof(IRequestPostProcessor<,>));
-        services.ShouldNotContain(d => d.ImplementationType == typeof(TransactionalOutboxPipelineBehavior<,>));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IRequestPostProcessor<,>));
+        services.ShouldContain(d => d.ImplementationType == typeof(TransactionalOutboxPipelineBehavior<,>));
     }
 
     [Fact]
@@ -339,11 +321,11 @@ public sealed class TransactionalOutboxRegistrationTests
             FakeInboxStore, StubInboxFactory,
             FakeSagaStore, StubSagaFactory,
             FakeScheduledMessageStore, StubScheduledFactory,
-            StubOutboxProcessor>(null!, OutboxWritePath.TransactionalBehavior));
+            StubOutboxProcessor>(null!));
         Should.Throw<ArgumentNullException>(() => services.AddMessagingServicesCore<
             FakeOutboxStore, FakeOutboxMessageFactory,
             FakeInboxStore, StubInboxFactory,
-            StubOutboxProcessor>(null!, OutboxWritePath.TransactionalBehavior));
+            StubOutboxProcessor>(null!));
     }
 
     private static MessagingConfiguration AllBehaviors()
