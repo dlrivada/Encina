@@ -9,10 +9,17 @@
   "files": {
     "Configuration/IdGenerationOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "guard": 50
+      },
+      "justifications": {
+        "guard": "Guard tests drive UseSnowflake and UseShardPrefixed through AddEncinaIdGeneration with invalid configuration; the remaining fluent members are unit-tested."
+      }
     },
     "Configuration/ShardPrefixedOptions.cs": {
       "defaultTests": [
@@ -24,16 +31,19 @@
     "Configuration/SnowflakeOptions.cs": {
       "defaultTests": [
         "unit",
+        "guard",
         "property",
         "contract"
       ],
       "defaultRule": "*Options.cs",
       "reason": "Configuration POCO with defaults and validation",
       "targets": {
+        "guard": 90,
         "property": 50,
         "contract": 50
       },
       "justifications": {
+        "guard": "Guard tests construct SnowflakeIdGenerator with invalid bit allocations and machine ids, which runs the Validate argument checks.",
         "property": "Property tests vary bit allocations and check the derived maxima; invalid combinations are guard-tested.",
         "contract": "Contract tests assert the documented defaults and derived maxima of the options."
       }
