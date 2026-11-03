@@ -41,6 +41,12 @@ public static class MessagingServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="config">The messaging configuration.</param>
     /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// When <see cref="MessagingConfiguration.UseOutbox"/> is enabled this registers
+    /// <c>TransactionalOutboxPipelineBehavior&lt;,&gt;</c>, which writes the notifications of an
+    /// <c>IHasNotifications</c> response inside the request's transaction. The provider must register an
+    /// <see cref="ITransactionLeaseSource"/> (every database provider does).
+    /// </remarks>
     [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
         Justification = "Nine generic parameters are required to support provider-specific implementations for all messaging patterns (Outbox, Inbox, Saga, Scheduling). This is an internal API used by provider packages.")]
     public static IServiceCollection AddMessagingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
@@ -56,11 +62,12 @@ public static class MessagingServiceCollectionExtensions
         where TScheduledFactory : class, IScheduledMessageFactory
         where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
         => services.AddMessagingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
-            config, OutboxWritePath.PostProcessor);
+            config, OutboxWritePath.TransactionalBehavior);
 
     /// <summary>
     /// <see cref="AddMessagingServices{TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor}(IServiceCollection, MessagingConfiguration)"/>
-    /// with the outbox write path of the calling provider family (interim switch, #718).
+    /// with an explicit <see cref="OutboxWritePath"/>. The public forms register the transactional
+    /// behavior; this internal overload is retained for the next change of #718.
     /// </summary>
     [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
         Justification = "Nine generic parameters are required to support provider-specific implementations for all messaging patterns (Outbox, Inbox, Saga, Scheduling). This is an internal API used by provider packages.")]
@@ -220,6 +227,12 @@ public static class MessagingServiceCollectionExtensions
     /// registrations - including <see cref="ISagaRunner"/> and <see cref="ISagaNotFoundDispatcher"/> -
     /// never drift between providers (#1333).
     /// </para>
+    /// <para>
+    /// When <paramref name="useOutbox"/> is enabled this registers
+    /// <c>TransactionalOutboxPipelineBehavior&lt;,&gt;</c>, which writes the notifications of an
+    /// <c>IHasNotifications</c> response inside the request's transaction. The provider must register an
+    /// <see cref="ITransactionLeaseSource"/> (every database provider does).
+    /// </para>
     /// </remarks>
     [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
         Justification = "Nine generic parameters are required to support provider-specific implementations for all messaging patterns (Outbox, Inbox, Saga, Scheduling). This is an internal API used by provider packages.")]
@@ -247,15 +260,18 @@ public static class MessagingServiceCollectionExtensions
             useInbox, inboxOptions,
             useSagas, sagaOptions,
             useScheduling, schedulingOptions,
-            OutboxWritePath.PostProcessor);
+            OutboxWritePath.TransactionalBehavior);
 
     /// <summary>
     /// <see cref="AddOutboxInboxSagaSchedulingServices{TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor}(IServiceCollection, bool, OutboxOptions, bool, InboxOptions, bool, SagaOptions, bool, SchedulingOptions)"/>
-    /// with the outbox write path of the calling provider family (interim switch, #718).
+    /// with an explicit <see cref="OutboxWritePath"/>. The public forms register the transactional
+    /// behavior; this internal overload is retained for the next change of #718.
     /// </summary>
     /// <remarks>
     /// <see cref="OutboxWritePath.TransactionalBehavior"/> needs an <see cref="Transactions.ITransactionLeaseSource"/>
-    /// in the container; the ADO.NET callers register it before calling.
+    /// in the container. The accessor is registered inside <c>AddMessagingServices</c> and
+    /// <c>AddMessagingServicesCore</c> (ADO.NET and Dapper, through <c>AddDbTransactionAccessor</c>)
+    /// and by the EF Core and MongoDB registrations before the outbox is used.
     /// </remarks>
     [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
         Justification = "Nine generic parameters are required to support provider-specific implementations for all messaging patterns (Outbox, Inbox, Saga, Scheduling). This is an internal API used by provider packages.")]
@@ -444,6 +460,12 @@ public static class MessagingServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="config">The messaging configuration.</param>
     /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// When <see cref="MessagingConfiguration.UseOutbox"/> is enabled this registers
+    /// <c>TransactionalOutboxPipelineBehavior&lt;,&gt;</c>, which writes the notifications of an
+    /// <c>IHasNotifications</c> response inside the request's transaction. The provider must register an
+    /// <see cref="ITransactionLeaseSource"/> (every database provider does).
+    /// </remarks>
     [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
         Justification = "Five generic parameters are required to support provider-specific implementations for core messaging patterns (Outbox, Inbox). This is an internal API used by provider packages.")]
     public static IServiceCollection AddMessagingServicesCore<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TOutboxProcessor>(
@@ -455,11 +477,12 @@ public static class MessagingServiceCollectionExtensions
         where TInboxFactory : class, IInboxMessageFactory
         where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
         => services.AddMessagingServicesCore<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TOutboxProcessor>(
-            config, OutboxWritePath.PostProcessor);
+            config, OutboxWritePath.TransactionalBehavior);
 
     /// <summary>
     /// <see cref="AddMessagingServicesCore{TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TOutboxProcessor}(IServiceCollection, MessagingConfiguration)"/>
-    /// with the outbox write path of the calling provider family (interim switch, #718).
+    /// with an explicit <see cref="OutboxWritePath"/>. The public forms register the transactional
+    /// behavior; this internal overload is retained for the next change of #718.
     /// </summary>
     [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
         Justification = "Five generic parameters are required to support provider-specific implementations for core messaging patterns (Outbox, Inbox). This is an internal API used by provider packages.")]
@@ -581,8 +604,8 @@ public static class MessagingServiceCollectionExtensions
     /// <returns>The service collection for chaining.</returns>
     /// <remarks>
     /// <para>
-    /// Every component that persists or reads back a message payload (outbox post-processor
-    /// and orchestrator, inbox, saga and scheduler orchestrators, dead letter queue, delayed
+    /// Every component that persists or reads back a message payload (outbox
+    /// orchestrator, inbox, saga and scheduler orchestrators, dead letter queue, delayed
     /// retries, the CDC outbox handler) takes <see cref="IMessageSerializer"/> as a required
     /// dependency. Each provider registration (ADO.NET, Dapper, EF Core, MongoDB) and each
     /// standalone registration (dead letter queue, recoverability, CDC) calls this method so the
