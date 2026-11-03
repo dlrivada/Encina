@@ -11,22 +11,22 @@
 //       and none of the tokens that mean product code runs (the heuristic written in #1749). Files and attributes gate.
 //   H4  boilerplate justification strings in the manifests: total, distinct, most repeated. Reported only.
 //
-// The gating counts are compared with a committed shrink-only baseline (.github/honesty-audit-baseline.json,
-// decisions D7, D10, D11 and D13 of #2899): a count above its ceiling fails the run; a count below it is reported
-// as `below baseline` and the ceiling is lowered by a pull request (--print-baseline prints the new file text).
-// The ceiling is never raised by a run: a deliberate rise is a pull request that raises the baseline with a
-// maintainer label.
+// The gating counts are compared with a committed strict-ratchet baseline (.github/honesty-audit-baseline.json,
+// decisions D7, D10, D11 and D13 of #2899): a count above its ceiling or an item not in the baseline (RISE), and a
+// count below it or an accepted item that no longer occurs (IMPROVED), both fail the run, so the pull request that
+// fixes drift regenerates the file with --print-baseline in the same change. A run never raises a ceiling; a
+// deliberate rise is a pull request that raises the baseline (the maintainer-label rule is tracked by #3134).
 //
 // Usage (from the repository root, or pass --root):
 //   dotnet run --file .github/scripts/honesty-audit.cs -- \
 //       [--output artifacts/honesty-audit/report.json] \
-//       [--baseline .github/honesty-audit-baseline.json] \
+//       --baseline .github/honesty-audit-baseline.json (or --no-baseline for a report-only run) \
 //       [--summary "$GITHUB_STEP_SUMMARY"] [--root <repo root>]
 //   dotnet run --file .github/scripts/honesty-audit.cs -- --print-baseline [--root <repo root>]
 //   dotnet run --file .github/scripts/honesty-audit.cs -- --self-test
 //
-// Exit codes: 0 no gating count above its ceiling (or no --baseline); 1 at least one gating count above its
-// ceiling; 2 invalid arguments, unreadable repository or invalid baseline.
+// Exit codes: 0 every gating state equals its baseline (or --no-baseline); 1 at least one RISE or IMPROVED;
+// 2 invalid arguments, no --baseline, unreadable or missing repository evidence, or an invalid baseline.
 // Requires: .NET 10+ (C# 14 file-based app).
 #:property JsonSerializerIsReflectionEnabledByDefault=true
 #pragma warning disable CA1305, CA1310, CA1859, CA1852, CA1812
