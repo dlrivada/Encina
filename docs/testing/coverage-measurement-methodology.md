@@ -262,11 +262,11 @@ When nothing is wrong it prints `Target ratchet: N manifests changed, 0 violatio
 
 #### CI job and the label exception
 
-The `target-ratchet` job in `.github/workflows/ci.yml` runs the script on every pull request (it is skipped on push to `main`). It checks out with `fetch-depth: 0`, runs `--self-test` first, passes `--head` the pull request head commit, and has job-level permissions `contents: read` and `pull-requests: read`, with `GH_TOKEN` taken from `github.token`. It is one of the `needs` of `ci-result`.
+The `target-ratchet` job in `.github/workflows/ci.yml` runs the script on every pull request (it is skipped on push to `main`). It checks out with `fetch-depth: 0`, runs `--self-test` first, passes `--head` the pull request head commit, and has job-level permissions `contents: read` and `pull-requests: read`, with `GH_TOKEN` taken from `github.token`. It is one of the `needs` of `ci-result`. Violations go to the job log and to the job summary.
 
 A pull request can carry the label `target-change-approved` to acknowledge a deliberate lowering. The script reads the labels at run time with `gh pr view <n> --json labels`, not from the event payload, because `ci.yml` has no `labeled` trigger; so after the label is added, the job needs "Re-run failed jobs". With the label the script exits 0 and prints each line as `APPROVED by target-change-approved`; without it the script exits 1. If `gh` fails or `--pr` is missing, the script fails closed (exit 1).
 
-The label is a tripwire against a silent change, not protection against an author who labels their own pull request; maintainers read the job log of labelled pull requests.
+The label is a tripwire against a silent change, not protection against an author who labels their own pull request; maintainers read the job summary of labelled pull requests.
 
 #### Run it locally
 
