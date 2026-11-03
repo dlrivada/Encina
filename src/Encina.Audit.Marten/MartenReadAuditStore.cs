@@ -397,10 +397,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
     /// </summary>
     private Dictionary<string, object?> ParseMetadata(string? metadataJson)
     {
-        if (metadataJson is null
-            || metadataJson == _options.ShreddedPlaceholder
-            || metadataJson == _options.ExpiredPlaceholder
-            || metadataJson == _options.UnreadablePlaceholder)
+        if (metadataJson is null || IsPlaceholder(metadataJson))
         {
             return new Dictionary<string, object?>();
         }
@@ -408,4 +405,13 @@ public sealed class MartenReadAuditStore : IReadAuditStore
         return JsonSerializer.Deserialize<Dictionary<string, object?>>(metadataJson, MetadataJsonOptions)
             ?? new Dictionary<string, object?>();
     }
+
+    // The built-in defaults count too, so rows masked before the placeholder options changed still read.
+    private bool IsPlaceholder(string value) =>
+        value is MartenOperationAuditOptions.DefaultShreddedPlaceholder
+            or MartenOperationAuditOptions.DefaultExpiredPlaceholder
+            or MartenOperationAuditOptions.DefaultUnreadablePlaceholder
+        || value == _options.ShreddedPlaceholder
+        || value == _options.ExpiredPlaceholder
+        || value == _options.UnreadablePlaceholder;
 }

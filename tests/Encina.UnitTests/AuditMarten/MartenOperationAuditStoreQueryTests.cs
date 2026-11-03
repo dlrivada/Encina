@@ -284,6 +284,24 @@ public sealed class MartenOperationAuditStoreQueryTests
         store.MapToAuditEntry(model).Metadata.ShouldBeEmpty();
     }
 
+    [Theory]
+    [InlineData("[SHREDDED]")]
+    [InlineData("[EXPIRED]")]
+    [InlineData("[UNREADABLE]")]
+    public void MapToAuditEntry_RowsMaskedWithDefaultsStillRead_AfterPlaceholderOptionsChange(string stored)
+    {
+        var (store, _, _) = CreateStore(new MartenOperationAuditOptions
+        {
+            ShreddedPlaceholder = "<s>",
+            ExpiredPlaceholder = "<e>",
+            UnreadablePlaceholder = "<u>"
+        });
+        var model = Model();
+        model.MetadataJson = stored;
+
+        store.MapToAuditEntry(model).Metadata.ShouldBeEmpty();
+    }
+
     [Fact]
     public void MapToAuditEntry_WithJsonNullMetadata_ReturnsEmptyMetadata()
     {
