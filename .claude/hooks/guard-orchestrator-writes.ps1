@@ -361,8 +361,18 @@ try {
             if ($null -ne $analysis -and $analysis.Verdict -eq 'Guarded') {
                 Write-Block "runs '$($s.Full)' ($($s.Kind)), which writes to src/ or tests/ ($($analysis.Detail))$note"
             }
-            if ($null -ne $analysis -and $analysis.Verdict -eq 'Unknown' -and $analysis.Detail -eq 'a write target the hook cannot resolve') {
+            if ($null -ne $analysis -and $analysis.Verdict -eq 'Unknown' -and $analysis.Unresolved) {
                 Write-Block "runs '$($s.Full)' ($($s.Kind)), which writes to a path the hook cannot resolve, so it cannot rule out writes to src/ or tests/ (fail closed)$note"
+            }
+            # An analysis it could not finish (a command or call it does not know, a nested launch, a script that does
+            # not parse) fails closed as soon as the script names src/ or tests/.
+            if ($null -ne $analysis -and $analysis.Verdict -eq 'Unknown' -and ((Test-ScriptReferencesPath $candidate $guardedTokens) -or $candidate -match '(?i)(^|\W)(src|tests)(\W|$)')) {
+                Write-Block "runs '$($s.Full)' ($($s.Kind)), which references src/ or tests/ and contains something the hook cannot analyse ($($analysis.Detail)), so it cannot rule out writes there (fail closed)$note"
+            }
+            # $env:NAME in the script resolves from the hook's own environment; a launching command that changes the
+            # environment (or the script itself, which the analysis treats as opaque) makes that value unreliable.
+            if ($null -ne $analysis -and $analysis.Verdict -eq 'Safe' -and $candidate -match '(?i)\$env:' -and $command -match '(?i)\$env:\w+\s*[-+*/.]?=|SetEnvironmentVariable|\bset-item\b|\bsi\b[^\r\n]*env:|\bsetx?\s+\w+=') {
+                Write-Block "runs '$($s.Full)' ($($s.Kind)), which reads an environment variable that the launching command changes, so the hook cannot resolve its write targets (fail closed)$note"
             }
             if ((Test-ScriptHasWriteApi $candidate) -and (Test-ScriptReferencesPath $candidate $guardedTokens) -and ($null -eq $analysis -or $analysis.Verdict -ne 'Safe')) {
                 Write-Block "runs '$($s.Full)' ($($s.Kind)), which references src/ or tests/ and writes files$note$(if ($null -ne $analysis -and $analysis.Detail) { " (the hook could not show that every write target is outside them: $($analysis.Detail))" })"

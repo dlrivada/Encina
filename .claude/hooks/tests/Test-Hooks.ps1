@@ -491,6 +491,14 @@ $ps1Scripts = [ordered]@{
     InvokeExpression    = "`$c = 'Set-Content src/X.cs y'`nInvoke-Expression `$c`nSet-Content '$main\artifacts\a.md' 'src/'`n"
     ForEachArtifacts    = "foreach (`$n in 'a','b') { Set-Content (Join-Path '$main\artifacts' `"`$n.md`") 'src/ tests/' }`n"
     ForEachSrc          = "foreach (`$n in 'artifacts','src') { Set-Content (Join-Path '$main' `"`$n\X.cs`") 'y' }`n"
+    EnvReassigned       = "`$env:TEMP = '$main\src'`nSet-Content `"`$env:TEMP\X.cs`" 'y'`n"
+    ArrayPlus           = "Set-Content -Path (@('artifacts/a.txt') + 'src/y.cs') -Value 'y'`n"
+    ShadowedJoinPath    = "function Join-Path { 'src/x.cs' }`nSet-Content (Join-Path 'artifacts' 'x') 'y'`n"
+    JunctionThenWrite   = "New-Item -ItemType Junction -Path '$main\artifacts\lnk' -Value '$main\src'`nSet-Content '$main\artifacts\lnk\x.cs' 'y'`n"
+    MoveSourceSrc       = "Move-Item -Path '$main\src\Encina\Foo.cs' -Destination '$main\artifacts\Foo.cs'`n"
+    UnknownWithSrc      = "& 'Set-Content' 'src/x.cs' 'y'`n"
+    UnresolvedPlusGit   = "Set-Content `$env:ENCINA_HOOK_TEST_UNSET_VARIABLE 'x'`ngit status`n"
+    WorkingDirectoryRel = "Set-Content 'x.cs' 'y'`n"
 }
 $ps1ScriptPath = @{}
 foreach ($name in $ps1Scripts.Keys) {
@@ -1036,7 +1044,15 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.SplatSrc)'" }, $main, $null, 2, 'main session (#2892): splatted parameters naming src/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.NestedLaunch)'" }, $main, $null, 2, 'main session (#2892): nested script launch plus a text mention of src/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.InvokeExpression)'" }, $main, $null, 2, 'main session (#2892): Invoke-Expression of a src/ write: denied'),
-    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ForEachSrc)'" }, $main, $null, 2, 'main session (#2892): foreach over literals reaching src/: denied')
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ForEachSrc)'" }, $main, $null, 2, 'main session (#2892): foreach over literals reaching src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.EnvReassigned)'" }, $main, $null, 2, 'main session (#2892): $env:TEMP reassigned to src/ inside the script: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ArrayPlus)'" }, $main, $null, 2, 'main session (#2892): array + value hides a src/ target: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ShadowedJoinPath)'" }, $main, $null, 2, 'main session (#2892): a user function shadows Join-Path: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.JunctionThenWrite)'" }, $main, $null, 2, 'main session (#2892): junction into src/ then a write through it: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.MoveSourceSrc)'" }, $main, $null, 2, 'main session (#2892): Move-Item whose source is under src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UnknownWithSrc)'" }, $main, $null, 2, 'main session (#2892): call-operator cmdlet name writing src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UnresolvedPlusGit)'" }, $main, $null, 2, 'main session (#2892): unresolved target next to an unknown command: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -WorkingDirectory '$main\src' -File '$($ps1ScriptPath.WorkingDirectoryRel)'" }, $main, $null, 2, 'main session (#2892): -WorkingDirectory src with a relative target: denied')
 )
 
 # require-specialists.ps1 (Stop gate) runs against a fake project with a real git worktree.

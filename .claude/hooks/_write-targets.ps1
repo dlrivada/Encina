@@ -363,12 +363,36 @@ function Test-ScriptWritesAreSafe {
         return $null
     }
 
+    $arrayVisiting = @{}
+    function SwMayBeArray($Ast) {
+        if ($null -eq $Ast) { return $false }
+        $nodes2 = @($Ast) + @($Ast.FindAll({ param($a) $true }, $true))
+        foreach ($n in $nodes2) {
+            $t = $n.GetType().Name
+            if ($t -in 'ArrayLiteralAst', 'ArrayExpressionAst') { return $true }
+            if ($t -eq 'VariableExpressionAst') {
+                $key = SwKey $n
+                if ($arrayVisiting.ContainsKey($key) -or -not $assign.ContainsKey($key)) { continue }
+                $arrayVisiting[$key] = $true
+                $hit = $false
+                foreach ($entry in @($assign[$key])) { if ($null -ne $entry -and (SwMayBeArray $entry)) { $hit = $true; break } }
+                $arrayVisiting.Remove($key)
+                if ($hit) { return $true }
+            }
+        }
+        return $false
+    }
+
     function SwBinary($Ast) {
         $op = [string]$Ast.Operator
         if ($op -eq 'Plus') {
+            # Array + value appends in PowerShell; only a string concatenation can be modelled, so an operand that
+            # is or may hold an array (or several values) is not evaluated.
+            if ((SwMayBeArray $Ast.Left) -or (SwMayBeArray $Ast.Right)) { return $null }
             $l = SwEval $Ast.Left
             $r = SwEval $Ast.Right
             if ($null -eq $l -or $null -eq $r) { return $null }
+            if (@($l.V).Count -gt 1 -or @($r.V).Count -gt 1) { return $null }
             $parts = [System.Collections.Generic.List[object]]::new()
             $parts.Add([string[]]@($l.V)); $parts.Add([string[]]@($r.V))
             $crossed = SwCross $parts
@@ -550,6 +574,11 @@ function Test-ScriptWritesAreSafe {
 
         if (@($nodes | Where-Object { $_.GetType().Name -in 'UsingStatementAst', 'TypeDefinitionAst' }).Count -gt 0) { $opaque.Add('a using statement or a class') }
         if ($Text -match '(?i)\bCurrentDirectory\b') { $state.CwdChanged = $true }
+        # $env:NAME resolves from the hook's own environment, so a script that changes the environment is not analysable.
+        if ($Text -match '(?i)SetEnvironmentVariable|\$env:\w+\s*[-+*/.]?=|\b(Set-Item|si|New-Item|ni|Set-Variable|sv|New-Variable|nv)\b[^\r\n]*\benv:') { $opaque.Add('a script that changes the environment') }
+        # A function that shadows a command the analysis models (Join-Path) makes its value rules wrong.
+        if ($functions.ContainsKey('join-path')) { $opaque.Add('a function named Join-Path') }
+        if ($functions.Keys | Where-Object { $_ -in $aliases.Keys -or $_ -in $specs.Keys }) { $opaque.Add('a function that shadows a cmdlet') }
         foreach ($c in $commands) {
             $n = $c.GetCommandName()
             if ($null -ne $n -and $n.ToLowerInvariant() -in $cwdCommands) { $state.CwdChanged = $true }
@@ -637,6 +666,11 @@ function Test-ScriptWritesAreSafe {
             if ($specs.ContainsKey($canonical)) {
                 $spec = $specs[$canonical]
                 $bound = SwBind $c
+                if ($canonical -eq 'new-item' -and $bound.Named.ContainsKey('itemtype')) {
+                    $itemType = if ($bound.Named['itemtype'] -is [bool]) { $null } else { SwConst $bound.Named['itemtype'] }
+                    # A link's -Value is its target, so later writes through it land elsewhere.
+                    if ($null -eq $itemType -or $itemType -notmatch '^(?i)(file|directory)$') { $opaque.Add('New-Item of a link or an unknown item type') }
+                }
                 $targetAst = $null
                 if ($spec.ContainsKey('Named')) { if ($bound.Named.ContainsKey($spec.Named)) { $targetAst = $bound.Named[$spec.Named] } else { continue } }
                 else { $targetAst = SwSlot $bound $spec.Slots $spec.Want }
@@ -649,6 +683,12 @@ function Test-ScriptWritesAreSafe {
                     if ($null -ne $candidates -and $spec.ContainsKey('Join') -and $bound.Named.ContainsKey($spec.Join)) {
                         $leaf = SwEval $bound.Named[$spec.Join]
                         $candidates = if ($null -eq $leaf) { $null } else { SwJoinLeaf $candidates $leaf.V }
+                    }
+                    if ($null -ne $candidates -and $canonical -eq 'move-item') {
+                        # The source is removed by the move, so a source under src/ or tests/ is a write there too.
+                        $sourceAst = SwSlot $bound $spec.Slots 0
+                        $sourceValue = if ($null -ne $sourceAst -and $sourceAst -isnot [bool]) { SwEval $sourceAst } else { $null }
+                        $candidates = if ($null -eq $sourceValue) { $null } else { [string[]]@($candidates) + [string[]]@($sourceValue.V) }
                     }
                     if ($null -ne $candidates -and $spec.ContainsKey('Rename')) {
                         $newName = SwSlot $bound $spec.Slots 1
@@ -784,8 +824,8 @@ function Test-ScriptWritesAreSafe {
             }
         }
         if ($guarded.Count -gt 0) { return [pscustomobject]@{ Verdict = 'Guarded'; Detail = $guarded[0] } }
-        if ($opaque.Count -gt 0) { return [pscustomobject]@{ Verdict = 'Unknown'; Detail = $opaque[0] } }
-        if ($unresolved) { return [pscustomobject]@{ Verdict = 'Unknown'; Detail = 'a write target the hook cannot resolve' } }
+        if ($opaque.Count -gt 0) { return [pscustomobject]@{ Verdict = 'Unknown'; Detail = $opaque[0]; Unresolved = $unresolved } }
+        if ($unresolved) { return [pscustomobject]@{ Verdict = 'Unknown'; Detail = 'a write target the hook cannot resolve'; Unresolved = $true } }
 
         # Residual: no write API may be left once the strings, comments and understood sites are removed.
         $chars = $Text.ToCharArray()
@@ -1144,7 +1184,13 @@ function Get-ShellWrites {
         }
         elseif ($name -in 'pwsh', 'powershell', 'pwsh-preview') {
             $fileToken = Get-NamedArgument $tokens ($k + 1) @('-file')
-            if ($null -ne $fileToken) { $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'pwsh -File'; Base = $current }) }
+            if ($null -ne $fileToken) {
+                # #2892: -WorkingDirectory changes where the script's relative targets resolve; an unresolvable one leaves Base unknown.
+                $scriptBase = $current
+                $wdToken = Get-NamedArgument $tokens ($k + 1) @('-workingdirectory', '-wd')
+                if ($null -ne $wdToken) { $scriptBase = Resolve-TargetPath $wdToken $current $Bash }
+                $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'pwsh -File'; Base = $scriptBase })
+            }
         }
         elseif ($name -eq 'git') {
             $dir = $current
