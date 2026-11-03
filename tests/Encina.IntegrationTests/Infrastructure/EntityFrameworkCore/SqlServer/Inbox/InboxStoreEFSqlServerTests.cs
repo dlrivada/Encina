@@ -205,7 +205,6 @@ public sealed class InboxStoreEFSqlServerTests : IAsyncLifetime
             ReceivedAtUtc = DateTime.UtcNow.AddDays(-10),
             ProcessedAtUtc = DateTime.UtcNow.AddDays(-2),
             ExpiresAtUtc = DateTime.UtcNow.AddDays(-1), // Expired yesterday
-            ProcessedAtUtc = DateTime.UtcNow.AddDays(-2),
             RetryCount = 0
         };
 
