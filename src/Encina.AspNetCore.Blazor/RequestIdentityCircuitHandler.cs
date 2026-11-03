@@ -28,9 +28,12 @@ namespace Encina.AspNetCore.Blazor;
 /// <c>ReservedSubjectClaim</c>, <c>ConflictingSubjectClaims</c>) or with conflicting tenant claims
 /// (<c>InboundTenantConflict</c>) never runs the activity as anonymous. The handler does not call the
 /// next handler and throws an <see cref="InvalidOperationException"/> whose fixed text carries only the
-/// error code (never a claim value or the error message); the factory has logged Warning 167. Blazor
-/// reports an exception from an inbound activity handler as an unhandled circuit exception: it notifies
-/// the client, which shows the error UI, and terminates the circuit. A null or unauthenticated principal
+/// error code (never a claim value or the error message); the factory has logged Warning 167. For a
+/// JavaScript interop call (and the UI events that travel through it) Blazor reports the exception as an
+/// unhandled circuit exception: it notifies the client, which shows the error UI, and terminates the
+/// circuit. The first activity of a circuit (its initialization) and the render acknowledgements are
+/// fire-and-forget in Blazor: a refusal there is not reported to the client and leaves the circuit
+/// uninitialized, so nothing runs for that principal. A null or unauthenticated principal
 /// is not a refusal: its activities keep running anonymous.
 /// </para>
 /// <para>

@@ -201,7 +201,7 @@ public sealed class RequestIdentityCircuitHandlerTests
 
         var thrown = await Should.ThrowAsync<InvalidOperationException>(() => handler.CreateInboundActivityHandler(_ => Task.CompletedTask)(null!));
 
-        thrown.Message.ShouldNotContain("refused");
+        thrown.Message.ShouldBe("The circuit activity could not run inside an identity scope; check the request identity registration.");
     }
 
     private static ClaimsPrincipal Authenticated(params Claim[] claims) => new(new ClaimsIdentity(claims, "test"));
