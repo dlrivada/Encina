@@ -68,7 +68,16 @@ if (root is null || !Directory.Exists(Path.Combine(root, ".github", "coverage-ma
     return 2;
 }
 
-var report = Audit.Measure(root, TimeProvider.System.GetUtcNow());
+Report report;
+try
+{
+    report = Audit.Measure(root, TimeProvider.System.GetUtcNow());
+}
+catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+{
+    Console.Error.WriteLine($"Cannot read the repository: {ex.GetType().Name}");
+    return 2;
+}
 
 if (printBaseline)
 {
@@ -233,6 +242,7 @@ static class Audit
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     };
 
     public static string? FindRoot(string start)
@@ -485,7 +495,8 @@ static class Audit
             Info("H4 justification strings (total)", report.H4.Total),
         };
 
-        var exit = checks.Any(c => c.Gating && c.Status == "RISE") ? 1 : 0;
+        var exit = checks.Any(c => c.Status == "MISSING CEILING") ? 2
+            : checks.Any(c => c.Gating && c.Status == "RISE") ? 1 : 0;
         return new Evaluation(exit, checks);
     }
 
@@ -495,18 +506,30 @@ static class Audit
     static CheckResult Gate(string name, int current, int? ceiling, List<string>? accepted, List<string> currentItems, bool hasBaseline)
     {
         var c = new CheckResult { Name = name, Gating = true, Current = current, Ceiling = ceiling };
-        if (!hasBaseline || ceiling is null)
+        if (!hasBaseline)
         {
             c.Status = "no baseline";
             return c;
         }
 
+        if (ceiling is null)
+        {
+            // Fail closed: a baseline that lacks the ceiling of a gating check must not switch the gate off.
+            c.Status = "MISSING CEILING";
+            return c;
+        }
+
         c.Delta = current - ceiling;
         c.Status = current > ceiling ? "RISE" : current < ceiling ? "below baseline" : "ok";
-        if (c.Status == "RISE" && accepted is not null)
+        if (accepted is not null)
         {
+            // An item that is not in the accepted list is a rise even when the count is equal (a swap) or lower.
             var known = accepted.ToHashSet(StringComparer.Ordinal);
             c.NewItems = currentItems.Where(i => !known.Contains(i)).ToList();
+            if (c.NewItems.Count > 0)
+            {
+                c.Status = "RISE";
+            }
         }
         return c;
     }
@@ -627,6 +650,20 @@ static class SelfTest
             higher.H3.FilesCeiling = 4;
             var below = Audit.Evaluate(report, higher);
             Check("a count below its ceiling exits 0 and is reported as below baseline", below.ExitCode == 0 && below.Checks.Count(c => c.Status == "below baseline") == 2);
+
+            var missing = Baseline.Load(WriteBaseline(root, Audit.BaselineText(report)));
+            missing.H3.FilesCeiling = null;
+            Check("a baseline without a gating ceiling fails closed with exit 2", Audit.Evaluate(report, missing).ExitCode == 2);
+
+            var swapped = Baseline.Load(WriteBaseline(root, Audit.BaselineText(report)));
+            swapped.H2Forbidden.Items = ["tests/Encina.ContractTests/Other.md"];
+            var swap = Audit.Evaluate(report, swapped);
+            Check("a swapped item with an equal count is a rise (exit 1)", swap.ExitCode == 1 && swap.Checks.Any(c => c.Status == "RISE" && c.NewItems.Count == 1));
+
+            var misspelled = false;
+            try { Baseline.Load(WriteBaseline(root, "{\"schema\":1,\"H2forbidden\":{\"ceiling\":9}}")); }
+            catch (JsonException) { misspelled = true; }
+            Check("a misspelled baseline key is rejected", misspelled);
 
             Check("H1 never gates even with no ceiling", equal.Checks[0].Gating == false && equal.Checks[0].Status == "reported");
             Check("without a baseline the run exits 0", Audit.Evaluate(report, null).ExitCode == 0);
