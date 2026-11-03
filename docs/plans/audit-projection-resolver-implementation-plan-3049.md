@@ -21,7 +21,7 @@
 
 **Standards and specifications**: GDPR Art. 5(1)(c), 5(1)(e), 5(2) and 32; ADR-020 (temporal crypto-shredding), ADR-034, ADR-036, ADR-006 (pure ROP), ADR-018, ADR-019, ADR-021; SPEC-002 DEC-006 (fail closed).
 
-**Affected packages**: `Encina.Audit.Marten` (code, `PublicAPI.Unshipped.txt`); `Encina` core only for reading `EventIdRanges.cs` (the `AuditMarten` range 2550-2599 already exists, no new range). Tests in `tests/Encina.UnitTests`, `GuardTests`, `ContractTests`, `PropertyTests`, `IntegrationTests`. Docs: `docs/features/audit-marten.md`, ADR-059, ADR-020 pointer.
+**Affected packages**: `Encina.Audit.Marten` (code, `PublicAPI.Unshipped.txt`); `Encina` core only for reading `EventIdRanges.cs` (the `AuditMarten` range 2550-2599 already exists, no new range). Tests in `tests/Encina.UnitTests`, `GuardTests`, `ContractTests`, `PropertyTests`, `IntegrationTests`. Docs: `docs/features/audit-marten.md`, ADR-061, ADR-020 pointer.
 
 **Provider category**: none of the database matrix. This is the event-sourcing category (Marten primary, AGENTS.md section 5); it touches no ADO.NET, Dapper, EF Core or MongoDB code, so the 10-provider rule does not apply. Integration tests run against real Marten on PostgreSQL.
 
@@ -39,7 +39,9 @@
 
 ### Prerequisite and delivery split (size rule)
 
-[#3012](https://github.com/dlrivada/Encina/issues/3012) is the bug issue for the "no key and no marker" case; its fix (branch `fix/3012-audit-key-missing-typed-failure`, PR `Fixes #3012` being opened) makes `OperationAuditEntryProjection.ClassifyTemporalKeyLookup` throw `EncryptedFieldDecryptionException(EncryptedFieldDecryptionFailureReason.KeyMissing)` instead of `KeyNotFoundException` (D14). Phases 3 to 7 depend on that PR being merged; this plan is written against the post-#3012 code, and the worktree re-merges `origin/main` when it lands. Phases 1 and 2 do not depend on it.
+[#3012](https://github.com/dlrivada/Encina/issues/3012) (the "no key and no marker" case) is fixed by PR #3083, merged (`Fixes #3012`): `OperationAuditEntryProjection.ClassifyTemporalKeyLookup` now throws `EncryptedFieldDecryptionException(EncryptedFieldDecryptionFailureReason.KeyMissing)` instead of `KeyNotFoundException` (D14). Phase 3 can start; re-check the post-#3083 names and signatures in the code before its brief. The period leaking into `MartenAuditLog` and `MartenAuditErrors` is tracked by bug [#3088](https://github.com/dlrivada/Encina/issues/3088); Phase 1 and Phase 5 messages must not add the period to logs. Phases 1 and 2 are already being implemented in another worktree and are not changed by this revision.
+
+Three Dilemmas are open for the maintainer (choices 13, 14 and 15, dated entries in Maintainer Decisions): **Phase 4 must not start before 13 and 15 are decided, and the precedence code of Phase 3 not before 14 is.**
 
 The size rule of the EPIC #2845 working rule (#2900, `.claude/skills/worker-brief/SKILL.md`) allows one worker PR, one package, at most 15 files and 1500 changed lines. The feature (about 14 production files, 16 or more test files, manifest, PublicAPI, docs) exceeds it, so it ships as seven PRs. Each phase below is one PR and carries its own `Size:` estimate; re-measure at brief time and merge two phases only if both fit.
 
@@ -47,17 +49,17 @@ The size rule of the EPIC #2845 working rule (#2900, `.claude/skills/worker-brie
 |----|-------|--------|-----------------|
 | 1 | Resolution model, document registration, error codes | `Refs #3049` | 13 files, ~450 lines |
 | 2 | Non-throwing field read, `UnreadablePlaceholder`, `IsUnreadable`, query-store mapping | `Refs #3049` | 14 files, ~650 lines |
-| 3 | Projection lookup and apply, non-throwing key classification (after the #3012 PR merges) | `Refs #3049` | 14 files, ~850 lines |
-| 4 | `IAuditProjectionResolver`, audit-first write, DI (pre-split into 4a interface/model/validation and 4b write flow/DI if the brief-time count passes 15 files or 1500 lines) | `Refs #3049` | 13 files, ~1,300 lines |
+| 3 | Projection lookup and apply, non-throwing key classification (#3083 is merged; precedence code waits for decision 14) | `Refs #3049` | 14 files, ~850 lines |
+| 4 | `IAuditProjectionResolver`, audit-first write, DI (starts after decisions 13 and 15; pre-split into 4a interface/model/validation and 4b write flow/DI if the brief-time count passes 15 files or 1500 lines) | `Refs #3049` | 13 files, ~1,300 lines |
 | 5 | Observability and cross-cutting integration | `Refs #3049` | 9 files, ~450 lines |
 | 6 | Full-flow tests (integration, property, contract) and justification files | `Refs #3049` | 9 files, ~800 lines |
-| 7 | Docs, ADR-059, changelog | `Fixes #3049` (and `Fixes #2770` when #3049 is its last open child) | 7 files, ~450 lines |
+| 7 | Docs, ADR-061, changelog | `Fixes #3049` (and `Fixes #2770` when #3049 is its last open child) | 7 files, ~450 lines |
 
 ---
 
 ## Design Choices
 
-Maintainer decisions are quoted from the comments of #2770 and recorded dated in the last section. The decision register with every option is `artifacts/decisions/2770-2b.md` (ids D1-D56, DL1-DL9); the orchestrator screening is `artifacts/decisions/2770-2b-screen.md`. Both are working files; each block below carries the citation that makes it checkable. Choices 1 to 3, 5 to 10 and 12 are Settled, choice 11 is Trivial; choice 4 was a Dilemma and the maintainer answered it on 2026-10-30.
+Maintainer decisions are quoted from the comments of #2770 and recorded dated in the last section. The decision register with every option is `artifacts/decisions/2770-2b.md` (ids D1-D56, DL1-DL9); the orchestrator screening is `artifacts/decisions/2770-2b-screen.md`. Both are working files; each block below carries the citation that makes it checkable. Choices 1 to 3, 5 to 10, 12 and 17 are Settled, choices 11 and 16 are Trivial; choices 13, 14 and 15 are open Dilemmas for the maintainer (recommendations only, entries in the last section); choice 4 was a Dilemma and the maintainer answered it on 2026-10-30.
 
 <details>
 <summary><strong>1. Storage model — a mutable `AuditResolution` document, deterministic string id, same Marten store and schema</strong></summary>
@@ -152,7 +154,7 @@ Register: D7 (screen D23, DL1).
 | A) Event + field plus an enumerating `ResolvePeriodAsync` helper | Literal Q2 key | One document and one audit entry per event of a period: volume and noise |
 | B) Add a period scope to the same document type | One step for a lost key of a month | Wider blast radius, extends Q2's key |
 | C) Event + field only; fix period-wide causes on the marker (audited attach, never overwrite) | Marker stays the single source of why a key is gone | Edits the marker, which D15 wanted untouched |
-| **D) Event + field only, with a bulk helper over many events; the period-wide case is #2910** | Q2 key kept; since Q3 new retention purges write a reference, so the remaining period-wide causes are a lost key or a damaged marker | #2910 covers only attaching a reference to an existing marker; a lost key with no marker is resolved event by event with the bulk helper (the runbook and ADR-059 say so) |
+| **D) Event + field only, with a bulk helper over many events; the period-wide case is #2910** | Q2 key kept; since Q3 new retention purges write a reference, so the remaining period-wide causes are a lost key or a damaged marker | #2910 covers only attaching a reference to an existing marker; a lost key with no marker is resolved event by event with the bulk helper (the runbook and ADR-061 say so) |
 
 ### Chosen Option: **D — event + field only, with a bulk helper; period case is #2910 (maintainer decision 2026-10-30)**
 
@@ -220,19 +222,18 @@ Register: D31, D32 (screen D27, DL6).
 </details>
 
 <details>
-<summary><strong>7. Public API shape, actor, authorisation and registration</strong></summary>
+<summary><strong>7. Public API shape, actor and registration</strong></summary>
 
-Register: D8, D9, D10, D11, D12, D13 (screen S1, S2, S3, S4, DL7, DL8, DL9).
+Register: D8, D9, D10, D11, D13 (screen S2, S3, S4, DL8, DL9). Who may call the service (D12, DL7) is choice 13, a Dilemma.
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) One method per kind plus `GetAsync`, `ListAsync`, a bulk helper; `Either` returns with a trailing `CancellationToken`; actor from `IRequestContextAccessor`, anonymous refused; authorisation left to the application; registered by `AddEncinaAuditMarten` (scoped, `TryAdd`) with the accessor; no CLI or endpoint** | Compile-time safety (a `Shredded` call cannot omit its reference); actor not forgeable by a parameter; consistent with `PersistentPolicyAdministrationPoint` and `DestroyKeysBeforeAsync` | The host must gate who may call the service |
+| **A) One method per kind plus `GetAsync`, `ListAsync`, a bulk helper; `Either` returns with a trailing `CancellationToken`; actor from `IRequestContextAccessor`, anonymous refused; registered by `AddEncinaAuditMarten` (scoped, `TryAdd`) with the accessor; no CLI or endpoint** | Compile-time safety (a `Shredded` call cannot omit its reference); actor not forgeable by a parameter | A wider interface |
 | B) One `ResolveAsync(request, ct)` with runtime validation | Small interface | Illegal combinations caught at runtime only |
-| C) Required permission option (`audit:resolve`) | Secure by default | New policy inconsistent with the sibling APIs; mixes authorisation into a storage package |
 
-### Chosen Option: **A — per-kind methods, ambient actor, application-side authorisation**
+### Chosen Option: **A — per-kind methods, ambient actor**
 
 ### Rationale
 
@@ -241,7 +242,7 @@ Register: D8, D9, D10, D11, D12, D13 (screen S1, S2, S3, S4, DL7, DL8, DL9).
 - `AddEncinaAuditMarten` already registers `ITemporalKeyProvider` unconditionally; a scoped service costs nothing until used.
 
 **Class:** Settled
-**Settled by:** AGENTS.md section 3 (Railway Oriented Programming; compliance gates fail closed; registration completeness with a `ValidateOnBuild` test); `src/Encina.Security.ABAC/Administration/PersistentPolicyAdministrationPoint.cs` (`TryResolveActor`, records the actor but does not authorise it); Q2 comment 6395857025
+**Settled by:** AGENTS.md section 3 (Railway Oriented Programming; compliance gates fail closed; registration completeness with a `ValidateOnBuild` test); `src/Encina.Security.ABAC/Administration/PersistentPolicyAdministrationPoint.cs` (`TryResolveActor`, actor read once from the ambient identity); Q2 comment 6395857025
 **Verified:** adversarial-reviewer 2026-10-30
 
 </details>
@@ -351,7 +352,7 @@ Register: D36, D38, D39.
 </details>
 
 <details>
-<summary><strong>12. Delivery — seven PRs, tests per flag, ADR-059, runbook</strong></summary>
+<summary><strong>12. Delivery — seven PRs, tests per flag, ADR-061, runbook</strong></summary>
 
 Register: D49-D55.
 
@@ -359,19 +360,149 @@ Register: D49-D55.
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Seven PRs of at most 15 files and 1500 lines; unit, guard, contract, property and integration tests; load and benchmark justified in `.md` files; ADR-059 plus a pointer in ADR-020; runbook updated by `docs-writer`; the last PR closes the issue** | Follows the size rule; each PR reviewable; coverage obligations measured per PR | More review cycles |
+| **A) Seven PRs of at most 15 files and 1500 lines; unit, guard, contract, property and integration tests; load and benchmark justified in `.md` files; ADR-061 plus a pointer in ADR-020; runbook updated by `docs-writer`; the last PR closes the issue** | Follows the size rule; each PR reviewable; coverage obligations measured per PR | More review cycles |
 | B) One PR | One review | Breaks the size rule (about 40 files) |
 
 ### Chosen Option: **A — seven PRs**
 
 ### Rationale
 
-- ADR-059 is the next free number: `origin/main` ends at 057 and 058 is taken by open PR #2980 (checked 2026-10-30); confirm again when Phase 7 starts.
+- ADR-061 is the next number that is neither used nor reserved (checked 2026-11-03): `origin/main` has ADRs up to 058 and 060 (058 from the merged #2980), and `docs/architecture/adr/index.md` reserves 059 for "#2770 (PR 2b): AES-GCM decrypt sites (DefaultTokenizer, DefaultPseudonymizer, Audit.Marten EncryptedField)", a different topic (the decrypt typed-failure design, already amended into ADR-020) that this plan neither writes nor repurposes. The plan reserves 061 in the index table (Phase 7 replaces the reservation by the ADR row); confirm again when Phase 7 starts.
 - Every new or touched `src/` file gets per-flag targets and one-sentence justifications in `.github/coverage-manifest/Encina.Audit.Marten.json`; CRAP stays at 10 or less on changed methods (the pure outcome mapping is one `switch` that may carry `// crap-exempt: single-question switch`).
 
 **Class:** Settled
 **Settled by:** AGENTS.md section 8 (ADR for architectural decisions; PublicAPI), section 9 (per-flag obligations, CRAP, integration required for database features) and section 11 (changelog fragments); EPIC #2845 size rule (#2900)
 **Verified:** adversarial-reviewer 2026-10-30
+
+</details>
+
+<details>
+<summary><strong>13. Who may call the resolver — host-side authorisation, a required permission, or a replaceable authorizer</strong></summary>
+
+Register: D12 (DL7, screen S1, reopened by the PR #3085 review of 2026-11-03).
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| A) Host-side authorisation: Encina records the authenticated actor, refuses anonymous callers and nothing more (the `PersistentPolicyAdministrationPoint` and `IABACDecisionAuditReader` convention) | No new vocabulary; the host owns its roles and policies; #3024 and #3025 add their own gates | Any authenticated caller the host lets reach the service can mark `[SHREDDED]`, `[EXPIRED]` or `[UNREADABLE]` or exclude an event; a forgotten host check means the package default is fail-open for authenticated callers |
+| **C) A required permission checked against `RequestIdentity.Permissions`: `MartenOperationAuditOptions.ResolutionPermission`, default `audit:resolve`, no opt-out property; a missing permission returns `Left` `audit.marten.resolution_forbidden` before any validation, store access or audit write** | Secure by default; a service identity with the declared permission still works (CLI, background hosts); the identity cannot be minted by host code; the library can answer "who was entitled" | A package-level vocabulary string; every Phase 4 and 6 test needs a permissioned identity; a duplicate layer when the host also gates |
+| D) A replaceable `IAuditResolutionAuthorizer`, default permission based (the Break-the-Glass authorizer shape) | As C, and the host can plug ABAC or its own policy | The largest public API (interface, default, options, tests); pushes Phase 4 past its split |
+
+### Chosen Option: **Recommended, not decided: C** (A stays valid if the maintainer prefers sibling consistency; D if a pluggable authorizer is wanted)
+
+### Rationale
+
+- No rule settles it. AGENTS.md section 3 ("Compliance and security gates fail closed: when context is missing ... the gate denies; the only opt-out is explicit and logged") is met by refusing anonymous callers, and SPEC-002 DEC-006 is about fail-open defaults that existed; neither requires a permission check, so C is one of several complying options, not the only one.
+- Against A: the service can hide audit evidence, and the 2026-10-30 maintainer principle (compliance is never optional; only territorial non-applicability disables a control) sits uneasily with a control that exists only if the host remembers it. C therefore carries no boolean opt-out.
+- If C is chosen the phases add: Phase 1 or 4 the `MartenAuditErrors.ResolutionForbidden` code; Phase 4 the option, its startup validation (blank rejected), the check in the shared write method (also for `GetAsync`, `ListAsync` and the bulk helper), tests (no permission gives `Left`, permission gives `Right`, a service identity with the permission works, a denied call writes no audit entry), the DI case and PublicAPI; Phase 5 reuses EventId 2596 and counts the refusal; Phase 6 integration tests use an identity with the permission; Phase 7 names the permission in the runbook and ADR-061, and #3024 and #3025 declare it.
+- **Phase 4 must not start until this is decided.**
+
+**Class:** Dilemma
+**Settled by:** n/a (answered only by the maintainer; entry 13 of Maintainer Decisions)
+**Verified:** n/a (Dilemma)
+
+</details>
+
+<details>
+<summary><strong>14. Precedence when several resolutions exist for one event</strong></summary>
+
+Register: new (PR #3085 review, 2026-11-03).
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Read-time precedence: `Excluded` (only under `All`) wins; otherwise an `All` resolution applies to every failing field and a field-specific resolution wins over `All` for its own field** | Specific over general; keeps the legally precise label (an `ErasureReference` survives a generic `All = Unreadable`); race-free | One more rule to document and test |
+| B) `All` wins over a field-specific resolution | Simplest to state | Overrides an evidence-bearing `Shredded` or `Expired` label with the generic one, losing the Art. 5(2) fact |
+| C) Reject creating a field resolution while `All` exists (or the reverse), plus read-time precedence | Fewer ambiguous states | Check-then-insert race; the operator must remove `All` first; SQL-edited documents bypass it |
+
+### Chosen Option: **Recommended, not decided: A** (C may be added later as defence in depth)
+
+### Rationale
+
+- No citation settles it: choice 5 serialises one id only, and Q2 says only "applies deterministically". Different ids cannot conflict in the store, so a read-time rule is needed under every option.
+- A wins in the scenario where `All = Unreadable` was recorded and the operator later confirms field X was erased (`Shredded` with its reference); B loses that label.
+- Phase 3 implements the rule only after it is decided; a hand-written `Excluded` document under a non-`All` field fails closed in every case.
+
+**Class:** Dilemma
+**Settled by:** n/a (entry 14 of Maintainer Decisions)
+**Verified:** n/a (Dilemma)
+
+</details>
+
+<details>
+<summary><strong>15. Bulk helper shape — stop at the first failure, continue with per-event results, or the hybrid</strong></summary>
+
+Register: new (D23 = (d) asks for "a bulk helper" without a shape; PR #3085 review, 2026-11-03).
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| A) Stop at the first `Left` and return it; earlier events stay resolved | Fail fast; a down audit store does not get N failing writes; a rerun is cheap (an identical repeat is `Right` with no second entry) | One problem reported per run |
+| B) Continue and return per-event results | The operator sees every unknown or conflicting event in one pass | An overall `Right` with failures can look like success |
+| **C) Hybrid (the `DeadLetterManager.ReplayAllAsync` shape): per-event business rejections (unknown event, conflict, invalid reference) are reported per item with the error code only; infrastructure failures (audit write, store, principal, forbidden) abort and name the applied count and the failing event id** | Both scenarios served; errors never swallowed | A slightly larger result type |
+
+### Chosen Option: **Recommended, not decided: C** (all-or-nothing is not feasible: each resolution is audit-first in its own scope and written entries cannot be rolled back)
+
+### Rationale
+
+- Nothing in AGENTS.md or the specs fixes the shape; the repository has both shapes and the hybrid as precedent (`DeadLetterManager.ReplayAllAsync`, `MigrationCoordinationBuilder.StopOnFirstFailure`).
+- A wins when the audit store fails halfway through 5,000 events; B wins when a few events of a lost-key month were already resolved differently; C serves both.
+- **Phase 4 must not start until this is decided.**
+
+**Class:** Dilemma
+**Settled by:** n/a (entry 15 of Maintainer Decisions)
+**Verified:** n/a (Dilemma)
+
+</details>
+
+<details>
+<summary><strong>16. Reason limit — a public constant of 500 characters, counted after trimming</strong></summary>
+
+Register: D30 (limit value), PR #3085 review.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A public constant (`AuditResolutionLimits.ReasonMaxLength = 500`, Phase 4), checked on the trimmed text, `Left` when exceeded; no option** | Follows the package-wide convention of named limit constants for operator text; no configuration surface without a current purpose | Changing it is a code change |
+| B) A `MartenOperationAuditOptions` property | Tunable by the DPO | An option with no current need |
+
+### Chosen Option: **A — constant, counted after trimming**
+
+### Rationale
+
+- The number 500 is an implementation parameter, not derived from a rule; the GDPR minimisation rule (Art. 5(1)(c)) only requires that the reason stay in the encrypted, shreddable entry.
+
+**Class:** Trivial
+**Settled by:** AGENTS.md section 3 ("Every line serves a current purpose") and the repository convention of named limit constants for operator text, such as `BreakTheGlassLimits.CloseReasonMaxLength` (256) and the justification length limit of `BreakTheGlassOptions`; GDPR Art. 5(1)(c)
+**Verified:** pending adversarial review
+
+</details>
+
+<details>
+<summary><strong>17. `Excluded` is accepted only with field `All`</strong></summary>
+
+Register: D26 detail (PR #3085 review).
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `ExcludeAsync` has no field parameter; `ResolveManyAsync` with `Excluded` and a field other than `All` returns `Left` `InvalidResolutionField`; a hand-written document that violates it fails closed** | Exclusion means "no row", which is event-level | None |
+| B) Field-level exclusion | Finer control | A read-model row cannot omit one field; nulling it is indistinguishable from a legitimately null field, which is silent data loss |
+
+### Chosen Option: **A — event-level exclusion only**
+
+### Rationale
+
+- Field-level marking is already `Unreadable`, `Shredded` or `Expired`.
+
+**Class:** Settled
+**Settled by:** Q2 comment 6395857025 on #2770 ("exclude the event"); AGENTS.md section 3 (errors are never swallowed; fail closed)
+**Verified:** pending adversarial review
 
 </details>
 
@@ -400,10 +531,10 @@ public interface IAuditProjectionResolver
 ```
 
 - `AuditResolution` (Marten document, public settable properties like `TemporalKeyDestroyedMarker`): `Id` (`audit-resolution:{trail}:{eventId}:{field}`), `Trail`, `EventId`, `Field`, `Kind`, `AuditEntryId` (the payload id, informational), `TenantId` (copied from the event), flat erasure fields (`ErasureRequestId`, `ErasureRequestedAtUtc`, `ErasureActor`) and retention fields (`RetentionPolicyId`, `RetentionCutoffUtc`, `RetentionExecutedAtUtc`, `RetentionActor`) as in the marker, `ResolvedBy`, `ResolvedAtUtc`. No reason text.
-- `AuditResolutionRecord`: immutable snapshot returned to callers (the document without internals). `AuditResolutionDecision`: the shared request record (kind plus optional reference, factories per kind). `AuditResolutionBatchResult`: applied and unchanged counts of a fully successful batch; the batch stops at the first `Left`, which is returned (earlier events stay resolved, each independently audited).
+- `AuditResolutionRecord`: immutable snapshot returned to callers (the document without internals). `AuditResolutionDecision`: the shared request record (kind plus optional reference, factories per kind). `AuditResolutionBatchResult`: applied and unchanged counts of a fully successful batch; the batch shape (stop at the first `Left`, or a hybrid with per-event business rejections) is choice 15 and is decided before Phase 4 starts; either way earlier events stay resolved, each independently audited.
 - Validation returns `Left`: invalid trail and field combination, `Excluded` with a field other than `All`, blank or over-500-character reason, invalid reference (`MartenAuditErrors.RejectInvalidReference`, codes `audit.marten.invalid_erasure_reference` and `audit.marten.invalid_retention_reference`), unknown event (existence check by `IEvent.Id` against `mt_events` and the trail's event type), conflict (`audit.marten.resolution_conflict`), no principal (`audit.marten.resolution_principal_required`).
 - **Key-level outcome (M2, chosen design)**: today `LoadTemporalKeyAsync` and `ClassifyTemporalKeyLookup` throw on a key-level failure (no reference on the marker, both references, and after #3012 `KeyMissing`) before any resolution can be consulted. Phase 3 refactors them to return an outcome type, `TemporalKeyOutcome` (internal): `Key(material)`, `Shredded`, `Expired` or `Failure(reason)`. No exception is used for control flow (AGENTS.md section 3, ADR-006), and the alternative (one `catch (EncryptedFieldDecryptionException)` in the projection that looks up and rethrows) is rejected because it makes the projection catch its own exception and keeps a try/catch around an asynchronous lookup. The throwing contract is kept only where the projection has no resolution: it throws `new EncryptedFieldDecryptionException(reason)` itself. The existing `ClassifyTemporalKeyLookup` unit tests change to assert outcomes.
-- **Projection lookup algorithm** (failure path only): the projection computes the key outcome, then for each non-null encrypted field the field outcome (`Value(text)` or `Failure(reason)`, from the Phase 2 non-throwing read; a `Failure` key outcome makes every non-null field fail with that reason; an event whose encrypted fields are all null therefore projects even with a failing key, because nothing in it is unreadable: a deliberate relaxation of today's key-first throw, covered by a Phase 3 test). If no field failed, build the read model with no extra query. Otherwise log 2593, load the `All` resolution (one primary-key load) and the resolution of each failing field (one load per field). Precedence: an `Excluded` resolution (only valid under `All`) wins and yields no row; otherwise an `All` resolution of another kind applies to every failing field and a field-specific resolution applies to its own field (the field-specific one wins over `All` for that field). `Unreadable`, `Shredded` or `Expired` substitutes the matching placeholder and sets the matching flag; a failing field with no resolution makes the projection throw the typed failure (the first failing field's reason). Different ids never conflict under the choice 5 rule, so precedence is defined here and in the Phase 3 acceptance tests. Shard rebuild determinism: the output depends only on the event, the stored `Kind` and references, and the three placeholder strings from the options.
+- **Projection lookup algorithm** (failure path only): the projection computes the key outcome, then for each non-null encrypted field the field outcome (`Value(text)` or `Failure(reason)`, from the Phase 2 non-throwing read; a `Failure` key outcome fails the event, key-first, exactly as today (D14, D15 and #3083): its reason applies to every field, the candidate ids are `All` plus every field of the trail, and without a resolution the projection throws even when the event's encrypted fields are all null). If neither the key nor a field failed, build the read model with no extra query. Otherwise log 2593, load the `All` resolution (one primary-key load) and the resolution of each failing field (one load per field). Precedence (choice 14, pending the decision recorded there): an `Excluded` resolution (only valid under `All`) wins and yields no row; otherwise an `All` resolution of another kind applies to every failing field and a field-specific resolution applies to its own field (the field-specific one wins over `All` for that field). `Unreadable`, `Shredded` or `Expired` substitutes the matching placeholder and sets the matching flag; a failing field with no resolution makes the projection throw the typed failure (the first failing field's reason). Different ids never conflict under the choice 5 rule, so precedence is a read-time rule (choice 14) tested in Phase 3; a hand-written `Excluded` document under a field other than `All` fails closed (typed throw), it is neither honoured nor ignored. Shard rebuild determinism: the output depends only on the event, the stored `Kind` and references, and the three placeholder strings from the options.
 - **Query stores (M1)**: `MartenOperationAuditStore.MapToAuditEntry` and `MartenReadAuditStore.MapToReadAuditEntry` deserialize `MetadataJson` as JSON unless the model is shredded, expired or the value equals the shredded placeholder; `[UNREADABLE]` is not JSON and a per-field `Shredded`/`Expired` resolution can leave a readable `MetadataJson` beside a set flag. Phase 2 changes the decision to the value: `MetadataJson` is parsed only when it is not one of the three configured placeholders, so a flag no longer drops readable metadata and a placeholder never reaches the JSON parser.
 - **Null guards**: `MartenAuditErrors.RejectInvalidReference(null)` returns `null` (valid), so `MarkShreddedAsync` and `MarkExpiredAsync` throw `ArgumentNullException` for a null reference (guard test) and call `RejectInvalidReference` only for a non-null one.
 - **Concurrent writers**: the flow audits first, then inserts. On a duplicate-key error from the insert the loser reloads the stored document and compares: identical returns `Right`, different returns `Left` conflict. A race can therefore leave one extra audit entry for the loser, even when its resolution is identical: this is the one accepted exception to "no second audit entry" (the entry exists before the insert and cannot be withdrawn). The Phase 4 flow has the reload step and an integration test with two concurrent identical resolutions.
@@ -467,7 +598,7 @@ REFERENCE FILES: src/Encina.Audit.Marten/Events/EncryptedField.cs, src/Encina.Au
 
 ### Phase 3: Projection Lookup & Apply
 
-> **Goal**: Both projections consult a resolution on the failure path and apply it deterministically. **Size**: 14 files, ~850 lines. PR 3, `Refs #3049`. Starts after the #3012 PR merges.
+> **Goal**: Both projections consult a resolution on the failure path and apply it deterministically. **Size**: 14 files, ~850 lines. PR 3, `Refs #3049`. #3083 is merged, so it can start; the precedence code waits for decision 14.
 
 <details>
 <summary><strong>Tasks</strong></summary>
@@ -478,7 +609,7 @@ REFERENCE FILES: src/Encina.Audit.Marten/Events/EncryptedField.cs, src/Encina.Au
 4. `Diagnostics/MartenAuditLog.cs`: 2593 `UnreadableEventDetected` and 2594 `ResolutionApplied`; update the block table; confirm `EncinaEventIdAllocationTests` passes.
 5. `PublicAPI.Unshipped.txt` (remove the old constructor lines and the old public `Create` lines, add the new constructors and the `Create` with `IEvent<T>` and its nullable return, RS0016/RS0017), coverage manifest, XML docs.
 6. Tests: update `OperationAuditEntryProjectionTests.cs`, `ReadAuditEntryProjectionTests.cs`, `OperationAuditEntryProjectionGuardTests.cs`, `ConfigureMartenOperationAuditProjectionsTests.cs`; integration: pause on a poison event, write a resolution document directly, restart (new host over the same store) and rebuild (`RebuildProjectionAsync`), assert the read model; rebuild twice and compare field by field.
-7. Replace the untyped `KeyNotFoundException` expectations at `IT:206-250` of `AuditProjectionUnreadableEventIntegrationTests` with the typed `KeyMissing` failure (the #3012 PR changes them; re-check after the merge), and add acceptance tests for the precedence rule (`All` versus field-specific, `Excluded` wins).
+7. Replace the untyped `KeyNotFoundException` expectations at `IT:206-250` of `AuditProjectionUnreadableEventIntegrationTests` with the typed `KeyMissing` failure (#3083 already changed them; re-check against main), and add acceptance tests for the precedence rule of decision 14 (`All` versus field-specific, `Excluded` wins) and for a hand-written `Excluded` document under a non-`All` field failing closed.
 
 </details>
 
@@ -486,7 +617,7 @@ REFERENCE FILES: src/Encina.Audit.Marten/Events/EncryptedField.cs, src/Encina.Au
 <summary><strong>Prompt for AI Agents — Phase 3</strong></summary>
 
 ```text
-CONTEXT: Issue #3049, plan Phase 3 (needs the #3012 PR merged: KeyMissing typed failure; ClassifyTemporalKeyLookup currently throws and must become a TemporalKeyOutcome). Marten async daemon pauses the shard on a thrown projection failure; a rebuild re-projects every event.
+CONTEXT: Issue #3049, plan Phase 3 (#3083 is merged: KeyMissing typed failure; ClassifyTemporalKeyLookup currently throws and must become a TemporalKeyOutcome; the precedence rule needs decision 14 of the plan). Marten async daemon pauses the shard on a thrown projection failure; a rebuild re-projects every event.
 TASK: First run the day-1 experiment (EventProjection.Create returning null; Create(IEvent<T>, IDocumentOperations, CancellationToken) accepted by Marten 9.38) and choose Create or the Project fallback. Then make both projections look up AuditResolution (ids audit-resolution:{trail}:{eventId}:{field}) only when a field failed, apply Unreadable/Shredded/Expired/Excluded, and rethrow the original typed failure when no resolution exists.
 KEY RULES: Marten projections take dependencies via IDocumentOperations and constructor injection, NEVER IServiceProvider; zero extra queries on the healthy path; the outcome depends only on the event, the stored kind/reference and the three placeholders (no clock, actor or random); a lookup exception propagates (never swallowed); log codes only (EventIds 2593-2594); integration tests use the shared MartenCollection fixture and prove restart and rebuild, rebuilding twice and comparing.
 REFERENCE FILES: src/Encina.Audit.Marten/Projections/OperationAuditEntryProjection.cs, src/Encina.Audit.Marten/Projections/ReadAuditEntryProjection.cs, tests/Encina.IntegrationTests/Infrastructure/Marten/Audit/AuditProjectionUnreadableEventIntegrationTests.cs, src/Encina.Audit.Marten/Diagnostics/MartenAuditLog.cs
@@ -502,6 +633,7 @@ REFERENCE FILES: src/Encina.Audit.Marten/Projections/OperationAuditEntryProjecti
 <summary><strong>Tasks</strong></summary>
 
 1. `Resolution/IAuditProjectionResolver.cs`, `AuditProjectionResolver.cs` (internal sealed, scoped), `AuditResolutionDecision.cs`, `AuditResolutionBatchResult.cs`. Constructor dependencies (proposal): `IDocumentSession`, `IServiceScopeFactory` (the audit store is resolved in its own scope, as `PersistentPolicyAdministrationPoint` does, so a failed document write cannot taint the audit session), `IRequestContextAccessor`, `IOptions<MartenOperationAuditOptions>`, `TimeProvider`, `ILogger<AuditProjectionResolver>`.
+1a. Open decisions first (choices 13 and 15): the permission gate of option C, if chosen (option, validation, `Left` `audit.marten.resolution_forbidden`, checked before validation and before any audit write) and the bulk result shape; plus `AuditResolutionLimits.ReasonMaxLength = 500` (choice 16, counted after trimming).
 2. Flow per write: read the actor once (`Left` `audit.marten.resolution_principal_required` when anonymous) → validate (field set, reason, reference, event exists by `IEvent.Id`) → load the existing document (identical → `Right`, no second entry; different kind → `Left` conflict) → write the audit entry and await it (a `Left`, an exception or the 30 s timeout fails the resolution) → insert the document and save → on a duplicate-key error reload the stored document and compare (identical returns `Right`, different returns `Left` conflict); on any other failed save write a second entry with outcome `Error` and return `Left`. `RemoveAsync` follows the same order with its own action.
 3. `ServiceCollectionExtensions.cs`: `TryAddScoped<IAuditProjectionResolver, AuditProjectionResolver>()` and `TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>()`.
 4. `PublicAPI.Unshipped.txt`, coverage manifest.
@@ -593,7 +725,7 @@ REFERENCE FILES: tests/Encina.IntegrationTests/Infrastructure/Marten/Audit/Audit
 <summary><strong>Tasks</strong></summary>
 
 1. `docs/features/audit-marten.md` (by `docs-writer`): replace the sentences "Operator resolution ... is not available until the later change tracked as PR 2b" and the "Limits today" bullet (lines 209 and 221 at the time of writing; also the stale query-helper note near line 205, the manual marker-editing advice near line 214, and the `KeyNotFoundException` text near line 185 once the #3012 PR has changed it); add the how-to "Resolve an unreadable audit event" (recognise, choose the label, call the resolver, restart or rebuild, verify, with a Mermaid flow and a code sample) and a reference section (API, placeholders, flags `IsShredded`/`IsUnreadable`/`IsExpired`, error codes); state the exclusion caveat, the `AllowSkippedProjectionErrors` caveat and the tamper limit; cite coverage only through `cov:` markers.
-2. `docs/architecture/adr/059-audit-projection-resolution.md` (new) and its row in `docs/architecture/adr/index.md`: Context, Decision (document, event id, kinds, determinism, audit-first, tamper limit), Alternatives (choices 1 to 8), Consequences; one-line pointer amendment in ADR-020.
+2. `docs/architecture/adr/061-audit-projection-resolution.md` (new) and its row in `docs/architecture/adr/index.md`: Context, Decision (document, event id, kinds, determinism, audit-first, tamper limit), Alternatives (choices 1 to 8), Consequences; one-line pointer amendment in ADR-020.
 3. Changelog fragments (`mechanical-fixer`), named by the rule `changelog.d/<issue>-<slug>.<section>.md` with issue 3049 (the issue's Documentation checklist says `2770-...` and should be edited to `3049-...`): `changelog.d/3049-audit-projection-resolver.added.md` (resolver, document, `[UNREADABLE]`, `IsUnreadable`) and `changelog.d/3049-audit-unreadable-placeholder.changed.md` (projection constructors, typed missing-key failure).
 4. Package README only if it describes the placeholders; `docs/INVENTORY.md` if it lists package types; `ROADMAP.md` is not affected.
 5. Close-out: open or confirm the follow-up issues #3024, #3025, #3026, #3027; run `check-plan` without `-Draft`; build with zero warnings and run all test flags.
@@ -605,8 +737,8 @@ REFERENCE FILES: tests/Encina.IntegrationTests/Infrastructure/Marten/Audit/Audit
 
 ```text
 CONTEXT: Issue #3049, plan Phase 7. Code and tests are merged (phases 1-6). Docs follow the encina-docs skill (.claude/skills/encina-docs/SKILL.md): one Diataxis quadrant per page, junior-readable English, no hand-typed coverage figures.
-TASK: Update docs/features/audit-marten.md (how-to plus reference), write ADR-059 and its index row, add the ADR-020 pointer, add the two changelog fragments.
-KEY RULES: confirm ADR number 059 is free with git ls-tree origin/main docs/architecture/adr/ --name-only (058 is open PR #2980); every identifier named in docs exists in src/; coverage only via cov: markers; no emojis; the fragments are written by mechanical-fixer; the PR says Fixes #3049.
+TASK: Update docs/features/audit-marten.md (how-to plus reference), write ADR-061 and its index row, add the ADR-020 pointer, add the two changelog fragments.
+KEY RULES: confirm ADR number 061 is neither used (git ls-tree origin/main docs/architecture/adr/ --name-only) nor reserved by another plan in the index (059 is reserved for the AES-GCM decrypt-site topic, 058 and 060 exist); replace the 061 reservation row by the ADR row; every identifier named in docs exists in src/; coverage only via cov: markers; no emojis; the fragments are written by mechanical-fixer; the PR says Fixes #3049.
 REFERENCE FILES: docs/features/audit-marten.md, docs/architecture/adr/020-temporal-crypto-shredding-audit-store.md, docs/architecture/adr/index.md, changelog.d/README.md, changelog.d/2770-encryptedfield-envelope.added.md
 ```
 
@@ -658,7 +790,7 @@ REFERENCE FILES: docs/features/audit-marten.md, docs/architecture/adr/020-tempor
 | Production (modified) | 15 | `EncryptedField`, two projections, two read models, two query stores, options, `MartenAuditErrors`, configure, log, meter, activity source, `ServiceCollectionExtensions`, `PublicAPI.Unshipped.txt` |
 | Tests | 18-22 | Unit, guard, contract, property, integration across seven PRs, plus 2 justification `.md` files |
 | Coverage manifest | 1 | Touched by every code PR |
-| Docs and changelog | 5 | Runbook, ADR-059, ADR index, ADR-020 pointer, 2 fragments |
+| Docs and changelog | 5 | Runbook, ADR-061, ADR index, ADR-020 pointer, 2 fragments |
 
 ---
 
@@ -674,10 +806,10 @@ PROJECT CONTEXT:
 - Encina is pre-1.0, .NET 10 / C# 14, nullable enabled; best solution always, no compatibility layers.
 - Package src/Encina.Audit.Marten only; Marten event sourcing, not the 10-database-provider matrix.
 - Railway Oriented Programming: Either<EncinaError, T>; CancellationToken on every async method; TimeProvider injected.
-- Part 2a (merged) made unreadable audit fields fail typed so the async daemon pauses the shard; the #3012 PR adds the typed KeyMissing failure and must be merged before Phase 3.
+- Part 2a (merged) made unreadable audit fields fail typed so the async daemon pauses the shard; #3083 (merged) added the typed KeyMissing failure.
 
 IMPLEMENTATION OVERVIEW:
-Phase 1: AuditResolution document, enums, ids, error codes, Schema registration. Phase 2: non-throwing EncryptedField read, UnreadablePlaceholder, IsUnreadable. Phase 3: projections look up and apply a resolution on the failure path only (day-1 Marten 9.38 experiment first). Phase 4: IAuditProjectionResolver, audit entry awaited before the document, DI. Phase 5: meter, activity, EventIds 2593-2598. Phase 6: integration, contract, property tests and justification files. Phase 7: runbook, ADR-059, changelog. One PR per phase, at most 15 files and 1500 lines each.
+Phase 1: AuditResolution document, enums, ids, error codes, Schema registration. Phase 2: non-throwing EncryptedField read, UnreadablePlaceholder, IsUnreadable. Phase 3: projections look up and apply a resolution on the failure path only (day-1 Marten 9.38 experiment first). Phase 4: IAuditProjectionResolver, audit entry awaited before the document, DI. Phase 5: meter, activity, EventIds 2593-2598. Phase 6: integration, contract, property tests and justification files. Phase 7: runbook, ADR-061, changelog. One PR per phase, at most 15 files and 1500 lines each.
 
 KEY PATTERNS:
 - Document id audit-resolution:{trail}:{eventId}:{field}; eventId is Marten IEvent.Id; field set is a closed enum plus All.
@@ -716,10 +848,12 @@ REFERENCE FILES: docs/plans/audit-projection-resolver-implementation-plan-3049.m
 
 | Item | Status | Effect |
 |------|--------|--------|
-| #3012 PR (`Fixes #3012`; `ClassifyTemporalKeyLookup` throws `EncryptedFieldDecryptionException(KeyMissing)` for "neither key nor marker") | Fix done on `fix/3012-audit-key-missing-typed-failure`, PR being opened (orchestrator, 2026-10-30) | Phases 3 to 7 depend on it being merged; re-merge `origin/main` when it lands |
+| PR #3083 (`Fixes #3012`; `ClassifyTemporalKeyLookup` throws `EncryptedFieldDecryptionException(KeyMissing)` for "neither key nor marker") | Merged | Phase 3 can start; re-check the post-#3083 code names |
+| Bug #3088 (the period leaks into `MartenAuditLog` and `MartenAuditErrors`) | Open | New log messages and errors of this feature carry no period |
+| Decisions 13 (authorisation), 14 (precedence), 15 (bulk helper) | Dilemmas, awaiting a maintainer decision (2026-11-03) | Phase 4 waits for 13 and 15; the precedence code of Phase 3 waits for 14 |
 | PR #2928 (part 2a) | Merged 2026-10-29 | Typed failure, `[SHREDDED]`/`[EXPIRED]` rules, startup guard |
 | Issues #3024, #3025, #3026, #3027, #2910 | Open follow-ups | Out of scope; linked from the PRs |
-| ADR number | 059 free on `origin/main`; 058 held by open PR #2980 | Re-check in Phase 7 |
+| ADR number | 061 free and unreserved on `origin/main` (2026-11-03); 058 merged (#2980), 059 reserved for another topic, 060 exists | Reserve 061 in the index with this plan; re-check in Phase 7 |
 
 **Risks**
 
@@ -727,14 +861,14 @@ REFERENCE FILES: docs/plans/audit-projection-resolver-implementation-plan-3049.m
 |------|--------|------------|
 | Marten 9.38 `Create` may not accept a `null` return, or progress may not advance past an excluded event | Exclusion would not work | Day-1 integration experiment in Phase 3; fallback `Project` method that stores only non-excluded events |
 | `Create(IEvent<T>, IDocumentOperations, CancellationToken)` not accepted by the validator | Event id unavailable to the projection | Same experiment; the class remarks name the non-generic `JasperFx.Events.IEvent` as allowed, so the generic `IEvent<T>` is unverified and proven before other Phase 3 code |
-| The #3012 PR merges late or changes the shape of `ClassifyTemporalKeyLookup` | Phase 3 delayed or reworked | Phases 1 and 2 independent; Phase 3 is written against the post-#3012 code and re-checked after the merge |
+| The post-#3083 shape of `ClassifyTemporalKeyLookup` differs from what Phase 3 assumes | Phase 3 reworked | Re-check the names on main before the Phase 3 brief |
 | `[UNREADABLE]` metadata reaching the JSON parser of the query stores | Queries returning a resolved event throw | Phase 2 makes the metadata handling value-based and tests it (M1) |
 | Size rule: a phase exceeds 15 files or 1500 lines | PR not reviewable | Re-measure at brief time; split further instead of widening |
-| Tamper limit: a resolution document can be edited in SQL | Forged `[SHREDDED]` evidence on rebuild | D27 = (a): hash in the audit entry, documented in the runbook and ADR-059; HMAC or a package-wide integrity design only if SPEC-002 needs it |
-| ADR number collision with #2980 | ADR file conflict | 059 chosen; confirm when Phase 7 starts |
+| Tamper limit: a resolution document can be edited in SQL | Forged `[SHREDDED]` evidence on rebuild | D27 = (a): hash in the audit entry, documented in the runbook and ADR-061; HMAC or a package-wide integrity design only if SPEC-002 needs it |
+| ADR number collision with another plan | ADR file conflict | 061 chosen and reserved in the index; confirm when Phase 7 starts |
 | Store-wide skip flags (`SkipApplyErrors`, `SkipSerializationErrors`) set to `true` by the application | An unresolved failure is skipped silently | The startup guard fails the host unless `AllowSkippedProjectionErrors` is set; the runbook states the consequence (D56) |
 
-**Assumptions** (no open questions): (1) the #3012 PR adds `EncryptedFieldDecryptionFailureReason.KeyMissing` and merges before Phase 3; (2) the audit store is resolved in its own scope, as in `PersistentPolicyAdministrationPoint`; (3) the bulk helper stops at the first `Left` and returns it (D23 = (d) asks for "a bulk helper" without a shape); (4) `Excluded` is accepted only with field `All`; (5) the 500-character reason limit is an implementation constant the DPO may change; (6) the last PR closes #3049 and also #2770 when no other child of #2770 is open (the issue text asks for `Fixes #2770` in the closing PR).
+**Assumptions**: (1) #3083 is merged and added `EncryptedFieldDecryptionFailureReason.KeyMissing`; (2) the audit store is resolved in its own scope, as in `PersistentPolicyAdministrationPoint`; (3) the last PR closes #3049 and also #2770 when no other child of #2770 is open (the issue text asks for `Fixes #2770` in the closing PR).
 
 ---
 
@@ -743,7 +877,7 @@ REFERENCE FILES: docs/plans/audit-projection-resolver-implementation-plan-3049.m
 1. Review this plan; the orchestrator links it from #3049 (`artifacts/issues/3049-plan-link.md`).
 2. When #3049 is picked up, re-check every Design Choice against today's code, run the decision-extractor and the adversarial review, then run `check-plan` without `-Draft`.
 3. Decompose the seven phases into ready sub-issues (size rule), one worker brief each.
-4. Phases 1 and 2 can run in parallel; Phase 3 waits for the #3012 PR to merge; Phases 4 to 7 follow in order.
+4. Phases 1 and 2 can run in parallel (already under way); Phase 3 can start (#3083 merged) but its precedence code waits for decision 14; Phase 4 waits for decisions 13 and 15; Phases 5 to 7 follow in order.
 5. Each PR reports the measured per-flag coverage of its files against the manifest; the last PR says `Fixes #3049`.
 
 ---
@@ -760,3 +894,6 @@ REFERENCE FILES: docs/plans/audit-projection-resolver-implementation-plan-3049.m
 8. (2026-10-25) **D14 = (c)** (comment 6395444785) and **D15 amended** (comment 6395499536): integrity over availability; the shard pauses on an unreadable field and the operator resolves it; a missing or destroyed key without a recorded reference is not a lawful erasure.
 9. (2026-10-25) **Q2 = (a)**: every resolution is recorded in the audit trail (who, when, reason, label) and logs carry codes only.
 10. (2026-10-27) **D21 = (b)** and **D22 = (e)** (comment 6440026324): the retention policy id option, and Encina does not change Marten's store-wide error flags; the startup guard stays the fail-closed check.
+13. (2026-11-03) **Dilemma, awaiting the maintainer's answer**: who may call the resolver (choice 13). Options: A host-side authorisation, C required permission `audit:resolve` in `MartenOperationAuditOptions` with no opt-out (recommended), D replaceable authorizer. Phase 4 does not start before the answer.
+14. (2026-11-03) **Dilemma, awaiting the maintainer's answer**: precedence between an `All`, a field-specific and an `Excluded` resolution (choice 14). Recommended: `Excluded` wins, a field-specific resolution wins over `All` for its own field. The precedence code of Phase 3 does not start before the answer.
+15. (2026-11-03) **Dilemma, awaiting the maintainer's answer**: shape of the bulk helper (choice 15). Options: stop at the first `Left`, continue with per-event results, or the hybrid (recommended). Phase 4 does not start before the answer.
