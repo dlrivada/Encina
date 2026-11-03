@@ -102,8 +102,14 @@ Registers the request identity model (`AddEncinaRequestIdentity()`) and a scoped
 | The authentication state changed | The new state, applied at the next activity |
 | Outside an activity (a continuation that outlives it, a timer) | Anonymous |
 | The host refuses the scope (`ScopeConflict`, `UnsupportedAccessor`) | The activity still runs, anonymous, under a masking scope |
-| An authenticated principal has no usable subject (`MissingSubjectClaim`, `MalformedSubjectClaim`, `ReservedSubjectClaim`, `ConflictingSubjectClaims`) or conflicting tenant claims (`InboundTenantConflict`) | The activity does not run, never as anonymous: the handler throws an `InvalidOperationException` whose fixed text carries only the error code (no claim value), the factory logs Warning 167. For a JavaScript interop call and the UI events that travel through it, Blazor reports an unhandled circuit exception (error UI on the client, circuit terminated). The first activity of a circuit (its initialization) and render acknowledgements are fire-and-forget in Blazor: a refusal there is not reported to the client and leaves the circuit uninitialized, so nothing runs for that principal |
+| An authenticated principal has no usable subject (`MissingSubjectClaim`, `MalformedSubjectClaim`, `ReservedSubjectClaim`, `ConflictingSubjectClaims`) or conflicting tenant claims (`InboundTenantConflict`) | The activity does not run, never as anonymous: the handler throws an `InvalidOperationException` whose fixed text carries only the error code (no claim value), the factory logs Warning 167. What the client sees depends on the path (see the note below) |
 | The principal is null or unauthenticated | Anonymous; this is not a refusal |
+
+What Blazor does with the refusal exception:
+
+- JavaScript interop calls and the UI events that travel through them: Blazor notifies the client (error UI) and terminates the circuit. In a Blazor Web App the first activity of a circuit is reported the same way.
+- Initialization of a circuit in the legacy Blazor Server hosting: fire-and-forget. The client is not notified, the circuit stays uninitialized and nothing runs for that principal.
+- Render acknowledgements: fire-and-forget. The acknowledgement is lost and rendering stalls; the circuit is already initialized.
 
 ## Dependencies
 
