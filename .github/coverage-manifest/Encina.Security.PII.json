@@ -18,7 +18,7 @@
     "Health/PIIHealthCheck.cs": { "defaultTests": ["unit"], "reason": "Health check — no constructor guards" },
     "Internal/PIIPropertyScanner.cs": {
       "defaultTests": ["unit", "property"],
-      "reason": "Reflection-based property scanner; its branches are reached through unit tests and generated DTOs",
+      "reason": "Reflection-based property scanner; its branches are reached through unit tests and generated DTOs. The guard flag is not in defaultTests because the type is internal and has no ThrowIfNull, so there are no guard lines to cover.",
       "targets": { "unit": 95, "property": 70 },
       "justifications": {
         "unit": "Every branch (property, class, log-only, precedence, non-string unmaskable, get-only) is reached through GetProperties by the scanner unit tests; only the ArgumentException catch of CompileSetter is unreachable with a plain DTO (measured 97%).",
@@ -27,7 +27,7 @@
     },
     "Internal/PropertyMaskingMetadata.cs": {
       "defaultTests": ["unit", "property"],
-      "reason": "Compiled property accessor metadata used by the scanner",
+      "reason": "Compiled property accessor metadata used by the scanner. The guard flag is not in defaultTests because the type is internal and has no ThrowIfNull, so there are no guard lines to cover.",
       "targets": { "unit": 90, "property": 70 },
       "justifications": {
         "unit": "Constructor, GetValue and the throwing SetValue branch of the no-setter case are exercised by the scanner and masker unit tests (measured 91%).",

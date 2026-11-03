@@ -307,7 +307,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
     private T MaskObjectInternal<T>(T obj, bool logContextOnly, out int maskedCount)
     {
         var type = obj!.GetType();
-        var properties = PIIPropertyScanner.GetProperties(type);
+        var properties = ScanProperties(type, logContextOnly);
 
         if (properties.Length == 0)
         {
@@ -480,6 +480,14 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
 
         var result = node.Deserialize<T>(_jsonOptions);
         return result ?? obj;
+    }
+
+    // An unmaskable [MaskInLogs] property only matters to the log context (it fails closed there); the
+    // response and audit contexts ignore it entirely, so a type decorated only that way is not copied.
+    private static PropertyMaskingMetadata[] ScanProperties(Type type, bool logContextOnly)
+    {
+        var properties = PIIPropertyScanner.GetProperties(type);
+        return logContextOnly ? properties : [.. properties.Where(p => !p.Unmaskable)];
     }
 
     private object MaskObjectViaJson(object obj, Type type, bool logContextOnly)

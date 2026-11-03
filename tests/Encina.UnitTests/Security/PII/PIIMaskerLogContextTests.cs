@@ -205,6 +205,8 @@ public sealed class PIIMaskerLogContextTests : IDisposable
 
     private sealed record NonStringCmd([property: MaskInLogs] Guid TrackingId, string Name);
 
+    private sealed record OnlyUnmaskableCmd([property: MaskInLogs] Guid TrackingId);
+
     [Fact]
     public void MaskForLog_ClassLevelMaskInLogs_MasksEveryStringProperty()
     {
@@ -274,6 +276,17 @@ public sealed class PIIMaskerLogContextTests : IDisposable
         sut.MaskObject(cmd).TrackingId.ShouldBe(cmd.TrackingId);
         sut.MaskForAudit(cmd).TrackingId.ShouldBe(cmd.TrackingId);
         ((NonStringCmd)sut.MaskForAudit((object)cmd)).TrackingId.ShouldBe(cmd.TrackingId);
+    }
+
+    [Fact]
+    public void ResponseAndAuditContexts_TypeDecoratedOnlyWithNonStringMaskInLogs_PassThroughAsTheSameInstance()
+    {
+        var sut = CreateMasker(null);
+        var cmd = new OnlyUnmaskableCmd(Guid.NewGuid());
+
+        sut.MaskObject(cmd).ShouldBeSameAs(cmd);
+        sut.MaskForAudit(cmd).ShouldBeSameAs(cmd);
+        Should.Throw<InvalidOperationException>(() => sut.MaskForLog(cmd));
     }
 
     [Fact]
