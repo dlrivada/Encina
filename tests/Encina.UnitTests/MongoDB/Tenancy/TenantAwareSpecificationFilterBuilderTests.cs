@@ -3,6 +3,7 @@ using Encina.DomainModeling;
 using Encina.MongoDB.Tenancy;
 using Encina.Tenancy;
 using Encina.Testing.Shouldly;
+using LanguageExt;
 using MongoDB.Driver;
 using NSubstitute;
 using Shouldly;
@@ -88,25 +89,29 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
         var spec = new MongoActiveOrdersSpec();
 
         // Act
-        var filter = builder.BuildFilter(spec);
+        var filter = builder.BuildFilter(spec, "List").ShouldBeSuccess();
 
         // Assert
         filter.ShouldNotBeNull();
         filter.ShouldNotBe(Builders<MongoTenantTestOrder>.Filter.Empty);
     }
 
-    [Fact]
-    public void BuildFilter_WithoutTenantContext_ThrowsException_WhenConfigured()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void BuildFilter_WithoutTenantContext_ReturnsTenantRequiredLeft_WhenConfigured(string? tenantId)
     {
         // Arrange
-        _tenantProvider.GetCurrentTenantId().Returns((string?)null);
+        _tenantProvider.GetCurrentTenantId().Returns(tenantId);
         var options = new MongoDbTenancyOptions { ThrowOnMissingTenantContext = true };
         var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, options);
         var spec = new MongoActiveOrdersSpec();
 
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.BuildFilter(spec))
-            .Message.ShouldContain("without tenant context");
+        // Act
+        var error = builder.BuildFilter(spec, "List").ShouldBeError();
+
+        // Assert
+        error.GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.TenantRequiredErrorCode);
     }
 
     [Fact]
@@ -119,7 +124,7 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
         var spec = new MongoActiveOrdersSpec();
 
         // Act
-        var filter = builder.BuildFilter(spec);
+        var filter = builder.BuildFilter(spec, "List").ShouldBeSuccess();
 
         // Assert
         filter.ShouldNotBeNull();
@@ -134,7 +139,7 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
         var spec = new MongoActiveOrdersSpec();
 
         // Act
-        var filter = builder.BuildFilter(spec);
+        var filter = builder.BuildFilter(spec, "List").ShouldBeSuccess();
 
         // Assert
         filter.ShouldNotBeNull();
@@ -150,7 +155,7 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
         var spec = new MongoActiveOrdersSpec();
 
         // Act
-        var filter = builder.BuildFilter(spec);
+        var filter = builder.BuildFilter(spec, "List").ShouldBeSuccess();
 
         // Assert
         filter.ShouldNotBeNull();
@@ -168,11 +173,28 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
         var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, _options);
 
         // Act
-        var filter = builder.BuildTenantFilter();
+        var filter = builder.BuildTenantFilter("List").ShouldBeSuccess();
 
         // Assert
         filter.ShouldNotBeNull();
         filter.ShouldNotBe(Builders<MongoTenantTestOrder>.Filter.Empty);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void BuildTenantFilter_WithoutTenantContext_ReturnsTenantRequiredLeftNamingTheOperation(string? tenantId)
+    {
+        // Arrange
+        _tenantProvider.GetCurrentTenantId().Returns(tenantId);
+        var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, _options);
+
+        // Act
+        var error = builder.BuildTenantFilter("Count").ShouldBeError();
+
+        // Assert
+        error.GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.TenantRequiredErrorCode);
+        error.Message.ShouldContain("'Count'");
     }
 
     [Fact]
@@ -184,7 +206,7 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
         var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, options);
 
         // Act
-        var filter = builder.BuildTenantFilter();
+        var filter = builder.BuildTenantFilter("List").ShouldBeSuccess();
 
         // Assert
         filter.ShouldBe(Builders<MongoTenantTestOrder>.Filter.Empty);
@@ -198,7 +220,7 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
         var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_nonTenantMapping, _tenantProvider, _options);
 
         // Act
-        var filter = builder.BuildTenantFilter();
+        var filter = builder.BuildTenantFilter("List").ShouldBeSuccess();
 
         // Assert
         filter.ShouldBe(Builders<MongoTenantTestOrder>.Filter.Empty);
@@ -216,11 +238,41 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
         var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, _options);
 
         // Act
-        var (filter, tenantId) = builder.BuildFilterWithTenantId(null);
+        var (filter, tenantId) = builder.BuildFilterWithTenantId(null, "List").ShouldBeSuccess();
 
         // Assert
         tenantId.ShouldBe("tenant-xyz");
         filter.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void BuildFilterWithTenantId_WithoutTenantContext_ReturnsTenantRequiredLeft()
+    {
+        // Arrange
+        _tenantProvider.GetCurrentTenantId().Returns((string?)null);
+        var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, _options);
+
+        // Act
+        var error = builder.BuildFilterWithTenantId(new MongoActiveOrdersSpec(), "List").ShouldBeError();
+
+        // Assert
+        error.GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.TenantRequiredErrorCode);
+    }
+
+    [Fact]
+    public void BuildFilterWithTenantId_WithoutTenantContext_ReturnsNoTenantId_WhenNotThrowConfigured()
+    {
+        // Arrange
+        _tenantProvider.GetCurrentTenantId().Returns((string?)null);
+        var options = new MongoDbTenancyOptions { ThrowOnMissingTenantContext = false };
+        var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, options);
+
+        // Act
+        var (filter, tenantId) = builder.BuildFilterWithTenantId(null, "List").ShouldBeSuccess();
+
+        // Assert
+        tenantId.ShouldBeNull();
+        filter.ShouldBe(Builders<MongoTenantTestOrder>.Filter.Empty);
     }
 
     [Fact]
@@ -232,7 +284,7 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
         var spec = new MongoActiveOrdersSpec();
 
         // Act
-        var (filter, tenantId) = builder.BuildFilterWithTenantId(spec);
+        var (filter, tenantId) = builder.BuildFilterWithTenantId(spec, "List").ShouldBeSuccess();
 
         // Assert
         tenantId.ShouldBe("tenant-xyz");
@@ -252,10 +304,39 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
         var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, _options);
 
         // Act
-        var tenantId = builder.GetCurrentTenantId();
+        var tenantId = builder.GetCurrentTenantId("List").ShouldBeSuccess();
 
         // Assert
-        tenantId.ShouldBe("tenant-abc");
+        tenantId.IfNoneUnsafe(() => null).ShouldBe("tenant-abc");
+    }
+
+    [Fact]
+    public void GetCurrentTenantId_WithoutTenantContext_ReturnsTenantRequiredLeft()
+    {
+        // Arrange
+        _tenantProvider.GetCurrentTenantId().Returns((string?)null);
+        var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, _options);
+
+        // Act
+        var error = builder.GetCurrentTenantId("Any").ShouldBeError();
+
+        // Assert
+        error.GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.TenantRequiredErrorCode);
+    }
+
+    [Fact]
+    public void GetCurrentTenantId_WithoutTenantContext_ReturnsNull_WhenNotThrowConfigured()
+    {
+        // Arrange
+        _tenantProvider.GetCurrentTenantId().Returns((string?)null);
+        var options = new MongoDbTenancyOptions { ThrowOnMissingTenantContext = false };
+        var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, options);
+
+        // Act
+        var tenantId = builder.GetCurrentTenantId("Any").ShouldBeSuccess();
+
+        // Assert
+        tenantId.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -267,10 +348,10 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
         var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, options);
 
         // Act
-        var tenantId = builder.GetCurrentTenantId();
+        var tenantId = builder.GetCurrentTenantId("List").ShouldBeSuccess();
 
         // Assert
-        tenantId.ShouldBeNull();
+        tenantId.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -281,10 +362,10 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
         var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_nonTenantMapping, _tenantProvider, _options);
 
         // Act
-        var tenantId = builder.GetCurrentTenantId();
+        var tenantId = builder.GetCurrentTenantId("List").ShouldBeSuccess();
 
         // Assert
-        tenantId.ShouldBeNull();
+        tenantId.IsNone.ShouldBeTrue();
     }
 
     #endregion

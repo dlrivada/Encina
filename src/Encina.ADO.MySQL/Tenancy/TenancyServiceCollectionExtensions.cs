@@ -88,7 +88,7 @@ public static class TenancyServiceCollectionExtensions
             OutboxMessageFactory,
             InboxStoreADO,
             InboxMessageFactory,
-            OutboxProcessor>(config, Messaging.Outbox.OutboxWritePath.TransactionalBehavior);
+            OutboxProcessor>(config);
 
         // The dead letter queue is not wired by AddMessagingServicesCore (#583).
         services.AddDeadLetterQueueServices<DeadLetterStoreADO, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions);
