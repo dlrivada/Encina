@@ -88,7 +88,7 @@ Atomicity does not depend on the order of the transaction and outbox behaviors, 
 
 ### Slices and the removal of the interim write path
 
-The change was delivered one provider family at a time. While the families moved, the Outbox registration chose between the post-processor and the new behavior through an internal switch, `OutboxWritePath`. On 2026-11-03 the last family had moved, and the switch, `OutboxPostProcessor<,>` and the internal registration overloads that took the switch were deleted, because `AGENTS.md` section 3 forbids keeping compatibility layers. Every family now registers the same behavior:
+The change was delivered one provider family at a time. While the families moved, the Outbox registration chose between the post-processor and the new behavior through an internal switch, `OutboxWritePath`. Once the last family had moved, the switch, `OutboxPostProcessor<,>` and the internal registration overloads that took the switch were deleted (2026-11-03), because `AGENTS.md` section 3 forbids keeping compatibility layers. Every family now registers the same behavior:
 
 | Used by | Behavior |
 | --- | --- |
@@ -98,7 +98,7 @@ The change was delivered one provider family at a time. While the families moved
 
 The accessor registration is internal and uses `TryAdd`, so an application's own registration wins; it is made by the ADO.NET and Dapper registration paths (they have a scoped `IDbConnection`), by the EF Core registration (which registers `DbContextTransactionAccessor` over the scoped `DbContext` instead), by the MongoDB registration (`MongoSessionAccessor`) and by `AddEncinaUnitOfWork`.
 
-Slice 1 (delivered; issue #718 stays open until every family is done): the shared abstractions, the accessor, the two behaviors, the three ADO.NET providers, observability, and the move of the inbox to the same accessor. Slice 2 (delivered, [#719](https://github.com/dlrivada/Encina/issues/719)): the three Dapper providers; `AddEncinaDapper` registers `TransactionalOutboxPipelineBehavior<,>`, `UnitOfWorkDapper` takes a lease on the shared transaction, and the four Dapper messaging stores enlist in it. Slice 3 (delivered, #718): EF Core, described next. Slice 4 (delivered, #718): MongoDB, described after it. Slice 5 (delivered, #718): the removal described above ([#1935](https://github.com/dlrivada/Encina/issues/1935), closed as a duplicate of #718).
+Slice 1 (delivered): the shared abstractions, the accessor, the two behaviors, the three ADO.NET providers, observability, and the move of the inbox to the same accessor. Slice 2 (delivered, [#719](https://github.com/dlrivada/Encina/issues/719)): the three Dapper providers; `AddEncinaDapper` registers `TransactionalOutboxPipelineBehavior<,>`, `UnitOfWorkDapper` takes a lease on the shared transaction, and the four Dapper messaging stores enlist in it. Slice 3 (delivered, #718): EF Core, described next. Slice 4 (delivered, #718): MongoDB, described after it. Slice 5 (delivered, #718): the removal described above ([#1935](https://github.com/dlrivada/Encina/issues/1935), closed as a duplicate of #718).
 
 ### EF Core slice
 
