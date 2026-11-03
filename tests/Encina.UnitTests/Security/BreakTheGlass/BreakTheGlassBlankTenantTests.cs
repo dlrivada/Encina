@@ -68,7 +68,7 @@ public sealed class BreakTheGlassBlankTenantTests
 
         opened.TenantId.ShouldBeNull();
         Right(await store.GetByIdAsync(null, opened.ElevationId)).IsSome.ShouldBeTrue();
-        Right(await store.GetByIdAsync(blank, opened.ElevationId)).IsNone.ShouldBeTrue();
+        Right(await store.GetByIdAsync(blank, opened.ElevationId)).IsSome.ShouldBeTrue();
         audit.GetAllEntries().ShouldNotBeEmpty();
         audit.GetAllEntries().ShouldAllBe(entry => entry.TenantId == null);
     }

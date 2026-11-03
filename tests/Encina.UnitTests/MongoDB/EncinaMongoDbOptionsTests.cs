@@ -55,6 +55,8 @@ public sealed class EncinaMongoDbOptionsTests
 
         options.UseOperationAuditStore.ShouldBeFalse();
         options.UseReadAuditStore.ShouldBeFalse();
+        options.UseBreakTheGlassStore.ShouldBeFalse();
+        options.Collections.BreakTheGlassElevations.ShouldBe("break_glass_elevations");
         options.UseAnonymization.ShouldBeFalse();
         options.UseRetention.ShouldBeFalse();
         options.UseDataResidency.ShouldBeFalse();
@@ -79,6 +81,7 @@ public sealed class EncinaMongoDbOptionsTests
         {
             UseOperationAuditStore = true,
             UseReadAuditStore = true,
+            UseBreakTheGlassStore = true,
             UseAnonymization = true,
             UseRetention = true,
             UseDataResidency = true,
@@ -90,6 +93,7 @@ public sealed class EncinaMongoDbOptionsTests
 
         options.UseOperationAuditStore.ShouldBeTrue();
         options.UseReadAuditStore.ShouldBeTrue();
+        options.UseBreakTheGlassStore.ShouldBeTrue();
         options.UseAnonymization.ShouldBeTrue();
         options.UseRetention.ShouldBeTrue();
         options.UseDataResidency.ShouldBeTrue();
