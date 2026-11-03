@@ -39,6 +39,7 @@ using System.Text.RegularExpressions;
 string? rootArg = null, outputPath = null, baselinePath = null, summaryPath = null;
 var selfTest = false;
 var printBaseline = false;
+var noBaseline = false;
 
 for (var i = 0; i < args.Length; i++)
 {
@@ -46,6 +47,7 @@ for (var i = 0; i < args.Length; i++)
     {
         case "--self-test": selfTest = true; break;
         case "--print-baseline": printBaseline = true; break;
+        case "--no-baseline": noBaseline = true; break;
         case "--root" when i + 1 < args.Length: rootArg = args[++i]; break;
         case "--output" when i + 1 < args.Length: outputPath = args[++i]; break;
         case "--baseline" when i + 1 < args.Length: baselinePath = args[++i]; break;
@@ -68,12 +70,19 @@ if (root is null || !Directory.Exists(Path.Combine(root, ".github", "coverage-ma
     return 2;
 }
 
+// A run that gates must be given its baseline: forgetting --baseline must not turn the audit into a silent pass.
+if (!printBaseline && baselinePath is null && !noBaseline)
+{
+    Console.Error.WriteLine("No baseline: pass --baseline <file> (or --no-baseline for a report-only run, or --print-baseline).");
+    return 2;
+}
+
 Report report;
 try
 {
     report = Audit.Measure(root, TimeProvider.System.GetUtcNow());
 }
-catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+catch (Exception ex) when (ex is IOException or JsonException or InvalidOperationException or UnauthorizedAccessException)
 {
     Console.Error.WriteLine($"Cannot read the repository: {ex.GetType().Name}");
     return 2;
@@ -92,7 +101,7 @@ if (baselinePath is not null)
     {
         baseline = Baseline.Load(Path.GetFullPath(baselinePath));
     }
-    catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
+    catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or InvalidOperationException or UnauthorizedAccessException)
     {
         Console.Error.WriteLine($"Cannot read the baseline '{baselinePath}': {ex.GetType().Name}");
         return 2;
@@ -102,18 +111,26 @@ if (baselinePath is not null)
 var evaluation = Audit.Evaluate(report, baseline);
 report.Checks = evaluation.Checks;
 
-if (outputPath is not null)
-{
-    var full = Path.GetFullPath(outputPath);
-    Directory.CreateDirectory(Path.GetDirectoryName(full)!);
-    File.WriteAllText(full, JsonSerializer.Serialize(report, Audit.JsonOptions));
-}
-
 var summary = Audit.Summary(report);
 Console.WriteLine(summary);
-if (!string.IsNullOrEmpty(summaryPath))
+try
 {
-    File.AppendAllText(summaryPath, summary + Environment.NewLine);
+    if (outputPath is not null)
+    {
+        var full = Path.GetFullPath(outputPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+        File.WriteAllText(full, JsonSerializer.Serialize(report, Audit.JsonOptions));
+    }
+
+    if (!string.IsNullOrEmpty(summaryPath))
+    {
+        File.AppendAllText(summaryPath, summary + Environment.NewLine);
+    }
+}
+catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+{
+    Console.Error.WriteLine($"Cannot write the output: {ex.GetType().Name}");
+    return 2;
 }
 
 return evaluation.ExitCode;
@@ -175,6 +192,8 @@ sealed class CheckResult
     public int? Delta { get; set; }
     public string Status { get; set; } = "";
     public List<string> NewItems { get; set; } = [];
+    // Accepted items that no longer occur: the baseline must be lowered (strict ratchet).
+    public List<string> GoneItems { get; set; } = [];
 }
 
 sealed record Evaluation(int ExitCode, List<CheckResult> Checks);
@@ -194,6 +213,13 @@ sealed class Baseline
         if (b.Schema != 1)
         {
             throw new InvalidDataException("unsupported baseline schema");
+        }
+
+        // JSON null must be a bad baseline, never a section or list that silently skips a check (fail closed).
+        if (b.H1 is null || b.H2Forbidden is null || b.H3 is null
+            || b.H1.Items is null || b.H2Forbidden.Items is null || b.H3.Items is null)
+        {
+            throw new InvalidDataException("baseline section or items list is null");
         }
         return b;
     }
@@ -219,7 +245,8 @@ static class Audit
     static readonly string[] ForbiddenProjects = ["Encina.UnitTests", "Encina.GuardTests", "Encina.ContractTests"];
     static readonly string[] StaleProjects = ["Encina.BenchmarkTests", "Encina.LoadTests"];
 
-    static readonly Regex NotImplemented = new(@"^#{1,6}\s*Status:\s*Not Implemented\b", RegexOptions.Multiline | RegexOptions.Compiled);
+    // `## Status: Not Implemented` (the form of the real files), also as a plain or bold `Status:` line, any case.
+    static readonly Regex NotImplemented = new(@"^[ \t]*(?:#{1,6}[ \t]*)?\*{0,2}Status\*{0,2}[ \t]*:[ \t]*\*{0,2}[ \t]*Not[ \t]+Implemented\b", RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
     static readonly Regex EncinaToken = new(@"Encina(?:\.[A-Za-z0-9_]+)+", RegexOptions.Compiled);
     static readonly Regex TestAttribute = new(@"\[(?:Fact|Theory)\b", RegexOptions.Compiled);
 
@@ -259,15 +286,25 @@ static class Audit
 
     static string Rel(string root, string file) => Path.GetRelativePath(root, file).Replace('\\', '/');
 
+    // bin/obj are filtered on the path below `dir`, so a checkout under a directory named bin or obj still scans.
     static IEnumerable<string> Files(string dir, string pattern) =>
         !Directory.Exists(dir)
             ? []
             : Directory.EnumerateFiles(dir, pattern, SearchOption.AllDirectories)
-                .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
-                         && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"));
+                .Where(f => !Path.GetRelativePath(dir, f).Split(Path.DirectorySeparatorChar)[..^1]
+                    .Any(seg => seg is "bin" or "obj"));
 
     public static Report Measure(string root, DateTimeOffset now)
     {
+        // Missing evidence is an error, never an improvement: an empty scan must not read as zero drift.
+        foreach (var required in new[] { "src", "tests", Path.Combine("tests", "Encina.ContractTests") })
+        {
+            if (!Directory.Exists(Path.Combine(root, required)))
+            {
+                throw new DirectoryNotFoundException($"required directory missing: {required}");
+            }
+        }
+
         var report = new Report { GeneratedAtUtc = now.ToString("yyyy-MM-ddTHH:mm:ssZ") };
         MeasureManifests(root, report);
         MeasureJustificationFiles(root, report);
@@ -344,7 +381,8 @@ static class Audit
             }
 
             var rel = Rel(root, md);
-            var project = rel.Split('/')[1];
+            var relParts = rel.Split('/');
+            var project = relParts.Length > 2 ? relParts[1] : "(tests root)";
             report.H2.Total++;
             report.H2.ByProject[project] = report.H2.ByProject.GetValueOrDefault(project) + 1;
 
@@ -409,7 +447,10 @@ static class Audit
 
     static void MeasureReflectionOnly(string root, Report report)
     {
-        report.H3.Detector = "#1749 token heuristic over code with comments and string literals removed: a tests/Encina.ContractTests *.cs file with [Fact]/[Theory] and none of new, Create...(, await, Substitute.For, BuildServiceProvider, GetRequiredService, .Invoke(, .Compute(, .Validate...(";
+        // A heuristic, not proof: any `new`, `await` or `.Validate(` (even a `where T : new()` constraint) removes a file
+        // from the count, only [Fact]/[Theory] are counted and only tests/Encina.ContractTests is scanned. The gate is a
+        // ratchet on this heuristic.
+        report.H3.Detector = "#1749 token heuristic over code with comments and string literals removed (interpolation holes stay code): a tests/Encina.ContractTests *.cs file with [Fact]/[Theory] and none of new, Create...(, await, Substitute.For, BuildServiceProvider, GetRequiredService, .Invoke(, .Compute(, .Validate...(. A heuristic, not proof.";
         foreach (var cs in Files(Path.Combine(root, "tests", "Encina.ContractTests"), "*.cs").OrderBy(p => p, StringComparer.Ordinal))
         {
             var code = StripCommentsAndStrings(File.ReadAllText(cs));
@@ -430,55 +471,179 @@ static class Audit
     public static string StripCommentsAndStrings(string s)
     {
         var sb = new StringBuilder(s.Length);
-        var i = 0;
+        ScanCode(s, 0, sb, false);
+        return sb.ToString();
+    }
+
+    static bool StartsString(string s, int i)
+    {
+        var j = i;
+        while (j < s.Length && s[j] is '$' or '@') { j++; }
+        return j < s.Length && s[j] == '"';
+    }
+
+    // Copies code to sb (comments and literal text removed). Interpolation holes are code, so a `new` inside
+    // `$"{new Foo()}"` still counts, while a quoted "new" inside a hole does not. With inHole it stops after the
+    // `}` that closes the hole and returns the index after it.
+    static int ScanCode(string s, int i, StringBuilder sb, bool inHole)
+    {
+        var braces = 0;
+        var parens = 0;
         while (i < s.Length)
         {
             var c = s[i];
-            if (c == '/' && i + 1 < s.Length && s[i + 1] == '/')
+            var next = i + 1 < s.Length ? s[i + 1] : '\0';
+            if (c == '/' && next == '/')
             {
                 while (i < s.Length && s[i] != '\n') { i++; }
+                continue;
             }
-            else if (c == '/' && i + 1 < s.Length && s[i + 1] == '*')
+
+            if (c == '/' && next == '*')
             {
                 var end = s.IndexOf("*/", i + 2, StringComparison.Ordinal);
                 i = end < 0 ? s.Length : end + 2;
+                continue;
             }
-            else if (c == '"' && i + 2 < s.Length && s[i + 1] == '"' && s[i + 2] == '"')
+
+            if (c == '"' || ((c is '$' or '@') && StartsString(s, i)))
             {
-                var quotes = 3;
-                while (i + quotes < s.Length && s[i + quotes] == '"') { quotes++; }
-                var end = s.IndexOf(new string('"', quotes), i + quotes, StringComparison.Ordinal);
-                i = end < 0 ? s.Length : end + quotes;
+                i = ScanString(s, i, sb);
+                continue;
             }
-            else if (c == '"' || (c == '@' && i + 1 < s.Length && s[i + 1] == '"') || (c == '$' && i + 1 < s.Length && (s[i + 1] == '"' || (s[i + 1] == '@' && i + 2 < s.Length && s[i + 2] == '"'))) || (c == '@' && i + 2 < s.Length && s[i + 1] == '$' && s[i + 2] == '"'))
+
+            if (c == '@' && (char.IsLetter(next) || next == '_'))
             {
-                var verbatim = false;
-                while (s[i] != '"') { verbatim |= s[i] == '@'; i++; }
+                // A verbatim identifier such as @new is not the keyword.
+                sb.Append("@X");
                 i++;
-                while (i < s.Length)
-                {
-                    if (s[i] == '"' && verbatim && i + 1 < s.Length && s[i + 1] == '"') { i += 2; continue; }
-                    if (s[i] == '\\' && !verbatim) { i += 2; continue; }
-                    if (s[i] == '"') { i++; break; }
-                    i++;
-                }
-                sb.Append("\"\"");
+                while (i < s.Length && (char.IsLetterOrDigit(s[i]) || s[i] == '_')) { i++; }
+                continue;
             }
-            else if (c == '\'' && i + 2 < s.Length)
+
+            if (c == '\'')
             {
-                var j = i + 1;
-                if (s[j] == '\\') { j++; }
-                j++;
-                if (j < s.Length && s[j] == '\'') { i = j + 1; sb.Append("''"); }
-                else { sb.Append(c); i++; }
+                var close = next == '\\' ? s.IndexOf('\'', i + 3) : (i + 2 < s.Length && s[i + 2] == '\'' ? i + 2 : -1);
+                if (close > 0 && close - i <= 10)
+                {
+                    sb.Append("''");
+                    i = close + 1;
+                    continue;
+                }
+            }
+
+            if (inHole)
+            {
+                if (c == '{')
+                {
+                    braces++;
+                }
+                else if (c == '}')
+                {
+                    if (braces == 0)
+                    {
+                        return i + 1;
+                    }
+                    braces--;
+                }
+                else if (c is '(' or '[')
+                {
+                    parens++;
+                }
+                else if (c is ')' or ']')
+                {
+                    parens--;
+                }
+                else if (c == ':' && next == ':')
+                {
+                    sb.Append("::");
+                    i += 2;
+                    continue;
+                }
+                else if (c == ':' && braces == 0 && parens <= 0)
+                {
+                    // The rest of the hole is a format string (literal text).
+                    while (i < s.Length && s[i] != '}') { i++; }
+                    return i < s.Length ? i + 1 : i;
+                }
+            }
+
+            sb.Append(c);
+            i++;
+        }
+        return i;
+    }
+
+    // Skips one string literal (regular, verbatim, interpolated, raw, raw interpolated) that starts at i and
+    // returns the index after it; sb receives an empty-string placeholder plus the code of every interpolation hole.
+    static int ScanString(string s, int i, StringBuilder sb)
+    {
+        var dollars = 0;
+        var verbatim = false;
+        while (i < s.Length && s[i] is '$' or '@')
+        {
+            if (s[i] == '$') { dollars++; } else { verbatim = true; }
+            i++;
+        }
+
+        var quotes = 0;
+        while (i < s.Length && s[i] == '"' && (!verbatim || quotes == 0)) { quotes++; i++; }
+        sb.Append("\"\"");
+        if (quotes == 2)
+        {
+            return i; // the empty string ""
+        }
+
+        var raw = quotes >= 3;
+        while (i < s.Length)
+        {
+            var c = s[i];
+            if (raw)
+            {
+                if (c == '"')
+                {
+                    var run = 0;
+                    while (i + run < s.Length && s[i + run] == '"') { run++; }
+                    if (run >= quotes) { return i + run; }
+                    i += run;
+                    continue;
+                }
             }
             else
             {
-                sb.Append(c);
-                i++;
+                if (c == '"')
+                {
+                    if (verbatim && i + 1 < s.Length && s[i + 1] == '"') { i += 2; continue; }
+                    return i + 1;
+                }
+                if (c == '\\' && !verbatim) { i += 2; continue; }
             }
+
+            if (dollars > 0 && c == '{')
+            {
+                var run = 0;
+                while (i + run < s.Length && s[i + run] == '{') { run++; }
+                if (raw)
+                {
+                    if (run < dollars) { i += run; continue; }
+                    i += run; // extra braces are text; the last `dollars` open the hole
+                }
+                else
+                {
+                    if (run >= 2) { i += 2; continue; } // {{ is an escaped brace
+                    i++;
+                }
+
+                sb.Append(' ');
+                i = ScanCode(s, i, sb, true);
+                sb.Append(' ');
+                for (var extra = raw ? dollars - 1 : 0; extra > 0 && i < s.Length && s[i] == '}'; extra--) { i++; }
+                continue;
+            }
+
+            i++;
         }
-        return sb.ToString();
+        return i;
     }
 
     public static Evaluation Evaluate(Report report, Baseline? baseline)
@@ -495,8 +660,10 @@ static class Audit
             Info("H4 justification strings (total)", report.H4.Total),
         };
 
+        // Strict ratchet: a gating count above its ceiling (RISE) and one below it (IMPROVED) both fail, so the
+        // pull request that fixes drift must lower the baseline in the same change.
         var exit = checks.Any(c => c.Status == "MISSING CEILING") ? 2
-            : checks.Any(c => c.Gating && c.Status == "RISE") ? 1 : 0;
+            : checks.Any(c => c.Gating && c.Status is "RISE" or "IMPROVED") ? 1 : 0;
         return new Evaluation(exit, checks);
     }
 
@@ -520,15 +687,22 @@ static class Audit
         }
 
         c.Delta = current - ceiling;
-        c.Status = current > ceiling ? "RISE" : current < ceiling ? "below baseline" : "ok";
+        c.Status = current > ceiling ? "RISE" : current < ceiling ? "IMPROVED" : "ok";
         if (accepted is not null)
         {
-            // An item that is not in the accepted list is a rise even when the count is equal (a swap) or lower.
+            // An item that is not in the accepted list is a rise even when the count is equal (a swap) or lower;
+            // an accepted item that no longer occurs means the baseline must be lowered.
             var known = accepted.ToHashSet(StringComparer.Ordinal);
+            var present = currentItems.ToHashSet(StringComparer.Ordinal);
             c.NewItems = currentItems.Where(i => !known.Contains(i)).ToList();
+            c.GoneItems = accepted.Where(a => !present.Contains(a)).ToList();
             if (c.NewItems.Count > 0)
             {
                 c.Status = "RISE";
+            }
+            else if (c.GoneItems.Count > 0)
+            {
+                c.Status = "IMPROVED";
             }
         }
         return c;
@@ -562,6 +736,16 @@ static class Audit
 
         sb.AppendLine().AppendLine($"H1 all zeros by flag: {string.Join(", ", report.H1.ByFlag.Select(kv => $"{kv.Key} {kv.Value}"))}. H2 by project: {string.Join(", ", report.H2.ByProject.Select(kv => $"{kv.Key} {kv.Value}"))}.");
         sb.AppendLine($"H4: {report.H4.Distinct} distinct of {report.H4.Total}; most repeated: {(report.H4.MostRepeated.Count > 0 ? $"\"{report.H4.MostRepeated[0].Text}\" x{report.H4.MostRepeated[0].Count}" : "-")}.");
+
+        foreach (var c in report.Checks.Where(c => c.Status == "IMPROVED"))
+        {
+            sb.AppendLine().AppendLine($"### IMPROVED: {c.Name}");
+            sb.AppendLine("IMPROVED: lower the baseline in .github/honesty-audit-baseline.json (regenerate it with `--print-baseline`); the ceiling only shrinks.");
+            foreach (var item in c.GoneItems.Take(SummaryCap))
+            {
+                sb.AppendLine($"- no longer present: {item}");
+            }
+        }
 
         foreach (var c in report.Checks.Where(c => c.Status == "RISE"))
         {
@@ -649,7 +833,73 @@ static class SelfTest
             higher.H2Forbidden.Ceiling = 5;
             higher.H3.FilesCeiling = 4;
             var below = Audit.Evaluate(report, higher);
-            Check("a count below its ceiling exits 0 and is reported as below baseline", below.ExitCode == 0 && below.Checks.Count(c => c.Status == "below baseline") == 2);
+            Check("strict ratchet: a count below its ceiling exits 1 as IMPROVED (lower the baseline)", below.ExitCode == 1 && below.Checks.Count(c => c.Status == "IMPROVED") == 2);
+
+            var movedOut = Audit.Measure(root, TimeProvider.System.GetUtcNow());
+            movedOut.H2.Forbidden = [];
+            var moved = Audit.Evaluate(movedOut, current);
+            Check("a justification file moved out of a forbidden project is IMPROVED (exit 1) until the baseline is updated", moved.ExitCode == 1 && moved.Checks.Any(c => c.Status == "IMPROVED" && c.GoneItems.Count == 1));
+            Check("the summary tells how to lower the baseline", Audit.Summary(new Report { Checks = moved.Checks }).Contains("IMPROVED: lower the baseline in .github/honesty-audit-baseline.json", StringComparison.Ordinal));
+
+            var staleItems = Baseline.Load(WriteBaseline(root, Audit.BaselineText(report)));
+            staleItems.H3.Items = [.. staleItems.H3.Items, "tests/Encina.ContractTests/Gone.cs"];
+            Check("an accepted item that no longer occurs is IMPROVED (exit 1)", Audit.Evaluate(report, staleItems).ExitCode == 1);
+
+            foreach (var bad in new[]
+            {
+                "{\"schema\":1,\"h1\":{\"ceiling\":null,\"items\":[]},\"h2Forbidden\":{\"ceiling\":1,\"items\":null},\"h3\":{\"filesCeiling\":1,\"attributesCeiling\":2,\"items\":[]}}",
+                "{\"schema\":1,\"h1\":{\"ceiling\":null,\"items\":[]},\"h2Forbidden\":null,\"h3\":{\"filesCeiling\":1,\"attributesCeiling\":2,\"items\":[]}}",
+                "{\"schema\":1,\"h1\":{\"ceiling\":null,\"items\":[]},\"h2Forbidden\":{\"ceiling\":1,\"items\":[]},\"h3\":null}",
+                "{\"schema\":1,\"h1\":null,\"h2Forbidden\":{\"ceiling\":1,\"items\":[]},\"h3\":{\"filesCeiling\":1,\"attributesCeiling\":2,\"items\":null}}",
+            })
+            {
+                var rejected = false;
+                try { Baseline.Load(WriteBaseline(root, bad)); }
+                catch (InvalidDataException) { rejected = true; }
+                Check("a baseline with a null section or null items is rejected (exit 2): " + bad[..Math.Min(bad.Length, 60)], rejected);
+            }
+
+            var emptyRoot = Path.Combine(root, "empty");
+            Put(emptyRoot, ".github/coverage-manifest/Encina.Foo.json", "{\"files\":{}}");
+            var missingDir = false;
+            try { Audit.Measure(emptyRoot, TimeProvider.System.GetUtcNow()); }
+            catch (DirectoryNotFoundException) { missingDir = true; }
+            Check("a checkout without src/, tests/ or tests/Encina.ContractTests fails instead of reading as zero drift", missingDir);
+
+            var badManifestRoot = Path.Combine(root, "badmanifest");
+            Put(badManifestRoot, "src/Encina.Foo/Foo.cs", "class Foo {}");
+            Put(badManifestRoot, "tests/Encina.ContractTests/A.cs", "class A {}");
+            Put(badManifestRoot, ".github/coverage-manifest/Encina.Foo.json", "{\"files\":{\"X.cs\":null}}");
+            var badManifest = false;
+            try { Audit.Measure(badManifestRoot, TimeProvider.System.GetUtcNow()); }
+            catch (InvalidOperationException) { badManifest = true; }
+            Check("a manifest with a null file entry throws InvalidOperationException (caught by the caller as exit 2)", badManifest);
+
+            var variantsRoot = Path.Combine(root, "variants");
+            Put(variantsRoot, "src/Encina.Foo/Foo.cs", "class Foo {}");
+            Put(variantsRoot, ".github/coverage-manifest/Encina.Foo.json", "{\"files\":{}}");
+            Put(variantsRoot, "tests/Encina.ContractTests/A.cs", "class A {}");
+            Put(variantsRoot, "tests/Encina.UnitTests/Lower.md", "## Status: not implemented\n");
+            Put(variantsRoot, "tests/Encina.UnitTests/Plain.md", "Status: Not Implemented\n");
+            Put(variantsRoot, "tests/Encina.GuardTests/Bold.md", "**Status**: Not  Implemented\n");
+            Put(variantsRoot, "tests/Encina.GuardTests/Prose.md", "This is not implemented yet; Status: Not Implemented is only mentioned mid-line.\n");
+            var variants = Audit.Measure(variantsRoot, TimeProvider.System.GetUtcNow());
+            Check("H2 heading is case-insensitive and also accepts a plain or bold Status line (3 forbidden, prose not counted)", variants.H2.Forbidden.Count == 3 && variants.H2.Total == 3);
+
+            var objRoot = Path.Combine(root, "obj", "tree");
+            Put(objRoot, "src/Encina.Foo/Foo.cs", "class Foo {}");
+            Put(objRoot, ".github/coverage-manifest/Encina.Foo.json", "{\"files\":{}}");
+            Put(objRoot, "tests/Encina.ContractTests/A.cs", "class A {}");
+            Put(objRoot, "tests/Encina.UnitTests/Plain.md", "Status: Not Implemented\n");
+            Check("a checkout below a directory named obj is still scanned", Audit.Measure(objRoot, TimeProvider.System.GetUtcNow()).H2.Total == 1);
+
+            Check("stripper: a quoted new inside an interpolation hole is ignored", !HasNew("var s = $\"{string.Join(\"new\", x)}\";"));
+            Check("stripper: new as code inside an interpolation hole is kept", HasNew("var s = $\"{new Foo()}\";"));
+            Check("stripper: nested quotes in a hole and a format specifier", !HasNew("var s = $\"{(a ? \"x\" : \"y\")} new {v:N2} new\";"));
+            Check("stripper: interpolated verbatim string", !HasNew("var s = $@\"say \"\"new\"\" {x} new\";") && HasNew("var s = $@\"{new Foo()} x\";"));
+            Check("stripper: raw interpolated string", !HasNew("var s = $\"\"\"a \"new\" {x} new\"\"\";") && HasNew("var s = $\"\"\"a {new Foo()} x\"\"\";"));
+            Check("stripper: double-dollar raw interpolated string", !HasNew("var s = $$\"\"\"a {new} {{x}} new\"\"\";") && HasNew("var s = $$\"\"\"a {{new Foo()}} x\"\"\";"));
+            Check("stripper: escaped braces, char literals and verbatim identifiers", !HasNew("var s = $\"{{new}} {x}\"; var c = '\"'; var d = '\\''; var @new = 1;"));
 
             var missing = Baseline.Load(WriteBaseline(root, Audit.BaselineText(report)));
             missing.H3.FilesCeiling = null;
@@ -677,6 +927,8 @@ static class SelfTest
         Console.WriteLine(failed == 0 ? "Self-test passed." : $"Self-test failed: {failed} check(s).");
         return failed == 0 ? 0 : 1;
     }
+
+    static bool HasNew(string code) => Regex.IsMatch(Audit.StripCommentsAndStrings(code), @"\bnew\b");
 
     static string WriteBaseline(string root, string text)
     {
