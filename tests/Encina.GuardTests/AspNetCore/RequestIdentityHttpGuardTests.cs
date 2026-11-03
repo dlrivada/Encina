@@ -42,6 +42,57 @@ public sealed class RequestIdentityHttpGuardTests
             .ParamName.ShouldBe("scopes");
     }
 
+    [Theory]
+    [InlineData(RequestIdentityErrorCodes.InboundTenantConflict, StatusCodes.Status403Forbidden)]
+    [InlineData(RequestIdentityErrorCodes.MissingSubjectClaim, StatusCodes.Status403Forbidden)]
+    [InlineData(RequestIdentityErrorCodes.MalformedSubjectClaim, StatusCodes.Status403Forbidden)]
+    [InlineData(RequestIdentityErrorCodes.ReservedSubjectClaim, StatusCodes.Status403Forbidden)]
+    [InlineData(RequestIdentityErrorCodes.ConflictingSubjectClaims, StatusCodes.Status403Forbidden)]
+    [InlineData(RequestIdentityErrorCodes.UnsupportedAccessor, StatusCodes.Status500InternalServerError)]
+    [InlineData(RequestIdentityErrorCodes.ScopeConflict, StatusCodes.Status500InternalServerError)]
+    public async Task Middleware_RefusedScope_FailsClosed_With403ForAmbiguousIdentity_And500ForHostRefusals(string code, int status)
+    {
+        var nextCalled = false;
+        var middleware = new EncinaContextMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        }, MiddlewareOptions, NullLogger<EncinaContextMiddleware>.Instance);
+        var scopes = Substitute.For<IInternalRequestContextScopeFactory>();
+        scopes.RunHostInboundAsync(
+                Arg.Any<InboundRequestInfo>(),
+                Arg.Any<Func<IRequestContext, CancellationToken, Task<Either<EncinaError, Unit>>>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(LanguageExt.Prelude.Left<EncinaError, Unit>(EncinaErrors.Create(code, "refused"))));
+        var context = new DefaultHttpContext
+        {
+            RequestServices = new ServiceCollection().AddLogging().BuildServiceProvider(),
+            Response = { Body = new MemoryStream() }
+        };
+
+        await middleware.InvokeAsync(context, scopes);
+
+        nextCalled.ShouldBeFalse();
+        context.Response.StatusCode.ShouldBe(status);
+    }
+
+    [Fact]
+    public async Task Middleware_CancelledRefusal_WritesNoResponse()
+    {
+        var middleware = new EncinaContextMiddleware(_ => Task.CompletedTask, MiddlewareOptions, NullLogger<EncinaContextMiddleware>.Instance);
+        var scopes = Substitute.For<IInternalRequestContextScopeFactory>();
+        scopes.RunHostInboundAsync(
+                Arg.Any<InboundRequestInfo>(),
+                Arg.Any<Func<IRequestContext, CancellationToken, Task<Either<EncinaError, Unit>>>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(LanguageExt.Prelude.Left<EncinaError, Unit>(EncinaErrors.Create(EncinaErrorCodes.RequestCancelled, "cancelled"))));
+        var context = new DefaultHttpContext();
+
+        await middleware.InvokeAsync(context, scopes);
+
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status200OK);
+    }
+
     [Fact]
     public void CreateInboundRequestInfo_NullContext_Throws() =>
         Should.Throw<ArgumentNullException>(() => HttpContextInboundRequestExtensions.CreateInboundRequestInfo(null!))

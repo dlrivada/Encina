@@ -534,15 +534,15 @@
       "reason": "In-memory implementation of IBreakTheGlassStore for development and tests",
       "targets": {
         "unit": 100,
-        "guard": 10,
-        "contract": 85,
-        "property": 20
+        "guard": 9,
+        "contract": 100,
+        "property": 50
       },
       "justifications": {
         "unit": "Every store method and the pre-cancelled-token early returns are run by the unit tests (measured 100%).",
-        "guard": "Guard tests reject the null arguments of the store methods only; the store bodies are behaviour covered by the unit flag (measured 10%).",
-        "contract": "Contract tests run the store through IBreakTheGlassStore for add, lookup, tenant isolation, conditional updates, review listing and purge (measured 88.78%).",
-        "property": "Covered incidentally by BreakTheGlassGateProperties, which adds generated elevations to the store and reads them back through the gate (measured 23.47%)."
+        "guard": "Guard tests reject the null arguments of the store methods only; the store bodies are behaviour covered by the unit flag (measured 9.71%).",
+        "contract": "The shared BreakTheGlassStoreContract (InMemoryBreakTheGlassStoreContractTests) runs the store through IBreakTheGlassStore for the atomic conditional add, the stale-close-then-insert path, lookup, tenant isolation, conditional updates, the sweeper queries, review listing, purge and probe (measured 100%).",
+        "property": "Covered incidentally by BreakTheGlassGateProperties, which adds generated elevations to the store and reads them back through the gate (measured 51.46%)."
       }
     },
     "Validation/BreakTheGlassOptionsValidator.cs": {
