@@ -9,7 +9,9 @@ namespace Encina.Security.BreakTheGlass;
 /// <remarks>
 /// <para>
 /// Every operation is tenant-scoped (a <see langword="null"/> tenant means tenancy is off) except
-/// the two sweeper operations, which run across tenants. Status and review changes are
+/// the two sweeper operations, which run across tenants. A blank or whitespace tenant is normalised to null; null is the
+/// only no-tenant value. Every provider store must do the same, so the active key COALESCE(TenantId,'') (plan decision 29)
+/// is unambiguous. Status and review changes are
 /// <b>conditional</b>: they apply once, so several hosts can run the sweeper and several reviewers
 /// can race without a distributed lock.
 /// </para>
@@ -23,7 +25,9 @@ public interface IBreakTheGlassStore
     /// concurrent add, whatever the host or the process. An elevation is effective for this check when its
     /// status is Active and its <c>ExpiresAtUtc</c> is later than <c>elevation.OpenedAtUtc</c>. Every provider
     /// MUST guarantee this itself (for example with a unique constraint or an atomic upsert); a read followed
-    /// by a write is not enough.
+    /// by a write is not enough. Before inserting, the add closes any Active row of the same key that is past its
+    /// expiry (status Expired, reason "expired", <c>ClosedAtUtc</c> = the new <c>OpenedAtUtc</c>), leaving
+    /// <c>ExpiryRecordedAtUtc</c> null so the sweeper still audits that expiry. Key parts compare case-sensitively.
     /// </remarks>
     /// <param name="elevation">The elevation.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>

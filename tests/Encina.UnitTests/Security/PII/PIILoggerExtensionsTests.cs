@@ -31,11 +31,11 @@ public sealed class PIILoggerExtensionsTests
         var masker = Substitute.For<IPIIMasker>();
         var data = new LogTestDto();
         var maskedData = new LogTestDto { Email = "s***@example.com", Public = "visible" };
-        masker.MaskObject(data).Returns(maskedData);
+        masker.MaskForLog(data).Returns(maskedData);
 
         logger.LogMasked(masker, LogLevel.Information, "Processing: {@Data}", data);
 
-        masker.Received(1).MaskObject(data);
+        masker.Received(1).MaskForLog(data);
         logger.Received(1).Log(
             LogLevel.Information,
             Arg.Any<EventId>(),
@@ -54,7 +54,7 @@ public sealed class PIILoggerExtensionsTests
 
         logger.LogMasked(masker, LogLevel.Debug, "Processing: {@Data}", data);
 
-        masker.DidNotReceive().MaskObject(Arg.Any<LogTestDto>());
+        masker.DidNotReceive().MaskForLog(Arg.Any<LogTestDto>());
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public sealed class PIILoggerExtensionsTests
         logger.IsEnabled(LogLevel.Warning).Returns(true);
         var masker = Substitute.For<IPIIMasker>();
         var data = new LogTestDto();
-        masker.MaskObject(data).Throws(new InvalidOperationException("masking error"));
+        masker.MaskForLog(data).Throws(new InvalidOperationException("masking error"));
 
         logger.LogMasked(masker, LogLevel.Information, "Processing: {@Data}", data);
 
@@ -111,11 +111,11 @@ public sealed class PIILoggerExtensionsTests
         var masker = Substitute.For<IPIIMasker>();
         var data = new LogTestDto();
         var maskedData = new LogTestDto { Email = "masked" };
-        masker.MaskObject(data).Returns(maskedData);
+        masker.MaskForLog(data).Returns(maskedData);
 
         logger.LogInformationMasked(masker, "Info: {@Data}", data);
 
-        masker.Received(1).MaskObject(data);
+        masker.Received(1).MaskForLog(data);
         logger.Received(1).Log(
             LogLevel.Information,
             Arg.Any<EventId>(),
@@ -136,11 +136,11 @@ public sealed class PIILoggerExtensionsTests
         var masker = Substitute.For<IPIIMasker>();
         var data = new LogTestDto();
         var maskedData = new LogTestDto { Email = "masked" };
-        masker.MaskObject(data).Returns(maskedData);
+        masker.MaskForLog(data).Returns(maskedData);
 
         logger.LogWarningMasked(masker, "Warning: {@Data}", data);
 
-        masker.Received(1).MaskObject(data);
+        masker.Received(1).MaskForLog(data);
         logger.Received(1).Log(
             LogLevel.Warning,
             Arg.Any<EventId>(),
@@ -161,11 +161,11 @@ public sealed class PIILoggerExtensionsTests
         var masker = Substitute.For<IPIIMasker>();
         var data = new LogTestDto();
         var maskedData = new LogTestDto { Email = "masked" };
-        masker.MaskObject(data).Returns(maskedData);
+        masker.MaskForLog(data).Returns(maskedData);
 
         logger.LogErrorMasked(masker, "Error: {@Data}", data);
 
-        masker.Received(1).MaskObject(data);
+        masker.Received(1).MaskForLog(data);
         logger.Received(1).Log(
             LogLevel.Error,
             Arg.Any<EventId>(),

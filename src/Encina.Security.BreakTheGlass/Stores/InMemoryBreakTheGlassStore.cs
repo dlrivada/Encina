@@ -21,6 +21,8 @@ namespace Encina.Security.BreakTheGlass;
 /// </remarks>
 public sealed class InMemoryBreakTheGlassStore : IBreakTheGlassStore
 {
+    private const string StaleCloseReason = "expired";
+
     private readonly ConcurrentDictionary<(string? TenantId, Guid ElevationId), BreakTheGlassElevation> _rows = new();
     private readonly object _addLock = new();
 
@@ -30,12 +32,26 @@ public sealed class InMemoryBreakTheGlassStore : IBreakTheGlassStore
         ArgumentNullException.ThrowIfNull(elevation);
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Check and insert under one lock: the conditional add is atomic.
+        // A blank tenant is stored as no tenant, so "" and null are one key.
+        elevation = elevation with { TenantId = BreakTheGlassTenant.Normalise(elevation.TenantId) };
+
+        // Check, close and insert under one lock: the conditional add is atomic.
         lock (_addLock)
         {
-            if (_rows.Values.Any(row => ConflictsWith(row, elevation)))
+            var active = _rows.Values.Where(row => SameKey(row, elevation) && row.Status == BreakTheGlassStatus.Active).ToList();
+            if (active.Any(row => row.IsEffectiveAt(elevation.OpenedAtUtc)))
             {
                 return Done(Left<EncinaError, Unit>(BreakTheGlassErrors.AlreadyActive()));
+            }
+
+            // Active rows past their expiry are closed as Expired before the insert; ExpiryRecordedAtUtc stays null so the sweeper still audits them.
+            // A compare-and-swap, so a racing close or review of the same row is never overwritten; the row is re-read when it lost.
+            foreach (var stale in active)
+            {
+                TryUpdate(
+                    (stale.TenantId, stale.ElevationId),
+                    row => row.Status == BreakTheGlassStatus.Active,
+                    row => row with { Status = BreakTheGlassStatus.Expired, CloseReason = StaleCloseReason, ClosedAtUtc = elevation.OpenedAtUtc });
             }
 
             _rows[(elevation.TenantId, elevation.ElevationId)] = elevation;
@@ -50,12 +66,11 @@ public sealed class InMemoryBreakTheGlassStore : IBreakTheGlassStore
         && row.ReviewedAtUtc < reviewedBeforeUtc
         && (row.Status != BreakTheGlassStatus.Expired || row.ExpiryRecordedAtUtc is not null);
 
-    private static bool ConflictsWith(BreakTheGlassElevation row, BreakTheGlassElevation added) =>
+    private static bool SameKey(BreakTheGlassElevation row, BreakTheGlassElevation added) =>
         row.TenantId == added.TenantId
         && string.Equals(row.UserId, added.UserId, StringComparison.Ordinal)
         && string.Equals(row.SubjectId, added.SubjectId, StringComparison.Ordinal)
-        && string.Equals(row.Scope, added.Scope, StringComparison.Ordinal)
-        && row.IsEffectiveAt(added.OpenedAtUtc);
+        && string.Equals(row.Scope, added.Scope, StringComparison.Ordinal);
 
     /// <inheritdoc />
     public ValueTask<Either<EncinaError, Option<BreakTheGlassElevation>>> GetByIdAsync(string? tenantId, Guid elevationId, CancellationToken cancellationToken = default)
@@ -63,7 +78,7 @@ public sealed class InMemoryBreakTheGlassStore : IBreakTheGlassStore
         cancellationToken.ThrowIfCancellationRequested();
 
         return Done(Right<EncinaError, Option<BreakTheGlassElevation>>(
-            _rows.TryGetValue((tenantId, elevationId), out var row) ? Some(row) : None));
+            _rows.TryGetValue((BreakTheGlassTenant.Normalise(tenantId), elevationId), out var row) ? Some(row) : None));
     }
 
     /// <inheritdoc />
@@ -75,6 +90,7 @@ public sealed class InMemoryBreakTheGlassStore : IBreakTheGlassStore
         ArgumentNullException.ThrowIfNull(scope);
         cancellationToken.ThrowIfCancellationRequested();
 
+        tenantId = BreakTheGlassTenant.Normalise(tenantId);
         var found = _rows.Values
             .Where(row => row.TenantId == tenantId
                 && string.Equals(row.UserId, userId, StringComparison.Ordinal)
@@ -95,7 +111,7 @@ public sealed class InMemoryBreakTheGlassStore : IBreakTheGlassStore
         cancellationToken.ThrowIfCancellationRequested();
 
         var applied = TryUpdate(
-            (tenantId, elevationId),
+            (BreakTheGlassTenant.Normalise(tenantId), elevationId),
             row => row.Status == BreakTheGlassStatus.Active,
             row => row with { Status = newStatus, CloseReason = reason, ClosedAtUtc = closedAtUtc });
 
@@ -125,7 +141,7 @@ public sealed class InMemoryBreakTheGlassStore : IBreakTheGlassStore
         cancellationToken.ThrowIfCancellationRequested();
 
         TryUpdate(
-            (tenantId, elevationId),
+            (BreakTheGlassTenant.Normalise(tenantId), elevationId),
             row => row.Status == BreakTheGlassStatus.Expired,
             row => row with { ExpiryRecordedAtUtc = recordedAtUtc });
 
@@ -140,7 +156,7 @@ public sealed class InMemoryBreakTheGlassStore : IBreakTheGlassStore
         cancellationToken.ThrowIfCancellationRequested();
 
         var applied = TryUpdate(
-            (tenantId, elevationId),
+            (BreakTheGlassTenant.Normalise(tenantId), elevationId),
             row => row.ReviewOutcome is null,
             row => row with { ReviewOutcome = outcome, ReviewedByUserId = reviewerUserId, ReviewNote = note, ReviewedAtUtc = reviewedAtUtc });
 
@@ -157,6 +173,7 @@ public sealed class InMemoryBreakTheGlassStore : IBreakTheGlassStore
         var pageNumber = Math.Max(1, query.PageNumber);
         var pageSize = Math.Clamp(query.PageSize, 1, BreakTheGlassReviewQuery.MaxPageSize);
 
+        tenantId = BreakTheGlassTenant.Normalise(tenantId);
         var matching = _rows.Values
             .Where(row => row.TenantId == tenantId && row.ReviewOutcome is null && MatchesQuery(row, query))
             .OrderBy(row => row.OpenedAtUtc)

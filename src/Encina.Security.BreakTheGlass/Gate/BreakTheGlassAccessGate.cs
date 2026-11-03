@@ -92,7 +92,7 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
             return Option<AccessElevation>.None;
         }
 
-        var found = await _store.FindEffectiveAsync(context.TenantId, userId, subjectId, eligibility.Scope, _timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+        var found = await _store.FindEffectiveAsync(BreakTheGlassTenant.Normalise(context.TenantId), userId, subjectId, eligibility.Scope, _timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
         return await found.Match(
             Right: option => GrantAsync(option, typeof(TRequest), subjectId, userId, context, denial, cancellationToken),
             Left: LookupFailed).ConfigureAwait(false);
@@ -161,7 +161,7 @@ internal sealed class BreakTheGlassAccessGate : IAccessElevationGate
             elevation.ElevationId,
             context.CorrelationId,
             userId,
-            context.TenantId,
+            BreakTheGlassTenant.Normalise(context.TenantId),
             now,
             AccessMetadata(requestType, denial));
 
