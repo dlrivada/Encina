@@ -22,9 +22,10 @@ internal static class AuditResolutionIds
     /// <see cref="AuditResolutionField.All"/> on either, otherwise only the fields of that trail's read model.
     /// </summary>
     internal static bool IsValid(AuditResolutionTrail trail, AuditResolutionField field) =>
-        field == AuditResolutionField.All
+        Enum.IsDefined(trail) && Enum.IsDefined(field)
+        && (field == AuditResolutionField.All
         || (OperationFields.Contains(field) && trail == AuditResolutionTrail.Operation)
-        || (ReadFields.Contains(field) && trail == AuditResolutionTrail.Read);
+        || (ReadFields.Contains(field) && trail == AuditResolutionTrail.Read));
 
     private static readonly HashSet<AuditResolutionField> OperationFields =
     [

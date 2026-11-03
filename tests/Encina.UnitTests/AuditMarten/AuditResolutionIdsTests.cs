@@ -66,11 +66,11 @@ public sealed class AuditResolutionIdsTests
         AuditResolutionIds.IsValid(AuditResolutionTrail.Read, field).ShouldBeFalse();
 
     [Fact]
-    public void IsValid_UndefinedTrail_AcceptsOnlyAll()
+    public void IsValid_UndefinedTrail_IsRejectedForEveryField()
     {
         const AuditResolutionTrail undefined = (AuditResolutionTrail)99;
 
-        AuditResolutionIds.IsValid(undefined, AuditResolutionField.All).ShouldBeTrue();
+        AuditResolutionIds.IsValid(undefined, AuditResolutionField.All).ShouldBeFalse();
         AuditResolutionIds.IsValid(undefined, AuditResolutionField.UserId).ShouldBeFalse();
         AuditResolutionIds.IsValid(undefined, AuditResolutionField.IpAddress).ShouldBeFalse();
     }
