@@ -48,7 +48,7 @@ docker compose --profile cloud up -d
 |---------|-------|------|-----------------|---------|
 | **SQL Server** | `mcr.microsoft.com/mssql/server:2022-latest` | 1433 | `Encina.ADO.SqlServer`, `Encina.Dapper.SqlServer` | `databases`, `full` |
 | **PostgreSQL** | `postgres:16-alpine` | 5432 | `Encina.ADO.PostgreSQL`, `Encina.Dapper.PostgreSQL`, `Encina.Marten` | `databases`, `core`, `full` |
-| **MySQL** | `mysql:8.0` | 3306 | `Encina.ADO.MySQL`, `Encina.Dapper.MySQL` | `databases`, `full` |
+| **MySQL** | `mysql:8.4` | 3306 | `Encina.ADO.MySQL`, `Encina.Dapper.MySQL` | `databases`, `full` |
 | **MongoDB** | `mongo:7` | 27017 | `Encina.MongoDB` | `databases`, `full` |
 
 > **Note**: Marten (event sourcing) uses PostgreSQL as its backend.
