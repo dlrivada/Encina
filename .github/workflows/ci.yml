@@ -724,12 +724,82 @@ jobs:
             'ROADMAP.md'
           fail: true
 
+  # Target ratchet (#2895): a pull request cannot lower or drop a coverage target
+  # without the label target-change-approved. A skipped job (push to main) counts as passing in ci-result.
+  target-ratchet:
+    name: Target ratchet
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Target ratchet self-test
+        run: dotnet run --file .github/scripts/check-target-ratchet.cs -- --self-test
+
+      # --head is the PR head commit, not HEAD: on pull_request the checkout is the merge commit.
+      - name: Check coverage targets against the base
+        run: >
+          dotnet run --file .github/scripts/check-target-ratchet.cs --
+          --base ${{ github.event.pull_request.base.sha }}
+          --head ${{ github.event.pull_request.head.sha }}
+          --pr ${{ github.event.pull_request.number }}
+
+  # Closes #2901: a pull request over 15 files or 1500 changed lines needs the maintainer label
+  # size-exception-approved (EPIC #2845 working rule). The label is read at run time, so the job
+  # is re-runnable without a `labeled` trigger.
+  pr-size:
+    name: PR size
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      LC_ALL: C # git --shortstat text is parsed in English; the script also sets it per process
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Self-test check-pr-size.cs
+        run: dotnet run --file .github/scripts/check-pr-size.cs -- --self-test
+
+      # --head is the PR head commit, not HEAD: on pull_request the checkout is the merge commit.
+      - name: Check pull request size
+        run: >
+          dotnet run --file .github/scripts/check-pr-size.cs --
+          --base ${{ github.event.pull_request.base.sha }}
+          --head ${{ github.event.pull_request.head.sha }}
+          --pr ${{ github.event.pull_request.number }}
+
   # Single required status check for branch protection (SPEC-000 DEC-006).
   # Runs always, so it reports even on docs-only PRs where the test jobs are skipped
   # by change detection, and fails only if a job it depends on failed or was cancelled.
   ci-result:
     name: ci-result
-    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers, crap-gate, coverage-citations, changelog-fragments, knowledge-records, internal-links]
+    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers, crap-gate, coverage-citations, changelog-fragments, knowledge-records, internal-links, target-ratchet, pr-size]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

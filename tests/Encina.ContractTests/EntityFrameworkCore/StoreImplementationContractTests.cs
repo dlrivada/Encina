@@ -274,7 +274,8 @@ public sealed class StoreImplementationContractTests : IDisposable
             MessageId = $"expired-{Guid.NewGuid()}",
             RequestType = "Test",
             ReceivedAtUtc = now.AddDays(-30),
-            ExpiresAtUtc = now.AddMinutes(-1), // expired
+            ProcessedAtUtc = now.AddDays(-29),
+            ExpiresAtUtc = now.AddMinutes(-1), // expired and processed
         });
         _dbContext.InboxMessages.Add(new InboxMessage
         {
@@ -302,6 +303,7 @@ public sealed class StoreImplementationContractTests : IDisposable
             MessageId = messageId,
             RequestType = "Test",
             ReceivedAtUtc = _timeProvider.GetUtcNow().UtcDateTime,
+            ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime,
             ExpiresAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(-1),
         });
         await _dbContext.SaveChangesAsync();

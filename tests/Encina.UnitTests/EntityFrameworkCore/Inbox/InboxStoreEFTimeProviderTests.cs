@@ -101,6 +101,7 @@ public class InboxStoreEFTimeProviderTests : IDisposable
             RequestType = "TestRequest",
             ReceivedAtUtc = baseTime.AddDays(-10),
             ExpiresAtUtc = baseTime.AddDays(-1), // expired yesterday
+            ProcessedAtUtc = baseTime.AddDays(-2),
             RetryCount = 0
         };
 
@@ -136,6 +137,7 @@ public class InboxStoreEFTimeProviderTests : IDisposable
             RequestType = "TestRequest",
             ReceivedAtUtc = baseTime.AddDays(-5),
             ExpiresAtUtc = baseTime.AddHours(1), // expires in 1 hour
+            ProcessedAtUtc = baseTime.AddDays(-4),
             RetryCount = 0
         };
 
@@ -205,6 +207,7 @@ public class InboxStoreEFTimeProviderTests : IDisposable
             MessageId = "remove-target-1",
             RequestType = "TestRequest",
             ReceivedAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-10),
+            ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-9),
             ExpiresAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-1),
             RetryCount = 0
         };
@@ -214,6 +217,7 @@ public class InboxStoreEFTimeProviderTests : IDisposable
             MessageId = "remove-target-2",
             RequestType = "TestRequest",
             ReceivedAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-10),
+            ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-9),
             ExpiresAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-1),
             RetryCount = 0
         };

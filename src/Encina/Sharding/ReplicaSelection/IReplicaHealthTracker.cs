@@ -86,7 +86,7 @@ public interface IReplicaHealthTracker
     /// <list type="bullet">
     ///   <item><description>SQL Server: <c>sys.dm_exec_sessions</c> or <c>sys.dm_hadr_database_replica_states</c></description></item>
     ///   <item><description>PostgreSQL: <c>pg_stat_replication</c> lag columns</description></item>
-    ///   <item><description>MySQL: <c>Seconds_Behind_Master</c> from <c>SHOW SLAVE STATUS</c></description></item>
+    ///   <item><description>MySQL: <c>Seconds_Behind_Source</c> from <c>SHOW REPLICA STATUS</c></description></item>
     ///   <item><description>MongoDB: <c>rs.status()</c> optime difference</description></item>
     /// </list>
     /// </para>

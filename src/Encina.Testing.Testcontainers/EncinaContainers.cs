@@ -105,7 +105,7 @@ public static class EncinaContainers
     /// <example>
     /// <code>
     /// var fixture = EncinaContainers.MySql(builder => builder
-    ///     .WithImage("mysql:8.0")
+    ///     .WithImage("mysql:8.4")
     ///     .WithDatabase("custom_db"));
     /// await fixture.InitializeAsync();
     /// </code>
