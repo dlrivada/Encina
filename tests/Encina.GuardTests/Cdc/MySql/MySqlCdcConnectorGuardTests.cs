@@ -18,7 +18,7 @@ public sealed class MySqlCdcConnectorGuardTests
         var type = Package.GetType(typeName, throwOnError: true)!;
         try
         {
-            Activator.CreateInstance(type, BindingFlags.Instance | BindingFlags.Public, null, args, null);
+            Activator.CreateInstance(type, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, args, null);
             return null;
         }
         catch (TargetInvocationException ex) when (ex.InnerException is ArgumentNullException ane)

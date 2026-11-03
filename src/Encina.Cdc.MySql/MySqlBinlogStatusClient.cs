@@ -28,13 +28,18 @@ internal sealed class MySqlBinlogStatusClient : IMySqlBinlogStatusClient
         await using var command = connection.CreateCommand();
         command.CommandText = "SHOW BINARY LOG STATUS";
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using var reader = await command
+            .ExecuteReaderAsync(System.Data.CommandBehavior.SingleRow | System.Data.CommandBehavior.SingleResult, cancellationToken)
+            .ConfigureAwait(false);
 
         if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             return null;
         }
 
-        return (reader.GetString(reader.GetOrdinal("File")), reader.GetInt64(reader.GetOrdinal("Position")));
+        var fileOrdinal = reader.GetOrdinal("File");
+        var positionOrdinal = reader.GetOrdinal("Position");
+
+        return (reader.GetString(fileOrdinal), reader.GetInt64(positionOrdinal));
     }
 }
