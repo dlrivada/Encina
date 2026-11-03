@@ -203,6 +203,7 @@ public sealed class InboxStoreEFSqlServerTests : IAsyncLifetime
             MessageId = Guid.NewGuid().ToString(),
             RequestType = "Expired",
             ReceivedAtUtc = DateTime.UtcNow.AddDays(-10),
+            ProcessedAtUtc = DateTime.UtcNow.AddDays(-2),
             ExpiresAtUtc = DateTime.UtcNow.AddDays(-1), // Expired yesterday
             RetryCount = 0
         };
