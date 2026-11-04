@@ -249,7 +249,7 @@ When the flag is on, `AddEncinaDapper` removes the in-memory default `IBreakTheG
 
 Create the table before first use by running `Scripts/030_CreateBreakTheGlassElevationsTable.sql` (in this package's `Scripts` folder, next to the other numbered scripts). `Scripts/000_CreateAllTables.sql` contains the same DDL, and the `Encina.ADO.SqlServer` package ships the same script. The key columns (`TenantId`, `UserId`, `SubjectId`, `Scope`, `CloseReason`, `ReviewedByUserId`) use the binary collation `Latin1_General_100_BIN2`, so keys compare case-sensitively.
 
-Writes run on a connection that is independent of the business transaction ([ADR-048](../../docs/architecture/adr/048-inbox-record-vs-business-transaction.md)), so a revoke, a review or a sweeper update survives a rollback of the request that issued it.
+Writes run on a connection that is independent of the business transaction, so a revoke, a review or a sweeper update survives a rollback of the request that issued it. This is the same mechanism the inbox uses ([ADR-048](../../docs/architecture/adr/048-inbox-record-vs-business-transaction.md)); it needs a connection that implements `ICloneable` (`SqlConnection` does), and otherwise the write returns a `Left`.
 
 ## Advanced Configuration
 
