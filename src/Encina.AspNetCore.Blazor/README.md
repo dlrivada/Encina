@@ -107,7 +107,7 @@ Registers the request identity model (`AddEncinaRequestIdentity()`) and a scoped
 
 What Blazor does with the refusal exception:
 
-- JavaScript interop calls and the UI events that travel through them: Blazor notifies the client (error UI) and terminates the circuit. In a Blazor Web App the first activity of a circuit is reported the same way.
+- JavaScript interop calls and the UI events that travel through them: Blazor notifies the client (error UI) and terminates the circuit.
 - Initialization of a circuit in the legacy Blazor Server hosting: fire-and-forget. The client is not notified, the circuit stays uninitialized and nothing runs for that principal.
 - Render acknowledgements: fire-and-forget. The acknowledgement is lost and rendering stalls; the circuit is already initialized.
 
