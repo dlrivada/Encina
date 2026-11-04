@@ -182,4 +182,37 @@ public sealed class InboxStoreEFMySqlTests : IAsyncLifetime
         updated!.ProcessedAtUtc.ShouldNotBeNull();
         updated.Response.ShouldBe("{\"result\":\"success\"}");
     }
+
+    [Fact]
+    public async Task ExpiredPurge_OnlyProcessedExpiredRowsAreReturnedAndRemoved()
+    {
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        var store = new InboxStoreEF(context);
+
+        await global::Encina.IntegrationTests.Messaging.InboxExpiryScenario.AssertOnlyProcessedExpiredRowsArePurgedAsync(
+            store,
+            async rows =>
+            {
+                await using var seedContext = _fixture.CreateDbContext<TestEFDbContext>();
+                seedContext.Set<InboxMessage>().AddRange(rows.Select(r => new InboxMessage
+                {
+                    MessageId = r.MessageId,
+                    RequestType = "Expiry",
+                    ReceivedAtUtc = DateTime.UtcNow.AddDays(-10),
+                    ExpiresAtUtc = r.ExpiresAtUtc,
+                    ProcessedAtUtc = r.ProcessedAtUtc,
+                    RetryCount = r.RetryCount
+                }));
+                await seedContext.SaveChangesAsync();
+            },
+            async () =>
+            {
+                await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+                return (await verifyContext.Set<InboxMessage>().Select(m => m.MessageId).ToListAsync()).AsReadOnly();
+            },
+            () => context.SaveChangesAsync());
+    }
 }

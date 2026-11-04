@@ -188,6 +188,107 @@ public sealed class PIIMaskerLogContextTests : IDisposable
         logged.ShouldNotContain(Sentinel);
     }
 
+    [MaskInLogs(MaskingMode.Redact)]
+    private sealed class ClassLevelDto
+    {
+        public string Tracking { get; set; } = Sentinel;
+
+        public string Other { get; set; } = Sentinel;
+    }
+
+    [PII(PIIType.Email)]
+    private sealed class PiiWithLogOnlyPropertyDto
+    {
+        [MaskInLogs]
+        public string Email { get; set; } = "john@example.com";
+    }
+
+    private sealed record NonStringCmd([property: MaskInLogs] Guid TrackingId, string Name);
+
+    private sealed record OnlyUnmaskableCmd([property: MaskInLogs] Guid TrackingId);
+
+    [Fact]
+    public void MaskForLog_ClassLevelMaskInLogs_MasksEveryStringProperty()
+    {
+        var sut = CreateMasker(null);
+
+        var result = sut.MaskForLog(new ClassLevelDto());
+
+        result.Tracking.ShouldBe("[REDACTED]");
+        result.Other.ShouldBe("[REDACTED]");
+    }
+
+    [Fact]
+    public void MaskObjectAndMaskForAudit_ClassLevelMaskInLogs_LeaveTheValuesUntouched()
+    {
+        var sut = CreateMasker(null);
+        var dto = new ClassLevelDto();
+
+        sut.MaskObject(dto).Tracking.ShouldBe(Sentinel);
+        sut.MaskForAudit(dto).Tracking.ShouldBe(Sentinel);
+        ((ClassLevelDto)sut.MaskForAudit((object)dto)).Tracking.ShouldBe(Sentinel);
+    }
+
+    [Fact]
+    public void MaskObjectAndMaskForAudit_PropertyMaskInLogsUnderClassPii_StayMasked()
+    {
+        var sut = CreateMasker(null);
+        var dto = new PiiWithLogOnlyPropertyDto();
+
+        sut.MaskObject(dto).Email.ShouldNotBe("john@example.com");
+        sut.MaskForAudit(dto).Email.ShouldNotBe("john@example.com");
+        ((PiiWithLogOnlyPropertyDto)sut.MaskForAudit((object)dto)).Email.ShouldNotBe("john@example.com");
+        sut.MaskForLog(dto).Email.ShouldNotBe("john@example.com");
+    }
+
+    [Fact]
+    public void MaskForLog_NonStringMaskInLogs_FailsClosedAndLogs8023()
+    {
+        var logger = new FakeLogger<PIIMasker>();
+        var sut = CreateMasker(null, logger);
+
+        var act = () => sut.MaskForLog(new NonStringCmd(Guid.NewGuid(), "n"));
+
+        act.ShouldThrow<InvalidOperationException>();
+        logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 8023);
+    }
+
+    [Fact]
+    public void LogMasked_NonStringMaskInLogs_WritesThePlaceholderAndNeverTheGuid()
+    {
+        var sut = CreateMasker(null);
+        var logger = new FakeLogger();
+        var id = Guid.NewGuid();
+
+        logger.LogWarningMasked(sut, "Processing {@Cmd}", new NonStringCmd(id, "n"));
+
+        var entries = logger.Collector.GetSnapshot();
+        entries.ShouldContain(r => r.Message.Contains("[MASKING FAILED]"));
+        entries.ShouldNotContain(r => r.Message.Contains(id.ToString()));
+    }
+
+    [Fact]
+    public void MaskObjectAndMaskForAudit_NonStringMaskInLogs_IgnoreTheUnmaskableProperty()
+    {
+        var sut = CreateMasker(null);
+        var cmd = new NonStringCmd(Guid.NewGuid(), "n");
+
+        sut.MaskObject(cmd).TrackingId.ShouldBe(cmd.TrackingId);
+        sut.MaskForAudit(cmd).TrackingId.ShouldBe(cmd.TrackingId);
+        ((NonStringCmd)sut.MaskForAudit((object)cmd)).TrackingId.ShouldBe(cmd.TrackingId);
+    }
+
+    [Fact]
+    public void ResponseAndAuditContexts_TypeDecoratedOnlyWithNonStringMaskInLogs_PassThroughAsTheSameInstance()
+    {
+        var sut = CreateMasker(null);
+        var cmd = new OnlyUnmaskableCmd(Guid.NewGuid());
+
+        sut.MaskObject(cmd).ShouldBeSameAs(cmd);
+        sut.MaskForAudit(cmd).ShouldBeSameAs(cmd);
+        Should.Throw<InvalidOperationException>(() => sut.MaskForLog(cmd));
+    }
+
     [Fact]
     public void LogMasked_WhenRealMaskerFails_WritesThePlaceholderAndNeverTheValue()
     {

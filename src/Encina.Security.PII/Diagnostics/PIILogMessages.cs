@@ -106,4 +106,10 @@ internal static partial class PIILogMessages
         Level = LogLevel.Warning,
         Message = "PII masking for logs failed for {TypeName}; no unmasked object is returned")]
     internal static partial void LogMaskingFailed(ILogger logger, Exception exception, string typeName);
+
+    [LoggerMessage(
+        EventId = 8024,
+        Level = LogLevel.Warning,
+        Message = "PIIOptions.MaskInLogs is disabled: PII-decorated values are written to logs unmasked")]
+    internal static partial void MaskInLogsDisabled(ILogger logger);
 }
