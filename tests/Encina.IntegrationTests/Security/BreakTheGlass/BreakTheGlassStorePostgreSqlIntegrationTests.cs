@@ -11,10 +11,7 @@ using Encina.TestInfrastructure.Fixtures;
 
 namespace Encina.IntegrationTests.Security.BreakTheGlass;
 
-/// <summary>
-/// Creates the break-the-glass table on the shared PostgreSQL fixture from the script a package ships, and
-/// hands out stores over independent connections.
-/// </summary>
+/// <summary>Creates the break-the-glass table on the shared PostgreSQL fixture from the shipped script.</summary>
 internal static class BreakTheGlassPostgreSqlSchema
 {
     public const string Script = "030_CreateBreakTheGlassElevationsTable.sql";
@@ -82,9 +79,7 @@ internal static class BreakTheGlassPostgreSqlSchema
     }
 }
 
-/// <summary>
-/// The shared <see cref="BreakTheGlassStoreContract"/> against <see cref="BreakTheGlassStoreADO"/> on PostgreSQL.
-/// </summary>
+/// <summary>The shared <see cref="BreakTheGlassStoreContract"/> against <see cref="BreakTheGlassStoreADO"/> on PostgreSQL.</summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
 [Collection("ADO-PostgreSQL")]
@@ -123,9 +118,7 @@ public sealed class BreakTheGlassStoreADOPostgreSqlIntegrationTests : BreakTheGl
     }
 }
 
-/// <summary>
-/// The shared <see cref="BreakTheGlassStoreContract"/> against <see cref="BreakTheGlassStoreDapper"/> on PostgreSQL.
-/// </summary>
+/// <summary>The shared <see cref="BreakTheGlassStoreContract"/> against <see cref="BreakTheGlassStoreDapper"/> on PostgreSQL.</summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
 [Collection("Dapper-PostgreSQL")]
