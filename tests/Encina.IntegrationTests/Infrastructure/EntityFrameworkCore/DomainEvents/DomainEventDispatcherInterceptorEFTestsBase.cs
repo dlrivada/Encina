@@ -78,7 +78,7 @@ public abstract class DomainEventDispatcherInterceptorEFTestsBase : IAsyncLifeti
     }
 
     [Fact]
-    public async Task FailedSave_DispatchesNothingAndLeaksNothingIntoTheNextSave()
+    public async Task FailedAsyncSave_DispatchesNothingAndLeaksNothingIntoTheNextSave()
     {
         await using var harness = Build();
         var existing = NewAggregate("duplicate-" + Guid.NewGuid().ToString("N"));
@@ -121,6 +121,39 @@ public abstract class DomainEventDispatcherInterceptorEFTestsBase : IAsyncLifeti
         harness.Recorder.Events.ShouldBe([otherEvent]);
     }
 
+    [Fact(Skip = "Known defect: a failed synchronous SaveChanges leaves the interceptor's pre-collected events in its AsyncLocal and the next save dispatches them; see the follow-up [BUG] issue of #2863 (SaveChangesFailed is not overridden). Remove the Skip when it is fixed.")]
+    public async Task FailedSynchronousSave_DispatchesNothingAndLeaksNothingIntoTheNextSave()
+    {
+        // The synchronous SaveChanges has no async frame that would discard the interceptor's AsyncLocal state,
+        // so this is the path where a leak from a failed save would show.
+        await using var harness = Build();
+        var existing = NewAggregate("duplicate-" + Guid.NewGuid().ToString("N"));
+        await using (var seed = harness.CreateContext())
+        {
+            seed.Aggregates.Add(existing);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var clashing = new DomainEventTestAggregate(Guid.NewGuid(), existing.Name);
+        clashing.Raise(new NoteRaised(clashing.Id, 0));
+        await using (var failing = harness.CreateContext())
+        {
+            failing.Aggregates.Add(clashing);
+            Should.Throw<DbUpdateException>(() => failing.SaveChanges());
+        }
+
+        harness.Recorder.Events.ShouldBeEmpty();
+
+        var silent = NewAggregate();
+        await using (var withoutEvents = harness.CreateContext())
+        {
+            withoutEvents.Aggregates.Add(silent);
+            withoutEvents.SaveChanges();
+        }
+
+        harness.Recorder.Events.ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task ExplicitTransaction_DispatchesOnSaveChangesEvenWhenTheTransactionLaterRollsBack()
     {
@@ -145,9 +178,11 @@ public abstract class DomainEventDispatcherInterceptorEFTestsBase : IAsyncLifeti
     }
 
     [Theory]
-    [InlineData(HandlerBehavior.ReturnLeft)]
-    [InlineData(HandlerBehavior.Throw)]
-    public async Task FailingHandler_WithStopOnFirstError_ThrowsAfterPersistingAndKeepsTheEvents(HandlerBehavior behavior)
+    [InlineData(HandlerBehavior.ReturnLeft, "test.domain-event-handler")]
+    [InlineData(HandlerBehavior.Throw, EncinaErrorCodes.NotificationException)]
+    public async Task FailingHandler_WithStopOnFirstError_ThrowsAfterPersistingAndKeepsTheEvents(
+        HandlerBehavior behavior,
+        string expectedErrorCode)
     {
         await using var harness = Build(options => options.StopOnFirstError = true, behavior);
         var aggregate = NewAggregate();
@@ -167,7 +202,8 @@ public abstract class DomainEventDispatcherInterceptorEFTestsBase : IAsyncLifeti
         }
 
         thrown.DomainEvent.ShouldBe(poison);
-        thrown.ErrorCode.ShouldNotBeNullOrWhiteSpace();
+        // The dispatcher turns a throwing handler into a Left, so both behaviors reach the interceptor as an error.
+        thrown.ErrorCode.ShouldBe(expectedErrorCode);
         harness.Recorder.Events.ShouldBe([before, poison]);
         aggregate.DomainEvents.Count.ShouldBe(3);
         (await ExistsAsync(aggregate.Id)).ShouldBeTrue();
