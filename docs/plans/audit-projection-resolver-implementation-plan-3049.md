@@ -580,6 +580,31 @@ Register: D49-D55.
 
 </details>
 
+<details>
+<summary><strong>20. Result shape of a rejected batch — `Left` for `RecordAsync`, `Right` with the report for `PreviewAsync`</strong></summary>
+
+Register: new (PR #3085 review, 2026-11-04); refines the per-item report of D15 = E.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A fully rejected `AllOrNothing` batch is a failure of the operation: `RecordAsync` returns `Left` `audit.marten.resolution_batch_rejected` whose error details carry the per-item error codes (item index to code, codes only); `PreviewAsync` is a query that succeeds and returns `Right` with the per-item report** | Railway Oriented Programming: a caller that matches only `Right` can never read a write that did nothing as success (the failure pattern of #1150-#1153); the report still reaches the operator through the details | The report travels in the error details of the write |
+| B) `RecordAsync` returns `Right(report)` with an outcome flag (`RejectedNothingWritten`) | One result type for every case | Success-shaped result for a write that wrote nothing; a caller that ignores the flag treats it as success |
+
+### Chosen Option: **A — `Left` for the write, `Right` for the preview**
+
+### Rationale
+
+- The operation was requested to record resolutions and did not: that is a failure, not a successful report. The preview was requested to report: it succeeds with the report.
+- A subset run (`ValidSubsetOnly`) that applies at least one item is a success (`Right`, outcome `WrittenValidSubset`); a subset run with zero valid items writes nothing and is `Left` `audit.marten.resolution_batch_rejected` as well.
+
+**Class:** Settled
+**Settled by:** AGENTS.md section 3 (Railway Oriented Programming: operations return `Either<EncinaError, T>`; errors are never swallowed; a `Left` means the operation failed) and ADR-001 and ADR-006; confirmation of 2026-11-04 recorded by the orchestrator ("correct, no maintainer decision needed; register as Settled")
+**Verified:** pending adversarial review
+
+</details>
+
 ---
 
 ## Implementation Phases
