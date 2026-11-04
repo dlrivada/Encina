@@ -81,6 +81,12 @@ if (root is null || !Directory.Exists(Path.Combine(root, ".github", "coverage-ma
 }
 
 // A run that gates must be given its baseline: forgetting --baseline must not turn the audit into a silent pass.
+if (baselinePath is not null && noBaseline)
+{
+    Console.Error.WriteLine("--baseline and --no-baseline contradict each other: pass only one.");
+    return 2;
+}
+
 if (!printBaseline && baselinePath is null && !noBaseline)
 {
     Console.Error.WriteLine("No baseline: pass --baseline <file> (or --no-baseline for a report-only run, or --print-baseline).");
@@ -258,7 +264,39 @@ static class Audit
     // `## Status: Not Implemented` (the form of the real files), also as a plain or bold `Status:` line, any case.
     static readonly Regex NotImplemented = new(@"^[ \t]*(?:#{1,6}[ \t]*)?\*{0,2}Status\*{0,2}[ \t]*:[ \t]*\*{0,2}[ \t]*Not[ \t]+Implemented\b", RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
     static readonly Regex EncinaToken = new(@"Encina(?:\.[A-Za-z0-9_]+)+", RegexOptions.Compiled);
-    static readonly Regex TestAttribute = new(@"\[(?:Fact|Theory)\b", RegexOptions.Compiled);
+    // [Fact], [Theory], [Xunit.Fact], [FactAttribute] and [Xunit.TheoryAttribute].
+    static readonly Regex TestAttribute = new(@"\[(?:Xunit\.)?(?:Fact|Theory)(?:Attribute)?\b", RegexOptions.Compiled);
+
+    // Removes Markdown fenced code blocks (``` or ~~~): a fence closes only on a line with the same character and at
+    // least as long a run; an unclosed fence runs to the end of the text. A quoted example must not count as a status.
+    public static string StripFencedCode(string text)
+    {
+        var sb = new StringBuilder(text.Length);
+        char fenceChar = '\0';
+        var fenceLen = 0;
+        foreach (var line in text.Split('\n'))
+        {
+            var trimmed = line.TrimEnd('\r');
+            var indent = trimmed.Length - trimmed.TrimStart(' ').Length;
+            var body = trimmed.TrimStart(' ');
+            var run = body.Length > 0 && body[0] is '`' or '~' ? body.TakeWhile(ch => ch == body[0]).Count() : 0;
+            if (fenceLen == 0)
+            {
+                if (indent <= 3 && run >= 3)
+                {
+                    fenceChar = body[0];
+                    fenceLen = run;
+                    continue;
+                }
+                sb.Append(line).Append('\n');
+            }
+            else if (indent <= 3 && run >= fenceLen && body[0] == fenceChar && body.Skip(run).All(char.IsWhiteSpace))
+            {
+                fenceLen = 0;
+            }
+        }
+        return sb.ToString();
+    }
 
     // The tokens of #1749: any of these means the file can run product code.
     static readonly Regex[] ProductCodeTokens =
@@ -326,13 +364,17 @@ static class Audit
     static void MeasureManifests(string root, Report report)
     {
         var texts = new List<string>();
-        foreach (var path in Files(Path.Combine(root, ".github", "coverage-manifest"), "*.json").OrderBy(p => p, StringComparer.Ordinal))
+        var manifests = Files(Path.Combine(root, ".github", "coverage-manifest"), "*.json")
+            .Where(p => !Path.GetFileName(p).Equals("defaults.json", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(p => p, StringComparer.Ordinal).ToList();
+        if (manifests.Count == 0)
         {
-            if (Path.GetFileName(path).Equals("defaults.json", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
+            // No manifests would read as zero targets and zero justifications: missing evidence is an error.
+            throw new DirectoryNotFoundException("no coverage manifests found");
+        }
 
+        foreach (var path in manifests)
+        {
             using var doc = JsonDocument.Parse(File.ReadAllText(path));
             if (!doc.RootElement.TryGetProperty("files", out var files) || files.ValueKind != JsonValueKind.Object)
             {
@@ -385,7 +427,7 @@ static class Audit
         foreach (var md in Files(testsDir, "*.md").OrderBy(p => p, StringComparer.Ordinal))
         {
             var text = File.ReadAllText(md);
-            if (!NotImplemented.IsMatch(text))
+            if (!NotImplemented.IsMatch(StripFencedCode(text)))
             {
                 continue;
             }
@@ -459,7 +501,7 @@ static class Audit
     {
         // A heuristic, not proof: any `new`, `await` or `.Validate(` (even a `where T : new()` constraint) removes a file
         // from the count, only [Fact]/[Theory] are counted and only tests/Encina.ContractTests is scanned. The gate is a
-        // ratchet on this heuristic.
+        // ratchet on this heuristic. Counted attributes: [Fact], [Theory], [Xunit.Fact], [FactAttribute] and the Theory forms.
         report.H3.Detector = "#1749 token heuristic over code with comments and string literals removed (interpolation holes stay code): a tests/Encina.ContractTests *.cs file with [Fact]/[Theory] and none of new, Create...(, await, Substitute.For, BuildServiceProvider, GetRequiredService, .Invoke(, .Compute(, .Validate...(. A heuristic, not proof.";
         foreach (var cs in Files(Path.Combine(root, "tests", "Encina.ContractTests"), "*.cs").OrderBy(p => p, StringComparer.Ordinal))
         {
@@ -902,6 +944,33 @@ static class SelfTest
             Put(objRoot, "tests/Encina.ContractTests/A.cs", "class A {}");
             Put(objRoot, "tests/Encina.UnitTests/Plain.md", "Status: Not Implemented\n");
             Check("a checkout below a directory named obj is still scanned", Audit.Measure(objRoot, TimeProvider.System.GetUtcNow()).H2.Total == 1);
+
+            var fenceRoot = Path.Combine(root, "fences");
+            Put(fenceRoot, "src/Encina.Foo/Foo.cs", "class Foo {}");
+            Put(fenceRoot, ".github/coverage-manifest/Encina.Foo.json", "{\"files\":{}}");
+            Put(fenceRoot, "tests/Encina.ContractTests/A.cs", "class A {}");
+            Put(fenceRoot, "tests/Encina.UnitTests/Backtick.md", "# Example\n\n```md\n## Status: Not Implemented\n```\n");
+            Put(fenceRoot, "tests/Encina.UnitTests/Tilde.md", "# Example\n\n~~~\nStatus: Not Implemented\n~~~\n");
+            Put(fenceRoot, "tests/Encina.UnitTests/Unclosed.md", "# Example\n\n```\nStatus: Not Implemented\n");
+            Put(fenceRoot, "tests/Encina.UnitTests/ShortClose.md", "````\n```\nStatus: Not Implemented\n```\n");
+            Put(fenceRoot, "tests/Encina.UnitTests/AfterFence.md", "```\ncode\n```\n\n## Status: Not Implemented\n");
+            Check("H2 ignores Status inside backtick, tilde, unclosed and longer fences, and counts it after a closed fence", Audit.Measure(fenceRoot, TimeProvider.System.GetUtcNow()).H2.Total == 1);
+
+            var attrRoot = Path.Combine(root, "attrs");
+            Put(attrRoot, "src/Encina.Foo/Foo.cs", "class Foo {}");
+            Put(attrRoot, ".github/coverage-manifest/Encina.Foo.json", "{\"files\":{}}");
+            Put(attrRoot, "tests/Encina.ContractTests/Forms.cs", "class F { [Xunit.Fact] void A() {} [FactAttribute] void B() {} [Xunit.TheoryAttribute] void C() {} [Fact] void D() {} [Factory] void E() {} }");
+            var attrs = Audit.Measure(attrRoot, TimeProvider.System.GetUtcNow());
+            Check("H3 counts [Xunit.Fact], [FactAttribute], [Xunit.TheoryAttribute] and [Fact], not [Factory]", attrs.H3.Files == 1 && attrs.H3.Attributes == 4);
+
+            var noManifestRoot = Path.Combine(root, "nomanifest");
+            Put(noManifestRoot, "src/Encina.Foo/Foo.cs", "class Foo {}");
+            Put(noManifestRoot, ".github/coverage-manifest/defaults.json", "{\"rules\":[]}");
+            Put(noManifestRoot, "tests/Encina.ContractTests/A.cs", "class A {}");
+            var noManifest = false;
+            try { Audit.Measure(noManifestRoot, TimeProvider.System.GetUtcNow()); }
+            catch (DirectoryNotFoundException ex) when (ex.Message.Contains("no coverage manifests found", StringComparison.Ordinal)) { noManifest = true; }
+            Check("a tree with only defaults.json and no manifest fails (exit 2) instead of reading as zero", noManifest);
 
             Check("stripper: a quoted new inside an interpolation hole is ignored", !HasNew("var s = $\"{string.Join(\"new\", x)}\";"));
             Check("stripper: new as code inside an interpolation hole is kept", HasNew("var s = $\"{new Foo()}\";"));
