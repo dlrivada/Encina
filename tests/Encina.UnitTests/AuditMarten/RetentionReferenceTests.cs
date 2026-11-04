@@ -314,6 +314,21 @@ public sealed class RetentionReferenceTests
     public void Options_ExpiredPlaceholder_DefaultsToExpired() =>
         new MartenOperationAuditOptions().ExpiredPlaceholder.ShouldBe("[EXPIRED]");
 
+    [Fact]
+    public void ReadModels_IsUnreadable_DefaultsToFalseAndIsSettable()
+    {
+        var operation = new OperationAuditEntryReadModel();
+        var read = new ReadAuditEntryReadModel();
+        operation.IsUnreadable.ShouldBeFalse();
+        read.IsUnreadable.ShouldBeFalse();
+
+        operation.IsUnreadable = true;
+        read.IsUnreadable = true;
+
+        operation.IsUnreadable.ShouldBeTrue();
+        read.IsUnreadable.ShouldBeTrue();
+    }
+
     // ---- stores: an expired placeholder in MetadataJson must not be parsed as JSON ----
 
     [Fact]

@@ -72,6 +72,21 @@
         "integration": "The integration tests on a real SQL Server database run every read audit query path, every filter and the stable-order paging (measured 89.71%); the uncovered lines are the catch blocks that turn a database failure into a store error for each method."
       }
     },
+    "BreakTheGlass/BreakTheGlassStoreDapper.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreDapper.cs",
+      "reason": "Dapper store with raw SQL — needs real database",
+      "targets": {
+        "unit": 25,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "BreakTheGlassSqlServerStoreTests covers the DI registration and the store_failed paths of the SQL Server break-the-glass store, while the SQL itself needs a real database and is covered by the integration flag.",
+        "integration": "The shared BreakTheGlassStoreContract runs on the SQL Server collection fixtures through BreakTheGlassStoreSqlServerIntegrationTests, executing every method against a real database."
+      }
+    },
     "BulkOperations/BulkOperationsDapper.cs": {
       "defaultTests": [
         "integration"

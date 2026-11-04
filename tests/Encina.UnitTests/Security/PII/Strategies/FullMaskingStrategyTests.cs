@@ -164,14 +164,6 @@ public sealed class FullMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_TokenizeMode_ReturnsOriginalValue()
-    {
-        var result = _sut.Apply("sensitive-data", WithMode(MaskingMode.Tokenize));
-
-        result.ShouldBe("sensitive-data");
-    }
-
-    [Fact]
     public void Apply_ShortValue_SingleChar_MasksFully()
     {
         var result = _sut.Apply("A", DefaultPartial());

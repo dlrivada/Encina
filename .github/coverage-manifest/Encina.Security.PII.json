@@ -92,11 +92,46 @@
         "guard": "No guard test exists for this registration and this change only edits comments; the ThrowIfNull is executed by the unit tests."
       }
     },
-    "Strategies/AddressMaskingStrategy.cs": { "defaultTests": ["unit"], "reason": "Masking strategy — no ThrowIfNull guards" },
-    "Strategies/CreditCardMaskingStrategy.cs": { "defaultTests": ["unit"], "reason": "Masking strategy — no ThrowIfNull guards" },
-    "Strategies/DateOfBirthMaskingStrategy.cs": { "defaultTests": ["unit"], "reason": "Masking strategy — no ThrowIfNull guards" },
-    "Strategies/EmailMaskingStrategy.cs": { "defaultTests": ["unit"], "reason": "Masking strategy — no ThrowIfNull guards" },
-    "Strategies/FullMaskingStrategy.cs": { "defaultTests": ["unit"], "reason": "Masking strategy — no ThrowIfNull guards" },
+    "Strategies/AddressMaskingStrategy.cs": {
+      "defaultTests": ["unit"],
+      "reason": "Masking strategy — no ThrowIfNull guards",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "Every mode arm (Full, Redact, Hash and the Partial default) and the short-value path are executed by the strategy unit tests with the real class (measured 100%)."
+      }
+    },
+    "Strategies/CreditCardMaskingStrategy.cs": {
+      "defaultTests": ["unit"],
+      "reason": "Masking strategy — no ThrowIfNull guards",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "Every mode arm and the card format variants are run through the unit tests with real card strings (measured 100%)."
+      }
+    },
+    "Strategies/DateOfBirthMaskingStrategy.cs": {
+      "defaultTests": ["unit"],
+      "reason": "Masking strategy — no ThrowIfNull guards",
+      "targets": { "unit": 85 },
+      "justifications": {
+        "unit": "The mode arms and the supported date formats are executed by the unit tests; the unparsable-format fallback lines are only partly reached (measured 88.1%)."
+      }
+    },
+    "Strategies/EmailMaskingStrategy.cs": {
+      "defaultTests": ["unit"],
+      "reason": "Masking strategy — no ThrowIfNull guards",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "Every mode arm, the no-@ generic mask and the short local part are run through the unit tests (measured 100%)."
+      }
+    },
+    "Strategies/FullMaskingStrategy.cs": {
+      "defaultTests": ["unit"],
+      "reason": "Masking strategy — no ThrowIfNull guards",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "Every mode arm, including the Partial default and the PreserveLength variants, is run through the unit tests (measured 100%)."
+      }
+    },
     "Strategies/HashHelper.cs": { "defaultTests": ["unit"], "reason": "Static helper — no ThrowIfNull guards" },
     "Strategies/IPAddressMaskingStrategy.cs": { "defaultTests": ["unit"], "reason": "Masking strategy — no ThrowIfNull guards" },
     "Strategies/NameMaskingStrategy.cs": { "defaultTests": ["unit"], "reason": "Masking strategy — no ThrowIfNull guards" },

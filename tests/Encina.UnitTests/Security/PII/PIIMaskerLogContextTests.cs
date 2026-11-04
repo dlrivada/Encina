@@ -109,11 +109,14 @@ public sealed class PIIMaskerLogContextTests : IDisposable
     }
 
     [Fact]
-    public void MaskObject_TokenizeMode_KeepsTheExistingResponseBehaviour()
+    public void MaskObject_TokenizeMode_NeverReturnsTheRawValue()
     {
         var sut = CreateMasker(null);
 
-        sut.MaskObject(new PiiTokenizeDto()).Email.ShouldBe("john@example.com");
+        var email = sut.MaskObject(new PiiTokenizeDto()).Email;
+
+        email.ShouldNotBe("john@example.com");
+        email.ShouldContain("*");
     }
 
     [Fact]
