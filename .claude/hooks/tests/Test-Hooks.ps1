@@ -497,9 +497,15 @@ $ps1Scripts = [ordered]@{
     JunctionThenWrite   = "New-Item -ItemType Junction -Path '$main\artifacts\lnk' -Value '$main\src'`nSet-Content '$main\artifacts\lnk\x.cs' 'y'`n"
     MoveSourceSrc       = "Move-Item -Path '$main\src\Encina\Foo.cs' -Destination '$main\artifacts\Foo.cs'`n"
     UnknownWithSrc      = "& 'Set-Content' 'src/x.cs' 'y'`n"
-    UnresolvedPlusGit   = "Set-Content `$env:ENCINA_HOOK_TEST_UNSET_VARIABLE 'x'`ngit status`n"
+    UnresolvedPlusGit   = "# writes under src/ when the variable is set`nSet-Content `$env:ENCINA_HOOK_TEST_UNSET_VARIABLE 'x'`ngit status`n"
+    # Modelled on tools/ai/priority/collect-issues.ps1: param()-bound output path, git call, no src/tests word.
+    ParamDrivenTool     = "param([string]`$Out = (Join-Path (git rev-parse --show-toplevel) 'artifacts/priority/issues.json'), [string]`$Repo = 'dlrivada/Encina')`n`$outDir = Split-Path -Parent `$Out`nif (-not (Test-Path `$outDir)) { New-Item -ItemType Directory -Force -Path `$outDir | Out-Null }`n[ordered]@{ repo = `$Repo } | ConvertTo-Json | Set-Content -Path `$Out -Encoding utf8`n"
+    ParamDrivenMention  = "# Output goes next to the tests of the board.`nparam([string]`$Out = (Join-Path (git rev-parse --show-toplevel) 'artifacts/priority/issues.json'))`nSet-Content -Path `$Out -Value 'x' -Encoding utf8`n"
     WorkingDirectoryRel = "Set-Content 'x.cs' 'y'`n"
 }
+# B2: a chain of reused variables (each doubling the previous) writing under src/ must be judged quickly and denied.
+$expLines = @('$v0 = "x"') + @(1..14 | ForEach-Object { "`$v$_ = `$v$($_ - 1) + `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\src\' + `$v14) -Value 1")
+$ps1Scripts['ExpChainSrc'] = ($expLines -join "`n") + "`n"
 $ps1ScriptPath = @{}
 foreach ($name in $ps1Scripts.Keys) {
     $ps1ScriptPath[$name] = Join-Path $work "ps1-$name.ps1"
@@ -1054,7 +1060,13 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.MoveSourceSrc)'" }, $main, $null, 2, 'main session (#2892): Move-Item whose source is under src/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UnknownWithSrc)'" }, $main, $null, 2, 'main session (#2892): call-operator cmdlet name writing src/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UnresolvedPlusGit)'" }, $main, $null, 2, 'main session (#2892): unresolved target next to an unknown command: denied'),
-    @('PowerShell', @{ command = "pwsh -NoProfile -WorkingDirectory '$main\src' -File '$($ps1ScriptPath.WorkingDirectoryRel)'" }, $main, $null, 2, 'main session (#2892): -WorkingDirectory src with a relative target: denied')
+    @('PowerShell', @{ command = "pwsh -NoProfile -WorkingDirectory '$main\src' -File '$($ps1ScriptPath.WorkingDirectoryRel)'" }, $main, $null, 2, 'main session (#2892): -WorkingDirectory src with a relative target: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)'" }, $main, $null, 0, 'main session (#2892): a param()-driven tool that never names src/ or tests/ is allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainSrc)'" }, $main, $null, 2, 'main session (#2892): a 14-level chain of reused variables writing src/ is judged and denied within the hook timeout (B2)'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Repo x" }, $main, $null, 0, 'main session (#2892): the same tool with an unrelated argument is allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenMention)'" }, $main, $null, 2, 'main session (#2892): a param()-driven tool whose text names tests and whose target is unresolved: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out '$main\src\Encina\X.json'" }, $main, $null, 2, 'main session (#2892): the same tool with its output parameter supplied as src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out '$main\tests\X.json'" }, $main, $null, 2, 'main session (#2892): the same tool with its output parameter supplied as tests/: denied')
 )
 
 # require-specialists.ps1 (Stop gate) runs against a fake project with a real git worktree.
