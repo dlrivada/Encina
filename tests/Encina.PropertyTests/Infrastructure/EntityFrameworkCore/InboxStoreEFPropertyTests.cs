@@ -114,6 +114,7 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
                 RequestType = "TestExpiration",
                 ReceivedAtUtc = now.AddHours(-3),
                 ExpiresAtUtc = expiresAt,
+                ProcessedAtUtc = now.AddHours(-2.5),
                 RetryCount = 0
             };
 
@@ -246,6 +247,7 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
                     RequestType = "BatchTest",
                     ReceivedAtUtc = now.AddDays(-10),
                     ExpiresAtUtc = now.AddDays(-1),  // All expired
+                    ProcessedAtUtc = now.AddDays(-2),
                     RetryCount = 0
                 });
             }
@@ -278,6 +280,7 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
                 RequestType = "OrderTest",
                 ReceivedAtUtc = now.AddDays(-15),
                 ExpiresAtUtc = baseExpiry.AddMinutes(Random.Shared.Next(-100, 0)),
+                ProcessedAtUtc = now.AddDays(-14),
                 RetryCount = 0
             })
             .OrderBy(_ => Random.Shared.Next()) // Randomize insertion order
@@ -322,6 +325,7 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
                 RequestType = "RemoveTest",
                 ReceivedAtUtc = DateTime.UtcNow.AddDays(-30),
                 ExpiresAtUtc = DateTime.UtcNow.AddDays(-1),
+                ProcessedAtUtc = DateTime.UtcNow.AddDays(-29),
                 RetryCount = 0
             });
         }

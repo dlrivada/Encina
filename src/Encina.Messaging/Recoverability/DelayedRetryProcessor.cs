@@ -122,14 +122,10 @@ public sealed class DelayedRetryProcessor : BackgroundService
         // The startup check guarantees the store when delayed retries are on; a missing one is an error.
         var store = scope.ServiceProvider.GetRequiredService<IDelayedRetryStore>();
 
-        var encina = scope.ServiceProvider.GetService<IEncina>();
-        if (encina is null)
-        {
-            DelayedRetryProcessorLog.EncinaNotConfigured(_logger);
-            return;
-        }
-
-        var messageSerializer = scope.ServiceProvider.GetService<IMessageSerializer>() ?? new JsonMessageSerializer();
+        // IEncina and IMessageSerializer are required: the startup check covers IEncina, the registration adds
+        // the default serializer. A missing one fails the cycle (ProcessingError) instead of silently skipping it.
+        var encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+        var messageSerializer = scope.ServiceProvider.GetRequiredService<IMessageSerializer>();
 
         var messages = await store.GetPendingMessagesAsync(BatchSize, cancellationToken).ConfigureAwait(false);
 
@@ -429,13 +425,6 @@ public sealed class DelayedRetryProcessor : BackgroundService
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
 
-        var scheduler = scope.ServiceProvider.GetService<IDelayedRetryScheduler>();
-        if (scheduler is null)
-        {
-            DelayedRetryProcessorLog.SchedulerNotConfigured(_logger);
-            return false;
-        }
-
         // Reconstruct context from the serialized data
         var context = RestoreContext(originalMessage.ContextContent);
         context.IncrementDelayedRetry();
@@ -452,6 +441,9 @@ public sealed class DelayedRetryProcessor : BackgroundService
 
         try
         {
+            // Required: a missing scheduler throws here and is a failed schedule like any other (below).
+            var scheduler = scope.ServiceProvider.GetRequiredService<IDelayedRetryScheduler>();
+
             var scheduled = await InvokeScheduleRetryAsync(
                 scheduler, originalMessage.RequestType, request, context, delay, nextDelayedRetryAttempt, cancellationToken).ConfigureAwait(false);
 
@@ -723,12 +715,6 @@ internal static partial class DelayedRetryProcessorLog
     public static partial void ProcessingError(ILogger logger, Exception ex);
 
     [LoggerMessage(
-        EventId = 2849,
-        Level = LogLevel.Warning,
-        Message = "IEncina not configured - delayed retries disabled")]
-    public static partial void EncinaNotConfigured(ILogger logger);
-
-    [LoggerMessage(
         EventId = 2850,
         Level = LogLevel.Debug,
         Message = "[{CorrelationId}] Processing delayed retry #{Attempt} for {RequestType}")]
@@ -767,12 +753,6 @@ internal static partial class DelayedRetryProcessorLog
         Message = "[{CorrelationId}] {RequestType} permanently failed after {Attempts} delayed retries")]
     public static partial void PermanentFailure(
         ILogger logger, string correlationId, string requestType, int attempts);
-
-    [LoggerMessage(
-        EventId = 2856,
-        Level = LogLevel.Warning,
-        Message = "IDelayedRetryScheduler not configured - cannot schedule next retry")]
-    public static partial void SchedulerNotConfigured(ILogger logger);
 
     [LoggerMessage(
         EventId = 2857,

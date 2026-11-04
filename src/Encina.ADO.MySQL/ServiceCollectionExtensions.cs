@@ -57,7 +57,7 @@ public static class ServiceCollectionExtensions
             SagaStateFactory,
             ScheduledMessageStoreADO,
             ScheduledMessageFactory,
-            OutboxProcessor>(config, Messaging.Outbox.OutboxWritePath.TransactionalBehavior);
+            OutboxProcessor>(config);
 
         services.AddDeadLetterQueueServices<DeadLetterStoreADO, DeadLetterMessageFactory>(config.UseDeadLetterQueue, config.DeadLetterOptions);
 

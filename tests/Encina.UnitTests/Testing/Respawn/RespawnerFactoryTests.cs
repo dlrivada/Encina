@@ -6,6 +6,7 @@ namespace Encina.UnitTests.Testing.Respawn;
 /// <summary>
 /// Unit tests for <see cref="RespawnerFactory"/>.
 /// </summary>
+[Collection(RespawnerFactoryStaticStateDefinition.Name)]
 public sealed class RespawnerFactoryTests
 {
     #region Create Tests
@@ -60,6 +61,16 @@ public sealed class RespawnerFactoryTests
             RespawnerFactory.Create(RespawnAdapter.Oracle, connectionString));
 
         exception.Message.ShouldContain("Oracle");
+    }
+
+    [Fact]
+    public void Create_UndefinedAdapter_ThrowsNotSupportedException()
+    {
+        // Act & Assert
+        var exception = Should.Throw<NotSupportedException>(() =>
+            RespawnerFactory.Create((RespawnAdapter)999, "Server=localhost"));
+
+        exception.Message.ShouldContain("999");
     }
 
     [Fact]

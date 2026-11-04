@@ -247,7 +247,7 @@ public sealed class MySqlFixture : DatabaseFixture<MySqlContainer>
     protected override async Task<MySqlContainer> CreateContainerAsync()
     {
         _container = new MySqlBuilder()
-            .WithImage("mysql:8.0")
+            .WithImage("mysql:8.4")
             .WithDatabase("encina_test")
             .WithUsername("encina")
             .WithPassword("encina123")
