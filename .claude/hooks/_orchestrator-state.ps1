@@ -26,11 +26,11 @@ function Get-OrchestratorBudgetDay([datetime]$NowUtc) {
 }
 
 # Cap and stop order for a day that starts at $StartPercent. An explicit -CapPercent / -StopPercent is used
-# verbatim; when only one is given the other is derived 2 points away from it.
+# verbatim. Without -CapPercent the cap is the computed one (also when -StopPercent is given); without
+# -StopPercent the stop order is cap - 2.
 function Get-OrchestratorBudget([double]$StartPercent, [datetime]$NowUtc, $CapPercent = $null, $StopPercent = $null) {
     $day = Get-OrchestratorBudgetDay $NowUtc
     if ($null -ne $CapPercent) { $cap = [double]$CapPercent }
-    elseif ($null -ne $StopPercent) { $cap = [math]::Min(100, [double]$StopPercent + 2) }
     else {
         $share = [math]::Floor((100 - $StartPercent) / (7 - $day.Index))
         $cap = [math]::Min(100, $StartPercent + $share)

@@ -5292,7 +5292,7 @@ The fluent builder chain described in the documentation is fictional. The parame
         $env:ENCINA_ORCHESTRATOR_STATE_ROOT = $orchState
         $env:USERPROFILE = $orchHome
         $env:HOME = $orchHome
-        $markOut = & pwsh -NoProfile -File $orchMode -On -StartPercent 59 -CapPercent 76 -SessionId 'sess-marked' -StateRoot $orchState 2>&1
+        $markOut = & pwsh -NoProfile -File $orchMode -On -StartPercent 59 -CapPercent 76 -NowUtc 2026-11-04T15:00:00Z -SessionId 'sess-marked' -StateRoot $orchState 2>&1
         $script:total++
         if ((Test-Path (Join-Path $orchState 'sess-marked.json')) -and "$markOut" -match 'stop order at 74%, cap 76%') { 'PASS orchestrator-mode.ps1 -On writes the state file (cap 76%, stop 74%)' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -On did not mark the session: $markOut" }
 
@@ -5367,6 +5367,7 @@ The fluent builder chain described in the documentation is fictional. The parame
 
         # The reminder: at most 3 lines, with the start and the cap; silent otherwise.
         $promptBody = { param($s, $a) $p = @{ session_id = $s; hook_event_name = 'UserPromptSubmit'; prompt = 'hello'; cwd = $repo }; if ($a) { $p.agent_id = $a }; $p | ConvertTo-Json -Compress }
+        $env:ENCINA_ORCHESTRATOR_NOW_UTC = '2026-11-04T15:00:00Z'   # fixes the hook's clock (the mark above is the same Wednesday)
         Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: the reminder is emitted for the marked session' '' '(?s)^(?=.*UserPromptSubmit)(?=.*started at 59%, stop order at 74%, cap 76%)'
         $reminderJson = (& $promptBody 'sess-marked' '') | pwsh -NoProfile -File $orchReminder | ConvertFrom-Json
         $reminderLines = @(([string]$reminderJson.hookSpecificOutput.additionalContext) -split "`n")
@@ -5379,7 +5380,12 @@ The fluent builder chain described in the documentation is fictional. The parame
         $script:total++
         if ([string]::IsNullOrWhiteSpace("$silent")) { 'PASS orchestrator mode: no reminder for a payload with agent_id' } else { $script:failed++; "FAIL orchestrator mode: reminder for a subagent: $silent" }
         Invoke-HookCase $orchReminder 'not json' 0 'orchestrator mode: the reminder fails open on a malformed payload'
-        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: a reminder on the day of -On says "today"' '' 'Budget today \(\w+ of the week resetting Fri 03:00Z\): started at 59%'
+        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: a reminder on the day of -On says "today"' '' 'Budget today \(Wednesday of the week resetting Fri 03:00Z\): started at 59%'
+        $env:ENCINA_ORCHESTRATOR_NOW_UTC = '2026-11-05T02:59:59Z'   # still Wednesday
+        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: 02:59:59Z the next calendar day is still the same budget day' '' 'Budget today \(Wednesday'
+        $env:ENCINA_ORCHESTRATOR_NOW_UTC = '2026-11-05T03:00:00Z'   # Thursday starts: the mark is stale
+        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: 03:00:00Z starts the next budget day, the mark is stale' '' 'set 2026-11-04, re-run -On for today'
+        Remove-Item Env:ENCINA_ORCHESTRATOR_NOW_UTC
         # A mark from an earlier budget day: the reminder says the cap is stale.
         $staleState = [ordered]@{ sessionId = 'sess-stale'; markedAtUtc = '2020-01-02T03:04:05Z'; budgetDayStartUtc = '2020-01-02T03:00:00Z'; budgetDay = 'Thursday'; startPercent = 59; capPercent = 76; stopPercent = 74 } | ConvertTo-Json
         [IO.File]::WriteAllText((Join-Path $orchState 'sess-stale.json'), $staleState)
@@ -5410,7 +5416,7 @@ The fluent builder chain described in the documentation is fictional. The parame
         $wed = [datetime]::SpecifyKind([datetime]'2026-11-04T15:00:00', [DateTimeKind]::Utc)
         $ovr = @(
             @(@{ CapPercent = 80 }, 80, 78, 'only -CapPercent: stop = cap - 2'),
-            @(@{ StopPercent = 60 }, 62, 60, 'only -StopPercent: cap = stop + 2'),
+            @(@{ StopPercent = 60 }, 76, 60, 'only -StopPercent: the cap stays the computed one (Wednesday, start 53 -> 76)'),
             @(@{ CapPercent = 90; StopPercent = 70 }, 90, 70, 'both overrides are used verbatim')
         )
         foreach ($o in $ovr) {
@@ -5424,6 +5430,9 @@ The fluent builder chain described in the documentation is fictional. The parame
         $script:total++
         if ("$nowOut" -match 'Wednesday of the week resetting Fri 03:00Z, started at 53%, stop order at 74%, cap 76%' -and $nowState.capPercent -eq 76 -and $nowState.stopPercent -eq 74 -and $null -eq $nowState.pacePercent -and $nowState.budgetDay -eq 'Wednesday') { 'PASS orchestrator-mode.ps1 -On -NowUtc stores the formula result (Wednesday, 53 -> cap 76, stop 74)' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -NowUtc: $nowOut" }
         Remove-Item (Join-Path $orchState 'sess-now.json')
+        $noZ = & pwsh -NoProfile -NonInteractive -File $orchMode -On -StartPercent 53 -NowUtc 2026-11-04T15:00:00 -SessionId 'sess-noz' -StateRoot $orchState 2>&1
+        $script:total++
+        if ($LASTEXITCODE -ne 0 -and "$noZ" -match 'must end in Z' -and -not (Test-Path (Join-Path $orchState 'sess-noz.json'))) { 'PASS orchestrator-mode.ps1 -NowUtc without Z or offset is rejected' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -NowUtc without Z was accepted: $noZ" }
 
         # -Off unmarks: the same deny input is allowed afterwards, and -Off is idempotent.
         $offOut = & pwsh -NoProfile -File $orchMode -Off -SessionId 'sess-marked' -StateRoot $orchState 2>&1

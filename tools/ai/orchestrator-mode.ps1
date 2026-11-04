@@ -21,11 +21,12 @@
 param(
     [Parameter(Mandatory, ParameterSetName = 'On')][switch]$On,
     [Parameter(Mandatory, ParameterSetName = 'On')][ValidateRange(0, 100)][double]$StartPercent,
-    # Explicit overrides, used verbatim; with only one of them the other is 2 points away (stop = cap - 2).
+    # Explicit overrides, used verbatim; without -CapPercent the cap is the computed one, without -StopPercent the stop is cap - 2.
     [Parameter(ParameterSetName = 'On')][ValidateRange(0, 100)][double]$CapPercent,
     [Parameter(ParameterSetName = 'On')][ValidateRange(0, 100)][double]$StopPercent,
     # The instant the budget day is computed for; only tests pass it.
-    [Parameter(ParameterSetName = 'On')][datetimeoffset]$NowUtc,
+    # Must end in Z or carry an offset (for example 2026-11-04T15:00:00Z); anything else is rejected.
+    [Parameter(ParameterSetName = 'On')][ValidatePattern('(Z|[+-]\d{2}:?\d{2})$', ErrorMessage = '-NowUtc must end in Z or carry a UTC offset, for example 2026-11-04T15:00:00Z.')][string]$NowUtc,
     [Parameter(Mandatory, ParameterSetName = 'Off')][switch]$Off,
     [Parameter(ParameterSetName = 'Status')][switch]$Status,
     # Defaults to $env:CLAUDE_CODE_SESSION_ID, which Claude Code exports to tool shells and which equals the hook
@@ -52,7 +53,7 @@ $path = Get-OrchestratorStatePath $StateRoot $SessionId
 
 if ($On) {
     New-Item -ItemType Directory -Force $StateRoot | Out-Null
-    $now = if ($PSBoundParameters.ContainsKey('NowUtc')) { $NowUtc.UtcDateTime } else { [TimeProvider]::System.GetUtcNow().UtcDateTime }
+    $now = if ($PSBoundParameters.ContainsKey('NowUtc')) { [datetimeoffset]::Parse($NowUtc, [Globalization.CultureInfo]::InvariantCulture).UtcDateTime } else { [TimeProvider]::System.GetUtcNow().UtcDateTime }
     $overrides = @{}
     foreach ($name in 'CapPercent', 'StopPercent') { if ($PSBoundParameters.ContainsKey($name)) { $overrides[$name] = $PSBoundParameters[$name] } }
     $budget = Get-OrchestratorBudget -StartPercent $StartPercent -NowUtc $now @overrides

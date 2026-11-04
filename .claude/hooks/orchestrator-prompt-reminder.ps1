@@ -20,7 +20,10 @@ try {
     if ($null -eq $state) { exit 0 }
 
     # The cap belongs to the budget day (Friday 03:00Z based) the session was marked on; on a later one the line says so.
-    $day = Get-OrchestratorBudgetDay ([TimeProvider]::System.GetUtcNow().UtcDateTime)
+    # ENCINA_ORCHESTRATOR_NOW_UTC (an ISO instant ending in Z) only fixes the clock for tests.
+    $nowOverride = [string]$env:ENCINA_ORCHESTRATOR_NOW_UTC
+    $nowUtc = if ($nowOverride -match 'Z$') { [datetimeoffset]::Parse($nowOverride, [Globalization.CultureInfo]::InvariantCulture).UtcDateTime } else { [TimeProvider]::System.GetUtcNow().UtcDateTime }
+    $day = Get-OrchestratorBudgetDay $nowUtc
     $markedDayStart = try { [datetimeoffset]::Parse([string]$state.budgetDayStartUtc, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal).UtcDateTime } catch { $null }
     $label = if ($null -eq $markedDayStart -or $markedDayStart -ne $day.StartUtc) {
         $setOn = if ($null -ne $markedDayStart) { $markedDayStart.ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture) } else { 'an unknown day' }
