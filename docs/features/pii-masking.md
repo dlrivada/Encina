@@ -180,7 +180,7 @@ Behaviour:
 - `IPIIMasker.MaskForLog<T>(T)` applies it, and so do `LogMasked` and its wrappers `LogInformationMasked`, `LogWarningMasked` and `LogErrorMasked`. `MaskObject` and `MaskForAudit` do not apply `[MaskInLogs]`.
 - The log context masks everything the response context masks (`[PII]`, `[SensitiveData]`) plus the `[MaskInLogs]` properties.
 - Precedence: an always-masked attribute (`[PII]`, `[SensitiveData]`) on the property or the class wins over `[MaskInLogs]`, so adding `[MaskInLogs]` never stops masking in responses or audit entries. Within each kind, the property-level attribute wins over the class-level one.
-- A `[MaskInLogs]` property that is not a `string` makes the log line fail closed: `MaskForLog` logs one warning (EventId 8023) and throws, and the log helpers write the `[MASKING FAILED]` placeholder instead of the object.
+- A `[MaskInLogs]` property that is not a `string` makes the log line fail closed: `MaskForLog` logs one warning (EventId 8023) and throws, and the log helpers write the `[MASKING FAILED]` placeholder instead of the object. So does a get-only or computed `string` property, whether decorated directly or covered by a class-level `[MaskInLogs]`: the deserialized copy cannot take the masked value, so the masker throws rather than return the unmasked copy.
 - Limits are the same as for `[PII]`: nested objects, collections, `[JsonPropertyName]` and interface-typed members, see [#1834](https://github.com/dlrivada/Encina/issues/1834).
 - With `PIIOptions.MaskInLogs = false` nothing is masked in the log context; see the [options table](#piioptions-reference).
 
@@ -308,12 +308,12 @@ Which code path logs which EventId:
 
 | EventId | Logged by |
 |---------|-----------|
-| 8015 | Serialization or deserialization (`JsonException`) while masking a type that has PII-decorated properties, in `MaskObject<T>` and `MaskForAudit<T>`; the exception is rethrown |
+| 8015 | Serialization or deserialization (`JsonException`) while masking a type that has PII-decorated properties, in `MaskObject<T>`, `MaskForAudit<T>` and `MaskForLog<T>` (which logs 8015 first, then 8023); the exception is rethrown |
 | 8012 | `MaskObject<T>` on any failure (including the `JsonException` already logged as 8015, and the `InvalidOperationException` for a value that could not be applied to the copy); the exception is rethrown |
 | 8021 | `Mask(value, pattern)` and `[PII(Pattern = ...)]`: invalid pattern, invalid timeout or match timeout; only the pattern length is logged, and the whole value is masked |
 | 8022 | `MaskForAudit<T>` and `MaskForAudit(object)` on any failure; the exception is rethrown. A failure inside the `MaskForAudit<T>` property path logs 8015 first |
-| 8023 | `MaskForLog<T>` on any failure, including a non-`string` `[MaskInLogs]` property; the exception is rethrown and the log helpers write `[MASKING FAILED]` |
-| 8024 | `PIIOptionsValidator` when `PIIOptions.MaskInLogs` is `false`; one warning per service provider |
+| 8023 | `MaskForLog<T>` on any failure, including a non-`string` or get-only `[MaskInLogs]` property; the exception is rethrown and the log helpers write `[MASKING FAILED]`. A failure inside the `MaskForLog<T>` property path logs 8015 first |
+| 8024 | `PIIOptionsValidator` when `PIIOptions.MaskInLogs` is `false`; one warning per service provider (an instance flag on the singleton validator, not one per process) |
 | 8018 | `PIIMaskingPipelineBehavior` when masking the response fails (see above) |
 
 ---
@@ -355,7 +355,7 @@ logger.LogMasked(masker, LogLevel.Debug, "Debug data: {@Data}", data);
 
 Each helper calls `IPIIMasker.MaskForLog<T>(T)` on the object before it reaches the logger, so `[MaskInLogs]` properties are masked (see [`[MaskInLogs]`](#maskinlogs--log-only-masking)). The signature is `LogErrorMasked<T>(this ILogger, IPIIMasker, string, T) where T : class`; there is no overload that takes an exception.
 
-**Safety**: If masking fails, the log entry carries `[MASKING FAILED]` instead of the raw data — the unmasked values are never logged, and the log call is not dropped. `MaskForLog` logs one warning (EventId 8023: the type name, plus the exception type and stack trace, never its message) and rethrows; the helper catches it.
+**Safety**: If masking fails, the log entry carries `[MASKING FAILED]` instead of the raw data — the unmasked values are never logged, and the log call is not dropped. `MaskForLog` logs one warning (EventId 8023: the type name, plus the exception type and stack trace, never its message) and rethrows; the helper catches it and writes a second warning without an EventId, `PII masking failed during logging for type {TypeName}` (again the exception type and stack trace, never the message). A failed line therefore produces the `[MASKING FAILED]` entry plus those two warnings.
 
 **Limit**: only the `*Masked` helpers mask. A plain `logger.LogInformation("{@Cmd}", cmd)` writes the object unmasked, by design.
 
@@ -494,7 +494,7 @@ Assert.Contains("@example.com", result);
 
 - Ensure `PIIOptions.MaskInLogs = true`; with `false`, `MaskForLog` returns the object unmasked and one warning (EventId 8024) is logged per service provider
 - A `[MaskInLogs]` property is masked only by `MaskForLog` and the `PIILoggerExtensions` methods, never by `MaskObject` or `MaskForAudit`; see [`[MaskInLogs]`](#maskinlogs--log-only-masking)
-- A log line that shows `[MASKING FAILED]` means masking threw; the usual cause is a `[MaskInLogs]` property that is not a `string`. Look for the warning with EventId 8023
+- A log line that shows `[MASKING FAILED]` means masking threw; the usual causes are a `[MaskInLogs]` property that is not a `string`, or a get-only or computed `string` property (decorated directly or under a class-level `[MaskInLogs]`). Look for the warning with EventId 8023 (and 8015 before it for a serialization failure) and for the helper's own warning `PII masking failed during logging for type {TypeName}`
 - Use `PIILoggerExtensions` methods (`LogInformationMasked`, etc.) — standard `ILogger` methods don't mask, so `logger.LogInformation("{@Cmd}", cmd)` writes the object as is
 - If the log level is disabled, masking is skipped for performance
 
