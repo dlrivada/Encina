@@ -292,6 +292,14 @@ public class Function
 
 *Auto-generated from benchmark data. See [methodology](../../docs/testing/performance-measurement-methodology.md).*
 
+## Testing
+
+Encina tests cloud features only locally, never against the real cloud. If you run this package in production, you do so under your own responsibility and risk.
+
+The package is tested in process. The tests in `tests/Encina.IntegrationTests/Cloud/AwsLambda` deserialize real `Amazon.Lambda` event objects (`SQSEvent`, `CloudWatchEvent` for EventBridge, `APIGatewayProxyRequest` and `APIGatewayProxyResponse`, and the HTTP API v2 types) with the Lambda JSON serializer and drive a real `IEncina` pipeline built from dependency injection.
+
+Running inside a real AWS Lambda runtime, or in the LocalStack Lambda service, is not tested. The [justification](../../tests/Encina.IntegrationTests/Cloud/AwsLambda/AwsLambdaLocalStackRuntime.md) explains why.
+
 ## Related Packages
 
 - **Encina** - Core library with Railway Oriented Programming
