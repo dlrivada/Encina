@@ -134,6 +134,26 @@ public sealed class MessagePurgeServiceTests
     }
 
     [Fact]
+    public async Task StoreCancellation_WhileTheServiceTokenIsLive_IsLoggedAndTheNextCycleStillRuns()
+    {
+        var calls = 0;
+        _store.GetExpiredMessagesAsync(BatchSize, Arg.Any<CancellationToken>())
+            .Returns(_ => ++calls == 1
+                ? throw new OperationCanceledException("store timeout")
+                : Task.FromResult(Right<EncinaError, IEnumerable<IInboxMessage>>(Messages("x"))));
+        using var sut = CreateService();
+
+        await RunFirstCycleAsync(sut);
+        _clock.Advance(Interval);
+        await _clock.WaitForTimersAsync(3);
+
+        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 2111);
+        calls.ShouldBe(2);
+
+        await sut.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task Stop_DuringTheIntervalDelay_EndsTheLoopWithoutAFurtherCycle()
     {
         using var sut = CreateService();
