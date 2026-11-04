@@ -538,6 +538,22 @@ var config = BulkConfig.Default with
 await bulkOps.BulkUpdateAsync(entities, config);
 ```
 
+## Break-the-glass store
+
+Set `MessagingConfiguration.UseBreakTheGlassStore` to keep break-the-glass elevations and the review queue in SQL Server, so they survive a restart and are shared by every host. The flag is opt-in and needs the `Encina.Security.BreakTheGlass` package (`AddEncinaBreakTheGlass`).
+
+```csharp
+services.AddEncinaBreakTheGlass(options => { /* see Encina.Security.BreakTheGlass */ });
+services.AddEncinaADO(connectionString, config =>
+{
+    config.UseBreakTheGlassStore = true;
+});
+```
+
+When the flag is on, `AddEncinaADO` removes the in-memory default `IBreakTheGlassStore` and registers `BreakTheGlassStoreADO` (scoped) with `TryAdd`, so the database store wins in any registration order and an `IBreakTheGlassStore` your application registered itself is kept.
+
+Create the table before first use by running `Scripts/030_CreateBreakTheGlassElevationsTable.sql` (in this package's `Scripts` folder, next to the other numbered scripts). `Scripts/000_CreateAllTables.sql` contains the same DDL. The key columns (`TenantId`, `UserId`, `SubjectId`, `Scope`, `CloseReason`, `ReviewedByUserId`) use the binary collation `Latin1_General_100_BIN2`, so keys compare case-sensitively. The `Encina.Dapper.SqlServer` package ships the same script.
+
 ## Roadmap
 
 - ✅ Outbox Pattern
