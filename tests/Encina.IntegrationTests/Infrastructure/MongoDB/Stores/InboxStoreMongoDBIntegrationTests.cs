@@ -126,7 +126,8 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
             MessageId = Guid.NewGuid().ToString(),
             RequestType = "Expired",
             ReceivedAtUtc = DateTime.UtcNow.AddDays(-10),
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(-1)
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(-1),
+            ProcessedAtUtc = DateTime.UtcNow.AddDays(-2)
         };
 
         var notExpired = new InboxMessage
@@ -148,6 +149,26 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         var messageList = messages.ShouldBeRight().ToList();
         messageList.ShouldHaveSingleItem();
         messageList.First().MessageId.ShouldBe(expired.MessageId);
+    }
+
+    [Fact]
+    public Task ExpiredPurge_OnlyProcessedExpiredRowsAreReturnedAndRemoved()
+    {
+        var collection = GetCollection();
+
+        return global::Encina.IntegrationTests.Messaging.InboxExpiryScenario.AssertOnlyProcessedExpiredRowsArePurgedAsync(
+            CreateStore(),
+            rows => collection.InsertManyAsync(rows.Select(r => new InboxMessage
+            {
+                MessageId = r.MessageId,
+                RequestType = "Expiry",
+                ReceivedAtUtc = DateTime.UtcNow.AddDays(-10),
+                ExpiresAtUtc = r.ExpiresAtUtc,
+                ProcessedAtUtc = r.ProcessedAtUtc,
+                RetryCount = r.RetryCount
+            })),
+            async () => (await collection.Find(Builders<InboxMessage>.Filter.Empty).ToListAsync())
+                .Select(m => m.MessageId).ToList().AsReadOnly());
     }
 
     [Fact]
@@ -228,14 +249,16 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
                 MessageId = messageId1,
                 RequestType = "ToDelete1",
                 ReceivedAtUtc = DateTime.UtcNow,
-                ExpiresAtUtc = DateTime.UtcNow.AddDays(-1)
+                ExpiresAtUtc = DateTime.UtcNow.AddDays(-1),
+                ProcessedAtUtc = DateTime.UtcNow.AddDays(-2)
             },
             new InboxMessage
             {
                 MessageId = messageId2,
                 RequestType = "ToDelete2",
                 ReceivedAtUtc = DateTime.UtcNow,
-                ExpiresAtUtc = DateTime.UtcNow.AddDays(-1)
+                ExpiresAtUtc = DateTime.UtcNow.AddDays(-1),
+                ProcessedAtUtc = DateTime.UtcNow.AddDays(-2)
             },
             new InboxMessage
             {

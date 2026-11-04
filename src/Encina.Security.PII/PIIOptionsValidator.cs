@@ -16,6 +16,7 @@ internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
 {
     private readonly ILogger _logger;
     private int _warned;
+    private int _warnedMaskInLogs;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PIIOptionsValidator"/> class.
@@ -39,14 +40,25 @@ internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
             return ValidateOptionsResult.Fail(failure);
         }
 
-        // The validator is a singleton and runs once per options cache (startup validation and
-        // IOptions resolution), so the flag keeps the warning to one line per process.
+        LogOptOuts(options);
+
+        return ValidateOptionsResult.Success;
+    }
+
+    // The validator is a singleton and runs once per options cache (startup validation and
+    // IOptions resolution), so the flags keep each warning to one line per process.
+    private void LogOptOuts(PIIOptions options)
+    {
         if (options.HashKey is null && options.AllowUnkeyedHash && Interlocked.Exchange(ref _warned, 1) == 0)
         {
             PIILogMessages.UnkeyedHashAllowed(_logger);
         }
 
-        return ValidateOptionsResult.Success;
+        // Disabling log masking is an explicit opt-out and is always logged.
+        if (!options.MaskInLogs && Interlocked.Exchange(ref _warnedMaskInLogs, 1) == 0)
+        {
+            PIILogMessages.MaskInLogsDisabled(_logger);
+        }
     }
 
     private static string? FindFailure(PIIOptions options)

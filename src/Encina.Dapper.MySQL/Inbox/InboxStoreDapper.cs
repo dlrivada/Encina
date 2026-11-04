@@ -13,6 +13,13 @@ namespace Encina.Dapper.MySQL.Inbox;
 /// </summary>
 public sealed class InboxStoreDapper : IInboxStore
 {
+    /// <summary>
+    /// Maximum number of message ids sent in one DELETE statement. Dapper expands an <c>IN @MessageIds</c>
+    /// list into one parameter per id and MySQL allows 65535 placeholders per prepared statement, so the
+    /// purge splits larger id lists into chunks well below that limit.
+    /// </summary>
+    private const int RemoveChunkSize = 1000;
+
     private readonly IDbConnection _connection;
     private readonly string _tableName;
     private readonly TimeProvider _timeProvider;
@@ -180,23 +187,34 @@ public sealed class InboxStoreDapper : IInboxStore
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The ids are deleted in chunks of 1000, in order. Without an ambient transaction each chunk commits
+    /// on its own, so a failure in chunk N returns <c>Left</c> after chunks 1 to N-1 were removed; a retry
+    /// completes the purge because the DELETE is idempotent. With an ambient transaction all chunks join it.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="messageIds"/> is null.</exception>
     public async Task<Either<EncinaError, Unit>> RemoveExpiredMessagesAsync(
         IEnumerable<string> messageIds,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
 
+        // Early return for empty collections - no-op is valid behavior, no connection is opened
+        var ids = messageIds as string[] ?? messageIds.ToArray();
+        if (ids.Length == 0)
+            return Unit.Default;
+
         return await EitherHelpers.TryAsync(async () =>
         {
-            if (!messageIds.Any())
-                return;
-
             var sql = $@"
                 DELETE FROM {_tableName}
                 WHERE MessageId IN @MessageIds";
 
             using var lease = DbLease.Enlisted(_connection, _transactionAccessor);
-            await lease.Connection.ExecuteAsync(new CommandDefinition(sql, new { MessageIds = messageIds }, lease.Transaction, cancellationToken: cancellationToken));
+            foreach (var chunk in ids.Chunk(RemoveChunkSize))
+            {
+                await lease.Connection.ExecuteAsync(new CommandDefinition(sql, new { MessageIds = chunk }, lease.Transaction, cancellationToken: cancellationToken));
+            }
         }, "inbox.remove_expired_failed").ConfigureAwait(false);
     }
 

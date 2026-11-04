@@ -1,0 +1,1 @@
+- Inbox expiry on Entity Framework Core and MongoDB now matches ADO.NET and Dapper: only a processed message whose `ExpiresAtUtc` has passed is expired, so purging never deletes an unprocessed or dead-lettered inbox message (#3010).
