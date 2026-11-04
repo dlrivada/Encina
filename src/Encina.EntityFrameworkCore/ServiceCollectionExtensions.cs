@@ -270,7 +270,7 @@ public static class ServiceCollectionExtensions
             AutoAssignTenantId = config.TenancyOptions.AutoAssignTenantId,
             ValidateTenantOnSave = config.TenancyOptions.ValidateTenantOnSave,
             UseQueryFilters = config.TenancyOptions.UseQueryFilters,
-            ThrowOnMissingTenantContext = config.TenancyOptions.RequireTenantContext
+            ThrowOnMissingTenantContext = config.TenancyOptions.ThrowOnMissingTenantContext
         };
         services.AddSingleton(Options.Create(efCoreTenancyOptions));
 

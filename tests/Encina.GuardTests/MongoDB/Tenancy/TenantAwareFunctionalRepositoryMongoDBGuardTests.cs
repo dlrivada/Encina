@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Encina.DomainModeling;
 using Encina.MongoDB.Tenancy;
 using Encina.Tenancy;
 using MongoDB.Driver;
@@ -96,6 +97,86 @@ public sealed class TenantAwareFunctionalRepositoryMongoDBGuardTests
                 collection, mapping, tenantProvider, options, idSelector));
         ex.ParamName.ShouldBe("idSelector");
     }
+
+    [Fact]
+    public async Task ListAsync_NullSpecification_ThrowsArgumentNullException()
+    {
+        var repository = CreateRepository();
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => repository.ListAsync((Specification<TenantGuardTestOrder>)null!));
+        ex.ParamName.ShouldBe("specification");
+    }
+
+    [Fact]
+    public async Task FirstOrDefaultAsync_NullSpecification_ThrowsArgumentNullException()
+    {
+        var repository = CreateRepository();
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => repository.FirstOrDefaultAsync(null!));
+        ex.ParamName.ShouldBe("specification");
+    }
+
+    [Fact]
+    public async Task CountAsync_NullSpecification_ThrowsArgumentNullException()
+    {
+        var repository = CreateRepository();
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => repository.CountAsync((Specification<TenantGuardTestOrder>)null!));
+        ex.ParamName.ShouldBe("specification");
+    }
+
+    [Fact]
+    public async Task AnyAsync_NullSpecification_ThrowsArgumentNullException()
+    {
+        var repository = CreateRepository();
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => repository.AnyAsync((Specification<TenantGuardTestOrder>)null!));
+        ex.ParamName.ShouldBe("specification");
+    }
+
+    [Fact]
+    public async Task AddAsync_NullEntity_ThrowsArgumentNullException()
+    {
+        var repository = CreateRepository();
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => repository.AddAsync(null!));
+        ex.ParamName.ShouldBe("entity");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NullEntity_ThrowsArgumentNullException()
+    {
+        var repository = CreateRepository();
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => repository.UpdateAsync(null!));
+        ex.ParamName.ShouldBe("entity");
+    }
+
+    [Fact]
+    public async Task AddRangeAsync_NullEntities_ThrowsArgumentNullException()
+    {
+        var repository = CreateRepository();
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => repository.AddRangeAsync(null!));
+        ex.ParamName.ShouldBe("entities");
+    }
+
+    [Fact]
+    public async Task UpdateRangeAsync_NullEntities_ThrowsArgumentNullException()
+    {
+        var repository = CreateRepository();
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => repository.UpdateRangeAsync(null!));
+        ex.ParamName.ShouldBe("entities");
+    }
+
+    [Fact]
+    public async Task DeleteRangeAsync_NullSpecification_ThrowsArgumentNullException()
+    {
+        var repository = CreateRepository();
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => repository.DeleteRangeAsync(null!));
+        ex.ParamName.ShouldBe("specification");
+    }
+
+    private static TenantAwareFunctionalRepositoryMongoDB<TenantGuardTestOrder, Guid> CreateRepository() =>
+        new(
+            Substitute.For<IMongoCollection<TenantGuardTestOrder>>(),
+            CreateMockMapping(),
+            Substitute.For<ITenantProvider>(),
+            new MongoDbTenancyOptions(),
+            IdSelector);
 
     private static ITenantEntityMapping<TenantGuardTestOrder, Guid> CreateMockMapping()
     {

@@ -61,19 +61,17 @@ public sealed class TenancyMessagingOptions
     public bool UseQueryFilters { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets whether an operation that needs a tenant context is refused when none is resolved.
+    /// Gets or sets whether to throw exceptions when tenant context is missing.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This is the messaging-level declaration of the setting; the messaging package itself reads no
-    /// behaviour from it. <c>AddEncinaEntityFrameworkCore</c> copies it into the EF Core tenancy options,
-    /// where a refusal is an exception raised from <c>SaveChanges</c> (provided the core
-    /// <c>TenancyOptions.RequireTenant</c> is also <c>true</c>).
+    /// When enabled, operations requiring a tenant context (like saving tenant entities)
+    /// will throw an exception if no tenant is resolved.
     /// </para>
     /// <para>
-    /// Set it to <c>false</c> for scenarios where admin/system operations run without tenant context.
+    /// Disable this for scenarios where admin/system operations run without tenant context.
     /// </para>
     /// </remarks>
     /// <value>Default: true</value>
-    public bool RequireTenantContext { get; set; } = true;
+    public bool ThrowOnMissingTenantContext { get; set; } = true;
 }
