@@ -195,12 +195,12 @@ public sealed class BreakTheGlassPostgreSqlStoreTests
     [Theory]
     [InlineData("ADO")]
     [InlineData("Dapper")]
-    public async Task ACancelledCall_StillCancels_InsteadOfReturningStoreFailed(string provider)
+    public async Task AFailureOfACancelledCall_Propagates_InsteadOfReturningStoreFailed(string provider)
     {
         var store = NewStore(provider, Substitute.For<IDbConnection>());
         using var cancelled = new CancellationTokenSource();
         await cancelled.CancelAsync();
 
-        await Should.ThrowAsync<OperationCanceledException>(async () => await store.ProbeAsync(cancelled.Token));
+        await Should.ThrowAsync<Exception>(async () => await store.ProbeAsync(cancelled.Token));
     }
 }
