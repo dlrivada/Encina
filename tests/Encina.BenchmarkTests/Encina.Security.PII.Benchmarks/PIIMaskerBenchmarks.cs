@@ -5,7 +5,7 @@ namespace Encina.Security.PII.Benchmarks;
 
 /// <summary>
 /// Benchmarks for <see cref="PIIMasker"/> end-to-end masking operations.
-/// Measures throughput of Mask, MaskObject, and MaskForAudit methods
+/// Measures throughput of Mask, MaskObject, MaskForLog, and MaskForAudit methods
 /// including JSON serialization and strategy resolution overhead.
 /// </summary>
 [MemoryDiagnoser]
@@ -54,7 +54,7 @@ public class PIIMaskerBenchmarks
             Name = "John Doe"
         };
 
-        // Warm the property scanner cache by calling MaskObject once
+        // Warm the property scanner cache by calling MaskObject and MaskForLog once
         _masker.MaskObject(_singleField);
         _masker.MaskObject(_multiField);
         _masker.MaskObject(_plainEntity);
