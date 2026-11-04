@@ -59,8 +59,14 @@ internal static class BreakTheGlassPostgreSqlSchema
             var expires = opened.AddHours(1);
             var elevation = new BreakTheGlassElevation
             {
-                ElevationId = Guid.NewGuid(), TenantId = "tenant-zone", UserId = "clin-1", SubjectId = "patient-1",
-                Scope = "clinical-record", Justification = "Emergency.", OpenedAtUtc = opened, ExpiresAtUtc = expires
+                ElevationId = Guid.NewGuid(),
+                TenantId = "tenant-zone",
+                UserId = "clin-1",
+                SubjectId = "patient-1",
+                Scope = "clinical-record",
+                Justification = "Emergency.",
+                OpenedAtUtc = opened,
+                ExpiresAtUtc = expires
             };
 
             (await store.AddAsync(elevation)).IsRight.ShouldBeTrue();
