@@ -118,7 +118,11 @@ public sealed class SpecificationFilterBuilder<TEntity>
             specification.KeysetProperty is not null &&
             specification.LastKeyValue is not null)
         {
-            filters.Add(BuildKeysetFilter(specification.KeysetProperty, specification.LastKeyValue));
+            filters.Add(BuildKeysetFilter(
+                specification.KeysetProperty,
+                specification.LastKeyValue,
+                specification.IsKeysetDescending,
+                CursorDirection.Forward));
         }
 
         return filters.Count == 1

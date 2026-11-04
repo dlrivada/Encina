@@ -687,6 +687,40 @@ public class SpecificationFilterBuilderTests
         filter.ShouldNotBeNull();
     }
 
+    [Fact]
+    public void BuildFilter_WithKeysetSortedAscending_SelectsKeysAboveTheLastOne()
+    {
+        // Arrange
+        var spec = new AmountKeysetMongoQuerySpec(descending: false, lastAmount: 50m);
+
+        // Act
+        var filter = Render(_builder.BuildFilter(spec));
+
+        // Assert
+        filter.ShouldContain("\"$gt\"");
+        filter.ShouldNotContain("\"$lt\"");
+    }
+
+    [Fact]
+    public void BuildFilter_WithKeysetSortedDescending_SelectsKeysBelowTheLastOne()
+    {
+        // Arrange - with a descending keyset the next page holds the smaller keys (#3154)
+        var spec = new AmountKeysetMongoQuerySpec(descending: true, lastAmount: 50m);
+
+        // Act
+        var filter = Render(_builder.BuildFilter(spec));
+
+        // Assert
+        filter.ShouldContain("\"$lt\"");
+        filter.ShouldNotContain("\"$gt\"");
+    }
+
+    private static string Render(FilterDefinition<TestDocument> filter)
+    {
+        var registry = global::MongoDB.Bson.Serialization.BsonSerializer.SerializerRegistry;
+        return filter.Render(new RenderArgs<TestDocument>(registry.GetSerializer<TestDocument>(), registry)).ToJson();
+    }
+
     #endregion
 }
 
@@ -783,6 +817,23 @@ public class ActiveMongoQuerySpec : QuerySpecification<TestDocument>
 /// <summary>
 /// QuerySpecification with keyset pagination.
 /// </summary>
+public class AmountKeysetMongoQuerySpec : QuerySpecification<TestDocument>
+{
+    public AmountKeysetMongoQuerySpec(bool descending, decimal lastAmount)
+    {
+        if (descending)
+        {
+            ApplyOrderByDescending(d => d.Amount);
+        }
+        else
+        {
+            ApplyOrderBy(d => d.Amount);
+        }
+
+        ApplyKeysetPagination(d => d.Amount, lastAmount, 10);
+    }
+}
+
 public class KeysetPaginatedMongoQuerySpec : QuerySpecification<TestDocument>
 {
     public KeysetPaginatedMongoQuerySpec(Guid lastId)

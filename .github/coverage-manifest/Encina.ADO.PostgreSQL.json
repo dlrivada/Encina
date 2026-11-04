@@ -298,14 +298,14 @@
       "defaultRule": "*Builder.cs",
       "reason": "Fluent builder with validation",
       "targets": {
-        "unit": 40,
-        "guard": 17,
-        "integration": 44
+        "unit": 61,
+        "guard": 18,
+        "integration": 65
       },
       "justifications": {
-        "unit": "Unit tests cover WHERE translation (comparisons, null checks, IN lists, and Contains/StartsWith/EndsWith with their LIKE wildcards escaped), SELECT building and the parameter helpers (measured 42.38%); the rest is the query-specification ORDER BY, pagination and keyset paths, which this package has no unit tests for yet.",
-        "guard": "Guard tests cover the null-argument checks of the public builder methods (measured 18.22%).",
-        "integration": "The ADO.NET repository integration tests run the generated SQL on a real PostgreSQL database for every repository operation, including specifications whose LIKE wildcards must match literally (measured 46.1%); the query-specification ORDER BY, pagination and keyset paths are not reached because ListAsync builds only the WHERE clause (#3151)."
+        "unit": "Unit tests cover WHERE translation, the keyset filter in both directions and the first page without a key, ORDER BY, pagination and SELECT building (measured 63.64%); the rest is rarer expression shapes and error branches of the translator.",
+        "guard": "Guard tests cover the null-argument checks of the public builder methods (measured 18.56%).",
+        "integration": "The ADO.NET repository integration tests run the generated SQL on a real PostgreSQL database, including a descending keyset page from the query-specification SELECT (measured 67.8%); the rest is expression shapes the repository tests do not use."
       }
     },
     "Sagas/SagaState.cs": {

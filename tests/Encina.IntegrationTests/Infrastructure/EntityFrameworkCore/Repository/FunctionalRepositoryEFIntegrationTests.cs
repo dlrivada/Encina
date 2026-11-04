@@ -608,6 +608,28 @@ public class FunctionalRepositoryEFIntegrationTests : IAsyncLifetime
 
     #endregion
 
+    #region Keyset Direction Tests
+
+    private static readonly decimal[] KeysetValues = [100m, 200m, 300m, 400m];
+
+    [Fact]
+    public async Task ListAsync_KeysetSortedDescending_ReturnsTheKeysBelowTheLastOne()
+    {
+        // Arrange - the next page of a descending keyset holds the smaller keys (#3154)
+        _dbContext.TestEntities.AddRange(KeysetValues.Select(a => CreateTestEntity($"Entity {a}", amount: a)));
+        await _dbContext.SaveChangesAsync();
+        _dbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _repository.ListAsync(new DescendingAmountKeysetSpec(lastAmount: 300m));
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Amount).ShouldBe([200m, 100m]));
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static TestEntity CreateTestEntity(
@@ -667,6 +689,18 @@ public class EntityNameSpec(string method, string value) : Specification<TestEnt
         nameof(string.EndsWith) => e => e.Name.EndsWith(value),
         _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Expected Contains, StartsWith or EndsWith."),
     };
+}
+
+/// <summary>
+/// Next page of entities by amount, sorted in descending order, after <c>lastAmount</c>.
+/// </summary>
+public class DescendingAmountKeysetSpec : QuerySpecification<TestEntity>
+{
+    public DescendingAmountKeysetSpec(decimal lastAmount)
+    {
+        ApplyOrderByDescending(e => e.Amount);
+        ApplyKeysetPagination(e => e.Amount, lastAmount, 10);
+    }
 }
 
 #endregion

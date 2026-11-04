@@ -377,6 +377,34 @@ public class FunctionalRepositoryMongoDBIntegrationTests : IAsyncLifetime
 
     #endregion
 
+    #region Keyset Direction Tests
+
+    private static readonly decimal[] KeysetValues = [100m, 200m, 300m, 400m];
+
+    [Fact]
+    public async Task QuerySpecificationFilter_KeysetSortedDescending_ReturnsTheKeysBelowTheLastOne()
+    {
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+
+        // Arrange - the next page of a descending keyset holds the smaller keys (#3154). ListAsync does not
+        // apply a QuerySpecification's keyset or sort yet (#3151), so this runs the builder's filter and sort.
+        await _repository!.AddRangeAsync(KeysetValues.Select(a => CreateTestDocument($"Document {a}", amount: a)).ToArray());
+        var builder = new SpecificationFilterBuilder<TestDocument>();
+        var spec = new DescendingAmountKeysetDocumentSpec(lastAmount: 300m);
+
+        // Act
+        var documents = await _collection!
+            .Find(builder.BuildFilter(spec))
+            .Sort(builder.BuildSortDefinition(spec)!)
+            .ToListAsync();
+
+        // Assert
+        documents.Select(d => d.Amount).ShouldBe([200m, 100m]);
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static TestDocument CreateTestDocument(
@@ -433,6 +461,18 @@ public class DocumentNameSpec(string method, string value) : Specification<TestD
         nameof(string.EndsWith) => e => e.Name.EndsWith(value),
         _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Expected Contains, StartsWith or EndsWith."),
     };
+}
+
+/// <summary>
+/// Next page of documents by amount, sorted in descending order, after <c>lastAmount</c>.
+/// </summary>
+public class DescendingAmountKeysetDocumentSpec : QuerySpecification<TestDocument>
+{
+    public DescendingAmountKeysetDocumentSpec(decimal lastAmount)
+    {
+        ApplyOrderByDescending(d => d.Amount);
+        ApplyKeysetPagination(d => d.Amount, lastAmount, 10);
+    }
 }
 
 #endregion

@@ -1,7 +1,7 @@
 {
   "package": "Encina.DomainModeling",
-  "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 77,
+  "generated": "2026-11-04T14:27:28Z",
+  "totalFiles": 78,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -524,6 +524,24 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "QuerySpecificationKeysetExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 90,
+        "guard": 6,
+        "property": 90
+      },
+      "justifications": {
+        "unit": "Unit tests cover every branch: no keyset, ascending, descending, ThenBy and ThenByDescending, a keyset outside the ordering, other lambdas for the same member, nested paths and a non-member keyset (measured 100% with dotnet-coverage, because coverlet does not instrument Encina.DomainModeling locally).",
+        "guard": "Guard tests cover the null-specification check of IsKeysetDescending (measured 6.67% with dotnet-coverage).",
+        "property": "The property test runs IsKeysetDescending with the keyset as primary ordering or ThenBy in both directions (measured 93.33% with dotnet-coverage)."
+      }
+    },
     "Repository.cs": {
       "defaultTests": [
         "unit",
@@ -584,7 +602,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 83,
+        "guard": 14,
+        "property": 74
+      },
+      "justifications": {
+        "unit": "Unit tests cover specification composition, criteria, ordering, paging and keyset members (measured 85.47% with dotnet-coverage); this change only edits the ApplyKeysetPagination doc comment.",
+        "guard": "Guard tests cover the null checks of the protected builder methods (measured 14.53% with dotnet-coverage).",
+        "property": "Property tests check the composition and query-specification invariants (measured 76.07% with dotnet-coverage)."
+      }
     },
     "StronglyTypedId.cs": {
       "defaultTests": [

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using System.Linq.Expressions;
 using Encina.ADO.PostgreSQL.Repository;
 using Encina.DomainModeling;
@@ -369,6 +370,45 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #endregion
 
+    #region Keyset Direction Tests
+
+    private static readonly decimal[] KeysetValues = [100m, 200m, 300m, 400m];
+
+    [Fact]
+    public async Task QuerySpecificationSql_KeysetSortedDescending_ReturnsTheKeysBelowTheLastOne()
+    {
+        // Arrange - the next page of a descending keyset holds the smaller keys (#3154). ListAsync does not
+        // apply a QuerySpecification's keyset yet (#3151), so this runs the builder's SELECT directly.
+        await ClearDataAsync();
+        await _repository.AddRangeAsync(KeysetValues.Select(v => CreateTestItem($"Item {v}", value: v)).ToArray());
+        var builder = new SpecificationSqlBuilder<TestItem>(_mapping.ColumnMappings);
+        var (sql, addParameters) = builder.BuildSelectStatement(_mapping.TableName, new DescendingValueKeysetSpec(lastValue: 300m));
+
+        // Act
+        var values = new List<decimal>();
+        if (_connection.State != ConnectionState.Open)
+        {
+            await ((DbConnection)_connection).OpenAsync();
+        }
+
+        await using (var command = (DbCommand)_connection.CreateCommand())
+        {
+            command.CommandText = sql;
+            addParameters(command);
+            await using var reader = await command.ExecuteReaderAsync();
+            var valueOrdinal = reader.GetOrdinal(_mapping.ColumnMappings[nameof(TestItem.Value)]);
+            while (await reader.ReadAsync())
+            {
+                values.Add(reader.GetDecimal(valueOrdinal));
+            }
+        }
+
+        // Assert
+        values.ShouldBe([200m, 100m]);
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static TestItem CreateTestItem(
@@ -424,6 +464,18 @@ public class ItemNameSpec(string method, string value) : Specification<TestItem>
         nameof(string.EndsWith) => e => e.Name.EndsWith(value),
         _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Expected Contains, StartsWith or EndsWith."),
     };
+}
+
+/// <summary>
+/// Next page of items by value, sorted in descending order, after <c>lastValue</c>.
+/// </summary>
+public class DescendingValueKeysetSpec : QuerySpecification<TestItem>
+{
+    public DescendingValueKeysetSpec(decimal lastValue)
+    {
+        ApplyOrderByDescending(i => i.Value);
+        ApplyKeysetPagination(i => i.Value, lastValue, 10);
+    }
 }
 
 #endregion

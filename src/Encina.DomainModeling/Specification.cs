@@ -452,7 +452,9 @@ public abstract class QuerySpecification<T> : Specification<T>, IQuerySpecificat
     /// <list type="bullet">
     ///   <item><description>Indexed for performance</description></item>
     ///   <item><description>Unique to avoid skipping/duplicating rows</description></item>
-    ///   <item><description>Ordered (the query will filter by <c>KeysetProperty &gt; LastKeyValue</c>)</description></item>
+    ///   <item><description>Ordered (the query will filter by <c>KeysetProperty &gt; LastKeyValue</c>, or by
+    ///   <c>KeysetProperty &lt; LastKeyValue</c> when the ordering sorts it descending; see
+    ///   <c>IsKeysetDescending</c> in <see cref="QuerySpecificationKeysetExtensions"/>)</description></item>
     /// </list>
     /// </para>
     /// </remarks>

@@ -296,6 +296,39 @@ public sealed class SpecificationPropertyTests
             && spec.Take == pageSize;
     }
 
+    [Property(MaxTest = 100)]
+    public bool Property_QuerySpecification_KeysetDirectionFollowsTheKeysetSortOrder(bool descending, bool keysetIsThenBy)
+    {
+        // Property: the keyset pages in the direction its own column is sorted, whether that column is the
+        // primary ordering or a ThenBy, whatever the direction of the other column (#3154)
+        var spec = new TestQuerySpecification();
+        if (keysetIsThenBy)
+        {
+            if (descending)
+            {
+                spec.TestApplyOrderBy(e => e.Name);
+                spec.TestApplyThenByDescending(e => e.Value);
+            }
+            else
+            {
+                spec.TestApplyOrderByDescending(e => e.Name);
+                spec.TestApplyThenBy(e => e.Value);
+            }
+        }
+        else if (descending)
+        {
+            spec.TestApplyOrderByDescending(e => e.Value);
+        }
+        else
+        {
+            spec.TestApplyOrderBy(e => e.Value);
+        }
+
+        spec.TestApplyKeysetPagination(e => e.Value, 1, 10);
+
+        return spec.IsKeysetDescending == descending;
+    }
+
     #endregion
 
     #region Specification Equality by Result

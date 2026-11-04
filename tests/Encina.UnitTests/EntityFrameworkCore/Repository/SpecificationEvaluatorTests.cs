@@ -335,6 +335,28 @@ public class SpecificationEvaluatorTests : IDisposable
         results.Count.ShouldBe(2);
     }
 
+    [Fact]
+    public void GetQuery_WithKeysetPaginationSortedDescending_ReturnsTheKeysBelowTheLastOne()
+    {
+        // Arrange - with a descending keyset the next page holds the smaller keys (#3154)
+        _dbContext.TestEntities.AddRange(
+            CreateTestEntity("100", amount: 100),
+            CreateTestEntity("200", amount: 200),
+            CreateTestEntity("300", amount: 300),
+            CreateTestEntity("400", amount: 400)
+        );
+        _dbContext.SaveChanges();
+
+        var spec = new DescendingAmountKeysetSpec(lastAmount: 300, take: 10);
+
+        // Act
+        var query = SpecificationEvaluator.GetQuery(_dbContext.TestEntities.AsQueryable(), spec);
+        var results = query.ToList();
+
+        // Assert
+        results.Select(e => e.Amount).ShouldBe([200m, 100m]);
+    }
+
     #endregion
 
     #region GetQuery (Projection) Tests
@@ -635,6 +657,18 @@ public class KeysetPaginatedSpec : QuerySpecification<TestEntity>
         AddCriteria(e => e.IsActive);
         ApplyOrderBy(e => e.Id);
         ApplyKeysetPagination(e => e.Id, lastId, take);
+    }
+}
+
+/// <summary>
+/// QuerySpecification with a keyset sorted in descending order.
+/// </summary>
+public class DescendingAmountKeysetSpec : QuerySpecification<TestEntity>
+{
+    public DescendingAmountKeysetSpec(decimal lastAmount, int take)
+    {
+        ApplyOrderByDescending(e => e.Amount);
+        ApplyKeysetPagination(e => e.Amount, lastAmount, take);
     }
 }
 
