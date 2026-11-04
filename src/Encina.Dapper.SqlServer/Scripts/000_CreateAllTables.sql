@@ -304,6 +304,50 @@ BEGIN
 END
 GO
 
+-- =============================================
+-- BreakTheGlassElevations - Break-the-glass emergency access (same DDL as 030_CreateBreakTheGlassElevationsTable.sql)
+-- ActiveKey (unique index) lets only one Active elevation exist per tenant, user, subject and scope.
+-- =============================================
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[BreakTheGlassElevations]') AND type = 'U')
+BEGIN
+    CREATE TABLE [dbo].[BreakTheGlassElevations] (
+        [ElevationId]         UNIQUEIDENTIFIER NOT NULL,
+        [TenantId]            NVARCHAR(128)    COLLATE Latin1_General_100_BIN2 NULL,
+        [UserId]              NVARCHAR(256)    COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [SubjectId]           NVARCHAR(256)    COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Scope]               NVARCHAR(256)    COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Justification]       NVARCHAR(2000)   NOT NULL,
+        [OpenedAtUtc]         DATETIME2(7)     NOT NULL,
+        [ExpiresAtUtc]        DATETIME2(7)     NOT NULL,
+        [Status]              INT              NOT NULL,
+        [ClosedAtUtc]         DATETIME2(7)     NULL,
+        [CloseReason]         NVARCHAR(256)    COLLATE Latin1_General_100_BIN2 NULL,
+        [ExpiryRecordedAtUtc] DATETIME2(7)     NULL,
+        [ReviewOutcome]       INT              NULL,
+        [ReviewedByUserId]    NVARCHAR(256)    COLLATE Latin1_General_100_BIN2 NULL,
+        [ReviewedAtUtc]       DATETIME2(7)     NULL,
+        [ReviewNote]          NVARCHAR(2000)   NULL,
+        [ActiveKey] AS (CASE WHEN [Status] = 0
+            THEN CAST(HASHBYTES('SHA2_256', CONCAT(COALESCE([TenantId], N''), NCHAR(31), [UserId], NCHAR(31), [SubjectId], NCHAR(31), [Scope])) AS BINARY(32))
+            ELSE CAST([ElevationId] AS BINARY(32)) END) PERSISTED,
+
+        CONSTRAINT [PK_BreakTheGlassElevations] PRIMARY KEY CLUSTERED ([ElevationId])
+    );
+
+    CREATE UNIQUE NONCLUSTERED INDEX [UX_BreakTheGlassElevations_ActiveKey]
+        ON [dbo].[BreakTheGlassElevations] ([ActiveKey]);
+    CREATE NONCLUSTERED INDEX [IX_BreakTheGlassElevations_ReviewQueue]
+        ON [dbo].[BreakTheGlassElevations] ([TenantId], [ReviewOutcome], [OpenedAtUtc]);
+    CREATE NONCLUSTERED INDEX [IX_BreakTheGlassElevations_Expiry]
+        ON [dbo].[BreakTheGlassElevations] ([Status], [ExpiresAtUtc]);
+    PRINT 'Created table: BreakTheGlassElevations';
+END
+ELSE
+BEGIN
+    PRINT 'Table already exists: BreakTheGlassElevations';
+END
+GO
+
 PRINT '';
 PRINT 'Encina.Dapper schema installation complete!';
 PRINT 'You can now use all messaging patterns with Dapper.';
