@@ -61,6 +61,7 @@ jobs:
           retention-days: 30
 
       - name: Read the previous history from the dashboard-data branch
+        id: read
         # Runs after a red audit too: the report of a failing week is the evidence.
         # Nothing is written when the branch or the domain is absent (first run).
         if: always() && hashFiles('artifacts/honesty-audit/report.json') != ''
@@ -68,7 +69,8 @@ jobs:
         run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain honesty-audit -OutDir base/honesty-audit
 
       - name: Stage the report and the history in the overlay
-        if: always() && hashFiles('artifacts/honesty-audit/report.json') != ''
+        # Never stage (and so never persist) after a failed Read: the history would restart from one entry.
+        if: always() && steps.read.outcome == 'success' && hashFiles('artifacts/honesty-audit/report.json') != ''
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
