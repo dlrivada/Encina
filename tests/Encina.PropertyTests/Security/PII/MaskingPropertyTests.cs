@@ -50,6 +50,23 @@ public sealed class MaskingPropertyTests
     }
 
     [Property(MaxTest = 100)]
+    public bool MaskForLog_ClassLevelMaskInLogs_NeverExposesTheValue(NonEmptyString value)
+    {
+        var text = value.Get;
+
+        if (text.Any(char.IsSurrogate) || text.All(c => c == '*'))
+        {
+            return true;
+        }
+
+        var masker = CreateMasker();
+
+        var result = masker.MaskForLog(new ClassLevelLogOnlyDto { TrackingId = text, OtherId = text });
+
+        return result.TrackingId != text && result.OtherId != text;
+    }
+
+    [Property(MaxTest = 100)]
     public bool MaskByPattern_InvalidPattern_AlwaysMasksTheWholeValue(NonEmptyString value)
     {
         var masker = CreateMasker();
@@ -246,6 +263,14 @@ public sealed class MaskingPropertyTests
     {
         [MaskInLogs]
         public string TrackingId { get; set; } = string.Empty;
+    }
+
+    [MaskInLogs]
+    private sealed class ClassLevelLogOnlyDto
+    {
+        public string TrackingId { get; set; } = string.Empty;
+
+        public string OtherId { get; set; } = string.Empty;
     }
 
     private sealed class TestDto

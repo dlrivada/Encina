@@ -76,6 +76,11 @@ public sealed class PIIOptions
     /// This is critical for GDPR compliance as log files often lack the same access
     /// controls as primary data stores.
     /// </para>
+    /// <para>
+    /// Setting this to <c>false</c> is an explicit opt-out: log-context masking is disabled
+    /// entirely and the options validator logs one warning (EventId 8024) per process. The
+    /// warning names the option and never a value.
+    /// </para>
     /// </remarks>
     public bool MaskInLogs { get; set; } = true;
 
