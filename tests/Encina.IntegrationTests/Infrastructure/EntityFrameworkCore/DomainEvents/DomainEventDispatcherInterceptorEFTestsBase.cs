@@ -121,7 +121,7 @@ public abstract class DomainEventDispatcherInterceptorEFTestsBase : IAsyncLifeti
         harness.Recorder.Events.ShouldBe([otherEvent]);
     }
 
-    [Fact(Skip = "Known defect: a failed synchronous SaveChanges leaves the interceptor's pre-collected events in its AsyncLocal and the next save dispatches them; see the follow-up [BUG] issue of #2863 (SaveChangesFailed is not overridden). Remove the Skip when it is fixed.")]
+    [Fact(Skip = "Known defect: a failed synchronous SaveChanges leaves the interceptor's pre-collected events in its AsyncLocal and the next save dispatches them; see #3245 (SaveChangesFailed is not overridden). Remove the Skip when it is fixed.")]
     public async Task FailedSynchronousSave_DispatchesNothingAndLeaksNothingIntoTheNextSave()
     {
         // The synchronous SaveChanges has no async frame that would discard the interceptor's AsyncLocal state,
