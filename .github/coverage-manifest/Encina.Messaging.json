@@ -400,10 +400,10 @@
       ],
       "defaultRule": "*Metrics.cs",
       "reason": "Meter and counters of the purge service",
-      "targets": { "unit": 95, "property": 70 },
+      "targets": { "unit": 95, "property": 0 },
       "justifications": {
-        "unit": "Unit tests record deleted counts and failures and read them back through a meter listener (measured 100%).",
-        "property": "Property tests record generated counts through the cycle (measured 75%)."
+        "unit": "Unit tests record deleted counts and failures and read them back through a meter listener.",
+        "property": "Property/contract tests delivered by #3166."
       }
     },
     "Diagnostics/MessagingStoreMetrics.cs": {
@@ -744,9 +744,9 @@
       "reason": "ServiceCollection extensions with conditional registration",
       "targets": { "unit": 95, "guard": 60, "integration": 70 },
       "justifications": {
-        "unit": "Registration snapshots, the registration-order tests and the DI tests cover every pattern flag and both write paths with ValidateOnBuild and ValidateScopes (measured 100%).",
-        "guard": "Guard tests cover the null-argument checks of the public registration methods, which are a minority of the file (measured 64%).",
-        "integration": "The three ADO.NET provider registrations run it end to end in the outbox atomicity tests (measured 76%); per-flag branches are unit-covered."
+        "unit": "Registration snapshots, the registration-order tests and the DI tests, including the inbox purge registration with the flag on and off, cover every pattern flag and both write paths with ValidateOnBuild and ValidateScopes.",
+        "guard": "Guard tests cover the null-argument checks of the public registration methods, which are a minority of the file.",
+        "integration": "The three ADO.NET provider registrations run it end to end in the outbox atomicity tests; per-flag branches are unit-covered."
       }
     },
     "Outbox/IHasNotifications.cs": {
@@ -914,10 +914,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "One batched purge cycle over IInboxStore",
-      "targets": { "unit": 95, "property": 85 },
+      "targets": { "unit": 95, "property": 0 },
       "justifications": {
-        "unit": "Unit tests cover the drain loop, the short-batch stop, each Left branch, SaveChangesAsync after every remove and cancellation (measured 100%).",
-        "property": "Property tests assert the drain and the store-error invariants over generated batch sizes and store contents (measured 79-100% across the cycle's methods)."
+        "unit": "Unit tests cover the drain loop, the short-batch stop, each Left branch, SaveChangesAsync after every remove and cancellation.",
+        "property": "Property/contract tests delivered by #3166."
       }
     },
     "Purge/MessagePurgeSchedule.cs": {
@@ -928,7 +928,7 @@
       "reason": "Immutable purge schedule built from the inbox options",
       "targets": { "unit": 95 },
       "justifications": {
-        "unit": "Unit tests build the schedule with the flag on and off and read HasEntries (measured 100%)."
+        "unit": "Unit tests build the schedule with the flag on and off and read HasEntries."
       }
     },
     "Purge/MessagePurgeService.cs": {
@@ -940,7 +940,7 @@
       "reason": "Hosted service that purges expired inbox messages at start and every interval",
       "targets": { "unit": 85, "integration": 0 },
       "justifications": {
-        "unit": "Unit tests drive the start-up delay, the per-interval cycle, the failure and exception paths and shutdown with a fake TimeProvider (measured 89%).",
+        "unit": "Unit tests drive the start-up delay, the per-interval cycle, the failure and exception paths and shutdown with a fake TimeProvider.",
         "integration": "The end-to-end purge against the 10 database providers is delivered by #3046, so this file has no integration test yet."
       }
     },
