@@ -179,7 +179,9 @@ function Test-ScriptHasWriteApi([string]$Text) {
 #   Safe     every write site was understood, every target resolved outside src/ and tests/, and no write API is
 #            left in the text once strings, comments and the understood sites are removed;
 #   Unknown  anything else (a command the analysis does not know, a dynamic call, an unresolved target, ...):
-#            the caller keeps its text heuristic, which fails closed.
+#            the caller keeps its text heuristic: an unresolvable target is denied, and anything else it could not
+#            analyse is denied only when the text mentions src/ or tests/ (an opaque construct with no such word is
+#            not analysed and is allowed; #2892 follow-ups B1, B3, B4).
 # A text mention of src/ or tests/ inside a string, comment or here-string is never a target by itself.
 function Test-ScriptWritesAreSafe {
     param([string]$Text, [string]$ScriptFull, [string]$Base, $Layout)

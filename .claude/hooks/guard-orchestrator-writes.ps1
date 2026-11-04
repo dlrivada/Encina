@@ -365,7 +365,9 @@ try {
                 Write-Block "runs '$($s.Full)' ($($s.Kind)), which writes to a path the hook cannot resolve, so it cannot rule out writes to src/ or tests/ (fail closed)$note"
             }
             # An analysis it could not finish (a command or call it does not know, a nested launch, a script that does
-            # not parse) fails closed as soon as the script names src/ or tests/.
+            # not parse) is denied only when the script's text names src/ or tests/. An unfinished analysis whose text
+            # has no src/tests word is NOT denied: opaque constructs (Invoke-Expression, computed command names, nested
+            # launches, native copiers) are not analysed (#2892 follow-ups B1, B3, B4).
             if ($null -ne $analysis -and $analysis.Verdict -eq 'Unknown' -and ((Test-ScriptReferencesPath $candidate $guardedTokens) -or $candidate -match '(?i)(^|\W)(src|tests)(\W|$)')) {
                 Write-Block "runs '$($s.Full)' ($($s.Kind)), which references src/ or tests/ and contains something the hook cannot analyse ($($analysis.Detail)), so it cannot rule out writes there (fail closed)$note"
             }
