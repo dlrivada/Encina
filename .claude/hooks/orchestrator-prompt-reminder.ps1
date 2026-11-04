@@ -19,13 +19,16 @@ try {
     $state = Get-OrchestratorState (Get-OrchestratorStateRoot $projectDir) ([string]$payload.session_id)
     if ($null -eq $state) { exit 0 }
 
-    # The cap belongs to the day the session was marked; on a later UTC day the line says so.
-    $markedAt = Get-OrchestratorMarkedAt $state
-    $today = [TimeProvider]::System.GetUtcNow().UtcDateTime.Date
-    $label = if ($null -ne $markedAt -and $markedAt.Date -ne $today) { "Budget pace (set $($markedAt.ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)), re-run -On for today)" } else { 'Budget pace today' }
+    # The cap belongs to the budget day (Friday 03:00Z based) the session was marked on; on a later one the line says so.
+    $day = Get-OrchestratorBudgetDay ([TimeProvider]::System.GetUtcNow().UtcDateTime)
+    $markedDayStart = try { [datetimeoffset]::Parse([string]$state.budgetDayStartUtc, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal).UtcDateTime } catch { $null }
+    $label = if ($null -eq $markedDayStart -or $markedDayStart -ne $day.StartUtc) {
+        $setOn = if ($null -ne $markedDayStart) { $markedDayStart.ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture) } else { 'an unknown day' }
+        "Budget (set $setOn, re-run -On for today)"
+    } else { "Budget today ($($day.Name) of the week resetting Fri 03:00Z)" }
     $lines = @(
         'Opus decides, sequences, explains dilemmas, merges; edits, issue/PR comments, gh batches, digests and long reads go to mechanical-fixer / Haiku / Sonnet / local model.',
-        "${label}: started at $(Format-OrchestratorPercent $state.startPercent)%, cap $(Format-OrchestratorPercent $state.capPercent)% (pace $(Format-OrchestratorPercent $state.pacePercent)%/day); check usage before refilling slots.",
+        "${label}: started at $(Format-OrchestratorPercent $state.startPercent)%, stop order at $(Format-OrchestratorPercent $state.stopPercent)%, cap $(Format-OrchestratorPercent $state.capPercent)%; check usage before refilling slots.",
         'See CLAUDE.md "Orchestration and delegation".'
     )
     @{ hookSpecificOutput = @{ hookEventName = 'UserPromptSubmit'; additionalContext = ($lines -join "`n") } } | ConvertTo-Json -Compress

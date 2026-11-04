@@ -3,7 +3,10 @@
     Marks, unmarks or reports the Claude Code session that acts as the orchestrator (#2516).
 
 .DESCRIPTION
-    A marked session gets a short delegation and budget-pace reminder on every prompt
+    The budget follows the weekly formula in .claude/hooks/_orchestrator-state.ps1 (week Fri 03:00Z to Fri 03:00Z;
+    day share = floor(remaining / days left), Thursday takes the rest; stop order = cap - 2); -CapPercent and
+    -StopPercent override it verbatim (#3175).
+    A marked session gets a short delegation and budget reminder on every prompt
     (.claude/hooks/orchestrator-prompt-reminder.ps1) and its specialist-level steps are denied with a message
     naming the specialist (.claude/hooks/orchestrator-delegation-guard.ps1). Every other session and every
     subagent is untouched. State: one JSON file per session at
@@ -18,7 +21,11 @@
 param(
     [Parameter(Mandatory, ParameterSetName = 'On')][switch]$On,
     [Parameter(Mandatory, ParameterSetName = 'On')][ValidateRange(0, 100)][double]$StartPercent,
-    [Parameter(ParameterSetName = 'On')][ValidateRange(0, 100)][double]$PacePercent = 17,
+    # Explicit overrides, used verbatim; with only one of them the other is 2 points away (stop = cap - 2).
+    [Parameter(ParameterSetName = 'On')][ValidateRange(0, 100)][double]$CapPercent,
+    [Parameter(ParameterSetName = 'On')][ValidateRange(0, 100)][double]$StopPercent,
+    # The instant the budget day is computed for; only tests pass it.
+    [Parameter(ParameterSetName = 'On')][datetimeoffset]$NowUtc,
     [Parameter(Mandatory, ParameterSetName = 'Off')][switch]$Off,
     [Parameter(ParameterSetName = 'Status')][switch]$Status,
     # Defaults to $env:CLAUDE_CODE_SESSION_ID, which Claude Code exports to tool shells and which equals the hook
@@ -45,15 +52,21 @@ $path = Get-OrchestratorStatePath $StateRoot $SessionId
 
 if ($On) {
     New-Item -ItemType Directory -Force $StateRoot | Out-Null
+    $now = if ($PSBoundParameters.ContainsKey('NowUtc')) { $NowUtc.UtcDateTime } else { [TimeProvider]::System.GetUtcNow().UtcDateTime }
+    $overrides = @{}
+    foreach ($name in 'CapPercent', 'StopPercent') { if ($PSBoundParameters.ContainsKey($name)) { $overrides[$name] = $PSBoundParameters[$name] } }
+    $budget = Get-OrchestratorBudget -StartPercent $StartPercent -NowUtc $now @overrides
     $state = [ordered]@{
-        sessionId    = $SessionId
-        markedAtUtc  = [TimeProvider]::System.GetUtcNow().ToString('yyyy-MM-ddTHH:mm:ssZ')
-        startPercent = $StartPercent
-        pacePercent  = $PacePercent
-        capPercent   = $StartPercent + $PacePercent
+        sessionId         = $SessionId
+        markedAtUtc       = $now.ToString('yyyy-MM-ddTHH:mm:ssZ', [Globalization.CultureInfo]::InvariantCulture)
+        budgetDayStartUtc = $budget.Day.StartUtc.ToString('yyyy-MM-ddTHH:mm:ssZ', [Globalization.CultureInfo]::InvariantCulture)
+        budgetDay         = $budget.Day.Name
+        startPercent      = $StartPercent
+        capPercent        = $budget.CapPercent
+        stopPercent       = $budget.StopPercent
     }
     [IO.File]::WriteAllText($path, ($state | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
-    "Session $SessionId marked as orchestrator: started at $(Format-OrchestratorPercent $StartPercent)%, pace $(Format-OrchestratorPercent $PacePercent)%/day, cap $(Format-OrchestratorPercent $state.capPercent)%."
+    "Session $SessionId marked as orchestrator: $($budget.Day.Name) of the week resetting Fri 03:00Z, started at $(Format-OrchestratorPercent $StartPercent)%, stop order at $(Format-OrchestratorPercent $budget.StopPercent)%, cap $(Format-OrchestratorPercent $budget.CapPercent)%."
 }
 elseif ($Off) {
     if (Test-Path -LiteralPath $path -PathType Leaf) {
@@ -68,6 +81,6 @@ else {
     else {
         $markedAt = Get-OrchestratorMarkedAt $state
         $since = if ($null -ne $markedAt) { $markedAt.ToString('yyyy-MM-ddTHH:mm:ssZ', [Globalization.CultureInfo]::InvariantCulture) } else { 'unknown' }
-        "Session $SessionId is marked as orchestrator (since $since): started at $(Format-OrchestratorPercent $state.startPercent)%, pace $(Format-OrchestratorPercent $state.pacePercent)%/day, cap $(Format-OrchestratorPercent $state.capPercent)%."
+        "Session $SessionId is marked as orchestrator (since $since): started at $(Format-OrchestratorPercent $state.startPercent)%, stop order at $(Format-OrchestratorPercent $state.stopPercent)%, cap $(Format-OrchestratorPercent $state.capPercent)%."
     }
 }

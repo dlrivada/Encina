@@ -5292,9 +5292,9 @@ The fluent builder chain described in the documentation is fictional. The parame
         $env:ENCINA_ORCHESTRATOR_STATE_ROOT = $orchState
         $env:USERPROFILE = $orchHome
         $env:HOME = $orchHome
-        $markOut = & pwsh -NoProfile -File $orchMode -On -StartPercent 59 -SessionId 'sess-marked' -StateRoot $orchState 2>&1
+        $markOut = & pwsh -NoProfile -File $orchMode -On -StartPercent 59 -CapPercent 76 -SessionId 'sess-marked' -StateRoot $orchState 2>&1
         $script:total++
-        if ((Test-Path (Join-Path $orchState 'sess-marked.json')) -and "$markOut" -match 'cap 76%') { 'PASS orchestrator-mode.ps1 -On writes the state file (cap 76%)' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -On did not mark the session: $markOut" }
+        if ((Test-Path (Join-Path $orchState 'sess-marked.json')) -and "$markOut" -match 'stop order at 74%, cap 76%') { 'PASS orchestrator-mode.ps1 -On writes the state file (cap 76%, stop 74%)' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -On did not mark the session: $markOut" }
 
         function New-OrchPayload([string]$Session, [string]$Tool, $ToolInput, [string]$AgentId) {
             $p = @{ session_id = $Session; tool_name = $Tool; cwd = $repo; tool_input = $ToolInput }
@@ -5367,7 +5367,7 @@ The fluent builder chain described in the documentation is fictional. The parame
 
         # The reminder: at most 3 lines, with the start and the cap; silent otherwise.
         $promptBody = { param($s, $a) $p = @{ session_id = $s; hook_event_name = 'UserPromptSubmit'; prompt = 'hello'; cwd = $repo }; if ($a) { $p.agent_id = $a }; $p | ConvertTo-Json -Compress }
-        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: the reminder is emitted for the marked session' '' '(?s)^(?=.*UserPromptSubmit)(?=.*started at 59%)(?=.*cap 76%)'
+        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: the reminder is emitted for the marked session' '' '(?s)^(?=.*UserPromptSubmit)(?=.*started at 59%, stop order at 74%, cap 76%)'
         $reminderJson = (& $promptBody 'sess-marked' '') | pwsh -NoProfile -File $orchReminder | ConvertFrom-Json
         $reminderLines = @(([string]$reminderJson.hookSpecificOutput.additionalContext) -split "`n")
         $script:total++
@@ -5379,12 +5379,51 @@ The fluent builder chain described in the documentation is fictional. The parame
         $script:total++
         if ([string]::IsNullOrWhiteSpace("$silent")) { 'PASS orchestrator mode: no reminder for a payload with agent_id' } else { $script:failed++; "FAIL orchestrator mode: reminder for a subagent: $silent" }
         Invoke-HookCase $orchReminder 'not json' 0 'orchestrator mode: the reminder fails open on a malformed payload'
-        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: a reminder on the day of -On says "today"' '' 'Budget pace today: started at 59%'
-        # A mark from an earlier UTC day: the reminder says the cap is stale.
-        $staleState = [ordered]@{ sessionId = 'sess-stale'; markedAtUtc = '2020-01-02T03:04:05Z'; startPercent = 59; pacePercent = 17; capPercent = 76 } | ConvertTo-Json
+        Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: a reminder on the day of -On says "today"' '' 'Budget today \(\w+ of the week resetting Fri 03:00Z\): started at 59%'
+        # A mark from an earlier budget day: the reminder says the cap is stale.
+        $staleState = [ordered]@{ sessionId = 'sess-stale'; markedAtUtc = '2020-01-02T03:04:05Z'; budgetDayStartUtc = '2020-01-02T03:00:00Z'; budgetDay = 'Thursday'; startPercent = 59; capPercent = 76; stopPercent = 74 } | ConvertTo-Json
         [IO.File]::WriteAllText((Join-Path $orchState 'sess-stale.json'), $staleState)
-        Invoke-HookCase $orchReminder (& $promptBody 'sess-stale' '') 0 'orchestrator mode: a mark from an earlier day emits "re-run -On"' '' 'set 2020-01-02, re-run -On for today.*started at 59%.*cap 76%'
+        Invoke-HookCase $orchReminder (& $promptBody 'sess-stale' '') 0 'orchestrator mode: a mark from an earlier budget day emits "re-run -On"' '' 'set 2020-01-02, re-run -On for today.*started at 59%, stop order at 74%, cap 76%'
         Remove-Item (Join-Path $orchState 'sess-stale.json')
+
+        # #3175: the weekly formula (week Fri 03:00Z to Fri 03:00Z), deterministic through a fixed instant.
+        . (Join-Path $hooks '_orchestrator-state.ps1')
+        $budgetCases = @(
+            @('2026-10-30T03:00:00Z', 0, 'Friday', 0, 14, 12, 'd0 Friday: floor(100/7)'),
+            @('2026-10-31T10:00:00Z', 14, 'Saturday', 14, 14 + 14, 26, 'd1 Saturday: floor(86/6)'),
+            @('2026-11-01T10:00:00Z', 30, 'Sunday', 30, 44, 42, 'd2 Sunday: floor(70/5)'),
+            @('2026-11-02T10:00:00Z', 44, 'Monday', 44, 58, 56, 'd3 Monday: floor(56/4)'),
+            @('2026-11-03T10:00:00Z', 53, 'Tuesday', 53, 68, 66, 'd4 Tuesday: floor(47/3)'),
+            @('2026-11-04T15:00:00Z', 53, 'Wednesday', 53, 76, 74, 'd5 Wednesday: floor(47/2) (the maintainer example)'),
+            @('2026-11-05T10:00:00Z', 76, 'Thursday', 76, 100, 98, 'd6 Thursday: everything that remains'),
+            @('2026-11-02T10:00:00Z', 45, 'Monday', 45, 58, 56, 'rounds down: floor(55/4) = 13'),
+            @('2026-11-05T02:59:59Z', 53, 'Wednesday', 53, 76, 74, 'Thursday 02:59:59Z is still Wednesday'),
+            @('2026-11-05T03:00:00Z', 76, 'Thursday', 76, 100, 98, 'Thursday 03:00:00Z starts Thursday'),
+            @('2026-11-06T02:59:59Z', 90, 'Thursday', 90, 100, 98, 'Friday 02:59:59Z is still Thursday of the old week'),
+            @('2026-11-06T03:00:00Z', 0, 'Friday', 0, 14, 12, 'Friday 03:00:00Z starts the new week')
+        )
+        foreach ($c in $budgetCases) {
+            $b = Get-OrchestratorBudget -StartPercent $c[1] -NowUtc ([datetimeoffset]::Parse($c[0], [Globalization.CultureInfo]::InvariantCulture).UtcDateTime)
+            $script:total++
+            if ($b.Day.Name -eq $c[2] -and $b.CapPercent -eq $c[4] -and $b.StopPercent -eq $c[5]) { "PASS orchestrator budget (#3175): $($c[6]) -> cap $($b.CapPercent), stop $($b.StopPercent)" } else { $script:failed++; "FAIL orchestrator budget (#3175): $($c[6]): got $($b.Day.Name) cap $($b.CapPercent) stop $($b.StopPercent), expected $($c[2]) cap $($c[4]) stop $($c[5])" }
+        }
+        $wed = [datetime]::SpecifyKind([datetime]'2026-11-04T15:00:00', [DateTimeKind]::Utc)
+        $ovr = @(
+            @(@{ CapPercent = 80 }, 80, 78, 'only -CapPercent: stop = cap - 2'),
+            @(@{ StopPercent = 60 }, 62, 60, 'only -StopPercent: cap = stop + 2'),
+            @(@{ CapPercent = 90; StopPercent = 70 }, 90, 70, 'both overrides are used verbatim')
+        )
+        foreach ($o in $ovr) {
+            $ov = $o[0]
+            $b = Get-OrchestratorBudget -StartPercent 53 -NowUtc $wed @ov
+            $script:total++
+            if ($b.CapPercent -eq $o[1] -and $b.StopPercent -eq $o[2]) { "PASS orchestrator budget (#3175): $($o[3])" } else { $script:failed++; "FAIL orchestrator budget (#3175): $($o[3]): got cap $($b.CapPercent) stop $($b.StopPercent)" }
+        }
+        $nowOut = & pwsh -NoProfile -File $orchMode -On -StartPercent 53 -NowUtc 2026-11-04T15:00:00Z -SessionId 'sess-now' -StateRoot $orchState 2>&1
+        $nowState = Get-Content (Join-Path $orchState 'sess-now.json') -Raw | ConvertFrom-Json
+        $script:total++
+        if ("$nowOut" -match 'Wednesday of the week resetting Fri 03:00Z, started at 53%, stop order at 74%, cap 76%' -and $nowState.capPercent -eq 76 -and $nowState.stopPercent -eq 74 -and $null -eq $nowState.pacePercent -and $nowState.budgetDay -eq 'Wednesday') { 'PASS orchestrator-mode.ps1 -On -NowUtc stores the formula result (Wednesday, 53 -> cap 76, stop 74)' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -NowUtc: $nowOut" }
+        Remove-Item (Join-Path $orchState 'sess-now.json')
 
         # -Off unmarks: the same deny input is allowed afterwards, and -Off is idempotent.
         $offOut = & pwsh -NoProfile -File $orchMode -Off -SessionId 'sess-marked' -StateRoot $orchState 2>&1
