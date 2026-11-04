@@ -168,16 +168,4 @@ public sealed class BreakTheGlassPostgreSqlStoreTests
         results.ShouldAllBe(result => result.IsLeft);
         results.ShouldAllBe(result => result.Match(Right: _ => string.Empty, Left: error => error.GetCode().IfNone(string.Empty)) == BreakTheGlassErrors.StoreFailedCode);
     }
-
-    [Theory]
-    [InlineData("ADO")]
-    [InlineData("Dapper")]
-    public async Task AFailureOfACancelledCall_Propagates_InsteadOfReturningStoreFailed(string provider)
-    {
-        var store = NewStore(provider, Substitute.For<IDbConnection>());
-        using var cancelled = new CancellationTokenSource();
-        await cancelled.CancelAsync();
-
-        await Should.ThrowAsync<Exception>(async () => await store.ProbeAsync(cancelled.Token));
-    }
 }

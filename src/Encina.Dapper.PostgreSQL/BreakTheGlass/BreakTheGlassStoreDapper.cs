@@ -27,11 +27,7 @@ namespace Encina.Dapper.PostgreSQL.BreakTheGlass;
 /// tenant (no tenant is the empty string), user, subject and scope of the Active rows. <see cref="AddAsync"/> closes
 /// the stale Active rows of the key and inserts; of two concurrent inserts the index lets one through and the other
 /// fails with SQLSTATE 23505 on that index, which becomes <c>break_glass.already_active</c>. Any other unique
-/// violation (the primary key) stays <c>break_glass.store_failed</c>.
-/// </para>
-/// <para>
-/// A blank or whitespace tenant is stored and matched as no tenant. A provider failure becomes
-/// <c>Left(break_glass.store_failed)</c>; the error carries no message of the provider.
+/// violation (the primary key) stays <c>break_glass.store_failed</c>. A blank tenant is stored and matched as no tenant.
 /// </para>
 /// </remarks>
 public sealed class BreakTheGlassStoreDapper : IBreakTheGlassStore
