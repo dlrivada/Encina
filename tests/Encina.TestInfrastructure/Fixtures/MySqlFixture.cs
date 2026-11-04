@@ -11,7 +11,7 @@ namespace Encina.TestInfrastructure.Fixtures;
 /// </summary>
 public sealed class MySqlFixture : DatabaseFixture<MySqlContainer>
 {
-    /// <summary>The 9.x MySQL image the repository tests against; the single source of truth for the tag.</summary>
+    /// <summary>The 9.x MySQL image the repository tests against; shared by the MySqlFixture and the MySQL CDC fixture.</summary>
     public const string Mysql9Image = "mysql:9.1";
 
     private MySqlContainer? _container;
