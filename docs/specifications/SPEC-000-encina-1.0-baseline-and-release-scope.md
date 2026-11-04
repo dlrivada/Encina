@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Status** | 🟢 APPROVED (amended 2026-10-23) — DEC-001 … DEC-006 decided by the maintainer on 2026-09-21; DEC-007 (the scope widened by SPEC-002) decided on 2026-09-24; DEC-008 (the dead letter queue enters 1.0 complete) decided on 2026-10-07; **DEC-009 (the scope widened to everything except AI/LLM and cloud services without a local emulator) decided on 2026-10-23**, which supersedes the exclusions of DEC-002, DEC-003, DEC-007 and DEC-008 |
+| **Status** | 🟢 APPROVED (amended 2026-11-04) — DEC-001 … DEC-006 decided by the maintainer on 2026-09-21; DEC-007 (the scope widened by SPEC-002) decided on 2026-09-24; DEC-008 (the dead letter queue enters 1.0 complete) decided on 2026-10-07; **DEC-009 (the scope widened to everything except AI/LLM and cloud services without a local emulator) decided on 2026-10-23**, which supersedes the exclusions of DEC-002, DEC-003, DEC-007 and DEC-008 |
 | **Author** | Specifier (Claude), from `docs/engineering/PHASE0-BASELINE.md`; amendment of 2026-09-24 from [SPEC-002](SPEC-002-eu-regulatory-readiness.md) §11.2; amendment of 2026-10-23 recorded from the maintainer's decision (#2692) |
-| **Date** | 2026-09-21; amended 2026-09-24, 2026-10-07 and 2026-10-23 |
+| **Date** | 2026-09-21; amended 2026-09-24, 2026-10-07, 2026-10-23 and 2026-11-04 |
 | **Evidence** | `PHASE0-BASELINE.md` (2026-09-21); [SPEC-002 — EU Regulatory Readiness](SPEC-002-eu-regulatory-readiness.md) (2026-09-24); the post-1.0 scope review and cut of 2026-10-23 (`artifacts/scope/post-1.0-review-2026-10-23.md`, `artifacts/scope/post-1.0-cut-2026-10-23.md`, local working files) |
 | **Supersedes** | — (DEC-009 supersedes parts of this document's own earlier decisions; superseded text is kept and marked) |
 
@@ -139,7 +139,7 @@ Identifiers are stable. Each requirement has at least one acceptance criterion i
 | AC-027 | REQ-027 | #207, #208 closed and the Memcached scope of #277 delivered; contract tests cover the 8 caches and the 7 locks (InMemory, Redis, SqlServer, PostgreSQL, MySQL, Azure Blob, DynamoDB; the last two against Azurite and LocalStack or DynamoDB Local); #209 and #210 closed; the `AGENTS.md` §5 lock table marks exactly those seven as in the 1.0 scope and Consul, etcd and ZooKeeper as post-1.0, and both provider tables match `src/`. **Superseded by DEC-009 (2026-10-23):** the original criterion covered 5 locks and listed Azure Blob and DynamoDB as post-1.0. |
 | AC-028 | REQ-028 | #205 is in the milestone "Post-1.0: Cloud services without a local emulator"; `AGENTS.md` §5 cloud section lists AWS + Azure with GCP deferred. |
 | AC-029 | REQ-029 | On the release-candidate commit, SPEC-002 AC-001 – SPEC-002 AC-044 hold; the PracticeManagement reference scenario is green in CI Full with tenancy on (SPEC-002 AC-038); the SPEC-002 EPIC is closed. |
-| AC-030 | REQ-030 | At tag time the only post-1.0 milestones are "Post-1.0: AI/LLM Integration", "Post-1.0: Cloud services without a local emulator" and "Post-1.0: Technical exclusions (ADR/SPEC)"; every issue in them is listed in §6, every issue listed in §6.1 sits in one of the first two, every item of §6.2 is either a technical exclusion that cites its ADR or SPEC or (the Consul, etcd and ZooKeeper locks, #211–#213) a maintainer exclusion recorded in DEC-009, and the issues of §6.2 (#211–#213 and #1639 among them) are parked in the third, and no issue listed in §6 sits in a 1.0 milestone. The cloud items in 1.0 have integration tests that run against their local emulator in CI. |
+| AC-030 | REQ-030 | At tag time the only post-1.0 milestones are "Post-1.0: AI/LLM Integration", "Post-1.0: Cloud services without a local emulator" and "Post-1.0: Technical exclusions (ADR/SPEC)"; every issue in them is listed in §6, every issue listed in §6.1 sits in one of the first two, every item of §6.2 is either a technical exclusion that cites its ADR or SPEC or (the Consul, etcd and ZooKeeper locks, #211–#213) a maintainer exclusion recorded in DEC-009, or the administration web console, a maintainer exclusion decided in #2972 D43 (2026-11-04) that has no issue parked in the third milestone, and the issues of §6.2 (#211–#213 and #1639 among them) are parked in the third, and no issue listed in §6 sits in a 1.0 milestone. The cloud items in 1.0 have integration tests that run against their local emulator in CI. |
 
 ## 5. Constraints
 
@@ -170,7 +170,7 @@ Since DEC-009 (2026-10-23) this section, and only this section, lists what is ou
 
 Cloud items with a free local emulator are **in** 1.0 and are tested against it: locks #209 (Azure Blob, Azurite) and #210 (DynamoDB, LocalStack or DynamoDB Local), transports #237 (Google Cloud Pub/Sub emulator), #238 (EventBridge, LocalStack), #611 (Event Hubs emulator) and #612 (Kinesis, LocalStack), and the cloud-backed stores (for example #578, #579, #588, #589, #598, #600).
 
-### 6.2 Out of 1.0 by technical decision (re-confirmed 2026-10-23)
+### 6.2 Out of 1.0 by technical decision (re-confirmed 2026-10-23; amended 2026-11-04)
 
 | Item | Source | Reason |
 |---|---|---|
@@ -187,8 +187,9 @@ Cloud items with a free local emulator are **in** 1.0 and are tested against it:
 | A payments abstraction | SPEC-002 DEC-003 | Gateways are vendor-shaped; the application keeps its own abstraction. |
 | Relational stores for the Marten-only compliance modules | SPEC-002 DEC-008 | These modules require PostgreSQL through Marten in 1.0. |
 | Lock backends Consul, etcd and ZooKeeper | #211, #212, #213 | Decided by the maintainer on 2026-10-23: they stay post-1.0. |
+| Administration web console (a user interface) | [#2972](https://github.com/dlrivada/Encina/issues/2972) D43, [admin surface spike](../engineering/admin-surface-spike-2972.md) | Decided by the maintainer on 2026-11-04: 1.0 ships the administration API only; the web console comes after 1.0 as a separate product on top of that API, not as an embedded dashboard. The administration API itself is in 1.0 (REQ-030). |
 
-Every item of this table is parked in the milestone "Post-1.0: Technical exclusions (ADR/SPEC)", among them #211, #212, #213 and #1639.
+Every item of this table except the administration web console is parked in the milestone "Post-1.0: Technical exclusions (ADR/SPEC)", among them #211, #212, #213 and #1639.
 
 The rules part of SPEC-002 REQ-011 (scenario S15), the Compliance Applicability Resolver (#686), the rule-based compliance DSL (#687) and `Encina.Compliance.OPA` (#688) are **not** listed in this section: the S15 rules are issue #2700 and all of them are in 1.0 (REQ-030, DEC-009 addendum of 2026-10-23), all in v0.17.0 — Compliance Lifecycle.
 
@@ -267,6 +268,7 @@ These are Class C. Agents have presented the options; the maintainer decides. On
 | [SPEC-002](SPEC-002-eu-regulatory-readiness.md) §2, §11.2 (SPEC-002 DEC-001, DEC-009, DEC-011, DEC-012, DEC-014 – DEC-016) and SPEC-002 AC-040 | §2, §5, §6, REQ-024, REQ-026, REQ-029, INV-004, DEC-007 |
 | #1991, #583 (maintainer decision 2026-10-07) | §6, DEC-008 |
 | #2692 (maintainer decision 2026-10-23), `artifacts/scope/post-1.0-review-2026-10-23.md`, `artifacts/scope/post-1.0-cut-2026-10-23.md` | §2, §6, REQ-026, REQ-027, REQ-030, AC-030, DEC-009 |
+| #2972 D43 (maintainer decision 2026-11-04), [admin surface spike](../engineering/admin-surface-spike-2972.md) | §6.2 |
 
 ## 11. Change log
 
@@ -279,3 +281,4 @@ These are Class C. Agents have presented the options; the maintainer decides. On
 | 2026-10-07 | DEC-008 decided by the maintainer: the dead letter queue enters 1.0 complete. #583 (persistent `IDeadLetterStore` for the 10 database-matrix providers) moves from post-1.0 to v0.19.0 — Providers & Testing as p0; #1991 wires the five `IntegrateWith*` sources afterward. §6 no longer lists #583 as a non-goal; #584–#589 stay post-1.0 (superseded by DEC-009 on 2026-10-23). |
 | 2026-10-23 | DEC-009 decided by the maintainer (#2692): the 1.0 scope widens to everything previously deferred except AI/LLM integration and deliverables tied to a cloud service with no free local emulator (milestone "Post-1.0: Cloud services without a local emulator"). Supersedes the exclusions of DEC-002, DEC-003, DEC-007 and DEC-008, REQ-026, REQ-027 (lock count), AC-026 and AC-027; AC-028 reworded. New REQ-030 and AC-030. §6 becomes the single "Out of 1.0" list (scope exclusions and re-confirmed technical exclusions); the earlier non-goals are kept as history in §6.4. The lock set is seven providers (Azure Blob and DynamoDB enter); Consul, etcd and ZooKeeper stay post-1.0. §8 and §10 gain rows. |
 | 2026-10-23 | DEC-009 addendum (#2692): the rules part of SPEC-002 REQ-011 (S15) and #686, #687, #688 enter 1.0 in v0.17.0, order #686, #687, S15 rules, #688. REQ-029 and §6.4 mark the earlier exclusion superseded. §6.1 adds #2693, #2694, #2696 and #2698 to the cloud milestone; §6.2 names its parking milestone "Post-1.0: Technical exclusions (ADR/SPEC)" and lists #1639 with the ADR-047 exclusion. |
+| 2026-11-04 | Amendment (#2972 D43, decided by the maintainer): §6.2 lists the administration web console as post-1.0. 1.0 ships the administration API only; the console is a separate product built on that API. The administration API stays in 1.0 (REQ-030). §10 gains a row. |

@@ -59,7 +59,10 @@ reads the data after the previous deploy and every earlier persist finished.
 Read, Live, Persist or Assemble.
 
 .PARAMETER Domain
-Read, Live and Persist: the dashboard (coverage, benchmarks, load-tests or mutations).
+Read, Live and Persist: the dashboard (coverage, benchmarks, load-tests or mutations). Read and Persist
+also accept the branch-only domain honesty-audit (#2899): its weekly report and history live on the
+data branch under honesty-audit/data/ (latest.json, history.json) like the dashboards' data, but
+Assemble never lays it over the site, so it is not published, and Live rejects it.
 
 .PARAMETER OutDir
 Read: the directory that receives the files of <Domain>/data/ from the data branch.
@@ -87,6 +90,9 @@ pwsh .github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain mutations -OutD
 pwsh .github/scripts/pages-dashboard-data.ps1 -Mode Persist -Domain mutations -OverlayRoot overlay
 
 .EXAMPLE
+pwsh .github/scripts/pages-dashboard-data.ps1 -Mode Persist -Domain honesty-audit -OverlayRoot overlay
+
+.EXAMPLE
 pwsh .github/scripts/pages-dashboard-data.ps1 -Mode Assemble -SiteRoot _site
 #>
 [CmdletBinding()]
@@ -95,7 +101,7 @@ param(
     [ValidateSet('Read', 'Live', 'Persist', 'Assemble')]
     [string] $Mode,
 
-    [ValidateSet('coverage', 'benchmarks', 'load-tests', 'mutations')]
+    [ValidateSet('coverage', 'benchmarks', 'load-tests', 'mutations', 'honesty-audit')]
     [string] $Domain,
 
     [string] $OverlayRoot,
@@ -114,7 +120,12 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+# Published dashboards: the only domains Live and Assemble handle, so the site carries exactly these.
 $Domains = @('coverage', 'benchmarks', 'load-tests', 'mutations')
+# Branch-only domains (#2899): Read and Persist store them on the data branch, but Assemble never lays
+# them over the site, so they are not published and need no live copy.
+$BranchOnlyDomains = @('honesty-audit')
+$StoredDomains = $Domains + $BranchOnlyDomains
 # Files under <domain>/data/ that the dashboards publish. cited-by.json is excluded on purpose: the
 # docs build renders it from the docref indexes and owns it.
 $DataFiles = @('latest.json', 'history.json', 'docref-index.json', 'fingerprints.json', 'benchmark-coverage.json')
@@ -183,6 +194,7 @@ function Test-OverlayHasSnapshot {
 
 function Invoke-Persist {
     if (-not $Domain) { throw 'Persist needs -Domain.' }
+    if ($StoredDomains -notcontains $Domain) { throw "Persist does not handle the domain '$Domain'." }
     if (-not $OverlayRoot) { throw 'Persist needs -OverlayRoot.' }
     $source = Join-Path $OverlayRoot $Domain
     if (-not (Test-Path -LiteralPath $source -PathType Container) -or
@@ -445,6 +457,7 @@ function Invoke-Assemble {
 # empty JSON) throws, so a publisher never mistakes an outage for a first run.
 function Invoke-Live {
     if (-not $Domain) { throw 'Live needs -Domain.' }
+    if ($Domains -notcontains $Domain) { throw "Live handles only the published dashboards ($($Domains -join ', ')), not '$Domain'." }
     if (-not $OutDir) { throw 'Live needs -OutDir.' }
     $cacheBuster = Get-CacheBuster
     foreach ($file in $RequiredDataFiles) {
@@ -455,6 +468,7 @@ function Invoke-Live {
 
 function Invoke-Read {
     if (-not $Domain) { throw 'Read needs -Domain.' }
+    if ($StoredDomains -notcontains $Domain) { throw "Read does not handle the domain '$Domain'." }
     if (-not $OutDir) { throw 'Read needs -OutDir.' }
     if (-not (Test-RemoteBranch)) {
         Write-Host "Branch $Branch does not exist yet; nothing to read for $Domain."
