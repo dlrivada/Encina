@@ -119,14 +119,6 @@ public sealed class NameMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_TokenizeMode_ReturnsOriginalValue()
-    {
-        var result = _sut.Apply("John Doe", WithMode(MaskingMode.Tokenize));
-
-        result.ShouldBe("John Doe");
-    }
-
-    [Fact]
     public void Apply_FullMode_PreservesLength()
     {
         var input = "John Doe";

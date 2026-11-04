@@ -25,7 +25,6 @@ internal sealed class PhoneMaskingStrategy : IMaskingStrategy
             MaskingMode.Full => new string(options.MaskCharacter, value.Length),
             MaskingMode.Redact => options.RedactedPlaceholder ?? "[REDACTED]",
             MaskingMode.Hash => HashHelper.ComputeHash(value, options.HashKey),
-            MaskingMode.Tokenize => value,
             _ => MaskPartial(value, options) // Partial
         };
     }
