@@ -12,7 +12,7 @@ public sealed class AuditResolutionErrorsTests
 {
     public static TheoryData<string, Func<EncinaError>> Cases => new()
     {
-        { MartenAuditErrors.ResolutionConflictCode, MartenAuditErrors.ResolutionConflict },
+        { MartenAuditErrors.ResolutionForbiddenCode, MartenAuditErrors.ResolutionForbidden },
         { MartenAuditErrors.ResolutionPrincipalRequiredCode, MartenAuditErrors.ResolutionPrincipalRequired },
         { MartenAuditErrors.InvalidResolutionReasonCode, MartenAuditErrors.InvalidResolutionReason },
         { MartenAuditErrors.ResolutionEventNotFoundCode, MartenAuditErrors.ResolutionEventNotFound },
@@ -44,13 +44,14 @@ public sealed class AuditResolutionErrorsTests
     {
         var codes = new[]
         {
-            MartenAuditErrors.ResolutionConflictCode,
+            MartenAuditErrors.ResolutionForbiddenCode,
             MartenAuditErrors.ResolutionPrincipalRequiredCode,
             MartenAuditErrors.InvalidResolutionReasonCode,
             MartenAuditErrors.ResolutionEventNotFoundCode,
             MartenAuditErrors.InvalidResolutionFieldCode,
         };
 
+        MartenAuditErrors.ResolutionForbiddenCode.ShouldBe("audit.marten.resolution_forbidden");
         codes.ShouldAllBe(c => c.StartsWith("audit.marten.", StringComparison.Ordinal));
         codes.Distinct().Count().ShouldBe(codes.Length);
     }

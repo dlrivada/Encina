@@ -53,8 +53,8 @@ public static class MartenAuditErrors
     /// <summary>Error code indicating the entry has been crypto-shredded.</summary>
     public const string ShreddedEntryCode = "audit.marten.shredded_entry";
 
-    /// <summary>Error code when a resolution already exists for the event and field with different content.</summary>
-    public const string ResolutionConflictCode = "audit.marten.resolution_conflict";
+    /// <summary>Error code when the principal is authenticated but lacks the permission to resolve audit events.</summary>
+    public const string ResolutionForbiddenCode = "audit.marten.resolution_forbidden";
 
     /// <summary>Error code when a resolution is requested without an authenticated principal.</summary>
     public const string ResolutionPrincipalRequiredCode = "audit.marten.resolution_principal_required";
@@ -69,13 +69,13 @@ public static class MartenAuditErrors
     public const string InvalidResolutionFieldCode = "audit.marten.invalid_resolution_field";
 
     /// <summary>
-    /// Creates an error when a resolution already exists for the event and field with different content.
+    /// Creates an error when the principal lacks the permission to resolve audit events.
     /// </summary>
-    /// <returns>An error indicating the resolution conflicts with the stored one. It carries no event, field or identity.</returns>
-    public static EncinaError ResolutionConflict() =>
+    /// <returns>An error indicating the principal is not allowed to resolve audit events. It carries no identity.</returns>
+    public static EncinaError ResolutionForbidden() =>
         EncinaErrors.Create(
-            code: ResolutionConflictCode,
-            message: "A different resolution already exists for this audit event and field. Remove it first to replace it.",
+            code: ResolutionForbiddenCode,
+            message: "The principal is not allowed to resolve audit events. Nothing was resolved.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyStage] = MetadataStageAuditMarten

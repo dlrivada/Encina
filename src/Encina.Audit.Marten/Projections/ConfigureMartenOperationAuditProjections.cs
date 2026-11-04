@@ -88,7 +88,10 @@ internal sealed class ConfigureMartenOperationAuditProjections : IConfigureOptio
 
         // Operator resolutions of unreadable events. Registered explicitly (unlike the key and marker documents,
         // which Marten creates on first use) so the table exists before the daemon reads it on the failure path.
-        options.Schema.For<AuditResolution>().Identity(x => x.Id);
+        // Resolutions are append-only: the projection loads an event's resolutions by (Trail, EventId).
+        options.Schema.For<AuditResolution>()
+            .Identity(x => x.Id)
+            .Index(x => new { x.Trail, x.EventId });
 
         // Configure indexes for OperationAuditEntryReadModel
         options.Schema.For<OperationAuditEntryReadModel>()

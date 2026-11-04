@@ -1,22 +1,28 @@
 namespace Encina.Audit.Marten.Resolution;
 
 /// <summary>
-/// Marten document that records an operator's resolution of one unreadable field (or a whole event) of an
+/// Marten document that records one operator decision about an unreadable field (or a whole event) of an
 /// audit event, so the audit projections can substitute a placeholder or exclude the event instead of failing.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The document ID follows the convention <c>"audit-resolution:{trail}:{eventId}:{field}"</c>
-/// (built by the internal <c>AuditResolutionIds.Format</c>). The document carries no reason text: the reason lives only in the
-/// encrypted audit entry written before the document.
+/// Resolutions are an append-only record: each decision is a new document with its own
+/// <see cref="Id"/> (a UUID version 7 created from the <see cref="TimeProvider"/>), and a document is never
+/// updated or deleted. The most recent resolution of an event and field wins; <see cref="Sequence"/> orders the
+/// resolutions of one event and <see cref="Supersedes"/> lists the ones a new resolution amends.
+/// </para>
+/// <para>
+/// The document carries no reason text: the reason lives only in the encrypted audit entry whose identifier is
+/// <see cref="ResolutionAuditEntryId"/>.
 /// </para>
 /// </remarks>
 public sealed class AuditResolution
 {
     /// <summary>
-    /// Unique document identifier following the convention <c>"audit-resolution:{trail}:{eventId}:{field}"</c>.
+    /// Unique identifier of this resolution (UUID version 7: ids created in different milliseconds sort by creation
+    /// time; <see cref="Sequence"/> decides inside one millisecond).
     /// </summary>
-    public string Id { get; set; } = string.Empty;
+    public Guid Id { get; set; }
 
     /// <summary>The audit trail of the resolved event.</summary>
     public AuditResolutionTrail Trail { get; set; }
@@ -30,8 +36,17 @@ public sealed class AuditResolution
     /// <summary>How the field was resolved.</summary>
     public AuditResolutionKind Kind { get; set; }
 
-    /// <summary>The audit entry identifier carried by the event payload (informational), or <c>null</c> when unknown.</summary>
-    public Guid? AuditEntryId { get; set; }
+    /// <summary>The position of this resolution among the resolutions of the same trail and event (the highest wins).</summary>
+    public long Sequence { get; set; }
+
+    /// <summary>The identifiers of the earlier resolutions this one amends.</summary>
+    public List<Guid> Supersedes { get; set; } = [];
+
+    /// <summary>The audit entry identifier carried by the payload of the resolved event (informational), or <c>null</c> when unknown.</summary>
+    public Guid? EventAuditEntryId { get; set; }
+
+    /// <summary>The identifier of the audit entry written for this resolution, or <c>null</c> when none was written yet.</summary>
+    public Guid? ResolutionAuditEntryId { get; set; }
 
     /// <summary>The tenant of the resolved event, copied from the event, or <c>null</c> without a tenant.</summary>
     public string? TenantId { get; set; }

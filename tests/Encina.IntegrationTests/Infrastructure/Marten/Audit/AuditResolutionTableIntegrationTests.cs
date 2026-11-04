@@ -17,7 +17,8 @@ namespace Encina.IntegrationTests.Infrastructure.Marten.Audit;
 /// <summary>
 /// Issue #3049 (phase 1): on a fresh Marten store configured by <see cref="ConfigureMartenOperationAuditProjections"/>,
 /// the <see cref="AuditResolution"/> table exists after the configured schema changes are applied, before any
-/// projection daemon reads it, and a document round-trips through its string id.
+/// projection daemon reads it, an index covering (Trail, EventId) exists, and a document round-trips through its
+/// Guid id.
 /// </summary>
 [Collection(MartenCollection.Name)]
 [Trait("Category", "Integration")]
@@ -65,8 +66,10 @@ public sealed class AuditResolutionTableIntegrationTests(MartenFixture fixture)
             table.ShouldNotBeNull().ShouldNotBeOfType<DBNull>();
         }
 
+        await AssertTrailEventIndexExistsAsync(schema);
+
         var eventId = Guid.NewGuid();
-        var id = AuditResolutionIds.Format(AuditResolutionTrail.Operation, eventId, AuditResolutionField.All);
+        var id = AuditResolutionIds.NewId(TimeProvider.System);
         await using (var session = store.LightweightSession())
         {
             session.Store(new AuditResolution
@@ -88,5 +91,25 @@ public sealed class AuditResolutionTableIntegrationTests(MartenFixture fixture)
         loaded.ShouldNotBeNull();
         loaded.EventId.ShouldBe(eventId);
         loaded.Kind.ShouldBe(AuditResolutionKind.Unreadable);
+    }
+
+    private async Task AssertTrailEventIndexExistsAsync(string schema)
+    {
+        var definitions = new List<string>();
+        await using var connection = new NpgsqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var command = new NpgsqlCommand(
+            "select indexdef from pg_indexes where schemaname = @schema and tablename = 'mt_doc_auditresolution'",
+            connection);
+        command.Parameters.AddWithValue("schema", schema);
+        await using var reader = await command.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+        while (await reader.ReadAsync(TestContext.Current.CancellationToken))
+        {
+            definitions.Add(reader.GetString(0));
+        }
+
+        // One index covers both properties of the lookup key (Trail, EventId), not one index per property.
+        definitions.ShouldContain(d =>
+            d.Contains("Trail", StringComparison.OrdinalIgnoreCase) && d.Contains("EventId", StringComparison.OrdinalIgnoreCase));
     }
 }

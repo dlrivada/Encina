@@ -1,38 +1,65 @@
 using Encina.Audit.Marten.Resolution;
 
+using Microsoft.Extensions.Time.Testing;
+
 namespace Encina.UnitTests.AuditMarten;
 
 /// <summary>
-/// Unit tests for <see cref="AuditResolutionIds"/>: the deterministic document id and the valid field set per trail
+/// Unit tests for <see cref="AuditResolutionIds"/>: the per-resolution id and the valid field set per trail
 /// (issue #3049, phase 1).
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Provider", "Marten")]
 public sealed class AuditResolutionIdsTests
 {
-    private static readonly Guid EventId = Guid.Parse("0f8fad5b-d9cb-469f-a165-70867728950e");
-
-    [Theory]
-    [InlineData(AuditResolutionTrail.Operation, AuditResolutionField.All, "audit-resolution:Operation:0f8fad5b-d9cb-469f-a165-70867728950e:All")]
-    [InlineData(AuditResolutionTrail.Operation, AuditResolutionField.IpAddress, "audit-resolution:Operation:0f8fad5b-d9cb-469f-a165-70867728950e:IpAddress")]
-    [InlineData(AuditResolutionTrail.Read, AuditResolutionField.Purpose, "audit-resolution:Read:0f8fad5b-d9cb-469f-a165-70867728950e:Purpose")]
-    public void Format_ReturnsTheDocumentedIdShape(AuditResolutionTrail trail, AuditResolutionField field, string expected) =>
-        AuditResolutionIds.Format(trail, EventId, field).ShouldBe(expected);
-
     [Fact]
-    public void Format_DifferentTrailEventOrField_GivesDifferentIds()
+    public void NewId_IsAVersion7Guid()
     {
-        var baseId = AuditResolutionIds.Format(AuditResolutionTrail.Operation, EventId, AuditResolutionField.UserId);
+        var id = AuditResolutionIds.NewId(new FakeTimeProvider(new DateTimeOffset(2026, 11, 4, 9, 0, 0, TimeSpan.Zero)));
 
-        AuditResolutionIds.Format(AuditResolutionTrail.Read, EventId, AuditResolutionField.UserId).ShouldNotBe(baseId);
-        AuditResolutionIds.Format(AuditResolutionTrail.Operation, Guid.NewGuid(), AuditResolutionField.UserId).ShouldNotBe(baseId);
-        AuditResolutionIds.Format(AuditResolutionTrail.Operation, EventId, AuditResolutionField.MetadataJson).ShouldNotBe(baseId);
+        id.Version.ShouldBe(7);
     }
 
     [Fact]
-    public void Format_SameInputs_GivesTheSameId() =>
-        AuditResolutionIds.Format(AuditResolutionTrail.Read, EventId, AuditResolutionField.All)
-            .ShouldBe(AuditResolutionIds.Format(AuditResolutionTrail.Read, EventId, AuditResolutionField.All));
+    public void NewId_TakesItsTimestampFromTheTimeProvider()
+    {
+        var at = new DateTimeOffset(2026, 11, 4, 9, 30, 15, 250, TimeSpan.Zero);
+
+        var id = AuditResolutionIds.NewId(new FakeTimeProvider(at));
+
+        // The first 48 bits of a UUID version 7 are the Unix time in milliseconds (the leading 12 hex digits).
+        var hex = id.ToString("N")[..12];
+        Convert.ToInt64(hex, 16).ShouldBe(at.ToUnixTimeMilliseconds());
+    }
+
+    [Fact]
+    public void NewId_IdsCreatedInDifferentMilliseconds_SortByCreationTime()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 4, 9, 0, 0, TimeSpan.Zero));
+        var ids = new List<Guid>();
+        for (var i = 0; i < 50; i++)
+        {
+            ids.Add(AuditResolutionIds.NewId(clock));
+            clock.Advance(TimeSpan.FromMilliseconds(1 + (i % 3)));
+        }
+
+        // Postgres uuid and the canonical text form compare big-endian, which is the order that sorts version 7 ids.
+        var sorted = ids.OrderBy(x => x.ToString("D"), StringComparer.Ordinal).ToList();
+
+        sorted.ShouldBe(ids);
+    }
+
+    [Fact]
+    public void NewId_SameInstant_GivesDistinctIds()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 4, 9, 0, 0, TimeSpan.Zero));
+
+        AuditResolutionIds.NewId(clock).ShouldNotBe(AuditResolutionIds.NewId(clock));
+    }
+
+    [Fact]
+    public void NewId_NullTimeProvider_Throws() =>
+        Should.Throw<ArgumentNullException>(() => AuditResolutionIds.NewId(null!));
 
     [Theory]
     [InlineData(AuditResolutionField.All)]
@@ -88,6 +115,7 @@ public sealed class AuditResolutionIdsTests
         ((int)AuditResolutionKind.Shredded).ShouldBe(1);
         ((int)AuditResolutionKind.Expired).ShouldBe(2);
         ((int)AuditResolutionKind.Excluded).ShouldBe(3);
+        ((int)AuditResolutionKind.Withdrawn).ShouldBe(4);
         ((int)AuditResolutionField.All).ShouldBe(0);
         ((int)AuditResolutionField.Purpose).ShouldBe(7);
     }

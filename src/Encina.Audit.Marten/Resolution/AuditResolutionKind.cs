@@ -16,4 +16,7 @@ public enum AuditResolutionKind
 
     /// <summary>The whole event is excluded from the read model (no row is produced).</summary>
     Excluded = 3,
+
+    /// <summary>"No resolution": returns the event (or field) to unresolved, so a rebuild pauses on it again.</summary>
+    Withdrawn = 4,
 }
