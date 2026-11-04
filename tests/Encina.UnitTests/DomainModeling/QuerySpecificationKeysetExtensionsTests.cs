@@ -7,7 +7,7 @@ namespace Encina.UnitTests.DomainModeling;
 
 /// <summary>
 /// Unit tests for <see cref="QuerySpecificationKeysetExtensions"/>: the keyset filter must follow the
-/// sort direction of the keyset property (#3154).
+/// sort direction of the keyset property, which must be the primary ordering (#3154).
 /// </summary>
 [Trait("Category", "Unit")]
 public sealed class QuerySpecificationKeysetExtensionsTests
@@ -43,33 +43,74 @@ public sealed class QuerySpecificationKeysetExtensionsTests
     }
 
     [Fact]
-    public void IsKeysetDescending_KeysetIsThenByDescending_IsTrue()
+    public void IsKeysetDescending_KeysetIsPrimaryWithSecondaryOrderings_FollowsThePrimaryOrdering()
     {
         // Arrange
-        var spec = new PageSpec().Ordered(o => o.CreatedAtUtc).ThenOrderedDescending(o => o.Id).KeysetOn(o => o.Id);
+        var spec = new PageSpec().OrderedDescending(o => o.Total).ThenOrdered(o => o.CreatedAtUtc).KeysetOn(o => o.Total);
 
         // Act & Assert
         spec.IsKeysetDescending.ShouldBeTrue();
     }
 
     [Fact]
-    public void IsKeysetDescending_KeysetIsThenBy_IsFalse()
+    public void IsKeysetDescending_WithoutAnyOrdering_IsFalse()
     {
-        // Arrange
-        var spec = new PageSpec().OrderedDescending(o => o.CreatedAtUtc).ThenOrdered(o => o.Id).KeysetOn(o => o.Id);
+        // Arrange - no ordering keeps the ascending default
+        var spec = new PageSpec().KeysetOn(o => o.Id);
 
         // Act & Assert
         spec.IsKeysetDescending.ShouldBeFalse();
     }
 
     [Fact]
-    public void IsKeysetDescending_KeysetNotInTheOrdering_IsFalse()
+    public void IsKeysetDescending_KeysetNotInTheOrdering_ThrowsNotSupportedException()
     {
         // Arrange
         var spec = new PageSpec().OrderedDescending(o => o.CreatedAtUtc).KeysetOn(o => o.Id);
 
         // Act & Assert
-        spec.IsKeysetDescending.ShouldBeFalse();
+        Should.Throw<NotSupportedException>(() => spec.IsKeysetDescending)
+            .Message.ShouldContain("Keyset pagination on Id needs Id as the primary ordering");
+    }
+
+    [Fact]
+    public void IsKeysetDescending_KeysetIsThenBy_ThrowsNotSupportedException()
+    {
+        // Arrange
+        var spec = new PageSpec().OrderedDescending(o => o.CreatedAtUtc).ThenOrdered(o => o.Id).KeysetOn(o => o.Id);
+
+        // Act & Assert
+        Should.Throw<NotSupportedException>(() => spec.IsKeysetDescending);
+    }
+
+    [Fact]
+    public void IsKeysetDescending_KeysetIsThenByDescending_ThrowsNotSupportedException()
+    {
+        // Arrange
+        var spec = new PageSpec().Ordered(o => o.CreatedAtUtc).ThenOrderedDescending(o => o.Id).KeysetOn(o => o.Id);
+
+        // Act & Assert
+        Should.Throw<NotSupportedException>(() => spec.IsKeysetDescending);
+    }
+
+    [Fact]
+    public void IsKeysetDescending_KeysetInBothThenByAndThenByDescending_ThrowsNotSupportedException()
+    {
+        // Arrange
+        var spec = new PageSpec().Ordered(o => o.CreatedAtUtc).ThenOrdered(o => o.Id).ThenOrderedDescending(o => o.Id).KeysetOn(o => o.Id);
+
+        // Act & Assert
+        Should.Throw<NotSupportedException>(() => spec.IsKeysetDescending);
+    }
+
+    [Fact]
+    public void IsKeysetDescending_KeysetOnlyInThenByWithoutPrimaryOrdering_ThrowsNotSupportedException()
+    {
+        // Arrange
+        var spec = new PageSpec().ThenOrderedDescending(o => o.Id).KeysetOn(o => o.Id);
+
+        // Act & Assert
+        Should.Throw<NotSupportedException>(() => spec.IsKeysetDescending);
     }
 
     [Fact]
@@ -91,7 +132,7 @@ public sealed class QuerySpecificationKeysetExtensionsTests
 
         // Act & Assert
         sameNested.IsKeysetDescending.ShouldBeTrue();
-        otherName.IsKeysetDescending.ShouldBeFalse();
+        Should.Throw<NotSupportedException>(() => otherName.IsKeysetDescending);
     }
 
     [Fact]
@@ -113,7 +154,6 @@ public sealed class QuerySpecificationKeysetExtensionsTests
         // Act & Assert
         spec.IsKeysetDescending.ShouldBeTrue();
     }
-
     public sealed class Order
     {
         public Guid Id { get; init; }

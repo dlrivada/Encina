@@ -19,10 +19,12 @@ public static class QuerySpecificationKeysetExtensions
         /// otherwise it holds the keys above it and compares with <c>&gt;</c>.
         /// </para>
         /// <para>
-        /// The keyset property is looked up in the primary ordering, then in
-        /// <see cref="IQuerySpecification{T}.ThenByExpressions"/> and
-        /// <see cref="IQuerySpecification{T}.ThenByDescendingExpressions"/>, by its member path.
-        /// A keyset property that is not part of the ordering pages in ascending order.
+        /// A single-column keyset filter is correct only when the keyset property is the primary ordering
+        /// (<see cref="IQuerySpecification{T}.OrderBy"/> or <see cref="IQuerySpecification{T}.OrderByDescending"/>),
+        /// matched by member path. With any other ordering first, or the keyset property only in a
+        /// <c>ThenBy</c> or <c>ThenByDescending</c>, the next page would skip or repeat rows, so this throws
+        /// <see cref="NotSupportedException"/> instead of picking a direction. A specification with no
+        /// ordering at all pages in ascending order.
         /// </para>
         /// </remarks>
         /// <example>
@@ -32,6 +34,9 @@ public static class QuerySpecificationKeysetExtensions
         /// </code>
         /// </example>
         /// <exception cref="ArgumentNullException">Thrown when the specification is <see langword="null"/>.</exception>
+        /// <exception cref="NotSupportedException">
+        /// Thrown when the specification is ordered and the keyset property is not its primary ordering.
+        /// </exception>
         public bool IsKeysetDescending
         {
             get
@@ -39,17 +44,28 @@ public static class QuerySpecificationKeysetExtensions
                 ArgumentNullException.ThrowIfNull(specification);
 
                 var keyset = MemberPath(specification.KeysetProperty);
-                if (keyset is null || MemberPath(specification.OrderBy) == keyset)
+                if (keyset is null || !IsOrdered(specification))
                 {
                     return false;
                 }
 
-                return MemberPath(specification.OrderByDescending) == keyset
-                    || (!specification.ThenByExpressions.Any(e => MemberPath(e) == keyset)
-                        && specification.ThenByDescendingExpressions.Any(e => MemberPath(e) == keyset));
+                if (MemberPath(specification.OrderBy ?? specification.OrderByDescending) != keyset)
+                {
+                    throw new NotSupportedException(
+                        $"Keyset pagination on {keyset} needs {keyset} as the primary ordering (ApplyOrderBy or ApplyOrderByDescending) " +
+                        $"of {specification.GetType().Name}; ordered any other way, the next page would skip or repeat rows.");
+                }
+
+                return specification.OrderByDescending is not null;
             }
         }
     }
+
+    private static bool IsOrdered<T>(IQuerySpecification<T> specification)
+        => specification.OrderBy is not null
+            || specification.OrderByDescending is not null
+            || specification.ThenByExpressions.Count > 0
+            || specification.ThenByDescendingExpressions.Count > 0;
 
     // crap-exempt: single-question switch — the member path an ordering or keyset selector reads, if it reads one
     private static string? MemberPath(Expression? expression) => expression switch

@@ -299,12 +299,19 @@ public sealed class SpecificationSqlBuilder<TEntity>
         IQuerySpecification<TEntity> specification,
         Dictionary<string, object?> parameters)
     {
-        if (specification is not { KeysetPaginationEnabled: true, KeysetProperty: { } keysetProperty, LastKeyValue: { } lastKeyValue })
+        if (!specification.KeysetPaginationEnabled || specification.KeysetProperty is not { } keysetProperty)
         {
             return sql;
         }
 
-        var keysetSql = BuildKeysetFilter(keysetProperty, lastKeyValue, specification.IsKeysetDescending, parameters);
+        // Read on the first page too: it rejects a keyset property that is not the primary ordering
+        var descending = specification.IsKeysetDescending;
+        if (specification.LastKeyValue is not { } lastKeyValue)
+        {
+            return sql;
+        }
+
+        var keysetSql = BuildKeysetFilter(keysetProperty, lastKeyValue, descending, parameters);
         return string.IsNullOrWhiteSpace(sql) ? keysetSql : $"({sql}) AND ({keysetSql})";
     }
 

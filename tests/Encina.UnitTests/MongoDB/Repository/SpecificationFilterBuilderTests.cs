@@ -715,6 +715,18 @@ public class SpecificationFilterBuilderTests
         filter.ShouldNotContain("\"$gt\"");
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(50)]
+    public void BuildFilter_WithKeysetNotThePrimaryOrdering_ThrowsNotSupportedException(int? lastAmount)
+    {
+        // Arrange - ordered by status with the keyset in a ThenByDescending: rejected on the first page too
+        var spec = new AmountKeysetThenByMongoQuerySpec(lastAmount);
+
+        // Act & Assert
+        Should.Throw<NotSupportedException>(() => _builder.BuildFilter(spec));
+    }
+
     private static string Render(FilterDefinition<TestDocument> filter)
     {
         var registry = global::MongoDB.Bson.Serialization.BsonSerializer.SerializerRegistry;
@@ -815,7 +827,7 @@ public class ActiveMongoQuerySpec : QuerySpecification<TestDocument>
 }
 
 /// <summary>
-/// QuerySpecification with keyset pagination.
+/// QuerySpecification paging by amount, sorted ascending or descending.
 /// </summary>
 public class AmountKeysetMongoQuerySpec : QuerySpecification<TestDocument>
 {
@@ -834,6 +846,22 @@ public class AmountKeysetMongoQuerySpec : QuerySpecification<TestDocument>
     }
 }
 
+/// <summary>
+/// QuerySpecification sorted by status, then by amount descending, with the keyset on amount: not the primary ordering.
+/// </summary>
+public class AmountKeysetThenByMongoQuerySpec : QuerySpecification<TestDocument>
+{
+    public AmountKeysetThenByMongoQuerySpec(decimal? lastAmount)
+    {
+        ApplyOrderBy(d => d.Status);
+        ApplyThenByDescending(d => d.Amount);
+        ApplyKeysetPagination(d => d.Amount, lastAmount, 10);
+    }
+}
+
+/// <summary>
+/// QuerySpecification with keyset pagination.
+/// </summary>
 public class KeysetPaginatedMongoQuerySpec : QuerySpecification<TestDocument>
 {
     public KeysetPaginatedMongoQuerySpec(Guid lastId)

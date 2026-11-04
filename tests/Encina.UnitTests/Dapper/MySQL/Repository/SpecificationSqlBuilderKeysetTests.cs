@@ -62,6 +62,33 @@ public class SpecificationSqlBuilderKeysetTests
     }
 
     [Fact]
+    public void BuildWhereClause_WithoutKeysetPagination_HasNoKeysetFilter()
+    {
+        // Arrange
+        var builder = new SpecificationSqlBuilder<KeysetOrder>(_columnMappings);
+        var spec = new TotalOrderedWithoutKeysetSpec();
+
+        // Act
+        var (whereClause, _) = builder.BuildWhereClause(spec);
+
+        // Assert
+        whereClause.ShouldNotContain("Total");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(50)]
+    public void BuildWhereClause_KeysetNotThePrimaryOrdering_ThrowsNotSupportedException(int? lastTotal)
+    {
+        // Arrange - ordered by Id with the keyset in a ThenByDescending: rejected on the first page too
+        var builder = new SpecificationSqlBuilder<KeysetOrder>(_columnMappings);
+        var spec = new TotalKeysetThenBySpec(lastTotal);
+
+        // Act & Assert
+        Should.Throw<NotSupportedException>(() => builder.BuildWhereClause(spec));
+    }
+
+    [Fact]
     public void BuildSelectStatement_KeysetSortedDescending_FiltersInTheOrderDirection()
     {
         // Arrange
@@ -105,4 +132,25 @@ public class TotalKeysetPageSpec : QuerySpecification<KeysetOrder>
 
         ApplyKeysetPagination(total, lastTotal, 10);
     }
+}
+
+/// <summary>
+/// Page of orders sorted by id, then by total descending, with the keyset on total: not the primary ordering.
+/// </summary>
+public class TotalKeysetThenBySpec : QuerySpecification<KeysetOrder>
+{
+    public TotalKeysetThenBySpec(decimal? lastTotal)
+    {
+        ApplyOrderBy(o => o.Id);
+        ApplyThenByDescending(o => o.Total);
+        ApplyKeysetPagination(o => o.Total, lastTotal, 10);
+    }
+}
+
+/// <summary>
+/// Orders sorted by total, without keyset pagination.
+/// </summary>
+public class TotalOrderedWithoutKeysetSpec : QuerySpecification<KeysetOrder>
+{
+    public TotalOrderedWithoutKeysetSpec() => ApplyOrderByDescending(o => o.Total);
 }

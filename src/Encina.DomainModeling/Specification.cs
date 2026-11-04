@@ -452,10 +452,16 @@ public abstract class QuerySpecification<T> : Specification<T>, IQuerySpecificat
     /// <list type="bullet">
     ///   <item><description>Indexed for performance</description></item>
     ///   <item><description>Unique to avoid skipping/duplicating rows</description></item>
-    ///   <item><description>Ordered (the query will filter by <c>KeysetProperty &gt; LastKeyValue</c>, or by
-    ///   <c>KeysetProperty &lt; LastKeyValue</c> when the ordering sorts it descending; see
-    ///   <c>IsKeysetDescending</c> in <see cref="QuerySpecificationKeysetExtensions"/>)</description></item>
+    ///   <item><description>The primary ordering, set with <see cref="ApplyOrderBy"/> or <see cref="ApplyOrderByDescending"/>:
+    ///   the query filters by <c>KeysetProperty &gt; LastKeyValue</c>, or by <c>KeysetProperty &lt; LastKeyValue</c>
+    ///   when it is ordered descending (see <c>IsKeysetDescending</c> in <see cref="QuerySpecificationKeysetExtensions"/>)</description></item>
     /// </list>
+    /// </para>
+    /// <para>
+    /// A specification ordered by anything else first, or with the keyset property only in a <c>ThenBy</c>, is rejected
+    /// with <see cref="NotSupportedException"/> on every page, because a single-column keyset filter would skip or repeat rows.
+    /// With no ordering at all, the filter compares with <c>&gt;</c> as for an ascending keyset; order by the keyset property
+    /// so the rows of each page also come back in key order.
     /// </para>
     /// </remarks>
     /// <example>

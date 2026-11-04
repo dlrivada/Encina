@@ -530,16 +530,16 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration",
+      "reason": "Keyset pagination rule shared by every repository provider; pure logic over the specification, so unit and property tests can reach every branch",
       "targets": {
         "unit": 90,
-        "guard": 6,
-        "property": 90
+        "guard": 4,
+        "property": 84
       },
       "justifications": {
-        "unit": "Unit tests cover every branch: no keyset, ascending, descending, ThenBy and ThenByDescending, a keyset outside the ordering, other lambdas for the same member, nested paths and a non-member keyset (measured 100% with dotnet-coverage, because coverlet does not instrument Encina.DomainModeling locally).",
-        "guard": "Guard tests cover the null-specification check of IsKeysetDescending (measured 6.67% with dotnet-coverage).",
-        "property": "The property test runs IsKeysetDescending with the keyset as primary ordering or ThenBy in both directions (measured 93.33% with dotnet-coverage)."
+        "unit": "Unit tests cover every branch: no keyset, no ordering, ascending and descending primary orderings with and without secondary orderings, a keyset in ThenBy, ThenByDescending, both or outside the ordering (rejected), other lambdas for the same member, nested paths and a non-member keyset (measured 100% with dotnet-coverage, because coverlet does not instrument Encina.DomainModeling locally).",
+        "guard": "Guard tests cover the null-specification check of IsKeysetDescending, one line of the file (measured 4.76% with dotnet-coverage).",
+        "property": "The property tests run IsKeysetDescending with the keyset as primary ordering in both directions and with another primary ordering, which must be rejected; the unordered default is covered by unit tests (measured 85.71% with dotnet-coverage)."
       }
     },
     "Repository.cs": {

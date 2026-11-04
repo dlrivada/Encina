@@ -357,6 +357,18 @@ public class SpecificationEvaluatorTests : IDisposable
         results.Select(e => e.Amount).ShouldBe([200m, 100m]);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(300)]
+    public void GetQuery_WithKeysetNotThePrimaryOrdering_ThrowsNotSupportedException(int? lastAmount)
+    {
+        // Arrange - ordered by name with the keyset in a ThenByDescending: rejected on the first page too
+        var spec = new AmountKeysetThenBySpec(lastAmount, take: 10);
+
+        // Act & Assert
+        Should.Throw<NotSupportedException>(() => SpecificationEvaluator.GetQuery(_dbContext.TestEntities.AsQueryable(), spec));
+    }
+
     #endregion
 
     #region GetQuery (Projection) Tests
@@ -668,6 +680,19 @@ public class DescendingAmountKeysetSpec : QuerySpecification<TestEntity>
     public DescendingAmountKeysetSpec(decimal lastAmount, int take)
     {
         ApplyOrderByDescending(e => e.Amount);
+        ApplyKeysetPagination(e => e.Amount, lastAmount, take);
+    }
+}
+
+/// <summary>
+/// QuerySpecification sorted by name, then by amount descending, with the keyset on amount: not the primary ordering.
+/// </summary>
+public class AmountKeysetThenBySpec : QuerySpecification<TestEntity>
+{
+    public AmountKeysetThenBySpec(decimal? lastAmount, int take)
+    {
+        ApplyOrderBy(e => e.Name);
+        ApplyThenByDescending(e => e.Amount);
         ApplyKeysetPagination(e => e.Amount, lastAmount, take);
     }
 }

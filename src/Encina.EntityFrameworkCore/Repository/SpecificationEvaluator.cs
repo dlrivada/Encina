@@ -213,9 +213,18 @@ public static class SpecificationEvaluator
 
     private static IQueryable<T> ApplyKeysetPagination<T>(IQueryable<T> query, IQuerySpecification<T> querySpec)
         where T : class
-        => querySpec is { KeysetPaginationEnabled: true, KeysetProperty: { } keysetProperty, LastKeyValue: { } lastKeyValue }
-            ? ApplyKeysetFilter(query, keysetProperty, lastKeyValue, querySpec.IsKeysetDescending)
+    {
+        if (querySpec is not { KeysetPaginationEnabled: true, KeysetProperty: { } keysetProperty })
+        {
+            return query;
+        }
+
+        // Read on the first page too: it rejects a keyset property that is not the primary ordering
+        var descending = querySpec.IsKeysetDescending;
+        return querySpec.LastKeyValue is { } lastKeyValue
+            ? ApplyKeysetFilter(query, keysetProperty, lastKeyValue, descending)
             : query;
+    }
 
     private static IQueryable<T> ApplyPaging<T>(IQueryable<T> query, IQuerySpecification<T> querySpec)
         where T : class

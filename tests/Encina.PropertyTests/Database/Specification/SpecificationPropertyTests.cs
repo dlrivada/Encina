@@ -297,25 +297,12 @@ public sealed class SpecificationPropertyTests
     }
 
     [Property(MaxTest = 100)]
-    public bool Property_QuerySpecification_KeysetDirectionFollowsTheKeysetSortOrder(bool descending, bool keysetIsThenBy)
+    public bool Property_QuerySpecification_KeysetDirectionFollowsThePrimaryOrdering(bool descending, bool withSecondaryOrdering)
     {
-        // Property: the keyset pages in the direction its own column is sorted, whether that column is the
-        // primary ordering or a ThenBy, whatever the direction of the other column (#3154)
+        // Property: with the keyset column as the primary ordering, the keyset pages in that column's
+        // direction, whatever the direction of a secondary ordering on another column (#3154)
         var spec = new TestQuerySpecification();
-        if (keysetIsThenBy)
-        {
-            if (descending)
-            {
-                spec.TestApplyOrderBy(e => e.Name);
-                spec.TestApplyThenByDescending(e => e.Value);
-            }
-            else
-            {
-                spec.TestApplyOrderByDescending(e => e.Name);
-                spec.TestApplyThenBy(e => e.Value);
-            }
-        }
-        else if (descending)
+        if (descending)
         {
             spec.TestApplyOrderByDescending(e => e.Value);
         }
@@ -324,9 +311,55 @@ public sealed class SpecificationPropertyTests
             spec.TestApplyOrderBy(e => e.Value);
         }
 
+        if (withSecondaryOrdering && descending)
+        {
+            spec.TestApplyThenBy(e => e.Name);
+        }
+        else if (withSecondaryOrdering)
+        {
+            spec.TestApplyThenByDescending(e => e.Name);
+        }
+
         spec.TestApplyKeysetPagination(e => e.Value, 1, 10);
 
         return spec.IsKeysetDescending == descending;
+    }
+
+    [Property(MaxTest = 100)]
+    public bool Property_QuerySpecification_KeysetOutsideThePrimaryOrderingIsRejected(bool primaryDescending, bool keysetInThenBy, bool thenByDescending)
+    {
+        // Property: with another column as the primary ordering, keyset pagination is rejected, whether the
+        // keyset column is a ThenBy in either direction or not ordered at all; it never picks a direction (#3154)
+        var spec = new TestQuerySpecification();
+        if (primaryDescending)
+        {
+            spec.TestApplyOrderByDescending(e => e.Name);
+        }
+        else
+        {
+            spec.TestApplyOrderBy(e => e.Name);
+        }
+
+        if (keysetInThenBy && thenByDescending)
+        {
+            spec.TestApplyThenByDescending(e => e.Value);
+        }
+        else if (keysetInThenBy)
+        {
+            spec.TestApplyThenBy(e => e.Value);
+        }
+
+        spec.TestApplyKeysetPagination(e => e.Value, 1, 10);
+
+        try
+        {
+            _ = spec.IsKeysetDescending;
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return true;
+        }
     }
 
     #endregion
