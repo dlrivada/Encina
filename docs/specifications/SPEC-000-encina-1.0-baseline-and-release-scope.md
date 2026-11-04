@@ -187,8 +187,9 @@ Cloud items with a free local emulator are **in** 1.0 and are tested against it:
 | A payments abstraction | SPEC-002 DEC-003 | Gateways are vendor-shaped; the application keeps its own abstraction. |
 | Relational stores for the Marten-only compliance modules | SPEC-002 DEC-008 | These modules require PostgreSQL through Marten in 1.0. |
 | Lock backends Consul, etcd and ZooKeeper | #211, #212, #213 | Decided by the maintainer on 2026-10-23: they stay post-1.0. |
+| Administration web console (a user interface) | [#2972](https://github.com/dlrivada/Encina/issues/2972) D43, [admin surface spike](../engineering/admin-surface-spike-2972.md) | Decided by the maintainer on 2026-11-04: 1.0 ships the administration API only; the web console comes after 1.0 as a separate product on top of that API, not as an embedded dashboard. The administration API itself is in 1.0 (REQ-030). |
 
-Every item of this table is parked in the milestone "Post-1.0: Technical exclusions (ADR/SPEC)", among them #211, #212, #213 and #1639.
+Every item of this table except the administration web console is parked in the milestone "Post-1.0: Technical exclusions (ADR/SPEC)", among them #211, #212, #213 and #1639.
 
 The rules part of SPEC-002 REQ-011 (scenario S15), the Compliance Applicability Resolver (#686), the rule-based compliance DSL (#687) and `Encina.Compliance.OPA` (#688) are **not** listed in this section: the S15 rules are issue #2700 and all of them are in 1.0 (REQ-030, DEC-009 addendum of 2026-10-23), all in v0.17.0 — Compliance Lifecycle.
 
@@ -267,6 +268,7 @@ These are Class C. Agents have presented the options; the maintainer decides. On
 | [SPEC-002](SPEC-002-eu-regulatory-readiness.md) §2, §11.2 (SPEC-002 DEC-001, DEC-009, DEC-011, DEC-012, DEC-014 – DEC-016) and SPEC-002 AC-040 | §2, §5, §6, REQ-024, REQ-026, REQ-029, INV-004, DEC-007 |
 | #1991, #583 (maintainer decision 2026-10-07) | §6, DEC-008 |
 | #2692 (maintainer decision 2026-10-23), `artifacts/scope/post-1.0-review-2026-10-23.md`, `artifacts/scope/post-1.0-cut-2026-10-23.md` | §2, §6, REQ-026, REQ-027, REQ-030, AC-030, DEC-009 |
+| #2972 D43 (maintainer decision 2026-11-04), [admin surface spike](../engineering/admin-surface-spike-2972.md) | §6.2 |
 
 ## 11. Change log
 
@@ -279,3 +281,4 @@ These are Class C. Agents have presented the options; the maintainer decides. On
 | 2026-10-07 | DEC-008 decided by the maintainer: the dead letter queue enters 1.0 complete. #583 (persistent `IDeadLetterStore` for the 10 database-matrix providers) moves from post-1.0 to v0.19.0 — Providers & Testing as p0; #1991 wires the five `IntegrateWith*` sources afterward. §6 no longer lists #583 as a non-goal; #584–#589 stay post-1.0 (superseded by DEC-009 on 2026-10-23). |
 | 2026-10-23 | DEC-009 decided by the maintainer (#2692): the 1.0 scope widens to everything previously deferred except AI/LLM integration and deliverables tied to a cloud service with no free local emulator (milestone "Post-1.0: Cloud services without a local emulator"). Supersedes the exclusions of DEC-002, DEC-003, DEC-007 and DEC-008, REQ-026, REQ-027 (lock count), AC-026 and AC-027; AC-028 reworded. New REQ-030 and AC-030. §6 becomes the single "Out of 1.0" list (scope exclusions and re-confirmed technical exclusions); the earlier non-goals are kept as history in §6.4. The lock set is seven providers (Azure Blob and DynamoDB enter); Consul, etcd and ZooKeeper stay post-1.0. §8 and §10 gain rows. |
 | 2026-10-23 | DEC-009 addendum (#2692): the rules part of SPEC-002 REQ-011 (S15) and #686, #687, #688 enter 1.0 in v0.17.0, order #686, #687, S15 rules, #688. REQ-029 and §6.4 mark the earlier exclusion superseded. §6.1 adds #2693, #2694, #2696 and #2698 to the cloud milestone; §6.2 names its parking milestone "Post-1.0: Technical exclusions (ADR/SPEC)" and lists #1639 with the ADR-047 exclusion. |
+| 2026-11-04 | Amendment (#2972 D43, decided by the maintainer): §6.2 lists the administration web console as post-1.0. 1.0 ships the administration API only; the console is a separate product built on that API. The administration API stays in 1.0 (REQ-030). §10 gains a row. |
