@@ -192,7 +192,7 @@ function Test-ScriptWritesAreSafe {
     $sites = [System.Collections.Generic.List[object]]::new()
     $ranges = [System.Collections.Generic.List[object]]::new()
     $assign = @{}
-    $state = @{ CwdChanged = $false; ArrayCycles = 0 }
+    $state = @{ CwdChanged = $false }
     $memo = @{}
     $visiting = @{}
 
@@ -366,34 +366,48 @@ function Test-ScriptWritesAreSafe {
         return $null
     }
 
-    $arrayVisiting = @{}
-    $arrayMemo = @{}
+    # Whether an expression is or may hold an array. Cycle-safe and linear: the variables that may hold an array are
+    # computed once as a fixpoint over the assignment table (a variable may hold one when an assignment contains an
+    # array literal/expression or reads a variable that may), then each expression is a direct scan.
+    $arrayInfoMemo = @{}
+    $arrayHolder = @{ Set = $null }
+    function SwArrayInfo($Ast) {
+        $memoKey = "$($Ast.Extent.StartOffset):$($Ast.Extent.EndOffset):$($Ast.GetType().Name)"
+        if ($arrayInfoMemo.ContainsKey($memoKey)) { return $arrayInfoMemo[$memoKey] }
+        $direct = $false
+        $vars = [System.Collections.Generic.HashSet[string]]::new()
+        foreach ($n in (@($Ast) + @($Ast.FindAll({ param($a) $true }, $true)))) {
+            $t = $n.GetType().Name
+            if ($t -in 'ArrayLiteralAst', 'ArrayExpressionAst') { $direct = $true }
+            elseif ($t -eq 'VariableExpressionAst') { [void]$vars.Add((SwKey $n)) }
+        }
+        $info = [pscustomobject]@{ Direct = $direct; Vars = $vars }
+        $arrayInfoMemo[$memoKey] = $info
+        return $info
+    }
     function SwMayBeArray($Ast) {
         if ($null -eq $Ast) { return $false }
-        $memoKey = "$($Ast.Extent.StartOffset):$($Ast.Extent.EndOffset):$($Ast.GetType().Name)"
-        if ($arrayMemo.ContainsKey($memoKey)) { return $arrayMemo[$memoKey] }
-        $cyclesBefore = $state.ArrayCycles
-        $hitResult = SwMayBeArrayCore $Ast
-        # A result that skipped a variable already being visited (a cycle) may be premature, so it is not cached.
-        if ($state.ArrayCycles -eq $cyclesBefore) { $arrayMemo[$memoKey] = $hitResult }
-        return $hitResult
-    }
-    function SwMayBeArrayCore($Ast) {
-        $nodes2 = @($Ast) + @($Ast.FindAll({ param($a) $true }, $true))
-        foreach ($n in $nodes2) {
-            $t = $n.GetType().Name
-            if ($t -in 'ArrayLiteralAst', 'ArrayExpressionAst') { return $true }
-            if ($t -eq 'VariableExpressionAst') {
-                $key = SwKey $n
-                if ($arrayVisiting.ContainsKey($key)) { $state.ArrayCycles++; continue }
-                if (-not $assign.ContainsKey($key)) { continue }
-                $arrayVisiting[$key] = $true
-                $hit = $false
-                foreach ($entry in @($assign[$key])) { if ($null -ne $entry -and (SwMayBeArray $entry)) { $hit = $true; break } }
-                $arrayVisiting.Remove($key)
-                if ($hit) { return $true }
+        if ($null -eq $arrayHolder.Set) {
+            $set = [System.Collections.Generic.HashSet[string]]::new()
+            $changed = $true
+            while ($changed) {
+                $changed = $false
+                foreach ($key in @($assign.Keys)) {
+                    if ($set.Contains($key)) { continue }
+                    foreach ($entry in @($assign[$key])) {
+                        if ($null -eq $entry) { continue }
+                        $i = SwArrayInfo $entry
+                        $hit = $i.Direct
+                        if (-not $hit) { foreach ($v in $i.Vars) { if ($set.Contains($v)) { $hit = $true; break } } }
+                        if ($hit) { [void]$set.Add($key); $changed = $true; break }
+                    }
+                }
             }
+            $arrayHolder.Set = $set
         }
+        $info = SwArrayInfo $Ast
+        if ($info.Direct) { return $true }
+        foreach ($v in $info.Vars) { if ($arrayHolder.Set.Contains($v)) { return $true } }
         return $false
     }
 

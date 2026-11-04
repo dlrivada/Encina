@@ -506,6 +506,7 @@ $ps1Scripts = [ordered]@{
 # B2: a chain of reused variables (each doubling the previous) writing under src/ must be judged quickly and denied.
 $expLines = @('$v0 = "x"') + @(1..14 | ForEach-Object { "`$v$_ = `$v$($_ - 1) + `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\src\' + `$v14) -Value 1")
 $ps1Scripts['ExpChainSrc'] = ($expLines -join "`n") + "`n"
+$ps1Scripts['ExpChainCycleSrc'] = (@('$v0 = "x"', '$v0 = $v0 + "y"') + $expLines[1..($expLines.Count - 1)] -join "`n") + "`n"
 $ps1ScriptPath = @{}
 foreach ($name in $ps1Scripts.Keys) {
     $ps1ScriptPath[$name] = Join-Path $work "ps1-$name.ps1"
@@ -1059,7 +1060,10 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.JunctionThenWrite)'" }, $main, $null, 2, 'main session (#2892): junction into src/ then a write through it: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.MoveSourceSrc)'" }, $main, $null, 2, 'main session (#2892): Move-Item whose source is under src/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UnknownWithSrc)'" }, $main, $null, 2, 'main session (#2892): call-operator cmdlet name writing src/: denied'),
-    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UnresolvedPlusGit)'" }, $main, $null, 2, 'main session (#2892): unresolved target next to an unknown command: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UnresolvedPlusGit)'" }, $main, $null, 2, 'main session (#2892): unresolved target next to an unknown command, script names src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out 'x.json'" }, "$main\src", $null, 2, 'main session (#2892): a param-bound relative target launched from a cwd under src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out 'x.json'" }, "$main\tests", $null, 2, 'main session (#2892): a param-bound relative target launched from a cwd under tests/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainCycleSrc)'" }, $main, $null, 2, 'main session (#2892): a 14-level chain with a self-referencing accumulator at the bottom is judged and denied (B2, cycle)'),
     @('PowerShell', @{ command = "pwsh -NoProfile -WorkingDirectory '$main\src' -File '$($ps1ScriptPath.WorkingDirectoryRel)'" }, $main, $null, 2, 'main session (#2892): -WorkingDirectory src with a relative target: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)'" }, $main, $null, 0, 'main session (#2892): a param()-driven tool that never names src/ or tests/ is allowed'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainSrc)'" }, $main, $null, 2, 'main session (#2892): a 14-level chain of reused variables writing src/ is judged and denied within the hook timeout (B2)'),
