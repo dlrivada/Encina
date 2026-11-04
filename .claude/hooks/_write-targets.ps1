@@ -364,8 +364,16 @@ function Test-ScriptWritesAreSafe {
     }
 
     $arrayVisiting = @{}
+    $arrayMemo = @{}
     function SwMayBeArray($Ast) {
         if ($null -eq $Ast) { return $false }
+        $memoKey = "$($Ast.Extent.StartOffset):$($Ast.Extent.EndOffset):$($Ast.GetType().Name)"
+        if ($arrayMemo.ContainsKey($memoKey)) { return $arrayMemo[$memoKey] }
+        $hitResult = SwMayBeArrayCore $Ast
+        $arrayMemo[$memoKey] = $hitResult
+        return $hitResult
+    }
+    function SwMayBeArrayCore($Ast) {
         $nodes2 = @($Ast) + @($Ast.FindAll({ param($a) $true }, $true))
         foreach ($n in $nodes2) {
             $t = $n.GetType().Name
@@ -1183,7 +1191,19 @@ function Get-ShellWrites {
             }
         }
         elseif ($name -in 'pwsh', 'powershell', 'pwsh-preview') {
-            $fileToken = Get-NamedArgument $tokens ($k + 1) @('-file')
+            $fileToken = Get-NamedArgument $tokens ($k + 1) @('-file', '-f', '-fi', '-fil')
+            if ($null -eq $fileToken -and -not (Test-NamedArgument $tokens ($k + 1) @('-command', '-c', '-commandwithargs', '-cwa', '-encodedcommand', '-ec', '-e'))) {
+                # `pwsh [options] script.ps1`: the first positional argument is the script (skip values of the options that take one).
+                for ($pi = $k + 1; $pi -lt $tokens.Count; $pi++) {
+                    $pt = $tokens[$pi]
+                    if (-not $pt.Quoted -and $pt.Value.StartsWith('-')) {
+                        if ($pt.Value -match '^(?i)-(workingdirectory|wd|executionpolicy|ep|configurationname|config|custompipename|settingsfile|settings|inputformat|if|outputformat|of|windowstyle|w)$') { $pi++ }
+                        continue
+                    }
+                    if ($pt.Value -match '(?i)\.ps1$') { $fileToken = $pt }
+                    break
+                }
+            }
             if ($null -ne $fileToken) {
                 # #2892: -WorkingDirectory changes where the script's relative targets resolve; an unresolvable one leaves Base unknown.
                 $scriptBase = $current
