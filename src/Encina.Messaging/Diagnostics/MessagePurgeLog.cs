@@ -66,11 +66,11 @@ internal static partial class MessagePurgeLog
         string pattern,
         Exception exception);
 
-    /// <summary>Logs when a store returned a batch whose ids the previous batch already tried to remove; the cycle ends.</summary>
+    /// <summary>Logs when a store returned a batch whose ids this cycle already tried to remove in an earlier batch; the cycle ends.</summary>
     [LoggerMessage(
         EventId = 2112,
         Level = LogLevel.Warning,
-        Message = "Message purge for {Pattern} made no progress: a batch of up to {BatchSize} repeated the ids of the previous one, the cycle ends and the next interval runs normally")]
+        Message = "Message purge for {Pattern} made no progress: a batch of up to {BatchSize} contained only ids already tried in this cycle, the cycle ends and the next interval runs normally")]
     internal static partial void NoProgress(
         ILogger logger,
         string pattern,
