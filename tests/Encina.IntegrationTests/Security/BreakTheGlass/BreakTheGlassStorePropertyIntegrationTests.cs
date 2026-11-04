@@ -1,6 +1,6 @@
-using Encina.EntityFrameworkCore.BreakTheGlass;
 using Encina.ADO.SqlServer.BreakTheGlass;
 using Encina.Dapper.SqlServer.BreakTheGlass;
+using Encina.EntityFrameworkCore.BreakTheGlass;
 using Encina.Security.BreakTheGlass;
 using Encina.TestInfrastructure.Fixtures;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
