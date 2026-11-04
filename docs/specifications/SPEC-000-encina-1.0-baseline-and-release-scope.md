@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Status** | 🟢 APPROVED (amended 2026-10-23) — DEC-001 … DEC-006 decided by the maintainer on 2026-09-21; DEC-007 (the scope widened by SPEC-002) decided on 2026-09-24; DEC-008 (the dead letter queue enters 1.0 complete) decided on 2026-10-07; **DEC-009 (the scope widened to everything except AI/LLM and cloud services without a local emulator) decided on 2026-10-23**, which supersedes the exclusions of DEC-002, DEC-003, DEC-007 and DEC-008 |
+| **Status** | 🟢 APPROVED (amended 2026-11-04) — DEC-001 … DEC-006 decided by the maintainer on 2026-09-21; DEC-007 (the scope widened by SPEC-002) decided on 2026-09-24; DEC-008 (the dead letter queue enters 1.0 complete) decided on 2026-10-07; **DEC-009 (the scope widened to everything except AI/LLM and cloud services without a local emulator) decided on 2026-10-23**, which supersedes the exclusions of DEC-002, DEC-003, DEC-007 and DEC-008 |
 | **Author** | Specifier (Claude), from `docs/engineering/PHASE0-BASELINE.md`; amendment of 2026-09-24 from [SPEC-002](SPEC-002-eu-regulatory-readiness.md) §11.2; amendment of 2026-10-23 recorded from the maintainer's decision (#2692) |
-| **Date** | 2026-09-21; amended 2026-09-24, 2026-10-07 and 2026-10-23 |
+| **Date** | 2026-09-21; amended 2026-09-24, 2026-10-07, 2026-10-23 and 2026-11-04 |
 | **Evidence** | `PHASE0-BASELINE.md` (2026-09-21); [SPEC-002 — EU Regulatory Readiness](SPEC-002-eu-regulatory-readiness.md) (2026-09-24); the post-1.0 scope review and cut of 2026-10-23 (`artifacts/scope/post-1.0-review-2026-10-23.md`, `artifacts/scope/post-1.0-cut-2026-10-23.md`, local working files) |
 | **Supersedes** | — (DEC-009 supersedes parts of this document's own earlier decisions; superseded text is kept and marked) |
 
@@ -139,7 +139,7 @@ Identifiers are stable. Each requirement has at least one acceptance criterion i
 | AC-027 | REQ-027 | #207, #208 closed and the Memcached scope of #277 delivered; contract tests cover the 8 caches and the 7 locks (InMemory, Redis, SqlServer, PostgreSQL, MySQL, Azure Blob, DynamoDB; the last two against Azurite and LocalStack or DynamoDB Local); #209 and #210 closed; the `AGENTS.md` §5 lock table marks exactly those seven as in the 1.0 scope and Consul, etcd and ZooKeeper as post-1.0, and both provider tables match `src/`. **Superseded by DEC-009 (2026-10-23):** the original criterion covered 5 locks and listed Azure Blob and DynamoDB as post-1.0. |
 | AC-028 | REQ-028 | #205 is in the milestone "Post-1.0: Cloud services without a local emulator"; `AGENTS.md` §5 cloud section lists AWS + Azure with GCP deferred. |
 | AC-029 | REQ-029 | On the release-candidate commit, SPEC-002 AC-001 – SPEC-002 AC-044 hold; the PracticeManagement reference scenario is green in CI Full with tenancy on (SPEC-002 AC-038); the SPEC-002 EPIC is closed. |
-| AC-030 | REQ-030 | At tag time the only post-1.0 milestones are "Post-1.0: AI/LLM Integration", "Post-1.0: Cloud services without a local emulator" and "Post-1.0: Technical exclusions (ADR/SPEC)"; every issue in them is listed in §6, every issue listed in §6.1 sits in one of the first two, every item of §6.2 is either a technical exclusion that cites its ADR or SPEC or (the Consul, etcd and ZooKeeper locks, #211–#213) a maintainer exclusion recorded in DEC-009, and the issues of §6.2 (#211–#213 and #1639 among them) are parked in the third, and no issue listed in §6 sits in a 1.0 milestone. The cloud items in 1.0 have integration tests that run against their local emulator in CI. |
+| AC-030 | REQ-030 | At tag time the only post-1.0 milestones are "Post-1.0: AI/LLM Integration", "Post-1.0: Cloud services without a local emulator" and "Post-1.0: Technical exclusions (ADR/SPEC)"; every issue in them is listed in §6, every issue listed in §6.1 sits in one of the first two, every item of §6.2 is either a technical exclusion that cites its ADR or SPEC or (the Consul, etcd and ZooKeeper locks, #211–#213) a maintainer exclusion recorded in DEC-009, or the administration web console, a maintainer exclusion decided in #2972 D43 (2026-11-04) that has no issue parked in the third milestone, and the issues of §6.2 (#211–#213 and #1639 among them) are parked in the third, and no issue listed in §6 sits in a 1.0 milestone. The cloud items in 1.0 have integration tests that run against their local emulator in CI. |
 
 ## 5. Constraints
 
@@ -170,7 +170,7 @@ Since DEC-009 (2026-10-23) this section, and only this section, lists what is ou
 
 Cloud items with a free local emulator are **in** 1.0 and are tested against it: locks #209 (Azure Blob, Azurite) and #210 (DynamoDB, LocalStack or DynamoDB Local), transports #237 (Google Cloud Pub/Sub emulator), #238 (EventBridge, LocalStack), #611 (Event Hubs emulator) and #612 (Kinesis, LocalStack), and the cloud-backed stores (for example #578, #579, #588, #589, #598, #600).
 
-### 6.2 Out of 1.0 by technical decision (re-confirmed 2026-10-23)
+### 6.2 Out of 1.0 by technical decision (re-confirmed 2026-10-23; amended 2026-11-04)
 
 | Item | Source | Reason |
 |---|---|---|
