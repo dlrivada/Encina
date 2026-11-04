@@ -55,7 +55,30 @@ public sealed class EncryptedFieldUnreadableTests
         }
 
         decrypt.Message.ShouldBe(projected.Message);
+
+        // The non-throwing read reports the same reason and returns no text.
+        field.TryDecrypt(key, out var plaintext, out var tryReason).ShouldBeFalse();
+        tryReason.ShouldBe(reason);
+        plaintext.ShouldBeNull();
+
         return decrypt;
+    }
+
+    [Fact]
+    public void TryDecrypt_ValidEnvelope_ReturnsPlaintext()
+    {
+        var key = NewKey();
+        var field = EncryptedField.Encrypt(Plaintext, key, KeyId);
+
+        field.TryDecrypt(key, out var plaintext, out _).ShouldBeTrue();
+        plaintext.ShouldBe(Plaintext);
+    }
+
+    [Fact]
+    public void TryDecrypt_NullValue_SucceedsWithNull()
+    {
+        new EncryptedField().TryDecrypt(NewKey(), out var plaintext, out _).ShouldBeTrue();
+        plaintext.ShouldBeNull();
     }
 
     [Fact]
