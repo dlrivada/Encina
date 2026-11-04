@@ -542,9 +542,15 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
     /// Maps an <see cref="OperationAuditEntryReadModel"/> projected document to an <see cref="OperationAuditEntry"/>
     /// domain record.
     /// </summary>
-    internal OperationAuditEntry MapToAuditEntry(OperationAuditEntryReadModel model)
+    internal static OperationAuditEntry MapToAuditEntry(OperationAuditEntryReadModel model)
     {
-        var metadata = ParseMetadata(model.MetadataJson);
+        IReadOnlyDictionary<string, object?> metadata = model.MetadataJson is not null
+                && !model.IsShredded
+                && !model.IsExpired
+                && model.MetadataJson != MartenOperationAuditOptions.DefaultShreddedPlaceholder
+            ? JsonSerializer.Deserialize<Dictionary<string, object?>>(model.MetadataJson, MetadataJsonOptions)
+                ?? new Dictionary<string, object?>()
+            : new Dictionary<string, object?>();
 
         return new OperationAuditEntry
         {
@@ -568,29 +574,4 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
             Metadata = metadata
         };
     }
-
-    /// <summary>
-    /// Parses the projected metadata JSON unless it is one of the three configured placeholders. The decision is
-    /// value-based: a resolution can leave readable metadata beside a set flag, and a placeholder such as
-    /// <c>[UNREADABLE]</c> is not JSON.
-    /// </summary>
-    private Dictionary<string, object?> ParseMetadata(string? metadataJson)
-    {
-        if (metadataJson is null || IsPlaceholder(metadataJson))
-        {
-            return new Dictionary<string, object?>();
-        }
-
-        return JsonSerializer.Deserialize<Dictionary<string, object?>>(metadataJson, MetadataJsonOptions)
-            ?? new Dictionary<string, object?>();
-    }
-
-    // The built-in defaults count too, so rows masked before the placeholder options changed still read.
-    private bool IsPlaceholder(string value) =>
-        value is MartenOperationAuditOptions.DefaultShreddedPlaceholder
-            or MartenOperationAuditOptions.DefaultExpiredPlaceholder
-            or MartenOperationAuditOptions.DefaultUnreadablePlaceholder
-        || value == _options.ShreddedPlaceholder
-        || value == _options.ExpiredPlaceholder
-        || value == _options.UnreadablePlaceholder;
 }

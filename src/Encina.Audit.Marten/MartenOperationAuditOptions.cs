@@ -209,8 +209,8 @@ public sealed class MartenOperationAuditOptions
     /// Distinct from <see cref="ShreddedPlaceholder"/> (a recorded erasure request) and
     /// <see cref="ExpiredPlaceholder"/> (a recorded retention expiry): it stands for stored data that cannot be read
     /// and that an operator acknowledged in an audited resolution. The three placeholders must differ from any value a
-    /// field can legitimately hold, because the query stores treat a metadata value equal to one of them as a
-    /// placeholder, not as JSON.
+    /// field can legitimately hold. The read models flag a masked entry with <c>IsUnreadable</c>; the query stores do
+    /// not infer masking from a field's text (a persisted metadata-masked flag arrives in a later phase of #3049).
     /// </remarks>
     /// <value>Defaults to <c>"[UNREADABLE]"</c>.</value>
     public string UnreadablePlaceholder { get; set; } = DefaultUnreadablePlaceholder;

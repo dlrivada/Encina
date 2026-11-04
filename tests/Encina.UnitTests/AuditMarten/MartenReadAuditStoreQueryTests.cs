@@ -47,12 +47,11 @@ public sealed class MartenReadAuditStoreQueryTests
     private static IQueryable<ReadAuditEntryReadModel> Filter(ReadAuditQuery query)
         => MartenReadAuditStore.ApplyQueryFilters(Corpus().AsQueryable(), query);
 
-    private static (MartenReadAuditStore Store, FakeLogger<MartenReadAuditStore> Logger, IDocumentSession Session) CreateStore(
-        MartenOperationAuditOptions? auditOptions = null)
+    private static (MartenReadAuditStore Store, FakeLogger<MartenReadAuditStore> Logger, IDocumentSession Session) CreateStore()
     {
         var session = Substitute.For<IDocumentSession>();
         var keyProvider = new InMemoryTemporalKeyProvider(TimeProvider.System, NullLogger<InMemoryTemporalKeyProvider>.Instance);
-        var options = Options.Create(auditOptions ?? new MartenOperationAuditOptions());
+        var options = Options.Create(new MartenOperationAuditOptions());
         var encryptor = new AuditEventEncryptor(keyProvider, options, NullLogger<AuditEventEncryptor>.Instance);
         var logger = new FakeLogger<MartenReadAuditStore>();
         return (new MartenReadAuditStore(session, encryptor, keyProvider, options, logger), logger, session);
@@ -140,7 +139,7 @@ public sealed class MartenReadAuditStoreQueryTests
     {
         var model = ReadModel("{\"key\":\"value\"}");
 
-        var entry = CreateStore().Store.MapToReadAuditEntry(model);
+        var entry = MartenReadAuditStore.MapToReadAuditEntry(model);
 
         entry.Id.ShouldBe(model.Id);
         entry.UserId.ShouldBe("alice");
@@ -158,7 +157,7 @@ public sealed class MartenReadAuditStoreQueryTests
     [Fact]
     public void MapToReadAuditEntry_WithoutMetadata_ReturnsEmptyMetadata()
     {
-        CreateStore().Store.MapToReadAuditEntry(ReadModel(null)).Metadata.ShouldBeEmpty();
+        MartenReadAuditStore.MapToReadAuditEntry(ReadModel(null)).Metadata.ShouldBeEmpty();
     }
 
     [Fact]
@@ -166,57 +165,12 @@ public sealed class MartenReadAuditStoreQueryTests
     {
         var model = ReadModel(MartenOperationAuditOptions.DefaultShreddedPlaceholder);
 
-        CreateStore().Store.MapToReadAuditEntry(model).Metadata.ShouldBeEmpty();
-    }
-
-    [Fact]
-    public void MapToReadAuditEntry_WithUnreadableMetadataPlaceholder_DoesNotThrowAndReturnsEmptyMetadata()
-    {
-        var model = ReadModel(MartenOperationAuditOptions.DefaultUnreadablePlaceholder);
-        model.IsUnreadable = true;
-
-        var entry = CreateStore().Store.MapToReadAuditEntry(model);
-
-        entry.UserId.ShouldBe("alice");
-        entry.Metadata.ShouldBeEmpty();
-    }
-
-    [Fact]
-    public void MapToReadAuditEntry_WithShreddedFlagButReadableMetadata_KeepsTheMetadata()
-    {
-        var model = ReadModel("{\"key\":\"value\"}");
-        model.IsShredded = true;
-
-        CreateStore().Store.MapToReadAuditEntry(model).Metadata.ShouldContainKey("key");
-    }
-
-    [Fact]
-    public void MapToReadAuditEntry_WithCustomPlaceholders_SkipsThemByValue()
-    {
-        var (store, _, _) = CreateStore(new MartenOperationAuditOptions { ExpiredPlaceholder = "<gone>" });
-
-        store.MapToReadAuditEntry(ReadModel("<gone>")).Metadata.ShouldBeEmpty();
-    }
-
-    [Theory]
-    [InlineData("[SHREDDED]")]
-    [InlineData("[EXPIRED]")]
-    [InlineData("[UNREADABLE]")]
-    public void MapToReadAuditEntry_RowsMaskedWithDefaultsStillRead_AfterPlaceholderOptionsChange(string stored)
-    {
-        var (store, _, _) = CreateStore(new MartenOperationAuditOptions
-        {
-            ShreddedPlaceholder = "<s>",
-            ExpiredPlaceholder = "<e>",
-            UnreadablePlaceholder = "<u>"
-        });
-
-        store.MapToReadAuditEntry(ReadModel(stored)).Metadata.ShouldBeEmpty();
+        MartenReadAuditStore.MapToReadAuditEntry(model).Metadata.ShouldBeEmpty();
     }
 
     [Fact]
     public void MapToReadAuditEntry_WithJsonNullMetadata_ReturnsEmptyMetadata()
     {
-        CreateStore().Store.MapToReadAuditEntry(ReadModel("null")).Metadata.ShouldBeEmpty();
+        MartenReadAuditStore.MapToReadAuditEntry(ReadModel("null")).Metadata.ShouldBeEmpty();
     }
 }
