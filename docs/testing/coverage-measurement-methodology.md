@@ -279,6 +279,60 @@ dotnet run --file .github/scripts/check-target-ratchet.cs -- --self-test
 
 `--self-test` runs the built-in cases. `--no-label-lookup` skips the `gh` call; `--assume-label` pretends the label is present. Both are test flags.
 
+### Honesty audit
+
+The honesty audit looks for places where the coverage numbers could look better than the tests deserve: targets set to zero, justification files where a test type is forbidden, contract tests that run no product code, and justification text that is copied instead of written. `.github/scripts/honesty-audit.cs` is a C# 14 file-based app that only reads files. It does not build and does not run tests. Figures are never copied into this page: the generated `report.json` holds the current counts and `.github/honesty-audit-baseline.json` holds the accepted ones.
+
+#### What is counted
+
+| Check | What it counts | Effect on the run |
+| --- | --- | --- |
+| H1 zero targets | Per-file flag targets equal to `0` in `.github/coverage-manifest/*.json`. | Informational only: the total is reported and never fails the run. A gating rule for zeros in files that have executable lines waits for the classifier of #2890. |
+| H2 justification files | `.md` files under `tests/` with a `Status: Not Implemented` line, per test project. The match is case-insensitive and the line is a heading, a plain line or a bold `**Status**:` line, always at the start of the line (a mention in the middle of a sentence does not count). "Forbidden" are those in `Encina.UnitTests`, `Encina.GuardTests` or `Encina.ContractTests`, where [AGENTS.md section 9](../../AGENTS.md) never allows a justification. "Stale candidates" are benchmark or load-test files whose every named package already has that test type (a proxy: the package name appears in the project's `.cs` files). | Only the forbidden count gates. The total and the stale candidates are reported. |
+| H3 contract tests without product code | Files of `tests/Encina.ContractTests` that contain `[Fact]` or `[Theory]` and none of the tokens that mean product code runs: `new`, `Create...(`, `await`, `Substitute.For`, `BuildServiceProvider`, `GetRequiredService`, `.Invoke(`, `.Compute(`, `.Validate...(`. Comments and quoted text are removed first; the code inside interpolation holes stays code. This is the heuristic of issue #1749. | Both the number of files and the number of attributes gate. |
+| H4 justification strings | Total, distinct and most repeated justification strings in the manifests. | Reported only. Format validation belongs to #2844. |
+
+H3 is a heuristic ratchet, not proof. Any `new`, `await` or `.Validate(` removes a file from the count, even a `where T : new()` constraint. Only `[Fact]` and `[Theory]` are counted, and only `tests/Encina.ContractTests` is scanned. A file that is not flagged may still run no product code, and a flagged file is not proven to run none.
+
+A reflection-only contract test executes no package code, so it contributes no contract coverage (see the rule that tests execute real package code in [AGENTS.md section 9](../../AGENTS.md)).
+
+#### The baseline is a strict ratchet
+
+`.github/honesty-audit-baseline.json` holds the accepted ceiling of each gating count (H2 forbidden files, H3 files and H3 attributes) and the accepted items of the file counts. It also has an `h1` entry with a null ceiling, ready for when H1 gates.
+
+The run exits 1 when any of these holds, and exits 0 only when the gating state equals the baseline:
+
+- A gating count is above its ceiling. The summary lists the first 20 new items.
+- An item is not in the baseline, even when the count is equal (a swap).
+- A gating count is below its ceiling, or an accepted item no longer occurs. The summary reports `IMPROVED: lower the baseline in .github/honesty-audit-baseline.json`.
+
+The pull request that fixes drift regenerates the file with `--print-baseline` and commits it in the same change. A run never raises a ceiling. A deliberate rise is meant to be accepted only through a pull request that raises the baseline and carries the maintainer's label, as the target ratchet does with `target-change-approved`; the script does not enforce that label rule yet, it is tracked by #3134 (not implemented yet). There is no dispatch input to silence a run.
+
+#### Run it locally
+
+From the repository root:
+
+```powershell
+dotnet run --file .github/scripts/honesty-audit.cs -- --output artifacts/honesty-audit/report.json --baseline .github/honesty-audit-baseline.json
+dotnet run --file .github/scripts/honesty-audit.cs -- --self-test
+dotnet run --file .github/scripts/honesty-audit.cs -- --print-baseline
+```
+
+Add `--summary <file>` to also write the Markdown summary. `--baseline <file>` is mandatory: without it the run exits 2, unless you pass `--print-baseline` or the explicit `--no-baseline` (report only, exit 0). Exit codes:
+
+- 0: the state equals the baseline (or `--no-baseline`, or `--print-baseline`).
+- 1: a gating count is above or below its ceiling, or an item is new or gone (see the strict ratchet above).
+- 2: invalid arguments, a missing `--baseline` or a repository root that cannot be found; a baseline that is unreadable, invalid, lacks the ceiling of a gating check, or has a null section or a null items list; a missing `src/`, `tests/` or `tests/Encina.ContractTests` directory (missing evidence is an error, never an improvement); an unreadable or malformed manifest; an output file that cannot be written.
+
+The weekly workflow `honesty-audit.yml` (Monday 06:47 UTC and manual dispatch) is not wired yet: it is added by the maintainer's follow-up, and until then you run the script by hand. Once added, it will publish `report.json` and a run history to the `dashboard-data` branch under `honesty-audit/`.
+
+#### Read a drift and fix it
+
+Open the job summary or `report.json` and find the check that is above its ceiling.
+
+- **H2 forbidden:** move the content to the right place, or delete the file when the test type is now implemented. Never justify a unit, guard or contract gap.
+- **H3:** change the flagged contract test so that it instantiates and calls a real implementation, then regenerate the baseline with `--print-baseline` in the same pull request.
+
 ### Per-package targets
 
 Each manifest declares per-flag coverage targets in its `targets` section:
