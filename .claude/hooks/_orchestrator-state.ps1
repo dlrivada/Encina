@@ -30,7 +30,7 @@ function Get-OrchestratorBudgetDay([datetime]$NowUtc) {
 function Get-OrchestratorBudget([double]$StartPercent, [datetime]$NowUtc, $CapPercent = $null, $StopPercent = $null) {
     $day = Get-OrchestratorBudgetDay $NowUtc
     if ($null -ne $CapPercent) { $cap = [double]$CapPercent }
-    elseif ($null -ne $StopPercent) { $cap = [double]$StopPercent + 2 }
+    elseif ($null -ne $StopPercent) { $cap = [math]::Min(100, [double]$StopPercent + 2) }
     else {
         $share = [math]::Floor((100 - $StartPercent) / (7 - $day.Index))
         $cap = [math]::Min(100, $StartPercent + $share)

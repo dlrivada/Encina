@@ -1,6 +1,6 @@
 # UserPromptSubmit hook, wired in .claude/settings.json (#2516): a session the maintainer marked as the
 # orchestrator (tools/ai/orchestrator-mode.ps1 -On) gets a reminder of at most 3 lines on every prompt: what
-# the orchestrator keeps, what it delegates, and the budget pace of the day.
+# the orchestrator keeps, what it delegates, and the budget of the day.
 #
 # Silent (exit 0, no output) for an unmarked session, for a payload with agent_id (a subagent) and on any error
 # reading the payload or the state: a reminder must never block a prompt. There is no bypass flag.
