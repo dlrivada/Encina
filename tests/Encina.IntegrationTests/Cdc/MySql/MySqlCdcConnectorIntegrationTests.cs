@@ -35,16 +35,34 @@ public sealed class MySqlCdcConnectorIntegrationTests
 
     public static TheoryData<string> Servers => new() { MySqlCdcFixture.Server84, MySqlCdcFixture.Server9 };
 
-    private MySqlCdcConnector CreateConnector(string serverKey)
+    private static async Task<Exception?> ObserveFaultAsync(Task task)
     {
-        var server = _fixture.GetServer(serverKey);
+        try
+        {
+            await task;
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected: the inserter stops when the stream is cancelled.
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex;
+        }
+    }
+
+    private async Task<MySqlCdcConnector> CreateConnectorAsync(string serverKey)
+    {
+        var server = await _fixture.GetServerAsync(serverKey);
         var options = new MySqlCdcOptions
         {
             ConnectionString = server.ConnectionString,
             Hostname = server.Host,
             Port = server.Port,
-            Username = "cdc_user",
-            Password = "cdc_Password1!",
+            Username = MySqlCdcFixture.ReplicationUser,
+            Password = MySqlCdcFixture.ReplicationPassword,
             ServerId = Interlocked.Increment(ref _nextServerId),
             AllowLocalEndpoints = true,
         };
@@ -70,7 +88,7 @@ public sealed class MySqlCdcConnectorIntegrationTests
     [MemberData(nameof(Servers))]
     public async Task GetCurrentPositionAsync_RealServer_ReturnsBinlogFileAndPosition(string serverKey)
     {
-        var connector = CreateConnector(serverKey);
+        var connector = await CreateConnectorAsync(serverKey);
 
         var result = await connector.GetCurrentPositionAsync(TestContext.Current.CancellationToken);
 
@@ -86,7 +104,7 @@ public sealed class MySqlCdcConnectorIntegrationTests
     {
         var ct = TestContext.Current.CancellationToken;
         await _fixture.ResetAsync(serverKey, ct);
-        var connector = CreateConnector(serverKey);
+        var connector = await CreateConnectorAsync(serverKey);
         var before = ShouldBePosition(await connector.GetCurrentPositionAsync(ct));
 
         await _fixture.ExecuteAsync(serverKey, "INSERT INTO cdc_orders (id, name) VALUES (1, 'advance')", ct);
@@ -98,7 +116,7 @@ public sealed class MySqlCdcConnectorIntegrationTests
     [Fact]
     public async Task GetCurrentPositionAsync_BinaryLoggingDisabled_ReturnsLeft()
     {
-        var connector = CreateConnector(MySqlCdcFixture.ServerNoBinlog);
+        var connector = await CreateConnectorAsync(MySqlCdcFixture.ServerNoBinlog);
 
         var result = await connector.GetCurrentPositionAsync(TestContext.Current.CancellationToken);
 
@@ -114,7 +132,7 @@ public sealed class MySqlCdcConnectorIntegrationTests
     {
         var ct = TestContext.Current.CancellationToken;
         await _fixture.ResetAsync(serverKey, ct);
-        var connector = CreateConnector(serverKey);
+        var connector = await CreateConnectorAsync(serverKey);
 
         using var timeout = new CancellationTokenSource(Timeout);
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, ct);
@@ -132,6 +150,7 @@ public sealed class MySqlCdcConnectorIntegrationTests
         }, CancellationToken.None);
 
         ChangeEvent? received = null;
+        Exception? inserterFault = null;
         try
         {
             await foreach (var item in connector.StreamChangesAsync(cts.Token))
@@ -142,20 +161,21 @@ public sealed class MySqlCdcConnectorIntegrationTests
                 break;
             }
         }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            // The connector filters cancellation out of its error handling, so the timeout surfaces as a
+            // bare OperationCanceledException; the check below turns it into an explicit failure.
+        }
         finally
         {
             await cts.CancelAsync();
-            try
-            {
-                await inserter;
-            }
-            catch (OperationCanceledException)
-            {
-                // Expected: the inserter stops when the stream is cancelled.
-            }
+
+            // Record an inserter fault instead of throwing it: a failure already in flight must win.
+            inserterFault = await ObserveFaultAsync(inserter);
         }
 
-        received.ShouldNotBeNull("no change event arrived before the timeout");
+        inserterFault.ShouldBeNull($"The row inserter failed, so no change event could arrive: {inserterFault}");
+        received.ShouldNotBeNull($"No change event arrived within {Timeout.TotalSeconds:0} s.");
         received.TableName.ShouldBe($"{MySqlCdcFixture.DatabaseName}.cdc_orders");
         received.Operation.ShouldBe(ChangeOperation.Insert);
         received.Before.ShouldBeNull();
