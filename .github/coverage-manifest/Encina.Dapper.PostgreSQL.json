@@ -72,6 +72,23 @@
         "integration": "The integration tests on a real PostgreSQL database run every read audit query path, every filter and the stable-order paging (measured 89.93%); the uncovered lines are the catch blocks that turn a database failure into a store error for each method."
       }
     },
+    "BreakTheGlass/BreakTheGlassStoreDapper.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreDapper.cs",
+      "reason": "Dapper store with raw SQL — needs real database",
+      "targets": {
+        "unit": 25,
+        "guard": 5,
+        "integration": 95
+      },
+      "justifications": {
+        "unit": "BreakTheGlassPostgreSqlStoreTests covers the DI registration in both registration orders, the store_failed result of every method and the cancelled-call path of the PostgreSQL break-the-glass store, while the SQL itself needs a real database and is covered by the integration flag.",
+        "guard": "BreakTheGlassPostgreSqlStoreGuardTests rejects the null and out-of-range arguments of every public method and constructor; the rest of the file is SQL that only a database executes.",
+        "integration": "The shared BreakTheGlassStoreContract runs on the PostgreSQL Dapper collection fixture through BreakTheGlassStoreDapperPostgreSqlIntegrationTests, executing every method against a real database including the concurrent add, the review queue paging and the non-UTC session time zone fact."
+      }
+    },
     "BulkOperations/BulkOperationsDapper.cs": {
       "defaultTests": [
         "integration"
