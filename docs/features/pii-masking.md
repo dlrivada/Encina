@@ -254,7 +254,7 @@ services.AddEncinaPII(options =>
 | `AllowUnkeyedHash` | `bool` | `false` | Explicit opt-out that lets Hash run without a key using unkeyed SHA-256; logs one warning per service provider when the options are validated without a key |
 | `RegexTimeout` | `TimeSpan` | 100 ms | Match timeout for every custom regex (`Mask(value, pattern)` and `[PII(Pattern = ...)]`); must be greater than zero and shorter than about 24 days, checked by `PIIOptionsValidator`. An invalid pattern or a timeout masks the whole value (same length, mask characters), never returns it; a warning with only the pattern length is logged (EventId 8021) |
 | `MaskInResponses` | `bool` | `true` | Enable pipeline behavior for responses |
-| `MaskInLogs` | `bool` | `true` | Enable log-context masking (`MaskForLog`, used by `PIILoggerExtensions`), including `[MaskInLogs]`. `false` is an explicit opt-out: `MaskForLog` returns the object unmasked and one warning is logged per process (EventId 8024) |
+| `MaskInLogs` | `bool` | `true` | Enable log-context masking (`MaskForLog`, used by `PIILoggerExtensions`), including `[MaskInLogs]`. `false` is an explicit opt-out: `MaskForLog` returns the object unmasked and one warning is logged per service provider (EventId 8024) |
 | `MaskInAuditTrails` | `bool` | `true` | Enable `MaskForAudit` integration |
 | `AddHealthCheck` | `bool` | `false` | Register `PIIHealthCheck` |
 | `EnableTracing` | `bool` | `false` | Enable OpenTelemetry tracing |
@@ -313,7 +313,7 @@ Which code path logs which EventId:
 | 8021 | `Mask(value, pattern)` and `[PII(Pattern = ...)]`: invalid pattern, invalid timeout or match timeout; only the pattern length is logged, and the whole value is masked |
 | 8022 | `MaskForAudit<T>` and `MaskForAudit(object)` on any failure; the exception is rethrown. A failure inside the `MaskForAudit<T>` property path logs 8015 first |
 | 8023 | `MaskForLog<T>` on any failure, including a non-`string` `[MaskInLogs]` property; the exception is rethrown and the log helpers write `[MASKING FAILED]` |
-| 8024 | `PIIOptionsValidator` when `PIIOptions.MaskInLogs` is `false`; one warning per process |
+| 8024 | `PIIOptionsValidator` when `PIIOptions.MaskInLogs` is `false`; one warning per service provider |
 | 8018 | `PIIMaskingPipelineBehavior` when masking the response fails (see above) |
 
 ---
@@ -355,7 +355,7 @@ logger.LogMasked(masker, LogLevel.Debug, "Debug data: {@Data}", data);
 
 Each helper calls `IPIIMasker.MaskForLog<T>(T)` on the object before it reaches the logger, so `[MaskInLogs]` properties are masked (see [`[MaskInLogs]`](#maskinlogs--log-only-masking)). The signature is `LogErrorMasked<T>(this ILogger, IPIIMasker, string, T) where T : class`; there is no overload that takes an exception.
 
-**Safety**: If masking fails, the log entry carries `[MASKING FAILED]` instead of the raw data — the unmasked values are never logged, and the log call is not dropped. `MaskForLog` logs one warning (EventId 8023, the type name only) and rethrows; the helper catches it.
+**Safety**: If masking fails, the log entry carries `[MASKING FAILED]` instead of the raw data — the unmasked values are never logged, and the log call is not dropped. `MaskForLog` logs one warning (EventId 8023: the type name, plus the exception type and stack trace, never its message) and rethrows; the helper catches it.
 
 **Limit**: only the `*Masked` helpers mask. A plain `logger.LogInformation("{@Cmd}", cmd)` writes the object unmasked, by design.
 
@@ -492,7 +492,7 @@ Assert.Contains("@example.com", result);
 
 ### Masking Not Applied in Logs
 
-- Ensure `PIIOptions.MaskInLogs = true`; with `false`, `MaskForLog` returns the object unmasked and one warning (EventId 8024) is logged per process
+- Ensure `PIIOptions.MaskInLogs = true`; with `false`, `MaskForLog` returns the object unmasked and one warning (EventId 8024) is logged per service provider
 - A `[MaskInLogs]` property is masked only by `MaskForLog` and the `PIILoggerExtensions` methods, never by `MaskObject` or `MaskForAudit`; see [`[MaskInLogs]`](#maskinlogs--log-only-masking)
 - A log line that shows `[MASKING FAILED]` means masking threw; the usual cause is a `[MaskInLogs]` property that is not a `string`. Look for the warning with EventId 8023
 - Use `PIILoggerExtensions` methods (`LogInformationMasked`, etc.) — standard `ILogger` methods don't mask, so `logger.LogInformation("{@Cmd}", cmd)` writes the object as is
