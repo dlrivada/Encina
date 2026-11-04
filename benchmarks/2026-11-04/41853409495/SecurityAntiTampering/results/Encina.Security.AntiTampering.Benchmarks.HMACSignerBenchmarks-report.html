@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Security.AntiTampering.Benchmarks.HMACSignerBenchmarks-20261104-175650</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+Intel Xeon Platinum 8370C CPU 2.80GHz (Max: 0.80GHz), 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method              </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Sign_SHA256_MediumPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>4.144 &mu;s</td><td>0.0187 &mu;s</td><td>0.0112 &mu;s</td><td>1.20</td><td>0.00</td><td>0.0687</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>Sign_SHA384_SmallPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>4.413 &mu;s</td><td>0.0153 &mu;s</td><td>0.0080 &mu;s</td><td>1.28</td><td>0.00</td><td>0.0687</td><td>1.82 KB</td><td>1.03</td>
+</tr><tr><td>Sign_SHA512_SmallPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>4.402 &mu;s</td><td>0.0192 &mu;s</td><td>0.0114 &mu;s</td><td>1.28</td><td>0.00</td><td>0.0763</td><td>1.88 KB</td><td>1.07</td>
+</tr><tr><td>Sign_SHA256_LargePayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>54.400 &mu;s</td><td>0.1592 &mu;s</td><td>0.0947 &mu;s</td><td>15.81</td><td>0.03</td><td>0.0610</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>Sign_SHA256_SmallPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3.442 &mu;s</td><td>0.0063 &mu;s</td><td>0.0037 &mu;s</td><td>1.00</td><td>0.00</td><td>0.0687</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>SignAndVerify_Roundtrip</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>7.296 &mu;s</td><td>0.0626 &mu;s</td><td>0.0414 &mu;s</td><td>2.12</td><td>0.01</td><td>0.1373</td><td>3.51 KB</td><td>1.99</td>
+</tr><tr><td>Verify_SHA256_SmallPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3.865 &mu;s</td><td>0.0170 &mu;s</td><td>0.0101 &mu;s</td><td>1.12</td><td>0.00</td><td>0.0687</td><td>1.81 KB</td><td>1.03</td>
+</tr><tr><td>Sign_SHA256_MediumPayload</td><td>ShortRun</td><td>3</td><td>1</td><td>4.137 &mu;s</td><td>0.0619 &mu;s</td><td>0.0034 &mu;s</td><td>1.21</td><td>0.01</td><td>0.0687</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>Sign_SHA384_SmallPayload</td><td>ShortRun</td><td>3</td><td>1</td><td>4.387 &mu;s</td><td>0.1582 &mu;s</td><td>0.0087 &mu;s</td><td>1.29</td><td>0.01</td><td>0.0687</td><td>1.82 KB</td><td>1.03</td>
+</tr><tr><td>Sign_SHA512_SmallPayload</td><td>ShortRun</td><td>3</td><td>1</td><td>4.510 &mu;s</td><td>0.2283 &mu;s</td><td>0.0125 &mu;s</td><td>1.32</td><td>0.01</td><td>0.0763</td><td>1.88 KB</td><td>1.07</td>
+</tr><tr><td>Sign_SHA256_LargePayload</td><td>ShortRun</td><td>3</td><td>1</td><td>54.563 &mu;s</td><td>7.5658 &mu;s</td><td>0.4147 &mu;s</td><td>16.01</td><td>0.13</td><td>0.0610</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>Sign_SHA256_SmallPayload</td><td>ShortRun</td><td>3</td><td>1</td><td>3.408 &mu;s</td><td>0.3080 &mu;s</td><td>0.0169 &mu;s</td><td>1.00</td><td>0.01</td><td>0.0687</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>SignAndVerify_Roundtrip</td><td>ShortRun</td><td>3</td><td>1</td><td>7.167 &mu;s</td><td>0.5418 &mu;s</td><td>0.0297 &mu;s</td><td>2.10</td><td>0.01</td><td>0.1373</td><td>3.51 KB</td><td>1.99</td>
+</tr><tr><td>Verify_SHA256_SmallPayload</td><td>ShortRun</td><td>3</td><td>1</td><td>3.822 &mu;s</td><td>0.2685 &mu;s</td><td>0.0147 &mu;s</td><td>1.12</td><td>0.01</td><td>0.0687</td><td>1.81 KB</td><td>1.03</td>
+</tr></tbody></table>
+</body>
+</html>

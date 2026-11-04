@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Refit.Benchmarks.RestApiRequestHandlerBenchmarks-20261104-180603</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 9V74 3.67GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]   : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method               </th><th>Mean   </th><th>Error   </th><th>StdDev </th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>EncinaRefitCall</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>?</td>
+</tr><tr><td>EncinaRefitCall_Sequential5</td><td>10.07 &mu;s</td><td>1.981 &mu;s</td><td>0.109 &mu;s</td><td>0.000</td><td>0.00</td><td>1</td><td>0.5341</td><td>8.79 KB</td><td>0.85</td>
+</tr><tr><td>EncinaRefitCall_Batch10</td><td>29.18 &mu;s</td><td>53.891 &mu;s</td><td>2.954 &mu;s</td><td>0.000</td><td>0.00</td><td>2</td><td>1.0986</td><td>18.34 KB</td><td>1.77</td>
+</tr><tr><td>DirectRefitCall_Batch10</td><td>174,744.13 &mu;s</td><td>16,932.130 &mu;s</td><td>928.107 &mu;s</td><td>0.931</td><td>0.05</td><td>3</td><td>-</td><td>94.29 KB</td><td>9.12</td>
+</tr><tr><td>DirectRefitCall_Baseline</td><td>188,261.65 &mu;s</td><td>230,550.862 &mu;s</td><td>12,637.271 &mu;s</td><td>1.003</td><td>0.08</td><td>3</td><td>-</td><td>10.34 KB</td><td>1.00</td>
+</tr><tr><td>DirectRefitCall_Sequential5</td><td>873,362.79 &mu;s</td><td>102,104.227 &mu;s</td><td>5,596.677 &mu;s</td><td>4.653</td><td>0.26</td><td>4</td><td>-</td><td>48.28 KB</td><td>4.67</td>
+</tr></tbody></table>
+</body>
+</html>

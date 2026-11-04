@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Polly.Benchmarks.BulkheadBenchmarks-20261104-175140</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 9V45 4.26GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  Job-IAMMPO : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>InvocationCount=1  UnrollFactor=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                  </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean </th><th>Error </th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>TryAcquireAsync_HighLimit</td><td>Job-IAMMPO</td><td>15</td><td>Default</td><td>5</td><td>1,631.96 ns</td><td>539.65 ns</td><td>450.64 ns</td><td>1,551.50 ns</td><td>1.07</td><td>0.39</td><td>784 B</td><td>1.00</td>
+</tr><tr><td>TryAcquireAsync_SmallLimit</td><td>Job-IAMMPO</td><td>15</td><td>Default</td><td>5</td><td>1,632.35 ns</td><td>434.55 ns</td><td>362.87 ns</td><td>1,526.50 ns</td><td>1.07</td><td>0.35</td><td>784 B</td><td>1.00</td>
+</tr><tr><td>GetMetrics</td><td>Job-IAMMPO</td><td>15</td><td>Default</td><td>5</td><td>70.21 ns</td><td>51.26 ns</td><td>45.44 ns</td><td>50.00 ns</td><td>0.05</td><td>0.03</td><td>-</td><td>0.00</td>
+</tr><tr><td>AcquireAndRelease_Cycle</td><td>Job-IAMMPO</td><td>15</td><td>Default</td><td>5</td><td>1,413.69 ns</td><td>472.57 ns</td><td>394.62 ns</td><td>1,271.00 ns</td><td>0.92</td><td>0.34</td><td>672 B</td><td>0.86</td>
+</tr><tr><td>AcquireMultiple_ThenReleaseAll</td><td>Job-IAMMPO</td><td>15</td><td>Default</td><td>5</td><td>6,292.62 ns</td><td>366.35 ns</td><td>305.92 ns</td><td>6,264.00 ns</td><td>4.11</td><td>1.02</td><td>5528 B</td><td>7.05</td>
+</tr><tr><td>TryAcquireAsync_HighLimit</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>3,876.00 ns</td><td>42,554.98 ns</td><td>2,332.58 ns</td><td>3,486.00 ns</td><td>1.31</td><td>1.04</td><td>784 B</td><td>1.00</td>
+</tr><tr><td>TryAcquireAsync_SmallLimit</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>4,338.00 ns</td><td>33,419.06 ns</td><td>1,831.81 ns</td><td>3,651.00 ns</td><td>1.46</td><td>0.99</td><td>784 B</td><td>1.00</td>
+</tr><tr><td>GetMetrics</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>257.33 ns</td><td>4,387.62 ns</td><td>240.50 ns</td><td>201.00 ns</td><td>0.09</td><td>0.09</td><td>-</td><td>0.00</td>
+</tr><tr><td>AcquireAndRelease_Cycle</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>4,052.17 ns</td><td>39,785.98 ns</td><td>2,180.80 ns</td><td>3,083.50 ns</td><td>1.37</td><td>1.03</td><td>672 B</td><td>0.86</td>
+</tr><tr><td>AcquireMultiple_ThenReleaseAll</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>6,184.00 ns</td><td>52,118.58 ns</td><td>2,856.80 ns</td><td>4,802.00 ns</td><td>2.08</td><td>1.46</td><td>5528 B</td><td>7.05</td>
+</tr></tbody></table>
+</body>
+</html>
