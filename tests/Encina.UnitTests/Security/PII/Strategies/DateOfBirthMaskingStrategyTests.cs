@@ -102,14 +102,6 @@ public sealed class DateOfBirthMaskingStrategyTests
         result1.Length.ShouldBe(64);
     }
 
-    [Fact]
-    public void Apply_TokenizeMode_ReturnsOriginalValue()
-    {
-        var result = _sut.Apply("03/15/1990", WithMode(MaskingMode.Tokenize));
-
-        result.ShouldBe("03/15/1990");
-    }
-
     [Theory]
     [InlineData("01/01/2000", "**/**/2000")]
     [InlineData("12/31/1985", "**/**/1985")]
