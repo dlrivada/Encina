@@ -1,0 +1,105 @@
+name: Honesty Audit
+
+# Weekly audit of the evidence behind the test obligations (#2899, EPIC #2845, Phase 4).
+# Re-reads the repository tree (no build, no tests), reports drift of H2 (Not Implemented
+# justification files), H3 (reflection-only contract tests) and H4 (boilerplate justifications)
+# and fails the run when a gating count (H2 forbidden locations, H3) is above its ceiling in the
+# committed baseline .github/honesty-audit-baseline.json. The baseline only shrinks: lowering it
+# is a pull request, a deliberate rise is a pull request with the maintainer label. H1 is
+# informational until #2890 lands. The report and the run history are persisted to the
+# dashboard-data branch under honesty-audit/data/ through .github/scripts/pages-dashboard-data.ps1
+# (the same writer the publish-* workflows use, so no hand-written push races it); the domain is
+# branch-only, so docs.yml never publishes it on the Pages site.
+# Monday 06:47Z is the free slot after ci-full (03:17Z) and issue-hygiene (06:17Z).
+on:
+  schedule:
+    - cron: "47 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: honesty-audit
+  cancel-in-progress: false
+
+jobs:
+  honesty-audit:
+    name: Honesty audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # contents: write is for the dashboard-data branch push only; nothing is pushed to main.
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run the honesty audit
+        id: audit
+        shell: pwsh
+        run: |
+          dotnet run --file .github/scripts/honesty-audit.cs -- `
+            --output artifacts/honesty-audit/report.json `
+            --baseline .github/honesty-audit-baseline.json `
+            --summary "$env:GITHUB_STEP_SUMMARY"
+          exit $LASTEXITCODE
+
+      - name: Upload the report
+        if: always() && hashFiles('artifacts/honesty-audit/report.json') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: honesty-audit-report
+          path: artifacts/honesty-audit/report.json
+          retention-days: 30
+
+      - name: Read the previous history from the dashboard-data branch
+        # Runs after a red audit too: the report of a failing week is the evidence.
+        # Nothing is written when the branch or the domain is absent (first run).
+        if: always() && hashFiles('artifacts/honesty-audit/report.json') != ''
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain honesty-audit -OutDir base/honesty-audit
+
+      - name: Stage the report and the history in the overlay
+        if: always() && hashFiles('artifacts/honesty-audit/report.json') != ''
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $report = Get-Content artifacts/honesty-audit/report.json -Raw | ConvertFrom-Json
+          # One entry per run: the gating counts and the informational totals.
+          $entry = [pscustomobject][ordered]@{
+            generatedAtUtc = $report.generatedAtUtc
+            runId          = $env:GITHUB_RUN_ID
+            h1AllZeros     = $report.h1.allZerosTotal
+            h2Forbidden    = @($report.h2.forbidden).Count
+            h2Total        = $report.h2.total
+            h2Stale        = @($report.h2.staleCandidates).Count
+            h3Files        = $report.h3.files
+            h3Attributes   = $report.h3.attributes
+            h4Total        = $report.h4.total
+            h4Distinct     = $report.h4.distinct
+          }
+          $previousPath = 'base/honesty-audit/history.json'
+          $previous = if ((Test-Path $previousPath) -and (Get-Item $previousPath).Length -gt 0) {
+            @(Get-Content $previousPath -Raw | ConvertFrom-Json)
+          } else { @() }
+          # A re-run of the same run id replaces its entry instead of duplicating it.
+          $history = @($previous | Where-Object { $_.runId -ne $env:GITHUB_RUN_ID }) + $entry
+          New-Item -ItemType Directory -Force overlay/honesty-audit/data | Out-Null
+          Copy-Item artifacts/honesty-audit/report.json overlay/honesty-audit/data/latest.json -Force
+          ConvertTo-Json -InputObject $history -Depth 5 | Set-Content overlay/honesty-audit/data/history.json -Encoding utf8NoBOM
+          Get-ChildItem overlay -Recurse -File | ForEach-Object { $_.FullName }
+
+      - name: Persist the overlay to the dashboard-data branch
+        # Same writer as the publish-* workflows: it keeps the single parentless commit,
+        # retries on a lost lease and keeps the other dashboards' data untouched.
+        if: always() && hashFiles('overlay/honesty-audit/data/latest.json') != ''
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Persist -Domain honesty-audit -OverlayRoot overlay
