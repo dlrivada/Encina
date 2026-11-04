@@ -91,6 +91,9 @@ internal sealed class ConfigureMartenOperationAuditProjections : IConfigureOptio
         // Resolutions are append-only: the projection loads an event's resolutions by (Trail, EventId).
         options.Schema.For<AuditResolution>()
             .Identity(x => x.Id)
+            // Marten builds a single computed (expression) index over the JSON data column for the two properties,
+            // not duplicated columns. The integration test proves it exists and its column order; the Phase 3 query
+            // filters by Trail and EventId.
             .Index(x => new { x.Trail, x.EventId });
 
         // Configure indexes for OperationAuditEntryReadModel

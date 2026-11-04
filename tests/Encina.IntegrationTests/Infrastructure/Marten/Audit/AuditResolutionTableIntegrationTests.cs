@@ -108,8 +108,18 @@ public sealed class AuditResolutionTableIntegrationTests(MartenFixture fixture)
             definitions.Add(reader.GetString(0));
         }
 
-        // One index covers both properties of the lookup key (Trail, EventId), not one index per property.
-        definitions.ShouldContain(d =>
-            d.Contains("Trail", StringComparison.OrdinalIgnoreCase) && d.Contains("EventId", StringComparison.OrdinalIgnoreCase));
+        // Exactly one non-primary-key index covers both properties of the lookup key, Trail first, and it is not unique.
+        var matching = definitions
+            .Where(d => !d.Contains("pkey", StringComparison.OrdinalIgnoreCase)
+                && d.Contains("Trail", StringComparison.OrdinalIgnoreCase)
+                && d.Contains("EventId", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        matching.Count.ShouldBe(1, $"Index definitions: {string.Join(" | ", definitions)}");
+        var definition = matching[0];
+        var trailAt = definition.IndexOf("Trail", StringComparison.OrdinalIgnoreCase);
+        var eventIdAt = definition.IndexOf("EventId", StringComparison.OrdinalIgnoreCase);
+        trailAt.ShouldBeLessThan(eventIdAt, definition);
+        definition.ShouldNotContain("UNIQUE", Case.Insensitive);
     }
 }
