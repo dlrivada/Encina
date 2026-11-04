@@ -645,11 +645,11 @@
         "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Options class with defaults and no logic",
+      "reason": "Options class with validated purge and retention setters",
       "targets": { "unit": 100, "guard": 100 },
       "justifications": {
-        "unit": "Property defaults and setters are exercised by the orchestrator and options tests.",
-        "guard": "The options class has no parameters to guard; guard tests only touch its properties incidentally (measured 100%)."
+        "unit": "Defaults and every setter branch (accept, non-positive, above the Task.Delay maximum) are executed by the options validation tests.",
+        "guard": "The purge and retention setters throw ArgumentOutOfRangeException with the property name and keep the previous value; the guard tests execute each rejection."
       }
     },
     "Inbox/InboxOrchestrator.cs": {
