@@ -202,6 +202,21 @@ public sealed class InboxStoreDapperTests
         await store.RemoveExpiredMessagesAsync([]);
     }
 
+    [Fact]
+    public async Task RemoveExpiredMessagesAsync_EmptyMessageIds_ReturnsRightWithoutTouchingTheConnection()
+    {
+        // Arrange
+        var connection = Substitute.For<IDbConnection>();
+        var store = new InboxStoreDapper(connection);
+
+        // Act
+        var result = await store.RemoveExpiredMessagesAsync(Array.Empty<string>());
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        connection.ReceivedCalls().ShouldBeEmpty();
+    }
+
     #endregion
 
     #region SaveChangesAsync Tests
