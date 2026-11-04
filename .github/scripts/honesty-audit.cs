@@ -282,7 +282,8 @@ static class Audit
             var run = body.Length > 0 && body[0] is '`' or '~' ? body.TakeWhile(ch => ch == body[0]).Count() : 0;
             if (fenceLen == 0)
             {
-                if (indent <= 3 && run >= 3)
+                // A backtick fence's info string cannot contain a backtick (CommonMark): ```x``` text is inline code.
+                if (indent <= 3 && run >= 3 && !(body[0] == '`' && body.Skip(run).Contains('`')))
                 {
                     fenceChar = body[0];
                     fenceLen = run;
@@ -445,7 +446,7 @@ static class Audit
 
             if (StaleProjects.Contains(project, StringComparer.Ordinal))
             {
-                var named = EncinaToken.Matches(text).SelectMany(m => Prefixes(m.Value)).Where(packages.Contains).ToHashSet(StringComparer.Ordinal);
+                var named = EncinaToken.Matches(StripFencedCode(text)).SelectMany(m => Prefixes(m.Value)).Where(packages.Contains).ToHashSet(StringComparer.Ordinal);
                 if (named.Count > 0)
                 {
                     if (!referencedCache.TryGetValue(project, out var referenced))
@@ -954,7 +955,8 @@ static class SelfTest
             Put(fenceRoot, "tests/Encina.UnitTests/Unclosed.md", "# Example\n\n```\nStatus: Not Implemented\n");
             Put(fenceRoot, "tests/Encina.UnitTests/ShortClose.md", "````\n```\nStatus: Not Implemented\n```\n");
             Put(fenceRoot, "tests/Encina.UnitTests/AfterFence.md", "```\ncode\n```\n\n## Status: Not Implemented\n");
-            Check("H2 ignores Status inside backtick, tilde, unclosed and longer fences, and counts it after a closed fence", Audit.Measure(fenceRoot, TimeProvider.System.GetUtcNow()).H2.Total == 1);
+            Put(fenceRoot, "tests/Encina.GuardTests/Inline.md", "```x``` text\n\n## Status: Not Implemented\n");
+            Check("H2 ignores Status inside backtick, tilde, unclosed and longer fences, and counts it after a closed fence and after inline code that is not a fence", Audit.Measure(fenceRoot, TimeProvider.System.GetUtcNow()).H2.Total == 2);
 
             var attrRoot = Path.Combine(root, "attrs");
             Put(attrRoot, "src/Encina.Foo/Foo.cs", "class Foo {}");
