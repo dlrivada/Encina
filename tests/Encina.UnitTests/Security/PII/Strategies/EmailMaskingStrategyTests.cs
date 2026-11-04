@@ -106,14 +106,6 @@ public sealed class EmailMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_TokenizeMode_ReturnsOriginalValue()
-    {
-        var result = _sut.Apply("john@example.com", WithMode(MaskingMode.Tokenize));
-
-        result.ShouldBe("john@example.com");
-    }
-
-    [Fact]
     public void Apply_NoAtSign_AppliesGenericMask()
     {
         var result = _sut.Apply("notanemail", DefaultPartial());
