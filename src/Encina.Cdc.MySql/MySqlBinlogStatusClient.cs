@@ -32,6 +32,19 @@ internal sealed class MySqlBinlogStatusClient : IMySqlBinlogStatusClient
             .ExecuteReaderAsync(System.Data.CommandBehavior.SingleRow | System.Data.CommandBehavior.SingleResult, cancellationToken)
             .ConfigureAwait(false);
 
+        return await ReadPositionAsync(reader, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads the binlog file and position from the first row of a <c>SHOW BINARY LOG STATUS</c> result.
+    /// </summary>
+    /// <param name="reader">The reader positioned before the first row.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The file and position, or <see langword="null"/> when the result is empty.</returns>
+    internal static async Task<(string File, long Position)?> ReadPositionAsync(
+        System.Data.Common.DbDataReader reader,
+        CancellationToken cancellationToken)
+    {
         if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             return null;
