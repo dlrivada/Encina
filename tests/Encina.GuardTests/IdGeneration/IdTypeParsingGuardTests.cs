@@ -79,7 +79,7 @@ public sealed class IdTypeParsingGuardTests
     {
         Action act = () => _ = UuidV7Id.Parse(null!);
 
-        Should.Throw<ArgumentNullException>(act);
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("input");
     }
 
     [Theory]
