@@ -198,12 +198,12 @@
       "reason": "EF entity type configuration",
       "targets": {
         "unit": 80,
-        "guard": 90,
+        "guard": 3,
         "integration": 90
       },
       "justifications": {
         "unit": "BreakTheGlassStoreEFTests.Model_MapsTheShippedTable builds the SQL Server model and checks the table, collation, length, computed column and unique index.",
-        "guard": "BreakTheGlassStoreGuardTests.Configuration_NullBuilder_Throws covers the null builder guard.",
+        "guard": "Only the argument checks are guard-coverable: BreakTheGlassStoreGuardTests.Configuration_NullBuilder_Throws covers the null builder check, and the mapping lines are reached only by the unit and integration flags.",
         "integration": "BreakTheGlassEFSchemaParityIntegrationTests compares the model with the shipped table and the contract facts run through it."
       }
     },
@@ -216,11 +216,11 @@
       "reason": "ModelBuilder extension",
       "targets": {
         "unit": 90,
-        "guard": 90
+        "guard": 30
       },
       "justifications": {
         "unit": "BreakTheGlassStoreEFTests builds a context whose OnModelCreating calls ApplyBreakTheGlassConfiguration.",
-        "guard": "BreakTheGlassStoreGuardTests.ModelBuilderExtension_NullBuilder_Throws covers the null guard."
+        "guard": "Only the argument checks are guard-coverable: BreakTheGlassStoreGuardTests.ModelBuilderExtension_NullBuilder_Throws covers the null builder check, and the model registration lines are reached only by the unit flag."
       }
     },
     "BreakTheGlass/BreakTheGlassStoreEF.cs": {
@@ -231,12 +231,12 @@
       "reason": "EF Core store with ExecuteUpdate over a computed-column unique index - needs a real database",
       "targets": {
         "unit": 25,
-        "guard": 90,
+        "guard": 5,
         "integration": 90
       },
       "justifications": {
         "unit": "BreakTheGlassStoreEFTests covers the registration in both orders, the failure paths that return store_failed, cancellation, the active-key hash and the error classifier; the SQL itself needs a real database and is covered by the integration flag.",
-        "guard": "BreakTheGlassStoreGuardTests runs every null and range guard of the constructor and of each method of the EF store.",
+        "guard": "Only the argument checks are guard-coverable: BreakTheGlassStoreGuardTests runs the null and range checks of the constructor and of each method, while the SQL and failure paths are reached only by the unit and integration flags.",
         "integration": "The shared BreakTheGlassStoreContract runs on the EFCore-SqlServer collection fixture through BreakTheGlassStoreEFSqlServerIntegrationTests, executing every method against a real SQL Server."
       }
     },
