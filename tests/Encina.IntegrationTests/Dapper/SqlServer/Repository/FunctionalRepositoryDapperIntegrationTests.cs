@@ -537,6 +537,66 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
 
     #endregion
 
+    #region String Method Wildcard Tests
+
+    // Each value would also match other names if its LIKE wildcards ('%', '_', SQL Server's '[')
+    // or the '!' escape character were not matched literally (#3156).
+    private static readonly string[] Names = ["500", "50% off", "100%", "a_b", "axb", "[a]", "hey!"];
+
+    [Theory]
+    [InlineData(nameof(string.Contains), "50%", "50% off")]
+    [InlineData(nameof(string.StartsWith), "a_", "a_b")]
+    [InlineData(nameof(string.EndsWith), "0%", "100%")]
+    [InlineData(nameof(string.Contains), "[a]", "[a]")]
+    [InlineData(nameof(string.Contains), "!", "hey!")]
+    public async Task ListAsync_StringMethodSpecification_MatchesLikeWildcardsLiterally(string method, string value, string expectedName)
+    {
+        // Arrange
+        await ClearDataAsync();
+        await _repository.AddRangeAsync(Names.Select(name => CreateTestProduct(name)).ToArray());
+        var spec = new ProductNameSpec(method, value);
+
+        // Act
+        var result = await _repository.ListAsync(spec);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Name).ToList().ShouldBe([expectedName]));
+    }
+
+    [Fact]
+    public async Task ListAsync_LikePatternAtTheSqlServerLimit_RunsTheQuery()
+    {
+        // Arrange - 3,998 characters and the two '%' make 4,000 nvarchar characters, the 8,000 bytes SQL Server accepts
+        await ClearDataAsync();
+        var spec = new ProductNameSpec(nameof(string.Contains), new string('a', 3998));
+
+        // Act
+        var result = await _repository.ListAsync(spec);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.ShouldBeEmpty());
+    }
+
+    [Fact]
+    public async Task ListAsync_LikePatternOverTheSqlServerLimit_ReturnsLeftBeforeTheQuery()
+    {
+        // Arrange - 2,000 '%' fit, but each one escapes to "!%": 4,002 characters with the wrappers,
+        // over SQL Server's 8,000-byte limit, so the builder rejects the specification
+        await ClearDataAsync();
+        var spec = new ProductNameSpec(nameof(string.Contains), new string('%', 2000));
+
+        // Act
+        var result = await _repository.ListAsync(spec);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.Message.ShouldContain("8004 bytes"));
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static TestProduct CreateTestProduct(
@@ -578,6 +638,20 @@ public class ActiveProductSpec : Specification<TestProduct>
 {
     public override Expression<Func<TestProduct, bool>> ToExpression()
         => p => p.IsActive;
+}
+
+/// <summary>
+/// Specification matching a TestProduct whose name contains, starts with or ends with a value.
+/// </summary>
+public class ProductNameSpec(string method, string value) : Specification<TestProduct>
+{
+    public override Expression<Func<TestProduct, bool>> ToExpression() => method switch
+    {
+        nameof(string.Contains) => e => e.Name.Contains(value),
+        nameof(string.StartsWith) => e => e.Name.StartsWith(value),
+        nameof(string.EndsWith) => e => e.Name.EndsWith(value),
+        _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Expected Contains, StartsWith or EndsWith."),
+    };
 }
 
 #endregion
