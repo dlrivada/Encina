@@ -194,8 +194,7 @@ public static class ServiceCollectionExtensions
             config.UseOutbox, config.OutboxOptions,
             config.UseInbox, config.InboxOptions,
             config.UseSagas, config.SagaOptions,
-            config.UseScheduling, config.SchedulingOptions,
-            OutboxWritePath.TransactionalBehavior);
+            config.UseScheduling, config.SchedulingOptions);
 
         // Routing slips, content router and scatter-gather are plain services (no pipeline behavior),
         // registered through the same helpers as ADO.NET and Dapper.

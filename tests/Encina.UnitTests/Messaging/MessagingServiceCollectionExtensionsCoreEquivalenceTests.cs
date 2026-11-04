@@ -154,7 +154,7 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
         "Encina.Messaging.Outbox.IOutboxStore|Encina.Testing.Fakes.Stores.FakeOutboxStore|Scoped",
         "Encina.Messaging.Outbox.IOutboxMessageFactory|Encina.Testing.Fakes.Factories.FakeOutboxMessageFactory|Scoped",
         "Encina.Messaging.Outbox.OutboxOrchestrator|Encina.Messaging.Outbox.OutboxOrchestrator|Scoped",
-        "Encina.IRequestPostProcessor`2[TRequest,TResponse]|Encina.Messaging.Outbox.OutboxPostProcessor`2[TRequest,TResponse]|Scoped",
+        "Encina.IPipelineBehavior`2[TRequest,TResponse]|Encina.Messaging.Outbox.TransactionalOutboxPipelineBehavior`2[TRequest,TResponse]|Scoped",
         "Microsoft.Extensions.Hosting.IHostedService|Encina.UnitTests.Messaging.MessagingServiceCollectionExtensionsCoreEquivalenceTests+StubOutboxProcessor|Singleton",
         "Encina.Messaging.Inbox.InboxOptions|Encina.Messaging.Inbox.InboxOptions|Singleton",
         "Encina.Messaging.Inbox.IInboxStore|Encina.Testing.Fakes.Stores.FakeInboxStore|Scoped",

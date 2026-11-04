@@ -160,7 +160,7 @@ Matrix testing across multiple operating systems and database providers.
 |----------|--------------|------|-------|---------|-------|
 | `postgresql` | postgres:16 | 5432 | ✅ | ✅ | ✅ |
 | `sqlserver` | mssql/server:2022 | 1433 | ✅ | ✅ | ❌ |
-| `mysql` | mysql:8 | 3306 | ✅ | ❌ | ✅ |
+| `mysql` | mysql:8.4 | 3306 | ✅ | ❌ | ✅ |
 | `sqlite` | N/A | N/A | ✅ | ✅ | ✅ |
 | `redis` | redis:7-alpine | 6379 | ✅ | ✅ | ✅ |
 | `mongodb` | mongo:7 | 27017 | ✅ | ✅ | ✅ |
