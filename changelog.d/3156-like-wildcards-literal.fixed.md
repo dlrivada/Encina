@@ -1,0 +1,1 @@
+- ADO.NET and Dapper repositories (SqlServer, PostgreSQL, MySQL): a specification's `Contains`, `StartsWith` and `EndsWith` now match their value literally, as EF Core and MongoDB already did. The `SpecificationSqlBuilder` escapes the `LIKE` wildcards `%` and `_` (and `[` on SQL Server) in the value and adds `ESCAPE '!'`, so `Contains("50%")` no longer matches "500" (#3156).

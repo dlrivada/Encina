@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using System.Linq.Expressions;
 using Encina.DomainModeling;
 using Encina.Messaging;
@@ -494,18 +495,7 @@ public sealed class SpecificationSqlBuilder<TEntity>
         // String methods
         if (methodCall.Method.DeclaringType == typeof(string))
         {
-            var columnName = GetColumnName(methodCall.Object!);
-            var value = GetValue(methodCall.Arguments[0]);
-            var paramName = $"@p{_parameterIndex++}";
-
-            return methodName switch
-            {
-                "Contains" => BuildLikeClause(columnName, $"%{value}%", paramName, parameters),
-                "StartsWith" => BuildLikeClause(columnName, $"{value}%", paramName, parameters),
-                "EndsWith" => BuildLikeClause(columnName, $"%{value}", paramName, parameters),
-                "Equals" => BuildEqualsClause(columnName, value, paramName, parameters),
-                _ => throw new NotSupportedException($"String method {methodName} is not supported.")
-            };
+            return TranslateStringMethod(methodCall, parameters);
         }
 
         // Enumerable.Contains() - generates IN clause
@@ -515,6 +505,23 @@ public sealed class SpecificationSqlBuilder<TEntity>
         }
 
         throw new NotSupportedException($"Method {methodCall.Method.DeclaringType?.Name}.{methodName} is not supported for SQL translation.");
+    }
+
+    // crap-exempt: single-question switch — which LIKE pattern or comparison a string method translates to
+    private string TranslateStringMethod(MethodCallExpression methodCall, List<(string Name, object? Value)> parameters)
+    {
+        var columnName = GetColumnName(methodCall.Object!);
+        var value = GetValue(methodCall.Arguments[0]);
+        var paramName = $"@p{_parameterIndex++}";
+
+        return methodCall.Method.Name switch
+        {
+            "Contains" => BuildLikeClause(columnName, $"%{EscapeLikeValue(value)}%", paramName, parameters),
+            "StartsWith" => BuildLikeClause(columnName, $"{EscapeLikeValue(value)}%", paramName, parameters),
+            "EndsWith" => BuildLikeClause(columnName, $"%{EscapeLikeValue(value)}", paramName, parameters),
+            "Equals" => BuildEqualsClause(columnName, value, paramName, parameters),
+            _ => throw new NotSupportedException($"String method {methodCall.Method.Name} is not supported.")
+        };
     }
 
     private static bool IsEnumerableContainsMethod(MethodCallExpression methodCall)
@@ -648,8 +655,22 @@ public sealed class SpecificationSqlBuilder<TEntity>
     private static string BuildLikeClause(string columnName, string pattern, string paramName, List<(string Name, object? Value)> parameters)
     {
         parameters.Add((paramName, pattern));
-        return $"[{columnName}] LIKE {paramName}";
+        return $"[{columnName}] LIKE {paramName} ESCAPE '!'";
     }
+
+    /// <summary>
+    /// Escapes the LIKE wildcards (%, _ and [) in a value so it matches literally, with <c>!</c>
+    /// as the escape character that <see cref="BuildLikeClause"/> names in its <c>ESCAPE</c> clause.
+    /// </summary>
+    /// <remarks>
+    /// <c>!</c> rather than a backslash, whose meaning inside a string literal depends on server settings.
+    /// </remarks>
+    private static string EscapeLikeValue(object? value)
+        => (Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty)
+            .Replace("!", "!!", StringComparison.Ordinal)
+            .Replace("%", "!%", StringComparison.Ordinal)
+            .Replace("_", "!_", StringComparison.Ordinal)
+            .Replace("[", "![", StringComparison.Ordinal);
 
     private static string BuildEqualsClause(string columnName, object? value, string paramName, List<(string Name, object? Value)> parameters)
     {

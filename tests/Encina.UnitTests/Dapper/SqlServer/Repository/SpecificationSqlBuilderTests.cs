@@ -234,6 +234,95 @@ public class SpecificationSqlBuilderTests
         parameters["p0"].ShouldBe("%completed");
     }
 
+    [Fact]
+    public void BuildWhereClause_StringMethod_NamesTheLikeEscapeCharacter()
+    {
+        // Arrange
+        var builder = new SpecificationSqlBuilder<TestOrder>(_columnMappings);
+        var spec = new DescriptionContainsSpec("urgent");
+
+        // Act
+        var (whereClause, _) = builder.BuildWhereClause(spec);
+
+        // Assert
+        whereClause.ShouldContain("[Description] LIKE @p0 ESCAPE '!'");
+    }
+
+    [Fact]
+    public void BuildWhereClause_StringContainsWithLikeWildcards_EscapesThem()
+    {
+        // Arrange - '%' and '_' are LIKE wildcards, '[' starts a character set and '!' is the escape character (#3156)
+        var builder = new SpecificationSqlBuilder<TestOrder>(_columnMappings);
+        var spec = new DescriptionContainsSpec("[a]50%_off!");
+
+        // Act
+        var (_, parameters) = builder.BuildWhereClause(spec);
+
+        // Assert
+        parameters["p0"].ShouldBe("%![a]50!%!_off!!%");
+    }
+
+    [Fact]
+    public void BuildWhereClause_StringStartsWithLikeWildcard_EscapesIt()
+    {
+        // Arrange
+        var builder = new SpecificationSqlBuilder<TestOrder>(_columnMappings);
+        var spec = new DescriptionStartsWithSpec("a_");
+
+        // Act
+        var (_, parameters) = builder.BuildWhereClause(spec);
+
+        // Assert
+        parameters["p0"].ShouldBe("a!_%");
+    }
+
+    [Fact]
+    public void BuildWhereClause_StringEndsWithLikeWildcard_EscapesIt()
+    {
+        // Arrange
+        var builder = new SpecificationSqlBuilder<TestOrder>(_columnMappings);
+        var spec = new DescriptionEndsWithSpec("0%");
+
+        // Act
+        var (_, parameters) = builder.BuildWhereClause(spec);
+
+        // Assert
+        parameters["p0"].ShouldBe("%0!%");
+    }
+
+    #endregion
+
+    #region Method Call Tests
+
+    [Fact]
+    public void BuildWhereClause_ListContains_GeneratesInClause()
+    {
+        // Arrange
+        var builder = new SpecificationSqlBuilder<TestOrder>(_columnMappings);
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var spec = new CustomerInListSpec([first, second]);
+
+        // Act
+        var (whereClause, parameters) = builder.BuildWhereClause(spec);
+
+        // Assert
+        whereClause.ShouldBe("WHERE [CustomerId] IN (@p0, @p1)");
+        parameters["p0"].ShouldBe(first);
+        parameters["p1"].ShouldBe(second);
+    }
+
+    [Fact]
+    public void BuildWhereClause_UnsupportedMethodCall_ThrowsNotSupportedException()
+    {
+        // Arrange - Guid.Equals is neither a string method nor a collection Contains
+        var builder = new SpecificationSqlBuilder<TestOrder>(_columnMappings);
+        var spec = new CustomerEqualsCallSpec(Guid.NewGuid());
+
+        // Act & Assert
+        Should.Throw<NotSupportedException>(() => builder.BuildWhereClause(spec));
+    }
+
     #endregion
 
     #region BuildSelectStatement Tests
@@ -349,6 +438,21 @@ public class HasDescriptionSpec : Specification<TestOrder>
         => o => o.Description != null;
 }
 
+public class CustomerInListSpec : Specification<TestOrder>
+{
+    private readonly List<Guid> _customerIds;
+    public CustomerInListSpec(List<Guid> customerIds) => _customerIds = customerIds;
+    public override Expression<Func<TestOrder, bool>> ToExpression()
+        => o => _customerIds.Contains(o.CustomerId);
+}
+
+public class CustomerEqualsCallSpec : Specification<TestOrder>
+{
+    private readonly Guid _customerId;
+    public CustomerEqualsCallSpec(Guid customerId) => _customerId = customerId;
+    public override Expression<Func<TestOrder, bool>> ToExpression()
+        => o => o.CustomerId.Equals(_customerId);
+}
 public class DescriptionContainsSpec : Specification<TestOrder>
 {
     private readonly string _searchTerm;

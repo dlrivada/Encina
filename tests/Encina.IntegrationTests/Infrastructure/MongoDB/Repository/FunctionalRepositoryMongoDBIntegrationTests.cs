@@ -347,6 +347,36 @@ public class FunctionalRepositoryMongoDBIntegrationTests : IAsyncLifetime
 
     #endregion
 
+    #region String Method Wildcard Tests
+
+    // Each value would also match other names if its LIKE wildcards ('%', '_', SQL Server's '[')
+    // or the '!' escape character were not matched literally (#3156).
+    private static readonly string[] Names = ["500", "50% off", "100%", "a_b", "axb", "[a]", "hey!"];
+
+    [Theory]
+    [InlineData(nameof(string.Contains), "50%", "50% off")]
+    [InlineData(nameof(string.StartsWith), "a_", "a_b")]
+    [InlineData(nameof(string.EndsWith), "0%", "100%")]
+    [InlineData(nameof(string.Contains), "[a]", "[a]")]
+    [InlineData(nameof(string.Contains), "!", "hey!")]
+    public async Task ListAsync_StringMethodSpecification_MatchesLikeWildcardsLiterally(string method, string value, string expectedName)
+    {
+        // Arrange
+        SkipIfNotAvailable();
+        await ClearDataAsync();
+        await _repository!.AddRangeAsync(Names.Select(name => CreateTestDocument(name)).ToArray());
+        var spec = new DocumentNameSpec(method, value);
+
+        // Act
+        var result = await _repository!.ListAsync(spec);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Name).ToList().ShouldBe([expectedName]));
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static TestDocument CreateTestDocument(
@@ -389,6 +419,20 @@ public class ActiveDocumentSpec : Specification<TestDocument>
 {
     public override Expression<Func<TestDocument, bool>> ToExpression()
         => d => d.IsActive;
+}
+
+/// <summary>
+/// Specification matching a TestDocument whose name contains, starts with or ends with a value.
+/// </summary>
+public class DocumentNameSpec(string method, string value) : Specification<TestDocument>
+{
+    public override Expression<Func<TestDocument, bool>> ToExpression() => method switch
+    {
+        nameof(string.Contains) => e => e.Name.Contains(value),
+        nameof(string.StartsWith) => e => e.Name.StartsWith(value),
+        nameof(string.EndsWith) => e => e.Name.EndsWith(value),
+        _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Expected Contains, StartsWith or EndsWith."),
+    };
 }
 
 #endregion
