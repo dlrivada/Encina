@@ -31,9 +31,10 @@ namespace Encina.AspNetCore.Blazor;
 /// error code (never a claim value or the error message); the factory has logged Warning 167. For a
 /// JavaScript interop call (and the UI events that travel through it) Blazor reports the exception as an
 /// unhandled circuit exception: it notifies the client, which shows the error UI, and terminates the
-/// circuit. The first activity of a circuit (its initialization) and the render acknowledgements are
-/// fire-and-forget in Blazor: a refusal there is not reported to the client and leaves the circuit
-/// uninitialized, so nothing runs for that principal. A null or unauthenticated principal
+/// circuit. Two paths are not reported to the client: the initialization of a circuit in the legacy
+/// Blazor Server hosting (fire-and-forget; the circuit stays uninitialized, so nothing runs for that
+/// principal) and render acknowledgements (fire-and-forget; the acknowledgement is lost and rendering
+/// stalls). A null or unauthenticated principal
 /// is not a refusal: its activities keep running anonymous.
 /// </para>
 /// <para>
@@ -80,7 +81,7 @@ internal sealed class RequestIdentityCircuitHandler : CircuitHandler
             return;
         }
 
-        var code = result.Match(_ => string.Empty, static error => error.GetCode().IfNone(string.Empty));
+        var code = result.Match(static _ => string.Empty, static error => error.GetCode().IfNone(string.Empty));
         if (!IsHostRefusal(code))
         {
             throw Refusal(code);
