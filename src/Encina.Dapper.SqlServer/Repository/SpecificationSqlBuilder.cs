@@ -646,8 +646,24 @@ public sealed class SpecificationSqlBuilder<TEntity>
         return TranslateExpression(invocation.Expression, parameters);
     }
 
+    /// <summary>
+    /// The longest LIKE pattern SQL Server accepts, in bytes. The pattern is bound as <c>nvarchar</c>,
+    /// two bytes per UTF-16 code unit, so this is 4,000 characters.
+    /// </summary>
+    private const int MaxLikePatternBytes = 8000;
+
     private static string BuildLikeClause(string columnName, string pattern, string paramName, Dictionary<string, object?> parameters)
     {
+        // Escaping can double a value's length, so a value that fits can produce a pattern SQL Server
+        // rejects with a generic error at execution time. Reject it here instead, and leave the value
+        // out of the message: it can hold personal data.
+        var patternBytes = pattern.Length * sizeof(char);
+        if (patternBytes > MaxLikePatternBytes)
+        {
+            throw new NotSupportedException(
+                $"The LIKE pattern for column {columnName} is {patternBytes} bytes after escaping its wildcards; SQL Server accepts at most {MaxLikePatternBytes}.");
+        }
+
         parameters[paramName] = pattern;
         return $"[{columnName}] LIKE @{paramName} ESCAPE '!'";
     }

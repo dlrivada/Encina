@@ -660,6 +660,7 @@ public sealed class SpecificationSqlBuilder<TEntity>
         return TranslateExpression(invocation.Expression, parameters);
     }
 
+    // No length check: PostgreSQL has no limit on a LIKE pattern like SQL Server's 8,000 bytes.
     private static string BuildLikeClause(string columnName, string pattern, string paramName, List<(string Name, object? Value)> parameters)
     {
         parameters.Add((paramName, pattern));

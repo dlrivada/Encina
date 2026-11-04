@@ -290,6 +290,50 @@ public class SpecificationSqlBuilderTests
         parameters["p0"].ShouldBe("%0!%");
     }
 
+    [Fact]
+    public void BuildWhereClause_LikePatternAtTheSqlServerLimit_IsAccepted()
+    {
+        // Arrange - 3,998 characters and the two '%' make 4,000 nvarchar characters: 8,000 bytes
+        var builder = new SpecificationSqlBuilder<TestOrder>(_columnMappings);
+        var spec = new DescriptionContainsSpec(new string('a', 3998));
+
+        // Act
+        var (_, parameters) = builder.BuildWhereClause(spec);
+
+        // Assert
+        parameters["p0"].ShouldBeOfType<string>().Length.ShouldBe(4000);
+    }
+
+    [Fact]
+    public void BuildWhereClause_LikePatternOverTheSqlServerLimit_ThrowsNotSupportedException()
+    {
+        // Arrange - one character over the 8,000-byte limit
+        var builder = new SpecificationSqlBuilder<TestOrder>(_columnMappings);
+        var spec = new DescriptionContainsSpec("jane.doe@example.com".PadRight(3999, 'x'));
+
+        // Act
+        var exception = Should.Throw<NotSupportedException>(() => builder.BuildWhereClause(spec));
+
+        // Assert - the message gives the length and the limit, never the value
+        exception.Message.ShouldContain("8002 bytes");
+        exception.Message.ShouldContain("at most 8000");
+        exception.Message.ShouldNotContain("jane.doe");
+    }
+
+    [Fact]
+    public void BuildWhereClause_LikePatternOverTheSqlServerLimitOnlyAfterEscaping_ThrowsNotSupportedException()
+    {
+        // Arrange - 2,000 '%' fit, but each one escapes to "!%": 4,002 characters with the wrappers
+        var builder = new SpecificationSqlBuilder<TestOrder>(_columnMappings);
+        var spec = new DescriptionContainsSpec(new string('%', 2000));
+
+        // Act
+        var exception = Should.Throw<NotSupportedException>(() => builder.BuildWhereClause(spec));
+
+        // Assert
+        exception.Message.ShouldContain("8004 bytes");
+    }
+
     #endregion
 
     #region Method Call Tests

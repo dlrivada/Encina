@@ -355,6 +355,37 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         result.IfRight(list => list.Select(e => e.Name).ToList().ShouldBe([expectedName]));
     }
 
+    [Fact]
+    public async Task ListAsync_LikePatternAtTheSqlServerLimit_RunsTheQuery()
+    {
+        // Arrange - 3,998 characters and the two '%' make 4,000 nvarchar characters, the 8,000 bytes SQL Server accepts
+        await ClearDataAsync();
+        var spec = new ItemNameSpec(nameof(string.Contains), new string('a', 3998));
+
+        // Act
+        var result = await _repository.ListAsync(spec);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.ShouldBeEmpty());
+    }
+
+    [Fact]
+    public async Task ListAsync_LikePatternOverTheSqlServerLimit_ReturnsLeftBeforeTheQuery()
+    {
+        // Arrange - 2,000 '%' fit, but each one escapes to "!%": 4,002 characters with the wrappers,
+        // over SQL Server's 8,000-byte limit, so the builder rejects the specification
+        await ClearDataAsync();
+        var spec = new ItemNameSpec(nameof(string.Contains), new string('%', 2000));
+
+        // Act
+        var result = await _repository.ListAsync(spec);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.Message.ShouldContain("8004 bytes"));
+    }
+
     #endregion
 
     #region Helper Methods
