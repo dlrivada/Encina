@@ -1,6 +1,7 @@
 using Encina.Messaging.Diagnostics;
 using Encina.Messaging.Inbox;
 using LanguageExt;
+using Microsoft.Extensions.Logging;
 
 namespace Encina.Messaging.Purge;
 
@@ -24,26 +25,39 @@ internal static class MessagePurgeCycle
     /// </summary>
     /// <param name="store">The inbox store.</param>
     /// <param name="batchSize">The maximum number of messages one batch removes.</param>
+    /// <param name="logger">The logger for the no-progress warning.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Right(total removed) when the cycle finished; Left(error) with the first store error.</returns>
+    /// <returns>
+    /// Right(total removed) when the cycle finished, also when it stopped because a batch repeated the ids of
+    /// the previous one (no progress, logged as a warning); Left(error) with the first store error.
+    /// </returns>
     internal static async Task<Either<EncinaError, int>> PurgeInboxAsync(
         IInboxStore store,
         int batchSize,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         var total = 0;
+        System.Collections.Generic.HashSet<string> previous = [];
 
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var batch = await PurgeInboxBatchAsync(store, batchSize, cancellationToken).ConfigureAwait(false);
+            var batch = await PurgeInboxBatchAsync(store, batchSize, previous, cancellationToken).ConfigureAwait(false);
             if (batch.IsLeft)
             {
                 return (EncinaError)batch;
             }
 
             var removed = (int)batch;
+            if (removed == NoProgress)
+            {
+                // The store returned only ids the previous batch already tried to remove: end the cycle.
+                MessagePurgeLog.NoProgress(logger, InboxPattern, batchSize);
+                return total;
+            }
+
             MessagePurgeMetrics.RecordDeleted(InboxPattern, removed);
             total += removed;
 
@@ -54,9 +68,12 @@ internal static class MessagePurgeCycle
         }
     }
 
+    private const int NoProgress = -1;
+
     private static async Task<Either<EncinaError, int>> PurgeInboxBatchAsync(
         IInboxStore store,
         int batchSize,
+        System.Collections.Generic.HashSet<string> previous,
         CancellationToken cancellationToken)
     {
         var expired = await store.GetExpiredMessagesAsync(batchSize, cancellationToken).ConfigureAwait(false);
@@ -72,6 +89,14 @@ internal static class MessagePurgeCycle
         {
             return 0;
         }
+
+        if (ids.TrueForAll(previous.Contains))
+        {
+            return NoProgress;
+        }
+
+        previous.Clear();
+        previous.UnionWith(ids);
 
         var removed = await store.RemoveExpiredMessagesAsync(ids, cancellationToken).ConfigureAwait(false);
         if (removed.IsLeft)

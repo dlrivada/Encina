@@ -77,10 +77,10 @@ internal sealed class MessagePurgeService : BackgroundService
         return RunLoopAsync(MessagePurgeCycle.InboxPattern, inbox, PurgeInboxAsync, stoppingToken);
     }
 
-    private static Task<Either<EncinaError, int>> PurgeInboxAsync(
+    private Task<Either<EncinaError, int>> PurgeInboxAsync(
         IServiceProvider services, int batchSize, CancellationToken cancellationToken)
         => MessagePurgeCycle.PurgeInboxAsync(
-            services.GetRequiredService<IInboxStore>(), batchSize, cancellationToken);
+            services.GetRequiredService<IInboxStore>(), batchSize, _logger, cancellationToken);
 
     private async Task RunLoopAsync(
         string pattern,

@@ -8,7 +8,7 @@ namespace Encina.Messaging.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Event IDs: 2107-2111 (see <c>EventIdRanges.MessagingInbox</c>, 2100-2199). No message carries the text of
+/// Event IDs: 2107-2112 (see <c>EventIdRanges.MessagingInbox</c>, 2100-2199). No message carries the text of
 /// an error or an exception: only the error code or the exception type reaches the log.
 /// </para>
 /// <para>
@@ -65,4 +65,14 @@ internal static partial class MessagePurgeLog
         ILogger logger,
         string pattern,
         Exception exception);
+
+    /// <summary>Logs when a store returned a batch whose ids the previous batch already tried to remove; the cycle ends.</summary>
+    [LoggerMessage(
+        EventId = 2112,
+        Level = LogLevel.Warning,
+        Message = "Message purge for {Pattern} made no progress: a batch of up to {BatchSize} repeated the ids of the previous one, the cycle ends and the next interval runs normally")]
+    internal static partial void NoProgress(
+        ILogger logger,
+        string pattern,
+        int batchSize);
 }

@@ -15,7 +15,6 @@ public sealed class MessagePurgeScheduleTests
 
         var schedule = MessagePurgeSchedule.Create(options);
 
-        schedule.HasEntries.ShouldBeTrue();
         schedule.InboxPurge.ShouldBe(new PurgeEntry(TimeSpan.FromHours(3), 25));
     }
 
@@ -24,7 +23,6 @@ public sealed class MessagePurgeScheduleTests
     {
         var schedule = MessagePurgeSchedule.Create(new InboxOptions { EnableAutomaticPurge = false });
 
-        schedule.HasEntries.ShouldBeFalse();
         schedule.InboxPurge.ShouldBeNull();
     }
 

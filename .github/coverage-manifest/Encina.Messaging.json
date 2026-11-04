@@ -387,10 +387,10 @@
         "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Source-generated LoggerMessage definitions of the purge service",
+      "reason": "Source-generated LoggerMessage definitions of the purge service (EventIds 2107-2112)",
       "targets": { "unit": 0 },
       "justifications": {
-        "unit": "The members are source-generated partial methods that the coverage report does not attribute to this file; the log calls are asserted through the service tests."
+        "unit": "The class is marked ExcludeFromCodeCoverage because the LoggerMessage members are generated boilerplate, so it has no coverable lines; the log calls (2107-2112, including the 2112 no-progress warning) are asserted through the service and cycle tests."
       }
     },
     "Diagnostics/MessagePurgeMetrics.cs": {
@@ -916,7 +916,7 @@
       "reason": "One batched purge cycle over IInboxStore",
       "targets": { "unit": 95, "property": 0 },
       "justifications": {
-        "unit": "Unit tests cover the drain loop, the short-batch stop, each Left branch, SaveChangesAsync after every remove and cancellation.",
+        "unit": "Unit tests cover the drain loop, the short-batch stop, the no-progress stop on a repeated batch (EventId 2112), each Left branch, SaveChangesAsync after every remove and cancellation.",
         "property": "Property/contract tests delivered by #3166."
       }
     },
@@ -928,7 +928,7 @@
       "reason": "Immutable purge schedule built from the inbox options",
       "targets": { "unit": 95 },
       "justifications": {
-        "unit": "Unit tests build the schedule with the flag on and off and read HasEntries."
+        "unit": "Unit tests build the schedule with the flag on and off and read InboxPurge."
       }
     },
     "Purge/MessagePurgeService.cs": {

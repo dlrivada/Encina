@@ -17,11 +17,6 @@ internal readonly record struct PurgeEntry(TimeSpan Interval, int BatchSize);
 internal sealed record MessagePurgeSchedule(PurgeEntry? InboxPurge)
 {
     /// <summary>
-    /// Gets a value indicating whether at least one pattern has its automatic purge on.
-    /// </summary>
-    internal bool HasEntries => InboxPurge is not null;
-
-    /// <summary>
     /// Builds the schedule from the inbox options, reading their current values.
     /// </summary>
     /// <param name="inboxOptions">The inbox options.</param>

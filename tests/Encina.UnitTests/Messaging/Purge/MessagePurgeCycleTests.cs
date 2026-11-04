@@ -1,6 +1,7 @@
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Purge;
 using LanguageExt;
+using Microsoft.Extensions.Logging.Testing;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Messaging.Purge;
@@ -11,6 +12,7 @@ namespace Encina.UnitTests.Messaging.Purge;
 public sealed class MessagePurgeCycleTests
 {
     private readonly IInboxStore _store = Substitute.For<IInboxStore>();
+    private readonly FakeLogger _logger = new();
 
     public MessagePurgeCycleTests()
     {
@@ -25,7 +27,7 @@ public sealed class MessagePurgeCycleTests
     {
         Returns(Batch());
 
-        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 3, CancellationToken.None);
+        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 3, _logger, CancellationToken.None);
 
         ((int)result).ShouldBe(0);
         await _store.DidNotReceiveWithAnyArgs().RemoveExpiredMessagesAsync(default!, default);
@@ -37,7 +39,7 @@ public sealed class MessagePurgeCycleTests
     {
         Returns(Batch("a", "b"), Batch("c", "d"), Batch("e"));
 
-        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 2, CancellationToken.None);
+        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 2, _logger, CancellationToken.None);
 
         ((int)result).ShouldBe(5);
         await _store.Received(3).GetExpiredMessagesAsync(2, Arg.Any<CancellationToken>());
@@ -49,7 +51,7 @@ public sealed class MessagePurgeCycleTests
     {
         Returns(Batch("a", "b"), Batch());
 
-        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 2, CancellationToken.None);
+        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 2, _logger, CancellationToken.None);
 
         ((int)result).ShouldBe(2);
         await _store.Received(2).GetExpiredMessagesAsync(2, Arg.Any<CancellationToken>());
@@ -61,7 +63,7 @@ public sealed class MessagePurgeCycleTests
         _store.GetExpiredMessagesAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, IEnumerable<IInboxMessage>>(EncinaErrors.Create("inbox.fetch", "x")));
 
-        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 2, CancellationToken.None);
+        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 2, _logger, CancellationToken.None);
 
         result.IsLeft.ShouldBeTrue();
         await _store.DidNotReceiveWithAnyArgs().RemoveExpiredMessagesAsync(default!, default);
@@ -74,7 +76,7 @@ public sealed class MessagePurgeCycleTests
         _store.RemoveExpiredMessagesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, Unit>(EncinaErrors.Create("inbox.remove", "x")));
 
-        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 2, CancellationToken.None);
+        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 2, _logger, CancellationToken.None);
 
         result.IsLeft.ShouldBeTrue();
         await _store.DidNotReceiveWithAnyArgs().SaveChangesAsync(default);
@@ -87,10 +89,38 @@ public sealed class MessagePurgeCycleTests
         _store.SaveChangesAsync(Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, Unit>(EncinaErrors.Create("inbox.save", "x")));
 
-        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 2, CancellationToken.None);
+        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 2, _logger, CancellationToken.None);
 
         result.IsLeft.ShouldBeTrue();
         await _store.Received(1).GetExpiredMessagesAsync(2, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task StoreRepeatingTheSameFullBatch_StopsAfterTheSecondBatchAndLogsNoProgress()
+    {
+        _store.GetExpiredMessagesAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Right<EncinaError, IEnumerable<IInboxMessage>>(Batch("a", "b")));
+
+        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 2, _logger, CancellationToken.None);
+
+        result.IsRight.ShouldBeTrue();
+        ((int)result).ShouldBe(2);
+        await _store.Received(2).GetExpiredMessagesAsync(2, Arg.Any<CancellationToken>());
+        await _store.Received(1).RemoveExpiredMessagesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>());
+        var records = _logger.Collector.GetSnapshot();
+        records.Count(r => r.Id.Id == 2112).ShouldBe(1);
+        records.Single(r => r.Id.Id == 2112).Level.ShouldBe(Microsoft.Extensions.Logging.LogLevel.Warning);
+    }
+
+    [Fact]
+    public async Task BatchesThatMakeProgress_DrainToTheShortBatchWithoutTheWarning()
+    {
+        Returns(Batch("a", "b"), Batch("b", "c"), Batch("d"));
+
+        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 2, _logger, CancellationToken.None);
+
+        ((int)result).ShouldBe(5);
+        _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 2112);
     }
 
     [Fact]
@@ -100,7 +130,7 @@ public sealed class MessagePurgeCycleTests
         await cts.CancelAsync();
 
         await Should.ThrowAsync<OperationCanceledException>(
-            () => MessagePurgeCycle.PurgeInboxAsync(_store, 2, cts.Token));
+            () => MessagePurgeCycle.PurgeInboxAsync(_store, 2, _logger, cts.Token));
     }
 
     private void Returns(params IEnumerable<IInboxMessage>[] batches)

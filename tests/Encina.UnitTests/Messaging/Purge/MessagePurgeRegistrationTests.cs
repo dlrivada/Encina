@@ -74,7 +74,7 @@ public sealed class MessagePurgeRegistrationTests
 
         using var provider = services.BuildServiceProvider(Strict);
 
-        provider.GetRequiredService<MessagePurgeSchedule>().HasEntries.ShouldBeFalse();
+        provider.GetRequiredService<MessagePurgeSchedule>().InboxPurge.ShouldBeNull();
     }
 
     [Fact]
