@@ -54,6 +54,21 @@ public sealed class MartenOperationAuditOptionsTests
     }
 
     [Fact]
+    public void Defaults_UnreadablePlaceholder_IsUnreadable()
+    {
+        var options = new MartenOperationAuditOptions();
+        options.UnreadablePlaceholder.ShouldBe("[UNREADABLE]");
+        MartenOperationAuditOptions.DefaultUnreadablePlaceholder.ShouldBe("[UNREADABLE]");
+    }
+
+    [Fact]
+    public void UnreadablePlaceholder_CanBeConfigured()
+    {
+        var options = new MartenOperationAuditOptions { UnreadablePlaceholder = "<x>" };
+        options.UnreadablePlaceholder.ShouldBe("<x>");
+    }
+
+    [Fact]
     public void Defaults_AddHealthCheck_IsFalse()
     {
         var options = new MartenOperationAuditOptions();

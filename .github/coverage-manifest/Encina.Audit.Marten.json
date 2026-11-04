@@ -229,14 +229,14 @@
       "reason": "Default: assume testable with mocks",
       "targets": {
         "unit": 97,
-        "guard": 37,
-        "property": 90,
+        "guard": 80,
+        "property": 97,
         "integration": 82
       },
       "justifications": {
         "unit": "Unit tests run encrypt and decrypt, every unreadable-envelope cause and the placeholder rule (measured 98%).",
-        "guard": "Guard tests assert the argument checks of Encrypt and Decrypt only (measured 37%).",
-        "property": "FsCheck properties run round trips, garbage, corrupted envelopes and wrong key lengths (measured 91%).",
+        "guard": "Guard tests assert the argument checks of Encrypt/Decrypt and every typed failure through Decrypt (measured 82%).",
+        "property": "FsCheck properties cover round trips, garbage, corrupted envelopes, lone surrogates, null values and the agreement of the throwing and non-throwing reads (measured 99%).",
         "integration": "The real-Marten tests decrypt healthy events and fail tampered and unmarked ones through the projections (measured 82%)."
       }
     },
@@ -499,12 +499,12 @@
       "reason": "Default: assume testable with mocks",
       "targets": {
         "unit": 100,
-        "guard": 92,
+        "guard": 93,
         "integration": 100
       },
       "justifications": {
         "unit": "Every property is set and read by the projection tests (measured 100%).",
-        "guard": "The read model's property guards are exercised by the guard tests (measured 92%).",
+        "guard": "The read model's property guards, including the IsUnreadable flag, are exercised by the guard tests (measured 93%).",
         "integration": "The real-Marten projection tests set and read every property (measured 100%)."
       }
     },

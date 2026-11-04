@@ -45,6 +45,11 @@ public sealed class MartenOperationAuditOptions
     public const string DefaultExpiredPlaceholder = "[EXPIRED]";
 
     /// <summary>
+    /// Default placeholder value for fields of audit entries that an operator marked as unreadable.
+    /// </summary>
+    public const string DefaultUnreadablePlaceholder = "[UNREADABLE]";
+
+    /// <summary>
     /// Default retention period in days (~7 years for SOX compliance).
     /// </summary>
     public const int DefaultRetentionDays = 2555;
@@ -195,6 +200,20 @@ public sealed class MartenOperationAuditOptions
     /// </remarks>
     /// <value>Defaults to <c>"[EXPIRED]"</c>.</value>
     public string ExpiredPlaceholder { get; set; } = DefaultExpiredPlaceholder;
+
+    /// <summary>
+    /// Gets or sets the placeholder value substituted for fields of audit entries that an operator marked as
+    /// unreadable (issue #3049).
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="ShreddedPlaceholder"/> (a recorded erasure request) and
+    /// <see cref="ExpiredPlaceholder"/> (a recorded retention expiry): it stands for stored data that cannot be read
+    /// and that an operator acknowledged in an audited resolution. The three placeholders must differ from any value a
+    /// field can legitimately hold. The read models flag a masked entry with <c>IsUnreadable</c>; the query stores do
+    /// not infer masking from a field's text (a persisted metadata-masked flag arrives in a later phase of #3049).
+    /// </remarks>
+    /// <value>Defaults to <c>"[UNREADABLE]"</c>.</value>
+    public string UnreadablePlaceholder { get; set; } = DefaultUnreadablePlaceholder;
 
     /// <summary>
     /// Gets or sets whether to register a health check for the Marten audit store.
