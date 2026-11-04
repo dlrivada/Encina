@@ -94,8 +94,7 @@ public static class ServiceCollectionExtensions
         // Register the break-the-glass elevation store if enabled
         if (config.UseBreakTheGlassStore)
         {
-            // The database-backed store wins regardless of registration order; a custom
-            // IBreakTheGlassStore the application registered itself is never removed.
+            // The database store wins in any registration order; the application's own store is never removed.
             RemoveInMemoryDefault<IBreakTheGlassStore, InMemoryBreakTheGlassStore>(services);
             services.TryAddScoped<IBreakTheGlassStore, BreakTheGlass.BreakTheGlassStoreDapper>();
         }

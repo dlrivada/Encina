@@ -13,10 +13,8 @@ using Shouldly;
 namespace Encina.UnitTests.Security.BreakTheGlass;
 
 /// <summary>
-/// Registration completeness and failure handling of the PostgreSQL break-the-glass stores (ADO.NET and Dapper):
-/// the database store wins over the in-memory default in either registration order without overriding the
-/// application's own store, the provider builds with <c>ValidateOnBuild</c> and <c>ValidateScopes</c>, a provider
-/// failure is a <c>Left</c> and never an exception. The behavior against a real database is in the integration tests.
+/// Registration completeness (both orders, <c>ValidateOnBuild</c> and <c>ValidateScopes</c>, the application's own
+/// store never overridden) and <c>store_failed</c> handling of the PostgreSQL break-the-glass stores.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Feature", "BreakTheGlass")]

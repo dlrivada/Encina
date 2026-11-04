@@ -21,15 +21,10 @@ public sealed class BreakTheGlassPostgreSqlStoreGuardTests
             : new BreakTheGlassStoreDapper(Substitute.For<IDbConnection>());
 
     [Fact]
-    public void Constructors_NullConnection_ThrowsArgumentNullException()
+    public void Constructors_NullConnectionOrInvalidTableName_Throw()
     {
         Should.Throw<ArgumentNullException>(() => new BreakTheGlassStoreADO(null!)).ParamName.ShouldBe("connection");
         Should.Throw<ArgumentNullException>(() => new BreakTheGlassStoreDapper(null!)).ParamName.ShouldBe("connection");
-    }
-
-    [Fact]
-    public void Constructors_InvalidTableName_ThrowsArgumentException()
-    {
         Should.Throw<ArgumentException>(() => new BreakTheGlassStoreADO(Substitute.For<IDbConnection>(), tableName: "x; DROP TABLE y"));
         Should.Throw<ArgumentException>(() => new BreakTheGlassStoreDapper(Substitute.For<IDbConnection>(), tableName: "x; DROP TABLE y"));
     }
