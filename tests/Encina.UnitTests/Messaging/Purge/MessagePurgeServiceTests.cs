@@ -128,6 +128,8 @@ public sealed class MessagePurgeServiceTests
         var records = _logger.Collector.GetSnapshot();
         records.ShouldContain(r => r.Id.Id == 2111);
         records.ShouldNotContain(r => r.Message.Contains("boom with patient data"));
+        records.Where(r => r.Id.Id == 2111).ShouldAllBe(r => r.Exception == null
+            || !r.Exception.Message.Contains("boom with patient data"));
         calls.ShouldBe(2);
 
         await sut.StopAsync(CancellationToken.None);
