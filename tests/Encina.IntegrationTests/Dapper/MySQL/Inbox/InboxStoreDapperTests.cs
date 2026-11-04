@@ -588,6 +588,41 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
         Assert.True(retrievedOpt.IsSome); // Should still exist
     }
 
+    [Fact]
+    public async Task RemoveExpiredMessagesAsync_MoreIdsThanOneChunk_ShouldDeleteAllAndLeaveSurvivors()
+    {
+        // Arrange: 2500 ids span three chunks of 1000; two other rows must survive
+        const int expiredCount = 2500;
+        var expiredIds = Enumerable.Range(0, expiredCount).Select(i => $"chunk-expired-{i}").ToArray();
+        foreach (var id in expiredIds)
+        {
+            (await _store.AddAsync(NewMessage(id))).ShouldBeRight();
+        }
+        (await _store.AddAsync(NewMessage("chunk-survivor-1"))).ShouldBeRight();
+        (await _store.AddAsync(NewMessage("chunk-survivor-2"))).ShouldBeRight();
+
+        // Act
+        (await _store.RemoveExpiredMessagesAsync(expiredIds)).ShouldBeRight();
+
+        // Assert
+        foreach (var id in new[] { expiredIds[0], expiredIds[999], expiredIds[1000], expiredIds[1999], expiredIds[2000], expiredIds[^1] })
+        {
+            Assert.True((await _store.GetMessageAsync(id)).ShouldBeRight().IsNone);
+        }
+        Assert.True((await _store.GetMessageAsync("chunk-survivor-1")).ShouldBeRight().IsSome);
+        Assert.True((await _store.GetMessageAsync("chunk-survivor-2")).ShouldBeRight().IsSome);
+    }
+
+    private static InboxMessage NewMessage(string messageId) => new()
+    {
+        MessageId = messageId,
+        RequestType = "TestRequest",
+        ReceivedAtUtc = DateTime.UtcNow.AddDays(-40),
+        ProcessedAtUtc = DateTime.UtcNow.AddDays(-35),
+        ExpiresAtUtc = DateTime.UtcNow.AddDays(-5),
+        RetryCount = 0
+    };
+
     #endregion
 
     #region SaveChangesAsync Tests

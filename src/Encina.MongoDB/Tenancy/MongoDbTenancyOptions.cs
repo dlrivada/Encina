@@ -67,7 +67,7 @@ public sealed class MongoDbTenancyOptions
     /// <remarks>
     /// <para>
     /// When <c>true</c>, operations on tenant entities without a current
-    /// tenant context will throw an <see cref="InvalidOperationException"/>.
+    /// tenant context return a <c>Repository.TenantRequired</c> error (<c>Left</c>).
     /// </para>
     /// <para>
     /// When <c>false</c>, operations will proceed without tenant filtering,

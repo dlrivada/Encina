@@ -1,0 +1,1 @@
+- `InboxOptions.PurgeInterval`, `PurgeBatchSize` and `MessageRetentionPeriod` now reject invalid values (`ArgumentOutOfRangeException`): non-positive values, and a `PurgeInterval` above the longest delay `Task.Delay` accepts (`uint.MaxValue - 1` milliseconds), so a misconfiguration fails at configuration time (#3165).

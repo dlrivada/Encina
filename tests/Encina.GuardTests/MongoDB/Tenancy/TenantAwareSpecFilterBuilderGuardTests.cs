@@ -37,7 +37,40 @@ public class TenantAwareSpecFilterBuilderGuardTests
     {
         var builder = new TenantAwareSpecificationFilterBuilder<TestEntity>(Mapping, TenantProvider, Options);
         Should.Throw<ArgumentNullException>(() =>
-            builder.BuildFilter(null!));
+            builder.BuildFilter(null!, "List"));
+    }
+
+    [Fact]
+    public void BuildFilter_NullOperation_Throws()
+    {
+        var builder = new TenantAwareSpecificationFilterBuilder<TestEntity>(Mapping, TenantProvider, Options);
+        Should.Throw<ArgumentNullException>(() =>
+            builder.BuildFilter(Substitute.For<Specification<TestEntity>>(), null!));
+    }
+
+    #endregion
+
+    #region Other members
+
+    [Fact]
+    public void BuildTenantFilter_NullOperation_Throws()
+    {
+        var builder = new TenantAwareSpecificationFilterBuilder<TestEntity>(Mapping, TenantProvider, Options);
+        Should.Throw<ArgumentNullException>(() => builder.BuildTenantFilter(null!));
+    }
+
+    [Fact]
+    public void BuildFilterWithTenantId_NullOperation_Throws()
+    {
+        var builder = new TenantAwareSpecificationFilterBuilder<TestEntity>(Mapping, TenantProvider, Options);
+        Should.Throw<ArgumentNullException>(() => builder.BuildFilterWithTenantId(null, null!));
+    }
+
+    [Fact]
+    public void GetCurrentTenantId_NullOperation_Throws()
+    {
+        var builder = new TenantAwareSpecificationFilterBuilder<TestEntity>(Mapping, TenantProvider, Options);
+        Should.Throw<ArgumentNullException>(() => builder.GetCurrentTenantId(null!));
     }
 
     #endregion

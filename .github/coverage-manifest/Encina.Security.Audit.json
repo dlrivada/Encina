@@ -5,7 +5,13 @@
   "targets": {
     "contract": 15,
     "guard": 20,
+    "integration": 52,
+    "property": 8,
     "unit": 70
+  },
+  "justifications": {
+    "integration": "Integration tests drive AuditPipelineBehavior through the ADO and EF Core SQL Server stores and MongoDB; measured 52.4 % locally on 2026-11-03 (55.9 % on the published dashboard), so the package target records the lower figure and is not set above what is measured (#2874).",
+    "property": "Only ReadAuditContext is reached by property tests (measured 8.6 % over the files with per-file targets on 2026-11-03; AuditedReadOnlyRepository has none), so the target records today's floor and the missing tests are tracked in #2867 (#2874)."
   },
   "files": {
     "Abstractions/IOperationAuditEntryFactory.cs": {

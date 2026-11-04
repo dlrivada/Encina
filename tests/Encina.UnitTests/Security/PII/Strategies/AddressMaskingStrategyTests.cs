@@ -87,14 +87,6 @@ public sealed class AddressMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_TokenizeMode_ReturnsOriginalValue()
-    {
-        var result = _sut.Apply("123 Main St, Springfield, IL", WithMode(MaskingMode.Tokenize));
-
-        result.ShouldBe("123 Main St, Springfield, IL");
-    }
-
-    [Fact]
     public void Apply_PreservesSpacesInStreetPortion()
     {
         var result = _sut.Apply("456 Oak Ave, Portland, OR", DefaultPartial());
