@@ -5,8 +5,9 @@ namespace Encina.PropertyTests.Security.BreakTheGlass;
 /// <summary>
 /// FsCheck property of the <see cref="IBreakTheGlassStore"/> contract, run on the in-memory store: for any sequence of
 /// add and revoke operations on one key, at most one row is effective at any instant, and
-/// <c>FindEffectiveAsync</c> finds a row exactly when one is. The persistent stores must show the same behavior (the
-/// shared contract facts run against each database in the integration tests).
+/// <c>FindEffectiveAsync</c> finds a row exactly when one is. This is an extra check of the in-memory reference only;
+/// the same invariant runs against the real ADO, Dapper and EF Core SQL Server stores in the integration tests
+/// (<c>BreakTheGlassStorePropertyIntegrationTests</c>).
 /// </summary>
 [Trait("Category", "Property")]
 [Trait("Feature", "BreakTheGlass")]
