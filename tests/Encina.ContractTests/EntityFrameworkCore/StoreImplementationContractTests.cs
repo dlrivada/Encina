@@ -265,7 +265,7 @@ public sealed class StoreImplementationContractTests : IDisposable
     [Fact]
     public async Task InboxStore_GetExpiredMessages_ShouldReturnExpired()
     {
-        // Exercises: InboxStoreEF.GetExpiredMessagesAsync (lines 129-145)
+        // Exercises: InboxStoreEF.GetExpiredMessagesAsync (only processed rows expire, #3010)
         var store = new InboxStoreEF(_dbContext, _timeProvider);
         var now = _timeProvider.GetUtcNow().UtcDateTime;
 
@@ -295,7 +295,7 @@ public sealed class StoreImplementationContractTests : IDisposable
     [Fact]
     public async Task InboxStore_RemoveExpiredMessages_ShouldDelete()
     {
-        // Exercises: InboxStoreEF.RemoveExpiredMessagesAsync (lines 148-162)
+        // Exercises: InboxStoreEF.RemoveExpiredMessagesAsync (guarded by the processed-only predicate, #3010)
         var store = new InboxStoreEF(_dbContext, _timeProvider);
         var messageId = $"to-remove-{Guid.NewGuid()}";
         _dbContext.InboxMessages.Add(new InboxMessage

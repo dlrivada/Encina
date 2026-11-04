@@ -307,7 +307,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
     private T MaskObjectInternal<T>(T obj, bool logContextOnly, out int maskedCount)
     {
         var type = obj!.GetType();
-        var properties = PIIPropertyScanner.GetProperties(type);
+        var properties = ScanProperties(type, logContextOnly);
 
         if (properties.Length == 0)
         {
@@ -402,8 +402,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
     {
         maskedValue = string.Empty;
 
-        // Skip log-only properties when not in log context
-        if (prop.LogOnly && !logContextOnly)
+        if (SkipsContext(prop, logContextOnly))
         {
             return false;
         }
@@ -426,6 +425,24 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         }
 
         return true;
+    }
+
+    // Log-only properties are skipped outside the log context. In the log context a [MaskInLogs]
+    // value that cannot be masked (not a string) must not reach the log in clear: fail closed.
+    private static bool SkipsContext(PropertyMaskingMetadata prop, bool logContextOnly)
+    {
+        if (prop.LogOnly && !logContextOnly)
+        {
+            return true;
+        }
+
+        if (prop.Unmaskable)
+        {
+            throw new InvalidOperationException(
+                $"Property '{prop.Property.Name}' is marked [MaskInLogs] but is not a string and cannot be masked.");
+        }
+
+        return false;
     }
 
     private string ResolveJsonPropertyName(PropertyMaskingMetadata prop) =>
@@ -463,6 +480,14 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
 
         var result = node.Deserialize<T>(_jsonOptions);
         return result ?? obj;
+    }
+
+    // An unmaskable [MaskInLogs] property only matters to the log context (it fails closed there); the
+    // response and audit contexts ignore it entirely, so a type decorated only that way is not copied.
+    private static PropertyMaskingMetadata[] ScanProperties(Type type, bool logContextOnly)
+    {
+        var properties = PIIPropertyScanner.GetProperties(type);
+        return logContextOnly ? properties : [.. properties.Where(p => !p.Unmaskable)];
     }
 
     private object MaskObjectViaJson(object obj, Type type, bool logContextOnly)
