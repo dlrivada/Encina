@@ -1,7 +1,7 @@
 {
   "package": "Encina.EntityFrameworkCore",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 109,
+  "totalFiles": 113,
   "targets": {
     "contract": 5,
     "guard": 10,
@@ -174,6 +174,70 @@
       },
       "justifications": {
         "integration": "The integration tests on real SQL Server and PostgreSQL databases run every read audit query path, every filter and the stable-order paging (measured 76.09%); EF Core MySQL is skipped until Pomelo supports EF Core 10; the uncovered lines are the DbUpdateException, DbException and OperationCanceledException catch blocks of the purge and the write path."
+      }
+    },
+    "BreakTheGlass/BreakTheGlassElevationEntity.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*Entity.cs",
+      "reason": "EF entity (properties only)",
+      "targets": {
+        "integration": 90
+      },
+      "justifications": {
+        "integration": "Every property is written and read back by the shared BreakTheGlassStoreContract in BreakTheGlassStoreEFSqlServerIntegrationTests."
+      }
+    },
+    "BreakTheGlass/BreakTheGlassElevationEntityConfiguration.cs": {
+      "defaultTests": [
+        "unit",
+        "integration"
+      ],
+      "defaultRule": "*Configuration.cs",
+      "reason": "EF entity type configuration",
+      "targets": {
+        "unit": 80,
+        "guard": 90,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "BreakTheGlassStoreEFTests.Model_MapsTheShippedTable builds the SQL Server model and checks the table, collation, length, computed column and unique index.",
+        "guard": "BreakTheGlassStoreGuardTests.Configuration_NullBuilder_Throws covers the null builder guard.",
+        "integration": "BreakTheGlassEFSchemaParityIntegrationTests compares the model with the shipped table and the contract facts run through it."
+      }
+    },
+    "BreakTheGlass/BreakTheGlassModelBuilderExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "ModelBuilder extension",
+      "targets": {
+        "unit": 90,
+        "guard": 90
+      },
+      "justifications": {
+        "unit": "BreakTheGlassStoreEFTests builds a context whose OnModelCreating calls ApplyBreakTheGlassConfiguration.",
+        "guard": "BreakTheGlassStoreGuardTests.ModelBuilderExtension_NullBuilder_Throws covers the null guard."
+      }
+    },
+    "BreakTheGlass/BreakTheGlassStoreEF.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreEF.cs",
+      "reason": "EF Core store with ExecuteUpdate over a computed-column unique index - needs a real database",
+      "targets": {
+        "unit": 25,
+        "guard": 90,
+        "integration": 90
+      },
+      "justifications": {
+        "unit": "BreakTheGlassStoreEFTests covers the registration in both orders, the failure paths that return store_failed, cancellation, the active-key hash and the error classifier; the SQL itself needs a real database and is covered by the integration flag.",
+        "guard": "BreakTheGlassStoreGuardTests runs every null and range guard of the constructor and of each method of the EF store.",
+        "integration": "The shared BreakTheGlassStoreContract runs on the EFCore-SqlServer collection fixture through BreakTheGlassStoreEFSqlServerIntegrationTests, executing every method against a real SQL Server."
       }
     },
     "BulkOperations/BulkOperationsEF.cs": {
@@ -812,7 +876,7 @@
       "reason": "ServiceCollection extensions with conditional registration",
       "targets": { "unit": 64, "guard": 60, "integration": 40, "contract": 0, "property": 0 },
       "justifications": {
-        "unit": "Registration paths, including the recoverability, routing slip, content router and scatter-gather flags and the behavior order (#2711), are DI-tested with ValidateOnBuild and ValidateScopes; provider-specific branches need real contexts and other features are covered by their own tests.",
+        "unit": "Registration paths, including the recoverability, routing slip, content router and scatter-gather flags and the behavior order (#2711), are DI-tested with ValidateOnBuild and ValidateScopes; provider-specific branches need real contexts and other features are covered by their own tests. BreakTheGlassStoreEFTests covers RegisterBreakTheGlassStore in both registration orders.",
         "guard": "Argument checks of the public registration methods and the registration branches, including the recoverability and router flags added in #2711, are covered by the guard tests.",
         "integration": "Real-database pipeline runs register the messaging stack; the remaining branches (tenancy, sharding, read-write routing) are exercised by their own suites.",
         "contract": "Registration only, with no public contract beyond the DI container, which the DI tests prove.",
