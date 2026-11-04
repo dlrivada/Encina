@@ -5390,7 +5390,7 @@ The fluent builder chain described in the documentation is fictional. The parame
         . (Join-Path $hooks '_orchestrator-state.ps1')
         $budgetCases = @(
             @('2026-10-30T03:00:00Z', 0, 'Friday', 0, 14, 12, 'd0 Friday: floor(100/7)'),
-            @('2026-10-31T10:00:00Z', 14, 'Saturday', 14, 14 + 14, 26, 'd1 Saturday: floor(86/6)'),
+            @('2026-10-31T10:00:00Z', 14, 'Saturday', 14, 28, 26, 'd1 Saturday: floor(86/6)'),
             @('2026-11-01T10:00:00Z', 30, 'Sunday', 30, 44, 42, 'd2 Sunday: floor(70/5)'),
             @('2026-11-02T10:00:00Z', 44, 'Monday', 44, 58, 56, 'd3 Monday: floor(56/4)'),
             @('2026-11-03T10:00:00Z', 53, 'Tuesday', 53, 68, 66, 'd4 Tuesday: floor(47/3)'),
