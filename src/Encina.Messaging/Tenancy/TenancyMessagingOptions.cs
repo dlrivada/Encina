@@ -66,8 +66,9 @@ public sealed class TenancyMessagingOptions
     /// <remarks>
     /// <para>
     /// This is the messaging-level declaration of the setting; the messaging package itself reads no
-    /// behaviour from it. Each provider's own tenancy options (for example
-    /// <c>MongoDbTenancyOptions.RequireTenantContext</c>) decide how a refusal is reported.
+    /// behaviour from it. <c>AddEncinaEntityFrameworkCore</c> copies it into the EF Core tenancy options,
+    /// where a refusal is an exception raised from <c>SaveChanges</c> (provided the core
+    /// <c>TenancyOptions.RequireTenant</c> is also <c>true</c>).
     /// </para>
     /// <para>
     /// Set it to <c>false</c> for scenarios where admin/system operations run without tenant context.
