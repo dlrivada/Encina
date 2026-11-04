@@ -291,9 +291,7 @@ internal sealed class DefaultDPIAService : IDPIAService
         DateTimeOffset? nextReviewAtUtc = null,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug(
-            "Approving DPIA assessment '{AssessmentId}' by '{ApprovedBy}'",
-            assessmentId, approvedBy);
+        _logger.LogDebug("Approving DPIA assessment '{AssessmentId}'", assessmentId);
 
         try
         {
@@ -310,7 +308,7 @@ internal sealed class DefaultDPIAService : IDPIAService
                     return saveResult.Match<Either<EncinaError, Unit>>(
                         Right: _ =>
                         {
-                            _logger.AssessmentApproved(assessmentId, approvedBy);
+                            _logger.AssessmentApproved(assessmentId);
                             DPIADiagnostics.ServiceAssessmentApproved.Add(1);
                             InvalidateAssessmentCache(assessmentId, aggregate.RequestTypeName, cancellationToken);
                             return Unit.Default;
@@ -340,9 +338,7 @@ internal sealed class DefaultDPIAService : IDPIAService
         string reason,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug(
-            "Rejecting DPIA assessment '{AssessmentId}' by '{RejectedBy}'",
-            assessmentId, rejectedBy);
+        _logger.LogDebug("Rejecting DPIA assessment '{AssessmentId}'", assessmentId);
 
         try
         {
@@ -358,7 +354,7 @@ internal sealed class DefaultDPIAService : IDPIAService
                     return saveResult.Match<Either<EncinaError, Unit>>(
                         Right: _ =>
                         {
-                            _logger.AssessmentRejected(assessmentId, rejectedBy);
+                            _logger.AssessmentRejected(assessmentId);
                             DPIADiagnostics.ServiceAssessmentRejected.Add(1);
                             InvalidateAssessmentCache(assessmentId, aggregate.RequestTypeName, cancellationToken);
                             return Unit.Default;

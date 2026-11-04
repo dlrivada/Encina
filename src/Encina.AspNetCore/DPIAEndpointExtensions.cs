@@ -5,6 +5,7 @@ using Encina.Compliance.DPIA.Diagnostics;
 using Encina.Compliance.DPIA.Model;
 using Encina.Compliance.DPIA.ReadModels;
 using LanguageExt;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -24,33 +25,45 @@ namespace Encina.AspNetCore;
 /// reject, and monitor assessments through an HTTP interface.
 /// </para>
 /// <para>
-/// All endpoints are optional and must be explicitly mapped by the user.
-/// Authorization is the caller's responsibility — apply authorization policies
-/// via middleware or endpoint filters as needed.
+/// All endpoints are optional and must be explicitly mapped by the user, and they fail closed:
+/// <c>MapDPIAEndpoints</c> requires the name of an authorization policy, applies it to every
+/// endpoint, and throws at startup when the name is blank or the policy is not registered. The
+/// application owns the policy (who may act as the DPO); Encina defines no role. There is no
+/// anonymous mode.
 /// </para>
 /// <para>
-/// Prerequisites: Call <c>AddEncinaDPIA()</c> in your DI configuration before mapping endpoints.
+/// Approve and reject record the authenticated request identity's user id
+/// (<see cref="IRequestContext.Identity"/>, bound by <c>UseEncinaContext()</c>) as the approver or
+/// rejector, and deny the request (401, <c>encina.authorization.unauthenticated</c>) when there is
+/// no request context or the identity is not authenticated.
+/// </para>
+/// <para>
+/// Prerequisites: Call <c>AddEncinaDPIA()</c> and register the policy with <c>AddAuthorization()</c>
+/// in your DI configuration, and add <c>UseAuthentication()</c>, <c>UseAuthorization()</c> and
+/// <c>UseEncinaContext()</c> to the pipeline before mapping endpoints.
 /// </para>
 /// </remarks>
 /// <example>
 /// <code>
-/// // Register DPIA services
+/// // Register DPIA services and the policy that decides who may act as the DPO
 /// builder.Services.AddEncinaDPIA(options =>
 /// {
 ///     options.EnforcementMode = DPIAEnforcementMode.Block;
 ///     options.DPOEmail = "dpo@company.com";
 /// });
+/// builder.Services.AddAuthorization(options =>
+///     options.AddPolicy("DPOPolicy", policy => policy.RequireRole("dpo")));
 ///
 /// var app = builder.Build();
+/// app.UseAuthentication();
+/// app.UseAuthorization();
+/// app.UseEncinaContext();
 ///
 /// // Map DPIA management endpoints (default prefix: /api/dpia)
-/// app.MapDPIAEndpoints();
+/// app.MapDPIAEndpoints("DPOPolicy");
 ///
 /// // Or with a custom prefix
-/// app.MapDPIAEndpoints(prefix: "/compliance/dpia");
-///
-/// // With authorization
-/// app.MapDPIAEndpoints().RequireAuthorization("DPOPolicy");
+/// app.MapDPIAEndpoints("DPOPolicy", prefix: "/compliance/dpia");
 /// </code>
 /// </example>
 public static class DPIAEndpointExtensions
@@ -59,12 +72,17 @@ public static class DPIAEndpointExtensions
     /// Maps DPIA assessment management endpoints to the specified route builder.
     /// </summary>
     /// <param name="endpoints">The endpoint route builder to add endpoints to.</param>
+    /// <param name="authorizationPolicy">
+    /// The name of the authorization policy applied to every endpoint of the group. It must be
+    /// registered in <see cref="Microsoft.AspNetCore.Authorization.AuthorizationOptions"/> (for example with
+    /// <c>AddAuthorization(options =&gt; options.AddPolicy(...))</c>).
+    /// </param>
     /// <param name="prefix">
     /// The URL prefix for all DPIA endpoints. Defaults to <c>"/api/dpia"</c>.
     /// </param>
     /// <returns>
     /// A <see cref="RouteGroupBuilder"/> that can be used to further customize
-    /// the endpoint group (e.g., adding authorization, rate limiting).
+    /// the endpoint group (e.g., rate limiting).
     /// </returns>
     /// <remarks>
     /// <para>
@@ -114,15 +132,26 @@ public static class DPIAEndpointExtensions
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="endpoints"/> is <see langword="null"/>.
+    /// Thrown when <paramref name="endpoints"/> or <paramref name="authorizationPolicy"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="authorizationPolicy"/> is empty or whitespace.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown at startup when authorization is not registered or <paramref name="authorizationPolicy"/>
+    /// is not a registered policy.
     /// </exception>
     public static RouteGroupBuilder MapDPIAEndpoints(
         this IEndpointRouteBuilder endpoints,
+        string authorizationPolicy,
         string prefix = "/api/dpia")
     {
         ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentException.ThrowIfNullOrWhiteSpace(authorizationPolicy);
+        EnsurePolicyRegistered(endpoints, authorizationPolicy);
 
         var group = endpoints.MapGroup(prefix);
+        group.RequireAuthorization(authorizationPolicy);
 
         group.MapGet("/assessments", HandleListAssessments);
         group.MapGet("/assessments/{id:guid}", HandleGetAssessment);
@@ -334,9 +363,14 @@ public static class DPIAEndpointExtensions
         using var activity = DPIADiagnostics.StartEndpointExecution("approve");
         var startedAt = Stopwatch.GetTimestamp();
         logger.EndpointRequestReceived("approve", "POST", SanitizeForLog(httpContext.Request.Path));
-        logger.EndpointApproveTriggered(id);
 
-        var approvedBy = httpContext.User.Identity?.Name ?? "DPO";
+        var approvedBy = ResolveActor(httpContext);
+        if (approvedBy is null)
+        {
+            return DenyUnauthenticated(activity, startedAt, "approve", httpContext, logger);
+        }
+
+        logger.EndpointApproveTriggered(id);
         var nowUtc = timeProvider.GetUtcNow();
         var nextReview = nowUtc + options.Value.DefaultReviewPeriod;
 
@@ -379,9 +413,14 @@ public static class DPIAEndpointExtensions
         using var activity = DPIADiagnostics.StartEndpointExecution("reject");
         var startedAt = Stopwatch.GetTimestamp();
         logger.EndpointRequestReceived("reject", "POST", SanitizeForLog(httpContext.Request.Path));
-        logger.EndpointRejectTriggered(id);
 
-        var rejectedBy = httpContext.User.Identity?.Name ?? "DPO";
+        var rejectedBy = ResolveActor(httpContext);
+        if (rejectedBy is null)
+        {
+            return DenyUnauthenticated(activity, startedAt, "reject", httpContext, logger);
+        }
+
+        logger.EndpointRejectTriggered(id);
         var reason = request?.Reason ?? "Rejected via REST endpoint.";
 
         var result = await service.RejectAssessmentAsync(id, rejectedBy, reason, cancellationToken);
@@ -477,6 +516,52 @@ public static class DPIAEndpointExtensions
             statusCode: StatusCodes.Status404NotFound,
             title: "Not Found",
             detail: $"DPIA assessment with ID '{id}' was not found.");
+
+    /// <summary>
+    /// Fails startup when authorization is not registered or the named policy does not exist.
+    /// </summary>
+    private static void EnsurePolicyRegistered(IEndpointRouteBuilder endpoints, string authorizationPolicy)
+    {
+        var options = endpoints.ServiceProvider?.GetService<IOptions<AuthorizationOptions>>();
+        if (options is null)
+        {
+            throw new InvalidOperationException(
+                "MapDPIAEndpoints requires authorization: call AddAuthorization() and register the policy "
+                + $"'{authorizationPolicy}' before mapping the DPIA endpoints.");
+        }
+
+        if (options.Value.GetPolicy(authorizationPolicy) is null)
+        {
+            throw new InvalidOperationException(
+                $"MapDPIAEndpoints requires the authorization policy '{authorizationPolicy}', "
+                + "but it is not registered in AuthorizationOptions. Register it with AddAuthorization().");
+        }
+    }
+
+    /// <summary>
+    /// Returns the user id of the authenticated request identity, or <see langword="null"/> when there
+    /// is no request context or the identity is not authenticated. Never reads <c>HttpContext.User</c>.
+    /// </summary>
+    private static string? ResolveActor(HttpContext httpContext)
+    {
+        var identity = httpContext.RequestServices?.GetService<IRequestContextAccessor>()?.RequestContext?.Identity;
+
+        return identity is { IsAuthenticated: true } && !string.IsNullOrWhiteSpace(identity.UserId)
+            ? identity.UserId
+            : null;
+    }
+
+    /// <summary>
+    /// Denies a DPO action without an authenticated identity: 401 Problem Details, a Warning with
+    /// the error code only, and the failure metrics.
+    /// </summary>
+    private static IResult DenyUnauthenticated(
+        Activity? activity, long startedAt, string endpointName, HttpContext httpContext, ILogger logger)
+    {
+        RecordEndpointFailure(activity, startedAt, endpointName, StatusCodes.Status401Unauthorized, logger);
+        logger.EndpointRequestDenied(endpointName, EncinaErrorCodes.AuthorizationUnauthenticated);
+        return EncinaErrors.Unauthenticated().ToProblemDetails(httpContext);
+    }
 
     /// <summary>
     /// Resolves the tenant from the request context and the module from the HTTP request header.

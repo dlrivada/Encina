@@ -332,19 +332,19 @@ internal static partial class DPIALogMessages
         Message = "DPIA assessment evaluated. AssessmentId={AssessmentId}, OverallRisk={OverallRisk}")]
     internal static partial void AssessmentEvaluated(this ILogger logger, Guid assessmentId, string overallRisk);
 
-    /// <summary>Assessment approved via the DPIA service.</summary>
+    /// <summary>Assessment approved via the DPIA service. The approver is recorded in the DPIAApproved event, never in the log.</summary>
     [LoggerMessage(
         EventId = 8872,
         Level = LogLevel.Information,
-        Message = "DPIA assessment approved. AssessmentId={AssessmentId}, ApprovedBy={ApprovedBy}")]
-    internal static partial void AssessmentApproved(this ILogger logger, Guid assessmentId, string approvedBy);
+        Message = "DPIA assessment approved. AssessmentId={AssessmentId}")]
+    internal static partial void AssessmentApproved(this ILogger logger, Guid assessmentId);
 
-    /// <summary>Assessment rejected via the DPIA service.</summary>
+    /// <summary>Assessment rejected via the DPIA service. The rejecting user is recorded in the DPIARejected event, never in the log.</summary>
     [LoggerMessage(
         EventId = 8873,
         Level = LogLevel.Information,
-        Message = "DPIA assessment rejected. AssessmentId={AssessmentId}, RejectedBy={RejectedBy}")]
-    internal static partial void AssessmentRejected(this ILogger logger, Guid assessmentId, string rejectedBy);
+        Message = "DPIA assessment rejected. AssessmentId={AssessmentId}")]
+    internal static partial void AssessmentRejected(this ILogger logger, Guid assessmentId);
 
     /// <summary>Assessment revision requested via the DPIA service.</summary>
     [LoggerMessage(
@@ -451,4 +451,11 @@ internal static partial class DPIALogMessages
         Level = LogLevel.Information,
         Message = "DPIA rejection triggered via endpoint. AssessmentId={AssessmentId}")]
     internal static partial void EndpointRejectTriggered(this ILogger logger, Guid assessmentId);
+
+    /// <summary>DPIA endpoint request denied: the caller has no authenticated request identity. Carries the error code only.</summary>
+    [LoggerMessage(
+        EventId = 8896,
+        Level = LogLevel.Warning,
+        Message = "DPIA endpoint request denied. Endpoint={Endpoint}, Code={Code}")]
+    internal static partial void EndpointRequestDenied(this ILogger logger, string endpoint, string code);
 }
