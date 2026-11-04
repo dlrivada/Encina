@@ -19,11 +19,7 @@ internal static class BreakTheGlassPostgreSqlSchema
 {
     public const string Script = "030_CreateBreakTheGlassElevationsTable.sql";
 
-    /// <summary>
-    /// An accessor that reports a business transaction on <paramref name="connection"/>, so that every store call
-    /// leases a connection of its own (ADR-048): the facts then run concurrent callers without sharing one
-    /// connection, and prove that the writes do not depend on the business transaction.
-    /// </summary>
+    // Reports a business transaction on the connection, so every store call leases a connection of its own (ADR-048).
     public static IDbTransactionAccessor BusinessTransactionOn(IDbConnection connection)
     {
         var transaction = Substitute.For<IDbTransaction>();
@@ -51,10 +47,7 @@ internal static class BreakTheGlassPostgreSqlSchema
         await clear.ExecuteNonQueryAsync();
     }
 
-    /// <summary>
-    /// Writes and reads an elevation over a session set to a non-UTC time zone and returns what was read back
-    /// together with whether the instant at the expiry boundary is still effective.
-    /// </summary>
+    // Writes and reads an elevation over a non-UTC session time zone; reports the row and the effectiveness around the expiry.
     public static async Task<(BreakTheGlassElevation? Stored, bool EffectiveBeforeExpiry, bool EffectiveAtExpiry)> RoundTripUnderNonUtcZoneAsync(
         IDbConnection connection, Func<IDbConnection, IBreakTheGlassStore> createStore)
     {
@@ -66,14 +59,8 @@ internal static class BreakTheGlassPostgreSqlSchema
             var expires = opened.AddHours(1);
             var elevation = new BreakTheGlassElevation
             {
-                ElevationId = Guid.NewGuid(),
-                TenantId = "tenant-zone",
-                UserId = "clin-1",
-                SubjectId = "patient-1",
-                Scope = "clinical-record",
-                Justification = "Emergency.",
-                OpenedAtUtc = opened,
-                ExpiresAtUtc = expires
+                ElevationId = Guid.NewGuid(), TenantId = "tenant-zone", UserId = "clin-1", SubjectId = "patient-1",
+                Scope = "clinical-record", Justification = "Emergency.", OpenedAtUtc = opened, ExpiresAtUtc = expires
             };
 
             (await store.AddAsync(elevation)).IsRight.ShouldBeTrue();

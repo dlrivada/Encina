@@ -35,30 +35,7 @@ public sealed class BreakTheGlassPostgreSqlStoreTests
         ExpiresAtUtc = new DateTimeOffset(2026, 10, 28, 13, 0, 0, TimeSpan.Zero)
     };
 
-    private sealed class ApplicationStore : IBreakTheGlassStore
-    {
-        private readonly InMemoryBreakTheGlassStore _inner = new();
-
-        public ValueTask<Either<EncinaError, Unit>> AddAsync(BreakTheGlassElevation elevation, CancellationToken cancellationToken = default) => _inner.AddAsync(elevation, cancellationToken);
-
-        public ValueTask<Either<EncinaError, Option<BreakTheGlassElevation>>> GetByIdAsync(string? tenantId, Guid elevationId, CancellationToken cancellationToken = default) => _inner.GetByIdAsync(tenantId, elevationId, cancellationToken);
-
-        public ValueTask<Either<EncinaError, Option<BreakTheGlassElevation>>> FindEffectiveAsync(string? tenantId, string userId, string subjectId, string scope, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => _inner.FindEffectiveAsync(tenantId, userId, subjectId, scope, nowUtc, cancellationToken);
-
-        public ValueTask<Either<EncinaError, bool>> TryCloseAsync(string? tenantId, Guid elevationId, BreakTheGlassStatus newStatus, string reason, DateTimeOffset closedAtUtc, CancellationToken cancellationToken = default) => _inner.TryCloseAsync(tenantId, elevationId, newStatus, reason, closedAtUtc, cancellationToken);
-
-        public ValueTask<Either<EncinaError, IReadOnlyList<BreakTheGlassElevation>>> GetExpiredUnrecordedAsync(DateTimeOffset nowUtc, int batchSize, CancellationToken cancellationToken = default) => _inner.GetExpiredUnrecordedAsync(nowUtc, batchSize, cancellationToken);
-
-        public ValueTask<Either<EncinaError, Unit>> MarkExpiryRecordedAsync(string? tenantId, Guid elevationId, DateTimeOffset recordedAtUtc, CancellationToken cancellationToken = default) => _inner.MarkExpiryRecordedAsync(tenantId, elevationId, recordedAtUtc, cancellationToken);
-
-        public ValueTask<Either<EncinaError, bool>> TryRecordReviewAsync(string? tenantId, Guid elevationId, BreakTheGlassReviewOutcome outcome, string reviewerUserId, string? note, DateTimeOffset reviewedAtUtc, CancellationToken cancellationToken = default) => _inner.TryRecordReviewAsync(tenantId, elevationId, outcome, reviewerUserId, note, reviewedAtUtc, cancellationToken);
-
-        public ValueTask<Either<EncinaError, PagedResult<BreakTheGlassElevation>>> QueryReviewQueueAsync(string? tenantId, BreakTheGlassReviewQuery query, CancellationToken cancellationToken = default) => _inner.QueryReviewQueueAsync(tenantId, query, cancellationToken);
-
-        public ValueTask<Either<EncinaError, int>> PurgeAsync(DateTimeOffset reviewedBeforeUtc, CancellationToken cancellationToken = default) => _inner.PurgeAsync(reviewedBeforeUtc, cancellationToken);
-
-        public ValueTask<Either<EncinaError, Unit>> ProbeAsync(CancellationToken cancellationToken = default) => _inner.ProbeAsync(cancellationToken);
-    }
+    private static readonly IBreakTheGlassStore ApplicationStore = Substitute.For<IBreakTheGlassStore>();
 
     public static TheoryData<string, bool> Providers => new()
     {
@@ -134,7 +111,7 @@ public sealed class BreakTheGlassPostgreSqlStoreTests
         var services = Base();
         if (applicationStoreFirst)
         {
-            services.AddScoped<IBreakTheGlassStore, ApplicationStore>();
+            services.AddScoped(_ => ApplicationStore);
             AddBreakTheGlass(services);
             AddProvider(services, provider, enabled: true);
         }
@@ -142,14 +119,14 @@ public sealed class BreakTheGlassPostgreSqlStoreTests
         {
             AddBreakTheGlass(services);
             AddProvider(services, provider, enabled: true);
-            services.AddScoped<IBreakTheGlassStore, ApplicationStore>();
+            services.AddScoped(_ => ApplicationStore);
         }
 
         using var serviceProvider = services.BuildServiceProvider(Validated);
         using var scope = serviceProvider.CreateScope();
 
         // A store registered by the application before the provider is kept; one registered after it is the last registration.
-        scope.ServiceProvider.GetRequiredService<IBreakTheGlassStore>().ShouldBeOfType<ApplicationStore>();
+        scope.ServiceProvider.GetRequiredService<IBreakTheGlassStore>().ShouldBeSameAs(ApplicationStore);
     }
 
     [Theory]

@@ -427,35 +427,20 @@ public sealed class BreakTheGlassStoreDapper : IBreakTheGlassStore
     private sealed class Row
     {
         public Guid ElevationId { get; set; }
-
         public string? TenantId { get; set; }
-
         public string UserId { get; set; } = string.Empty;
-
         public string SubjectId { get; set; } = string.Empty;
-
         public string Scope { get; set; } = string.Empty;
-
         public string Justification { get; set; } = string.Empty;
-
         public DateTime OpenedAtUtc { get; set; }
-
         public DateTime ExpiresAtUtc { get; set; }
-
         public int Status { get; set; }
-
         public DateTime? ClosedAtUtc { get; set; }
-
         public string? CloseReason { get; set; }
-
         public DateTime? ExpiryRecordedAtUtc { get; set; }
-
         public int? ReviewOutcome { get; set; }
-
         public string? ReviewedByUserId { get; set; }
-
         public DateTime? ReviewedAtUtc { get; set; }
-
         public string? ReviewNote { get; set; }
     }
 }
