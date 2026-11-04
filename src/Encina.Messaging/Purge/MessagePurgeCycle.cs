@@ -28,8 +28,8 @@ internal static class MessagePurgeCycle
     /// <param name="logger">The logger for the no-progress warning.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
-    /// Right(total removed) when the cycle finished, also when it stopped because a batch repeated the ids of
-    /// the previous one (no progress, logged as a warning); Left(error) with the first store error.
+    /// Right(total removed) when the cycle finished, also when it stopped because a batch repeated ids the
+    /// cycle already tried to remove (no progress, logged as a warning); Left(error) with the first store error.
     /// </returns>
     internal static async Task<Either<EncinaError, int>> PurgeInboxAsync(
         IInboxStore store,
@@ -53,7 +53,7 @@ internal static class MessagePurgeCycle
             var removed = (int)batch;
             if (removed == NoProgress)
             {
-                // The store returned only ids the previous batch already tried to remove: end the cycle.
+                // The store returned only ids this cycle already tried to remove: end the cycle.
                 MessagePurgeLog.NoProgress(logger, InboxPattern, batchSize);
                 return total;
             }
@@ -95,7 +95,6 @@ internal static class MessagePurgeCycle
             return NoProgress;
         }
 
-        previous.Clear();
         previous.UnionWith(ids);
 
         var removed = await store.RemoveExpiredMessagesAsync(ids, cancellationToken).ConfigureAwait(false);

@@ -113,6 +113,19 @@ public sealed class MessagePurgeCycleTests
     }
 
     [Fact]
+    public async Task StoreAlternatingBetweenTwoBatches_StopsOnTheThirdFetchAndLogsNoProgress()
+    {
+        Returns(Batch("a", "b"), Batch("c", "d"), Batch("a", "b"), Batch("c", "d"));
+
+        var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 2, _logger, CancellationToken.None);
+
+        ((int)result).ShouldBe(4);
+        await _store.Received(3).GetExpiredMessagesAsync(2, Arg.Any<CancellationToken>());
+        await _store.Received(2).RemoveExpiredMessagesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>());
+        _logger.Collector.GetSnapshot().Count(r => r.Id.Id == 2112).ShouldBe(1);
+    }
+
+    [Fact]
     public async Task BatchesThatMakeProgress_DrainToTheShortBatchWithoutTheWarning()
     {
         Returns(Batch("a", "b"), Batch("b", "c"), Batch("d"));
