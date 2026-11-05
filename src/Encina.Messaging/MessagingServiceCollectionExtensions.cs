@@ -62,29 +62,6 @@ public static class MessagingServiceCollectionExtensions
         where TScheduledStore : class, IScheduledMessageStore
         where TScheduledFactory : class, IScheduledMessageFactory
         where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
-        => services.AddMessagingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
-            config, OutboxWritePath.TransactionalBehavior);
-
-    /// <summary>
-    /// <see cref="AddMessagingServices{TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor}(IServiceCollection, MessagingConfiguration)"/>
-    /// with an explicit <see cref="OutboxWritePath"/>. The public forms register the transactional
-    /// behavior; this internal overload is retained for the next change of #718.
-    /// </summary>
-    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
-        Justification = "Nine generic parameters are required to support provider-specific implementations for all messaging patterns (Outbox, Inbox, Saga, Scheduling). This is an internal API used by provider packages.")]
-    internal static IServiceCollection AddMessagingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
-        this IServiceCollection services,
-        MessagingConfiguration config,
-        OutboxWritePath outboxWritePath)
-        where TOutboxStore : class, IOutboxStore
-        where TOutboxFactory : class, IOutboxMessageFactory
-        where TInboxStore : class, IInboxStore
-        where TInboxFactory : class, IInboxMessageFactory
-        where TSagaStore : class, ISagaStore
-        where TSagaFactory : class, ISagaStateFactory
-        where TScheduledStore : class, IScheduledMessageStore
-        where TScheduledFactory : class, IScheduledMessageFactory
-        where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(config);
@@ -105,8 +82,7 @@ public static class MessagingServiceCollectionExtensions
             config.UseOutbox, config.OutboxOptions,
             config.UseInbox, config.InboxOptions,
             config.UseSagas, config.SagaOptions,
-            config.UseScheduling, config.SchedulingOptions,
-            outboxWritePath);
+            config.UseScheduling, config.SchedulingOptions);
 
         RegisterRoutingSlips(services, config);
         RegisterContentRouter(services, config);
@@ -256,46 +232,6 @@ public static class MessagingServiceCollectionExtensions
         where TScheduledStore : class, IScheduledMessageStore
         where TScheduledFactory : class, IScheduledMessageFactory
         where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
-        => services.AddOutboxInboxSagaSchedulingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
-            useOutbox, outboxOptions,
-            useInbox, inboxOptions,
-            useSagas, sagaOptions,
-            useScheduling, schedulingOptions,
-            OutboxWritePath.TransactionalBehavior);
-
-    /// <summary>
-    /// <see cref="AddOutboxInboxSagaSchedulingServices{TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor}(IServiceCollection, bool, OutboxOptions, bool, InboxOptions, bool, SagaOptions, bool, SchedulingOptions)"/>
-    /// with an explicit <see cref="OutboxWritePath"/>. The public forms register the transactional
-    /// behavior; this internal overload is retained for the next change of #718.
-    /// </summary>
-    /// <remarks>
-    /// <see cref="OutboxWritePath.TransactionalBehavior"/> needs an <see cref="Transactions.ITransactionLeaseSource"/>
-    /// in the container. The accessor is registered inside <c>AddMessagingServices</c> and
-    /// <c>AddMessagingServicesCore</c> (ADO.NET and Dapper, through <c>AddDbTransactionAccessor</c>)
-    /// and by the EF Core and MongoDB registrations before the outbox is used.
-    /// </remarks>
-    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
-        Justification = "Nine generic parameters are required to support provider-specific implementations for all messaging patterns (Outbox, Inbox, Saga, Scheduling). This is an internal API used by provider packages.")]
-    internal static IServiceCollection AddOutboxInboxSagaSchedulingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
-        this IServiceCollection services,
-        bool useOutbox,
-        OutboxOptions outboxOptions,
-        bool useInbox,
-        InboxOptions inboxOptions,
-        bool useSagas,
-        SagaOptions sagaOptions,
-        bool useScheduling,
-        SchedulingOptions schedulingOptions,
-        OutboxWritePath outboxWritePath)
-        where TOutboxStore : class, IOutboxStore
-        where TOutboxFactory : class, IOutboxMessageFactory
-        where TInboxStore : class, IInboxStore
-        where TInboxFactory : class, IInboxMessageFactory
-        where TSagaStore : class, ISagaStore
-        where TSagaFactory : class, ISagaStateFactory
-        where TScheduledStore : class, IScheduledMessageStore
-        where TScheduledFactory : class, IScheduledMessageFactory
-        where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(outboxOptions);
@@ -315,7 +251,7 @@ public static class MessagingServiceCollectionExtensions
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
 
-        RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, useOutbox, outboxOptions, outboxWritePath);
+        RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, useOutbox, outboxOptions);
         RegisterInbox<TInboxStore, TInboxFactory>(services, useInbox, inboxOptions);
         RegisterSagas<TSagaStore, TSagaFactory>(services, useSagas, sagaOptions);
         RegisterScheduling<TScheduledStore, TScheduledFactory>(services, useScheduling, schedulingOptions);
@@ -329,7 +265,7 @@ public static class MessagingServiceCollectionExtensions
     /// processor when <paramref name="useOutbox"/> is enabled.
     /// </summary>
     private static void RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(
-        IServiceCollection services, bool useOutbox, OutboxOptions outboxOptions, OutboxWritePath outboxWritePath)
+        IServiceCollection services, bool useOutbox, OutboxOptions outboxOptions)
         where TOutboxStore : class, IOutboxStore
         where TOutboxFactory : class, IOutboxMessageFactory
         where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
@@ -341,15 +277,8 @@ public static class MessagingServiceCollectionExtensions
         services.AddScoped<IOutboxMessageFactory, TOutboxFactory>();
         services.AddScoped<OutboxOrchestrator>();
 
-        if (outboxWritePath == OutboxWritePath.TransactionalBehavior)
-        {
-            // Writes the notifications inside the request's transaction (#718).
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionalOutboxPipelineBehavior<,>));
-        }
-        else
-        {
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(OutboxPostProcessor<,>));
-        }
+        // Writes the notifications inside the request's transaction (#718).
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionalOutboxPipelineBehavior<,>));
 
         services.AddHostedService<TOutboxProcessor>();
     }
@@ -499,25 +428,6 @@ public static class MessagingServiceCollectionExtensions
         where TInboxStore : class, IInboxStore
         where TInboxFactory : class, IInboxMessageFactory
         where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
-        => services.AddMessagingServicesCore<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TOutboxProcessor>(
-            config, OutboxWritePath.TransactionalBehavior);
-
-    /// <summary>
-    /// <see cref="AddMessagingServicesCore{TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TOutboxProcessor}(IServiceCollection, MessagingConfiguration)"/>
-    /// with an explicit <see cref="OutboxWritePath"/>. The public forms register the transactional
-    /// behavior; this internal overload is retained for the next change of #718.
-    /// </summary>
-    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
-        Justification = "Five generic parameters are required to support provider-specific implementations for core messaging patterns (Outbox, Inbox). This is an internal API used by provider packages.")]
-    internal static IServiceCollection AddMessagingServicesCore<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TOutboxProcessor>(
-        this IServiceCollection services,
-        MessagingConfiguration config,
-        OutboxWritePath outboxWritePath)
-        where TOutboxStore : class, IOutboxStore
-        where TOutboxFactory : class, IOutboxMessageFactory
-        where TInboxStore : class, IInboxStore
-        where TInboxFactory : class, IInboxMessageFactory
-        where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(config);
@@ -541,7 +451,7 @@ public static class MessagingServiceCollectionExtensions
         // AddMessagingServices).
         RegisterRecoverability(services, config);
         RegisterTransactions(services, config.UseTransactions);
-        RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, config.UseOutbox, config.OutboxOptions, outboxWritePath);
+        RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, config.UseOutbox, config.OutboxOptions);
         RegisterInbox<TInboxStore, TInboxFactory>(services, config.UseInbox, config.InboxOptions);
         RegisterMessagePurge(services, config.UseInbox, config.InboxOptions);
         RegisterRoutingSlips(services, config);
