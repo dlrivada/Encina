@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Linq.Expressions;
 using Encina.DomainModeling;
 using Encina.Messaging;
@@ -112,20 +113,7 @@ public sealed class SpecificationSqlBuilder<TEntity>
         var sql = TranslateExpression(expression.Body, parameters);
 
         // Handle keyset pagination (add filter for cursor)
-        if (specification.KeysetPaginationEnabled &&
-            specification.KeysetProperty is not null &&
-            specification.LastKeyValue is not null)
-        {
-            var keysetSql = BuildKeysetFilter(specification.KeysetProperty, specification.LastKeyValue, parameters);
-            if (!string.IsNullOrWhiteSpace(sql))
-            {
-                sql = $"({sql}) AND ({keysetSql})";
-            }
-            else
-            {
-                sql = keysetSql;
-            }
-        }
+        sql = AppendKeysetFilter(sql, specification, parameters);
 
         var whereClause = string.IsNullOrWhiteSpace(sql) ? "" : $"WHERE {sql}";
 
@@ -304,16 +292,40 @@ public sealed class SpecificationSqlBuilder<TEntity>
         return (sql, parameters);
     }
 
+    private string AppendKeysetFilter(
+        string sql,
+        IQuerySpecification<TEntity> specification,
+        Dictionary<string, object?> parameters)
+    {
+        if (!specification.KeysetPaginationEnabled || specification.KeysetProperty is not { } keysetProperty)
+        {
+            return sql;
+        }
+
+        // Read on the first page too: it rejects a keyset property that is not the primary ordering
+        var descending = specification.IsKeysetDescending;
+        if (specification.LastKeyValue is not { } lastKeyValue)
+        {
+            return sql;
+        }
+
+        var keysetSql = BuildKeysetFilter(keysetProperty, lastKeyValue, descending, parameters);
+        return string.IsNullOrWhiteSpace(sql) ? keysetSql : $"({sql}) AND ({keysetSql})";
+    }
+
     private string BuildKeysetFilter(
         Expression<Func<TEntity, object>> keysetProperty,
         object lastKeyValue,
+        bool descending,
         Dictionary<string, object?> parameters)
     {
         var columnName = GetColumnNameFromExpression(keysetProperty);
         var paramName = $"p{_parameterIndex++}";
         parameters[paramName] = lastKeyValue;
 
-        return $"`{columnName}` > @{paramName}";
+        // The next page holds the keys after the last one in the sort order: below it when descending
+        var comparison = descending ? "<" : ">";
+        return $"`{columnName}` {comparison} @{paramName}";
     }
 
     /// <summary>
@@ -485,18 +497,7 @@ public sealed class SpecificationSqlBuilder<TEntity>
         // String methods
         if (methodCall.Method.DeclaringType == typeof(string))
         {
-            var columnName = GetColumnName(methodCall.Object!);
-            var value = GetValue(methodCall.Arguments[0]);
-            var paramName = $"p{_parameterIndex++}";
-
-            return methodName switch
-            {
-                "Contains" => BuildLikeClause(columnName, $"%{value}%", paramName, parameters),
-                "StartsWith" => BuildLikeClause(columnName, $"{value}%", paramName, parameters),
-                "EndsWith" => BuildLikeClause(columnName, $"%{value}", paramName, parameters),
-                "Equals" => BuildEqualsClause(columnName, value, paramName, parameters),
-                _ => throw new NotSupportedException($"String method {methodName} is not supported.")
-            };
+            return TranslateStringMethod(methodCall, parameters);
         }
 
         // Enumerable.Contains() - generates IN clause
@@ -506,6 +507,23 @@ public sealed class SpecificationSqlBuilder<TEntity>
         }
 
         throw new NotSupportedException($"Method {methodCall.Method.DeclaringType?.Name}.{methodName} is not supported for SQL translation.");
+    }
+
+    // crap-exempt: single-question switch — which LIKE pattern or comparison a string method translates to
+    private string TranslateStringMethod(MethodCallExpression methodCall, Dictionary<string, object?> parameters)
+    {
+        var columnName = GetColumnName(methodCall.Object!);
+        var value = GetValue(methodCall.Arguments[0]);
+        var paramName = $"p{_parameterIndex++}";
+
+        return methodCall.Method.Name switch
+        {
+            "Contains" => BuildLikeClause(columnName, $"%{EscapeLikeValue(value)}%", paramName, parameters),
+            "StartsWith" => BuildLikeClause(columnName, $"{EscapeLikeValue(value)}%", paramName, parameters),
+            "EndsWith" => BuildLikeClause(columnName, $"%{EscapeLikeValue(value)}", paramName, parameters),
+            "Equals" => BuildEqualsClause(columnName, value, paramName, parameters),
+            _ => throw new NotSupportedException($"String method {methodCall.Method.Name} is not supported.")
+        };
     }
 
     private static bool IsEnumerableContainsMethod(MethodCallExpression methodCall)
@@ -636,11 +654,25 @@ public sealed class SpecificationSqlBuilder<TEntity>
         return TranslateExpression(invocation.Expression, parameters);
     }
 
+    // No length check: MySQL has no limit on a LIKE pattern like SQL Server's 8,000 bytes.
     private static string BuildLikeClause(string columnName, string pattern, string paramName, Dictionary<string, object?> parameters)
     {
         parameters[paramName] = pattern;
-        return $"`{columnName}` LIKE @{paramName}";
+        return $"`{columnName}` LIKE @{paramName} ESCAPE '!'";
     }
+
+    /// <summary>
+    /// Escapes the LIKE wildcards (% and _) in a value so it matches literally, with <c>!</c>
+    /// as the escape character that <see cref="BuildLikeClause"/> names in its <c>ESCAPE</c> clause.
+    /// </summary>
+    /// <remarks>
+    /// <c>!</c> rather than a backslash, whose meaning inside a string literal depends on server settings.
+    /// </remarks>
+    private static string EscapeLikeValue(object? value)
+        => (Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty)
+            .Replace("!", "!!", StringComparison.Ordinal)
+            .Replace("%", "!%", StringComparison.Ordinal)
+            .Replace("_", "!_", StringComparison.Ordinal);
 
     private static string BuildEqualsClause(string columnName, object? value, string paramName, Dictionary<string, object?> parameters)
     {

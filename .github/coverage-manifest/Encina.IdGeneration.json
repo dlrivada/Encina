@@ -9,10 +9,17 @@
   "files": {
     "Configuration/IdGenerationOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "guard": 50
+      },
+      "justifications": {
+        "guard": "Guard tests drive UseSnowflake with an invalid machine id through AddEncinaIdGeneration; the remaining fluent members are unit-tested."
+      }
     },
     "Configuration/ShardPrefixedOptions.cs": {
       "defaultTests": [
@@ -23,10 +30,23 @@
     },
     "Configuration/SnowflakeOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard",
+        "property",
+        "contract"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "guard": 90,
+        "property": 50,
+        "contract": 50
+      },
+      "justifications": {
+        "guard": "Guard tests construct SnowflakeIdGenerator with invalid bit allocations and machine ids, which runs the Validate argument checks.",
+        "property": "Property tests build generators over generated machine ids on default options, which executes the options validation and the derived maxima; non-default bit allocations are guard- and unit-tested.",
+        "contract": "Contract tests construct default options for the generator under test, which executes the property initializers; the documented defaults are asserted by unit tests."
+      }
     },
     "Diagnostics/IdGenerationActivitySource.cs": {
       "defaultTests": [
@@ -54,7 +74,13 @@
         "unit"
       ],
       "defaultRule": "*Metrics.cs",
-      "reason": "Meter/counter wrapper — verify tags and recording"
+      "reason": "Meter/counter wrapper — verify tags and recording",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "Unit tests capture every instrument with a MeterListener (RecordGenerated with and without shard, RecordCollision, RecordDuration, RecordSequenceExhausted)."
+      }
     },
     "Extensions/ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -62,39 +88,87 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "guard": 55
+      },
+      "justifications": {
+        "guard": "Guard tests execute both null-argument checks and the configure-throws and invalid-Snowflake-options paths; the enabled-strategy registrations are covered by unit tests."
+      }
     },
     "Generators/ShardPrefixedIdGenerator.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property",
+        "contract"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 90,
+        "property": 45,
+        "contract": 15
+      },
+      "justifications": {
+        "guard": "Guard tests cover the null options check, blank and delimiter-containing shard ids, the parameterless Generate error, ExtractShardId on an empty id, every format and the unsupported-format throw.",
+        "property": "Property tests check that generated ids carry the requested shard and parse back; error branches are guard-tested.",
+        "contract": "Contract tests construct the generator and read StrategyName; Generate and every other branch are covered by unit and guard tests."
+      }
     },
     "Generators/SnowflakeIdGenerator.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property",
+        "contract"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 65,
+        "property": 55,
+        "contract": 18
+      },
+      "justifications": {
+        "guard": "Guard tests cover the null and invalid options checks and every invalid shard id branch of Generate(string); the clock-drift detection path is unit-tested, and the within-tolerance spin-wait and sequence-exhaustion wait are not covered by any flag today.",
+        "property": "Property tests generate many ids and check uniqueness, monotonic order and shard round-trip; clock-drift paths are unit-tested.",
+        "contract": "Contract tests construct the generator and read StrategyName; Generate and every other branch are covered by unit, guard and property tests."
+      }
     },
     "Generators/UlidIdGenerator.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 80,
+        "property": 75
+      },
+      "justifications": {
+        "guard": "Guard tests run Generate with the default and an injected FakeTimeProvider; the whole class is five lines.",
+        "property": "Property tests call Generate repeatedly; the class is five lines."
+      }
     },
     "Generators/UuidV7IdGenerator.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 80,
+        "property": 75
+      },
+      "justifications": {
+        "guard": "Guard tests run Generate with the default and an injected FakeTimeProvider; the whole class is five lines.",
+        "property": "Property tests call Generate repeatedly; the class is five lines."
+      }
     },
     "Health/IdGeneratorHealthCheck.cs": {
       "defaultTests": [
@@ -102,7 +176,13 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "guard": 95
+      },
+      "justifications": {
+        "guard": "Guard tests cover default construction, the degraded and healthy clock-jump results and the Snowflake data entries."
+      }
     },
     "Health/IdGeneratorHealthCheckOptions.cs": {
       "defaultTests": [
@@ -114,10 +194,19 @@
     "Types/ShardPrefixedId.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 60,
+        "property": 35
+      },
+      "justifications": {
+        "guard": "Guard tests cover the constructor argument checks, Parse, TryParse, TryParseEither and CompareTo(object) with invalid input; equality and formatting are unit-tested.",
+        "property": "Property tests check parse and format round-trip for valid shard and sequence pairs; invalid input is guard-tested."
+      }
     },
     "Types/SnowflakeId.cs": {
       "defaultTests": [
@@ -125,23 +214,47 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 45
+      },
+      "justifications": {
+        "guard": "Guard tests cover Parse, TryParse, TryParseEither and CompareTo(object) with invalid input; arithmetic-free conversions and operators are unit-tested."
+      }
     },
     "Types/UlidId.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 65,
+        "property": 70
+      },
+      "justifications": {
+        "guard": "Guard tests cover the byte-length check, Parse, TryParse, TryParseEither and CompareTo(object) with invalid input; the Base32 encoder and decoder success paths are unit-tested.",
+        "property": "Property tests check the string round-trip, the 26-character Crockford form and the encoded timestamp of generated ULIDs; ordering and Guid conversion are unit-tested."
+      }
     },
     "Types/UuidV7Id.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 70,
+        "property": 50
+      },
+      "justifications": {
+        "guard": "Guard tests cover Parse, TryParse, TryParseEither and CompareTo(object) with invalid input; timestamp extraction and formatting are unit-tested.",
+        "property": "Property tests check the string round-trip, version, variant and encoded timestamp of generated ids; ordering is unit-tested."
+      }
     }
   }
 }

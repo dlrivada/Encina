@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using System.Linq.Expressions;
 using Encina.ADO.MySQL.Repository;
 using Encina.DomainModeling;
@@ -339,6 +340,74 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #endregion
 
+    #region String Method Wildcard Tests
+
+    // Each value would also match other names if its LIKE wildcards ('%', '_', SQL Server's '[')
+    // or the '!' escape character were not matched literally (#3156).
+    private static readonly string[] Names = ["500", "50% off", "100%", "a_b", "axb", "[a]", "hey!"];
+
+    [Theory]
+    [InlineData(nameof(string.Contains), "50%", "50% off")]
+    [InlineData(nameof(string.StartsWith), "a_", "a_b")]
+    [InlineData(nameof(string.EndsWith), "0%", "100%")]
+    [InlineData(nameof(string.Contains), "[a]", "[a]")]
+    [InlineData(nameof(string.Contains), "!", "hey!")]
+    public async Task ListAsync_StringMethodSpecification_MatchesLikeWildcardsLiterally(string method, string value, string expectedName)
+    {
+        // Arrange
+        await ClearDataAsync();
+        await _repository.AddRangeAsync(Names.Select(name => CreateTestItem(name)).ToArray());
+        var spec = new ItemNameSpec(method, value);
+
+        // Act
+        var result = await _repository.ListAsync(spec);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Name).ToList().ShouldBe([expectedName]));
+    }
+
+    #endregion
+
+    #region Keyset Direction Tests
+
+    private static readonly decimal[] KeysetValues = [100m, 200m, 300m, 400m];
+
+    [Fact]
+    public async Task QuerySpecificationSql_KeysetSortedDescending_ReturnsTheKeysBelowTheLastOne()
+    {
+        // Arrange - the next page of a descending keyset holds the smaller keys (#3154). ListAsync does not
+        // apply a QuerySpecification's keyset yet (#3151), so this runs the builder's SELECT directly.
+        await ClearDataAsync();
+        await _repository.AddRangeAsync(KeysetValues.Select(v => CreateTestItem($"Item {v}", value: v)).ToArray());
+        var builder = new SpecificationSqlBuilder<TestItem>(_mapping.ColumnMappings);
+        var (sql, addParameters) = builder.BuildSelectStatement(_mapping.TableName, new DescendingValueKeysetSpec(lastValue: 300m));
+
+        // Act
+        var values = new List<decimal>();
+        if (_connection.State != ConnectionState.Open)
+        {
+            await ((DbConnection)_connection).OpenAsync();
+        }
+
+        await using (var command = (DbCommand)_connection.CreateCommand())
+        {
+            command.CommandText = sql;
+            addParameters(command);
+            await using var reader = await command.ExecuteReaderAsync();
+            var valueOrdinal = reader.GetOrdinal(_mapping.ColumnMappings[nameof(TestItem.Value)]);
+            while (await reader.ReadAsync())
+            {
+                values.Add(reader.GetDecimal(valueOrdinal));
+            }
+        }
+
+        // Assert
+        values.ShouldBe([200m, 100m]);
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static TestItem CreateTestItem(
@@ -380,6 +449,32 @@ public class EnabledItemSpec : Specification<TestItem>
 {
     public override Expression<Func<TestItem, bool>> ToExpression()
         => i => i.IsEnabled;
+}
+
+/// <summary>
+/// Specification matching a TestItem whose name contains, starts with or ends with a value.
+/// </summary>
+public class ItemNameSpec(string method, string value) : Specification<TestItem>
+{
+    public override Expression<Func<TestItem, bool>> ToExpression() => method switch
+    {
+        nameof(string.Contains) => e => e.Name.Contains(value),
+        nameof(string.StartsWith) => e => e.Name.StartsWith(value),
+        nameof(string.EndsWith) => e => e.Name.EndsWith(value),
+        _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Expected Contains, StartsWith or EndsWith."),
+    };
+}
+
+/// <summary>
+/// Next page of items by value, sorted in descending order, after <c>lastValue</c>.
+/// </summary>
+public class DescendingValueKeysetSpec : QuerySpecification<TestItem>
+{
+    public DescendingValueKeysetSpec(decimal lastValue)
+    {
+        ApplyOrderByDescending(i => i.Value);
+        ApplyKeysetPagination(i => i.Value, lastValue, 10);
+    }
 }
 
 #endregion

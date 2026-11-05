@@ -296,6 +296,72 @@ public sealed class SpecificationPropertyTests
             && spec.Take == pageSize;
     }
 
+    [Property(MaxTest = 100)]
+    public bool Property_QuerySpecification_KeysetDirectionFollowsThePrimaryOrdering(bool descending, bool withSecondaryOrdering)
+    {
+        // Property: with the keyset column as the primary ordering, the keyset pages in that column's
+        // direction, whatever the direction of a secondary ordering on another column (#3154)
+        var spec = new TestQuerySpecification();
+        if (descending)
+        {
+            spec.TestApplyOrderByDescending(e => e.Value);
+        }
+        else
+        {
+            spec.TestApplyOrderBy(e => e.Value);
+        }
+
+        if (withSecondaryOrdering && descending)
+        {
+            spec.TestApplyThenBy(e => e.Name);
+        }
+        else if (withSecondaryOrdering)
+        {
+            spec.TestApplyThenByDescending(e => e.Name);
+        }
+
+        spec.TestApplyKeysetPagination(e => e.Value, 1, 10);
+
+        return spec.IsKeysetDescending == descending;
+    }
+
+    [Property(MaxTest = 100)]
+    public bool Property_QuerySpecification_KeysetOutsideThePrimaryOrderingIsRejected(bool primaryDescending, bool keysetInThenBy, bool thenByDescending)
+    {
+        // Property: with another column as the primary ordering, keyset pagination is rejected, whether the
+        // keyset column is a ThenBy in either direction or not ordered at all; it never picks a direction (#3154)
+        var spec = new TestQuerySpecification();
+        if (primaryDescending)
+        {
+            spec.TestApplyOrderByDescending(e => e.Name);
+        }
+        else
+        {
+            spec.TestApplyOrderBy(e => e.Name);
+        }
+
+        if (keysetInThenBy && thenByDescending)
+        {
+            spec.TestApplyThenByDescending(e => e.Value);
+        }
+        else if (keysetInThenBy)
+        {
+            spec.TestApplyThenBy(e => e.Value);
+        }
+
+        spec.TestApplyKeysetPagination(e => e.Value, 1, 10);
+
+        try
+        {
+            _ = spec.IsKeysetDescending;
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return true;
+        }
+    }
+
     #endregion
 
     #region Specification Equality by Result

@@ -636,7 +636,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 70,
+        "guard": 7,
+        "integration": 49
+      },
+      "justifications": {
+        "unit": "Unit tests run the evaluator on an in-memory context for criteria, includes, ordering, offset paging and keyset paging in both directions (measured 72.53%); the rest is projection overloads and rarer combinations of query features.",
+        "guard": "Guard tests cover the null checks of the public GetQuery methods (measured 7.69%).",
+        "integration": "The EF Core repository integration tests on SQL Server run the evaluator for repository queries, including a descending keyset page through ListAsync (measured 51.65%)."
+      }
     },
     "Resilience/ConnectionPoolMonitoringInterceptor.cs": {
       "defaultTests": [

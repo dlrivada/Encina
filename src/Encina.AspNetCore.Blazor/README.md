@@ -101,7 +101,15 @@ Registers the request identity model (`AddEncinaRequestIdentity()`) and a scoped
 | Inside a circuit activity (UI event, JavaScript interop call) | The user of the current `AuthenticationState`, in one inbound identity scope per activity |
 | The authentication state changed | The new state, applied at the next activity |
 | Outside an activity (a continuation that outlives it, a timer) | Anonymous |
-| The scope is refused | The activity still runs, anonymous, under a masking scope |
+| The host refuses the scope (`ScopeConflict`, `UnsupportedAccessor`) | The activity still runs, anonymous, under a masking scope |
+| An authenticated principal has no usable subject (`MissingSubjectClaim`, `MalformedSubjectClaim`, `ReservedSubjectClaim`, `ConflictingSubjectClaims`) or conflicting tenant claims (`InboundTenantConflict`) | The activity does not run, never as anonymous: the handler throws an `InvalidOperationException` whose fixed text carries only the error code (no claim value), the factory logs Warning 167. What the client sees depends on the path (see the note below) |
+| The principal is null or unauthenticated | Anonymous; this is not a refusal |
+
+What Blazor does with the refusal exception:
+
+- JavaScript interop calls and the UI events that travel through them: Blazor notifies the client (error UI) and terminates the circuit.
+- Initialization of a circuit in the legacy Blazor Server hosting: fire-and-forget. The client is not notified, the circuit stays uninitialized and nothing runs for that principal.
+- Render acknowledgements: fire-and-forget. The acknowledgement is lost and rendering stalls; the circuit is already initialized.
 
 ## Dependencies
 

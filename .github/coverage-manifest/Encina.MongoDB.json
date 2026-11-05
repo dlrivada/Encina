@@ -513,7 +513,17 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 75,
+        "guard": 20,
+        "integration": 31
+      },
+      "justifications": {
+        "unit": "Unit tests cover filter translation, the keyset filter in both directions (rendered to check $gt and $lt) and sort building (measured 77.58%); the rest is rarer expression shapes.",
+        "guard": "Guard tests cover the null-argument checks of the public builder methods (measured 21.97%).",
+        "integration": "The MongoDB repository integration tests run the builder filters on a real MongoDB, including a descending keyset page with the builder sort (measured 33.18%)."
+      }
     },
     "Sagas/SagaState.cs": {
       "defaultTests": [
