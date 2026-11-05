@@ -192,7 +192,8 @@ function Test-ScriptWritesAreSafe {
     $sites = [System.Collections.Generic.List[object]]::new()
     $ranges = [System.Collections.Generic.List[object]]::new()
     $assign = @{}
-    $state = @{ CwdChanged = $false }
+    $typedArrays = @{}
+    $state =@{ CwdChanged = $false }
     $memo = @{}
     $visiting = @{}
 
@@ -214,6 +215,8 @@ function Test-ScriptWritesAreSafe {
             $next = [System.Collections.Generic.List[string]]::new()
             foreach ($a in $acc) { foreach ($b in $p) { $next.Add($a + $b) } }
             if ($next.Count -gt 64) { return $null }
+            # A string that doubles per assignment (2^n characters) would stall the hook: treat it as unresolved.
+            foreach ($candidate in $next) { if ($candidate.Length -gt 8192) { return $null } }
             $acc = $next.ToArray()
         }
         return , $acc
@@ -389,6 +392,7 @@ function Test-ScriptWritesAreSafe {
         if ($null -eq $Ast) { return $false }
         if ($null -eq $arrayHolder.Set) {
             $set = [System.Collections.Generic.HashSet[string]]::new()
+            foreach ($k in @($typedArrays.Keys)) { [void]$set.Add([string]$k) }
             $changed = $true
             while ($changed) {
                 $changed = $false
@@ -617,6 +621,12 @@ function Test-ScriptWritesAreSafe {
             $left = $a.Left
             while ((SwKind $left 'ConvertExpressionAst') -or (SwKind $left 'AttributedExpressionAst')) { $left = $left.Child }
             if (SwKind $left 'VariableExpressionAst') {
+                # A variable declared with an array type ([string[]]$a = ...) holds an array whatever its value looks like.
+                $declared = $a.Left
+                while ((SwKind $declared 'ConvertExpressionAst') -or (SwKind $declared 'AttributedExpressionAst')) {
+                    if ((SwKind $declared 'ConvertExpressionAst') -and ([string]$declared.Type.TypeName.FullName) -match '\[\]$|^(?i)array$|collection|list') { $typedArrays[(SwKey $left)] = $true }
+                    $declared = $declared.Child
+                }
                 if ([string]$a.Operator -eq 'Equals') {
                     $right = $a.Right
                     SwAdd (SwKey $left) $right

@@ -365,7 +365,7 @@ try {
             # text or the launching command names src/ or tests/ (the same text-mention rule as every other Unknown
             # case below); a parameter-driven repo script that never mentions them runs as it did before (#2892).
             $commandWithoutScript = if ([string]::IsNullOrEmpty($s.Raw)) { $command } else { $command.Replace([string]$s.Raw, ' ') }
-            if ($null -ne $analysis -and $analysis.Verdict -eq 'Unknown' -and $analysis.Unresolved -and ((Test-ScriptReferencesPath $candidate $guardedTokens) -or $candidate -match '(?i)(^|\W)(src|tests)(\W|$)' -or $commandWithoutScript -match '(?i)(^|\W)(src|tests)(\W|$)' -or (-not [string]::IsNullOrWhiteSpace($s.Base) -and (Test-Guarded ([string]$s.Base))))) {
+            if ($null -ne $analysis -and $analysis.Verdict -eq 'Unknown' -and $analysis.Unresolved -and ((Test-ScriptReferencesPath $candidate $guardedTokens) -or $candidate -match '(?i)(^|\W)(src|tests)(\W|$)' -or $commandWithoutScript -match '(?i)(^|\W)(src|tests)(\W|$)' -or (-not [string]::IsNullOrWhiteSpace($s.Base) -and (Test-Guarded (Get-FullPath ([string]$s.Base) $null))))) {
                 Write-Block "runs '$($s.Full)' ($($s.Kind)), which writes to a path the hook cannot resolve while the script or the launching command names src/ or tests/, so it cannot rule out writes there (fail closed)$note"
             }
             # An analysis it could not finish (a command or call it does not know, a nested launch, a script that does
