@@ -36,7 +36,7 @@ The per-issue knowledge migration and quality audit follows SPEC-003. Its pipeli
 
 ## CodeRabbit
 
-- Every PR gets a CodeRabbit review (`@coderabbitai review`); resolve or answer each comment. Configuration is `.coderabbit.yaml` (Spanish summaries, per-path instructions).
+- Every PR gets a CodeRabbit review (`@coderabbitai review`); resolve or answer each comment. Configuration is `.coderabbit.yaml` (English, per-path instructions).
 - CodeRabbit enriches issues only when they are created or edited; for an existing issue comment `@coderabbitai please analyze this issue and suggest related issues/PRs`, and read the enrichment before starting.
 - `@coderabbitai plan` (or the `plan-me` label) generates an implementation plan that can seed a session; `@coderabbitai resolve` marks all comments resolved; `@coderabbitai help` lists commands.
 - Use conventional commit messages and reference the issue in the PR (`Fixes #N`) so CodeRabbit validates the PR against it. When CodeRabbit is rate limited, `adversarial-reviewer` replaces its review.
