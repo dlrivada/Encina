@@ -843,7 +843,7 @@ var all = await dbContext.Orders
 
 ### What happens if tenant resolution fails?
 
-It depends on your configuration. The option is declared by the provider tenancy options, not by the core `TenancyOptions`, and its name depends on the provider. MongoDB (`MongoDbTenancyOptions`) calls it `RequireTenantContext`; Entity Framework Core (`EfCoreTenancyOptions`, which `AddEncinaEntityFrameworkCore` sets from `config.TenancyOptions.RequireTenantContext`), Dapper (`DapperTenancyOptions`) and ADO.NET (`ADOTenancyOptions`) call it `ThrowOnMissingTenantContext`. Both names default to `true`.
+It depends on your configuration. The option is declared by the provider tenancy options, not by the core `TenancyOptions`, and its name depends on the provider. MongoDB (`MongoDbTenancyOptions`) calls it `RequireTenantContext`; Entity Framework Core (`EfCoreTenancyOptions`, which `AddEncinaEntityFrameworkCore` registers from `config.TenancyOptions.RequireTenantContext`, so set it there), Dapper (`DapperTenancyOptions`) and ADO.NET (`ADOTenancyOptions`) call it `ThrowOnMissingTenantContext`. Both names default to `true`.
 
 ```csharp
 // MongoDB: strict mode (recommended for production; the default)
@@ -854,14 +854,25 @@ tenancy.RequireTenantContext = true;
 tenancy.RequireTenantContext = false;
 // → Operations run without the tenant filter (DANGEROUS in production!)
 
-// Entity Framework Core, Dapper and ADO.NET: strict mode (the default)
+// Dapper and ADO.NET: strict mode (the default)
 tenancy.ThrowOnMissingTenantContext = true;
-// → Throws InvalidOperationException (Entity Framework Core: only when the core TenancyOptions.RequireTenant is also true)
+// → Throws InvalidOperationException
 
-// Entity Framework Core, Dapper and ADO.NET: lenient mode
+// Dapper and ADO.NET: lenient mode
 tenancy.ThrowOnMissingTenantContext = false;
-// → Dapper and ADO.NET: queries run without the tenant filter (DANGEROUS in production!)
-// → Entity Framework Core: saves skip tenant assignment and validation (see the table above)
+// → Queries run without the tenant filter (DANGEROUS in production!)
+```
+
+Entity Framework Core takes the setting from the messaging-level option instead: `AddEncinaEntityFrameworkCore` copies `config.TenancyOptions.RequireTenantContext` into `EfCoreTenancyOptions.ThrowOnMissingTenantContext` when it registers the `EfCoreTenancyOptions` singleton, so set the value there.
+
+```csharp
+// Entity Framework Core: strict mode (the default)
+config.TenancyOptions.RequireTenantContext = true;
+// → Throws InvalidOperationException (only when the core TenancyOptions.RequireTenant is also true)
+
+// Entity Framework Core: lenient mode
+config.TenancyOptions.RequireTenantContext = false;
+// → Saves skip tenant assignment and validation (see the table above)
 ```
 
 ### How do I implement multi-database tenancy with connection pooling?
