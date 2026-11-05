@@ -206,7 +206,9 @@ public class MessagePurgeCyclePropertyTests
             var expectedRemoves = stage == 0 ? failingBatch : failingBatch + 1;
             var expectedSaves = stage == 2 ? failingBatch + 1 : failingBatch;
 
-            return (result.IsLeft
+            var returnedCode = result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty));
+
+            return (returnedCode == "test.purge.failure"
                     && fetches == expectedFetches
                     && removes == expectedRemoves
                     && saves == expectedSaves)
