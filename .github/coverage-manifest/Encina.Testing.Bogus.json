@@ -13,7 +13,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 30,
+        "unit": 95
+      },
+      "justifications": {
+        "guard": "Guard tests call WithValue with a null generator and PubSubChannel/PubSubPattern with null and blank arguments; the remaining lines are fluent setters and generation covered by unit tests.",
+        "unit": "Unit tests exercise every fluent setter and Generate; only unreachable defensive branches are left."
+      }
     },
     "CacheKeyFaker.cs": {
       "defaultTests": [
@@ -21,7 +29,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 30,
+        "unit": 95
+      },
+      "justifications": {
+        "guard": "Guard tests call WithPrefix, AsTagged and WithSegments with invalid arguments; key generation is covered by unit tests.",
+        "unit": "Unit tests generate keys for prefix, segments, pattern and tag variants; one rarely taken branch is left."
+      }
     },
     "CacheValueFaker.cs": {
       "defaultTests": [
@@ -29,20 +45,50 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 30,
+        "unit": 90
+      },
+      "justifications": {
+        "guard": "Guard tests call Configure with a null action and every Cache*Value extension with a null faker; generation bodies are unit-tested.",
+        "unit": "Unit tests generate each cache value kind; a few range-edge branches are not driven."
+      }
     },
     "EncinaFaker.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 45,
+        "unit": 45,
+        "property": 40
+      },
+      "justifications": {
+        "guard": "Guard tests call every extension with a null receiver and with out-of-range arguments plus invalid locales; the success paths are unit-tested.",
+        "unit": "Unit tests cover the faker class and the common generators; the entity id, strongly-typed id and value-object extensions are exercised mainly by guard and property tests.",
+        "property": "Property tests drive the id and value-object extensions over generated seeds; the remaining lines are generation bodies covered by unit tests."
+      }
+    },
+    "InboxMessageFaker.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "InboxMessageFaker.cs": {
-      "defaultTests": [],
-      "defaultRule": "*.cs",
-      "reason": "Interface — no implementation"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 35,
+        "unit": 95
+      },
+      "justifications": {
+        "guard": "Guard tests call WithMessageId and WithRequestType with null, empty and whitespace values; state builders are unit-tested.",
+        "unit": "InboxMessageFakerTests exercise all state builders and the generated message."
+      }
     },
     "OutboxMessageFaker.cs": {
       "defaultTests": [
@@ -50,7 +96,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 40,
+        "unit": 95
+      },
+      "justifications": {
+        "guard": "Guard tests call WithNotificationType and WithContent with null, empty and whitespace values; state builders are unit-tested.",
+        "unit": "OutboxMessageFakerTests exercise all state builders and the generated message."
+      }
     },
     "SagaStateFaker.cs": {
       "defaultTests": [
@@ -58,7 +112,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 30,
+        "unit": 0
+      },
+      "justifications": {
+        "guard": "Guard tests call AtStep with negative values; the other builders have no argument checks.",
+        "unit": "No unit tests exist for SagaStateFaker yet; a follow-up issue tracks them."
+      }
     },
     "ScheduledMessageFaker.cs": {
       "defaultTests": [
@@ -66,7 +128,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "guard": 28,
+        "unit": 95
+      },
+      "justifications": {
+        "guard": "Guard tests call WithRequestType and WithContent with null, empty and whitespace values; state builders are unit-tested.",
+        "unit": "ScheduledMessageFakerTests exercise all state builders and the generated message."
+      }
     }
   }
 }
