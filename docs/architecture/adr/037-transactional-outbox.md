@@ -10,7 +10,7 @@
 
 **Status note, 2026-10-28 (issue [#718](https://github.com/dlrivada/Encina/issues/718)):** the MongoDB slice is implemented with the same mechanism (see "MongoDB slice"). The decision is unchanged. The removal of the post-processor was the remaining slice.
 
-**Status note, 2026-11-03 (issue [#718](https://github.com/dlrivada/Encina/issues/718)):** the removal slice is delivered. `OutboxPostProcessor<,>`, the internal `OutboxWritePath` switch and the internal registration overloads that took it are deleted; `TransactionalOutboxPipelineBehavior<,>` is the only outbox write path on all 10 database providers. The decision is unchanged.
+**Status note, 2026-11-05 (issue [#718](https://github.com/dlrivada/Encina/issues/718)):** the removal slice is delivered. `OutboxPostProcessor<,>`, the internal `OutboxWritePath` switch and the internal registration overloads that took it are deleted; `TransactionalOutboxPipelineBehavior<,>` is the only outbox write path on all 10 database providers. The decision is unchanged.
 
 ## Context
 
@@ -88,7 +88,7 @@ Atomicity does not depend on the order of the transaction and outbox behaviors, 
 
 ### Slices and the removal of the interim write path
 
-The change was delivered one provider family at a time. While the families moved, the Outbox registration chose between the post-processor and the new behavior through an internal switch, `OutboxWritePath`. Once the last family had moved, the switch, `OutboxPostProcessor<,>` and the internal registration overloads that took the switch were deleted (2026-11-03), because `AGENTS.md` section 3 forbids keeping compatibility layers. Every family now registers the same behavior:
+The change was delivered one provider family at a time. While the families moved, the Outbox registration chose between the post-processor and the new behavior through an internal switch, `OutboxWritePath`. Once the last family had moved, the switch, `OutboxPostProcessor<,>` and the internal registration overloads that took the switch were deleted (2026-11-05), because `AGENTS.md` section 3 forbids keeping compatibility layers. Every family now registers the same behavior:
 
 | Used by | Behavior |
 | --- | --- |
