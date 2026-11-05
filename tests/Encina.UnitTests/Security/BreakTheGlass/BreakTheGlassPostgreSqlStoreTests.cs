@@ -12,10 +12,7 @@ using Shouldly;
 
 namespace Encina.UnitTests.Security.BreakTheGlass;
 
-/// <summary>
-/// Registration completeness (both orders, <c>ValidateOnBuild</c> and <c>ValidateScopes</c>, the application's own
-/// store never overridden) and <c>store_failed</c> handling of the PostgreSQL break-the-glass stores.
-/// </summary>
+/// <summary>Registration completeness (both orders, validated) and error handling of the PostgreSQL break-the-glass stores.</summary>
 [Trait("Category", "Unit")]
 [Trait("Feature", "BreakTheGlass")]
 public sealed class BreakTheGlassPostgreSqlStoreTests
@@ -165,5 +162,17 @@ public sealed class BreakTheGlassPostgreSqlStoreTests
 
         results.ShouldAllBe(result => result.IsLeft);
         results.ShouldAllBe(result => result.Match(Right: _ => string.Empty, Left: error => error.GetCode().IfNone(string.Empty)) == BreakTheGlassErrors.StoreFailedCode);
+    }
+
+    [Theory]
+    [InlineData("ADO")]
+    [InlineData("Dapper")]
+    public async Task ACancelledCall_Throws_InsteadOfReturningStoreFailed(string provider)
+    {
+        using var connection = new NpgsqlConnection("Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x");
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(async () => await NewStore(provider, connection).ProbeAsync(cts.Token));
     }
 }

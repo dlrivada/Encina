@@ -7,10 +7,7 @@ using Shouldly;
 
 namespace Encina.GuardTests.Security.BreakTheGlass;
 
-/// <summary>
-/// Guard tests of the PostgreSQL break-the-glass stores (ADO.NET and Dapper): every public constructor and method
-/// with parameters rejects <c>null</c>, a non-positive batch size or an invalid table name before any database call.
-/// </summary>
+/// <summary>Guard tests of the PostgreSQL break-the-glass stores (ADO.NET and Dapper): null, bad batch size or table name.</summary>
 public sealed class BreakTheGlassPostgreSqlStoreGuardTests
 {
     public static TheoryData<string> Providers => ["ADO", "Dapper"];
@@ -33,8 +30,7 @@ public sealed class BreakTheGlassPostgreSqlStoreGuardTests
     [MemberData(nameof(Providers))]
     public async Task AddAsync_NullElevation_ThrowsArgumentNullException(string provider)
     {
-        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await NewStore(provider).AddAsync(null!));
-        ex.ParamName.ShouldBe("elevation");
+        (await Should.ThrowAsync<ArgumentNullException>(async () => await NewStore(provider).AddAsync(null!))).ParamName.ShouldBe("elevation");
     }
 
     [Theory]
@@ -52,26 +48,23 @@ public sealed class BreakTheGlassPostgreSqlStoreGuardTests
     [MemberData(nameof(Providers))]
     public async Task TryCloseAsync_NullReason_ThrowsArgumentNullException(string provider)
     {
-        var ex = await Should.ThrowAsync<ArgumentNullException>(
-            async () => await NewStore(provider).TryCloseAsync(null, Guid.NewGuid(), BreakTheGlassStatus.Revoked, null!, DateTimeOffset.UnixEpoch));
-        ex.ParamName.ShouldBe("reason");
+        (await Should.ThrowAsync<ArgumentNullException>(
+            async () => await NewStore(provider).TryCloseAsync(null, Guid.NewGuid(), BreakTheGlassStatus.Revoked, null!, DateTimeOffset.UnixEpoch))).ParamName.ShouldBe("reason");
     }
 
     [Theory]
     [MemberData(nameof(Providers))]
     public async Task TryRecordReviewAsync_NullReviewer_ThrowsArgumentNullException(string provider)
     {
-        var ex = await Should.ThrowAsync<ArgumentNullException>(
-            async () => await NewStore(provider).TryRecordReviewAsync(null, Guid.NewGuid(), BreakTheGlassReviewOutcome.Justified, null!, null, DateTimeOffset.UnixEpoch));
-        ex.ParamName.ShouldBe("reviewerUserId");
+        (await Should.ThrowAsync<ArgumentNullException>(
+            async () => await NewStore(provider).TryRecordReviewAsync(null, Guid.NewGuid(), BreakTheGlassReviewOutcome.Justified, null!, null, DateTimeOffset.UnixEpoch))).ParamName.ShouldBe("reviewerUserId");
     }
 
     [Theory]
     [MemberData(nameof(Providers))]
     public async Task QueryReviewQueueAsync_NullQuery_ThrowsArgumentNullException(string provider)
     {
-        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await NewStore(provider).QueryReviewQueueAsync(null, null!));
-        ex.ParamName.ShouldBe("query");
+        (await Should.ThrowAsync<ArgumentNullException>(async () => await NewStore(provider).QueryReviewQueueAsync(null, null!))).ParamName.ShouldBe("query");
     }
 
     [Theory]
