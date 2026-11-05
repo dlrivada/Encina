@@ -153,6 +153,8 @@ public sealed class FunctionalRepositoryEFMySqlTests : IAsyncLifetime
 
     private static readonly string[] KeysetNames = ["a", "b", "c", "d"];
 
+    private static readonly string[] TiedNames = ["a", "b", "b", "b", "c"];
+
     [Theory]
     [InlineData(false, "b", new[] { "c", "d" })]
     [InlineData(true, "c", new[] { "b", "a" })]
@@ -219,6 +221,37 @@ public sealed class FunctionalRepositoryEFMySqlTests : IAsyncLifetime
 
         // Assert
         secondPage.Items.Select(e => e.Id).ShouldBe(databaseOrder.Skip(2));
+    }
+
+    [Fact]
+    public async Task ToCursorPaginatedCompositeAsync_TiedStringKey_SecondPageFollowsTheDatabaseOrder()
+    {
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+
+        // Arrange - page 1 ends inside a run of equal names, so page 2 continues through the id; the name is
+        // matched with == OR string.Compare == 0, and both must translate to the column's collation
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        await context.Set<TestRepositoryEntity>().ExecuteDeleteAsync();
+        context.Set<TestRepositoryEntity>().AddRange(TiedNames.Select(name => new TestRepositoryEntity
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            Amount = 10m,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow,
+        }));
+        await context.SaveChangesAsync();
+        var query = context.Set<TestRepositoryEntity>().AsNoTracking().OrderBy(e => e.Name).ThenBy(e => e.Id);
+        var databaseOrder = await query.Select(e => e.Id).ToListAsync();
+        var encoder = new Base64JsonCursorEncoder();
+        var firstPage = await query.ToCursorPaginatedCompositeAsync(null, 2, e => new { e.Name, e.Id }, encoder, [false, false]);
+
+        // Act
+        var secondPage = await query.ToCursorPaginatedCompositeAsync(firstPage.NextCursor, 2, e => new { e.Name, e.Id }, encoder, [false, false]);
+
+        // Assert
+        secondPage.Items.Select(e => e.Id).ShouldBe(databaseOrder.Skip(2).Take(2));
     }
 
     private static async Task SeedKeysetEntitiesAsync(DbContext context)

@@ -655,7 +655,7 @@ public static class QueryableCursorExtensions
         for (var j = 0; j < count; j++)
         {
             var previous = keyProperties[j];
-            var equality = Expression.Equal(
+            var equality = KeysetComparison.Equal(
                 GetMemberAccess(keyBody, previous.Name),
                 Expression.Constant(previous.GetValue(keyValue), previous.PropertyType));
 

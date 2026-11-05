@@ -415,14 +415,14 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "unit": 95,
+        "unit": 93,
         "guard": 0,
-        "integration": 95
+        "integration": 75
       },
       "justifications": {
-        "unit": "Unit tests check the expression built for string, Guid and operator keys in both directions and evaluate the string and Guid comparisons (measured 100%).",
+        "unit": "Unit tests check the expressions built for string, Guid and operator keys in both directions, the composite equality for canonically equivalent and null strings, and the rejection of a nullable string property or field (measured 95.45%); the rest is the unreachable default arm of the member switch.",
         "guard": "Internal helper with no public argument checks to guard; its callers validate their arguments.",
-        "integration": "The EF Core repository and cursor pagination integration tests run string and Guid keysets through it on real SQL Server and PostgreSQL databases (measured 100%)."
+        "integration": "The EF Core repository and cursor pagination integration tests run string keysets, Guid keysets and a composite key with tied names through it on real SQL Server and PostgreSQL databases (measured 77.27%); the nullable-member rejection is unit-tested only."
       }
     },
     "Extensions/QueryableCursorExtensions.cs": {
@@ -435,12 +435,12 @@
       "targets": {
         "unit": 91,
         "guard": 0,
-        "integration": 20
+        "integration": 57
       },
       "justifications": {
-        "unit": "Unit tests on the in-memory provider cover the simple, descending, backward, projected and composite cursor paths, including string and Guid keys (measured 93.51%); the rest is error branches of cursor decoding.",
+        "unit": "Unit tests on the in-memory provider cover the simple, descending, backward, projected and composite cursor paths, including string, Guid, tied and canonically equivalent keys (measured 93.51%); the rest is error branches of cursor decoding.",
         "guard": "No GuardTests cover these extension methods yet; their argument checks run in the unit tests' guard-clause section.",
-        "integration": "The EF Core repository integration tests page a Guid key with ToCursorPaginatedAsync on real SQL Server and PostgreSQL databases (measured 22.08%); the other cursor variants are unit-tested only."
+        "integration": "The EF Core repository integration tests page a Guid key and a composite key with tied names on real SQL Server and PostgreSQL databases (measured 59.74%); the other cursor variants are unit-tested only."
       }
     },
     "Extensions/QueryablePagedExtensions.cs": {
