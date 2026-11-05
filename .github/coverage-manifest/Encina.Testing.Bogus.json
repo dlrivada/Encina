@@ -20,7 +20,7 @@
       },
       "justifications": {
         "guard": "Guard tests call WithValue with a null generator and PubSubChannel/PubSubPattern with null and blank arguments; the remaining lines are fluent setters and generation covered by unit tests.",
-        "unit": "Unit tests exercise every fluent setter and Generate; only unreachable defensive branches are left."
+        "unit": "Unit tests exercise every fluent setter and Generate; the target leaves headroom."
       }
     },
     "CacheKeyFaker.cs": {
@@ -36,7 +36,7 @@
       },
       "justifications": {
         "guard": "Guard tests call WithPrefix, AsTagged and WithSegments with invalid arguments; key generation is covered by unit tests.",
-        "unit": "Unit tests generate keys for prefix, segments, pattern and tag variants; one rarely taken branch is left."
+        "unit": "Unit tests generate keys for prefix, segments, pattern and tag variants; the pattern branch for a single segment is not driven."
       }
     },
     "CacheValueFaker.cs": {
@@ -52,7 +52,7 @@
       },
       "justifications": {
         "guard": "Guard tests call Configure with a null action and every Cache*Value extension with a null faker; generation bodies are unit-tested.",
-        "unit": "Unit tests generate each cache value kind; a few range-edge branches are not driven."
+        "unit": "Unit tests generate each cache value kind; the bool and decimal arms of the seed-dependent switch in CacheJsonValue are not driven."
       }
     },
     "EncinaFaker.cs": {
@@ -71,7 +71,7 @@
       "justifications": {
         "guard": "Guard tests call every extension with a null receiver and with out-of-range arguments plus invalid locales; the success paths are unit-tested.",
         "unit": "Unit tests cover the faker class and the common generators; the entity id, strongly-typed id and value-object extensions are exercised mainly by guard and property tests.",
-        "property": "Property tests drive the id and value-object extensions over generated seeds; the remaining lines are generation bodies covered by unit tests."
+        "property": "Property tests drive the metadata extensions and the faker class over generated seeds; the id and value-object extensions are exercised by guard tests."
       }
     },
     "InboxMessageFaker.cs": {
@@ -119,7 +119,7 @@
       },
       "justifications": {
         "guard": "Guard tests call AtStep with negative values; the other builders have no argument checks.",
-        "unit": "No unit tests exist for SagaStateFaker yet; a follow-up issue tracks them."
+        "unit": "No unit tests exist for SagaStateFaker yet; the guard tests cover only AtStep."
       }
     },
     "ScheduledMessageFaker.cs": {
