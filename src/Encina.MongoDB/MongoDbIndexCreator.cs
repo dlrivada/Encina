@@ -142,14 +142,12 @@ internal sealed class MongoDbIndexCreator : IHostedService
 
         var indexModels = new List<CreateIndexModel<InboxMessage>>
         {
-            // TTL index for automatic cleanup of expired messages
+            // Ordinary index for GetExpiredMessagesAsync (ExpiresAtUtc < now, processed). Never a TTL index:
+            // it would delete unprocessed rows and ignore EnableAutomaticPurge = false. The purge service
+            // deletes processed, expired rows (#3016).
             new(
                 Builders<InboxMessage>.IndexKeys.Ascending(m => m.ExpiresAtUtc),
-                new CreateIndexOptions
-                {
-                    Name = "IX_Inbox_Expires_TTL",
-                    ExpireAfter = TimeSpan.Zero // Documents expire at ExpiresAtUtc
-                }
+                new CreateIndexOptions { Name = "IX_Inbox_Expires" }
             ),
             // Index for finding by request type
             new(

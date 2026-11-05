@@ -228,6 +228,8 @@ config.InboxOptions.EnableAutomaticPurge = true;
 config.InboxOptions.PurgeBatchSize = 100;
 ```
 
+`PurgeInterval`, `EnableAutomaticPurge` and `PurgeBatchSize` are shown at their defaults. The purge service deletes only processed messages whose retention has passed (an unprocessed message is never deleted); `PurgeInterval` is at most about 49.7 days, `PurgeBatchSize` is at least 1 with no upper limit, and an invalid value throws `ArgumentOutOfRangeException`. The EF Core store stages the delete and the service saves it after each batch. See [Automatic purge of processed messages](../Encina.Messaging/README.md#automatic-purge-of-processed-messages).
+
 ### Saga Pattern
 
 Coordinates distributed transactions across multiple services with compensation support.
