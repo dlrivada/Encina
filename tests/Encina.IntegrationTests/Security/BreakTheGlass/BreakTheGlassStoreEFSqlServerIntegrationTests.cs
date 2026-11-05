@@ -3,6 +3,7 @@ using Encina.EntityFrameworkCore.BreakTheGlass;
 using Encina.IntegrationTests.Security.Audit;
 using Encina.Security.BreakTheGlass;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
+using System.Transactions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -67,6 +68,104 @@ public sealed class BreakTheGlassStoreEFSqlServerIntegrationTests : BreakTheGlas
         new BreakTheGlassStoreEF<BreakTheGlassTestDbContext>(new BreakTheGlassTestContextFactory(_fixture));
 }
 
+/// <summary>Behavior of <see cref="BreakTheGlassStoreEF{TContext}"/> that the shared contract does not cover.</summary>
+[Trait("Category", "Integration")]
+[Trait("Database", "SqlServer")]
+[Collection("EFCore-SqlServer")]
+public sealed class BreakTheGlassStoreEFSqlServerEdgeIntegrationTests : IAsyncLifetime
+{
+    private static readonly DateTimeOffset Opened = new(2026, 11, 5, 12, 0, 0, TimeSpan.Zero);
+
+    private readonly EFCoreSqlServerFixture _fixture;
+    private BreakTheGlassStoreEF<BreakTheGlassTestDbContext> _store = null!;
+
+    public BreakTheGlassStoreEFSqlServerEdgeIntegrationTests(EFCoreSqlServerFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    public async ValueTask InitializeAsync()
+    {
+        await BreakTheGlassEFSchema.PrepareAsync(_fixture);
+        _store = new BreakTheGlassStoreEF<BreakTheGlassTestDbContext>(new BreakTheGlassTestContextFactory(_fixture));
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    private static BreakTheGlassElevation Elevation(string? tenant, string user = "clin-1", string subject = "patient-1") => new()
+    {
+        ElevationId = Guid.NewGuid(),
+        TenantId = tenant,
+        UserId = user,
+        SubjectId = subject,
+        Scope = "clinical-record",
+        Justification = "justification",
+        OpenedAtUtc = Opened,
+        ExpiresAtUtc = Opened.AddHours(1)
+    };
+
+    private static string CodeOf<T>(Either<EncinaError, T> result) =>
+        result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty));
+
+    [Fact]
+    public async Task ACloseInsideARolledBackTransactionScope_StillPersists()
+    {
+        var elevation = Elevation("acme");
+        (await _store.AddAsync(elevation)).IsRight.ShouldBeTrue();
+
+        using (var scope = new TransactionScope(TransactionScopeOption.Required, TransactionScopeAsyncFlowOption.Enabled))
+        {
+            var closed = await _store.TryCloseAsync("acme", elevation.ElevationId, BreakTheGlassStatus.Revoked, "revoked", Opened.AddMinutes(1));
+            closed.Match(Right: c => c, Left: _ => false).ShouldBeTrue();
+
+            // The scope is disposed without Complete(): the business transaction rolls back.
+        }
+
+        var stored = await _store.GetByIdAsync("acme", elevation.ElevationId);
+        var status = stored.Match(Right: o => o.Match(Some: e => e.Status, None: () => BreakTheGlassStatus.Active), Left: _ => BreakTheGlassStatus.Active);
+        status.ShouldBe(BreakTheGlassStatus.Revoked);
+    }
+
+    [Fact]
+    public async Task ATenantWithATrailingSpace_IsADifferentTenant()
+    {
+        var elevation = Elevation("acme");
+        (await _store.AddAsync(elevation)).IsRight.ShouldBeTrue();
+
+        var other = await _store.GetByIdAsync("acme ", elevation.ElevationId);
+        other.Match(Right: o => o.IsSome, Left: _ => true).ShouldBeFalse();
+
+        var queue = await _store.QueryReviewQueueAsync("acme ", new BreakTheGlassReviewQuery());
+        queue.Match(Right: p => p.Items.Count, Left: _ => -1).ShouldBe(0);
+
+        var own = await _store.GetByIdAsync("acme", elevation.ElevationId);
+        own.Match(Right: o => o.IsSome, Left: _ => false).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task AKeyPartWithTheSeparator_IsRefusedAndNeverCollidesWithAnotherTuple()
+    {
+        var refused = await _store.AddAsync(Elevation("acme", user: "a\u001fb", subject: "c"));
+        CodeOf(refused).ShouldBe(BreakTheGlassErrors.ValidationFailedCode);
+
+        (await _store.AddAsync(Elevation("acme", user: "a", subject: "b"))).IsRight.ShouldBeTrue();
+
+        var found = await _store.FindEffectiveAsync("acme", "a", "b\u001fc", "clinical-record", Opened.AddMinutes(1));
+        found.Match(Right: o => o.IsSome, Left: _ => true).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task AHugePageNumber_ReturnsAnEmptyPage()
+    {
+        (await _store.AddAsync(Elevation("acme"))).IsRight.ShouldBeTrue();
+
+        var page = await _store.QueryReviewQueueAsync("acme", new BreakTheGlassReviewQuery { PageNumber = int.MaxValue, PageSize = BreakTheGlassReviewQuery.MaxPageSize });
+
+        page.IsRight.ShouldBeTrue();
+        page.Match(Right: p => p.Items.Count, Left: _ => -1).ShouldBe(0);
+    }
+}
+
 /// <summary>
 /// Proves that the EF Core model matches the script the SQL Server packages ship: the same columns, nullability, lengths,
 /// collations, computed persisted <c>ActiveKey</c> and the same indexes with their key columns.
@@ -87,7 +186,13 @@ public sealed class BreakTheGlassEFSchemaParityIntegrationTests : IAsyncLifetime
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    private record ColumnInfo(string Name, bool Nullable, int? MaxChars, string? Collation, bool Computed, bool Persisted);
+    private record ColumnInfo(string Name, bool Nullable, int? MaxChars, string? Collation, bool Computed, bool Persisted, string SqlType);
+
+    private static string BaseType(string storeType)
+    {
+        var paren = storeType.IndexOf('(', StringComparison.Ordinal);
+        return (paren < 0 ? storeType : storeType[..paren]).ToLowerInvariant();
+    }
 
     [Fact]
     public async Task EfModelColumns_MatchTheShippedTable()
@@ -103,7 +208,8 @@ public sealed class BreakTheGlassEFSchemaParityIntegrationTests : IAsyncLifetime
                 p.GetMaxLength(),
                 p.GetCollation(),
                 p.GetComputedColumnSql(table) is not null,
-                p.GetIsStored(table) == true))
+                p.GetIsStored(table) == true,
+                BaseType(p.GetRelationalTypeMapping().StoreType)))
             .OrderBy(c => c.Name, StringComparer.Ordinal)
             .ToList();
 
@@ -116,6 +222,7 @@ public sealed class BreakTheGlassEFSchemaParityIntegrationTests : IAsyncLifetime
             shipped.Nullable.ShouldBe(column.Nullable, column.Name);
             shipped.Computed.ShouldBe(column.Computed, column.Name);
             shipped.Persisted.ShouldBe(column.Persisted, column.Name);
+            shipped.SqlType.ShouldBe(column.SqlType, column.Name);
             if (column.MaxChars is not null)
             {
                 shipped.MaxChars.ShouldBe(column.MaxChars, column.Name);
@@ -169,7 +276,8 @@ public sealed class BreakTheGlassEFSchemaParityIntegrationTests : IAsyncLifetime
                 isNvarchar && bytes > 0 ? bytes / 2 : null,
                 reader.IsDBNull(4) ? null : reader.GetString(4),
                 reader.GetBoolean(5),
-                reader.GetBoolean(6)));
+                reader.GetBoolean(6),
+                reader.GetString(3).ToLowerInvariant()));
         }
 
         return columns;

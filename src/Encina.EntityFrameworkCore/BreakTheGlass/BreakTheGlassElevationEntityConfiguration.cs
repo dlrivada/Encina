@@ -67,7 +67,9 @@ public sealed class BreakTheGlassElevationEntityConfiguration : IEntityTypeConfi
             .HasColumnType("binary(32)")
             .HasComputedColumnSql(ActiveKeyExpression, stored: true);
 
-        builder.HasIndex(x => x.ActiveKey).IsUnique().HasDatabaseName(ActiveKeyIndexName);
+        // HasFilter(null): EF Core adds "WHERE [ActiveKey] IS NOT NULL" to a unique index over a nullable property on SQL Server,
+        // and SQL Server rejects a filtered index over a computed column. The shipped script has a plain unique index.
+        builder.HasIndex(x => x.ActiveKey).IsUnique().HasFilter(null).HasDatabaseName(ActiveKeyIndexName);
         builder.HasIndex(x => new { x.TenantId, x.ReviewOutcome, x.OpenedAtUtc }).HasDatabaseName("IX_BreakTheGlassElevations_ReviewQueue");
         builder.HasIndex(x => new { x.Status, x.ExpiresAtUtc }).HasDatabaseName("IX_BreakTheGlassElevations_Expiry");
     }

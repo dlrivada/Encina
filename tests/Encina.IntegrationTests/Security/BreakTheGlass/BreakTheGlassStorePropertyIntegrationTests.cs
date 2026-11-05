@@ -62,7 +62,11 @@ internal static class BreakTheGlassStoreInvariant
             }
             else
             {
-                await store.AddAsync(Elevation(now, duration + 1));
+                var added = await store.AddAsync(Elevation(now, duration + 1));
+                if (added.IsLeft && added.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone(string.Empty)) != BreakTheGlassErrors.AlreadyActiveCode)
+                {
+                    return false;
+                }
             }
 
             var page = await store.QueryReviewQueueAsync(Tenant, new BreakTheGlassReviewQuery { PageSize = BreakTheGlassReviewQuery.MaxPageSize });

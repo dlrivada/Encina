@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Transactions;
 using Encina.Security.Audit;
 using Encina.Security.BreakTheGlass;
 using LanguageExt;
@@ -52,6 +53,12 @@ public sealed class BreakTheGlassStoreEF<TContext> : IBreakTheGlassStore
     {
         ArgumentNullException.ThrowIfNull(elevation);
         var entity = ToEntity(elevation);
+        if (ContainsKeySeparator(entity.TenantId, entity.UserId, entity.SubjectId, entity.Scope))
+        {
+            // The separator would let two different key tuples hash to the same ActiveKey.
+            return ValueTask.FromResult(Left<EncinaError, Unit>(BreakTheGlassErrors.ValidationFailed("key_part_separator")));
+        }
+
         var key = ActiveKeyOf(entity.TenantId, entity.UserId, entity.SubjectId, entity.Scope);
 
         return RunAsync<Unit>(async (db, ct) =>
@@ -100,7 +107,14 @@ public sealed class BreakTheGlassStoreEF<TContext> : IBreakTheGlassStore
         ArgumentNullException.ThrowIfNull(userId);
         ArgumentNullException.ThrowIfNull(subjectId);
         ArgumentNullException.ThrowIfNull(scope);
-        var key = ActiveKeyOf(Normalise(tenantId), userId, subjectId, scope);
+        tenantId = Normalise(tenantId);
+        if (ContainsKeySeparator(tenantId, userId, subjectId, scope))
+        {
+            // AddAsync never stores such a tuple, so nothing can be effective for it.
+            return ValueTask.FromResult(Right<EncinaError, Option<BreakTheGlassElevation>>(None));
+        }
+
+        var key = ActiveKeyOf(tenantId, userId, subjectId, scope);
         var now = nowUtc.UtcDateTime;
 
         return RunAsync<Option<BreakTheGlassElevation>>(async (db, ct) =>
@@ -204,10 +218,14 @@ public sealed class BreakTheGlassStoreEF<TContext> : IBreakTheGlassStore
         {
             var filtered = ApplyFilters(ForTenant(db, tenantId).Where(e => e.ReviewOutcome == null), query);
             var total = await filtered.CountAsync(ct).ConfigureAwait(false);
-            var rows = await filtered
-                .OrderBy(e => e.OpenedAtUtc).ThenBy(e => e.ElevationId)
-                .Skip((pageNumber - 1) * pageSize).Take(pageSize)
-                .ToListAsync(ct).ConfigureAwait(false);
+            // The offset is computed in long: a huge page number must not wrap to a negative or a foreign offset.
+            var offset = (long)(pageNumber - 1) * pageSize;
+            var rows = offset >= total
+                ? []
+                : await filtered
+                    .OrderBy(e => e.OpenedAtUtc).ThenBy(e => e.ElevationId)
+                    .Skip((int)offset).Take(pageSize)
+                    .ToListAsync(ct).ConfigureAwait(false);
             return Right<EncinaError, PagedResult<BreakTheGlassElevation>>(
                 PagedResult<BreakTheGlassElevation>.Create(rows.ConvertAll(ToModel), total, pageNumber, pageSize));
         }, cancellationToken);
@@ -246,6 +264,12 @@ public sealed class BreakTheGlassStoreEF<TContext> : IBreakTheGlassStore
         SHA256.HashData(Encoding.Unicode.GetBytes(
             string.Concat(tenantId ?? string.Empty, KeySeparator, userId, KeySeparator, subjectId, KeySeparator, scope)));
 
+    private static bool ContainsKeySeparator(string? tenantId, string userId, string subjectId, string scope) =>
+        (tenantId?.Contains(KeySeparator) ?? false)
+        || userId.Contains(KeySeparator)
+        || subjectId.Contains(KeySeparator)
+        || scope.Contains(KeySeparator);
+
     internal static bool IsActiveKeyViolation(DbUpdateException exception) =>
         exception.InnerException is SqlException { Number: 2627 or 2601 } sql
         && sql.Message.Contains(BreakTheGlassElevationEntityConfiguration.ActiveKeyIndexName, StringComparison.Ordinal);
@@ -257,6 +281,9 @@ public sealed class BreakTheGlassStoreEF<TContext> : IBreakTheGlassStore
     {
         try
         {
+            // The store never joins the caller's ambient System.Transactions scope (SqlClient would enlist the new connection in
+            // it): a revoke, a review or a purge must survive the rollback of the business transaction (ADR-048).
+            using var suppress = new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled);
             await using var db = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
             return await work(db, cancellationToken).ConfigureAwait(false);
         }
@@ -271,7 +298,15 @@ public sealed class BreakTheGlassStoreEF<TContext> : IBreakTheGlassStore
     private static IQueryable<BreakTheGlassElevationEntity> ForTenant(DbContext db, string? tenantId)
     {
         var rows = db.Set<BreakTheGlassElevationEntity>().AsNoTracking();
-        return tenantId is null ? rows.Where(e => e.TenantId == null) : rows.Where(e => e.TenantId == tenantId);
+        // SQL Server ignores trailing spaces in "=", so "acme" and "acme " would match; the length check keeps tenants apart.
+        // The column has a binary collation, so the comparison is already case-sensitive.
+        if (tenantId is null)
+        {
+            return rows.Where(e => e.TenantId == null);
+        }
+
+        var byteLength = tenantId.Length * sizeof(char);
+        return rows.Where(e => e.TenantId == tenantId && EF.Functions.DataLength(e.TenantId) == byteLength);
     }
 
     private static IQueryable<BreakTheGlassElevationEntity> ApplyFilters(IQueryable<BreakTheGlassElevationEntity> rows, BreakTheGlassReviewQuery query)
