@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Encina.DomainModeling;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
+using NSubstitute;
 using static LanguageExt.Prelude;
 
 namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.DomainEvents;
@@ -44,7 +45,7 @@ public sealed record NoteRaised(Guid AggregateId, int Sequence) : DomainEvent, I
 /// <param name="AggregateId">The aggregate that raised it.</param>
 public sealed record PoisonRaised(Guid AggregateId) : DomainEvent, INotification;
 
-/// <summary>What a <see cref="RecordingHandler{TEvent}"/> does after recording.</summary>
+/// <summary>What a handler built by <see cref="RecordingHandlers"/> does after recording.</summary>
 public enum HandlerBehavior
 {
     /// <summary>Returns Right.</summary>
@@ -71,28 +72,35 @@ public sealed class DomainEventRecorder
 }
 
 /// <summary>
-/// Notification handler that records the event and then behaves as configured. It is an open generic, so assembly
-/// scanning by other tests of this assembly does not register it.
+/// Builds notification handlers that record the event and then behave as configured. The handlers are
+/// NSubstitute proxies created at run time, not classes of this assembly, so the assembly scanning that other
+/// tests of this assembly run (<c>AddEncina</c> with this assembly) never discovers them.
 /// </summary>
-/// <typeparam name="TEvent">The event type.</typeparam>
-/// <param name="recorder">The recorder.</param>
-/// <param name="behavior">What to do after recording.</param>
-public sealed class RecordingHandler<TEvent>(DomainEventRecorder recorder, HandlerBehavior behavior)
-    : INotificationHandler<TEvent>
-    where TEvent : IDomainEvent, INotification
+public static class RecordingHandlers
 {
-    /// <inheritdoc />
-    public Task<Either<EncinaError, Unit>> Handle(TEvent notification, CancellationToken cancellationToken)
+    /// <summary>Creates a handler for <typeparamref name="TEvent"/>.</summary>
+    /// <typeparam name="TEvent">The event type.</typeparam>
+    /// <param name="recorder">The recorder.</param>
+    /// <param name="behavior">What to do after recording.</param>
+    /// <returns>The handler.</returns>
+    public static INotificationHandler<TEvent> Create<TEvent>(DomainEventRecorder recorder, HandlerBehavior behavior)
+        where TEvent : class, IDomainEvent, INotification
     {
-        recorder.Record(notification);
+        var handler = Substitute.For<INotificationHandler<TEvent>>();
+        handler.Handle(Arg.Any<TEvent>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                recorder.Record(call.Arg<TEvent>());
 
-        return behavior switch
-        {
-            HandlerBehavior.ReturnLeft => Task.FromResult(
-                Left<EncinaError, Unit>(EncinaErrors.Create("test.domain-event-handler", "handler failed"))),
-            HandlerBehavior.Throw => throw new InvalidOperationException("handler threw"),
-            _ => Task.FromResult(Right<EncinaError, Unit>(unit))
-        };
+                return behavior switch
+                {
+                    HandlerBehavior.ReturnLeft => Task.FromResult(
+                        Left<EncinaError, Unit>(EncinaErrors.Create("test.domain-event-handler", "handler failed"))),
+                    HandlerBehavior.Throw => throw new InvalidOperationException("handler threw"),
+                    _ => Task.FromResult(Right<EncinaError, Unit>(unit))
+                };
+            });
+        return handler;
     }
 }
 

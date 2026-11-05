@@ -276,8 +276,8 @@ public abstract class DomainEventDispatcherInterceptorEFTestsBase : IAsyncLifeti
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddEncina();
-        services.AddScoped<INotificationHandler<NoteRaised>>(_ => new RecordingHandler<NoteRaised>(recorder, HandlerBehavior.Succeed));
-        services.AddScoped<INotificationHandler<PoisonRaised>>(_ => new RecordingHandler<PoisonRaised>(recorder, poison));
+        services.AddScoped<INotificationHandler<NoteRaised>>(_ => RecordingHandlers.Create<NoteRaised>(recorder, HandlerBehavior.Succeed));
+        services.AddScoped<INotificationHandler<PoisonRaised>>(_ => RecordingHandlers.Create<PoisonRaised>(recorder, poison));
 
         // IEncina is scoped and the interceptor resolves it from this provider, so scope validation stays off.
         var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
