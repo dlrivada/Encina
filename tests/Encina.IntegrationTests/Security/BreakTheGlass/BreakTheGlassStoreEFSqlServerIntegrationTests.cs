@@ -1,9 +1,9 @@
+using System.Transactions;
 using Encina.ContractTests.Security.BreakTheGlass;
 using Encina.EntityFrameworkCore.BreakTheGlass;
 using Encina.IntegrationTests.Security.Audit;
 using Encina.Security.BreakTheGlass;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
-using System.Transactions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
