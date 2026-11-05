@@ -11,6 +11,9 @@ namespace Encina.TestInfrastructure.Fixtures;
 /// </summary>
 public sealed class MySqlFixture : DatabaseFixture<MySqlContainer>
 {
+    /// <summary>The 9.x MySQL image the repository tests against; shared by the MySqlFixture and the MySQL CDC fixture.</summary>
+    public const string Mysql9Image = "mysql:9.1";
+
     private MySqlContainer? _container;
 
     /// <inheritdoc />
@@ -26,7 +29,7 @@ public sealed class MySqlFixture : DatabaseFixture<MySqlContainer>
     protected override async Task<MySqlContainer> CreateContainerAsync()
     {
         _container = new MySqlBuilder()
-            .WithImage("mysql:9.1")
+            .WithImage(Mysql9Image)
             .WithDatabase("Encina_test")
             .WithUsername("root")
             .WithPassword("mysql")
