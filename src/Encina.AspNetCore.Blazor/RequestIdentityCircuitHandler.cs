@@ -16,10 +16,26 @@ namespace Encina.AspNetCore.Blazor;
 /// scope built from that principal, so a changed authentication state applies at the next activity.
 /// </para>
 /// <para>
-/// When the scope is refused (the circuit flow carries an inbound or user context it should not,
-/// such as the first long poll of a misordered pipeline; the factory has logged the error code), the
-/// activity still runs, never under the connection's identity: it runs inside an anonymous masking
-/// scope that keeps the refusals of the context it hides.
+/// When the scope is refused for a host reason (<c>ScopeConflict</c>: the circuit flow carries an inbound
+/// or user context it should not, such as the first long poll of a misordered pipeline;
+/// <c>UnsupportedAccessor</c>; the factory has logged the error code), the activity still runs, never
+/// under the connection's identity: it runs inside an anonymous masking scope that keeps the refusals of
+/// the context it hides.
+/// </para>
+/// <para>
+/// Every other refusal fails closed (a mask-list, so a code added later refuses too): an authenticated
+/// principal with no usable subject (<c>MissingSubjectClaim</c>, <c>MalformedSubjectClaim</c>,
+/// <c>ReservedSubjectClaim</c>, <c>ConflictingSubjectClaims</c>) or with conflicting tenant claims
+/// (<c>InboundTenantConflict</c>) never runs the activity as anonymous. The handler does not call the
+/// next handler and throws an <see cref="InvalidOperationException"/> whose fixed text carries only the
+/// error code (never a claim value or the error message); the factory has logged Warning 167. For a
+/// JavaScript interop call (and the UI events that travel through it) Blazor reports the exception as an
+/// unhandled circuit exception: it notifies the client, which shows the error UI, and terminates the
+/// circuit. Two paths are not reported to the client: the initialization of a circuit in the legacy
+/// Blazor Server hosting (fire-and-forget; the circuit stays uninitialized, so nothing runs for that
+/// principal) and render acknowledgements (fire-and-forget; the acknowledgement is lost and rendering
+/// stalls). A null or unauthenticated principal
+/// is not a refusal: its activities keep running anonymous.
 /// </para>
 /// <para>
 /// Registered per circuit (scoped) by <c>AddEncinaBlazorAuthorization()</c>.
@@ -65,6 +81,12 @@ internal sealed class RequestIdentityCircuitHandler : CircuitHandler
             return;
         }
 
+        var code = result.Match(static _ => string.Empty, static error => error.GetCode().IfNone(string.Empty));
+        if (!IsHostRefusal(code))
+        {
+            throw Refusal(code);
+        }
+
         var masked = await _scopes.RunAnonymousMarkerAsync(AnonymousMarker.Mask, _ => next(activity), CancellationToken.None).ConfigureAwait(true);
         if (masked.IsLeft)
         {
@@ -72,6 +94,15 @@ internal sealed class RequestIdentityCircuitHandler : CircuitHandler
             throw new InvalidOperationException("The circuit activity could not run inside an identity scope; check the request identity registration.");
         }
     }
+
+    // The mask-list: only the host refusals keep the mask-and-run. Any other code, including one the
+    // factory adds later, refuses the activity (fail closed).
+    private static bool IsHostRefusal(string code) =>
+        code is RequestIdentityErrorCodes.ScopeConflict or RequestIdentityErrorCodes.UnsupportedAccessor;
+
+    // Fixed text with the error code only: never a claim value, never EncinaError.Message.
+    private static InvalidOperationException Refusal(string code) =>
+        new($"The circuit activity was refused: the authenticated principal cannot open an identity scope ({code}).");
 
     private static async Task<Either<EncinaError, Unit>> RunNextAsync(CircuitInboundActivityContext activity, Func<CircuitInboundActivityContext, Task> next)
     {

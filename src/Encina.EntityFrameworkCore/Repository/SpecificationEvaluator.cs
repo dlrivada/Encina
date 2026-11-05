@@ -203,34 +203,49 @@ public static class SpecificationEvaluator
         }
 
         // Apply keyset pagination filter (before ordering)
-        if (querySpec.KeysetPaginationEnabled && querySpec.KeysetProperty is not null && querySpec.LastKeyValue is not null)
-        {
-            query = ApplyKeysetFilter(query, querySpec.KeysetProperty, querySpec.LastKeyValue);
-        }
+        query = ApplyKeysetPagination(query, querySpec);
 
         // Apply ordering with ThenBy support
         query = ApplyOrdering(query, querySpec);
 
-        // Apply pagination (offset-based only if keyset is not enabled)
-        if (!querySpec.KeysetPaginationEnabled && querySpec.IsPagingEnabled)
-        {
-            if (querySpec.Skip.HasValue)
-            {
-                query = query.Skip(querySpec.Skip.Value);
-            }
+        return ApplyPaging(query, querySpec);
+    }
 
-            if (querySpec.Take.HasValue)
-            {
-                query = query.Take(querySpec.Take.Value);
-            }
-        }
-        else if (querySpec.KeysetPaginationEnabled && querySpec.Take.HasValue)
+    private static IQueryable<T> ApplyKeysetPagination<T>(IQueryable<T> query, IQuerySpecification<T> querySpec)
+        where T : class
+    {
+        if (querySpec is not { KeysetPaginationEnabled: true, KeysetProperty: { } keysetProperty })
         {
-            // For keyset pagination, only apply Take (Skip is not used)
-            query = query.Take(querySpec.Take.Value);
+            return query;
         }
 
-        return query;
+        // Read on the first page too: it rejects a keyset property that is not the primary ordering
+        var descending = querySpec.IsKeysetDescending;
+        return querySpec.LastKeyValue is { } lastKeyValue
+            ? ApplyKeysetFilter(query, keysetProperty, lastKeyValue, descending)
+            : query;
+    }
+
+    private static IQueryable<T> ApplyPaging<T>(IQueryable<T> query, IQuerySpecification<T> querySpec)
+        where T : class
+    {
+        // For keyset pagination, only apply Take (the keyset filter replaces Skip)
+        if (querySpec.KeysetPaginationEnabled)
+        {
+            return querySpec.Take.HasValue ? query.Take(querySpec.Take.Value) : query;
+        }
+
+        if (!querySpec.IsPagingEnabled)
+        {
+            return query;
+        }
+
+        if (querySpec.Skip.HasValue)
+        {
+            query = query.Skip(querySpec.Skip.Value);
+        }
+
+        return querySpec.Take.HasValue ? query.Take(querySpec.Take.Value) : query;
     }
 
     private static IQueryable<T> ApplyOrdering<T>(IQueryable<T> query, IQuerySpecification<T> querySpec)
@@ -272,10 +287,11 @@ public static class SpecificationEvaluator
     private static IQueryable<T> ApplyKeysetFilter<T>(
         IQueryable<T> query,
         Expression<Func<T, object>> keysetProperty,
-        object lastKeyValue)
+        object lastKeyValue,
+        bool descending)
         where T : class
     {
-        // Build: x => x.KeysetProperty > lastKeyValue
+        // Build: x => x.KeysetProperty > lastKeyValue, or < when the keyset property is sorted descending
         var parameter = keysetProperty.Parameters[0];
         var memberExpression = GetMemberExpression(keysetProperty.Body);
 
@@ -288,11 +304,12 @@ public static class SpecificationEvaluator
         var memberType = GetMemberType(memberExpression);
         var convertedValue = ConvertValue(lastKeyValue, memberType);
 
-        var greaterThan = Expression.GreaterThan(
-            memberExpression,
-            Expression.Constant(convertedValue, memberType));
+        var lastKey = Expression.Constant(convertedValue, memberType);
+        var afterLastKey = descending
+            ? Expression.LessThan(memberExpression, lastKey)
+            : Expression.GreaterThan(memberExpression, lastKey);
 
-        var lambda = Expression.Lambda<Func<T, bool>>(greaterThan, parameter);
+        var lambda = Expression.Lambda<Func<T, bool>>(afterLastKey, parameter);
 
         return query.Where(lambda);
     }

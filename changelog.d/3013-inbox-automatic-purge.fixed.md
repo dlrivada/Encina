@@ -1,0 +1,1 @@
+- `InboxOptions.EnableAutomaticPurge`, `PurgeInterval` and `PurgeBatchSize` now take effect: when the flag is on, the shared messaging registration adds a hosted `MessagePurgeService` that removes processed, expired inbox messages at start-up and then every `PurgeInterval`, in batches of `PurgeBatchSize`; the option setters reject non-positive values (#3013)

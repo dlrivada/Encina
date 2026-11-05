@@ -1,7 +1,7 @@
 {
   "package": "Encina.Messaging",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 158,
+  "totalFiles": 163,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -382,6 +382,30 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "Diagnostics/MessagePurgeLog.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Source-generated LoggerMessage definitions of the purge service (EventIds 2107-2112)",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "The class is marked ExcludeFromCodeCoverage because the LoggerMessage members are generated boilerplate, so it has no coverable lines; the log calls (2107-2112, including the 2112 no-progress warning) are asserted through the service and cycle tests."
+      }
+    },
+    "Diagnostics/MessagePurgeMetrics.cs": {
+      "defaultTests": [
+        "unit",
+        "property"
+      ],
+      "defaultRule": "*Metrics.cs",
+      "reason": "Meter and counters of the purge service",
+      "targets": { "unit": 95, "property": 0 },
+      "justifications": {
+        "unit": "The purge service and cycle unit tests execute every recording path of the counters; no counter value is asserted yet.",
+        "property": "Property/contract tests delivered by #3166."
+      }
+    },
     "Diagnostics/MessagingStoreMetrics.cs": {
       "defaultTests": [
         "unit"
@@ -720,7 +744,7 @@
       "reason": "ServiceCollection extensions with conditional registration",
       "targets": { "unit": 95, "guard": 60, "integration": 70 },
       "justifications": {
-        "unit": "Registration snapshots, the registration-order tests and the DI tests cover every pattern flag and both write paths with ValidateOnBuild and ValidateScopes (measured 100%).",
+        "unit": "Registration snapshots, the registration-order tests and the DI tests, including the inbox purge registration with the flag on and off, cover every pattern flag and the single transactional write path with ValidateOnBuild and ValidateScopes (measured 100%).",
         "guard": "Guard tests cover the null-argument checks of the public registration methods, which are a minority of the file (measured 64%).",
         "integration": "The three ADO.NET provider registrations run it end to end in the outbox atomicity tests (measured 76%); per-flag branches are unit-covered."
       }
@@ -794,20 +818,6 @@
         "integration": "The outbox store and dead letter end-to-end suites run the orchestrator against real databases (measured 87%)."
       }
     },
-    "Outbox/OutboxPostProcessor.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Interim post-processor for the families still on the post-processor write path",
-      "targets": { "unit": 95, "guard": 0, "contract": 0 },
-      "justifications": {
-        "unit": "Process delegates to the writer and returns the first Left; the constructor and both outcomes are driven by OutboxPostProcessorTests (measured 100%).",
-        "guard": "Constructor null checks are asserted in the unit tests; the guard project has no separate tests for this interim class.",
-        "contract": "A concrete scoped processor with no public contract beyond IRequestPostProcessor, covered by ProcessorContracts for the interface."
-      }
-    },
     "Outbox/OutboxProcessorBase.cs": {
       "defaultTests": [
         "unit",
@@ -833,17 +843,6 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
-    },
-    "Outbox/OutboxWritePath.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Interim switch enum with no executable lines",
-      "targets": { "unit": 0 },
-      "justifications": {
-        "unit": "An enum declaration has no executable lines, so there is nothing to cover; the registration tests drive both values."
-      }
     },
     "Outbox/OutboxWriter.cs": {
       "defaultTests": [
@@ -881,6 +880,43 @@
         "contract": "The behavior contract tests drive commit, handler Left, failed write, participant rollback, exception and join over the real accessor (measured 98%).",
         "property": "The commit-or-nothing property covers every outcome except cancellation (measured 94%).",
         "integration": "Real-database request runs cover every path except cancellation (measured 95%)."
+      }
+    },
+    "Purge/MessagePurgeCycle.cs": {
+      "defaultTests": [
+        "unit",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "One batched purge cycle over IInboxStore",
+      "targets": { "unit": 95, "property": 0 },
+      "justifications": {
+        "unit": "Unit tests cover the drain loop, the short-batch stop, the no-progress stop on a repeated batch (EventId 2112), each Left branch, SaveChangesAsync after every remove and cancellation.",
+        "property": "Property/contract tests delivered by #3166."
+      }
+    },
+    "Purge/MessagePurgeSchedule.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Immutable purge schedule built from the inbox options",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "Unit tests build the schedule with the flag on and off and read InboxPurge."
+      }
+    },
+    "Purge/MessagePurgeService.cs": {
+      "defaultTests": [
+        "unit",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Hosted service that purges expired inbox messages at start and every interval",
+      "targets": { "unit": 85, "integration": 0 },
+      "justifications": {
+        "unit": "Unit tests drive the start-up delay, the per-interval cycle, the failure and exception paths and shutdown with a fake TimeProvider.",
+        "integration": "The end-to-end purge against the 10 database providers is delivered by #3046, so this file has no integration test yet."
       }
     },
     "ReadWriteSeparation/DatabaseIntent.cs": {

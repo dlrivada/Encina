@@ -687,6 +687,52 @@ public class SpecificationFilterBuilderTests
         filter.ShouldNotBeNull();
     }
 
+    [Fact]
+    public void BuildFilter_WithKeysetSortedAscending_SelectsKeysAboveTheLastOne()
+    {
+        // Arrange
+        var spec = new AmountKeysetMongoQuerySpec(descending: false, lastAmount: 50m);
+
+        // Act
+        var filter = Render(_builder.BuildFilter(spec));
+
+        // Assert
+        filter.ShouldContain("\"$gt\"");
+        filter.ShouldNotContain("\"$lt\"");
+    }
+
+    [Fact]
+    public void BuildFilter_WithKeysetSortedDescending_SelectsKeysBelowTheLastOne()
+    {
+        // Arrange - with a descending keyset the next page holds the smaller keys (#3154)
+        var spec = new AmountKeysetMongoQuerySpec(descending: true, lastAmount: 50m);
+
+        // Act
+        var filter = Render(_builder.BuildFilter(spec));
+
+        // Assert
+        filter.ShouldContain("\"$lt\"");
+        filter.ShouldNotContain("\"$gt\"");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(50)]
+    public void BuildFilter_WithKeysetNotThePrimaryOrdering_ThrowsNotSupportedException(int? lastAmount)
+    {
+        // Arrange - ordered by status with the keyset in a ThenByDescending: rejected on the first page too
+        var spec = new AmountKeysetThenByMongoQuerySpec(lastAmount);
+
+        // Act & Assert
+        Should.Throw<NotSupportedException>(() => _builder.BuildFilter(spec));
+    }
+
+    private static string Render(FilterDefinition<TestDocument> filter)
+    {
+        var registry = global::MongoDB.Bson.Serialization.BsonSerializer.SerializerRegistry;
+        return filter.Render(new RenderArgs<TestDocument>(registry.GetSerializer<TestDocument>(), registry)).ToJson();
+    }
+
     #endregion
 }
 
@@ -777,6 +823,39 @@ public class ActiveMongoQuerySpec : QuerySpecification<TestDocument>
         AddCriteria(d => d.IsActive);
         ApplyOrderBy(d => d.Id);
         ApplyPaging(0, 10);
+    }
+}
+
+/// <summary>
+/// QuerySpecification paging by amount, sorted ascending or descending.
+/// </summary>
+public class AmountKeysetMongoQuerySpec : QuerySpecification<TestDocument>
+{
+    public AmountKeysetMongoQuerySpec(bool descending, decimal lastAmount)
+    {
+        if (descending)
+        {
+            ApplyOrderByDescending(d => d.Amount);
+        }
+        else
+        {
+            ApplyOrderBy(d => d.Amount);
+        }
+
+        ApplyKeysetPagination(d => d.Amount, lastAmount, 10);
+    }
+}
+
+/// <summary>
+/// QuerySpecification sorted by status, then by amount descending, with the keyset on amount: not the primary ordering.
+/// </summary>
+public class AmountKeysetThenByMongoQuerySpec : QuerySpecification<TestDocument>
+{
+    public AmountKeysetThenByMongoQuerySpec(decimal? lastAmount)
+    {
+        ApplyOrderBy(d => d.Status);
+        ApplyThenByDescending(d => d.Amount);
+        ApplyKeysetPagination(d => d.Amount, lastAmount, 10);
     }
 }
 

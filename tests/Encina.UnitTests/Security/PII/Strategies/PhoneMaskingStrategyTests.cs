@@ -90,14 +90,6 @@ public sealed class PhoneMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_TokenizeMode_ReturnsOriginalValue()
-    {
-        var result = _sut.Apply("555-123-4567", WithMode(MaskingMode.Tokenize));
-
-        result.ShouldBe("555-123-4567");
-    }
-
-    [Fact]
     public void Apply_ShortNumber_ReturnsOriginal()
     {
         // Only 4 digits - same as visible end count, too short to mask

@@ -235,6 +235,95 @@ public class SpecificationSqlBuilderTests
         parameters["p0"].ShouldBe("%completed");
     }
 
+    [Fact]
+    public void BuildWhereClause_StringMethod_NamesTheLikeEscapeCharacter()
+    {
+        // Arrange
+        var builder = new SpecificationSqlBuilder<TestOrderMySQL>(_columnMappings);
+        var spec = new DescriptionContainsMySQLSpec("urgent");
+
+        // Act
+        var (whereClause, _) = builder.BuildWhereClause(spec);
+
+        // Assert
+        whereClause.ShouldContain("`Description` LIKE @p0 ESCAPE '!'");
+    }
+
+    [Fact]
+    public void BuildWhereClause_StringContainsWithLikeWildcards_EscapesThem()
+    {
+        // Arrange - '%' and '_' are LIKE wildcards and '!' is the escape character (#3156)
+        var builder = new SpecificationSqlBuilder<TestOrderMySQL>(_columnMappings);
+        var spec = new DescriptionContainsMySQLSpec("50%_off!");
+
+        // Act
+        var (_, parameters) = builder.BuildWhereClause(spec);
+
+        // Assert
+        parameters["p0"].ShouldBe("%50!%!_off!!%");
+    }
+
+    [Fact]
+    public void BuildWhereClause_StringStartsWithLikeWildcard_EscapesIt()
+    {
+        // Arrange
+        var builder = new SpecificationSqlBuilder<TestOrderMySQL>(_columnMappings);
+        var spec = new DescriptionStartsWithMySQLSpec("a_");
+
+        // Act
+        var (_, parameters) = builder.BuildWhereClause(spec);
+
+        // Assert
+        parameters["p0"].ShouldBe("a!_%");
+    }
+
+    [Fact]
+    public void BuildWhereClause_StringEndsWithLikeWildcard_EscapesIt()
+    {
+        // Arrange
+        var builder = new SpecificationSqlBuilder<TestOrderMySQL>(_columnMappings);
+        var spec = new DescriptionEndsWithMySQLSpec("0%");
+
+        // Act
+        var (_, parameters) = builder.BuildWhereClause(spec);
+
+        // Assert
+        parameters["p0"].ShouldBe("%0!%");
+    }
+
+    #endregion
+
+    #region Method Call Tests
+
+    [Fact]
+    public void BuildWhereClause_ListContains_GeneratesInClause()
+    {
+        // Arrange
+        var builder = new SpecificationSqlBuilder<TestOrderMySQL>(_columnMappings);
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var spec = new CustomerInListMySQLSpec([first, second]);
+
+        // Act
+        var (whereClause, parameters) = builder.BuildWhereClause(spec);
+
+        // Assert
+        whereClause.ShouldBe("WHERE `CustomerId` IN (@p0, @p1)");
+        parameters["p0"].ShouldBe(first);
+        parameters["p1"].ShouldBe(second);
+    }
+
+    [Fact]
+    public void BuildWhereClause_UnsupportedMethodCall_ThrowsNotSupportedException()
+    {
+        // Arrange - Guid.Equals is neither a string method nor a collection Contains
+        var builder = new SpecificationSqlBuilder<TestOrderMySQL>(_columnMappings);
+        var spec = new CustomerEqualsCallMySQLSpec(Guid.NewGuid());
+
+        // Act & Assert
+        Should.Throw<NotSupportedException>(() => builder.BuildWhereClause(spec));
+    }
+
     #endregion
 
     #region BuildSelectStatement Tests
@@ -388,6 +477,21 @@ public class HasDescriptionMySQLSpec : Specification<TestOrderMySQL>
         => o => o.Description != null;
 }
 
+public class CustomerInListMySQLSpec : Specification<TestOrderMySQL>
+{
+    private readonly List<Guid> _customerIds;
+    public CustomerInListMySQLSpec(List<Guid> customerIds) => _customerIds = customerIds;
+    public override Expression<Func<TestOrderMySQL, bool>> ToExpression()
+        => o => _customerIds.Contains(o.CustomerId);
+}
+
+public class CustomerEqualsCallMySQLSpec : Specification<TestOrderMySQL>
+{
+    private readonly Guid _customerId;
+    public CustomerEqualsCallMySQLSpec(Guid customerId) => _customerId = customerId;
+    public override Expression<Func<TestOrderMySQL, bool>> ToExpression()
+        => o => o.CustomerId.Equals(_customerId);
+}
 public class DescriptionContainsMySQLSpec : Specification<TestOrderMySQL>
 {
     private readonly string _searchTerm;

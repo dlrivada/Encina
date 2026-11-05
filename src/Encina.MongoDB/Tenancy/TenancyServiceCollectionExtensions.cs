@@ -70,7 +70,7 @@ public static class TenancyServiceCollectionExtensions
             options.AutoFilterTenantQueries = tenancyOptions.AutoFilterTenantQueries;
             options.AutoAssignTenantId = tenancyOptions.AutoAssignTenantId;
             options.ValidateTenantOnModify = tenancyOptions.ValidateTenantOnModify;
-            options.ThrowOnMissingTenantContext = tenancyOptions.ThrowOnMissingTenantContext;
+            options.RequireTenantContext = tenancyOptions.RequireTenantContext;
             options.TenantFieldName = tenancyOptions.TenantFieldName;
             options.EnableDatabasePerTenant = tenancyOptions.EnableDatabasePerTenant;
             options.DatabaseNamePattern = tenancyOptions.DatabaseNamePattern;

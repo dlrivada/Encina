@@ -161,6 +161,9 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
         "Encina.Messaging.Inbox.IInboxMessageFactory|Encina.UnitTests.Messaging.MessagingServiceCollectionExtensionsCoreEquivalenceTests+StubInboxFactory|Scoped",
         "Encina.Messaging.Inbox.InboxOrchestrator|Encina.Messaging.Inbox.InboxOrchestrator|Scoped",
         "Encina.IPipelineBehavior`2[TRequest,TResponse]|Encina.Messaging.Inbox.InboxPipelineBehavior`2[TRequest,TResponse]|Scoped",
+        // The inbox purge is on by default (#3013): the schedule and the hosted service that runs it.
+        "Encina.Messaging.Purge.MessagePurgeSchedule|factory|Singleton",
+        "Microsoft.Extensions.Hosting.IHostedService|Encina.Messaging.Purge.MessagePurgeService|Singleton",
         "Encina.Messaging.RoutingSlip.RoutingSlipOptions|Encina.Messaging.RoutingSlip.RoutingSlipOptions|Singleton",
         "Encina.Messaging.RoutingSlip.IRoutingSlipRunner|Encina.Messaging.RoutingSlip.RoutingSlipRunner|Scoped",
         "Encina.Messaging.ContentRouter.ContentRouterOptions|Encina.Messaging.ContentRouter.ContentRouterOptions|Singleton",

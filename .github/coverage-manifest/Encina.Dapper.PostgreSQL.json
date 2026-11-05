@@ -296,7 +296,17 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 72,
+        "guard": 4,
+        "integration": 43
+      },
+      "justifications": {
+        "unit": "Unit tests cover WHERE translation (comparisons, null checks, IN lists, and Contains/StartsWith/EndsWith with their LIKE wildcards escaped), the keyset filter in both directions, the first page and a keyset that is not the primary ordering (rejected), ORDER BY, pagination and SELECT building (measured 74.52%); the rest is rarer expression shapes and error branches of the translator.",
+        "guard": "Guard tests cover the null-argument checks of the public builder methods (measured 4.56%).",
+        "integration": "The Dapper repository integration tests run the generated SQL on a real PostgreSQL database for every repository operation, including specifications whose LIKE wildcards must match literally, and a descending keyset page from the query-specification SELECT (measured 45.63%); the rest is expression shapes the repository tests do not use."
+      }
     },
     "Sagas/SagaState.cs": {
       "defaultTests": [

@@ -58,7 +58,7 @@
       "reason": "Core masker with ThrowIfNull guards and masking invariants. Property tests verify round-trip and format invariants.",
       "targets": { "unit": 90, "guard": 10, "property": 40 },
       "justifications": {
-        "unit": "MaskForLog (option off, success, failure rethrow with EventId 8023) and the Tokenize-as-Redact branch of the log context are executed by the log-context unit tests with the real masker (measured 93%).",
+        "unit": "MaskForLog (option off, success, failure rethrow with EventId 8023) are executed by the log-context unit tests with the real masker (measured 93%).",
         "guard": "Guard tests only exercise the ThrowIfNull lines of the public methods including MaskForLog (measured 11%), the rest of the masking engine is behaviour covered by unit tests.",
         "property": "Property tests run the object-masking engine through MaskObject and MaskForLog with generated strings (measured 44%); the remaining lines are option and failure branches covered by unit tests."
       }
@@ -133,9 +133,37 @@
       }
     },
     "Strategies/HashHelper.cs": { "defaultTests": ["unit"], "reason": "Static helper — no ThrowIfNull guards" },
-    "Strategies/IPAddressMaskingStrategy.cs": { "defaultTests": ["unit"], "reason": "Masking strategy — no ThrowIfNull guards" },
-    "Strategies/NameMaskingStrategy.cs": { "defaultTests": ["unit"], "reason": "Masking strategy — no ThrowIfNull guards" },
-    "Strategies/PhoneMaskingStrategy.cs": { "defaultTests": ["unit"], "reason": "Masking strategy — no ThrowIfNull guards" },
-    "Strategies/SSNMaskingStrategy.cs": { "defaultTests": ["unit"], "reason": "Masking strategy — no ThrowIfNull guards" }
+    "Strategies/IPAddressMaskingStrategy.cs": {
+      "defaultTests": ["unit"],
+      "reason": "Masking strategy — no ThrowIfNull guards",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "Every remaining mode arm (Full, Redact, Hash, Partial) and the IPv4 and IPv6 paths are executed by the strategy unit tests with real addresses (measured 95.65%)."
+      }
+    },
+    "Strategies/NameMaskingStrategy.cs": {
+      "defaultTests": ["unit"],
+      "reason": "Masking strategy — no ThrowIfNull guards",
+      "targets": { "unit": 90 },
+      "justifications": {
+        "unit": "Every remaining mode arm and the single-name and multi-name paths are executed by the strategy unit tests (measured 92.86%); a few defensive branches stay unreached."
+      }
+    },
+    "Strategies/PhoneMaskingStrategy.cs": {
+      "defaultTests": ["unit"],
+      "reason": "Masking strategy — no ThrowIfNull guards",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "Every remaining mode arm and the phone format variants are executed by the strategy unit tests (measured 100%)."
+      }
+    },
+    "Strategies/SSNMaskingStrategy.cs": {
+      "defaultTests": ["unit"],
+      "reason": "Masking strategy — no ThrowIfNull guards",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "Every remaining mode arm and the SSN format variants are executed by the strategy unit tests (measured 100%)."
+      }
+    }
   }
 }

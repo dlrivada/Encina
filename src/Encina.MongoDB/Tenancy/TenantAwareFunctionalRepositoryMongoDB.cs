@@ -763,7 +763,7 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
 
         if (string.IsNullOrEmpty(tenantId))
         {
-            return _options.ThrowOnMissingTenantContext
+            return _options.RequireTenantContext
                 ? Left<EncinaError, Option<string>>(RepositoryErrors.TenantRequired<TEntity>(operation))
                 : Right<EncinaError, Option<string>>(Option<string>.None);
         }
@@ -810,7 +810,7 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
 
         if (string.IsNullOrEmpty(currentTenantId))
         {
-            if (_options.ThrowOnMissingTenantContext)
+            if (_options.RequireTenantContext)
             {
                 return Left<EncinaError, Unit>(RepositoryErrors.TenantRequired<TEntity>(operation));
             }

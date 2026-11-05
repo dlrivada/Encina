@@ -114,16 +114,26 @@ public sealed class SpecificationFilterBuilder<TEntity>
         filters.Add(TranslateExpression(expression.Body, expression.Parameters[0]));
 
         // Add keyset pagination filter if enabled
-        if (specification.KeysetPaginationEnabled &&
-            specification.KeysetProperty is not null &&
-            specification.LastKeyValue is not null)
-        {
-            filters.Add(BuildKeysetFilter(specification.KeysetProperty, specification.LastKeyValue));
-        }
+        AddKeysetFilter(filters, specification);
 
         return filters.Count == 1
             ? filters[0]
             : Builders<TEntity>.Filter.And(filters);
+    }
+
+    private void AddKeysetFilter(List<FilterDefinition<TEntity>> filters, IQuerySpecification<TEntity> specification)
+    {
+        if (specification is not { KeysetPaginationEnabled: true, KeysetProperty: { } keysetProperty })
+        {
+            return;
+        }
+
+        // Read on the first page too: it rejects a keyset property that is not the primary ordering
+        var descending = specification.IsKeysetDescending;
+        if (specification.LastKeyValue is { } lastKeyValue)
+        {
+            filters.Add(BuildKeysetFilter(keysetProperty, lastKeyValue, descending, CursorDirection.Forward));
+        }
     }
 
     /// <summary>
