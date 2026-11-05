@@ -105,6 +105,23 @@ public sealed class MongoDbIndexCreatorTests
     }
 
     [Fact]
+    public async Task StartAsync_InboxEnabled_CreatesNoTtlIndexAndKeepsTheOrdinaryExpiryIndex()
+    {
+        var inbox = Indexes<InboxMessage>();
+        IReadOnlyList<CreateIndexModel<InboxMessage>>? created = null;
+        _ = inbox.CreateManyAsync(
+            Arg.Do<IEnumerable<CreateIndexModel<InboxMessage>>>(models => created = models.ToList()),
+            Arg.Any<CancellationToken>());
+        var sut = CreateSut(new EncinaMongoDbOptions { UseInbox = true });
+
+        await sut.StartAsync(CancellationToken.None);
+
+        created.ShouldNotBeNull();
+        created.Where(m => m.Options.ExpireAfter is not null).ShouldBeEmpty();
+        created.Select(m => m.Options.Name).ShouldBe(["IX_Inbox_Expires", "IX_Inbox_RequestType"]);
+    }
+
+    [Fact]
     public async Task StartAsync_AllFeaturesDisabled_CreatesNoIndexes()
     {
         var outbox = Indexes<OutboxMessage>();
