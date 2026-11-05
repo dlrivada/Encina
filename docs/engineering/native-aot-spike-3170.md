@@ -4,7 +4,7 @@ nav_exclude: true
 
 # Native AOT across Encina: measured blockers and options (spike #3170)
 
-This page is for the maintainer, who has to answer decision D1 (does Native AOT enter 1.0, and at what depth) and for the authors of the plans that follow. It records what stops an Encina application from publishing with `PublishAot`, measured on a scratch build, and what each option would cost. Recommendations are input for the maintainer and not decisions: the issue stays open until the maintainer picks Option A, B or C, and the decision then gets its own ADR (amending or superseding [ADR-005](../architecture/adr/005-reject-source-generators.md)). Nothing in `src/` was changed.
+This page is for the maintainer, who has to answer decision D1 (does Native AOT enter 1.0, and at what depth) and for the authors of the plans that follow. It records what stops an Encina application from publishing with `PublishAot`, measured on a scratch build, and what each option would cost. **Decided by the maintainer on 2026-11-05: Native AOT is not in 1.0** ([decision comment](https://github.com/dlrivada/Encina/issues/3170#issuecomment-6653651407)); it is studied again after 1.0, and whether it is feasible at all is an open question. The measurements below are the basis of that decision; the recommendation in section 9 is kept as it was written. Nothing in `src/` was changed.
 
 **Status:** measured on 2026-11-04 against `origin/main` at `ed8143c78`, with .NET SDK 10.0.403 and ILCompiler 10.0.14 on win-x64. **Issue:** [#3170](https://github.com/dlrivada/Encina/issues/3170). **Trigger:** [#3065](https://github.com/dlrivada/Encina/issues/3065) (`Encina.AwsLambda` cold start), where the maintainer decided on 2026-11-04 to ship source-generation overloads now and to make no Native AOT claim until the core is AOT-capable.
 
@@ -214,12 +214,13 @@ Polymorphic publish (`notification.GetType()` at run time, `Dispatchers/Encina.N
 
 Recommendation (not a decision): Option B fits the measurements best. It addresses the hard run-time failures (blockers 1 to 3) and the discovery gap, none of which has an external dependency, and it keeps the generator opt-in, so pay-for-what-you-use holds. What the measurements cannot settle is whether the 20 LanguageExt warnings, the unproven pipeline behaviors and the missing cold-start number are acceptable for a core-only "AOT-capable" claim; Option A remains the safe choice if the maintainer prefers to decide after those are known.
 
-### 9.1 Follow-ups once D1 is decided
+**Decision (maintainer, 2026-11-05): D1 = no Native AOT in 1.0.** The measurements show that supporting it would need deep changes to the architecture, the strategies and the supported capabilities (assembly-scanning discovery, value-type responses and `Publish` fail under `PublishAot`; EF Core needs a compiled model; LanguageExt warnings Encina cannot fix). It is studied again after 1.0; feasibility itself is open.
 
-- Prototype a source-generated dispatcher and rerun the `manual` variant with value-type requests, streams and notifications (Option B).
-- Measure cold start on Lambda and Azure Functions with generated dispatch.
-- Assess EF Core compiled-model integration if Option C is considered.
-- The ADR that amends or supersedes ADR-005 (an issue deliverable, written after D1).
+### 9.1 Follow-ups
+
+- Record the decision in an ADR that amends [ADR-005](../architecture/adr/005-reject-source-generators.md) (Native AOT not in 1.0, revisit after 1.0), as the issue's ADR deliverable.
+- Document in the user documentation that `PublishAot` and trimming are not supported in 1.0.
+- After 1.0: prototype a source-generated dispatcher and rerun the `manual` variant with value-type requests, streams and notifications; measure cold start on Lambda and Azure Functions; assess EF Core compiled-model integration.
 
 ## Related
 
