@@ -301,7 +301,13 @@
         "guard"
       ],
       "defaultRule": "*Handler.cs",
-      "reason": "Handler with constructor null guards and mockeable dependencies"
+      "reason": "Handler with constructor null guards and mockeable dependencies",
+      "targets": { "unit": 65, "guard": 15, "integration": 70 },
+      "justifications": {
+        "unit": "ProcessOutboxRowAsync, the encryption path and the skip branches are driven against fake stores (measured 66.7%); the remaining lines are logging and cancellation branches.",
+        "guard": "Only the constructor null checks and public entry argument checks are guard-reachable (measured 15.3%).",
+        "integration": "OutboxCdcHandlerIntegrationTests run the handler against a real outbox row (measured 76%)."
+      }
     },
     "Processing/CdcDispatcher.cs": {
       "defaultTests": [

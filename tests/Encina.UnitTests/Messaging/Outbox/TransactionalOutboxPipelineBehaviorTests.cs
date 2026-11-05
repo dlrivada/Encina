@@ -1,14 +1,21 @@
 #pragma warning disable CA2012 // NSubstitute configures a ValueTask-returning member by calling it inside Returns(...).
 
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Encina.Messaging.Diagnostics;
+using Encina.Messaging.Encryption;
+using Encina.Messaging.Encryption.Abstractions;
+using Encina.Messaging.Encryption.Attributes;
+using Encina.Messaging.Encryption.Model;
+using Encina.Messaging.Encryption.Serialization;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Serialization;
 using Encina.Messaging.Transactions;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Encina.UnitTests.Messaging.Outbox;
 
@@ -219,6 +226,20 @@ public sealed class TransactionalOutboxPipelineBehaviorTests
     }
 
     [Fact]
+    public async Task Handle_StoreThrowsWhileSaving_RollsBackAndRethrows()
+    {
+        _store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<Either<EncinaError, Unit>>(new InvalidOperationException("store down")));
+
+        var act = async () => await Create<WithNotifications>().Handle(
+            new WithNotifications(new Note("a")), _context, Ok(), CancellationToken.None);
+
+        (await act.ShouldThrowAsync<InvalidOperationException>()).Message.ShouldBe("store down");
+        await _lease.Received(1).RollbackAsync(CancellationToken.None);
+        await _lease.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Handle_Cancelled_RollsBackAndRethrows()
     {
         RequestHandlerCallback<string> next = () => throw new OperationCanceledException();
@@ -364,5 +385,67 @@ public sealed class TransactionalOutboxPipelineBehaviorTests
         await writer.WriteAsync([new Note("a")], CancellationToken.None);
 
         created.ShouldBe(now.UtcDateTime);
+    }
+
+    [Fact]
+    public async Task Handle_WithEncryptionRegisteredAndEncryptedMessage_StoresEncryptedContentAndRoundTrips()
+    {
+        EncryptedMessageAttributeCache.ClearCache();
+        try
+        {
+            var encryptingSerializer = new EncryptingMessageSerializer(
+                new JsonMessageSerializer(),
+                new PassthroughMessageEncryptionProvider(),
+                Options.Create(new MessageEncryptionOptions { Enabled = true }),
+                NullLogger<EncryptingMessageSerializer>.Instance);
+            string? capturedContent = null;
+            _factory.Create(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Do<string>(c => capturedContent = c), Arg.Any<DateTime>())
+                .Returns(_ => Substitute.For<IOutboxMessage>());
+            var behavior = new TransactionalOutboxPipelineBehavior<WithNotifications, string>(
+                _source, _store, _factory, encryptingSerializer,
+                NullLogger<TransactionalOutboxPipelineBehavior<WithNotifications, string>>.Instance);
+
+            await behavior.Handle(
+                new WithNotifications(new SecretNote("patient-diagnosis-42")), _context, Ok(), CancellationToken.None);
+
+            // The stored content is the encrypted envelope, never plain JSON (#1168).
+            capturedContent.ShouldNotBeNull();
+            capturedContent.ShouldStartWith("ENC:v1:");
+            capturedContent.ShouldNotContain("patient-diagnosis-42");
+            var roundTripped = encryptingSerializer.Deserialize<SecretNote>(capturedContent!);
+            roundTripped.ShouldNotBeNull();
+            roundTripped!.SensitiveData.ShouldBe("patient-diagnosis-42");
+        }
+        finally
+        {
+            EncryptedMessageAttributeCache.ClearCache();
+        }
+    }
+
+    [EncryptedMessage]
+    private sealed record SecretNote(string SensitiveData) : INotification;
+
+    /// <summary>Tags the plaintext bytes as ciphertext, enough to prove the writer serializes through <see cref="IMessageSerializer"/>.</summary>
+    private sealed class PassthroughMessageEncryptionProvider : IMessageEncryptionProvider
+    {
+        public ValueTask<Either<EncinaError, EncryptedPayload>> EncryptAsync(
+            ReadOnlyMemory<byte> plaintext,
+            MessageEncryptionContext context,
+            CancellationToken cancellationToken = default) =>
+            new(Either<EncinaError, EncryptedPayload>.Right(new EncryptedPayload
+            {
+                Ciphertext = ImmutableArray.Create(plaintext.Span.ToArray()),
+                KeyId = context.KeyId ?? "test-key",
+                Algorithm = "test-passthrough",
+                Nonce = ImmutableArray.Create<byte>(1, 2, 3),
+                Tag = ImmutableArray.Create<byte>(4, 5, 6),
+                Version = 1
+            }));
+
+        public ValueTask<Either<EncinaError, ImmutableArray<byte>>> DecryptAsync(
+            EncryptedPayload payload,
+            MessageEncryptionContext context,
+            CancellationToken cancellationToken = default) =>
+            new(Either<EncinaError, ImmutableArray<byte>>.Right(payload.Ciphertext));
     }
 }

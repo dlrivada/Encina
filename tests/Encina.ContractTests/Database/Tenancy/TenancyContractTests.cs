@@ -413,7 +413,7 @@ public sealed class TenancyContractTests
         options.AutoFilterTenantQueries.ShouldBeTrue("AutoFilterTenantQueries must be true by default");
         options.AutoAssignTenantId.ShouldBeTrue("AutoAssignTenantId must be true by default");
         options.ValidateTenantOnModify.ShouldBeTrue("ValidateTenantOnModify must be true by default");
-        options.ThrowOnMissingTenantContext.ShouldBeTrue("ThrowOnMissingTenantContext must be true by default");
+        options.RequireTenantContext.ShouldBeTrue("RequireTenantContext must be true by default");
     }
 
     #endregion

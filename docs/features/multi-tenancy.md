@@ -436,6 +436,7 @@ services.AddEncinaMongoDBWithTenancy(
     {
         tenancy.AutoFilterTenantQueries = true;
         tenancy.AutoAssignTenantId = true;
+        tenancy.RequireTenantContext = true;            // Default: Left (Repository.TenantRequired) without a tenant
         tenancy.TenantFieldName = "TenantId";           // MongoDB field name
         tenancy.EnableDatabasePerTenant = true;         // Optional: separate DBs
         tenancy.DatabaseNamePattern = "{baseName}_{tenantId}";
@@ -842,18 +843,24 @@ var all = await dbContext.Orders
 
 ### What happens if tenant resolution fails?
 
-It depends on your configuration:
-
-`ThrowOnMissingTenantContext` is declared by the provider tenancy options (`EfCoreTenancyOptions`, `DapperTenancyOptions`, `ADOTenancyOptions`, `MongoDbTenancyOptions`), not by the core `TenancyOptions`:
+It depends on your configuration. The option is declared by the provider tenancy options, not by the core `TenancyOptions`, and its name depends on the provider. MongoDB (`MongoDbTenancyOptions`) calls it `RequireTenantContext`; Entity Framework Core (`EfCoreTenancyOptions`, set through `config.TenancyOptions.ThrowOnMissingTenantContext` in `AddEncinaEntityFrameworkCore`), Dapper (`DapperTenancyOptions`) and ADO.NET (`ADOTenancyOptions`) call it `ThrowOnMissingTenantContext`. Both names default to `true`.
 
 ```csharp
-// Strict mode (recommended for production; the default)
+// MongoDB: strict mode (recommended for production; the default)
+tenancy.RequireTenantContext = true;
+// → The operation returns a Left with error code Repository.TenantRequired (no exception is thrown)
+
+// MongoDB: lenient mode (useful for development/migration)
+tenancy.RequireTenantContext = false;
+// → Operations run without the tenant filter (DANGEROUS in production!)
+
+// Entity Framework Core, Dapper and ADO.NET: strict mode (the default)
 tenancy.ThrowOnMissingTenantContext = true;
 // → Throws InvalidOperationException (Entity Framework Core: only when the core TenancyOptions.RequireTenant is also true)
 
-// Lenient mode (useful for development/migration)
+// Entity Framework Core, Dapper and ADO.NET: lenient mode
 tenancy.ThrowOnMissingTenantContext = false;
-// → Dapper, ADO.NET and MongoDB: queries run without the tenant filter (DANGEROUS in production!)
+// → Dapper and ADO.NET: queries run without the tenant filter (DANGEROUS in production!)
 // → Entity Framework Core: saves skip tenant assignment and validation (see the table above)
 ```
 

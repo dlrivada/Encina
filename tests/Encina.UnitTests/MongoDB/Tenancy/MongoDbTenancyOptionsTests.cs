@@ -20,7 +20,7 @@ public sealed class MongoDbTenancyOptionsTests
         options.AutoFilterTenantQueries.ShouldBeTrue();
         options.AutoAssignTenantId.ShouldBeTrue();
         options.ValidateTenantOnModify.ShouldBeTrue();
-        options.ThrowOnMissingTenantContext.ShouldBeTrue();
+        options.RequireTenantContext.ShouldBeTrue();
         options.TenantFieldName.ShouldBe("TenantId");
         options.EnableDatabasePerTenant.ShouldBeFalse();
         options.DatabaseNamePattern.ShouldBe("{baseName}_{tenantId}");
@@ -66,16 +66,16 @@ public sealed class MongoDbTenancyOptionsTests
     }
 
     [Fact]
-    public void ThrowOnMissingTenantContext_ShouldBeConfigurable()
+    public void RequireTenantContext_ShouldBeConfigurable()
     {
         // Arrange
         var options = new MongoDbTenancyOptions();
 
         // Act
-        options.ThrowOnMissingTenantContext = false;
+        options.RequireTenantContext = false;
 
         // Assert
-        options.ThrowOnMissingTenantContext.ShouldBeFalse();
+        options.RequireTenantContext.ShouldBeFalse();
     }
 
     [Fact]
