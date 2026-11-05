@@ -53,6 +53,86 @@ public static class MartenAuditErrors
     /// <summary>Error code indicating the entry has been crypto-shredded.</summary>
     public const string ShreddedEntryCode = "audit.marten.shredded_entry";
 
+    /// <summary>Error code when the principal is authenticated but lacks the permission to resolve audit events.</summary>
+    public const string ResolutionForbiddenCode = "audit.marten.resolution_forbidden";
+
+    /// <summary>Error code when a resolution is requested without an authenticated principal.</summary>
+    public const string ResolutionPrincipalRequiredCode = "audit.marten.resolution_principal_required";
+
+    /// <summary>Error code when the reason given to a resolution is blank or too long.</summary>
+    public const string InvalidResolutionReasonCode = "audit.marten.invalid_resolution_reason";
+
+    /// <summary>Error code when the event to resolve does not exist on the given trail.</summary>
+    public const string ResolutionEventNotFoundCode = "audit.marten.resolution_event_not_found";
+
+    /// <summary>Error code when the field does not belong to the trail, or the kind does not allow the field.</summary>
+    public const string InvalidResolutionFieldCode = "audit.marten.invalid_resolution_field";
+
+    /// <summary>
+    /// Creates an error when the principal lacks the permission to resolve audit events.
+    /// </summary>
+    /// <returns>An error indicating the principal is not allowed to resolve audit events. It carries no identity.</returns>
+    public static EncinaError ResolutionForbidden() =>
+        EncinaErrors.Create(
+            code: ResolutionForbiddenCode,
+            message: "The principal is not allowed to resolve audit events. Nothing was resolved.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAuditMarten
+            });
+
+    /// <summary>
+    /// Creates an error when a resolution is requested without an authenticated principal.
+    /// </summary>
+    /// <returns>An error indicating a principal is required to resolve an audit event.</returns>
+    public static EncinaError ResolutionPrincipalRequired() =>
+        EncinaErrors.Create(
+            code: ResolutionPrincipalRequiredCode,
+            message: "Resolving an audit event requires an authenticated principal. Nothing was resolved.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAuditMarten
+            });
+
+    /// <summary>
+    /// Creates an error when the reason given to a resolution is blank or longer than the allowed length.
+    /// </summary>
+    /// <returns>An error indicating the reason is not valid. It carries no part of the reason.</returns>
+    public static EncinaError InvalidResolutionReason() =>
+        EncinaErrors.Create(
+            code: InvalidResolutionReasonCode,
+            message: "The resolution reason is not valid: it must be non-blank and at most 500 characters. Nothing was resolved.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAuditMarten
+            });
+
+    /// <summary>
+    /// Creates an error when the event to resolve does not exist on the given trail.
+    /// </summary>
+    /// <returns>An error indicating the event was not found. It carries no event identity.</returns>
+    public static EncinaError ResolutionEventNotFound() =>
+        EncinaErrors.Create(
+            code: ResolutionEventNotFoundCode,
+            message: "The audit event to resolve was not found on the given trail. Nothing was resolved.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAuditMarten
+            });
+
+    /// <summary>
+    /// Creates an error when the field does not belong to the trail, or the resolution kind does not allow the field.
+    /// </summary>
+    /// <returns>An error indicating the field is not valid for the trail and kind.</returns>
+    public static EncinaError InvalidResolutionField() =>
+        EncinaErrors.Create(
+            code: InvalidResolutionFieldCode,
+            message: "The field is not valid for the given audit trail and resolution kind. Nothing was resolved.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAuditMarten
+            });
+
     /// <summary>
     /// Creates an error when encryption of audit entry PII fields fails.
     /// </summary>
