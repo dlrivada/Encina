@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Refit.Benchmarks.RestApiRequestHandlerBenchmarks-20261105-125846</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+Intel Xeon 6973P-C 3.73GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]   : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method               </th><th>Mean   </th><th>Error   </th><th>StdDev </th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>EncinaRefitCall</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>?</td>
+</tr><tr><td>EncinaRefitCall_Sequential5</td><td>7.207 &mu;s</td><td>0.8167 &mu;s</td><td>0.0448 &mu;s</td><td>0.000</td><td>0.00</td><td>1</td><td>0.1068</td><td>8.79 KB</td><td>0.93</td>
+</tr><tr><td>EncinaRefitCall_Batch10</td><td>18.821 &mu;s</td><td>17.1614 &mu;s</td><td>0.9407 &mu;s</td><td>0.001</td><td>0.00</td><td>2</td><td>0.2136</td><td>18.34 KB</td><td>1.94</td>
+</tr><tr><td>DirectRefitCall_Baseline</td><td>16,465.490 &mu;s</td><td>4,207.5241 &mu;s</td><td>230.6286 &mu;s</td><td>1.000</td><td>0.02</td><td>3</td><td>-</td><td>9.48 KB</td><td>1.00</td>
+</tr><tr><td>DirectRefitCall_Batch10</td><td>27,849.742 &mu;s</td><td>36,712.0619 &mu;s</td><td>2,012.3120 &mu;s</td><td>1.692</td><td>0.11</td><td>4</td><td>-</td><td>93.5 KB</td><td>9.87</td>
+</tr><tr><td>DirectRefitCall_Sequential5</td><td>87,409.464 &mu;s</td><td>54,153.5775 &mu;s</td><td>2,968.3403 &mu;s</td><td>5.309</td><td>0.17</td><td>5</td><td>-</td><td>45.83 KB</td><td>4.84</td>
+</tr></tbody></table>
+</body>
+</html>
