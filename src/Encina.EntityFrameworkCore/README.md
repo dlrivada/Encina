@@ -1289,32 +1289,6 @@ Generated scripts include:
 
 For comprehensive documentation, see [Module Isolation Guide](../../docs/features/module-isolation.md).
 
-## Break-the-glass store
-
-Set `MessagingConfiguration.UseBreakTheGlassStore` to keep break-the-glass elevations and the review queue in the database, so they survive a restart and are shared by every host. The flag is opt-in and needs the `Encina.Security.BreakTheGlass` package (`AddEncinaBreakTheGlass`).
-
-```csharp
-services.AddDbContextFactory<AppDbContext>(options => options.UseSqlServer(connectionString));
-services.AddEncinaBreakTheGlass(options => { /* see Encina.Security.BreakTheGlass */ });
-services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
-{
-    config.UseBreakTheGlassStore = true;
-});
-```
-
-```csharp
-protected override void OnModelCreating(ModelBuilder modelBuilder)
-{
-    modelBuilder.ApplyBreakTheGlassConfiguration();
-}
-```
-
-When the flag is on, `AddEncinaEntityFrameworkCore<TContext>` removes the in-memory default `IBreakTheGlassStore` and registers `BreakTheGlassStoreEF<TContext>` (scoped) with `TryAdd`, so the database store wins in any registration order and an `IBreakTheGlassStore` your application registered itself is kept.
-
-- **`IDbContextFactory<TContext>` is required.** The store creates one context per call and never calls `SaveChanges` on the application's own context, so register the factory with `AddDbContextFactory`. A provider built with `ValidateOnBuild` fails if it is missing.
-- **SQL Server only for now.** `ApplyBreakTheGlassConfiguration()` maps the `BreakTheGlassElevations` table for SQL Server; PostgreSQL and MySQL follow in #3002 and #3003.
-- **Binary collation.** The key columns (`TenantId`, `UserId`, `SubjectId`, `Scope`, `CloseReason`, `ReviewedByUserId`) use `Latin1_General_100_BIN2`, so keys compare case-sensitively. Add a migration after calling `ApplyBreakTheGlassConfiguration()` to create the `BreakTheGlassElevations` table; the SQL scripts of the ADO.NET and Dapper packages are not used with EF Core.
-
 ## Performance
 
 <!-- docref-table: bench:inbox-efcore/* -->
