@@ -259,6 +259,19 @@ public sealed class OrchestrationContextExtensionsOnTestHostIntegrationTests
     }
 
     [Fact]
+    public async Task WaitForEncinaExternalEventAsync_TokenAlreadyCancelled_ReturnsEventCancelledError()
+    {
+        var outcome = await RunAsync(registry =>
+            registry.AddOrchestratorFunc<string, DurableEitherOutcome>("ExtThEvCancel_Orch",
+                async (c, _) => ToOutcome(await c.WaitForEncinaExternalEventAsync<string>(
+                    "never", cancellationToken: new CancellationToken(canceled: true)))),
+            "ExtThEvCancel_Orch");
+
+        outcome.IsRight.ShouldBeFalse();
+        outcome.ErrorCode.ShouldBe("durable.event_cancelled");
+    }
+
+    [Fact]
     public async Task GetCorrelationId_InsideAnOrchestration_ReturnsTheInstanceId()
     {
         await using var host = await DurableTestHostSupport.StartAsync(registry =>

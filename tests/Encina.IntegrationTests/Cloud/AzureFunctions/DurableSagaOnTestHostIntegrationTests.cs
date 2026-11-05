@@ -104,6 +104,34 @@ public sealed class DurableSagaOnTestHostIntegrationTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_BuiltWithRetryOptionsAndTimeout_RunsTheStepsOnTheEngine()
+    {
+        // Arrange
+        var calls = new List<string>();
+        var retry = OrchestrationContextExtensions.CreateRetryOptions(1, TimeSpan.FromMilliseconds(100));
+        var saga = DurableSagaBuilder.Create<DurableSagaTestData>()
+            .WithDefaultRetryOptions(retry)
+            .WithTimeout(TimeSpan.FromMinutes(5))
+            .Step("A").Execute("SagaThOpt_A").Compensate("SagaThOpt_UndoA").SkipCompensationOnFailure()
+            .Step("B").Execute("SagaThOpt_B").WithRetry(retry)
+            .Build()
+            .Match(Right: s => s, Left: _ => throw new InvalidOperationException("saga did not build"));
+        await using var host = await DurableTestHostSupport.StartAsync(registry =>
+        {
+            RegisterSaga(registry, saga);
+            RegisterActivity(registry, "SagaThOpt_A", calls, d => Append(d, "A"));
+            RegisterActivity(registry, "SagaThOpt_B", calls, d => Append(d, "B"));
+        });
+
+        // Act
+        var metadata = await DurableTestHostSupport.RunAsync(host, Orchestrator, new DurableSagaTestData());
+
+        // Assert
+        saga.Steps.Count.ShouldBe(2);
+        metadata.ReadOutputAs<DurableSagaOutcome>()!.Trail.ShouldBe("AB");
+    }
+
+    [Fact]
     public async Task ExecuteAsync_LaterStepFails_CompensatesExecutedStepsInReverseAndReturnsTheStepError()
     {
         // Arrange
