@@ -115,20 +115,7 @@ public sealed class SpecificationSqlBuilder<TEntity>
         var sql = TranslateExpression(expression.Body, parameters);
 
         // Handle keyset pagination (add filter for cursor)
-        if (specification.KeysetPaginationEnabled &&
-            specification.KeysetProperty is not null &&
-            specification.LastKeyValue is not null)
-        {
-            var keysetSql = BuildKeysetFilter(specification.KeysetProperty, specification.LastKeyValue, parameters);
-            if (!string.IsNullOrWhiteSpace(sql))
-            {
-                sql = $"({sql}) AND ({keysetSql})";
-            }
-            else
-            {
-                sql = keysetSql;
-            }
-        }
+        sql = AppendKeysetFilter(sql, specification, parameters);
 
         var whereClause = string.IsNullOrWhiteSpace(sql) ? "" : $"WHERE {sql}";
 
@@ -313,16 +300,40 @@ public sealed class SpecificationSqlBuilder<TEntity>
         return (sql, addParameters);
     }
 
+    private string AppendKeysetFilter(
+        string sql,
+        IQuerySpecification<TEntity> specification,
+        List<(string Name, object? Value)> parameters)
+    {
+        if (!specification.KeysetPaginationEnabled || specification.KeysetProperty is not { } keysetProperty)
+        {
+            return sql;
+        }
+
+        // Read on the first page too: it rejects a keyset property that is not the primary ordering
+        var descending = specification.IsKeysetDescending;
+        if (specification.LastKeyValue is not { } lastKeyValue)
+        {
+            return sql;
+        }
+
+        var keysetSql = BuildKeysetFilter(keysetProperty, lastKeyValue, descending, parameters);
+        return string.IsNullOrWhiteSpace(sql) ? keysetSql : $"({sql}) AND ({keysetSql})";
+    }
+
     private string BuildKeysetFilter(
         Expression<Func<TEntity, object>> keysetProperty,
         object lastKeyValue,
+        bool descending,
         List<(string Name, object? Value)> parameters)
     {
         var columnName = GetColumnNameFromExpression(keysetProperty);
         var paramName = $"@p{_parameterIndex++}";
         parameters.Add((paramName, lastKeyValue));
 
-        return $"[{columnName}] > {paramName}";
+        // The next page holds the keys after the last one in the sort order: below it when descending
+        var comparison = descending ? "<" : ">";
+        return $"[{columnName}] {comparison} {paramName}";
     }
 
     /// <summary>

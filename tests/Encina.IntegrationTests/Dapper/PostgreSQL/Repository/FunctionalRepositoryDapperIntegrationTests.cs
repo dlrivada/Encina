@@ -1,5 +1,6 @@
 using System.Data;
 using System.Linq.Expressions;
+using Dapper;
 using Encina.Dapper.PostgreSQL.Repository;
 using Encina.DomainModeling;
 using Encina.TestInfrastructure.Fixtures;
@@ -390,6 +391,29 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
 
     #endregion
 
+    #region Keyset Direction Tests
+
+    private static readonly decimal[] KeysetValues = [100m, 200m, 300m, 400m];
+
+    [Fact]
+    public async Task QuerySpecificationSql_KeysetSortedDescending_ReturnsTheKeysBelowTheLastOne()
+    {
+        // Arrange - the next page of a descending keyset holds the smaller keys (#3154). ListAsync does not
+        // apply a QuerySpecification's keyset yet (#3151), so this runs the builder's SELECT directly.
+        await ClearDataAsync();
+        await _repository.AddRangeAsync(KeysetValues.Select(p => CreateTestProduct($"Product {p}", price: p)).ToArray());
+        var builder = new SpecificationSqlBuilder<TestProduct>(_mapping.ColumnMappings);
+        var (sql, parameters) = builder.BuildSelectStatement(_mapping.TableName, new DescendingPriceKeysetSpec(lastPrice: 300m));
+
+        // Act
+        var products = await _connection.QueryAsync<TestProduct>(sql, parameters);
+
+        // Assert
+        products.Select(p => p.Price).ShouldBe([200m, 100m]);
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static TestProduct CreateTestProduct(
@@ -445,6 +469,18 @@ public class ProductNameSpec(string method, string value) : Specification<TestPr
         nameof(string.EndsWith) => e => e.Name.EndsWith(value),
         _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Expected Contains, StartsWith or EndsWith."),
     };
+}
+
+/// <summary>
+/// Next page of products by price, sorted in descending order, after <c>lastPrice</c>.
+/// </summary>
+public class DescendingPriceKeysetSpec : QuerySpecification<TestProduct>
+{
+    public DescendingPriceKeysetSpec(decimal lastPrice)
+    {
+        ApplyOrderByDescending(p => p.Price);
+        ApplyKeysetPagination(p => p.Price, lastPrice, 10);
+    }
 }
 
 #endregion
