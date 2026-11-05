@@ -25,7 +25,7 @@ namespace Encina.Cdc.Messaging;
 /// </para>
 /// <para>
 /// The content is read through the registered <see cref="IMessageSerializer"/>, the same
-/// abstraction the outbox writers (<c>OutboxPostProcessor</c>, <c>OutboxOrchestrator</c>) use,
+/// abstraction the outbox writers (<c>TransactionalOutboxPipelineBehavior</c>, <c>OutboxOrchestrator</c>) use,
 /// so a payload encrypted by <c>EncryptingMessageSerializer</c> is decrypted before it is
 /// deserialized (#1168).
 /// </para>

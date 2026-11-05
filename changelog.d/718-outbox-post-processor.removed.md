@@ -1,0 +1,1 @@
+- Removed `OutboxPostProcessor<TRequest, TResponse>`: the transactional outbox (`TransactionalOutboxPipelineBehavior<TRequest, TResponse>`) is the only way the notifications of an `IHasNotifications` response reach the outbox, written inside the request's transaction (#718).
