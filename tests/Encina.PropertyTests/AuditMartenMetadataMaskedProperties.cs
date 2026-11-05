@@ -58,6 +58,7 @@ public sealed class AuditMartenMetadataMaskedProperties
         {
             Id = Guid.NewGuid(),
             EntityType = "E",
+            EntityId = null,
             AccessedAtUtc = DateTimeOffset.UtcNow,
             AccessMethod = 0,
             EntityCount = 1,

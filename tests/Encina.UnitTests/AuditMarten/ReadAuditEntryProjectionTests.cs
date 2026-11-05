@@ -146,6 +146,7 @@ public sealed class ReadAuditEntryProjectionTests
         {
             Id = Guid.NewGuid(),
             EntityType = "Record",
+            EntityId = null,
             AccessedAtUtc = DateTimeOffset.UtcNow,
             AccessMethod = (int)ReadAccessMethod.DirectQuery,
             EntityCount = 1,
