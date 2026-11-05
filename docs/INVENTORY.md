@@ -5709,7 +5709,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - ✅ `[MaskInLogs]` atributo para masking solo en contexto de logging
 - ✅ `PIIMaskingPipelineBehavior` para masking automático en respuestas (post-handler)
 - ✅ 9 masking strategies built-in: Email, Phone, CreditCard, SSN, Name, Address, DateOfBirth, IPAddress, Custom
-- ✅ 5 masking modes: Partial, Full, Hash, Tokenize, Redact
+- ✅ 4 masking modes: Partial, Full, Hash, Redact (reversible tokenization is provided by `Encina.Compliance.Anonymization`: `ITokenizer`, `DefaultTokenizer`)
 - ✅ Integración con `Encina.Security.Audit` via `IPiiMasker`
 - ✅ `PIILoggerExtensions` con 4 métodos level-aware para masking en logs
 - ✅ Sensitive field pattern detection (password, secret, token, key, etc.)
