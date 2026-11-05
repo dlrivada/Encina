@@ -41,8 +41,8 @@ public sealed class DPIAEndpointExtensionsTests
         public async ValueTask DisposeAsync()
         {
             Client.Dispose();
-            await host.StopAsync();
-            host.Dispose();
+            await Host.StopAsync();
+            Host.Dispose();
         }
     }
 
