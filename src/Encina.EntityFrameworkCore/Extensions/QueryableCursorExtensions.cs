@@ -388,9 +388,7 @@ public static class QueryableCursorExtensions
         var keyAccess = keySelector.Body;
         var keyConstant = Expression.Constant(keyValue, typeof(TKey));
 
-        var comparison = useGreaterThan
-            ? Expression.GreaterThan(keyAccess, keyConstant)
-            : Expression.LessThan(keyAccess, keyConstant);
+        var comparison = KeysetComparison.After(keyAccess, keyConstant, useGreaterThan);
 
         var lambda = Expression.Lambda<Func<T, bool>>(comparison, parameter);
         return query.Where(lambda);
@@ -602,40 +600,8 @@ public static class QueryableCursorExtensions
 
         for (var i = 0; i < keyProperties.Length; i++)
         {
-            // Build the equality chain for all previous properties
-            Expression? equalityChain = null;
-            for (var j = 0; j < i; j++)
-            {
-                var prevProp = keyProperties[j];
-                var prevValue = prevProp.GetValue(keyValue);
-                var prevAccess = GetMemberAccess(keyBody, prevProp.Name);
-                var prevConstant = Expression.Constant(prevValue, prevProp.PropertyType);
-                var equality = Expression.Equal(prevAccess, prevConstant);
-
-                equalityChain = equalityChain is null
-                    ? equality
-                    : Expression.AndAlso(equalityChain, equality);
-            }
-
-            // Build the comparison for the current property
-            var prop = keyProperties[i];
-            var propValue = prop.GetValue(keyValue);
-            var propAccess = GetMemberAccess(keyBody, prop.Name);
-            var propConstant = Expression.Constant(propValue, prop.PropertyType);
-
-            // Determine comparison direction
-            // Forward + DESC = Less Than, Forward + ASC = Greater Than
-            // Backward flips these
-            var useGreaterThan = keyDescending[i] == isBackward;
-
-            var comparison = useGreaterThan
-                ? Expression.GreaterThan(propAccess, propConstant)
-                : Expression.LessThan(propAccess, propConstant);
-
-            // Combine equality chain with comparison
-            var clause = equalityChain is null
-                ? comparison
-                : Expression.AndAlso(equalityChain, comparison);
+            // Forward + DESC = Less Than, Forward + ASC = Greater Than; backward flips these
+            var clause = CompositeKeysetClause(keyBody, keyValue, keyProperties, i, greaterThan: keyDescending[i] == isBackward);
 
             // OR with previous clauses
             combinedFilter = combinedFilter is null
@@ -650,6 +616,55 @@ public static class QueryableCursorExtensions
 
         var lambda = Expression.Lambda<Func<T, bool>>(combinedFilter, parameter);
         return query.Where(lambda);
+    }
+
+    /// <summary>
+    /// Builds the clause of the key property at <paramref name="index"/>: the previous properties equal their cursor
+    /// values and this one comes after its cursor value.
+    /// </summary>
+    private static Expression CompositeKeysetClause<TKey>(
+        Expression keyBody,
+        TKey keyValue,
+        PropertyInfo[] keyProperties,
+        int index,
+        bool greaterThan)
+    {
+        var property = keyProperties[index];
+        var comparison = KeysetComparison.After(
+            GetMemberAccess(keyBody, property.Name),
+            Expression.Constant(property.GetValue(keyValue), property.PropertyType),
+            greaterThan);
+
+        var equalityChain = PreviousKeysEqual(keyBody, keyValue, keyProperties, index);
+        return equalityChain is null
+            ? comparison
+            : Expression.AndAlso(equalityChain, comparison);
+    }
+
+    /// <summary>
+    /// Builds the equality chain of the first <paramref name="count"/> key properties with their cursor values,
+    /// or <see langword="null"/> for none.
+    /// </summary>
+    private static Expression? PreviousKeysEqual<TKey>(
+        Expression keyBody,
+        TKey keyValue,
+        PropertyInfo[] keyProperties,
+        int count)
+    {
+        Expression? equalityChain = null;
+        for (var j = 0; j < count; j++)
+        {
+            var previous = keyProperties[j];
+            var equality = Expression.Equal(
+                GetMemberAccess(keyBody, previous.Name),
+                Expression.Constant(previous.GetValue(keyValue), previous.PropertyType));
+
+            equalityChain = equalityChain is null
+                ? equality
+                : Expression.AndAlso(equalityChain, equality);
+        }
+
+        return equalityChain;
     }
 
     /// <summary>

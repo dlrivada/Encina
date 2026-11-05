@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.Repository;
@@ -305,9 +306,7 @@ public static class SpecificationEvaluator
         var convertedValue = ConvertValue(lastKeyValue, memberType);
 
         var lastKey = Expression.Constant(convertedValue, memberType);
-        var afterLastKey = descending
-            ? Expression.LessThan(memberExpression, lastKey)
-            : Expression.GreaterThan(memberExpression, lastKey);
+        var afterLastKey = KeysetComparison.After(memberExpression, lastKey, greaterThan: !descending);
 
         var lambda = Expression.Lambda<Func<T, bool>>(afterLastKey, parameter);
 

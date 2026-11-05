@@ -1,7 +1,7 @@
 {
   "package": "Encina.EntityFrameworkCore",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 109,
+  "totalFiles": 110,
   "targets": {
     "contract": 5,
     "guard": 10,
@@ -407,13 +407,41 @@
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration"
     },
+    "Extensions/KeysetComparison.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 0,
+        "integration": 95
+      },
+      "justifications": {
+        "unit": "Unit tests check the expression built for string, Guid and operator keys in both directions and evaluate the string and Guid comparisons (measured 100%).",
+        "guard": "Internal helper with no public argument checks to guard; its callers validate their arguments.",
+        "integration": "The EF Core repository and cursor pagination integration tests run string and Guid keysets through it on real SQL Server and PostgreSQL databases (measured 100%)."
+      }
+    },
     "Extensions/QueryableCursorExtensions.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 91,
+        "guard": 0,
+        "integration": 20
+      },
+      "justifications": {
+        "unit": "Unit tests on the in-memory provider cover the simple, descending, backward, projected and composite cursor paths, including string and Guid keys (measured 93.51%); the rest is error branches of cursor decoding.",
+        "guard": "No GuardTests cover these extension methods yet; their argument checks run in the unit tests' guard-clause section.",
+        "integration": "The EF Core repository integration tests page a Guid key with ToCursorPaginatedAsync on real SQL Server and PostgreSQL databases (measured 22.08%); the other cursor variants are unit-tested only."
+      }
     },
     "Extensions/QueryablePagedExtensions.cs": {
       "defaultTests": [
