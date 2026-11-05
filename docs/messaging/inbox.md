@@ -172,7 +172,7 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 | Log events | 2107 loop started, 2108 nothing to purge, 2109 messages purged, 2110 cycle failed (error code), 2111 cycle threw (exception type), 2112 no progress. Range `EventIdRanges.MessagingInbox` (2100-2199). |
 | Metrics | `encina.messaging.purge.messages_deleted_total` (dimension `pattern`) and `encina.messaging.purge.cycle_failures_total` (dimensions `pattern`, `error_code`) on the `Encina` meter. |
 
-MongoDB creates an ordinary index `IX_Inbox_Expires` on `ExpiresAtUtc` and no TTL index, so the purge service is the only thing that deletes expired inbox documents; see the [MongoDB package README](https://github.com/dlrivada/Encina/blob/main/src/Encina.MongoDB/README.md#inbox-indexes-and-purge).
+MongoDB creates an ordinary index `IX_Inbox_Expires` on `ExpiresAtUtc` and no TTL index, so the purge service is the only thing that deletes expired inbox documents. A database created by an earlier build still has the old TTL index `IX_Inbox_Expires_TTL` on the same key: MongoDB rejects the new index (`IndexOptionsConflict`), the host fails to start with `UseInbox = true` until the old index is dropped by hand, and until then it keeps deleting rows, unprocessed ones included; see the [MongoDB package README](https://github.com/dlrivada/Encina/blob/main/src/Encina.MongoDB/README.md#inbox-indexes-and-purge).
 
 ### InboxErrorCodes
 

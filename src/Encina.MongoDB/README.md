@@ -341,7 +341,7 @@ Encina automatically creates optimized indexes:
 
 The library creates an ordinary index `IX_Inbox_Expires` on `ExpiresAtUtc` and **no TTL index**. Expired processed documents are deleted by the purge service (`MessagePurgeService`, controlled by `InboxOptions.EnableAutomaticPurge`, `PurgeInterval` and `PurgeBatchSize`); an unprocessed document is never deleted. The earlier index `IX_Inbox_Expires_TTL` deleted unprocessed documents too and ignored `EnableAutomaticPurge = false`.
 
-Pre-1.0 there is no migration code. A database created by an earlier build still has the old TTL index and must drop it by hand, once, in `mongosh`:
+Pre-1.0 there is no migration code. `IX_Inbox_Expires` has the same key (`{ ExpiresAtUtc: 1 }`) as the old `IX_Inbox_Expires_TTL` under a different name and options, so MongoDB rejects creating it (`IndexOptionsConflict`, code 85) while the old index exists. `MongoDbIndexCreator` rethrows that error, so on a database created by an earlier build the host fails to start with `UseInbox = true` until the old TTL index is dropped by hand, once, in `mongosh`. Until then the old TTL index keeps deleting rows, unprocessed ones included.
 
 ```javascript
 db.inbox_messages.dropIndex("IX_Inbox_Expires_TTL")
