@@ -60,8 +60,8 @@ public sealed class MongoDbTenancyOptions
     public bool ValidateTenantOnModify { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets a value indicating whether to throw an exception
-    /// when no tenant context is available for operations that require it.
+    /// Gets or sets a value indicating whether an operation on a tenant entity
+    /// is refused when no tenant context is available.
     /// </summary>
     /// <value>The default is <c>true</c>.</value>
     /// <remarks>
@@ -74,7 +74,7 @@ public sealed class MongoDbTenancyOptions
     /// which may expose data across tenants.
     /// </para>
     /// </remarks>
-    public bool ThrowOnMissingTenantContext { get; set; } = true;
+    public bool RequireTenantContext { get; set; } = true;
 
     /// <summary>
     /// Gets or sets the field name used for tenant identification in MongoDB documents.

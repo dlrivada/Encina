@@ -64,11 +64,13 @@ public sealed class TenancyServiceCollectionExtensionsTests
                 tenancy.AutoFilterTenantQueries = false;
                 tenancy.TenantFieldName = "OrganizationId";
                 tenancy.EnableDatabasePerTenant = true;
+                tenancy.RequireTenantContext = false;
             });
 
         // Assert
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<MongoDbTenancyOptions>>().Value;
+        options.RequireTenantContext.ShouldBeFalse();
         options.AutoFilterTenantQueries.ShouldBeFalse();
         options.TenantFieldName.ShouldBe("OrganizationId");
         options.EnableDatabasePerTenant.ShouldBeTrue();
