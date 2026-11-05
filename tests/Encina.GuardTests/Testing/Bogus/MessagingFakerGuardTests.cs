@@ -57,6 +57,14 @@ public sealed class MessagingFakerGuardTests
         BogusGuardAssert.RejectsNullEmptyAndWhitespace(value => faker.WithContent(value), "content");
     }
 
+    [Fact]
+    public void SagaStateFaker_AtStep_Zero_IsAccepted()
+    {
+        var faker = new SagaStateFaker();
+
+        faker.AtStep(0).ShouldBeSameAs(faker);
+    }
+
     [Theory]
     [InlineData(-1)]
     [InlineData(int.MinValue)]

@@ -87,6 +87,16 @@ public sealed class EncinaFakerGuardTests
     }
 
     [Fact]
+    public void ExtensionMethod_BoundaryArguments_AreAccepted()
+    {
+        Random.IntEntityId(min: 1, max: 1).ShouldBe(1);
+        Random.LongEntityId(min: 1, max: 1).ShouldBe(1);
+        Random.PercentageValue(min: 0m, max: 100m).ShouldBeInRange(0m, 100m);
+        Random.QuantityValue(min: 0, max: 0).ShouldBe(0);
+        Should.NotThrow(() => DateSet.TimeRangeValue(minHourSpan: 1, maxHourSpan: 23));
+    }
+
+    [Fact]
     public void Constructor_InvalidLocale_ThrowsNamingLocale() =>
         BogusGuardAssert.RejectsNullEmptyAndWhitespace(
             locale => _ = new EncinaFaker<object>(locale), "locale");

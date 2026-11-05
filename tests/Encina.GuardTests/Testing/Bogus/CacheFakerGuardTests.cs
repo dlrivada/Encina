@@ -77,6 +77,16 @@ public sealed class CacheFakerGuardTests
         BogusGuardAssert.Throws<ArgumentOutOfRangeException>(() => faker.WithSegments(segments), "segments");
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    public void CacheKeyFaker_WithSegments_BoundaryValues_AreAccepted(int segments)
+    {
+        var faker = new CacheKeyFaker();
+
+        faker.WithSegments(segments).ShouldBeSameAs(faker);
+    }
+
     [Fact]
     public void CacheEntryFaker_WithValue_NullGenerator_ThrowsNamingValueGenerator()
     {
