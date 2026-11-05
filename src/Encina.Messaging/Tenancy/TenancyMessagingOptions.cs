@@ -61,7 +61,7 @@ public sealed class TenancyMessagingOptions
     public bool UseQueryFilters { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets whether operations that need a tenant context fail when none is resolved.
+    /// Gets or sets whether operations that need a tenant context throw when none is resolved.
     /// </summary>
     /// <remarks>
     /// <para>
