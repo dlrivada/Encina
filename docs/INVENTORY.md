@@ -6087,7 +6087,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - ✅ `DPIAErrors` con 8 error codes estructurados (`dpia.not_found`, `dpia.already_exists`, etc.)
 - ✅ InMemory implementations: `InMemoryDPIAStore`, `InMemoryDPIAAuditStore`
 - ✅ 10 database provider implementations (ADO.NET ×3, Dapper ×3, EF Core ×3, MongoDB ×1)
-- ✅ ASP.NET Core endpoints via `MapDPIAEndpoints()`
+- ✅ ASP.NET Core endpoints via `MapDPIAEndpoints(authorizationPolicy)` (fail closed: a registered authorization policy is required)
 - ✅ OpenTelemetry: ActivitySource + Meter + structured log events (zero-allocation)
 - ✅ 166+ tests: integration tests across 10 providers + unit, guard, contract, property tests
 - **Paquete**: `Encina.Compliance.DPIA`
