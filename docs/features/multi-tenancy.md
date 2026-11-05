@@ -330,7 +330,7 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
     config.TenancyOptions.AutoAssignTenantId = true;
     config.TenancyOptions.ValidateTenantOnSave = true;
     config.TenancyOptions.UseQueryFilters = true;
-    config.TenancyOptions.ThrowOnMissingTenantContext = true;
+    config.TenancyOptions.RequireTenantContext = true;
 });
 ```
 
@@ -341,7 +341,7 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 | `AutoAssignTenantId` | `true` | On save, every added `ITenantEntity` gets `TenantId` set from `ITenantProvider.GetCurrentTenantId()`. |
 | `ValidateTenantOnSave` | `true` | On save, every modified or deleted `ITenantEntity` must have a `TenantId` equal (ordinal comparison) to the current tenant; otherwise `InvalidOperationException` ("Tenant mismatch"). |
 | `UseQueryFilters` | `true` | `TenantDbContext.OnModelCreating` adds a named query filter, `e.TenantId == CurrentTenantId`, to every entity type that implements `ITenantEntity`. |
-| `ThrowOnMissingTenantContext` | `true` | With no current tenant, saving an added entity (when `AutoAssignTenantId` is on) or a modified or deleted one (when `ValidateTenantOnSave` is on) throws `InvalidOperationException`, provided the core `TenancyOptions.RequireTenant` is also `true`. When `false`, the save proceeds without assignment or validation, which can break isolation. |
+| `ThrowOnMissingTenantContext` | `true` | Set through `config.TenancyOptions.RequireTenantContext`, the messaging-level option that `AddEncinaEntityFrameworkCore` copies into `EfCoreTenancyOptions.ThrowOnMissingTenantContext`. With no current tenant, saving an added entity (when `AutoAssignTenantId` is on) or a modified or deleted one (when `ValidateTenantOnSave` is on) throws `InvalidOperationException`, provided the core `TenancyOptions.RequireTenant` is also `true`. When `false`, the save proceeds without assignment or validation, which can break isolation. |
 
 The tenant filter has the key `"Encina.Tenancy"`. To bypass it in one query, pass that key to the keyed overload: `IgnoreQueryFilters(["Encina.Tenancy"])`. The parameterless `IgnoreQueryFilters()` also drops the other named filters of the entity, such as the soft-delete filter. A plain `DbContext` with a hand-written `HasQueryFilter` does not get any of this behaviour: assignment, validation and the named filter come from `TenantDbContext`.
 
@@ -843,7 +843,7 @@ var all = await dbContext.Orders
 
 ### What happens if tenant resolution fails?
 
-It depends on your configuration. The option is declared by the provider tenancy options, not by the core `TenancyOptions`, and its name depends on the provider. MongoDB (`MongoDbTenancyOptions`) calls it `RequireTenantContext`; Entity Framework Core (`EfCoreTenancyOptions`, set through `config.TenancyOptions.ThrowOnMissingTenantContext` in `AddEncinaEntityFrameworkCore`), Dapper (`DapperTenancyOptions`) and ADO.NET (`ADOTenancyOptions`) call it `ThrowOnMissingTenantContext`. Both names default to `true`.
+It depends on your configuration. The option is declared by the provider tenancy options, not by the core `TenancyOptions`, and its name depends on the provider. MongoDB (`MongoDbTenancyOptions`) calls it `RequireTenantContext`; Entity Framework Core (`EfCoreTenancyOptions`, which `AddEncinaEntityFrameworkCore` sets from `config.TenancyOptions.RequireTenantContext`), Dapper (`DapperTenancyOptions`) and ADO.NET (`ADOTenancyOptions`) call it `ThrowOnMissingTenantContext`. Both names default to `true`.
 
 ```csharp
 // MongoDB: strict mode (recommended for production; the default)
