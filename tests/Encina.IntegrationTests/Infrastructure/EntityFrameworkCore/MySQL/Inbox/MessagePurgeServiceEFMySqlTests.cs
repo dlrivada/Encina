@@ -27,7 +27,7 @@ public sealed class MessagePurgeServiceEFMySqlTests : IAsyncLifetime
     [Fact]
     public async Task PurgeCycle_ExpiredAndLiveRows_RemovesOnlyTheProcessedExpiredRow()
     {
-        Assert.SkipUnless(_fixture.IsAvailable,"MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility (#2086)");
+        Assert.SkipUnless(_fixture.IsAvailable, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility (#2086)");
 
         // Enable together with the other MySQL tests once the Pomelo provider supports EF Core 10 (#2086):
         // pass o => o.UseMySql(...) as the database configuration.
