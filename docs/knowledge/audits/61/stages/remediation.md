@@ -1,0 +1,40 @@
+Remediation for #61:
+- code 1 (Major): draft 61-code-1-activityresult-writes-the-encinaerror-message-into-the-durab.md
+- code 2 (Major): draft 61-code-2-the-saga-failure-type-cannot-be-returned-from.md
+- code 3 (Major): draft 61-code-3-four-retry-defaults-continuecompensationonerror-and-provider.md
+- code 4 (Major): draft 61-code-4-saga-timeouts-are-accepted-and-discarded-durablesagabuilder.md
+- code 5 (Major): draft 61-code-5-the-saga-failure-report-is-wrong-on-the.md
+- code 6 (Major): draft 61-code-6-fanoutallasync-fanoutfirstsuccessasync-and-fanoutmultipleasy.md
+- code 7 (Minor): draft 61-code-7-waitforencinaexternaleventasync-mishandles-its-two-non-event.md
+- code 8 (Minor): draft 61-code-8-fanoutfirstsuccessasync-is-not-first-success-and-fanoutallas.md
+- code 9 (Minor): draft 61-code-9-error-codes-are-scattered-literals-with-two-prefixes.md
+- code 10 (Minor): draft 61-code-10-several-xml-examples-do-not-match-the-api.md
+- code 11 (Minor): draft 61-code-11-the-saga-builder-reports-a-misconfigured-step-by.md
+- code 12 (Minor): draft 61-code-12-the-durable-extension-is-a-mandatory-dependency-of.md
+- tests 1 (Major): duplicate of #2787 (manual override)
+- tests 2 (Major): draft 61-tests-2-no-test-serializes-activityresult-t-or-durablesagaerror-grep.md
+- tests 3 (Major): draft 61-tests-3-tests-encina-unittests-azurefunctions-durable-durableservice.md
+- tests 4 (Minor): duplicate of #2787 (manual override)
+- tests 5 (Minor): draft 61-tests-5-three-single-line-unit-gaps-in-files-that.md
+- tests 6 (Minor): draft 61-tests-6-test-quality-in-the-durable-unit-files-two.md
+- tests 7 (Minor): draft 61-tests-7-rule-b-github-coverage-manifest-encina-azurefunctions-json.md
+- tests 8 (Minor): draft 61-tests-8-contract-and-property-flags-for-the-durable-folder.md
+- docs 1 (Major): merged into code 3 (manual override)
+- docs 2 (Major): draft 61-docs-2-the-saga-section-never-states-the-activity-contract.md
+- docs 3 (Major): draft 61-docs-3-the-fan-out-samples-use-helpers-whose-activity.md
+- docs 4 (Minor): draft 61-docs-4-the-durable-section-documents-12-of-the-26.md
+
+## Lessons for the pipeline
+- docs 2: recorded as not a duplicate and kept out of location merges by manual override
+- (code 3, docs 1) The merge is sound for the retry defaults, `ContinueCompensationOnError` and `ProviderHealthCheck.Enabled`; docs 1 also names `DefaultSagaTimeout`, which code 4 covers, so the code 3 draft mentions it and leaves the decision to the code 4 draft.
+- (code 1, code 3, code 4, code 6, code 8, code 11, code 12) Findings whose fix lists options were classified: code 1 is settled (storing the message breaks AGENTS.md section 3, so the opt-in for full text is not offered); code 3, 4, 6, 8, 11 and 12 are written as Dilemmas with no recommendation (code 3 and 4 cite the 2026-11-04 sibling AwsLambda decision on dead options, and the orchestrator adds needs-decision); code 9 chooses the `durable.` prefix as a trivial choice.
+- (tests 1, 4, 7, 8) Targets and the 95 values of tests 7 are derived by the tests stage from missed-line lists and were not run; the drafts keep "provisional". The percentages in the Current Coverage tables (52.38%, 36.51%, 26.92%, 29.41%) are those the tests stage reported; the build configuration was not stated in the stage text.
+- (code 2, code 6) The serialization results come from a stand-in run by the code stage, not from the real types; both drafts say so. This agent has no shell and could not repeat them.
+- (code 10, docs 2) The code stage names #2953 as a README twin of #2952, which this agent could not confirm; the drafts cite only #2952.
+- docs 1: merged into code 3 by manual override
+- (code 4, code 11) Re-run after the verifier FAIL: code 4 is a plain [BUG] with enforcement by a Durable timer (the maintainer's 2026-10-10 decision on the core saga timeout keeps the `WithTimeout` and `DefaultSagaTimeout` promise), and code 11 is a plain [BUG] validating every step in `Build`; neither is a Dilemma any more, which corrects the kept classification line above for those two findings. The orchestrator adds the link to the Encina.AwsLambda dead-option decisions (the issues that decided it) as a comment on the opened code 3 issue.
+- (tests 6) The tests 6 draft, which this run did not rewrite, still has a bullet that depends on the decision about saga timeouts ("the timeout assertion depends on the decision about saga timeouts"); the decision is made (enforce), so the bullet reads as a plain assertion. The orchestrator should edit that bullet or note it when opening. Tests 1 is now a duplicate of #2787, so its "(only if the maintainer decides to enforce)" bullet has no draft to change.
+- (docs 4) The count "12 of the 26" uses the docs stage's pattern (`^\s*public\s` over the 8 files, public method declarations of the three helper surfaces, overloads counted once); the verifier's different pattern gave 11 of 23 names, so the title carries the figure with its method stated in the Description.
+- tests 1: recorded as duplicate of #2787 by manual override
+- tests 4: recorded as duplicate of #2787 by manual override
+- (tests 6) Rewritten in this run: the `WithTimeout_SetsSagaTimeout` bullet now states the enforced timeout plainly (compensation and a timeout `DurableSagaError` when the timer wins, timer cancelled when the activity wins), so the earlier kept lesson about a conditional bullet no longer applies and the orchestrator has nothing to edit. The draft cites no numbers for the retry assertions beyond `maxRetries + 1` (`OrchestrationContextExtensions.cs:275`), and names no issue other than #61 because the manifest lists no candidate for it.

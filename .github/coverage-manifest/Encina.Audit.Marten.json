@@ -1,7 +1,7 @@
 {
   "package": "Encina.Audit.Marten",
   "generated": "2026-03-30T00:00:00Z",
-  "totalFiles": 30,
+  "totalFiles": 42,
   "targets": {
     "unit": 40,
     "guard": 15
@@ -229,14 +229,14 @@
       "reason": "Default: assume testable with mocks",
       "targets": {
         "unit": 97,
-        "guard": 37,
-        "property": 90,
+        "guard": 80,
+        "property": 97,
         "integration": 82
       },
       "justifications": {
         "unit": "Unit tests run encrypt and decrypt, every unreadable-envelope cause and the placeholder rule (measured 98%).",
-        "guard": "Guard tests assert the argument checks of Encrypt and Decrypt only (measured 37%).",
-        "property": "FsCheck properties run round trips, garbage, corrupted envelopes and wrong key lengths (measured 91%).",
+        "guard": "Guard tests assert the argument checks of Encrypt/Decrypt and every typed failure through Decrypt (measured 82%).",
+        "property": "FsCheck properties cover round trips, garbage, corrupted envelopes, lone surrogates, null values and the agreement of the throwing and non-throwing reads (measured 99%).",
         "integration": "The real-Marten tests decrypt healthy events and fail tampered and unmarked ones through the projections (measured 82%)."
       }
     },
@@ -293,12 +293,12 @@
       "targets": {
         "unit": 100,
         "guard": 100,
-        "integration": 17
+        "integration": 20
       },
       "justifications": {
         "unit": "Unit tests build every error factory (measured 100%).",
         "guard": "Guard tests exercise the error factories through the argument checks (measured 100%).",
-        "integration": "Integration tests reach only the few errors that real PostgreSQL work produces (measured 17%)."
+        "integration": "Integration tests reach only the few errors that real PostgreSQL work produces (measured 20.6%)."
       }
     },
     "MartenOperationAuditOptions.cs": {
@@ -499,13 +499,121 @@
       "reason": "Default: assume testable with mocks",
       "targets": {
         "unit": 100,
-        "guard": 92,
+        "guard": 93,
         "integration": 100
       },
       "justifications": {
         "unit": "Every property is set and read by the projection tests (measured 100%).",
-        "guard": "The read model's property guards are exercised by the guard tests (measured 92%).",
+        "guard": "The read model's property guards, including the IsUnreadable flag, are exercised by the guard tests (measured 93%).",
         "integration": "The real-Marten projection tests set and read every property (measured 100%)."
+      }
+    },
+    "Resolution/AuditResolution.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100,
+        "integration": 100
+      },
+      "justifications": {
+        "unit": "Unit tests instantiate the document, assign every property including Sequence and Supersedes and read it back (measured 100%).",
+        "guard": "Guard test assigns and reads every property (measured 100%).",
+        "integration": "The fresh-store integration test stores a Guid-id resolution and loads it back (measured 100%)."
+      }
+    },
+    "Resolution/AuditResolutionIds.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "integration": 14
+      },
+      "justifications": {
+        "unit": "NewId and IsValid are executed by every id and field-set test (measured 100%).",
+        "guard": "Internal type and the guard test project has no InternalsVisibleTo, so no guard test can execute it.",
+        "integration": "The fresh-store table test calls NewId; the field-set lookup is covered by unit tests (measured 14.8%)."
+      }
+    },
+    "Resolution/AuditResolutionRecord.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 20,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "Unit tests build the record from a document's values, compare, and use `with` (measured 100%).",
+        "guard": "The guard test builds one instance and compares it; the compiler-generated members are not all executed (measured 20%).",
+        "integration": "The integration test does not use this record."
+      }
+    },
+    "Resolution/AuditResolutionTrail.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Enum declaration",
+      "targets": {
+        "unit": 0,
+        "guard": 0,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "Enum declaration: no coverable lines.",
+        "guard": "Enum declaration: no coverable lines.",
+        "integration": "Enum declaration: no coverable lines."
+      }
+    },
+    "Resolution/AuditResolutionKind.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Enum declaration",
+      "targets": {
+        "unit": 0,
+        "guard": 0,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "Enum declaration: no coverable lines.",
+        "guard": "Enum declaration: no coverable lines.",
+        "integration": "Enum declaration: no coverable lines."
+      }
+    },
+    "Resolution/AuditResolutionField.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Enum declaration",
+      "targets": {
+        "unit": 0,
+        "guard": 0,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "Enum declaration: no coverable lines.",
+        "guard": "Enum declaration: no coverable lines.",
+        "integration": "Enum declaration: no coverable lines."
       }
     },
     "ServiceCollectionExtensions.cs": {

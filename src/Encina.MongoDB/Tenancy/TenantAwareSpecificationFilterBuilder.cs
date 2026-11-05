@@ -72,7 +72,7 @@ public sealed class TenantAwareSpecificationFilterBuilder<TEntity>
     /// <returns>
     /// A MongoDB filter definition with tenant filtering applied, or a
     /// <see cref="RepositoryErrors.TenantRequiredErrorCode"/> error when the tenant context is required
-    /// but not available and <see cref="MongoDbTenancyOptions.ThrowOnMissingTenantContext"/> is <c>true</c>.
+    /// but not available and <see cref="MongoDbTenancyOptions.RequireTenantContext"/> is <c>true</c>.
     /// </returns>
     public Either<EncinaError, FilterDefinition<TEntity>> BuildFilter(
         Specification<TEntity> specification,
@@ -99,7 +99,7 @@ public sealed class TenantAwareSpecificationFilterBuilder<TEntity>
     /// <returns>
     /// A MongoDB filter for tenant filtering (the empty filter when tenant filtering does not apply), or a
     /// <see cref="RepositoryErrors.TenantRequiredErrorCode"/> error when the tenant context is required
-    /// but not available and <see cref="MongoDbTenancyOptions.ThrowOnMissingTenantContext"/> is <c>true</c>.
+    /// but not available and <see cref="MongoDbTenancyOptions.RequireTenantContext"/> is <c>true</c>.
     /// </returns>
     public Either<EncinaError, FilterDefinition<TEntity>> BuildTenantFilter(string operation)
     {
@@ -117,7 +117,7 @@ public sealed class TenantAwareSpecificationFilterBuilder<TEntity>
     /// <returns>
     /// A tuple containing the filter and the current tenant ID (if any), or a
     /// <see cref="RepositoryErrors.TenantRequiredErrorCode"/> error when the tenant context is required
-    /// but not available and <see cref="MongoDbTenancyOptions.ThrowOnMissingTenantContext"/> is <c>true</c>.
+    /// but not available and <see cref="MongoDbTenancyOptions.RequireTenantContext"/> is <c>true</c>.
     /// </returns>
     public Either<EncinaError, (FilterDefinition<TEntity> Filter, string? TenantId)> BuildFilterWithTenantId(
         Specification<TEntity>? specification,
@@ -154,7 +154,7 @@ public sealed class TenantAwareSpecificationFilterBuilder<TEntity>
     /// <param name="operation">The repository operation name, used in the error when the tenant context is missing.</param>
     /// <returns>
     /// The current tenant ID (none when tenant filtering does not apply, or when there is no tenant context and
-    /// <see cref="MongoDbTenancyOptions.ThrowOnMissingTenantContext"/> is <c>false</c>), or a
+    /// <see cref="MongoDbTenancyOptions.RequireTenantContext"/> is <c>false</c>), or a
     /// <see cref="RepositoryErrors.TenantRequiredErrorCode"/> error when the tenant context is required
     /// but not available.
     /// </returns>
@@ -169,7 +169,7 @@ public sealed class TenantAwareSpecificationFilterBuilder<TEntity>
 
         var tenantId = _tenantProvider.GetCurrentTenantId();
 
-        if (string.IsNullOrEmpty(tenantId) && _options.ThrowOnMissingTenantContext)
+        if (string.IsNullOrEmpty(tenantId) && _options.RequireTenantContext)
         {
             return Left<EncinaError, Option<string>>(RepositoryErrors.TenantRequired<TEntity>(operation));
         }

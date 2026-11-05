@@ -132,8 +132,6 @@ public interface IPIIMasker
     /// <para>
     /// The log context is a superset of the response context: <see cref="Attributes.MaskInLogsAttribute"/>
     /// properties are masked here and only here.
-    /// <see cref="MaskingMode.Tokenize"/> is treated as <see cref="MaskingMode.Redact"/> in this context so
-    /// that the raw value is never written to a log.
     /// </para>
     /// <para>
     /// Fails closed: when masking cannot be completed the method throws instead of returning an unmasked

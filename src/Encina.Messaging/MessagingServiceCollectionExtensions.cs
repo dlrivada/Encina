@@ -4,6 +4,7 @@ using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
+using Encina.Messaging.Purge;
 using Encina.Messaging.Recoverability;
 using Encina.Messaging.RoutingSlip;
 using Encina.Messaging.Sagas;
@@ -254,6 +255,7 @@ public static class MessagingServiceCollectionExtensions
         RegisterInbox<TInboxStore, TInboxFactory>(services, useInbox, inboxOptions);
         RegisterSagas<TSagaStore, TSagaFactory>(services, useSagas, sagaOptions);
         RegisterScheduling<TScheduledStore, TScheduledFactory>(services, useScheduling, schedulingOptions);
+        RegisterMessagePurge(services, useInbox, inboxOptions);
 
         return services;
     }
@@ -318,6 +320,27 @@ public static class MessagingServiceCollectionExtensions
         services.AddScoped<IInboxMessageFactory, TInboxFactory>();
         services.AddScoped<InboxOrchestrator>();
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(InboxPipelineBehavior<,>));
+    }
+
+    /// <summary>
+    /// Registers the <see cref="MessagePurgeService"/> hosted service when at least one pattern has its
+    /// automatic purge on (today the inbox: <paramref name="useInbox"/> and
+    /// <see cref="InboxOptions.EnableAutomaticPurge"/>); registers nothing otherwise.
+    /// </summary>
+    /// <remarks>
+    /// The service resolves the scoped <see cref="IInboxStore"/> through the scope factory, the logger and the
+    /// <see cref="TimeProvider"/>; the store and the <see cref="InboxOptions"/> come from
+    /// <c>RegisterInbox</c>, which runs for the same flag, and the schedule is read from those registered
+    /// options when the service is first resolved. <c>TryAdd*</c> keeps a repeated call from running the
+    /// loop twice.
+    /// </remarks>
+    private static void RegisterMessagePurge(IServiceCollection services, bool useInbox, InboxOptions inboxOptions)
+    {
+        if (!useInbox || !inboxOptions.EnableAutomaticPurge) return;
+
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton(sp => MessagePurgeSchedule.Create(sp.GetRequiredService<InboxOptions>()));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, MessagePurgeService>());
     }
 
     /// <summary>
@@ -430,6 +453,7 @@ public static class MessagingServiceCollectionExtensions
         RegisterTransactions(services, config.UseTransactions);
         RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, config.UseOutbox, config.OutboxOptions);
         RegisterInbox<TInboxStore, TInboxFactory>(services, config.UseInbox, config.InboxOptions);
+        RegisterMessagePurge(services, config.UseInbox, config.InboxOptions);
         RegisterRoutingSlips(services, config);
         RegisterContentRouter(services, config);
         RegisterScatterGather(services, config);

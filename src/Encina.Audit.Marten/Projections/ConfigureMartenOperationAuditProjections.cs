@@ -1,3 +1,5 @@
+using Encina.Audit.Marten.Resolution;
+
 using Marten;
 
 using Microsoft.Extensions.Logging;
@@ -83,6 +85,16 @@ internal sealed class ConfigureMartenOperationAuditProjections : IConfigureOptio
         // store-wide and also govern the application's own projections, so Encina does not touch them (issue #2770,
         // D22). AuditProjectionErrorPolicyStartupGuard fails the host at startup when the application left them
         // skipping, because a skipped audit event would vanish from the read model without a stop.
+
+        // Operator resolutions of unreadable events. Registered explicitly (unlike the key and marker documents,
+        // which Marten creates on first use) so the table exists before the daemon reads it on the failure path.
+        // Resolutions are append-only: the projection loads an event's resolutions by (Trail, EventId).
+        options.Schema.For<AuditResolution>()
+            .Identity(x => x.Id)
+            // Marten builds a single computed (expression) index over the JSON data column for the two properties,
+            // not duplicated columns. The integration test proves it exists and its column order; the Phase 3 query
+            // filters by Trail and EventId.
+            .Index(x => new { x.Trail, x.EventId });
 
         // Configure indexes for OperationAuditEntryReadModel
         options.Schema.For<OperationAuditEntryReadModel>()

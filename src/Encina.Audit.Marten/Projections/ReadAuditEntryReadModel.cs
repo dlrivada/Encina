@@ -90,9 +90,17 @@ public sealed class ReadAuditEntryReadModel
     /// <summary>
     /// Indicates whether this entry's PII fields expired under a retention policy: the temporal keys were destroyed
     /// by a recorded retention execution, so the PII fields contain the expired placeholder (default <c>[EXPIRED]</c>).
-    /// Mutually exclusive with <see cref="IsShredded"/>.
+    /// Not exclusive with <see cref="IsShredded"/> and <see cref="IsUnreadable"/>: a resolution targets one field, so
+    /// different fields of the same entry can carry different placeholders.
     /// </summary>
     public bool IsExpired { get; set; }
+
+    /// <summary>
+    /// Indicates whether an operator marked at least one field of this entry as unreadable in an audited resolution, so
+    /// that field contains the unreadable placeholder (default <c>[UNREADABLE]</c>). Not exclusive with
+    /// <see cref="IsShredded"/> and <see cref="IsExpired"/>.
+    /// </summary>
+    public bool IsUnreadable { get; set; }
 
     /// <summary>
     /// The temporal key period used to encrypt this entry's PII fields (e.g., <c>"2026-03"</c>).

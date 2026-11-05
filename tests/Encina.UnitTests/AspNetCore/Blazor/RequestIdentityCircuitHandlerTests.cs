@@ -148,6 +148,64 @@ public sealed class RequestIdentityCircuitHandlerTests
         service.IsLeft.ShouldBeTrue("the mask keeps the user fact of the chain it hides");
     }
 
+    [Theory]
+    [InlineData("missing", RequestIdentityErrorCodes.MissingSubjectClaim)]
+    [InlineData("malformed", RequestIdentityErrorCodes.MalformedSubjectClaim)]
+    [InlineData("reserved", RequestIdentityErrorCodes.ReservedSubjectClaim)]
+    [InlineData("conflicting", RequestIdentityErrorCodes.ConflictingSubjectClaims)]
+    [InlineData("tenants", RequestIdentityErrorCodes.InboundTenantConflict)]
+    public async Task AnAuthenticatedPrincipalTheFactoryRefuses_RefusesTheActivity_WithTheCodeAndNoClaimValue(string cause, string code)
+    {
+        const string sentinel = "SENTINEL-claim-value";
+        var principal = cause switch
+        {
+            "missing" => Authenticated(new Claim("email", sentinel)),
+            "malformed" => Authenticated(new Claim("sub", sentinel + " ")),
+            "reserved" => Authenticated(new Claim("sub", "service:" + sentinel)),
+            "conflicting" => Authenticated(new Claim("sub", "a-" + sentinel), new Claim("sub", "b-" + sentinel)),
+            _ => new ClaimsPrincipal(
+            [
+                new ClaimsIdentity([new Claim("sub", "alice"), new Claim("tid", "tenant-a-" + sentinel)], "test"),
+                new ClaimsIdentity([new Claim("sub", "alice"), new Claim("tid", "tenant-b-" + sentinel)], "test")
+            ])
+        };
+        _authentication.Set(principal);
+        var handler = Handler();
+        var ran = false;
+
+        var activity = handler.CreateInboundActivityHandler(_ =>
+        {
+            ran = true;
+            return Task.CompletedTask;
+        });
+        var thrown = await Should.ThrowAsync<InvalidOperationException>(() => InCircuit(async () =>
+        {
+            await activity(null!);
+            return 0;
+        }));
+
+        ran.ShouldBeFalse();
+        thrown.Message.ShouldContain(code);
+        thrown.Message.ShouldNotContain(sentinel);
+        _host.EventIds.ShouldContain(167);
+    }
+
+    [Fact]
+    public async Task AnUnsupportedAccessor_IsAHostRefusal_NotARefusedPrincipal()
+    {
+        var factory = new RequestContextScopeFactory(
+            Substitute.For<IRequestContextAccessor>(), _host.Catalog, _host.IdentityFactory,
+            Microsoft.Extensions.Options.Options.Create(new RequestIdentityOptions()), _host.Time, _host.Logger);
+        _authentication.Set(Authenticated(new Claim("email", "x")));
+        var handler = new RequestIdentityCircuitHandler(_authentication, factory);
+
+        var thrown = await Should.ThrowAsync<InvalidOperationException>(() => handler.CreateInboundActivityHandler(_ => Task.CompletedTask)(null!));
+
+        thrown.Message.ShouldBe("The circuit activity could not run inside an identity scope; check the request identity registration.");
+    }
+
+    private static ClaimsPrincipal Authenticated(params Claim[] claims) => new(new ClaimsIdentity(claims, "test"));
+
     [Fact]
     public async Task AnExceptionFromTheActivity_Propagates()
     {

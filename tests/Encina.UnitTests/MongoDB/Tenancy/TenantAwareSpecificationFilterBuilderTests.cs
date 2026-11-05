@@ -103,7 +103,7 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
     {
         // Arrange
         _tenantProvider.GetCurrentTenantId().Returns(tenantId);
-        var options = new MongoDbTenancyOptions { ThrowOnMissingTenantContext = true };
+        var options = new MongoDbTenancyOptions { RequireTenantContext = true };
         var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, options);
         var spec = new MongoActiveOrdersSpec();
 
@@ -119,7 +119,7 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
     {
         // Arrange
         _tenantProvider.GetCurrentTenantId().Returns((string?)null);
-        var options = new MongoDbTenancyOptions { ThrowOnMissingTenantContext = false };
+        var options = new MongoDbTenancyOptions { RequireTenantContext = false };
         var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, options);
         var spec = new MongoActiveOrdersSpec();
 
@@ -202,7 +202,7 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
     {
         // Arrange
         _tenantProvider.GetCurrentTenantId().Returns((string?)null);
-        var options = new MongoDbTenancyOptions { ThrowOnMissingTenantContext = false };
+        var options = new MongoDbTenancyOptions { RequireTenantContext = false };
         var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, options);
 
         // Act
@@ -264,7 +264,7 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
     {
         // Arrange
         _tenantProvider.GetCurrentTenantId().Returns((string?)null);
-        var options = new MongoDbTenancyOptions { ThrowOnMissingTenantContext = false };
+        var options = new MongoDbTenancyOptions { RequireTenantContext = false };
         var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, options);
 
         // Act
@@ -329,7 +329,7 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
     {
         // Arrange
         _tenantProvider.GetCurrentTenantId().Returns((string?)null);
-        var options = new MongoDbTenancyOptions { ThrowOnMissingTenantContext = false };
+        var options = new MongoDbTenancyOptions { RequireTenantContext = false };
         var builder = new TenantAwareSpecificationFilterBuilder<MongoTenantTestOrder>(_tenantMapping, _tenantProvider, options);
 
         // Act
