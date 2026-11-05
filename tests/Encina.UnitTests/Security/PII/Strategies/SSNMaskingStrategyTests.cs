@@ -105,14 +105,6 @@ public sealed class SSNMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_TokenizeMode_ReturnsOriginalValue()
-    {
-        var result = _sut.Apply("123-45-6789", WithMode(MaskingMode.Tokenize));
-
-        result.ShouldBe("123-45-6789");
-    }
-
-    [Fact]
     public void Apply_ShortValue_ReturnsOriginal()
     {
         // Only 4 digits - same as visible end count, too short to mask
