@@ -171,5 +171,5 @@ public sealed partial class ReadAuditEntryProjection : EventProjection
     /// was metadata to replace.
     /// </summary>
     private static bool IsMetadataSubstituted(bool keyDestroyed, EncryptedField? encryptedMetadata) =>
-        keyDestroyed && encryptedMetadata is not null;
+        keyDestroyed && encryptedMetadata?.Value is not null;
 }

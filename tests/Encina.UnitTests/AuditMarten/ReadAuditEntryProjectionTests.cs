@@ -169,6 +169,27 @@ public sealed class ReadAuditEntryProjectionTests
     }
 
     [Fact]
+    public void MapToReadModel_DestroyedKeyAndEmptyMetadataField_DoesNotSetMetadataJsonMasked()
+    {
+        var evt = new ReadAuditEntryRecordedEvent
+        {
+            Id = Guid.NewGuid(),
+            EntityType = "Record",
+            EntityId = null,
+            AccessedAtUtc = DateTimeOffset.UtcNow,
+            AccessMethod = (int)ReadAccessMethod.DirectQuery,
+            EntityCount = 1,
+            EncryptedMetadata = new EncryptedField { Value = null },
+            TemporalKeyPeriod = "2099-12"
+        };
+
+        var readModel = CreateProjection().MapToReadModel(evt, keyMaterial: null, isShredded: true);
+
+        readModel.MetadataJson.ShouldBeNull();
+        readModel.MetadataJsonMasked.ShouldBeFalse();
+    }
+
+    [Fact]
     public void MapToReadModel_WithNullEncryptedFields_ReturnsModelWithNulls()
     {
         // Arrange

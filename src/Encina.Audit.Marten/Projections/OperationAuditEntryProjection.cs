@@ -321,7 +321,7 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
     /// was metadata to replace.
     /// </summary>
     private static bool IsMetadataSubstituted(bool keyDestroyed, EncryptedField? encryptedMetadata) =>
-        keyDestroyed && encryptedMetadata is not null;
+        keyDestroyed && encryptedMetadata?.Value is not null;
 
     private static string? Decrypt(EncryptedField? field, byte[]? keyMaterial, string placeholder) =>
         field?.DecryptOrPlaceholder(keyMaterial, placeholder);
