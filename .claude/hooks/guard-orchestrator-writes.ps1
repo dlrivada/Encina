@@ -27,8 +27,15 @@
 #     Join-Path, concatenation and the literal arguments of its own functions): it is denied when a target
 #     resolves under src/ or tests/ (a relative target with a src or tests segment counts), and when it both
 #     references src/ or tests/ in its text and writes files that the analysis cannot show to be elsewhere
-#     (an unresolved target, a command or call it does not know, a nested launch). A mention of src/ or tests/
-#     in a string, comment or here-string is never a target by itself. Any other script (`dotnet run <file>.cs`)
+#     (an unresolved target, a command or call it does not know, a nested launch). An unresolved target (for
+#     example one bound to a script parameter) is also denied when the launching command (script path removed)
+#     names src/ or tests/, or the launching cwd is under them. An unresolved target with NO such mention in the
+#     script, the command or the cwd is ALLOWED, and so is any other construct the analysis cannot finish when
+#     the text has no src/tests word: the gate does not fail closed for them. Open evasions (follow-up B1, B3,
+#     B4): a wildcard in a parent segment (`[s]rc\...`), targets built in the launching command from 's'+'rc',
+#     splatting, an environment variable, a cwd that is a junction to src/ (GetFullPath does not resolve reparse
+#     points), Invoke-Expression, computed command names, nested launches and native copiers. A mention of
+#     src/ or tests/ in a string, comment or here-string is never a target by itself. Any other script (`dotnet run <file>.cs`)
 #     is denied when it both references src/ or tests/ and contains a file-write API
 #     (Test-ScriptHasWriteApi/Test-ScriptReferencesPath), so a throwaway
 #     probe script or `gh` stub outside src/ and tests/ runs freely (a relative path resolves against the

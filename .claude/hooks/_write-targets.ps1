@@ -180,9 +180,12 @@ function Test-ScriptHasWriteApi([string]$Text) {
 #            left in the text once strings, comments and the understood sites are removed;
 #   Unknown  anything else (a command the analysis does not know, a dynamic call, an unresolved target, ...):
 #            the caller keeps its text heuristic: an unresolvable target or anything else it could not analyse is
-#            denied only when the script's text (for an unresolved target also the launching command) mentions
-#            src/ or tests/; an opaque construct or a parameter-bound target with no such word is not analysed and
-#            is allowed (#2892 follow-ups B1, B3, B4).
+#            denied only when the script's text (for an unresolved target also the launching command, script path
+#            removed, or a launching cwd under src/ or tests/) mentions src/ or tests/; an opaque construct or a
+#            parameter-bound target with no such word is not analysed and is allowed (#2892 follow-ups B1, B3,
+#            B4). Evasions still open under B1: a wildcard in a parent segment, 's'+'rc' built in the launching
+#            command, splatting, an environment variable, a cwd that is a junction to src/. Every resolved value
+#            longer than 8192 characters is unresolved (SwEval), so a doubling chain cannot stall the hook.
 # A text mention of src/ or tests/ inside a string, comment or here-string is never a target by itself.
 function Test-ScriptWritesAreSafe {
     param([string]$Text, [string]$ScriptFull, [string]$Base, $Layout)
@@ -485,7 +488,15 @@ function Test-ScriptWritesAreSafe {
         return $null
     }
 
+    # Every resolved value passes through here: a value longer than 8192 characters (a string that doubles per
+    # assignment through -f, Join-Path, Combine, .Replace, ...) is unresolved, so no site can stall the hook.
     function SwEval($Ast) {
+        $result = SwEvalCore $Ast
+        if ($null -eq $result) { return $null }
+        foreach ($v in $result.V) { if ($null -ne $v -and $v.Length -gt 8192) { return $null } }
+        return $result
+    }
+    function SwEvalCore($Ast) {
         if ($null -eq $Ast) { return $null }
         switch ($Ast.GetType().Name) {
             'StringConstantExpressionAst' { return (SwR @([string]$Ast.Value)) }

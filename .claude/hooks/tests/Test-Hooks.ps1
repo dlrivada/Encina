@@ -506,6 +506,13 @@ $ps1Scripts = [ordered]@{
 # B2: a chain of reused variables (each doubling the previous) writing under src/ must be judged quickly and denied.
 $expLines = @('$v0 = "x"') + @(1..14 | ForEach-Object { "`$v$_ = `$v$($_ - 1) + `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\src\' + `$v14) -Value 1")
 $ps1Scripts['ExpChainSrc'] = ($expLines -join "`n") + "`n"
+foreach ($shape in @(
+        @('Fmt', { param($n) "`$v$n = '{0}{0}' -f `$v$($n - 1)" }),
+        @('Join', { param($n) "`$v$n = Join-Path `$v$($n - 1) `$v$($n - 1)" }),
+        @('Combine', { param($n) "`$v$n = [IO.Path]::Combine(`$v$($n - 1), `$v$($n - 1))" }),
+        @('Replace', { param($n) "`$v$n = `$v$($n - 1).Replace('x', 'xx')" }))) {
+    $ps1Scripts["ExpChain$($shape[0])Src"] = (@('$v0 = "x"') + @(1..26 | ForEach-Object { & $shape[1] $_ }) + @("Set-Content -Path ('$main\src\' + `$v26) -Value 1")) -join "`n"
+}
 $ps1Scripts['ExpChainLongSrc'] = (@('$v0 = "x"') + @(1..26 | ForEach-Object { "`$v$_ = `$v$($_ - 1) + `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\src\' + `$v26) -Value 1")) -join "`n"
 $ps1Scripts['TypedArraySrc'] = "[string[]]`$a = '$main\artifacts\'`nSet-Content -Path (`$a + 'src\q') -Value 1`n"
 $ps1Scripts['ExpChainCycleSrc'] = (@('$v0 = "x"', '$v0 = $v0 + "y"') + $expLines[1..($expLines.Count - 1)] -join "`n") + "`n"
@@ -1039,7 +1046,7 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -f '$($ps1ScriptPath.SrcLiteral)'" }, $main, $null, 2, 'main session (#2892): pwsh -f (abbreviated -File) to a src/ writer: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile '$($ps1ScriptPath.SrcLiteral)'" }, $main, $null, 2, 'main session (#2892): pwsh with a positional script that writes src/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.SrcLiteral)'" }, $main, 'a1b2', 2, 'general-purpose subagent (#2892): Set-Content to a literal src/ path: denied', 'general-purpose'),
-    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UnresolvedVariable)'" }, $main, $null, 2, 'main session (#2892): target is an unresolvable variable: denied (fail closed)'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UnresolvedVariable)'" }, $main, $null, 2, 'main session (#2892): target is an unresolvable variable and the script text names src/ and tests/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.JoinPathSrc)'" }, $main, $null, 2, 'main session (#2892): nested Join-Path into src/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.RedirectTests)'" }, $main, $null, 2, 'main session (#2892): redirection into tests/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.AddContentSrc)'" }, $main, $null, 2, 'main session (#2892): Add-Content -LiteralPath into src/: denied'),
@@ -1065,6 +1072,10 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UnresolvedPlusGit)'" }, $main, $null, 2, 'main session (#2892): unresolved target next to an unknown command, script names src/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out 'x.json'" }, "$main\src", $null, 2, 'main session (#2892): a param-bound relative target launched from a cwd under src/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out 'x.json'" }, "$main\tests", $null, 2, 'main session (#2892): a param-bound relative target launched from a cwd under tests/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainFmtSrc)'" }, $main, $null, 2, 'main session (#2892): a 26-level -f doubling chain writing src/ is denied quickly (value cap)'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainJoinSrc)'" }, $main, $null, 2, 'main session (#2892): a 26-level Join-Path doubling chain writing src/ is denied quickly (value cap)'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainCombineSrc)'" }, $main, $null, 2, 'main session (#2892): a 26-level [IO.Path]::Combine doubling chain writing src/ is denied quickly (value cap)'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainReplaceSrc)'" }, $main, $null, 2, 'main session (#2892): a 26-level .Replace doubling chain writing src/ is denied quickly (value cap)'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainLongSrc)'" }, $main, $null, 2, 'main session (#2892): a 26-level string-doubling chain writing src/ is denied quickly (length cap)'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.TypedArraySrc)'" }, $main, $null, 2, 'main session (#2892): a [string[]] variable plus a string is an array whose second element is under src/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out 'x.json'" }, ($main.Replace('\', '/') + '/src'), $null, 2, 'main session (#2892): a forward-slash cwd under src/ with a param-bound relative target: denied'),
@@ -1076,6 +1087,11 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenMention)'" }, $main, $null, 2, 'main session (#2892): a param()-driven tool whose text names tests and whose target is unresolved: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out '$main\src\Encina\X.json'" }, $main, $null, 2, 'main session (#2892): the same tool with its output parameter supplied as src/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out '$main\tests\X.json'" }, $main, $null, 2, 'main session (#2892): the same tool with its output parameter supplied as tests/: denied')
+) + @(
+    # The real parameter-driven repository tools that never name src/ or tests/ keep running (review of PR #3236).
+    foreach ($realTool in 'tools\ai\priority\collect-issues.ps1', 'tools\ai\board\build-board-stats.ps1', 'tools\ai\board\reconcile-board.ps1', '.github\scripts\link-health-report.ps1', '.github\scripts\sonar-issues.ps1', '.github\scripts\crap-gate-selftest.ps1', 'tools\ai\priority\Test-Priority.ps1') {
+        , @('PowerShell', @{ command = "pwsh -NoProfile -File '$(Join-Path $repo $realTool)'" }, $main, $null, 0, "main session (#2892): the real repository tool $($realTool.Replace('\', '/')) is allowed")
+    }
 )
 
 # require-specialists.ps1 (Stop gate) runs against a fake project with a real git worktree.
