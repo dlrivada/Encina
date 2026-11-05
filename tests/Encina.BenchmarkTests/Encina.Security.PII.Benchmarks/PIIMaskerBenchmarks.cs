@@ -5,7 +5,7 @@ namespace Encina.Security.PII.Benchmarks;
 
 /// <summary>
 /// Benchmarks for <see cref="PIIMasker"/> end-to-end masking operations.
-/// Measures throughput of Mask, MaskObject, and MaskForAudit methods
+/// Measures throughput of Mask, MaskObject, MaskForLog, and MaskForAudit methods
 /// including JSON serialization and strategy resolution overhead.
 /// </summary>
 [MemoryDiagnoser]
@@ -17,6 +17,8 @@ public class PIIMaskerBenchmarks
     private SingleFieldEntity _singleField = null!;
     private MultiFieldEntity _multiField = null!;
     private PlainEntity _plainEntity = null!;
+    private LogSingleFieldEntity _logSingleField = null!;
+    private LogMultiFieldEntity _logMultiField = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -43,11 +45,21 @@ public class PIIMaskerBenchmarks
             Name = "John Doe"
         };
         _plainEntity = new PlainEntity { Name = "John", Age = 30 };
+        _logSingleField = new LogSingleFieldEntity { TrackingId = "trk-8f3a91c2", Name = "John" };
+        _logMultiField = new LogMultiFieldEntity
+        {
+            Email = "user@example.com",
+            Phone = "555-123-4567",
+            TrackingId = "trk-8f3a91c2",
+            Name = "John Doe"
+        };
 
-        // Warm the property scanner cache by calling MaskObject once
+        // Warm the property scanner cache by calling MaskObject and MaskForLog once
         _masker.MaskObject(_singleField);
         _masker.MaskObject(_multiField);
         _masker.MaskObject(_plainEntity);
+        _masker.MaskForLog(_logSingleField);
+        _masker.MaskForLog(_logMultiField);
     }
 
     [BenchmarkCategory("DocRef:bench:security/email-partial")]
@@ -94,6 +106,36 @@ public class PIIMaskerBenchmarks
     [Benchmark]
     public object MaskForAudit_NonGeneric()
         => _masker.MaskForAudit((object)_singleField);
+
+    [Benchmark]
+    public LogSingleFieldEntity MaskForLog_SingleField()
+        => _masker.MaskForLog(_logSingleField);
+
+    [Benchmark]
+    public LogMultiFieldEntity MaskForLog_MultiField()
+        => _masker.MaskForLog(_logMultiField);
+
+    public sealed class LogSingleFieldEntity
+    {
+        [MaskInLogs]
+        public string TrackingId { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+    }
+
+    public sealed class LogMultiFieldEntity
+    {
+        [PII(PIIType.Email)]
+        public string Email { get; set; } = string.Empty;
+
+        [PII(PIIType.Phone)]
+        public string Phone { get; set; } = string.Empty;
+
+        [MaskInLogs]
+        public string TrackingId { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+    }
 
     public sealed class SingleFieldEntity
     {
