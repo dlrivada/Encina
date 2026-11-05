@@ -544,12 +544,12 @@ public static class DPIAEndpointExtensions
     /// </summary>
     private static string? ResolveActor(HttpContext httpContext)
     {
-        var identity = httpContext.RequestServices?.GetService<IRequestContextAccessor>()?.RequestContext?.Identity;
-
-        return identity is { IsAuthenticated: true } && !string.IsNullOrWhiteSpace(identity.UserId)
-            ? identity.UserId
-            : null;
+        var accessor = httpContext.RequestServices.GetService<IRequestContextAccessor>();
+        return UserIdOf(accessor?.RequestContext?.Identity);
     }
+
+    private static string? UserIdOf(RequestIdentity? identity) =>
+        identity is { IsAuthenticated: true, UserId: { } userId } ? userId : null; // RequestIdentity guarantees a valid, non-blank id when authenticated
 
     /// <summary>
     /// Denies a DPO action without an authenticated identity: 401 Problem Details, a Warning with
