@@ -67,7 +67,11 @@ public sealed class DPIAEndpointExtensionsTests
                 return Task.FromResult(AuthenticateResult.NoResult());
             }
 
-            var identity = new System.Security.Claims.ClaimsIdentity("Test");
+            // A named, authenticated HttpContext.User: approve and reject must still deny without a
+            // request context, proving the actor never falls back to HttpContext.User.Identity.Name.
+            var identity = new System.Security.Claims.ClaimsIdentity(
+                [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, "http-context-user")],
+                "Test");
             var ticket = new AuthenticationTicket(new System.Security.Claims.ClaimsPrincipal(identity), Scheme.Name);
             return Task.FromResult(AuthenticateResult.Success(ticket));
         }
