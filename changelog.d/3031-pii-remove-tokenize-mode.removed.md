@@ -1,0 +1,1 @@
+- `MaskingMode.Tokenize` is removed from `Encina.Security.PII`: no token vault or specification ever existed and every strategy returned the raw value for it. `MaskingMode.Redact` is now numbered 3. For reversible tokenization use `ITokenizer` and `DefaultTokenizer` of `Encina.Compliance.Anonymization` (#3031).
