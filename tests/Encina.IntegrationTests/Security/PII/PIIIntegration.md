@@ -11,7 +11,7 @@ PII masking is a pure algorithmic transformation with no database, no external s
 Unlike database-backed modules (Audit, ABAC), PII masking has no provider-specific implementations. All 9 masking strategies are self-contained singletons.
 
 ### 3. The Log Path Needs No Real Logging Provider
-`IPIIMasker.MaskForLog` and the `LogMasked` helpers (`LogInformationMasked`, `LogWarningMasked`, `LogErrorMasked`) mask the object before it reaches `ILogger`. A real `ILoggerFactory` or logging provider only receives the already masked copy (or the `[MASKING FAILED]` placeholder), so a test with a real provider would exercise the provider, not Encina code.
+`IPIIMasker.MaskForLog` and the `LogMasked` helpers (`LogInformationMasked`, `LogWarningMasked`, `LogErrorMasked`) mask the object before it reaches `ILogger` when `PIIOptions.MaskInLogs` is `true` (the default); with `false`, `MaskForLog` returns the original object and the provider receives it unmasked. With masking enabled, a real `ILoggerFactory` or logging provider only receives the already masked copy (or the `[MASKING FAILED]` placeholder), so a test with a real provider would exercise the provider, not Encina code.
 
 ### 4. Adequate Coverage from Other Test Types
 - **Unit Tests**: Cover all 9 strategies with comprehensive edge cases, and the log path (`[MaskInLogs]` on properties and classes, precedence, non-string fail-closed, `MaskInLogs = false` opt-out) against the real `PIIMasker` with a `FakeLogger`
