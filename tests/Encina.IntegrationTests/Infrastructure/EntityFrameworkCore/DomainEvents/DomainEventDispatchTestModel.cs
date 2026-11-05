@@ -55,7 +55,10 @@ public enum HandlerBehavior
     ReturnLeft,
 
     /// <summary>Throws an exception.</summary>
-    Throw
+    Throw,
+
+    /// <summary>Returns a faulted task.</summary>
+    ThrowAsync
 }
 
 /// <summary>Records every event a handler received, in arrival order.</summary>
@@ -97,6 +100,8 @@ public static class RecordingHandlers
                     HandlerBehavior.ReturnLeft => Task.FromResult(
                         Left<EncinaError, Unit>(EncinaErrors.Create("test.domain-event-handler", "handler failed"))),
                     HandlerBehavior.Throw => throw new InvalidOperationException("handler threw"),
+                    HandlerBehavior.ThrowAsync => Task.FromException<Either<EncinaError, Unit>>(
+                        new InvalidOperationException("handler faulted")),
                     _ => Task.FromResult(Right<EncinaError, Unit>(unit))
                 };
             });

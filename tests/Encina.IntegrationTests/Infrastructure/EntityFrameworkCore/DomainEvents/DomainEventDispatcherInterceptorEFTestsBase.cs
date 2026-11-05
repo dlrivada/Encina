@@ -89,7 +89,8 @@ public abstract class DomainEventDispatcherInterceptorEFTestsBase : IAsyncLifeti
         }
 
         var clashing = new DomainEventTestAggregate(Guid.NewGuid(), existing.Name);
-        clashing.Raise(new NoteRaised(clashing.Id, 0));
+        var pending = new NoteRaised(clashing.Id, 0);
+        clashing.Raise(pending);
         await using (var failing = harness.CreateContext())
         {
             failing.Aggregates.Add(clashing);
@@ -97,6 +98,7 @@ public abstract class DomainEventDispatcherInterceptorEFTestsBase : IAsyncLifeti
                 async () => await failing.SaveChangesAsync(TestContext.Current.CancellationToken));
         }
 
+        clashing.DomainEvents.ShouldBe([pending]);
         harness.Recorder.Events.ShouldBeEmpty();
 
         // A save without events must not dispatch the events the failed save collected.
@@ -180,6 +182,7 @@ public abstract class DomainEventDispatcherInterceptorEFTestsBase : IAsyncLifeti
     [Theory]
     [InlineData(HandlerBehavior.ReturnLeft, "test.domain-event-handler")]
     [InlineData(HandlerBehavior.Throw, EncinaErrorCodes.NotificationException)]
+    [InlineData(HandlerBehavior.ThrowAsync, EncinaErrorCodes.NotificationException)]
     public async Task FailingHandler_WithStopOnFirstError_ThrowsAfterPersistingAndKeepsTheEvents(
         HandlerBehavior behavior,
         string expectedErrorCode)
