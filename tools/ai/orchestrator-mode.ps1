@@ -25,8 +25,8 @@ param(
     [Parameter(ParameterSetName = 'On')][ValidateRange(0, 100)][double]$CapPercent,
     [Parameter(ParameterSetName = 'On')][ValidateRange(0, 100)][double]$StopPercent,
     # The instant the budget day is computed for; only tests pass it.
-    # Must end in Z or carry an offset (for example 2026-11-04T15:00:00Z); anything else is rejected.
-    [Parameter(ParameterSetName = 'On')][ValidatePattern('(Z|[+-]\d{2}:?\d{2})$', ErrorMessage = '-NowUtc must end in Z or carry a UTC offset, for example 2026-11-04T15:00:00Z.')][string]$NowUtc,
+    # Must end in Z (explicitly UTC, for example 2026-11-04T15:00:00Z); anything else is rejected.
+    [Parameter(ParameterSetName = 'On')][ValidatePattern('Z$', ErrorMessage = '-NowUtc must end in Z (explicit UTC), for example 2026-11-04T15:00:00Z.')][string]$NowUtc,
     [Parameter(Mandatory, ParameterSetName = 'Off')][switch]$Off,
     [Parameter(ParameterSetName = 'Status')][switch]$Status,
     # Defaults to $env:CLAUDE_CODE_SESSION_ID, which Claude Code exports to tool shells and which equals the hook

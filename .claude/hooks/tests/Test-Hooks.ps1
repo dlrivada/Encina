@@ -5287,7 +5287,7 @@ The fluent builder chain described in the documentation is fictional. The parame
     Set-Content (Join-Path $work 'orch-long.txt') $longLines
     Set-Content (Join-Path $work 'orch-short.txt') (1..10 | ForEach-Object { "line $_" })
     Set-Content (Join-Path $orchMemory 'long.md') $longLines
-    $savedOrch = @{ State = $env:ENCINA_ORCHESTRATOR_STATE_ROOT; Profile = $env:USERPROFILE; Home = $env:HOME }
+    $savedOrch = @{ State = $env:ENCINA_ORCHESTRATOR_STATE_ROOT; Profile = $env:USERPROFILE; Home = $env:HOME; Now = $env:ENCINA_ORCHESTRATOR_NOW_UTC }
     try {
         $env:ENCINA_ORCHESTRATOR_STATE_ROOT = $orchState
         $env:USERPROFILE = $orchHome
@@ -5385,12 +5385,12 @@ The fluent builder chain described in the documentation is fictional. The parame
         Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: 02:59:59Z the next calendar day is still the same budget day' '' 'Budget today \(Wednesday'
         $env:ENCINA_ORCHESTRATOR_NOW_UTC = '2026-11-05T03:00:00Z'   # Thursday starts: the mark is stale
         Invoke-HookCase $orchReminder (& $promptBody 'sess-marked' '') 0 'orchestrator mode: 03:00:00Z starts the next budget day, the mark is stale' '' 'set 2026-11-04, re-run -On for today'
-        Remove-Item Env:ENCINA_ORCHESTRATOR_NOW_UTC
         # A mark from an earlier budget day: the reminder says the cap is stale.
         $staleState = [ordered]@{ sessionId = 'sess-stale'; markedAtUtc = '2020-01-02T03:04:05Z'; budgetDayStartUtc = '2020-01-02T03:00:00Z'; budgetDay = 'Thursday'; startPercent = 59; capPercent = 76; stopPercent = 74 } | ConvertTo-Json
         [IO.File]::WriteAllText((Join-Path $orchState 'sess-stale.json'), $staleState)
         Invoke-HookCase $orchReminder (& $promptBody 'sess-stale' '') 0 'orchestrator mode: a mark from an earlier budget day emits "re-run -On"' '' 'set 2020-01-02, re-run -On for today.*started at 59%, stop order at 74%, cap 76%'
         Remove-Item (Join-Path $orchState 'sess-stale.json')
+        Remove-Item Env:ENCINA_ORCHESTRATOR_NOW_UTC
 
         # #3175: the weekly formula (week Fri 03:00Z to Fri 03:00Z), deterministic through a fixed instant.
         . (Join-Path $hooks '_orchestrator-state.ps1')
@@ -5432,7 +5432,10 @@ The fluent builder chain described in the documentation is fictional. The parame
         Remove-Item (Join-Path $orchState 'sess-now.json')
         $noZ = & pwsh -NoProfile -NonInteractive -File $orchMode -On -StartPercent 53 -NowUtc 2026-11-04T15:00:00 -SessionId 'sess-noz' -StateRoot $orchState 2>&1
         $script:total++
-        if ($LASTEXITCODE -ne 0 -and "$noZ" -match 'must end in Z' -and -not (Test-Path (Join-Path $orchState 'sess-noz.json'))) { 'PASS orchestrator-mode.ps1 -NowUtc without Z or offset is rejected' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -NowUtc without Z was accepted: $noZ" }
+        if ($LASTEXITCODE -ne 0 -and "$noZ" -match 'must end in Z' -and -not (Test-Path (Join-Path $orchState 'sess-noz.json'))) { 'PASS orchestrator-mode.ps1 -NowUtc without Z is rejected' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -NowUtc without Z was accepted: $noZ" }
+        $offsetNow = & pwsh -NoProfile -NonInteractive -File $orchMode -On -StartPercent 53 -NowUtc 2026-11-04T15:00:00+01:00 -SessionId 'sess-off' -StateRoot $orchState 2>&1
+        $script:total++
+        if ($LASTEXITCODE -ne 0 -and "$offsetNow" -match 'must end in Z' -and -not (Test-Path (Join-Path $orchState 'sess-off.json'))) { 'PASS orchestrator-mode.ps1 -NowUtc with an offset instead of Z is rejected' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -NowUtc with an offset was accepted: $offsetNow" }
 
         # -Off unmarks: the same deny input is allowed afterwards, and -Off is idempotent.
         $offOut = & pwsh -NoProfile -File $orchMode -Off -SessionId 'sess-marked' -StateRoot $orchState 2>&1
@@ -5460,6 +5463,7 @@ The fluent builder chain described in the documentation is fictional. The parame
         $env:ENCINA_ORCHESTRATOR_STATE_ROOT = $savedOrch.State
         $env:USERPROFILE = $savedOrch.Profile
         $env:HOME = $savedOrch.Home
+        $env:ENCINA_ORCHESTRATOR_NOW_UTC = $savedOrch.Now
     }
 }
 finally {
