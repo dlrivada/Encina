@@ -460,7 +460,7 @@ public sealed class ServiceCollectionExtensionsTests
             config.TenancyOptions.AutoAssignTenantId = false;
             config.TenancyOptions.ValidateTenantOnSave = false;
             config.TenancyOptions.UseQueryFilters = false;
-            config.TenancyOptions.ThrowOnMissingTenantContext = false;
+            config.TenancyOptions.RequireTenantContext = false;
         });
         using var provider = services.BuildServiceProvider();
 

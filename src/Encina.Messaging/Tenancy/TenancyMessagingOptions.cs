@@ -61,7 +61,7 @@ public sealed class TenancyMessagingOptions
     public bool UseQueryFilters { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets whether to throw exceptions when tenant context is missing.
+    /// Gets or sets whether operations that need a tenant context fail when none is resolved.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -69,9 +69,14 @@ public sealed class TenancyMessagingOptions
     /// will throw an exception if no tenant is resolved.
     /// </para>
     /// <para>
+    /// This value only feeds the Entity Framework Core tenancy option
+    /// (<c>EfCoreTenancyOptions</c>) when <c>AddEncinaEntityFrameworkCore</c> registers it;
+    /// no other messaging component reads it.
+    /// </para>
+    /// <para>
     /// Disable this for scenarios where admin/system operations run without tenant context.
     /// </para>
     /// </remarks>
     /// <value>Default: true</value>
-    public bool ThrowOnMissingTenantContext { get; set; } = true;
+    public bool RequireTenantContext { get; set; } = true;
 }
