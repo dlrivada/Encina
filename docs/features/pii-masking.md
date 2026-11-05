@@ -201,8 +201,9 @@ A Hash attribute (`[PII(..., Mode = MaskingMode.Hash)]`; `[MaskInLogs(MaskingMod
 | **Partial** | Show selected characters | `u***@example.com` |
 | **Full** | Replace all characters | `***@example.com` |
 | **Hash** | Deterministic keyed hash: HMAC-SHA256, lowercase hex (64 characters), key from `PIIOptions.HashKey` | `a1b2c3d4e5f6...` |
-| **Tokenize** | Passthrough for external systems | `user@example.com` (unchanged) |
 | **Redact** | Fixed replacement text | `[REDACTED]` |
+
+Masking is one-way. For reversible tokenization, use `ITokenizer` and `DefaultTokenizer` from the `Encina.Compliance.Anonymization` package.
 
 ### Hash mode and its key
 
