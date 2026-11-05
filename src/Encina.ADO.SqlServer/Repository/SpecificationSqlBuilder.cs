@@ -218,6 +218,10 @@ public sealed class SpecificationSqlBuilder<TEntity>
     /// <summary>
     /// Builds a complete SELECT statement with a WHERE clause from a specification.
     /// </summary>
+    /// <remarks>
+    /// A query specification (<see cref="IQuerySpecification{T}"/>) also gets its <c>ORDER BY</c>, pagination and keyset
+    /// filter, the same statement as the <see cref="QuerySpecification{T}"/> overload builds.
+    /// </remarks>
     /// <param name="tableName">The validated table name.</param>
     /// <param name="specification">The specification for filtering.</param>
     /// <returns>A tuple containing the SQL statement and an action to add parameters to a command.</returns>
@@ -226,6 +230,13 @@ public sealed class SpecificationSqlBuilder<TEntity>
         Specification<TEntity> specification)
     {
         ArgumentNullException.ThrowIfNull(specification);
+
+        // A query specification passed as a Specification, as ListAsync receives it, keeps its ordering, paging
+        // and keyset, as EF Core's SpecificationEvaluator does (#3151)
+        if (specification is IQuerySpecification<TEntity> querySpecification)
+        {
+            return BuildSelectStatementInternal(tableName, querySpecification);
+        }
 
         var validatedTableName = SqlIdentifierValidator.ValidateTableName(tableName);
         var columns = string.Join(", ", _columnMappings.Values.Select(c => $"[{c}]"));
@@ -262,43 +273,28 @@ public sealed class SpecificationSqlBuilder<TEntity>
         var columns = string.Join(", ", _columnMappings.Values.Select(c => $"[{c}]"));
 
         var (whereClause, addParameters) = BuildWhereClauseInternal(specification);
-        var orderByClause = BuildOrderByClause(specification);
         var paginationClause = BuildPaginationClause(specification);
+        var orderByClause = OrderByForPagination(BuildOrderByClause(specification), paginationClause);
 
         // For keyset pagination, ORDER BY must include OFFSET 0 before FETCH
-        var needsOffsetZero = specification.KeysetPaginationEnabled &&
-                              specification.Take.HasValue &&
-                              !string.IsNullOrEmpty(orderByClause);
+        var offsetZero = specification.KeysetPaginationEnabled && specification.Take.HasValue && orderByClause.Length > 0
+            ? "OFFSET 0 ROWS"
+            : string.Empty;
 
-        var sqlParts = new List<string>
-        {
-            $"SELECT {columns} FROM {validatedTableName}"
-        };
-
-        if (!string.IsNullOrWhiteSpace(whereClause))
-        {
-            sqlParts.Add(whereClause);
-        }
-
-        if (!string.IsNullOrWhiteSpace(orderByClause))
-        {
-            sqlParts.Add(orderByClause);
-        }
-
-        if (needsOffsetZero)
-        {
-            sqlParts.Add("OFFSET 0 ROWS");
-        }
-
-        if (!string.IsNullOrWhiteSpace(paginationClause))
-        {
-            sqlParts.Add(paginationClause);
-        }
-
-        var sql = string.Join(" ", sqlParts);
+        var sql = JoinSqlParts($"SELECT {columns} FROM {validatedTableName}", whereClause, orderByClause, offsetZero, paginationClause);
 
         return (sql, addParameters);
     }
+
+    private static string JoinSqlParts(params string[] parts)
+        => string.Join(" ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    /// <summary>
+    /// SQL Server accepts <c>OFFSET</c> and <c>FETCH</c> only after an <c>ORDER BY</c>: paging without an ordering
+    /// orders by nothing in particular, as EF Core does.
+    /// </summary>
+    private static string OrderByForPagination(string orderByClause, string paginationClause)
+        => orderByClause.Length == 0 && paginationClause.Length > 0 ? "ORDER BY (SELECT NULL)" : orderByClause;
 
     private string AppendKeysetFilter(
         string sql,
