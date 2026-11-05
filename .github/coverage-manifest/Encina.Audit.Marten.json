@@ -481,12 +481,12 @@
       "reason": "Default: assume testable with mocks",
       "targets": {
         "unit": 87,
-        "guard": 27,
+        "guard": 25,
         "integration": 82
       },
       "justifications": {
         "unit": "Unit tests run MapToReadModel for active, shredded and expired keys; the remainder is the Marten-only Create path (measured 87%).",
-        "guard": "Guard tests assert the constructor and Create argument guards only (measured 27%).",
+        "guard": "Guard tests assert the constructor and Create argument guards only; the mapping, including the MetadataJsonMasked helper added in PR 2b of #3049, runs in the unit and integration flags (measured 25.4%).",
         "integration": "The real-Marten daemon tests project events through Create (measured 82%)."
       }
     },
