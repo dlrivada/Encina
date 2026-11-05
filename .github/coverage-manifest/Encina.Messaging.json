@@ -400,10 +400,10 @@
       ],
       "defaultRule": "*Metrics.cs",
       "reason": "Meter and counters of the purge service",
-      "targets": { "unit": 95, "property": 0 },
+      "targets": { "unit": 95, "property": 70 },
       "justifications": {
         "unit": "The purge service and cycle unit tests execute every recording path of the counters; no counter value is asserted yet.",
-        "property": "Property/contract tests delivered by #3166."
+        "property": "The cycle properties record the deleted counter on every batch and a property calls both counters with arbitrary pattern, count and error code, so every line runs (measured 100%); 70 leaves room for a counter refactor."
       }
     },
     "Diagnostics/MessagingStoreMetrics.cs": {
@@ -886,14 +886,16 @@
       "defaultTests": [
         "unit",
         "property",
+        "contract",
         "integration"
       ],
       "defaultRule": "*.cs",
       "reason": "One batched purge cycle over IInboxStore",
-      "targets": { "unit": 95, "property": 0, "integration": 70 },
+      "targets": { "unit": 95, "property": 85, "contract": 85, "integration": 70 },
       "justifications": {
         "unit": "Unit tests cover the drain loop, the short-batch stop, the no-progress stop on a repeated batch (EventId 2112), each Left branch, SaveChangesAsync after every remove and cancellation.",
-        "property": "Property/contract tests delivered by #3166.",
+        "property": "FsCheck properties drain any backlog in backlog/batchSize+1 fetches with one save per non-empty batch, stop on the first batch of already-tried ids (EventId 2112) and never while a batch has a new id, and stop at the first Left of the fetch, remove or save on any batch (measured 100%).",
+        "contract": "Contract tests pin the IInboxStore contract: fetch with the batch size, remove exactly the ids read, save after every remove, stop at the first Left of each call; the no-progress guard and cancellation are covered by the property and unit flags.",
         "integration": "The same end-to-end purge drives one batch to a short batch against each real inbox store; the Left branches, the no-progress stop and cancellation are covered by unit tests only (measured 76%)."
       }
     },
