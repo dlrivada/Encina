@@ -305,6 +305,10 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
             ResponsePayload = Decrypt(@event.EncryptedResponsePayload, keyMaterial, placeholder),
             MetadataJson = Decrypt(@event.EncryptedMetadata, keyMaterial, placeholder),
 
+            // True only when MetadataJson itself holds a placeholder: the key was destroyed and there was metadata to
+            // substitute. The query store reads this flag and never infers masking from the text (D16).
+            MetadataJsonMasked = (isShredded || isExpired) && @event.EncryptedMetadata is not null,
+
             // Crypto-shredding tracking
             IsShredded = isShredded,
             IsExpired = isExpired,

@@ -120,6 +120,14 @@ public sealed class OperationAuditEntryReadModel
     /// </summary>
     public string? MetadataJson { get; set; }
 
+    /// <summary>
+    /// <c>true</c> when <see cref="MetadataJson"/> itself holds a placeholder instead of the metadata JSON (its temporal
+    /// key was destroyed). The query store parses <see cref="MetadataJson"/> only when this is <c>false</c> and never
+    /// infers masking from the text. It is persisted with the document: a row projected before this property existed
+    /// reads as <c>false</c>, so an old masked row is parsed as JSON and fails until the projection is rebuilt.
+    /// </summary>
+    public bool MetadataJsonMasked { get; set; }
+
     // ── Crypto-shredding tracking ───────────────────────────────────────
 
     /// <summary>

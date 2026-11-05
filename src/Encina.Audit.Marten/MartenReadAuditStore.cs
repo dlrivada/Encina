@@ -372,10 +372,10 @@ public sealed class MartenReadAuditStore : IReadAuditStore
     /// </summary>
     internal static ReadAuditEntry MapToReadAuditEntry(ReadAuditEntryReadModel model)
     {
-        IReadOnlyDictionary<string, object?> metadata = model.MetadataJson is not null
-                && !model.IsShredded
-                && !model.IsExpired
-                && model.MetadataJson != MartenOperationAuditOptions.DefaultShreddedPlaceholder
+        // Masking comes only from the persisted flag, never from the text (D16). A row projected before the flag
+        // existed reads as unmasked, so an old masked row reaches the parser and throws a JsonException until the
+        // projection is rebuilt (pre-1.0, no migration).
+        IReadOnlyDictionary<string, object?> metadata = model.MetadataJson is not null && !model.MetadataJsonMasked
             ? JsonSerializer.Deserialize<Dictionary<string, object?>>(model.MetadataJson, MetadataJsonOptions)
                 ?? new Dictionary<string, object?>()
             : new Dictionary<string, object?>();

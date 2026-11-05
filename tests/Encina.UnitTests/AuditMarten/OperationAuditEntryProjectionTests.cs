@@ -177,6 +177,47 @@ public sealed class OperationAuditEntryProjectionTests
         readModel.ErrorMessage.ShouldBe("denied");
     }
 
+    [Theory]
+    [InlineData(true, false, true, true)]
+    [InlineData(false, true, true, true)]
+    [InlineData(true, false, false, false)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, false, true, false)]
+    [InlineData(false, false, false, false)]
+    public void MapToReadModel_MetadataJsonMasked_IsSetOnlyWhenMetadataJsonItselfIsSubstituted(
+        bool shredded, bool expired, bool hasMetadata, bool expectedMasked)
+    {
+        var key = new byte[32];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(key);
+        var destroyed = shredded || expired;
+        var evt = new OperationAuditEntryRecordedEvent
+        {
+            Id = Guid.NewGuid(),
+            CorrelationId = "corr-m",
+            Action = "Read",
+            EntityType = "Report",
+            Outcome = (int)AuditOutcome.Success,
+            TimestampUtc = DateTime.UtcNow,
+            StartedAtUtc = DateTimeOffset.UtcNow,
+            CompletedAtUtc = DateTimeOffset.UtcNow,
+            EncryptedUserId = EncryptedField.Encrypt("u", key, "temporal:2099-12:v1"),
+            EncryptedMetadata = hasMetadata ? EncryptedField.Encrypt("{\"k\":\"v\"}", key, "temporal:2099-12:v1") : null,
+            TemporalKeyPeriod = "2099-12"
+        };
+
+        var readModel = CreateProjection().MapToReadModel(evt, destroyed ? null : key, shredded, expired);
+
+        readModel.MetadataJsonMasked.ShouldBe(expectedMasked);
+        if (expectedMasked)
+        {
+            readModel.MetadataJson.ShouldBe(expired ? MartenOperationAuditOptions.DefaultExpiredPlaceholder : "[SHREDDED]");
+        }
+        else
+        {
+            readModel.MetadataJson.ShouldBe(hasMetadata ? "{\"k\":\"v\"}" : null);
+        }
+    }
+
     [Fact]
     public void MapToReadModel_WithNullEncryptedFields_ReturnsModelWithNulls()
     {

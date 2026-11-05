@@ -237,14 +237,49 @@ public sealed class MartenOperationAuditStoreQueryTests
     }
 
     [Fact]
-    public void MapToAuditEntry_WithShreddedMetadataPlaceholder_ReturnsEmptyMetadata()
+    public void MapToAuditEntry_WithMaskedMetadata_ReturnsEmptyMetadata()
     {
         var model = Model();
         model.MetadataJson = MartenOperationAuditOptions.DefaultShreddedPlaceholder;
+        model.MetadataJsonMasked = true;
 
         var entry = MartenOperationAuditStore.MapToAuditEntry(model);
 
         entry.Metadata.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("[REDACTED-BY-OLD-OPTIONS]")]
+    [InlineData("[SHREDDED]")]
+    [InlineData("{\"key\":\"value\"}")]
+    public void MapToAuditEntry_MaskedFlagWins_TextNeverReachesTheParser(string text)
+    {
+        var model = Model();
+        model.MetadataJson = text;
+        model.MetadataJsonMasked = true;
+
+        MartenOperationAuditStore.MapToAuditEntry(model).Metadata.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void MapToAuditEntry_ShreddedRowWithRealMetadata_IsStillParsedWhenTheFlagIsFalse()
+    {
+        // Masking is never inferred from IsShredded/IsExpired or from the text: only the flag decides.
+        var model = Model();
+        model.IsShredded = true;
+        model.MetadataJson = "{\"key\":\"value\"}";
+
+        MartenOperationAuditStore.MapToAuditEntry(model).Metadata.ShouldContainKey("key");
+    }
+
+    [Fact]
+    public void MapToAuditEntry_UnflaggedPlaceholderText_ReachesTheParserAndThrows()
+    {
+        // A row projected before the flag existed reads as unmasked: it fails loudly until the projection is rebuilt.
+        var model = Model();
+        model.MetadataJson = "[SHREDDED]";
+
+        Should.Throw<System.Text.Json.JsonException>(() => MartenOperationAuditStore.MapToAuditEntry(model));
     }
 
     [Fact]

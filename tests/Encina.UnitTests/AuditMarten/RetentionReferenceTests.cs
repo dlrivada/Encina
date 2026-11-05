@@ -334,7 +334,7 @@ public sealed class RetentionReferenceTests
     [Fact]
     public void OperationStoreMapping_ExpiredMetadata_YieldsEmptyMetadata()
     {
-        var model = new OperationAuditEntryReadModel { Id = Guid.NewGuid(), MetadataJson = "[EXPIRED]", IsExpired = true };
+        var model = new OperationAuditEntryReadModel { Id = Guid.NewGuid(), MetadataJson = "[EXPIRED]", IsExpired = true, MetadataJsonMasked = true };
 
         MartenOperationAuditStore.MapToAuditEntry(model).Metadata.ShouldBeEmpty();
     }
@@ -342,7 +342,7 @@ public sealed class RetentionReferenceTests
     [Fact]
     public void ReadStoreMapping_ExpiredMetadata_YieldsEmptyMetadata()
     {
-        var model = new ReadAuditEntryReadModel { Id = Guid.NewGuid(), MetadataJson = "[EXPIRED]", IsExpired = true };
+        var model = new ReadAuditEntryReadModel { Id = Guid.NewGuid(), MetadataJson = "[EXPIRED]", IsExpired = true, MetadataJsonMasked = true };
 
         MartenReadAuditStore.MapToReadAuditEntry(model).Metadata.ShouldBeEmpty();
     }
