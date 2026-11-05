@@ -1651,7 +1651,21 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "contract": 0,
+        "property": 0,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "Every property initializer runs whenever a MessagingConfiguration is constructed, and the EF Core registration tests set and read RequireTenantContext (#3204).",
+        "guard": "Options POCO with no parameters on its public members, so there is nothing to guard.",
+        "contract": "Plain settings class with no interface or abstract contract of its own.",
+        "property": "Only auto-properties with constant defaults; there is no logic to generate inputs for.",
+        "integration": "No external system is touched; the value is copied into EfCoreTenancyOptions, which the unit registration tests prove."
+      }
     },
     "TransactionPipelineBehavior.cs": {
       "defaultTests": [
