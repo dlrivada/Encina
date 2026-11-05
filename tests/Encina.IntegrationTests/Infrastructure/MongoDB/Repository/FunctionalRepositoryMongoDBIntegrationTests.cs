@@ -61,7 +61,7 @@ public class FunctionalRepositoryMongoDBIntegrationTests : IAsyncLifetime
     {
         if (!_fixture.IsAvailable || _repository == null)
         {
-            throw new SkipException("MongoDB container is not available");
+            Assert.Skip("MongoDB container is not available");
         }
     }
 

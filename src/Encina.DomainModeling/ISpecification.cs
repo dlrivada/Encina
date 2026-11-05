@@ -169,7 +169,8 @@ public interface IQuerySpecification<T> : ISpecification<T>
     /// </summary>
     /// <remarks>
     /// Represents the last value from the previous page.
-    /// The query will return rows where the keyset property is greater than this value.
+    /// The query returns the rows whose keyset property is greater than this value, or less than it when the
+    /// keyset property is the primary ordering in descending order.
     /// </remarks>
     object? LastKeyValue { get; }
 }

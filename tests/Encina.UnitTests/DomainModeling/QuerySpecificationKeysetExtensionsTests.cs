@@ -136,10 +136,57 @@ public sealed class QuerySpecificationKeysetExtensionsTests
     }
 
     [Fact]
-    public void IsKeysetDescending_KeysetIsNotAMemberAccess_IsFalse()
+    public void IsKeysetDescending_KeysetIsNotAMemberAccess_ThrowsNotSupportedException()
+    {
+        // Arrange - no provider can compare a computed keyset with the last key
+        var spec = new PageSpec().OrderedDescending(o => o.Total).KeysetOn(o => o.Total * 2);
+
+        // Act & Assert
+        Should.Throw<NotSupportedException>(() => spec.IsKeysetDescending)
+            .Message.ShouldContain("needs a property access as the keyset");
+    }
+
+    [Fact]
+    public void IsKeysetDescending_KeysetIsNotAMemberAccessWithoutOrdering_ThrowsNotSupportedException()
     {
         // Arrange
-        var spec = new PageSpec().OrderedDescending(o => o.Total).KeysetOn(o => o.Total * 2);
+        var spec = new PageSpec().KeysetOn(o => o.Total * 2);
+
+        // Act & Assert
+        Should.Throw<NotSupportedException>(() => spec.IsKeysetDescending);
+    }
+
+    [Fact]
+    public void IsKeysetDescending_TruncatingConversionInTheOrdering_ThrowsNotSupportedException()
+    {
+        // Arrange - ordering by (int)Total is not ordering by Total: equal truncated values come back in any order
+        var spec = new PageSpec().OrderedDescending(o => (int)o.Total).KeysetOn(o => o.Total);
+
+        // Act & Assert
+        Should.Throw<NotSupportedException>(() => spec.IsKeysetDescending);
+    }
+
+    [Fact]
+    public void IsKeysetDescending_NullableConversionInTheOrdering_MatchesTheMember()
+    {
+        // Arrange - a conversion to Nullable<T> of the same type keeps the order
+        var spec = new PageSpec().OrderedDescending(o => (decimal?)o.Total).KeysetOn(o => o.Total);
+
+        // Act & Assert
+        spec.IsKeysetDescending.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsKeysetDescending_BothPrimaryOrderingsSet_FollowsOrderByLikeTheProviders()
+    {
+        // Arrange - QuerySpecification keeps one primary ordering, but an implementation of the interface can set
+        // both; every provider then orders by OrderBy, so the keyset must page ascending
+        var spec = Substitute.For<IQuerySpecification<Order>>();
+        spec.OrderBy.Returns(o => o.Total);
+        spec.OrderByDescending.Returns(o => o.Name);
+        spec.ThenByExpressions.Returns([]);
+        spec.ThenByDescendingExpressions.Returns([]);
+        spec.KeysetProperty.Returns(o => o.Total);
 
         // Act & Assert
         spec.IsKeysetDescending.ShouldBeFalse();

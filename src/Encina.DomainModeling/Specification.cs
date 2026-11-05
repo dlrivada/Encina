@@ -312,7 +312,8 @@ public abstract class QuerySpecification<T> : Specification<T>, IQuerySpecificat
     /// </summary>
     /// <remarks>
     /// Represents the last value from the previous page.
-    /// The query will return rows where the keyset property is greater than this value.
+    /// The query returns the rows whose keyset property is greater than this value, or less than it when the
+    /// keyset property is the primary ordering in descending order.
     /// </remarks>
     public object? LastKeyValue { get; private set; }
 
@@ -451,7 +452,8 @@ public abstract class QuerySpecification<T> : Specification<T>, IQuerySpecificat
     /// The keyset property should be:
     /// <list type="bullet">
     ///   <item><description>Indexed for performance</description></item>
-    ///   <item><description>Unique to avoid skipping/duplicating rows</description></item>
+    ///   <item><description>Unique to avoid skipping/duplicating rows, and non-null: a <c>NULL</c> key never
+    ///   satisfies the keyset comparison, so its rows would never be returned</description></item>
     ///   <item><description>The primary ordering, set with <see cref="ApplyOrderBy"/> or <see cref="ApplyOrderByDescending"/>:
     ///   the query filters by <c>KeysetProperty &gt; LastKeyValue</c>, or by <c>KeysetProperty &lt; LastKeyValue</c>
     ///   when it is ordered descending (see <c>IsKeysetDescending</c> in <see cref="QuerySpecificationKeysetExtensions"/>)</description></item>

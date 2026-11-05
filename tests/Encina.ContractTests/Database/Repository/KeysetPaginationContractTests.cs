@@ -142,6 +142,16 @@ public sealed partial class KeysetPaginationContractTests
         Should.Throw<NotSupportedException>(() => Providers[provider](spec));
     }
 
+    [Theory]
+    [MemberData(nameof(ProviderNames))]
+    public void Contract_AllProviders_ComputedKeyset_IsRejected(string provider)
+    {
+        // Contract: no provider can compare a computed keyset with the last key, so every provider rejects it
+        var spec = new KeysetContractSpec().OrderedDescending(o => o.Total).KeysetOnDoubleTotal(lastTotal: 300m);
+
+        Should.Throw<NotSupportedException>(() => Providers[provider](spec));
+    }
+
     /// <summary>
     /// The comparison a provider applies to the keyset: <c>&lt;</c>, <c>&gt;</c>, or <see langword="null"/> without a keyset filter.
     /// </summary>
@@ -192,6 +202,12 @@ public sealed partial class KeysetPaginationContractTests
         public KeysetContractSpec KeysetOnTotal(decimal? lastTotal)
         {
             ApplyKeysetPagination(o => o.Total, lastTotal, 10);
+            return this;
+        }
+
+        public KeysetContractSpec KeysetOnDoubleTotal(decimal? lastTotal)
+        {
+            ApplyKeysetPagination(o => o.Total * 2, lastTotal, 10);
             return this;
         }
     }

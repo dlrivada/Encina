@@ -21,10 +21,13 @@ public static class QuerySpecificationKeysetExtensions
         /// <para>
         /// A single-column keyset filter is correct only when the keyset property is the primary ordering
         /// (<see cref="IQuerySpecification{T}.OrderBy"/> or <see cref="IQuerySpecification{T}.OrderByDescending"/>),
-        /// matched by member path. With any other ordering first, or the keyset property only in a
-        /// <c>ThenBy</c> or <c>ThenByDescending</c>, the next page would skip or repeat rows, so this throws
-        /// <see cref="NotSupportedException"/> instead of picking a direction. A specification with no
-        /// ordering at all pages in ascending order.
+        /// matched by member path; only boxing and nullable conversions are ignored, since another conversion
+        /// (such as a cast to <see langword="int"/>) changes the order. With any other ordering first, or the
+        /// keyset property only in a <c>ThenBy</c> or <c>ThenByDescending</c>, the next page would skip or repeat
+        /// rows, so this throws <see cref="NotSupportedException"/> instead of picking a direction. It also throws
+        /// for a computed keyset, which no provider can compare with the last key. A specification with no
+        /// ordering at all pages in ascending order. When an implementation sets both primary orderings,
+        /// <see cref="IQuerySpecification{T}.OrderBy"/> wins, as in every provider's <c>ORDER BY</c>.
         /// </para>
         /// </remarks>
         /// <example>
@@ -35,7 +38,8 @@ public static class QuerySpecificationKeysetExtensions
         /// </example>
         /// <exception cref="ArgumentNullException">Thrown when the specification is <see langword="null"/>.</exception>
         /// <exception cref="NotSupportedException">
-        /// Thrown when the specification is ordered and the keyset property is not its primary ordering.
+        /// Thrown when the keyset is not a property access, or the specification is ordered and the keyset
+        /// property is not its primary ordering.
         /// </exception>
         public bool IsKeysetDescending
         {
@@ -43,21 +47,38 @@ public static class QuerySpecificationKeysetExtensions
             {
                 ArgumentNullException.ThrowIfNull(specification);
 
-                var keyset = MemberPath(specification.KeysetProperty);
-                if (keyset is null || !IsOrdered(specification))
+                if (specification.KeysetProperty is null)
                 {
                     return false;
                 }
 
-                if (MemberPath(specification.OrderBy ?? specification.OrderByDescending) != keyset)
+                var keyset = KeysetPath(specification, specification.KeysetProperty);
+                if (!IsOrdered(specification))
                 {
-                    throw new NotSupportedException(
-                        $"Keyset pagination on {keyset} needs {keyset} as the primary ordering (ApplyOrderBy or ApplyOrderByDescending) " +
-                        $"of {specification.GetType().Name}; ordered any other way, the next page would skip or repeat rows.");
+                    return false;
                 }
 
-                return specification.OrderByDescending is not null;
+                EnsureKeysetIsThePrimaryOrdering(specification, keyset);
+
+                // OrderBy wins when an implementation sets both, as in every provider's ORDER BY
+                return specification.OrderBy is null;
             }
+        }
+    }
+
+    private static string KeysetPath<T>(IQuerySpecification<T> specification, Expression keysetProperty)
+        => MemberPath(keysetProperty)
+            ?? throw new NotSupportedException(
+                $"Keyset pagination needs a property access as the keyset of {specification.GetType().Name}, such as o => o.Id; " +
+                "a computed keyset cannot be compared with the last key.");
+
+    private static void EnsureKeysetIsThePrimaryOrdering<T>(IQuerySpecification<T> specification, string keyset)
+    {
+        if (MemberPath(specification.OrderBy ?? specification.OrderByDescending) != keyset)
+        {
+            throw new NotSupportedException(
+                $"Keyset pagination on {keyset} needs {keyset} as the primary ordering (ApplyOrderBy or ApplyOrderByDescending) " +
+                $"of {specification.GetType().Name}; ordered any other way, the next page would skip or repeat rows.");
         }
     }
 
@@ -71,7 +92,8 @@ public static class QuerySpecificationKeysetExtensions
     private static string? MemberPath(Expression? expression) => expression switch
     {
         LambdaExpression lambda => MemberPath(lambda.Body),
-        UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked } convert => MemberPath(convert.Operand),
+        UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked } convert
+            when convert.Type == typeof(object) || Nullable.GetUnderlyingType(convert.Type) == convert.Operand.Type => MemberPath(convert.Operand),
         MemberExpression { Expression: ParameterExpression } member => member.Member.Name,
         MemberExpression { Expression: { } inner } member when MemberPath(inner) is { } parent => $"{parent}.{member.Member.Name}",
         _ => null,

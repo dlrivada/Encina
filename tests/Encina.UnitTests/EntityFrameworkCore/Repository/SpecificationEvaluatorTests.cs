@@ -357,6 +357,27 @@ public class SpecificationEvaluatorTests : IDisposable
         results.Select(e => e.Amount).ShouldBe([200m, 100m]);
     }
 
+    [Fact]
+    public void GetQuery_WithKeysetContinuationAndMoreRowsThanTake_ReturnsOnlyTakeRows()
+    {
+        // Arrange - three keys below the cursor and a page of two: the keyset filter must not replace Take
+        _dbContext.TestEntities.AddRange(
+            CreateTestEntity("100", amount: 100),
+            CreateTestEntity("200", amount: 200),
+            CreateTestEntity("300", amount: 300),
+            CreateTestEntity("400", amount: 400)
+        );
+        _dbContext.SaveChanges();
+
+        var spec = new DescendingAmountKeysetSpec(lastAmount: 400, take: 2);
+
+        // Act
+        var results = SpecificationEvaluator.GetQuery(_dbContext.TestEntities.AsQueryable(), spec).ToList();
+
+        // Assert
+        results.Select(e => e.Amount).ShouldBe([300m, 200m]);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData(300)]

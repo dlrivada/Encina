@@ -533,15 +533,15 @@
       "reason": "Keyset pagination rule shared by every repository provider; pure logic over the specification, so unit and property tests can reach every branch",
       "targets": {
         "unit": 90,
-        "guard": 4,
+        "guard": 3,
         "property": 84,
         "contract": 88
       },
       "justifications": {
-        "unit": "Unit tests cover every branch: no keyset, no ordering, ascending and descending primary orderings with and without secondary orderings, a keyset in ThenBy, ThenByDescending, both or outside the ordering (rejected), other lambdas for the same member, nested paths and a non-member keyset (measured 100% with dotnet-coverage, because coverlet does not instrument Encina.DomainModeling locally).",
-        "guard": "Guard tests cover the null-specification check of IsKeysetDescending, one line of the file (measured 4.76% with dotnet-coverage).",
-        "property": "The property tests run IsKeysetDescending with the keyset as primary ordering in both directions and with another primary ordering, which must be rejected; the unordered default is covered by unit tests (measured 85.71% with dotnet-coverage).",
-        "contract": "The keyset pagination contract tests run all eight repository providers through IsKeysetDescending (measured 90.48% with coverlet); on CI this is the only flag that instruments Encina.DomainModeling (#898)."
+        "unit": "Unit tests cover every branch: no keyset, no ordering, ascending and descending primary orderings with and without secondary orderings, both primary orderings set, a keyset in ThenBy, ThenByDescending, both or outside the ordering, a computed keyset and a truncating conversion (all rejected), boxing and nullable conversions, other lambdas for the same member, nested paths (measured 100% with dotnet-coverage, because coverlet does not instrument Encina.DomainModeling locally).",
+        "guard": "Guard tests cover the null-specification check of IsKeysetDescending, one line of the file (measured 3.33% with dotnet-coverage).",
+        "property": "The property tests run IsKeysetDescending with the keyset as primary ordering in both directions and with another primary ordering, which must be rejected; the unordered default and the computed keyset are covered by unit tests (measured 86.67% with dotnet-coverage).",
+        "contract": "The keyset pagination contract tests run all eight repository providers through IsKeysetDescending, including the rejections (measured 93.33% with coverlet); on CI this is the only flag that instruments Encina.DomainModeling (#898)."
       }
     },
     "Repository.cs": {
