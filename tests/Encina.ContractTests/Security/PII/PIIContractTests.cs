@@ -117,15 +117,15 @@ public sealed class PIIContractTests
     #region MaskingMode Enum Contract
 
     [Fact]
-    public void MaskingMode_ShouldDefine_FiveValues()
+    public void MaskingMode_ShouldDefine_FourValues()
     {
         // Act
         var values = Enum.GetValues<MaskingMode>();
 
         // Assert
-        values.Length.ShouldBe(5,
-            "MaskingMode must define exactly 5 values: " +
-            "Partial, Full, Hash, Tokenize, Redact");
+        values.Length.ShouldBe(4,
+            "MaskingMode must define exactly 4 values: " +
+            "Partial, Full, Hash, Redact");
     }
 
     #endregion

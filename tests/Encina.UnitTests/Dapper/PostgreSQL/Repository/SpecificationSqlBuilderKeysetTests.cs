@@ -102,6 +102,36 @@ public class SpecificationSqlBuilderKeysetTests
         sql.ShouldContain("\"Total\" < @p");
         sql.ShouldContain("ORDER BY \"Total\" DESC");
     }
+
+    [Fact]
+    public void BuildSelectStatement_QuerySpecificationPassedAsSpecification_KeepsOrderingAndPaging()
+    {
+        // Arrange - ListAsync receives a query specification typed as Specification (#3151)
+        var builder = new SpecificationSqlBuilder<KeysetOrder>(_columnMappings);
+        Specification<KeysetOrder> spec = new TotalPageSpec(skip: 1, take: 2, ordered: true);
+
+        // Act
+        var (sql, _) = builder.BuildSelectStatement("Orders", spec);
+
+        // Assert
+        sql.ShouldContain("ORDER BY \"Total\" DESC");
+        sql.ShouldContain("LIMIT 2 OFFSET 1");
+    }
+
+    [Fact]
+    public void BuildSelectStatement_KeysetSpecificationPassedAsSpecification_KeepsTheKeysetAndOrdering()
+    {
+        // Arrange - ListAsync receives a query specification typed as Specification (#3151)
+        var builder = new SpecificationSqlBuilder<KeysetOrder>(_columnMappings);
+        Specification<KeysetOrder> spec = new TotalKeysetPageSpec(descending: true, lastTotal: 50m);
+
+        // Act
+        var (sql, _) = builder.BuildSelectStatement("Orders", spec);
+
+        // Assert
+        sql.ShouldContain("\"Total\" < @p");
+        sql.ShouldContain("ORDER BY \"Total\" DESC");
+    }
 }
 
 /// <summary>
@@ -153,4 +183,20 @@ public class TotalKeysetThenBySpec : QuerySpecification<KeysetOrder>
 public class TotalOrderedWithoutKeysetSpec : QuerySpecification<KeysetOrder>
 {
     public TotalOrderedWithoutKeysetSpec() => ApplyOrderByDescending(o => o.Total);
+}
+
+/// <summary>
+/// One page of orders, sorted by total in descending order, or not sorted at all.
+/// </summary>
+public class TotalPageSpec : QuerySpecification<KeysetOrder>
+{
+    public TotalPageSpec(int skip, int take, bool ordered)
+    {
+        if (ordered)
+        {
+            ApplyOrderByDescending(o => o.Total);
+        }
+
+        ApplyPaging(skip, take);
+    }
 }

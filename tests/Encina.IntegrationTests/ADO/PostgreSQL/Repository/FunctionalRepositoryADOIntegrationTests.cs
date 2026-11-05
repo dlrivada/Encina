@@ -375,36 +375,34 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
     private static readonly decimal[] KeysetValues = [100m, 200m, 300m, 400m];
 
     [Fact]
-    public async Task QuerySpecificationSql_KeysetSortedDescending_ReturnsTheKeysBelowTheLastOne()
+    public async Task ListAsync_KeysetSortedDescending_ReturnsTheKeysBelowTheLastOne()
     {
-        // Arrange - the next page of a descending keyset holds the smaller keys (#3154). ListAsync does not
-        // apply a QuerySpecification's keyset yet (#3151), so this runs the builder's SELECT directly.
+        // Arrange - the next page of a descending keyset holds the smaller keys (#3154); ListAsync applies the
+        // query specification's keyset and ordering (#3151)
         await ClearDataAsync();
         await _repository.AddRangeAsync(KeysetValues.Select(v => CreateTestItem($"Item {v}", value: v)).ToArray());
-        var builder = new SpecificationSqlBuilder<TestItem>(_mapping.ColumnMappings);
-        var (sql, addParameters) = builder.BuildSelectStatement(_mapping.TableName, new DescendingValueKeysetSpec(lastValue: 300m));
 
         // Act
-        var values = new List<decimal>();
-        if (_connection.State != ConnectionState.Open)
-        {
-            await ((DbConnection)_connection).OpenAsync();
-        }
-
-        await using (var command = (DbCommand)_connection.CreateCommand())
-        {
-            command.CommandText = sql;
-            addParameters(command);
-            await using var reader = await command.ExecuteReaderAsync();
-            var valueOrdinal = reader.GetOrdinal(_mapping.ColumnMappings[nameof(TestItem.Value)]);
-            while (await reader.ReadAsync())
-            {
-                values.Add(reader.GetDecimal(valueOrdinal));
-            }
-        }
+        var result = await _repository.ListAsync(new DescendingValueKeysetSpec(lastValue: 300m));
 
         // Assert
-        values.ShouldBe([200m, 100m]);
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Value).ShouldBe([200m, 100m]));
+    }
+
+    [Fact]
+    public async Task ListAsync_QuerySpecificationOrderedAndPaged_ReturnsThatPageInOrder()
+    {
+        // Arrange - ListAsync used to ignore the ordering and paging and return every row in engine order (#3151)
+        await ClearDataAsync();
+        await _repository.AddRangeAsync(KeysetValues.Select(v => CreateTestItem($"Item {v}", value: v)).ToArray());
+
+        // Act
+        var result = await _repository.ListAsync(new ValuePageSpec(skip: 1, take: 2));
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Value).ShouldBe([300m, 200m]));
     }
 
     #endregion
@@ -475,6 +473,18 @@ public class DescendingValueKeysetSpec : QuerySpecification<TestItem>
     {
         ApplyOrderByDescending(i => i.Value);
         ApplyKeysetPagination(i => i.Value, lastValue, 10);
+    }
+}
+
+/// <summary>
+/// One page of TestItem rows by value, sorted in descending order.
+/// </summary>
+public class ValuePageSpec : QuerySpecification<TestItem>
+{
+    public ValuePageSpec(int skip, int take)
+    {
+        ApplyOrderByDescending(i => i.Value);
+        ApplyPaging(skip, take);
     }
 }
 
