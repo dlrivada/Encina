@@ -490,7 +490,17 @@
         "integration"
       ],
       "defaultRule": "*RepositoryMongoDB.cs",
-      "reason": "MongoDB repository — needs real MongoDB"
+      "reason": "MongoDB repository — needs real MongoDB",
+      "targets": {
+        "unit": 60,
+        "guard": 8,
+        "integration": 37
+      },
+      "justifications": {
+        "unit": "Unit tests run the repository against a mocked collection: argument checks, error mapping and the specification paths (measured 62.93%); the rest needs a real server.",
+        "guard": "Guard tests cover the null-argument checks of the public methods (measured 8.50%).",
+        "integration": "The MongoDB repository integration tests run every operation on a real MongoDB, including ListAsync with an ordered, paged and keyset query specification (measured 39.80%); the rest is error mapping for server failures the tests do not provoke."
+      }
     },
     "Repository/MongoDbRepositoryOptions.cs": {
       "defaultTests": [

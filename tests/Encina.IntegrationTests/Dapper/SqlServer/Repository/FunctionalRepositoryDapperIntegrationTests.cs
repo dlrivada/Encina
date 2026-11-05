@@ -603,20 +603,34 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
     private static readonly decimal[] KeysetValues = [100m, 200m, 300m, 400m];
 
     [Fact]
-    public async Task QuerySpecificationSql_KeysetSortedDescending_ReturnsTheKeysBelowTheLastOne()
+    public async Task ListAsync_KeysetSortedDescending_ReturnsTheKeysBelowTheLastOne()
     {
-        // Arrange - the next page of a descending keyset holds the smaller keys (#3154). ListAsync does not
-        // apply a QuerySpecification's keyset yet (#3151), so this runs the builder's SELECT directly.
+        // Arrange - the next page of a descending keyset holds the smaller keys (#3154); ListAsync applies the
+        // query specification's keyset and ordering (#3151)
         await ClearDataAsync();
-        await _repository.AddRangeAsync(KeysetValues.Select(p => CreateTestProduct($"Product {p}", price: p)).ToArray());
-        var builder = new SpecificationSqlBuilder<TestProduct>(_mapping.ColumnMappings);
-        var (sql, parameters) = builder.BuildSelectStatement(_mapping.TableName, new DescendingPriceKeysetSpec(lastPrice: 300m));
+        await _repository.AddRangeAsync(KeysetValues.Select(v => CreateTestProduct($"Product {v}", price: v)).ToArray());
 
         // Act
-        var products = await _connection.QueryAsync<TestProduct>(sql, parameters);
+        var result = await _repository.ListAsync(new DescendingPriceKeysetSpec(lastPrice: 300m));
 
         // Assert
-        products.Select(p => p.Price).ShouldBe([200m, 100m]);
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Price).ShouldBe([200m, 100m]));
+    }
+
+    [Fact]
+    public async Task ListAsync_QuerySpecificationOrderedAndPaged_ReturnsThatPageInOrder()
+    {
+        // Arrange - ListAsync used to ignore the ordering and paging and return every row in engine order (#3151)
+        await ClearDataAsync();
+        await _repository.AddRangeAsync(KeysetValues.Select(v => CreateTestProduct($"Product {v}", price: v)).ToArray());
+
+        // Act
+        var result = await _repository.ListAsync(new PricePageSpec(skip: 1, take: 2));
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Price).ShouldBe([300m, 200m]));
     }
 
     #endregion
@@ -687,6 +701,18 @@ public class DescendingPriceKeysetSpec : QuerySpecification<TestProduct>
     {
         ApplyOrderByDescending(p => p.Price);
         ApplyKeysetPagination(p => p.Price, lastPrice, 10);
+    }
+}
+
+/// <summary>
+/// One page of TestProduct rows by price, sorted in descending order.
+/// </summary>
+public class PricePageSpec : QuerySpecification<TestProduct>
+{
+    public PricePageSpec(int skip, int take)
+    {
+        ApplyOrderByDescending(p => p.Price);
+        ApplyPaging(skip, take);
     }
 }
 
