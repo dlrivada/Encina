@@ -402,13 +402,13 @@ flowchart TB
 **Outbox Pattern:**
 
 - `IOutboxMessage`, `IOutboxStore`, `IOutboxMessageFactory`
-- `OutboxOrchestrator`, `OutboxPostProcessor` (interim: no provider uses it any more; deleted in the removal slice of #718)
+- `OutboxOrchestrator`
 - Configuración: `OutboxOptions` (ProcessingInterval, BatchSize, MaxRetries, BaseRetryDelay)
 - Transactional outbox on the 3 ADO.NET, 3 Dapper, EF Core and MongoDB providers (#718 first, third and MongoDB slices, #719 second slice; ADR-037), enabled with `UseOutbox`:
-  - `Encina.Messaging/Outbox/`: `TransactionalOutboxPipelineBehavior`, `OutboxWriter` (internal), `OutboxWritePath` (internal interim switch), `IHasNotifications` (moved out of `OutboxPostProcessor.cs`)
+  - `Encina.Messaging/Outbox/`: `TransactionalOutboxPipelineBehavior`, `OutboxWriter` (internal), `IHasNotifications`
   - `Encina.Messaging/Transactions/`: `ITransactionLeaseSource`, `ITransactionLease`, `IDbTransactionAccessor`, `IDbTransactionLease`, `DbTransactionAccessor`, `TransactionLeaseState` (internal), `TransactionErrors`, `TransactionLeaseExtensions`, `DbSystemName`; `DbLease` moved here from `Encina.Messaging/`, and `IDbTransactionAccessor` moved here from `Encina.Messaging/` (it is now the scoped owner of the transaction)
   - `Encina.Messaging/Diagnostics/TransactionActivitySource.cs` (activity source `Encina.Messaging.Transactions`), counters `encina.outbox.enqueued` and `encina.transaction.rollback_only` in `OutboxProcessorMetrics`, EventIds 2963-2970 in `MessagingLog`
-  - Changed: `Encina.Messaging/TransactionPipelineBehavior.cs` (takes a lease on `IDbTransactionAccessor`), `MessagingServiceCollectionExtensions.cs` (write-path switch, accessor registration), `UnitOfWorkADO`, `OutboxStoreADO`, `InboxStoreADO`, `SagaStoreADO`, `ScheduledMessageStoreADO`, `ServiceCollectionExtensions` and `TenancyServiceCollectionExtensions` in `Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL`; the three Dapper `InboxStoreDapper` read the accessor from its new namespace
+  - Changed: `Encina.Messaging/TransactionPipelineBehavior.cs` (takes a lease on `IDbTransactionAccessor`), `MessagingServiceCollectionExtensions.cs` (accessor registration), `UnitOfWorkADO`, `OutboxStoreADO`, `InboxStoreADO`, `SagaStoreADO`, `ScheduledMessageStoreADO`, `ServiceCollectionExtensions` and `TenancyServiceCollectionExtensions` in `Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL`; the three Dapper `InboxStoreDapper` read the accessor from its new namespace
   - Changed (#719): `UnitOfWorkDapper`, `OutboxStoreDapper`, `InboxStoreDapper`, `SagaStoreDapper`, `ScheduledMessageStoreDapper` and `ServiceCollectionExtensions` in `Encina.Dapper.SqlServer`, `Encina.Dapper.PostgreSQL`, `Encina.Dapper.MySQL`
   - Added (#718, EF Core slice): `src/Encina.EntityFrameworkCore/Transactions/DbContextTransactionAccessor.cs` (shared by EF `TransactionPipelineBehavior`, `UnitOfWorkEF` and the outbox behavior); tests under `tests/Encina.IntegrationTests/Infrastructure/EntityFrameworkCore/Outbox/`, `tests/Encina.ContractTests/Messaging/Transactions/DbContextTransactionLeaseSourceContractTests.cs`, `tests/Encina.PropertyTests/Messaging/Transactions/DbContextTransactionAtomicityPropertyTests.cs`; load and benchmark justifications `tests/Encina.LoadTests/Messaging/OutboxAtomicityEF.md` and `tests/Encina.BenchmarkTests/OutboxAtomicityEF.md`
   - Added (#718, MongoDB slice): `src/Encina.MongoDB/Transactions/IMongoSessionAccessor.cs` and `MongoSessionAccessor.cs` (`ITransactionLeaseSource` with `DbSystem` `mongodb`; shared by `UnitOfWorkMongoDB`, the outbox behavior and the four messaging stores); changed `InboxStoreMongoDB`, `OutboxStoreMongoDB`, `SagaStoreMongoDB`, `ScheduledMessageStoreMongoDB`, `UnitOfWorkMongoDB`, `MongoDbHealthCheck` and `ServiceCollectionExtensions`; test `tests/Encina.IntegrationTests/Infrastructure/MongoDB/Outbox/OutboxAtomicityMongoDBTests.cs`
@@ -5709,7 +5709,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - ✅ `[MaskInLogs]` atributo para masking solo en contexto de logging
 - ✅ `PIIMaskingPipelineBehavior` para masking automático en respuestas (post-handler)
 - ✅ 9 masking strategies built-in: Email, Phone, CreditCard, SSN, Name, Address, DateOfBirth, IPAddress, Custom
-- ✅ 5 masking modes: Partial, Full, Hash, Tokenize, Redact
+- ✅ 4 masking modes: Partial, Full, Hash, Redact (reversible tokenization is provided by `Encina.Compliance.Anonymization`: `ITokenizer`, `DefaultTokenizer`)
 - ✅ Integración con `Encina.Security.Audit` via `IPiiMasker`
 - ✅ `PIILoggerExtensions` con 4 métodos level-aware para masking en logs
 - ✅ Sensitive field pattern detection (password, secret, token, key, etc.)

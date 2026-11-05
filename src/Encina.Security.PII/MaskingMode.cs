@@ -10,7 +10,6 @@ namespace Encina.Security.PII;
 /// <item><see cref="Partial"/> preserves some characters for identification</item>
 /// <item><see cref="Full"/> replaces the entire value with a mask character</item>
 /// <item><see cref="Hash"/> produces a deterministic hash for correlation without revealing the value</item>
-/// <item><see cref="Tokenize"/> replaces the value with a reversible token</item>
 /// <item><see cref="Redact"/> removes the value entirely</item>
 /// </list>
 /// </para>
@@ -53,21 +52,6 @@ public enum MaskingMode
     /// </para>
     /// </remarks>
     Hash,
-
-    /// <summary>
-    /// Replaces the value with a reversible token.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Tokenization substitutes the original value with a non-sensitive placeholder
-    /// while maintaining a secure mapping for authorized de-tokenization.
-    /// </para>
-    /// <para>
-    /// This mode requires an <c>ITokenVault</c> implementation to store and retrieve
-    /// the original-to-token mappings securely.
-    /// </para>
-    /// </remarks>
-    Tokenize,
 
     /// <summary>
     /// Removes the value entirely, replacing it with <c>[REDACTED]</c>.
