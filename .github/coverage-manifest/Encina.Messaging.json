@@ -885,14 +885,16 @@
     "Purge/MessagePurgeCycle.cs": {
       "defaultTests": [
         "unit",
-        "property"
+        "property",
+        "integration"
       ],
       "defaultRule": "*.cs",
       "reason": "One batched purge cycle over IInboxStore",
-      "targets": { "unit": 95, "property": 0 },
+      "targets": { "unit": 95, "property": 0, "integration": 70 },
       "justifications": {
         "unit": "Unit tests cover the drain loop, the short-batch stop, the no-progress stop on a repeated batch (EventId 2112), each Left branch, SaveChangesAsync after every remove and cancellation.",
-        "property": "Property/contract tests delivered by #3166."
+        "property": "Property/contract tests delivered by #3166.",
+        "integration": "The same end-to-end purge drives one batch to a short batch against each real inbox store; the Left branches, the no-progress stop and cancellation are covered by unit tests only (measured 76%)."
       }
     },
     "Purge/MessagePurgeSchedule.cs": {
@@ -913,10 +915,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Hosted service that purges expired inbox messages at start and every interval",
-      "targets": { "unit": 85, "integration": 0 },
+      "targets": { "unit": 85, "integration": 75 },
       "justifications": {
         "unit": "Unit tests drive the start-up delay, the per-interval cycle, the failure and exception paths and shutdown with a fake TimeProvider.",
-        "integration": "The end-to-end purge against the 10 database providers is delivered by #3046, so this file has no integration test yet."
+        "integration": "The hosted service runs end to end against the 10 database providers (nine run, EF Core MySQL is skipped until #2086): one start-up delay, one purge cycle through the scoped inbox store and shutdown are covered; the nothing-to-purge, store Left, exception and cancellation-during-cycle paths are covered by unit tests only (measured 77%)."
       }
     },
     "ReadWriteSeparation/DatabaseIntent.cs": {
