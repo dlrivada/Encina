@@ -30,13 +30,13 @@ namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.PostgreSQL.
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
 [Collection("EFCore-PostgreSQL")]
-public sealed class OutboxPostProcessorEncryptionEFPostgreSqlTests : IAsyncLifetime
+public sealed class TransactionalOutboxEncryptionEFPostgreSqlTests : IAsyncLifetime
 {
     private const string Diagnosis = "F41.1 generalized anxiety disorder";
 
     private readonly EFCorePostgreSqlFixture _fixture;
 
-    public OutboxPostProcessorEncryptionEFPostgreSqlTests(EFCorePostgreSqlFixture fixture)
+    public TransactionalOutboxEncryptionEFPostgreSqlTests(EFCorePostgreSqlFixture fixture)
     {
         _fixture = fixture;
     }
@@ -74,7 +74,7 @@ public sealed class OutboxPostProcessorEncryptionEFPostgreSqlTests : IAsyncLifet
 
         await using var provider = services.BuildServiceProvider();
 
-        // Act 1: send the request; the post-processor stores its notification in the outbox
+        // Act 1: send the request; the transactional outbox behavior stores its notification in the outbox
         await using (var scope = provider.CreateAsyncScope())
         {
             var encina = scope.ServiceProvider.GetRequiredService<IEncina>();
