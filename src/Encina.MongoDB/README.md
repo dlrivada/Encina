@@ -280,8 +280,12 @@ config.OutboxOptions.MaxRetries = 3;
 ```csharp
 config.UseInbox = true;
 config.InboxOptions.MessageRetentionPeriod = TimeSpan.FromDays(7);
-config.InboxOptions.EnableAutomaticPurge = true;
+config.InboxOptions.EnableAutomaticPurge = true; // the default
+config.InboxOptions.PurgeInterval = TimeSpan.FromHours(24); // the default
+config.InboxOptions.PurgeBatchSize = 100; // the default
 ```
+
+Only processed, expired documents are purged. Defaults and valid ranges: [Automatic purge of processed messages](../Encina.Messaging/README.md#automatic-purge-of-processed-messages).
 
 ### Scheduled Messages
 
@@ -306,29 +310,44 @@ The collection name is `Collections.DeadLetterMessages` (default `dead_letter_me
 
 | Collection | Purpose |
 |------------|---------|
-| `OutboxMessages` | Pending notifications for reliable delivery |
-| `InboxMessages` | Processed messages for idempotency |
-| `SagaStates` | Saga orchestration state |
-| `ScheduledMessages` | Delayed/recurring commands |
+| `outbox_messages` | Pending notifications for reliable delivery |
+| `inbox_messages` | Processed messages for idempotency |
+| `saga_states` | Saga orchestration state |
+| `scheduled_messages` | Delayed/recurring commands |
 | `dead_letter_messages` | Messages that failed for good, with replay state (when `UseDeadLetterQueue` is on) |
+
+The names are the defaults of `MongoDbCollectionNames` (`config.Collections.Inbox` and its siblings change them).
 
 ### Indexes
 
 Encina automatically creates optimized indexes:
 
 ```javascript
-// OutboxMessages
+// outbox_messages
 { "ProcessedAtUtc": 1, "RetryCount": 1, "NextRetryAtUtc": 1 }
 
-// InboxMessages
+// inbox_messages: IX_Inbox_Expires (ordinary index, not a TTL index) and IX_Inbox_RequestType
 { "ExpiresAtUtc": 1 }
+{ "RequestType": 1 }
 
-// ScheduledMessages
+// scheduled_messages
 { "ScheduledAtUtc": 1, "ProcessedAtUtc": 1 }
 
-// SagaStates
+// saga_states
 { "Status": 1, "LastUpdatedAtUtc": 1 }
 ```
+
+#### Inbox indexes and purge
+
+The library creates an ordinary index `IX_Inbox_Expires` on `ExpiresAtUtc` and **no TTL index**. Expired processed documents are deleted by the purge service (`MessagePurgeService`, controlled by `InboxOptions.EnableAutomaticPurge`, `PurgeInterval` and `PurgeBatchSize`); an unprocessed document is never deleted. The earlier index `IX_Inbox_Expires_TTL` deleted unprocessed documents too and ignored `EnableAutomaticPurge = false`.
+
+Pre-1.0 there is no migration code. A database created by an earlier build still has the old TTL index and must drop it by hand, once, in `mongosh`:
+
+```javascript
+db.inbox_messages.dropIndex("IX_Inbox_Expires_TTL")
+```
+
+Use your own collection name if you changed `config.Collections.Inbox`. The purge options are documented in [Automatic purge of processed messages](../Encina.Messaging/README.md#automatic-purge-of-processed-messages).
 
 ## Configuration Reference
 
@@ -353,6 +372,8 @@ builder.Services.AddEncinaMongoDB(config =>
     // Inbox options
     config.InboxOptions.MessageRetentionPeriod = TimeSpan.FromDays(7);
     config.InboxOptions.EnableAutomaticPurge = true;
+    config.InboxOptions.PurgeInterval = TimeSpan.FromHours(24);
+    config.InboxOptions.PurgeBatchSize = 100;
 
     // Health checks
     config.ProviderHealthCheck.Enabled = true;
