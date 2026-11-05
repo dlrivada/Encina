@@ -16,14 +16,14 @@ namespace Encina.IntegrationTests.Messaging;
 /// provider's own <c>AddEncina*</c> call with <c>InboxOptions.EnableAutomaticPurge</c> on its default, runs
 /// one purge cycle against the real store and removes only the processed row whose <c>ExpiresAtUtc</c> has
 /// passed. An unprocessed expired row and a processed row that has not expired survive. The delays of the
-/// service run on a <see cref="FakeTimeProvider"/>, and the test waits on the store state (no <c>Thread.Sleep</c>; a short <c>Task.Delay</c> yields between clock advances).
+/// service run on a <see cref="FakeTimeProvider"/>, and the test waits on the store state (no
+/// <c>Thread.Sleep</c>; a short <c>Task.Delay</c> yields between clock advances).
 /// </summary>
 public static class MessagePurgeScenario
 {
-    // Under the service's real-clock start-up jitter (up to 30 s): a service that ignored the fake clock would
-    // fall back to real time and could not be relied on to finish inside this budget.
-    private static readonly TimeSpan s_waitBudget = TimeSpan.FromSeconds(20);
-    private static readonly TimeSpan s_untouchedClockPause = TimeSpan.FromMilliseconds(300);
+    // Real-time ceiling for slow CI; the fake clock makes the purge itself immediate.
+    private static readonly TimeSpan s_waitBudget = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan s_timerBudget = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan s_pollPause = TimeSpan.FromMilliseconds(25);
 
     /// <summary>The ids of the three seeded rows.</summary>
@@ -33,20 +33,26 @@ public static class MessagePurgeScenario
     /// <param name="harness">The provider family under test (its own registration and a fresh-connection reader).</param>
     public static async Task AssertCycleRemovesOnlyProcessedExpiredRowsAsync(Harness harness)
     {
-        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var clock = new CountingTimeProvider(new FakeTimeProvider(DateTimeOffset.UtcNow));
         await using var provider = BuildProvider(harness, clock);
         var seeded = await SeedAsync(provider, clock.GetUtcNow().UtcDateTime);
 
         var service = provider.GetServices<IHostedService>().OfType<MessagePurgeService>().Single();
+        var timersBefore = clock.TimersCreated;
         await service.StartAsync(CancellationToken.None);
         try
         {
-            // The start-up delay runs on the fake clock, which has not moved: the row must still be there. A
-            // service on the real clock would purge within its (random, up to 30 s) jitter.
-            await Task.Delay(s_untouchedClockPause);
+            // The service must schedule its start-up delay as a timer of the injected provider
+            // (Task.Delay(delay, timeProvider) calls CreateTimer; the host may run ExecuteAsync on another
+            // thread, so the timer is awaited with a short bound). A service that ignored the injected
+            // TimeProvider creates none, so it fails here with a clear message, whatever its real jitter is.
+            (await WaitForTimerAsync(clock, timersBefore)).ShouldBeTrue(
+                "the purge service must schedule its start-up delay on the injected TimeProvider");
+
+            // The fake clock has not moved, so no cycle may have run.
             (await harness.ReadRow(seeded.ProcessedExpired)).ShouldNotBeNull("no purge may run before the fake clock advances");
 
-            var purged = await WaitUntilGoneAsync(harness, clock, seeded.ProcessedExpired);
+            var purged = await WaitUntilGoneAsync(harness, provider, clock, seeded.ProcessedExpired);
             purged.ShouldBeTrue($"the purge cycle must remove the processed expired row. {DescribeProblems(provider)}");
         }
         finally
@@ -59,7 +65,34 @@ public static class MessagePurgeScenario
         (await harness.ReadRow(seeded.ProcessedNotExpired)).ShouldNotBeNull();
     }
 
-    private static ServiceProvider BuildProvider(Harness harness, FakeTimeProvider clock)
+    /// <summary>
+    /// Delegates every member to the fake clock and counts the timers created on it, which is the signal that
+    /// the service under test scheduled its delays on the injected provider.
+    /// </summary>
+    private sealed class CountingTimeProvider(FakeTimeProvider inner) : TimeProvider
+    {
+        private int _timersCreated;
+
+        public int TimersCreated => Volatile.Read(ref _timersCreated);
+
+        public void Advance(TimeSpan delta) => inner.Advance(delta);
+
+        public override DateTimeOffset GetUtcNow() => inner.GetUtcNow();
+
+        public override TimeZoneInfo LocalTimeZone => inner.LocalTimeZone;
+
+        public override long TimestampFrequency => inner.TimestampFrequency;
+
+        public override long GetTimestamp() => inner.GetTimestamp();
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            Interlocked.Increment(ref _timersCreated);
+            return inner.CreateTimer(callback, state, dueTime, period);
+        }
+    }
+
+    private static ServiceProvider BuildProvider(Harness harness, TimeProvider clock)
     {
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.AddFakeLogging());
@@ -110,16 +143,36 @@ public static class MessagePurgeScenario
         }
     }
 
-    // Each round moves the fake clock past the start-up jitter (and so past the purge interval after the
-    // first cycle), then looks at the store once; the real pause only yields to the service's background task.
-    private static async Task<bool> WaitUntilGoneAsync(Harness harness, FakeTimeProvider clock, string id)
+    private static async Task<bool> WaitForTimerAsync(CountingTimeProvider clock, int timersBefore)
     {
+        using var budget = new CancellationTokenSource(s_timerBudget);
+        try
+        {
+            while (clock.TimersCreated <= timersBefore)
+            {
+                await Task.Delay(s_pollPause, budget.Token);
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
+    // Each round moves the fake clock past the start-up jitter plus the purge interval (so also past the pause
+    // after the first cycle), then looks at the store once; the real pause only yields to the service's task.
+    private static async Task<bool> WaitUntilGoneAsync(
+        Harness harness, ServiceProvider provider, CountingTimeProvider clock, string id)
+    {
+        var step = MessagePurgeService.MaxStartupJitter + provider.GetRequiredService<InboxOptions>().PurgeInterval;
         using var budget = new CancellationTokenSource(s_waitBudget);
         try
         {
             while (await harness.ReadRow(id) is not null)
             {
-                clock.Advance(MessagePurgeService.MaxStartupJitter + TimeSpan.FromSeconds(1));
+                clock.Advance(step);
                 await Task.Delay(s_pollPause, budget.Token);
             }
 
