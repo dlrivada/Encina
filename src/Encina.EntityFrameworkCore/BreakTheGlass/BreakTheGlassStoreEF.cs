@@ -282,7 +282,7 @@ public sealed class BreakTheGlassStoreEF<TContext> : IBreakTheGlassStore
         try
         {
             // The store never joins the caller's ambient System.Transactions scope (SqlClient would enlist the new connection in
-            // it): a revoke, a review or a purge must survive the rollback of the business transaction (ADR-048).
+            // it): a revoke, a review or a purge must survive the rollback of the business transaction (plan decisions P15 = B and P6 = C).
             using var suppress = new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled);
             await using var db = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
             return await work(db, cancellationToken).ConfigureAwait(false);
