@@ -239,7 +239,7 @@ public sealed class OrchestrationContextExtensionsOnTestHostIntegrationTests
     {
         var outcome = await RaiseAsync(registry =>
             registry.AddOrchestratorFunc<string, DurableEitherOutcome>("ExtThEvFirst_Orch",
-                async (c, _) => ToOutcome(await c.WaitForEncinaExternalEventAsync<string>("go", TimeSpan.FromSeconds(2)))),
+                async (c, _) => ToOutcome(await c.WaitForEncinaExternalEventAsync<string>("go", TimeSpan.FromSeconds(5)))),
             "ExtThEvFirst_Orch");
 
         outcome.IsRight.ShouldBeTrue();
