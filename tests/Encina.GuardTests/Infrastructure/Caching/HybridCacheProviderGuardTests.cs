@@ -292,6 +292,82 @@ public sealed class HybridCacheProviderGuardTests : IDisposable
         (await _real.GetAsync<string>(key, CancellationToken.None)).ShouldBe("stored");
     }
 
+    // Runs one operation on a provider over a substituted HybridCache and returns the entry options it passed on.
+    private static async Task<HybridCacheEntryOptions> CapturedOptionsAsync(
+        Func<HybridCacheProvider, Task> operation,
+        TimeSpan? localCacheExpiration = null)
+    {
+        var stub = Substitute.For<HybridCache>();
+        var provider = new HybridCacheProvider(
+            stub,
+            Options.Create(new HybridCacheProviderOptions
+            {
+                DefaultExpiration = TimeSpan.FromMinutes(5),
+                LocalCacheExpiration = localCacheExpiration,
+            }),
+            NullLogger<HybridCacheProvider>.Instance);
+
+        await operation(provider);
+
+        return stub.ReceivedCalls()
+            .SelectMany(call => call.GetArguments())
+            .OfType<HybridCacheEntryOptions>()
+            .Single();
+    }
+
+    [Theory]
+    [InlineData(3, null, 3, 3)]
+    [InlineData(null, null, 5, 5)]
+    [InlineData(3, 1, 3, 1)]
+    [InlineData(null, 2, 5, 2)]
+    public async Task SetAsync_PassesTheEffectiveExpirationsToTheCache(
+        int? expirationMinutes, int? localMinutes, int expectedExpiration, int expectedLocal)
+    {
+        var options = await CapturedOptionsAsync(
+            p => p.SetAsync("key", "value", Minutes(expirationMinutes), CancellationToken.None),
+            Minutes(localMinutes));
+
+        options.Expiration.ShouldBe(TimeSpan.FromMinutes(expectedExpiration));
+        options.LocalCacheExpiration.ShouldBe(TimeSpan.FromMinutes(expectedLocal));
+    }
+
+    [Theory]
+    [InlineData(3, null, 3, 3)]
+    [InlineData(null, null, 5, 5)]
+    [InlineData(3, 1, 3, 1)]
+    public async Task GetOrSetAsync_PassesTheEffectiveExpirationsToTheCache(
+        int? expirationMinutes, int? localMinutes, int expectedExpiration, int expectedLocal)
+    {
+        var plain = await CapturedOptionsAsync(
+            p => p.GetOrSetAsync("key", Factory, Minutes(expirationMinutes), CancellationToken.None),
+            Minutes(localMinutes));
+        var tagged = await CapturedOptionsAsync(
+            p => p.GetOrSetAsync("key", Factory, Minutes(expirationMinutes), ["tag"], CancellationToken.None),
+            Minutes(localMinutes));
+
+        foreach (var options in new[] { plain, tagged })
+        {
+            options.Expiration.ShouldBe(TimeSpan.FromMinutes(expectedExpiration));
+            options.LocalCacheExpiration.ShouldBe(TimeSpan.FromMinutes(expectedLocal));
+        }
+    }
+
+    [Theory]
+    [InlineData(2, null, 2)]
+    [InlineData(2, 1, 1)]
+    [InlineData(1, 2, 1)]
+    public async Task SetWithSlidingExpirationAsync_UsesTheShorterOfSlidingAndAbsolute(
+        int slidingMinutes, int? absoluteMinutes, int expectedMinutes)
+    {
+        var options = await CapturedOptionsAsync(p => p.SetWithSlidingExpirationAsync(
+            "key", "value", TimeSpan.FromMinutes(slidingMinutes), Minutes(absoluteMinutes), CancellationToken.None));
+
+        options.Expiration.ShouldBe(TimeSpan.FromMinutes(expectedMinutes));
+        options.LocalCacheExpiration.ShouldBe(TimeSpan.FromMinutes(expectedMinutes));
+    }
+
+    private static TimeSpan? Minutes(int? minutes) => minutes is null ? null : TimeSpan.FromMinutes(minutes.Value);
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

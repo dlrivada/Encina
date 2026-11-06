@@ -210,6 +210,63 @@ public sealed class CachedShardedQueryExecutorGuardTests
     }
 
     [Fact]
+    public async Task ExecuteCachedAsync_ExplicitDuration_StoresResultWithThatDuration()
+    {
+        var duration = TimeSpan.FromSeconds(9);
+        using var cts = new CancellationTokenSource();
+        var shardIds = new List<string> { "shard-1", "shard-2" };
+        _cache.GetAsync<ShardedQueryResult<int>>(Arg.Any<string>(), cts.Token)
+            .Returns(Task.FromResult<ShardedQueryResult<int>?>(null));
+        _inner.ExecuteAsync(shardIds, QueryFactory, cts.Token)
+            .Returns(Either<EncinaError, ShardedQueryResult<int>>.Right(ResultOf(5)));
+
+        var result = await CreateSut().ExecuteCachedAsync(shardIds, "orders", QueryFactory, duration, cts.Token);
+
+        result.IsRight.ShouldBeTrue();
+        await _cache.Received(1).SetAsync(
+            "shard:scatter:orders", Arg.Any<ShardedQueryResult<int>>(), duration, cts.Token);
+    }
+
+    [Fact]
+    public async Task ExecuteAllCachedAsync_DefaultDuration_StoresResultWithTheConfiguredDefault()
+    {
+        _options.DefaultCacheDuration = TimeSpan.FromSeconds(11);
+        _cache.GetAsync<ShardedQueryResult<int>>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ShardedQueryResult<int>?>(null));
+        _inner.ExecuteAllAsync(QueryFactory, Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, ShardedQueryResult<int>>.Right(ResultOf(5)));
+
+        await CreateSut().ExecuteAllCachedAsync("all-orders", QueryFactory);
+
+        await _cache.Received(1).SetAsync(
+            "shard:scatter:all-orders",
+            Arg.Any<ShardedQueryResult<int>>(),
+            TimeSpan.FromSeconds(11),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(2, true)]
+    [InlineData(3, false)]
+    public async Task ExecuteAllCachedAsync_ResultSizeAgainstMaxSize_CachesOnlyUpToTheLimit(int maxSize, bool exceedsLimit)
+    {
+        _options.MaxCachedResultSize = maxSize;
+        _cache.GetAsync<ShardedQueryResult<int>>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ShardedQueryResult<int>?>(null));
+        _inner.ExecuteAllAsync(QueryFactory, Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, ShardedQueryResult<int>>.Right(ResultOf(1, 2, 3)));
+
+        await CreateSut().ExecuteAllCachedAsync("sized", QueryFactory);
+
+        // Three items: a limit of 2 is exceeded (not cached), a limit of 3 is not (cached).
+        await _cache.Received(exceedsLimit ? 0 : 1).SetAsync(
+            "shard:scatter:sized",
+            Arg.Any<ShardedQueryResult<int>>(),
+            Arg.Any<TimeSpan?>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ExecuteAllCachedAsync_CacheMissWithExplicitDuration_StoresResultWithThatDuration()
     {
         var duration = TimeSpan.FromSeconds(7);
