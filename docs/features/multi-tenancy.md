@@ -843,7 +843,7 @@ var all = await dbContext.Orders
 
 ### What happens if tenant resolution fails?
 
-It depends on your configuration. The option is declared by the provider tenancy options, not by the core `TenancyOptions`, and its name depends on the provider. MongoDB (`MongoDbTenancyOptions`) calls it `RequireTenantContext`; Entity Framework Core (`EfCoreTenancyOptions`, set through `config.TenancyOptions.ThrowOnMissingTenantContext` in `AddEncinaEntityFrameworkCore`), Dapper (`DapperTenancyOptions`) and ADO.NET (`ADOTenancyOptions`) call it `ThrowOnMissingTenantContext`. Both names default to `true`.
+It depends on your configuration. The option is declared by the provider tenancy options, not by the core `TenancyOptions`, and its name depends on the provider. MongoDB (`MongoDbTenancyOptions`) calls it `RequireTenantContext`; Entity Framework Core (`EfCoreTenancyOptions`, set through `config.TenancyOptions.ThrowOnMissingTenantContext` in `AddEncinaEntityFrameworkCore`), Dapper (`DapperTenancyOptions`, one per provider package) and ADO.NET (`ADOTenancyOptions`) call it `ThrowOnMissingTenantContext`. Both names default to `true`.
 
 ```csharp
 // MongoDB: strict mode (recommended for production; the default)
@@ -854,15 +854,33 @@ tenancy.RequireTenantContext = true;
 tenancy.RequireTenantContext = false;
 // → Operations run without the tenant filter (DANGEROUS in production!)
 
-// Entity Framework Core, Dapper and ADO.NET: strict mode (the default)
+// Dapper SQL Server (DapperTenancyOptions in Encina.Dapper.SqlServer): strict mode (the default)
+tenancy.ThrowOnMissingTenantContext = true;
+// → Every repository operation (GetById, List, FirstOrDefault, Count, Any, GetPaged, Add, AddRange,
+//   Update, UpdateRange, Delete, DeleteRange) returns a Left with error code Repository.TenantRequired
+//   before any database call, as MongoDB does; no exception is thrown.
+
+// Dapper SQL Server: lenient mode
+tenancy.ThrowOnMissingTenantContext = false;
+// → Queries run without the tenant filter (DANGEROUS in production!)
+
+// Dapper PostgreSQL, Dapper MySQL, ADO.NET and Entity Framework Core: strict mode (the default)
 tenancy.ThrowOnMissingTenantContext = true;
 // → Throws InvalidOperationException (Entity Framework Core: only when the core TenancyOptions.RequireTenant is also true)
 
-// Entity Framework Core, Dapper and ADO.NET: lenient mode
+// Dapper PostgreSQL, Dapper MySQL, ADO.NET and Entity Framework Core: lenient mode
 tenancy.ThrowOnMissingTenantContext = false;
-// → Dapper and ADO.NET: queries run without the tenant filter (DANGEROUS in production!)
+// → Dapper PostgreSQL, Dapper MySQL and ADO.NET: queries run without the tenant filter (DANGEROUS in production!)
 // → Entity Framework Core: saves skip tenant assignment and validation (see the table above)
 ```
+
+Dapper SQL Server is the only provider of these families that returns the error instead of throwing. For the error, note the following:
+
+- The error detail `Operation` names the calling operation, and the message never contains a tenant id.
+- `Update` and `UpdateRange` are refused even when `ValidateTenantOnModify` is `false`.
+- A tenant mismatch on a modify is still reported as `Repository.InvalidOperation`.
+- The option is named `ThrowOnMissingTenantContext` today and is planned to become `RequireTenantContext` ([#3007](https://github.com/dlrivada/Encina/issues/3007)).
+- Dapper PostgreSQL and Dapper MySQL ([#3301](https://github.com/dlrivada/Encina/issues/3301), [#3302](https://github.com/dlrivada/Encina/issues/3302)), ADO.NET ([#2996](https://github.com/dlrivada/Encina/issues/2996)) and Entity Framework Core ([#2997](https://github.com/dlrivada/Encina/issues/2997)) still throw as described above.
 
 ### How do I implement multi-database tenancy with connection pooling?
 
