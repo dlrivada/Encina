@@ -105,7 +105,11 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
     {
         try
         {
-            var tenantFilter = GetTenantFilter();
+            if (!TryUnwrap(GetTenantFilter("GetById"), out var tenantFilter, out var tenantError))
+            {
+                return Left<EncinaError, TEntity>(tenantError);
+            }
+
             var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"[{c}]"));
 
             string sql;
@@ -141,8 +145,12 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
     {
         try
         {
-            var (sql, parameters) = _sqlBuilder.BuildSelectStatement(_mapping.TableName);
-            var entities = await _connection.QueryAsync<TEntity>(sql, parameters);
+            if (!TryUnwrap(_sqlBuilder.BuildSelectStatement(_mapping.TableName, "List"), out var built, out var tenantError))
+            {
+                return Left<EncinaError, IReadOnlyList<TEntity>>(tenantError);
+            }
+
+            var entities = await _connection.QueryAsync<TEntity>(built.Sql, built.Parameters);
             return Right<EncinaError, IReadOnlyList<TEntity>>(entities.ToList());
         }
         catch (Exception ex)
@@ -161,8 +169,12 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
         try
         {
-            var (sql, parameters) = _sqlBuilder.BuildSelectStatement(_mapping.TableName, specification);
-            var entities = await _connection.QueryAsync<TEntity>(sql, parameters);
+            if (!TryUnwrap(_sqlBuilder.BuildSelectStatement(_mapping.TableName, specification, "List"), out var built, out var tenantError))
+            {
+                return Left<EncinaError, IReadOnlyList<TEntity>>(tenantError);
+            }
+
+            var entities = await _connection.QueryAsync<TEntity>(built.Sql, built.Parameters);
             return Right<EncinaError, IReadOnlyList<TEntity>>(entities.ToList());
         }
         catch (NotSupportedException ex)
@@ -186,11 +198,15 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
         try
         {
-            var (whereClause, parameters) = _sqlBuilder.BuildWhereClause(specification);
-            var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"[{c}]"));
-            var sql = $"SELECT TOP 1 {columns} FROM {_mapping.TableName} {whereClause}";
+            if (!TryUnwrap(_sqlBuilder.BuildWhereClause(specification, "FirstOrDefault"), out var built, out var tenantError))
+            {
+                return Left<EncinaError, TEntity>(tenantError);
+            }
 
-            var entity = await _connection.QuerySingleOrDefaultAsync<TEntity>(sql, parameters);
+            var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"[{c}]"));
+            var sql = $"SELECT TOP 1 {columns} FROM {_mapping.TableName} {built.WhereClause}";
+
+            var entity = await _connection.QuerySingleOrDefaultAsync<TEntity>(sql, built.Parameters);
 
             return entity is not null
                 ? Right<EncinaError, TEntity>(entity)
@@ -215,7 +231,10 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
     {
         try
         {
-            var tenantFilter = GetTenantFilter();
+            if (!TryUnwrap(GetTenantFilter("Count"), out var tenantFilter, out var tenantError))
+            {
+                return Left<EncinaError, int>(tenantError);
+            }
 
             string sql;
             object? parameters;
@@ -250,10 +269,14 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
         try
         {
-            var (whereClause, parameters) = _sqlBuilder.BuildWhereClause(specification);
-            var sql = $"SELECT COUNT(*) FROM {_mapping.TableName} {whereClause}";
+            if (!TryUnwrap(_sqlBuilder.BuildWhereClause(specification, "Count"), out var built, out var tenantError))
+            {
+                return Left<EncinaError, int>(tenantError);
+            }
 
-            var count = await _connection.ExecuteScalarAsync<int>(sql, parameters);
+            var sql = $"SELECT COUNT(*) FROM {_mapping.TableName} {built.WhereClause}";
+
+            var count = await _connection.ExecuteScalarAsync<int>(sql, built.Parameters);
             return Right<EncinaError, int>(count);
         }
         catch (NotSupportedException ex)
@@ -277,10 +300,14 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
         try
         {
-            var (whereClause, parameters) = _sqlBuilder.BuildWhereClause(specification);
-            var sql = $"SELECT CASE WHEN EXISTS (SELECT 1 FROM {_mapping.TableName} {whereClause}) THEN 1 ELSE 0 END";
+            if (!TryUnwrap(_sqlBuilder.BuildWhereClause(specification, "Any"), out var built, out var tenantError))
+            {
+                return Left<EncinaError, bool>(tenantError);
+            }
 
-            var exists = await _connection.ExecuteScalarAsync<int>(sql, parameters);
+            var sql = $"SELECT CASE WHEN EXISTS (SELECT 1 FROM {_mapping.TableName} {built.WhereClause}) THEN 1 ELSE 0 END";
+
+            var exists = await _connection.ExecuteScalarAsync<int>(sql, built.Parameters);
             return Right<EncinaError, bool>(exists == 1);
         }
         catch (NotSupportedException ex)
@@ -301,7 +328,10 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
     {
         try
         {
-            var tenantFilter = GetTenantFilter();
+            if (!TryUnwrap(GetTenantFilter("Any"), out var tenantFilter, out var tenantError))
+            {
+                return Left<EncinaError, bool>(tenantError);
+            }
 
             string sql;
             object? parameters;
@@ -336,7 +366,10 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
         try
         {
-            var tenantFilter = GetTenantFilter();
+            if (!TryUnwrap(GetTenantFilter("GetPaged"), out var tenantFilter, out var tenantError))
+            {
+                return Left<EncinaError, PagedResult<TEntity>>(tenantError);
+            }
 
             // Get total count
             string countSql;
@@ -401,7 +434,13 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
         try
         {
-            var (whereClause, baseParameters) = _sqlBuilder.BuildWhereClause(specification);
+            if (!TryUnwrap(_sqlBuilder.BuildWhereClause(specification, "GetPaged"), out var built, out var tenantError))
+            {
+                return Left<EncinaError, PagedResult<TEntity>>(tenantError);
+            }
+
+            var whereClause = built.WhereClause;
+            var baseParameters = built.Parameters;
 
             // Get total count with specification filter
             var countSql = $"SELECT COUNT(*) FROM {_mapping.TableName} {whereClause}";
@@ -475,7 +514,10 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
         try
         {
             // Auto-assign tenant ID if enabled
-            AssignTenantIdIfNeeded(entity);
+            if (!TryUnwrap(AssignTenantIdIfNeeded(entity, "Add"), out _, out var tenantError))
+            {
+                return Left<EncinaError, TEntity>(tenantError);
+            }
 
             // Populate audit fields for creation
             AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
@@ -504,17 +546,17 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
         try
         {
-            // Validate tenant ownership if enabled
-            var validationResult = ValidateTenantOwnership(entity);
-            if (validationResult.IsLeft)
+            // The tenant is checked before anything is touched, even when ValidateTenantOnModify is off
+            var prepared = ValidateTenantOwnership(entity, "Update")
+                .Bind(_ => GetTenantFilter("Update"));
+            if (!TryUnwrap(prepared, out var tenantFilter, out var tenantError))
             {
-                return validationResult.Map(_ => entity);
+                return Left<EncinaError, TEntity>(tenantError);
             }
 
             // Populate audit fields for modification
             AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
 
-            var tenantFilter = GetTenantFilter();
             var id = _mapping.GetId(entity);
 
             // Handle versioned entities for optimistic concurrency
@@ -609,7 +651,10 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
     {
         try
         {
-            var tenantFilter = GetTenantFilter();
+            if (!TryUnwrap(GetTenantFilter("Delete"), out var tenantFilter, out var tenantError))
+            {
+                return Left<EncinaError, Unit>(tenantError);
+            }
 
             string sql;
             object parameters;
@@ -648,14 +693,25 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
     {
         ArgumentNullException.ThrowIfNull(entity);
 
-        // Validate tenant ownership if enabled
-        var validationResult = ValidateTenantOwnership(entity);
-        if (validationResult.IsLeft)
+        TId id;
+
+        try
         {
-            return validationResult;
+            // Validate tenant ownership if enabled
+            var validationResult = ValidateTenantOwnership(entity, "Delete");
+            if (validationResult.IsLeft)
+            {
+                return validationResult;
+            }
+
+            id = _mapping.GetId(entity);
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, Unit>(
+                RepositoryErrors.PersistenceError<TEntity>("Delete", ex));
         }
 
-        var id = _mapping.GetId(entity);
         return await DeleteAsync(id, cancellationToken).ConfigureAwait(false);
     }
 
@@ -673,7 +729,11 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
             // Auto-assign tenant ID and populate audit fields for all entities
             foreach (var entity in entityList)
             {
-                AssignTenantIdIfNeeded(entity);
+                if (!TryUnwrap(AssignTenantIdIfNeeded(entity, "AddRange"), out _, out var tenantError))
+                {
+                    return Left<EncinaError, IReadOnlyList<TEntity>>(tenantError);
+                }
+
                 AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
             }
 
@@ -708,10 +768,16 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
         try
         {
+            // The tenant is checked before anything is touched, even when ValidateTenantOnModify is off
+            if (!TryUnwrap(GetTenantFilter("UpdateRange"), out var tenantFilter, out var tenantError))
+            {
+                return Left<EncinaError, Unit>(tenantError);
+            }
+
             // Validate tenant ownership and populate audit fields for all entities
             foreach (var entity in entityList)
             {
-                var validationResult = ValidateTenantOwnership(entity);
+                var validationResult = ValidateTenantOwnership(entity, "UpdateRange");
                 if (validationResult.IsLeft)
                 {
                     return validationResult;
@@ -724,7 +790,6 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
             {
                 // Handle versioned entities with optimistic concurrency
                 var versionedSql = BuildVersionedUpdateSql();
-                var tenantFilter = GetTenantFilter();
                 var totalUpdated = 0;
 
                 foreach (var entity in entityList)
@@ -789,16 +854,19 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
         try
         {
-            var (whereClause, parameters) = _sqlBuilder.BuildWhereClause(specification);
+            if (!TryUnwrap(_sqlBuilder.BuildWhereClause(specification, "DeleteRange"), out var built, out var tenantError))
+            {
+                return Left<EncinaError, int>(tenantError);
+            }
 
-            if (string.IsNullOrWhiteSpace(whereClause))
+            if (string.IsNullOrWhiteSpace(built.WhereClause))
             {
                 return Left<EncinaError, int>(
                     RepositoryErrors.InvalidOperation<TEntity>("DeleteRange", "DELETE requires a WHERE clause to prevent accidental data loss."));
             }
 
-            var sql = $"DELETE FROM {_mapping.TableName} {whereClause}";
-            var deletedCount = await _connection.ExecuteAsync(sql, parameters);
+            var sql = $"DELETE FROM {_mapping.TableName} {built.WhereClause}";
+            var deletedCount = await _connection.ExecuteAsync(sql, built.Parameters);
 
             return Right<EncinaError, int>(deletedCount);
         }
@@ -832,7 +900,7 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
     #region Helper Methods
 
-    private (string? filter, string? tenantId) GetTenantFilter()
+    private Either<EncinaError, (string? filter, string? tenantId)> GetTenantFilter(string operation)
     {
         if (!_mapping.IsTenantEntity || !_options.AutoFilterTenantQueries)
         {
@@ -845,8 +913,7 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
         {
             if (_options.ThrowOnMissingTenantContext)
             {
-                throw new InvalidOperationException(
-                    $"Cannot execute query on tenant entity {typeof(TEntity).Name} without tenant context.");
+                return RepositoryErrors.TenantRequired<TEntity>(operation);
             }
 
             return (null, null);
@@ -855,30 +922,49 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
         return ($"[{_mapping.TenantColumnName}] = @tenantId", tenantId);
     }
 
-    private void AssignTenantIdIfNeeded(TEntity entity)
+    private Either<EncinaError, Unit> AssignTenantIdIfNeeded(TEntity entity, string operation)
     {
         if (!_mapping.IsTenantEntity || !_options.AutoAssignTenantId)
         {
-            return;
+            return Right<EncinaError, Unit>(Unit.Default);
         }
 
         var tenantId = _tenantProvider.GetCurrentTenantId();
 
         if (string.IsNullOrEmpty(tenantId))
         {
-            if (_options.ThrowOnMissingTenantContext)
-            {
-                throw new InvalidOperationException(
-                    $"Cannot add tenant entity {typeof(TEntity).Name} without tenant context.");
-            }
-
-            return;
+            return _options.ThrowOnMissingTenantContext
+                ? Left<EncinaError, Unit>(RepositoryErrors.TenantRequired<TEntity>(operation))
+                : Right<EncinaError, Unit>(Unit.Default);
         }
 
         _mapping.SetTenantId(entity, tenantId);
+        return Right<EncinaError, Unit>(Unit.Default);
     }
 
-    private Either<EncinaError, Unit> ValidateTenantOwnership(TEntity entity)
+    private static bool TryUnwrap<T>(Either<EncinaError, T> either, out T value, out EncinaError error)
+    {
+        var capturedValue = default(T)!;
+        var capturedError = default(EncinaError);
+
+        var isRight = either.Match(
+            Right: right =>
+            {
+                capturedValue = right;
+                return true;
+            },
+            Left: left =>
+            {
+                capturedError = left;
+                return false;
+            });
+
+        value = capturedValue;
+        error = capturedError;
+        return isRight;
+    }
+
+    private Either<EncinaError, Unit> ValidateTenantOwnership(TEntity entity, string operation)
     {
         if (!_mapping.IsTenantEntity || !_options.ValidateTenantOnModify)
         {
@@ -892,10 +978,7 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
         {
             if (_options.ThrowOnMissingTenantContext)
             {
-                return Left<EncinaError, Unit>(
-                    RepositoryErrors.InvalidOperation<TEntity>(
-                        "Modify",
-                        $"Cannot modify tenant entity {typeof(TEntity).Name} without tenant context."));
+                return Left<EncinaError, Unit>(RepositoryErrors.TenantRequired<TEntity>(operation));
             }
 
             return Right<EncinaError, Unit>(Unit.Default);
@@ -905,7 +988,7 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
         {
             return Left<EncinaError, Unit>(
                 RepositoryErrors.InvalidOperation<TEntity>(
-                    "Modify",
+                    operation,
                     $"Tenant mismatch: entity belongs to tenant '{entityTenantId}' but current tenant is '{currentTenantId}'."));
         }
 
