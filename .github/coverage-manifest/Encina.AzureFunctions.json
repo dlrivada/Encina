@@ -59,7 +59,7 @@
       "justifications": {
         "unit": "DurableSagaBuilderTests build and configure sagas; the ExecuteAsync and compensation paths need an orchestration context double and are still partly unmeasured.",
         "guard": "DurableGuardTests call Step, WithTimeout, Execute and Compensate with invalid arguments, the step builder Step and Build finalisation errors, and ExecuteAsync with a null context, plus the minimum valid calls that reach each check.",
-        "integration": "DurableSagaOnTestHostIntegrationTests run success, compensation in reverse order, a compensation error, an activity that throws, steps without compensation and the retry/timeout options on the Durable Task in-process test host; the durable.saga_exception and durable.compensation_exception catch blocks are unreachable because CallEncinaActivityWithResultAsync converts activity failures to Left, and the argument-validation throws are covered by the unit and guard flags."
+        "integration": "DurableSagaOnTestHostIntegrationTests run success, compensation in reverse order, a compensation error, an activity that throws, steps without compensation on the Durable Task in-process test host, and build a saga with retry options and a timeout configured (neither is exercised: no activity retries and WithTimeout binds nothing, #3212); the durable.saga_exception and durable.compensation_exception catch blocks are not exercised by any flag because a failing activity is converted to Left and no other exception was shown to reach them, and the remaining uncovered lines are argument-validation throws and Left returns covered by the guard flag."
       }
     },
     "Durable/DurableSagaErrorCodes.cs": {
@@ -108,7 +108,7 @@
       "justifications": {
         "unit": "OrchestrationContextExtensionsTests run the activity, sub-orchestrator and retry-option helpers; the external-event paths still lack unit coverage.",
         "guard": "DurableGuardTests call every extension with a null context, null or empty name and out-of-range retry parameters, plus the zero-retry valid call.",
-        "integration": "OrchestrationContextExtensionsOnTestHostIntegrationTests run every helper (activity and sub-orchestrator, with and without the Either wrapper, success, failure, throwing and retry, external events with timeout, event first, no timeout and a cancelled token, GetCorrelationId) on the Durable Task in-process test host; the residual lines are the argument-validation throws, covered by the guard flag."
+        "integration": "OrchestrationContextExtensionsOnTestHostIntegrationTests run every helper (activity and sub-orchestrator, with and without the Either wrapper, success, failure, throwing and retry, external events with timeout, event first, no timeout and a cancelled token, GetCorrelationId) on the Durable Task in-process test host; the uncovered lines are the durable.event_failed catch of WaitForEncinaExternalEventAsync, which no test reaches."
       }
     },
     "EncinaAzureFunctionsOptions.cs": {
