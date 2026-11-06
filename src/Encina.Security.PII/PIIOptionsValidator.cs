@@ -46,7 +46,7 @@ internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
     }
 
     // The validator is a singleton and runs once per options cache (startup validation and
-    // IOptions resolution), so the flags keep each warning to one line per process.
+    // IOptions resolution), so the flags keep each warning to one line per service provider.
     private void LogOptOuts(PIIOptions options)
     {
         if (options.HashKey is null && options.AllowUnkeyedHash && Interlocked.Exchange(ref _warned, 1) == 0)

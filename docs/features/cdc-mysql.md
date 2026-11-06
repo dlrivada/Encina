@@ -6,12 +6,12 @@ parent: "Features"
 
 # CDC: MySQL Provider
 
-MySQL CDC connector using **Binary Log (binlog) Replication** to capture row-level changes from MySQL databases.
+MySQL CDC connector using **Binary Log (binlog) Replication** to capture row-level changes from MySQL databases. For the provider-independent concepts see [Change Data Capture](cdc.md).
 
 ## Overview
 
 | Property | Value |
-|----------|-------|
+| --- | --- |
 | **Package** | `Encina.Cdc.MySql` |
 | **CDC Mechanism** | Binary Log Replication |
 | **Position Type** | `MySqlCdcPosition` (GTID or file/position) |
@@ -22,6 +22,16 @@ MySQL binlog replication captures row-level changes by reading the binary log. I
 
 ## Prerequisites
 
+### Supported MySQL versions
+
+- MySQL 8.4 LTS and MySQL 9.x are supported.
+- MySQL 8.0 is not supported: it is out of vendor support and has no `SHOW BINARY LOG STATUS` statement, which the connector runs to read the current binlog file and position.
+- MySQL only; MariaDB is not supported.
+
+Binary logging must be enabled when the server starts (`--log-bin`, or `log_bin` in the option file). It is on by default in MySQL 8.4 and later, and it cannot be switched on at runtime with `SET GLOBAL`.
+
+The connector depends on the `MySqlCdc` package at version 5.0.0-preview2 until the first stable 5.x release (#2978), so that dependency is a preview.
+
 ### 1. Enable Row-Based Binary Logging
 
 In `my.cnf` / `my.ini`:
@@ -31,7 +41,7 @@ In `my.cnf` / `my.ini`:
 binlog_format = ROW         # Required (default in MySQL 8+)
 binlog_row_image = FULL     # Recommended for before-values
 server-id = 1               # Unique server ID
-log_bin = mysql-bin          # Enable binary logging
+log_bin = mysql-bin          # Enable binary logging (on by default in 8.4 and later)
 ```
 
 ### 2. Grant Replication Privileges
@@ -48,7 +58,8 @@ FLUSH PRIVILEGES;
 ```sql
 SHOW VARIABLES LIKE 'binlog_format';     -- Should be ROW
 SHOW VARIABLES LIKE 'binlog_row_image';  -- Should be FULL
-SHOW MASTER STATUS;                       -- Shows current binlog file/position
+SHOW VARIABLES LIKE 'log_bin';           -- Should be ON
+SHOW BINARY LOG STATUS;                   -- Shows current binlog file/position
 ```
 
 ## Installation
@@ -76,7 +87,7 @@ services.AddEncinaCdcMySql(opts =>
     opts.Username = "cdc_user";
     opts.Password = "password";
     opts.ServerId = 100;            // Must be unique per replication client
-    opts.UseGtid = true;           // Recommended for MySQL 5.6+
+    opts.UseGtid = true;           // Recommended
     opts.IncludeDatabases = ["mydb"];
     opts.IncludeTables = ["mydb.orders", "mydb.customers"];
 });
@@ -85,7 +96,7 @@ services.AddEncinaCdcMySql(opts =>
 ### MySqlCdcOptions
 
 | Property | Type | Default | Description |
-|----------|------|---------|-------------|
+| --- | --- | --- | --- |
 | `ConnectionString` | `string` | `""` | MySQL connection string (reads the current binlog position). Required; every server in it is validated |
 | `Hostname` | `string` | `"localhost"` | MySQL server hostname. The default is rejected unless `AllowLocalEndpoints` is `true` |
 | `AllowLocalEndpoints` | `bool` | `false` | Allows `Hostname` and the connection string servers to target `localhost`, loopback or a local socket |
@@ -148,4 +159,4 @@ Both serialize to UTF-8 JSON via `ToBytes()` / `FromBytes()`.
 
 ## Health Check
 
-`MySqlCdcHealthCheck` verifies connectivity and that binary logging is enabled with `ROW` format.
+`MySqlCdcHealthCheck` verifies that the connector is reachable and that the position store is accessible.
