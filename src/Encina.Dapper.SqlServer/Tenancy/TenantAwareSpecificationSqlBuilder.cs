@@ -213,41 +213,40 @@ public sealed class TenantAwareSpecificationSqlBuilder<TEntity>
         var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"[{c}]"));
 
         return BuildWhereClause(specification, operation).Map(built =>
+            (Sql: ComposeSelectSql($"SELECT {columns} FROM {validatedTableName}", built.WhereClause, specification),
+             built.Parameters));
+    }
+
+    private string ComposeSelectSql(string selectFrom, string whereClause, QuerySpecification<TEntity> specification)
+    {
+        var orderByClause = BuildOrderByClause(specification);
+        var paginationClause = BuildPaginationClause(specification);
+
+        var sqlParts = new List<string> { selectFrom };
+        AddIfNotBlank(sqlParts, whereClause);
+        AddIfNotBlank(sqlParts, orderByClause);
+
+        if (NeedsOffsetZero(specification, orderByClause))
         {
-            var orderByClause = BuildOrderByClause(specification);
-            var paginationClause = BuildPaginationClause(specification);
+            sqlParts.Add("OFFSET 0 ROWS");
+        }
 
-            var needsOffsetZero = specification.KeysetPaginationEnabled &&
-                                  specification.Take.HasValue &&
-                                  !string.IsNullOrEmpty(orderByClause);
+        AddIfNotBlank(sqlParts, paginationClause);
 
-            var sqlParts = new List<string>
-            {
-                $"SELECT {columns} FROM {validatedTableName}"
-            };
+        return string.Join(" ", sqlParts);
+    }
 
-            if (!string.IsNullOrWhiteSpace(built.WhereClause))
-            {
-                sqlParts.Add(built.WhereClause);
-            }
+    private static bool NeedsOffsetZero(QuerySpecification<TEntity> specification, string orderByClause)
+        => specification.KeysetPaginationEnabled &&
+           specification.Take.HasValue &&
+           !string.IsNullOrEmpty(orderByClause);
 
-            if (!string.IsNullOrWhiteSpace(orderByClause))
-            {
-                sqlParts.Add(orderByClause);
-            }
-
-            if (needsOffsetZero)
-            {
-                sqlParts.Add("OFFSET 0 ROWS");
-            }
-
-            if (!string.IsNullOrWhiteSpace(paginationClause))
-            {
-                sqlParts.Add(paginationClause);
-            }
-
-            return (Sql: string.Join(" ", sqlParts), built.Parameters);
-        });
+    private static void AddIfNotBlank(List<string> sqlParts, string clause)
+    {
+        if (!string.IsNullOrWhiteSpace(clause))
+        {
+            sqlParts.Add(clause);
+        }
     }
 
     /// <summary>
@@ -283,10 +282,17 @@ public sealed class TenantAwareSpecificationSqlBuilder<TEntity>
 
         var tenantFilter = $"[{_mapping.TenantColumnName}] = @tenantId";
 
-        // Combine with existing WHERE clause
+        return (CombineWhere(existingWhere, tenantFilter), parameters);
+    }
+
+    /// <summary>
+    /// Combines the tenant filter with an existing WHERE clause.
+    /// </summary>
+    private static string CombineWhere(string existingWhere, string tenantFilter)
+    {
         if (string.IsNullOrWhiteSpace(existingWhere))
         {
-            return ($"WHERE {tenantFilter}", parameters);
+            return $"WHERE {tenantFilter}";
         }
 
         // existingWhere already contains "WHERE", so we need to extract the condition
@@ -294,6 +300,6 @@ public sealed class TenantAwareSpecificationSqlBuilder<TEntity>
             ? existingWhere[6..] // Remove "WHERE "
             : existingWhere;
 
-        return ($"WHERE {tenantFilter} AND ({existingCondition})", parameters);
+        return $"WHERE {tenantFilter} AND ({existingCondition})";
     }
 }

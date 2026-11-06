@@ -371,22 +371,11 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
                 return Left<EncinaError, PagedResult<TEntity>>(tenantError);
             }
 
+            var whereSuffix = string.IsNullOrEmpty(tenantFilter.filter) ? string.Empty : $" WHERE {tenantFilter.filter}";
+
             // Get total count
-            string countSql;
-            object? countParameters;
-
-            if (!string.IsNullOrEmpty(tenantFilter.filter))
-            {
-                countSql = $"SELECT COUNT(*) FROM {_mapping.TableName} WHERE {tenantFilter.filter}";
-                countParameters = new { tenantId = tenantFilter.tenantId };
-            }
-            else
-            {
-                countSql = $"SELECT COUNT(*) FROM {_mapping.TableName}";
-                countParameters = null;
-            }
-
-            var totalCount = await _connection.ExecuteScalarAsync<int>(countSql, countParameters);
+            var countSql = $"SELECT COUNT(*) FROM {_mapping.TableName}{whereSuffix}";
+            var totalCount = await _connection.ExecuteScalarAsync<int>(countSql, BuildTenantParameters(tenantFilter));
 
             if (totalCount == 0)
             {
@@ -396,20 +385,11 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
             // Get paged data - SQL Server requires ORDER BY for OFFSET/FETCH
             var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"[{c}]"));
+            var sql = $"SELECT {columns} FROM {_mapping.TableName}{whereSuffix} ORDER BY [{_mapping.IdColumnName}] OFFSET @Skip ROWS FETCH NEXT @PageSize ROWS ONLY";
 
-            string sql;
-            object parameters;
-
-            if (!string.IsNullOrEmpty(tenantFilter.filter))
-            {
-                sql = $"SELECT {columns} FROM {_mapping.TableName} WHERE {tenantFilter.filter} ORDER BY [{_mapping.IdColumnName}] OFFSET @Skip ROWS FETCH NEXT @PageSize ROWS ONLY";
-                parameters = new { tenantId = tenantFilter.tenantId, pagination.Skip, pagination.PageSize };
-            }
-            else
-            {
-                sql = $"SELECT {columns} FROM {_mapping.TableName} ORDER BY [{_mapping.IdColumnName}] OFFSET @Skip ROWS FETCH NEXT @PageSize ROWS ONLY";
-                parameters = new { pagination.Skip, pagination.PageSize };
-            }
+            var parameters = BuildTenantParameters(tenantFilter);
+            parameters.Add("Skip", pagination.Skip);
+            parameters.Add("PageSize", pagination.PageSize);
 
             var entities = await _connection.QueryAsync<TEntity>(sql, parameters);
 
@@ -560,88 +540,107 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
             var id = _mapping.GetId(entity);
 
             // Handle versioned entities for optimistic concurrency
-            if (entity is IVersionedEntity versionedEntity)
-            {
-                var originalVersion = versionedEntity.Version;
-                versionedEntity.Version = originalVersion + 1;
-
-                var versionedSql = BuildVersionedUpdateSql();
-
-                // Build parameters combining entity properties with OriginalVersion and tenantId
-                var parameters = new DynamicParameters(entity);
-                parameters.Add("OriginalVersion", originalVersion);
-
-                if (!string.IsNullOrEmpty(tenantFilter.filter) && _mapping.IsTenantEntity)
-                {
-                    versionedSql = $"{versionedSql} AND {tenantFilter.filter}";
-                    parameters.Add("tenantId", tenantFilter.tenantId);
-                }
-
-                var rowsAffected = await _connection.ExecuteAsync(versionedSql, parameters);
-
-                if (rowsAffected == 0)
-                {
-                    // Check if entity exists to distinguish NotFound from ConcurrencyConflict
-                    var existsSql = !string.IsNullOrEmpty(tenantFilter.filter) && _mapping.IsTenantEntity
-                        ? $"SELECT CASE WHEN EXISTS (SELECT 1 FROM {_mapping.TableName} WHERE [{_mapping.IdColumnName}] = @Id AND {tenantFilter.filter}) THEN 1 ELSE 0 END"
-                        : $"SELECT CASE WHEN EXISTS (SELECT 1 FROM {_mapping.TableName} WHERE [{_mapping.IdColumnName}] = @Id) THEN 1 ELSE 0 END";
-
-                    var existsParams = !string.IsNullOrEmpty(tenantFilter.filter) && _mapping.IsTenantEntity
-                        ? new { Id = id, tenantId = tenantFilter.tenantId }
-                        : (object)new { Id = id };
-
-                    var exists = await _connection.ExecuteScalarAsync<int>(existsSql, existsParams);
-
-                    if (exists == 1)
-                    {
-                        // Entity exists but version mismatch - concurrency conflict
-                        return Left<EncinaError, TEntity>(
-                            RepositoryErrors.ConcurrencyConflict<TEntity>(
-                                new ConcurrencyConflictInfo<TEntity>(entity, entity, default)));
-                    }
-
-                    return Left<EncinaError, TEntity>(RepositoryErrors.NotFound<TEntity, TId>(id));
-                }
-
-                return Right<EncinaError, TEntity>(entity);
-            }
-
-            // Non-versioned entity - use standard update
-            // Build UPDATE with tenant filter
-            if (!string.IsNullOrEmpty(tenantFilter.filter) && _mapping.IsTenantEntity)
-            {
-                var sql = $"{_updateSql} AND {tenantFilter.filter}";
-
-                // Use DynamicParameters to combine entity properties with tenantId
-                var parameters = new DynamicParameters(entity);
-                parameters.Add("tenantId", tenantFilter.tenantId);
-
-                var rowsAffected = await _connection.ExecuteAsync(sql, parameters);
-
-                if (rowsAffected == 0)
-                {
-                    return Left<EncinaError, TEntity>(RepositoryErrors.NotFound<TEntity, TId>(id));
-                }
-
-                return Right<EncinaError, TEntity>(entity);
-            }
-            else
-            {
-                var rowsAffected = await _connection.ExecuteAsync(_updateSql, entity);
-
-                if (rowsAffected == 0)
-                {
-                    return Left<EncinaError, TEntity>(RepositoryErrors.NotFound<TEntity, TId>(id));
-                }
-
-                return Right<EncinaError, TEntity>(entity);
-            }
+            return entity is IVersionedEntity versionedEntity
+                ? await UpdateVersionedAsync(entity, versionedEntity, id, tenantFilter)
+                : await UpdateUnversionedAsync(entity, id, tenantFilter);
         }
         catch (Exception ex)
         {
             return Left<EncinaError, TEntity>(
                 RepositoryErrors.PersistenceError<TEntity>("Update", ex));
         }
+    }
+
+    private async Task<Either<EncinaError, TEntity>> UpdateVersionedAsync(
+        TEntity entity,
+        IVersionedEntity versionedEntity,
+        TId id,
+        (string? filter, string? tenantId) tenantFilter)
+    {
+        var scoped = IsTenantScoped(tenantFilter);
+        var originalVersion = versionedEntity.Version;
+        versionedEntity.Version = originalVersion + 1;
+
+        var versionedSql = BuildVersionedUpdateSql();
+
+        // Build parameters combining entity properties with OriginalVersion and tenantId
+        var parameters = new DynamicParameters(entity);
+        parameters.Add("OriginalVersion", originalVersion);
+
+        if (scoped)
+        {
+            versionedSql = $"{versionedSql} AND {tenantFilter.filter}";
+            parameters.Add("tenantId", tenantFilter.tenantId);
+        }
+
+        var rowsAffected = await _connection.ExecuteAsync(versionedSql, parameters);
+
+        return rowsAffected == 0
+            ? await ResolveVersionedMissAsync(entity, id, tenantFilter)
+            : Right<EncinaError, TEntity>(entity);
+    }
+
+    private async Task<Either<EncinaError, TEntity>> ResolveVersionedMissAsync(
+        TEntity entity,
+        TId id,
+        (string? filter, string? tenantId) tenantFilter)
+    {
+        // Check if entity exists to distinguish NotFound from ConcurrencyConflict
+        var scoped = IsTenantScoped(tenantFilter);
+        var existsSql = scoped
+            ? $"SELECT CASE WHEN EXISTS (SELECT 1 FROM {_mapping.TableName} WHERE [{_mapping.IdColumnName}] = @Id AND {tenantFilter.filter}) THEN 1 ELSE 0 END"
+            : $"SELECT CASE WHEN EXISTS (SELECT 1 FROM {_mapping.TableName} WHERE [{_mapping.IdColumnName}] = @Id) THEN 1 ELSE 0 END";
+
+        var existsParams = scoped
+            ? new { Id = id, tenantId = tenantFilter.tenantId }
+            : (object)new { Id = id };
+
+        var exists = await _connection.ExecuteScalarAsync<int>(existsSql, existsParams);
+
+        // Entity exists but version mismatch - concurrency conflict
+        return exists == 1
+            ? Left<EncinaError, TEntity>(
+                RepositoryErrors.ConcurrencyConflict<TEntity>(
+                    new ConcurrencyConflictInfo<TEntity>(entity, entity, default)))
+            : Left<EncinaError, TEntity>(RepositoryErrors.NotFound<TEntity, TId>(id));
+    }
+
+    private async Task<Either<EncinaError, TEntity>> UpdateUnversionedAsync(
+        TEntity entity,
+        TId id,
+        (string? filter, string? tenantId) tenantFilter)
+    {
+        var sql = _updateSql;
+        object parameters = entity;
+
+        if (IsTenantScoped(tenantFilter))
+        {
+            // Use DynamicParameters to combine entity properties with tenantId
+            var scopedParameters = new DynamicParameters(entity);
+            scopedParameters.Add("tenantId", tenantFilter.tenantId);
+            sql = $"{_updateSql} AND {tenantFilter.filter}";
+            parameters = scopedParameters;
+        }
+
+        var rowsAffected = await _connection.ExecuteAsync(sql, parameters);
+
+        return rowsAffected == 0
+            ? Left<EncinaError, TEntity>(RepositoryErrors.NotFound<TEntity, TId>(id))
+            : Right<EncinaError, TEntity>(entity);
+    }
+
+    private bool IsTenantScoped((string? filter, string? tenantId) tenantFilter)
+        => !string.IsNullOrEmpty(tenantFilter.filter) && _mapping.IsTenantEntity;
+
+    private static DynamicParameters BuildTenantParameters((string? filter, string? tenantId) tenantFilter)
+    {
+        var parameters = new DynamicParameters();
+        if (!string.IsNullOrEmpty(tenantFilter.filter))
+        {
+            parameters.Add("tenantId", tenantFilter.tenantId);
+        }
+
+        return parameters;
     }
 
     /// <inheritdoc/>
@@ -775,74 +774,89 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
             }
 
             // Validate tenant ownership and populate audit fields for all entities
-            foreach (var entity in entityList)
+            var prepared = PrepareForUpdateRange(entityList);
+            if (prepared.IsLeft)
             {
-                var validationResult = ValidateTenantOwnership(entity, "UpdateRange");
-                if (validationResult.IsLeft)
-                {
-                    return validationResult;
-                }
-
-                AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+                return prepared;
             }
 
-            if (hasVersionedEntities)
-            {
-                // Handle versioned entities with optimistic concurrency
-                var versionedSql = BuildVersionedUpdateSql();
-                var totalUpdated = 0;
-
-                foreach (var entity in entityList)
-                {
-                    if (entity is IVersionedEntity versionedEntity)
-                    {
-                        var originalVersion = versionedEntity.Version;
-                        versionedEntity.Version = originalVersion + 1;
-
-                        var parameters = new DynamicParameters(entity);
-                        parameters.Add("OriginalVersion", originalVersion);
-
-                        var sql = versionedSql;
-                        if (!string.IsNullOrEmpty(tenantFilter.filter) && _mapping.IsTenantEntity)
-                        {
-                            sql = $"{versionedSql} AND {tenantFilter.filter}";
-                            parameters.Add("tenantId", tenantFilter.tenantId);
-                        }
-
-                        var rowsAffected = await _connection.ExecuteAsync(sql, parameters);
-                        totalUpdated += rowsAffected;
-                    }
-                }
-
-                // Check for concurrency conflicts
-                if (totalUpdated < entityList.Count)
-                {
-                    var conflictCount = entityList.Count - totalUpdated;
-                    return Left<EncinaError, Unit>(
-                        RepositoryErrors.ConcurrencyConflict<TEntity>(
-                            new InvalidOperationException($"{conflictCount} entities had version conflicts")));
-                }
-
-                return Right<EncinaError, Unit>(Unit.Default);
-            }
-
-            // Non-versioned entities - update one by one with tenant filter
-            foreach (var entity in entityList)
-            {
-                var updateResult = await UpdateAsync(entity, cancellationToken);
-                if (updateResult.IsLeft)
-                {
-                    return updateResult.Map(_ => Unit.Default);
-                }
-            }
-
-            return Right<EncinaError, Unit>(Unit.Default);
+            return hasVersionedEntities
+                ? await UpdateRangeVersionedAsync(entityList, tenantFilter)
+                : await UpdateRangeOneByOneAsync(entityList, cancellationToken);
         }
         catch (Exception ex)
         {
             return Left<EncinaError, Unit>(
                 RepositoryErrors.PersistenceError<TEntity>("UpdateRange", ex));
         }
+    }
+
+    private Either<EncinaError, Unit> PrepareForUpdateRange(List<TEntity> entityList)
+    {
+        foreach (var entity in entityList)
+        {
+            var validationResult = ValidateTenantOwnership(entity, "UpdateRange");
+            if (validationResult.IsLeft)
+            {
+                return validationResult;
+            }
+
+            AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+        }
+
+        return Right<EncinaError, Unit>(Unit.Default);
+    }
+
+    // Handle versioned entities with optimistic concurrency
+    private async Task<Either<EncinaError, Unit>> UpdateRangeVersionedAsync(
+        List<TEntity> entityList,
+        (string? filter, string? tenantId) tenantFilter)
+    {
+        var versionedSql = BuildVersionedUpdateSql();
+        var scoped = IsTenantScoped(tenantFilter);
+        var totalUpdated = 0;
+
+        foreach (var versionedEntity in entityList.OfType<IVersionedEntity>())
+        {
+            var originalVersion = versionedEntity.Version;
+            versionedEntity.Version = originalVersion + 1;
+
+            var parameters = new DynamicParameters(versionedEntity);
+            parameters.Add("OriginalVersion", originalVersion);
+
+            var sql = versionedSql;
+            if (scoped)
+            {
+                sql = $"{versionedSql} AND {tenantFilter.filter}";
+                parameters.Add("tenantId", tenantFilter.tenantId);
+            }
+
+            totalUpdated += await _connection.ExecuteAsync(sql, parameters);
+        }
+
+        // Check for concurrency conflicts
+        return totalUpdated < entityList.Count
+            ? Left<EncinaError, Unit>(
+                RepositoryErrors.ConcurrencyConflict<TEntity>(
+                    new InvalidOperationException($"{entityList.Count - totalUpdated} entities had version conflicts")))
+            : Right<EncinaError, Unit>(Unit.Default);
+    }
+
+    // Non-versioned entities - update one by one with tenant filter
+    private async Task<Either<EncinaError, Unit>> UpdateRangeOneByOneAsync(
+        List<TEntity> entityList,
+        CancellationToken cancellationToken)
+    {
+        foreach (var entity in entityList)
+        {
+            var updateResult = await UpdateAsync(entity, cancellationToken);
+            if (updateResult.IsLeft)
+            {
+                return updateResult.Map(_ => Unit.Default);
+            }
+        }
+
+        return Right<EncinaError, Unit>(Unit.Default);
     }
 
     /// <inheritdoc/>
@@ -976,12 +990,9 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
         if (string.IsNullOrEmpty(currentTenantId))
         {
-            if (_options.ThrowOnMissingTenantContext)
-            {
-                return Left<EncinaError, Unit>(RepositoryErrors.TenantRequired<TEntity>(operation));
-            }
-
-            return Right<EncinaError, Unit>(Unit.Default);
+            return _options.ThrowOnMissingTenantContext
+                ? Left<EncinaError, Unit>(RepositoryErrors.TenantRequired<TEntity>(operation))
+                : Right<EncinaError, Unit>(Unit.Default);
         }
 
         if (!string.Equals(currentTenantId, entityTenantId, StringComparison.Ordinal))
