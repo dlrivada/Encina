@@ -37,18 +37,27 @@ public class MessagePurgeCyclePropertyTests
             var remaining = new Queue<string>(Enumerable.Range(0, backlog).Select(i => $"m{i}"));
             var fetches = 0;
             var saves = 0;
+            var servedBatches = new List<string[]>();
+            var removedBatches = new List<string[]>();
             var store = Substitute.For<IInboxStore>();
             store.GetExpiredMessagesAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
                 .Returns(call =>
                 {
                     fetches++;
-                    var batch = remaining.Take(call.ArgAt<int>(0)).Select(Message).ToList();
-                    return Task.FromResult(Right<EncinaError, IEnumerable<IInboxMessage>>(batch));
+                    var ids = remaining.Take(call.ArgAt<int>(0)).ToArray();
+                    if (ids.Length > 0)
+                    {
+                        servedBatches.Add(ids);
+                    }
+
+                    return Task.FromResult(Right<EncinaError, IEnumerable<IInboxMessage>>(ids.Select(Message).ToList()));
                 });
             store.RemoveExpiredMessagesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
                 .Returns(call =>
                 {
-                    foreach (var _ in call.Arg<IEnumerable<string>>())
+                    var ids = call.Arg<IEnumerable<string>>().ToArray();
+                    removedBatches.Add(ids);
+                    foreach (var _ in ids)
                     {
                         remaining.Dequeue();
                     }
@@ -66,7 +75,9 @@ public class MessagePurgeCyclePropertyTests
                 .GetAwaiter().GetResult();
 
             var expectedSaves = (backlog + batchSize - 1) / batchSize;
-            return ((int)result == backlog && remaining.Count == 0 && fetches == (backlog / batchSize) + 1 && saves == expectedSaves)
+            return ((int)result == backlog && remaining.Count == 0 && fetches == (backlog / batchSize) + 1 && saves == expectedSaves
+                    && removedBatches.Count == servedBatches.Count
+                    && removedBatches.Zip(servedBatches).All(p => p.Item1.SequenceEqual(p.Item2)))
                 .ToProperty();
         });
     }
