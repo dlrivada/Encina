@@ -1,4 +1,5 @@
 using Encina.Audit.Marten;
+using Encina.Audit.Marten.Crypto;
 using Encina.Audit.Marten.Events;
 using Encina.Audit.Marten.Projections;
 
@@ -97,6 +98,28 @@ public class OperationAuditEntryProjectionGuardTests
         var projection = new ReadAuditEntryProjection();
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await projection.Create(null!, operations: null!, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ReadAuditEntryProjection_Create_KeyLookupFailure_PropagatesAndIsNotSwallowed()
+    {
+        var projection = new ReadAuditEntryProjection();
+        var operations = Substitute.For<global::Marten.IDocumentOperations>();
+        operations.Query<TemporalKeyDocument>()
+            .Returns(_ => throw new InvalidOperationException("store unavailable"));
+        var evt = new ReadAuditEntryRecordedEvent
+        {
+            Id = Guid.NewGuid(),
+            EntityType = "E",
+            EntityId = null,
+            AccessedAtUtc = DateTimeOffset.UtcNow,
+            AccessMethod = 0,
+            EntityCount = 0,
+            TemporalKeyPeriod = "2026-03"
+        };
+
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await projection.Create(evt, operations, CancellationToken.None));
     }
 
     [Fact]
