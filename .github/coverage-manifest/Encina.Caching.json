@@ -4,7 +4,7 @@
   "totalFiles": 30,
   "targets": {
     "contract": 10,
-    "guard": 20,
+    "guard": 30,
     "unit": 60
   },
   "files": {
@@ -140,10 +140,17 @@
     },
     "Configuration/CachingOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "guard": 85
+      },
+      "justifications": {
+        "guard": "Guard tests construct CachingOptions as a dependency of the query-caching and invalidation behavior guard tests, so its property initializers run; the options class has no argument validation of its own."
+      }
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
@@ -228,11 +235,11 @@
       "reason": "Default: assume testable with mocks",
       "targets": {
         "unit": 98,
-        "guard": 0
+        "guard": 98
       },
       "justifications": {
         "unit": "Hit, miss, oversize, store, invalidation and shard invalidation paths are unit tested; the remaining lines are trivial.",
-        "guard": "No guard test exists for this executor today; its null guards are asserted in its unit tests."
+        "guard": "Guard tests run the constructor null checks, the null, empty and whitespace checks of every public method, the pass-through methods and the hit, miss, oversize, inner-failure and invalidation paths with and without pub/sub against substituted dependencies."
       }
     },
     "Sharding/CachedShardTopologyProvider.cs": {
