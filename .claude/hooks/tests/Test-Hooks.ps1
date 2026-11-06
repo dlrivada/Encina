@@ -514,10 +514,10 @@ foreach ($shape in @(
     $ps1Scripts["ExpChain$($shape[0])Src"] = (@('$v0 = "x"') + @(1..26 | ForEach-Object { & $shape[1] $_ }) + @("Set-Content -Path ('$main\src\' + `$v26) -Value 1")) -join "`n"
 }
 # Pins the 8192-character cap itself: 14 doublings give 16384 characters, so the target is unresolved under the cap
-# (uncapped it would resolve to <main>\src\xxx... and be Guarded). The text and the launch name no src/tests word
-# (the folder is built from 's' + 'rc'), so today the verdict is Unknown without a mention: ALLOWED. That is a known
+# (uncapped it would resolve, relative to the launching cwd <main>, to <main>\src\xxx... and be Guarded). The text and
+# the launch name no src/tests word (the folder is built from 's' + 'rc'; the fixture path is not in the text), so today the verdict is Unknown without a mention: ALLOWED. That is a known
 # B1 limit, pinned here on purpose so a change of behaviour is noticed.
-$ps1Scripts['CapProofNoWord'] = (@('$v0 = "x"') + @(1..14 | ForEach-Object { "`$v$_ = '{0}{0}' -f `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\s' + 'rc\' + `$v14) -Value 1")) -join "`n"
+$ps1Scripts['CapProofNoWord'] = (@('$v0 = "x"') + @(1..14 | ForEach-Object { "`$v$_ = '{0}{0}' -f `$v$($_ - 1)" }) + @("Set-Content -Path ('s' + 'rc\' + `$v14) -Value 1")) -join "`n"
 $ps1Scripts['ExpChainLongSrc'] = (@('$v0 = "x"') + @(1..26 | ForEach-Object { "`$v$_ = `$v$($_ - 1) + `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\src\' + `$v26) -Value 1")) -join "`n"
 $ps1Scripts['TypedArraySrc'] = "[string[]]`$a = '$main\artifacts\'`nSet-Content -Path (`$a + 'src\q') -Value 1`n"
 $ps1Scripts['ExpChainCycleSrc'] = (@('$v0 = "x"', '$v0 = $v0 + "y"') + $expLines[1..($expLines.Count - 1)] -join "`n") + "`n"
