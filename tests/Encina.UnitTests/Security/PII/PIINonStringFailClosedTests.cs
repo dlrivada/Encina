@@ -1,4 +1,5 @@
 using Encina.Diagnostics;
+using Encina.Security.Audit;
 using Encina.Security.PII;
 using Encina.Security.PII.Attributes;
 using Encina.Security.PII.Internal;
@@ -248,6 +249,29 @@ public sealed class PIINonStringFailClosedTests : IDisposable
         result.Mail.ShouldNotBe("john@example.com");
         result.Reference.ShouldBe(SentinelGuid);
         result.Count.ShouldBe(7);
+    }
+
+    [Fact]
+    public void AuditEntryFactory_WithRealPiiMasker_ReturnsAuditMaskingFailedAndStoresNothing()
+    {
+        var options = Options.Create(new OperationAuditOptions());
+        var factory = new DefaultOperationAuditEntryFactory(CreateMasker(), options);
+
+        var result = factory.Create(new AuditedPiiGuidCommand(), RequestContext.CreateForTest(), AuditOutcome.Success, null);
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e =>
+        {
+            e.GetCode().IfNone(string.Empty).ShouldBe(OperationAuditErrors.MaskingFailedCode);
+            e.Message.ShouldNotContain(SentinelGuid.ToString());
+        });
+    }
+
+    [Auditable]
+    public sealed class AuditedPiiGuidCommand
+    {
+        [PII(PIIType.Custom)]
+        public Guid Reference { get; set; } = SentinelGuid;
     }
 
     [Theory]
