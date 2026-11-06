@@ -8,11 +8,11 @@ parent: "Features"
 
 This guide shows you how to make the events a request emits and the business change it makes commit or roll back together, on the ADO.NET, Dapper and EF Core providers (SQL Server, PostgreSQL, MySQL) and on MongoDB. It assumes you already use one of the `Encina.ADO.*`, `Encina.Dapper.*`, `Encina.EntityFrameworkCore` or `Encina.MongoDB` packages and know what the outbox is. The code samples use ADO.NET; on Dapper, pass `transaction: accessor.Current` to each Dapper call instead of setting `command.Transaction`, and register with `AddEncinaDapper`. On EF Core, see [the EF Core section](#ef-core-one-transaction-per-request). The API is pre-1.0 and may still change.
 
-The reasons behind the design (one shared transaction, join and rollback-only, the interim per-family switch) are in [ADR-037](../architecture/adr/037-transactional-outbox.md). The members of every type are in the generated API reference (`/api/` on the site).
+The reasons behind the design (one shared transaction, join and rollback-only, one behavior for all ten providers) are in [ADR-037](../architecture/adr/037-transactional-outbox.md). The members of every type are in the generated API reference (`/api/` on the site).
 
 ## Which providers write inside the transaction
 
-Encina delivers this one provider family at a time. The ADO.NET, Dapper, EF Core and MongoDB providers write the outbox inside the request's transaction today.
+All ten database providers write the outbox inside the request's transaction, through the same `TransactionalOutboxPipelineBehavior<,>`; there is no other outbox write path.
 
 | Provider | Outbox row written | Status |
 | --- | --- | --- |
@@ -146,7 +146,7 @@ public sealed class PlaceOrderHandler(AppDbContext db) : IRequestHandler<PlaceOr
 }
 ```
 
-`OrderPlaced` and `IHasNotifications` are the ones of Step 2. `OutboxPostProcessor` is no longer used for EF Core.
+`OrderPlaced` and `IHasNotifications` are the ones of Step 2.
 
 ### What you enable
 

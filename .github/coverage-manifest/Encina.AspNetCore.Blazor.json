@@ -13,11 +13,11 @@
         "guard"
       ],
       "defaultRule": "*Handler.cs",
-      "reason": "Circuit activity handler binding one inbound scope per activity, masked on refusal",
+      "reason": "Circuit activity handler binding one inbound scope per activity; masked on host refusal, refused (fail closed) on an unusable principal",
       "targets": { "unit": 95, "guard": 40 },
       "justifications": {
-        "unit": "Activity scope, refresh, outside-activity reads, mask and failure branches have unit tests (measured 100%).",
-        "guard": "Constructor and CreateInboundActivityHandler null guards (measured 43%)."
+        "unit": "Activity scope, refresh, outside-activity reads, host-refusal mask, the five refused causes and failure branches have unit tests.",
+        "guard": "Constructor and CreateInboundActivityHandler null guards plus the three refusal branches (scope opened, unknown refusal code fails closed, host refusal runs masked) with a stubbed scope factory."
       }
     },
     "ServiceCollectionExtensions.cs": {

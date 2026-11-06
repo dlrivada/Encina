@@ -1,7 +1,7 @@
 {
   "package": "Encina.Messaging",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 158,
+  "totalFiles": 163,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -382,6 +382,30 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "Diagnostics/MessagePurgeLog.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Source-generated LoggerMessage definitions of the purge service (EventIds 2107-2112)",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "The class is marked ExcludeFromCodeCoverage because the LoggerMessage members are generated boilerplate, so it has no coverable lines; the log calls (2107-2112, including the 2112 no-progress warning) are asserted through the service and cycle tests."
+      }
+    },
+    "Diagnostics/MessagePurgeMetrics.cs": {
+      "defaultTests": [
+        "unit",
+        "property"
+      ],
+      "defaultRule": "*Metrics.cs",
+      "reason": "Meter and counters of the purge service",
+      "targets": { "unit": 95, "property": 70 },
+      "justifications": {
+        "unit": "The purge service and cycle unit tests execute every recording path of the counters; no counter value is asserted yet.",
+        "property": "The cycle properties record the deleted counter on every batch and a property calls both counters with arbitrary pattern, count and error code, so every line runs (measured 100%); 70 leaves room for a counter refactor."
+      }
+    },
     "Diagnostics/MessagingStoreMetrics.cs": {
       "defaultTests": [
         "unit"
@@ -645,11 +669,11 @@
         "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Options class with defaults and no logic",
+      "reason": "Options class with validated purge and retention setters",
       "targets": { "unit": 100, "guard": 100 },
       "justifications": {
-        "unit": "Property defaults and setters are exercised by the orchestrator and options tests.",
-        "guard": "The options class has no parameters to guard; guard tests only touch its properties incidentally (measured 100%)."
+        "unit": "Defaults and every setter branch (accept, non-positive, above the Task.Delay maximum) are executed by the options validation tests.",
+        "guard": "The purge and retention setters throw ArgumentOutOfRangeException with the property name and keep the previous value; the guard tests execute each rejection."
       }
     },
     "Inbox/InboxOrchestrator.cs": {
@@ -720,7 +744,7 @@
       "reason": "ServiceCollection extensions with conditional registration",
       "targets": { "unit": 95, "guard": 60, "integration": 70 },
       "justifications": {
-        "unit": "Registration snapshots, the registration-order tests and the DI tests cover every pattern flag and both write paths with ValidateOnBuild and ValidateScopes (measured 100%).",
+        "unit": "Registration snapshots, the registration-order tests and the DI tests, including the inbox purge registration with the flag on and off, cover every pattern flag and the single transactional write path with ValidateOnBuild and ValidateScopes (measured 100%).",
         "guard": "Guard tests cover the null-argument checks of the public registration methods, which are a minority of the file (measured 64%).",
         "integration": "The three ADO.NET provider registrations run it end to end in the outbox atomicity tests (measured 76%); per-flag branches are unit-covered."
       }
@@ -794,20 +818,6 @@
         "integration": "The outbox store and dead letter end-to-end suites run the orchestrator against real databases (measured 87%)."
       }
     },
-    "Outbox/OutboxPostProcessor.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Interim post-processor for the families still on the post-processor write path",
-      "targets": { "unit": 95, "guard": 0, "contract": 0 },
-      "justifications": {
-        "unit": "Process delegates to the writer and returns the first Left; the constructor and both outcomes are driven by OutboxPostProcessorTests (measured 100%).",
-        "guard": "Constructor null checks are asserted in the unit tests; the guard project has no separate tests for this interim class.",
-        "contract": "A concrete scoped processor with no public contract beyond IRequestPostProcessor, covered by ProcessorContracts for the interface."
-      }
-    },
     "Outbox/OutboxProcessorBase.cs": {
       "defaultTests": [
         "unit",
@@ -833,17 +843,6 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
-    },
-    "Outbox/OutboxWritePath.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Interim switch enum with no executable lines",
-      "targets": { "unit": 0 },
-      "justifications": {
-        "unit": "An enum declaration has no executable lines, so there is nothing to cover; the registration tests drive both values."
-      }
     },
     "Outbox/OutboxWriter.cs": {
       "defaultTests": [
@@ -881,6 +880,47 @@
         "contract": "The behavior contract tests drive commit, handler Left, failed write, participant rollback, exception and join over the real accessor (measured 98%).",
         "property": "The commit-or-nothing property covers every outcome except cancellation (measured 94%).",
         "integration": "Real-database request runs cover every path except cancellation (measured 95%)."
+      }
+    },
+    "Purge/MessagePurgeCycle.cs": {
+      "defaultTests": [
+        "unit",
+        "property",
+        "contract",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "One batched purge cycle over IInboxStore",
+      "targets": { "unit": 95, "property": 85, "contract": 85, "integration": 70 },
+      "justifications": {
+        "unit": "Unit tests cover the drain loop, the short-batch stop, the no-progress stop on a repeated batch (EventId 2112), each Left branch, SaveChangesAsync after every remove and cancellation.",
+        "property": "FsCheck properties drain any backlog in backlog/batchSize+1 fetches with one save per non-empty batch, stop on the first batch of already-tried ids (EventId 2112) and never while a batch has a new id, and stop at the first Left of the fetch, remove or save on any batch (measured 100%).",
+        "contract": "Contract tests pin the IInboxStore contract: fetch with the batch size, remove exactly the ids read, save after every remove, stop at the first Left of each call; the no-progress guard and cancellation are covered by the property and unit flags.",
+        "integration": "The same end-to-end purge drives one batch to a short batch against each real inbox store; the Left branches, the no-progress stop and cancellation are covered by unit tests only (measured 76%)."
+      }
+    },
+    "Purge/MessagePurgeSchedule.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Immutable purge schedule built from the inbox options",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "Unit tests build the schedule with the flag on and off and read InboxPurge."
+      }
+    },
+    "Purge/MessagePurgeService.cs": {
+      "defaultTests": [
+        "unit",
+        "integration"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Hosted service that purges expired inbox messages at start and every interval",
+      "targets": { "unit": 85, "integration": 75 },
+      "justifications": {
+        "unit": "Unit tests drive the start-up delay, the per-interval cycle, the failure and exception paths and shutdown with a fake TimeProvider.",
+        "integration": "The hosted service runs end to end against the 10 database providers (nine run, EF Core MySQL is skipped until #2086): one start-up delay, one purge cycle through the scoped inbox store and shutdown are covered; the nothing-to-purge, store Left, exception and cancellation-during-cycle paths are covered by unit tests only (measured 77%)."
       }
     },
     "ReadWriteSeparation/DatabaseIntent.cs": {

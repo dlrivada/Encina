@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using System.Linq.Expressions;
 using Encina.ADO.SqlServer.Repository;
 using Encina.DomainModeling;
@@ -328,6 +329,103 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #endregion
 
+    #region String Method Wildcard Tests
+
+    // Each value would also match other names if its LIKE wildcards ('%', '_', SQL Server's '[')
+    // or the '!' escape character were not matched literally (#3156).
+    private static readonly string[] Names = ["500", "50% off", "100%", "a_b", "axb", "[a]", "hey!"];
+
+    [Theory]
+    [InlineData(nameof(string.Contains), "50%", "50% off")]
+    [InlineData(nameof(string.StartsWith), "a_", "a_b")]
+    [InlineData(nameof(string.EndsWith), "0%", "100%")]
+    [InlineData(nameof(string.Contains), "[a]", "[a]")]
+    [InlineData(nameof(string.Contains), "!", "hey!")]
+    public async Task ListAsync_StringMethodSpecification_MatchesLikeWildcardsLiterally(string method, string value, string expectedName)
+    {
+        // Arrange
+        await ClearDataAsync();
+        await _repository.AddRangeAsync(Names.Select(name => CreateTestItem(name)).ToArray());
+        var spec = new ItemNameSpec(method, value);
+
+        // Act
+        var result = await _repository.ListAsync(spec);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Name).ToList().ShouldBe([expectedName]));
+    }
+
+    [Fact]
+    public async Task ListAsync_LikePatternAtTheSqlServerLimit_RunsTheQuery()
+    {
+        // Arrange - 3,998 characters and the two '%' make 4,000 nvarchar characters, the 8,000 bytes SQL Server accepts
+        await ClearDataAsync();
+        var spec = new ItemNameSpec(nameof(string.Contains), new string('a', 3998));
+
+        // Act
+        var result = await _repository.ListAsync(spec);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.ShouldBeEmpty());
+    }
+
+    [Fact]
+    public async Task ListAsync_LikePatternOverTheSqlServerLimit_ReturnsLeftBeforeTheQuery()
+    {
+        // Arrange - 2,000 '%' fit, but each one escapes to "!%": 4,002 characters with the wrappers,
+        // over SQL Server's 8,000-byte limit, so the builder rejects the specification
+        await ClearDataAsync();
+        var spec = new ItemNameSpec(nameof(string.Contains), new string('%', 2000));
+
+        // Act
+        var result = await _repository.ListAsync(spec);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.Message.ShouldContain("8004 bytes"));
+    }
+
+    #endregion
+
+    #region Keyset Direction Tests
+
+    private static readonly decimal[] KeysetValues = [100m, 200m, 300m, 400m];
+
+    [Fact]
+    public async Task ListAsync_KeysetSortedDescending_ReturnsTheKeysBelowTheLastOne()
+    {
+        // Arrange - the next page of a descending keyset holds the smaller keys (#3154); ListAsync applies the
+        // query specification's keyset and ordering (#3151)
+        await ClearDataAsync();
+        await _repository.AddRangeAsync(KeysetValues.Select(v => CreateTestItem($"Item {v}", value: v)).ToArray());
+
+        // Act
+        var result = await _repository.ListAsync(new DescendingValueKeysetSpec(lastValue: 300m));
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Value).ShouldBe([200m, 100m]));
+    }
+
+    [Fact]
+    public async Task ListAsync_QuerySpecificationOrderedAndPaged_ReturnsThatPageInOrder()
+    {
+        // Arrange - ListAsync used to ignore the ordering and paging and return every row in engine order (#3151)
+        await ClearDataAsync();
+        await _repository.AddRangeAsync(KeysetValues.Select(v => CreateTestItem($"Item {v}", value: v)).ToArray());
+
+        // Act
+        var result = await _repository.ListAsync(new ValuePageSpec(skip: 1, take: 2));
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Value).ShouldBe([300m, 200m]));
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static TestItem CreateTestItem(
@@ -369,6 +467,44 @@ public class EnabledItemSpec : Specification<TestItem>
 {
     public override Expression<Func<TestItem, bool>> ToExpression()
         => i => i.IsEnabled;
+}
+
+/// <summary>
+/// Specification matching a TestItem whose name contains, starts with or ends with a value.
+/// </summary>
+public class ItemNameSpec(string method, string value) : Specification<TestItem>
+{
+    public override Expression<Func<TestItem, bool>> ToExpression() => method switch
+    {
+        nameof(string.Contains) => e => e.Name.Contains(value),
+        nameof(string.StartsWith) => e => e.Name.StartsWith(value),
+        nameof(string.EndsWith) => e => e.Name.EndsWith(value),
+        _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Expected Contains, StartsWith or EndsWith."),
+    };
+}
+
+/// <summary>
+/// Next page of items by value, sorted in descending order, after <c>lastValue</c>.
+/// </summary>
+public class DescendingValueKeysetSpec : QuerySpecification<TestItem>
+{
+    public DescendingValueKeysetSpec(decimal lastValue)
+    {
+        ApplyOrderByDescending(i => i.Value);
+        ApplyKeysetPagination(i => i.Value, lastValue, 10);
+    }
+}
+
+/// <summary>
+/// One page of TestItem rows by value, sorted in descending order.
+/// </summary>
+public class ValuePageSpec : QuerySpecification<TestItem>
+{
+    public ValuePageSpec(int skip, int take)
+    {
+        ApplyOrderByDescending(i => i.Value);
+        ApplyPaging(skip, take);
+    }
 }
 
 #endregion

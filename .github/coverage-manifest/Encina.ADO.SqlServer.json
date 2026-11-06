@@ -311,7 +311,17 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 69,
+        "guard": 17,
+        "integration": 68
+      },
+      "justifications": {
+        "unit": "Unit tests cover WHERE translation (comparisons, null checks, IN lists, and Contains/StartsWith/EndsWith with their LIKE wildcards escaped, including the 8,000-byte LIKE pattern limit), the keyset filter in both directions, the first page and a keyset that is not the primary ordering (rejected), ORDER BY, pagination and SELECT building (measured 71.48%); the rest is rarer expression shapes and error branches of the translator.",
+        "guard": "Guard tests cover the null-argument checks of the public builder methods (measured 17.69%).",
+        "integration": "The ADO.NET repository integration tests run the generated SQL on a real SQL Server database for every repository operation, including specifications whose LIKE wildcards must match literally and LIKE patterns at and over the limit, and a descending keyset page from the query-specification SELECT (measured 70.76%); the rest is expression shapes the repository tests do not use."
+      }
     },
     "Sagas/SagaState.cs": {
       "defaultTests": [

@@ -23,7 +23,7 @@ Before starting work, read the plan of your area and continue from where the las
 - Every step goes to the specialist that owns it (#1181): `mechanical-fixer` for decided edits, changelog fragments, PublicAPI lines and coverage manifests; `docs-writer` for pages under `docs/`, READMEs and CONTRIBUTING; `ci-diagnoser` for failures; `adversarial-reviewer` for self-review and PR review. Spawn specialists in the foreground and name the worktree's absolute path.
 - Agent definitions, the delegation table and the hooks that enforce these rules (prohibited commands, main-checkout writes, path ownership, AI attribution, issue templates) are described in `.claude/agents/README.md`; hooks live in `.claude/hooks/` with their tests in `.claude/hooks/tests/Test-Hooks.ps1`.
 - Never work around a hook: a blocked step stops and is reported with the hook's message; a false positive is fixed in the hook (#1345).
-- Mark the orchestrator session with `pwsh -File tools/ai/orchestrator-mode.ps1 -On -StartPercent <weekly %>` (pace 17 by default); `-Off` unmarks it. A marked session gets a delegation and budget-pace reminder on every prompt and its specialist-level steps are denied (#2516, `.claude/agents/README.md`, Orchestrator mode).
+- Mark the orchestrator session with `pwsh -File tools/ai/orchestrator-mode.ps1 -On -StartPercent <weekly %>` (the cap follows the weekly formula: week Fri 03:00Z to Fri 03:00Z, day share = floor(remaining / days left), Thursday takes the rest, stop order = cap − 2; `-CapPercent` / `-StopPercent` override it verbatim); `-Off` unmarks it. A marked session gets a delegation and budget reminder on every prompt and its specialist-level steps are denied (#2516, `.claude/agents/README.md`, Orchestrator mode).
 
 ## Model routing
 
@@ -36,7 +36,7 @@ The per-issue knowledge migration and quality audit follows SPEC-003. Its pipeli
 
 ## CodeRabbit
 
-- Every PR gets a CodeRabbit review (`@coderabbitai review`); resolve or answer each comment. Configuration is `.coderabbit.yaml` (Spanish summaries, per-path instructions).
+- Every PR gets a CodeRabbit review (`@coderabbitai review`); resolve or answer each comment. Configuration is `.coderabbit.yaml` (English, per-path instructions).
 - CodeRabbit enriches issues only when they are created or edited; for an existing issue comment `@coderabbitai please analyze this issue and suggest related issues/PRs`, and read the enrichment before starting.
 - `@coderabbitai plan` (or the `plan-me` label) generates an implementation plan that can seed a session; `@coderabbitai resolve` marks all comments resolved; `@coderabbitai help` lists commands.
 - Use conventional commit messages and reference the issue in the PR (`Fixes #N`) so CodeRabbit validates the PR against it. When CodeRabbit is rate limited, `adversarial-reviewer` replaces its review.

@@ -78,7 +78,7 @@ public sealed class PIIOptions
     /// </para>
     /// <para>
     /// Setting this to <c>false</c> is an explicit opt-out: log-context masking is disabled
-    /// entirely and the options validator logs one warning (EventId 8024) per process. The
+    /// entirely and the options validator logs one warning (EventId 8024) per service provider. The
     /// warning names the option and never a value.
     /// </para>
     /// </remarks>

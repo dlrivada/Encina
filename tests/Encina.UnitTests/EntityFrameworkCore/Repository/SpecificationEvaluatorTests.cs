@@ -335,6 +335,97 @@ public class SpecificationEvaluatorTests : IDisposable
         results.Count.ShouldBe(2);
     }
 
+    [Fact]
+    public void GetQuery_WithKeysetPaginationSortedDescending_ReturnsTheKeysBelowTheLastOne()
+    {
+        // Arrange - with a descending keyset the next page holds the smaller keys (#3154)
+        _dbContext.TestEntities.AddRange(
+            CreateTestEntity("100", amount: 100),
+            CreateTestEntity("200", amount: 200),
+            CreateTestEntity("300", amount: 300),
+            CreateTestEntity("400", amount: 400)
+        );
+        _dbContext.SaveChanges();
+
+        var spec = new DescendingAmountKeysetSpec(lastAmount: 300, take: 10);
+
+        // Act
+        var query = SpecificationEvaluator.GetQuery(_dbContext.TestEntities.AsQueryable(), spec);
+        var results = query.ToList();
+
+        // Assert
+        results.Select(e => e.Amount).ShouldBe([200m, 100m]);
+    }
+
+    [Theory]
+    [InlineData(false, "b", new[] { "c", "d" })]
+    [InlineData(true, "c", new[] { "b", "a" })]
+    public void GetQuery_WithStringKeyset_ReturnsTheNamesAfterTheLastOne(bool descending, string lastName, string[] expected)
+    {
+        // Arrange - string has no comparison operator; the keyset filter used to throw InvalidOperationException (#3201)
+        _dbContext.TestEntities.AddRange(CreateTestEntity("a"), CreateTestEntity("b"), CreateTestEntity("c"), CreateTestEntity("d"));
+        _dbContext.SaveChanges();
+
+        // Act
+        var results = SpecificationEvaluator.GetQuery(_dbContext.TestEntities.AsQueryable(), new NameKeysetSpec(descending, lastName)).ToList();
+
+        // Assert
+        results.Select(e => e.Name).ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void GetQuery_WithGuidKeyset_ReturnsTheIdsAfterTheLastOne(bool descending)
+    {
+        // Arrange - Guid has no comparison operator; the keyset filter used to throw InvalidOperationException (#3201)
+        var entities = new[] { CreateTestEntity("a"), CreateTestEntity("b"), CreateTestEntity("c"), CreateTestEntity("d") };
+        _dbContext.TestEntities.AddRange(entities);
+        _dbContext.SaveChanges();
+        var order = descending
+            ? entities.Select(e => e.Id).OrderDescending().ToList()
+            : entities.Select(e => e.Id).Order().ToList();
+
+        // Act
+        var results = SpecificationEvaluator.GetQuery(_dbContext.TestEntities.AsQueryable(), new IdKeysetSpec(descending, order[1])).ToList();
+
+        // Assert
+        results.Select(e => e.Id).ShouldBe(order.Skip(2));
+    }
+
+    [Fact]
+    public void GetQuery_WithKeysetContinuationAndMoreRowsThanTake_ReturnsOnlyTakeRows()
+    {
+        // Arrange - three keys below the cursor and a page of two: the keyset filter must not replace Take
+        _dbContext.TestEntities.AddRange(
+            CreateTestEntity("100", amount: 100),
+            CreateTestEntity("200", amount: 200),
+            CreateTestEntity("300", amount: 300),
+            CreateTestEntity("400", amount: 400)
+        );
+        _dbContext.SaveChanges();
+
+        var spec = new DescendingAmountKeysetSpec(lastAmount: 400, take: 2);
+
+        // Act
+        var results = SpecificationEvaluator.GetQuery(_dbContext.TestEntities.AsQueryable(), spec).ToList();
+
+        // Assert
+        results.Select(e => e.Amount).ShouldBe([300m, 200m]);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(300)]
+    public void GetQuery_WithKeysetNotThePrimaryOrdering_ThrowsNotSupportedException(int? lastAmount)
+    {
+        // Arrange - ordered by name with the keyset in a ThenByDescending: rejected on the first page too
+        var spec = new AmountKeysetThenBySpec(lastAmount, take: 10);
+
+        // Act & Assert
+        Should.Throw<NotSupportedException>(() => SpecificationEvaluator.GetQuery(_dbContext.TestEntities.AsQueryable(), spec));
+    }
+
     #endregion
 
     #region GetQuery (Projection) Tests
@@ -635,6 +726,71 @@ public class KeysetPaginatedSpec : QuerySpecification<TestEntity>
         AddCriteria(e => e.IsActive);
         ApplyOrderBy(e => e.Id);
         ApplyKeysetPagination(e => e.Id, lastId, take);
+    }
+}
+
+/// <summary>
+/// QuerySpecification with a keyset sorted in descending order.
+/// </summary>
+public class DescendingAmountKeysetSpec : QuerySpecification<TestEntity>
+{
+    public DescendingAmountKeysetSpec(decimal lastAmount, int take)
+    {
+        ApplyOrderByDescending(e => e.Amount);
+        ApplyKeysetPagination(e => e.Amount, lastAmount, take);
+    }
+}
+
+/// <summary>
+/// QuerySpecification paging by name in either direction, after <c>lastName</c>.
+/// </summary>
+public class NameKeysetSpec : QuerySpecification<TestEntity>
+{
+    public NameKeysetSpec(bool descending, string lastName)
+    {
+        if (descending)
+        {
+            ApplyOrderByDescending(e => e.Name);
+        }
+        else
+        {
+            ApplyOrderBy(e => e.Name);
+        }
+
+        ApplyKeysetPagination(e => e.Name, lastName, 10);
+    }
+}
+
+/// <summary>
+/// QuerySpecification paging by id in either direction, after <c>lastId</c>.
+/// </summary>
+public class IdKeysetSpec : QuerySpecification<TestEntity>
+{
+    public IdKeysetSpec(bool descending, Guid lastId)
+    {
+        if (descending)
+        {
+            ApplyOrderByDescending(e => e.Id);
+        }
+        else
+        {
+            ApplyOrderBy(e => e.Id);
+        }
+
+        ApplyKeysetPagination(e => e.Id, lastId, 10);
+    }
+}
+
+/// <summary>
+/// QuerySpecification sorted by name, then by amount descending, with the keyset on amount: not the primary ordering.
+/// </summary>
+public class AmountKeysetThenBySpec : QuerySpecification<TestEntity>
+{
+    public AmountKeysetThenBySpec(decimal? lastAmount, int take)
+    {
+        ApplyOrderBy(e => e.Name);
+        ApplyThenByDescending(e => e.Amount);
+        ApplyKeysetPagination(e => e.Amount, lastAmount, take);
     }
 }
 

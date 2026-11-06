@@ -282,6 +282,65 @@ public class SpecificationSqlBuilderTests
         likeParam.ShouldBe("%completed");
     }
 
+    [Fact]
+    public void BuildWhereClause_StringMethod_NamesTheLikeEscapeCharacter()
+    {
+        // Arrange
+        var builder = new SpecificationSqlBuilder<TestOrderPg>(_columnMappings);
+        var spec = new DescriptionContainsPgSpec("urgent");
+
+        // Act
+        var (whereClause, _) = builder.BuildWhereClause(spec);
+
+        // Assert
+        whereClause.ShouldContain("\"Description\" LIKE @p0 ESCAPE '!'");
+    }
+
+    [Fact]
+    public void BuildWhereClause_StringContainsWithLikeWildcards_EscapesThem()
+    {
+        // Arrange - '%' and '_' are LIKE wildcards and '!' is the escape character (#3156)
+        var builder = new SpecificationSqlBuilder<TestOrderPg>(_columnMappings);
+        var spec = new DescriptionContainsPgSpec("50%_off!");
+
+        // Act
+        var (_, addParameters) = builder.BuildWhereClause(spec);
+        var parameters = CaptureParameters(addParameters);
+
+        // Assert
+        parameters["@p0"].ShouldBe("%50!%!_off!!%");
+    }
+
+    [Fact]
+    public void BuildWhereClause_StringStartsWithLikeWildcard_EscapesIt()
+    {
+        // Arrange
+        var builder = new SpecificationSqlBuilder<TestOrderPg>(_columnMappings);
+        var spec = new DescriptionStartsWithPgSpec("a_");
+
+        // Act
+        var (_, addParameters) = builder.BuildWhereClause(spec);
+        var parameters = CaptureParameters(addParameters);
+
+        // Assert
+        parameters["@p0"].ShouldBe("a!_%");
+    }
+
+    [Fact]
+    public void BuildWhereClause_StringEndsWithLikeWildcard_EscapesIt()
+    {
+        // Arrange
+        var builder = new SpecificationSqlBuilder<TestOrderPg>(_columnMappings);
+        var spec = new DescriptionEndsWithPgSpec("0%");
+
+        // Act
+        var (_, addParameters) = builder.BuildWhereClause(spec);
+        var parameters = CaptureParameters(addParameters);
+
+        // Assert
+        parameters["@p0"].ShouldBe("%0!%");
+    }
+
     #endregion
 
     #region BuildSelectStatement Tests

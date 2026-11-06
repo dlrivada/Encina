@@ -578,6 +578,74 @@ public class FunctionalRepositoryEFIntegrationTests : IAsyncLifetime
 
     #endregion
 
+    #region String Method Wildcard Tests
+
+    // Each value would also match other names if its LIKE wildcards ('%', '_', SQL Server's '[')
+    // or the '!' escape character were not matched literally (#3156).
+    private static readonly string[] Names = ["500", "50% off", "100%", "a_b", "axb", "[a]", "hey!"];
+
+    [Theory]
+    [InlineData(nameof(string.Contains), "50%", "50% off")]
+    [InlineData(nameof(string.StartsWith), "a_", "a_b")]
+    [InlineData(nameof(string.EndsWith), "0%", "100%")]
+    [InlineData(nameof(string.Contains), "[a]", "[a]")]
+    [InlineData(nameof(string.Contains), "!", "hey!")]
+    public async Task ListAsync_StringMethodSpecification_MatchesLikeWildcardsLiterally(string method, string value, string expectedName)
+    {
+        // Arrange
+        _dbContext.TestEntities.AddRange(Names.Select(name => CreateTestEntity(name)));
+        await _dbContext.SaveChangesAsync();
+        _dbContext.ChangeTracker.Clear();
+        var spec = new EntityNameSpec(method, value);
+
+        // Act
+        var result = await _repository.ListAsync(spec);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Name).ToList().ShouldBe([expectedName]));
+    }
+
+    #endregion
+
+    #region Keyset Direction Tests
+
+    private static readonly decimal[] KeysetValues = [100m, 200m, 300m, 400m];
+
+    [Fact]
+    public async Task ListAsync_KeysetSortedDescending_ReturnsTheKeysBelowTheLastOne()
+    {
+        // Arrange - the next page of a descending keyset holds the smaller keys (#3154)
+        _dbContext.TestEntities.AddRange(KeysetValues.Select(a => CreateTestEntity($"Entity {a}", amount: a)));
+        await _dbContext.SaveChangesAsync();
+        _dbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _repository.ListAsync(new DescendingAmountKeysetSpec(lastAmount: 300m));
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Amount).ShouldBe([200m, 100m]));
+    }
+
+    [Fact]
+    public async Task ListAsync_QuerySpecificationOrderedAndPaged_ReturnsThatPageInOrder()
+    {
+        // Arrange - the reference behaviour every provider must match (#3151)
+        _dbContext.TestEntities.AddRange(KeysetValues.Select(a => CreateTestEntity($"Entity {a}", amount: a)));
+        await _dbContext.SaveChangesAsync();
+        _dbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _repository.ListAsync(new AmountPageSpec(skip: 1, take: 2));
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Amount).ShouldBe([300m, 200m]));
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static TestEntity CreateTestEntity(
@@ -623,6 +691,44 @@ public class MinAmountSpec : Specification<TestEntity>
 
     public override Expression<Func<TestEntity, bool>> ToExpression()
         => e => e.Amount >= _minAmount;
+}
+
+/// <summary>
+/// Specification matching a TestEntity whose name contains, starts with or ends with a value.
+/// </summary>
+public class EntityNameSpec(string method, string value) : Specification<TestEntity>
+{
+    public override Expression<Func<TestEntity, bool>> ToExpression() => method switch
+    {
+        nameof(string.Contains) => e => e.Name.Contains(value),
+        nameof(string.StartsWith) => e => e.Name.StartsWith(value),
+        nameof(string.EndsWith) => e => e.Name.EndsWith(value),
+        _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Expected Contains, StartsWith or EndsWith."),
+    };
+}
+
+/// <summary>
+/// Next page of entities by amount, sorted in descending order, after <c>lastAmount</c>.
+/// </summary>
+public class DescendingAmountKeysetSpec : QuerySpecification<TestEntity>
+{
+    public DescendingAmountKeysetSpec(decimal lastAmount)
+    {
+        ApplyOrderByDescending(e => e.Amount);
+        ApplyKeysetPagination(e => e.Amount, lastAmount, 10);
+    }
+}
+
+/// <summary>
+/// One page of entities by amount, sorted in descending order.
+/// </summary>
+public class AmountPageSpec : QuerySpecification<TestEntity>
+{
+    public AmountPageSpec(int skip, int take)
+    {
+        ApplyOrderByDescending(e => e.Amount);
+        ApplyPaging(skip, take);
+    }
 }
 
 #endregion

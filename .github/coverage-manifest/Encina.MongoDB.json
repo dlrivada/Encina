@@ -490,7 +490,17 @@
         "integration"
       ],
       "defaultRule": "*RepositoryMongoDB.cs",
-      "reason": "MongoDB repository — needs real MongoDB"
+      "reason": "MongoDB repository — needs real MongoDB",
+      "targets": {
+        "unit": 60,
+        "guard": 8,
+        "integration": 37
+      },
+      "justifications": {
+        "unit": "Unit tests run the repository against a mocked collection: argument checks, error mapping and the specification paths (measured 62.93%); the rest needs a real server.",
+        "guard": "Guard tests cover the null-argument checks of the public methods (measured 8.50%).",
+        "integration": "The MongoDB repository integration tests run every operation on a real MongoDB, including ListAsync with an ordered, paged and keyset query specification (measured 39.80%); the rest is error mapping for server failures the tests do not provoke."
+      }
     },
     "Repository/MongoDbRepositoryOptions.cs": {
       "defaultTests": [
@@ -513,7 +523,17 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 75,
+        "guard": 20,
+        "integration": 31
+      },
+      "justifications": {
+        "unit": "Unit tests cover filter translation, the keyset filter in both directions (rendered to check $gt and $lt) and sort building (measured 77.58%); the rest is rarer expression shapes.",
+        "guard": "Guard tests cover the null-argument checks of the public builder methods (measured 21.97%).",
+        "integration": "The MongoDB repository integration tests run the builder filters on a real MongoDB, including a descending keyset page with the builder sort (measured 33.18%)."
+      }
     },
     "Sagas/SagaState.cs": {
       "defaultTests": [
@@ -793,7 +813,13 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "MongoDbTenancyOptionsTests assert every default and every setter, including RequireTenantContext; measured 100%."
+      }
     },
     "Tenancy/TenancyServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -801,7 +827,17 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 85,
+        "guard": 5,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "TenancyServiceCollectionExtensionsTests build the provider with the custom options and assert RequireTenantContext, the filter and the database-per-tenant settings; measured 87.2%.",
+        "guard": "The guard tests assert the argument validation of the entry points only; the registration lines are covered by the unit flag, measured 6.1%.",
+        "integration": "0: no integration test calls the registration extension; the repositories are built directly in TenantAwareRepositoryMongoDBIntegrationTests and the registration is covered by the unit flag."
+      }
     },
     "Tenancy/TenantAwareFunctionalRepositoryMongoDB.cs": {
       "defaultTests": [

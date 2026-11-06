@@ -27,7 +27,7 @@ public static class InboxPipelineHarnesses
             t =>
             {
                 var option = t.Result.ShouldBeRight();
-                return option.Match(
+                return option.MatchUnsafe(
                     Some: m => (InboxRow?)new InboxRow(m.RetryCount, m.IsProcessed, m.Response),
                     None: () => null);
             },

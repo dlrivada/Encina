@@ -161,7 +161,10 @@ config.InboxOptions.MaxRetries = 3;
 config.InboxOptions.MessageRetentionPeriod = TimeSpan.FromDays(7);
 config.InboxOptions.EnableAutomaticPurge = true;
 config.InboxOptions.PurgeInterval = TimeSpan.FromHours(24);
+config.InboxOptions.PurgeBatchSize = 100;
 ```
+
+`EnableAutomaticPurge`, `PurgeInterval` and `PurgeBatchSize` are shown at their defaults (`MessageRetentionPeriod` defaults to 30 days). The purge service deletes only processed messages whose retention has passed; `PurgeInterval` is at most about 49.7 days and an invalid value throws `ArgumentOutOfRangeException`. See [Automatic purge of processed messages](../Encina.Messaging/README.md#automatic-purge-of-processed-messages).
 
 ### 5. Transaction Management
 

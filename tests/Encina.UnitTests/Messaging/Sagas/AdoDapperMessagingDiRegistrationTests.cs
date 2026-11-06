@@ -2,10 +2,12 @@ using System.Data;
 using Encina.Messaging;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
+using Encina.Messaging.Purge;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Sagas.LowCeremony;
 using Encina.Messaging.Scheduling;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using AdoMySql = Encina.ADO.MySQL.ServiceCollectionExtensions;
 using AdoPostgreSql = Encina.ADO.PostgreSQL.ServiceCollectionExtensions;
 using AdoSqlServer = Encina.ADO.SqlServer.ServiceCollectionExtensions;
@@ -170,6 +172,53 @@ public sealed class AdoDapperMessagingDiRegistrationTests
         // Assert
         provider.GetService<ISagaRunner>().ShouldBeNull(providerName);
         provider.GetService<ISagaNotFoundDispatcher>().ShouldBeNull(providerName);
+    }
+
+    [Theory]
+    [MemberData(nameof(ProviderCases))]
+    public void AddEncinaProvider_WithUseInboxTrue_RegistersTheMessagePurgeServiceAndBuildsUnderValidation(
+        string providerName,
+        Action<IServiceCollection, Action<MessagingConfiguration>> register)
+    {
+        var services = CreateServices();
+
+        register(services, config => config.UseInbox = true);
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        provider.GetServices<IHostedService>().OfType<MessagePurgeService>().Count().ShouldBe(1, providerName);
+    }
+
+    [Theory]
+    [MemberData(nameof(ProviderCases))]
+    public void AddEncinaProvider_WithAutomaticPurgeOff_RegistersNoMessagePurgeService(
+        string providerName,
+        Action<IServiceCollection, Action<MessagingConfiguration>> register)
+    {
+        var services = CreateServices();
+
+        register(services, config =>
+        {
+            config.UseInbox = true;
+            config.InboxOptions.EnableAutomaticPurge = false;
+        });
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        provider.GetServices<IHostedService>().OfType<MessagePurgeService>().ShouldBeEmpty(providerName);
+    }
+
+    [Theory]
+    [MemberData(nameof(ProviderCases))]
+    public void AddEncinaProvider_WithUseInboxFalse_RegistersNoMessagePurgeService(
+        string providerName,
+        Action<IServiceCollection, Action<MessagingConfiguration>> register)
+    {
+        var services = CreateServices();
+
+        register(services, config => config.UseInbox = false);
+
+        services.ShouldNotContain(d => d.ImplementationType == typeof(MessagePurgeService), providerName);
     }
 
     public static IEnumerable<object[]> ProviderCases()

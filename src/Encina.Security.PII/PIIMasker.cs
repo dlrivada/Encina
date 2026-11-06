@@ -415,7 +415,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
             return false;
         }
 
-        maskedValue = MaskPropertyValue(originalValue, prop, logContextOnly);
+        maskedValue = MaskPropertyValue(originalValue, prop);
         jsonObj[propertyName] = maskedValue;
 
         // Trace-level log per property
@@ -521,12 +521,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         return result;
     }
 
-    // Tokenize has no vault yet and every strategy returns the raw value for it, so the log context
-    // downgrades it to Redact: the log path must never print the raw value.
-    private static MaskingMode EffectiveMode(MaskingMode mode, bool logContext) =>
-        logContext && mode == MaskingMode.Tokenize ? MaskingMode.Redact : mode;
-
-    private string MaskPropertyValue(string value, PropertyMaskingMetadata metadata, bool logContext)
+    private string MaskPropertyValue(string value, PropertyMaskingMetadata metadata)
     {
         // Custom replacement takes priority
         if (metadata.Replacement is not null)
@@ -543,7 +538,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
 
         // Strategy-based masking
         var strategy = GetStrategy(metadata.Type);
-        var options = ResolveMaskingOptions(metadata.Type, EffectiveMode(metadata.Mode, logContext));
+        var options = ResolveMaskingOptions(metadata.Type, metadata.Mode);
         return strategy.Apply(value, options);
     }
 

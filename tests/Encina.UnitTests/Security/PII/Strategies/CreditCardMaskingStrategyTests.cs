@@ -95,14 +95,6 @@ public sealed class CreditCardMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_TokenizeMode_ReturnsOriginalValue()
-    {
-        var result = _sut.Apply("4532-1234-5678-9012", WithMode(MaskingMode.Tokenize));
-
-        result.ShouldBe("4532-1234-5678-9012");
-    }
-
-    [Fact]
     public void Apply_ShortNumber_ReturnsOriginal()
     {
         // Only 4 digits - same as visible end count, too short to mask

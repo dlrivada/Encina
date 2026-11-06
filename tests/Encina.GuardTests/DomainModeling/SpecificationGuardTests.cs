@@ -176,4 +176,22 @@ public class SpecificationGuardTests
     }
 
     #endregion
+
+    #region QuerySpecificationKeysetExtensions Guards
+
+    [Fact]
+    public void IsKeysetDescending_NullSpecification_ThrowsArgumentNullException()
+    {
+        // Arrange
+        IQuerySpecification<Product> spec = null!;
+
+        // Act
+        Action act = () => { _ = spec.IsKeysetDescending; };
+
+        // Assert
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("specification");
+    }
+
+    #endregion
 }

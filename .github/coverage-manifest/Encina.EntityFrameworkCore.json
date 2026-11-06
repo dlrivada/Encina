@@ -1,7 +1,7 @@
 {
   "package": "Encina.EntityFrameworkCore",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 113,
+  "totalFiles": 114,
   "targets": {
     "contract": 5,
     "guard": 10,
@@ -435,17 +435,18 @@
     "DomainEvents/DomainEventDispatcherInterceptor.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*Interceptor.cs",
       "reason": "EF interceptor with mockeable context",
-      "targets": { "unit": 92, "guard": 9, "contract": 0, "property": 0, "integration": 0 },
+      "targets": { "unit": 92, "guard": 9, "contract": 0, "property": 0, "integration": 71 },
       "justifications": {
         "unit": "The exception shape, its sentinel regression and the interceptor dispatch paths are driven by unit tests (measured 92%).",
         "guard": "The interceptor constructor checks and the DomainEventDispatchException constructor null checks are guard-reachable (measured 9%).",
         "contract": "The interceptor implements no Encina provider contract shared across implementations, so no contract suite targets it.",
         "property": "Dispatch is a fixed sequence over the change tracker with no generated-input invariant to state.",
-        "integration": "Dispatch does not depend on a real database; the change tracker drives it and the unit tests exercise it."
+        "integration": "Integration tests run the interceptor on real SQL Server and PostgreSQL through the shared EF Core fixtures: dispatch after SaveChangesAsync and clearing, a failed save, an explicit transaction that rolls back, a failing handler with and without StopOnFirstError, and several aggregates (measured 73%). The synchronous SavingChanges and SavedChanges overrides, the skip of non-notification events and the exception branch stay with the unit flag."
       }
     },
     "DomainEvents/DomainEventDispatcherOptions.cs": {
@@ -471,13 +472,41 @@
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration"
     },
+    "Extensions/KeysetComparison.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 93,
+        "guard": 0,
+        "integration": 75
+      },
+      "justifications": {
+        "unit": "Unit tests check the expressions built for string, Guid and operator keys in both directions, the composite equality for canonically equivalent and null strings, and the rejection of a nullable string property or field (measured 95.45%); the rest is the unreachable default arm of the member switch.",
+        "guard": "Internal helper with no public argument checks to guard; its callers validate their arguments.",
+        "integration": "The EF Core repository and cursor pagination integration tests run string keysets, Guid keysets and a composite key with tied names through it on real SQL Server and PostgreSQL databases (measured 77.27%); the nullable-member rejection is unit-tested only."
+      }
+    },
     "Extensions/QueryableCursorExtensions.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 91,
+        "guard": 0,
+        "integration": 57
+      },
+      "justifications": {
+        "unit": "Unit tests on the in-memory provider cover the simple, descending, backward, projected and composite cursor paths, including string, Guid, tied and canonically equivalent keys (measured 93.51%); the rest is error branches of cursor decoding.",
+        "guard": "No GuardTests cover these extension methods yet; their argument checks run in the unit tests' guard-clause section.",
+        "integration": "The EF Core repository integration tests page a Guid key and a composite key with tied names on real SQL Server and PostgreSQL databases (measured 59.74%); the other cursor variants are unit-tested only."
+      }
     },
     "Extensions/QueryablePagedExtensions.cs": {
       "defaultTests": [
@@ -700,7 +729,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 70,
+        "guard": 7,
+        "integration": 49
+      },
+      "justifications": {
+        "unit": "Unit tests run the evaluator on an in-memory context for criteria, includes, ordering, offset paging and keyset paging in both directions (measured 72.53%); the rest is projection overloads and rarer combinations of query features.",
+        "guard": "Guard tests cover the null checks of the public GetQuery methods (measured 7.69%).",
+        "integration": "The EF Core repository integration tests on SQL Server run the evaluator for repository queries, including a descending keyset page through ListAsync (measured 51.65%)."
+      }
     },
     "Resilience/ConnectionPoolMonitoringInterceptor.cs": {
       "defaultTests": [

@@ -103,14 +103,6 @@ public sealed class IPAddressMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_TokenizeMode_ReturnsOriginalValue()
-    {
-        var result = _sut.Apply("192.168.1.100", WithMode(MaskingMode.Tokenize));
-
-        result.ShouldBe("192.168.1.100");
-    }
-
-    [Fact]
     public void Apply_InvalidIPv4_MasksEntireValue()
     {
         // Only 3 octets - not valid IPv4
