@@ -219,28 +219,54 @@ public sealed class AspNetCoreGuardTests
     public void MapDPIAEndpoints_NullEndpoints_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
-            DPIAEndpointExtensions.MapDPIAEndpoints(null!));
+            DPIAEndpointExtensions.MapDPIAEndpoints(null!, "DPOPolicy"));
     }
 
     [Fact]
-    public void MapDPIAEndpoints_NullPrefix_Throws()
+    public void MapDPIAEndpoints_NullPolicy_Throws()
     {
-        var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder();
-        using var app = builder.Build();
+        using var app = BuildAppWithPolicy("DPOPolicy");
 
         Should.Throw<ArgumentNullException>(() =>
             DPIAEndpointExtensions.MapDPIAEndpoints(app, null!));
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void MapDPIAEndpoints_BlankPolicy_Throws(string policy)
+    {
+        using var app = BuildAppWithPolicy("DPOPolicy");
+
+        Should.Throw<ArgumentException>(() =>
+            DPIAEndpointExtensions.MapDPIAEndpoints(app, policy));
+    }
+
+    [Fact]
+    public void MapDPIAEndpoints_NullPrefix_Throws()
+    {
+        using var app = BuildAppWithPolicy("DPOPolicy");
+
+        Should.Throw<ArgumentNullException>(() =>
+            DPIAEndpointExtensions.MapDPIAEndpoints(app, "DPOPolicy", null!));
+    }
+
     [Fact]
     public void MapDPIAEndpoints_ValidArguments_ReturnsTheGroup()
     {
-        var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder();
-        using var app = builder.Build();
+        using var app = BuildAppWithPolicy("DPOPolicy");
 
-        var group = DPIAEndpointExtensions.MapDPIAEndpoints(app, "/custom/dpia");
+        var group = DPIAEndpointExtensions.MapDPIAEndpoints(app, "DPOPolicy", "/custom/dpia");
 
         group.ShouldNotBeNull();
+    }
+
+    private static Microsoft.AspNetCore.Builder.WebApplication BuildAppWithPolicy(string policyName)
+    {
+        var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder();
+        builder.Services.AddAuthorization(options =>
+            options.AddPolicy(policyName, policy => policy.RequireAuthenticatedUser()));
+        return builder.Build();
     }
 
     // ─── ServiceCollectionExtensions ───

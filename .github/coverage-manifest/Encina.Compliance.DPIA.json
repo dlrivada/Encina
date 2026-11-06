@@ -391,7 +391,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 50,
+        "guard": 4
+      },
+      "justifications": {
+        "unit": "The approve and reject log changes (no approver in logs, #3126) are executed and asserted by DefaultDPIAServiceLoggingTests; the remaining service paths are covered by the existing service tests but several event-store error branches are not (measured 54%).",
+        "guard": "Guard tests cover the constructor null checks only; the async operations validate through the aggregate (measured 4.6%)."
+      }
     }
   }
 }

@@ -102,8 +102,8 @@
       "reason": "Endpoint mapping extensions with ThrowIfNull(endpoints)",
       "targets": { "unit": 80, "guard": 4 },
       "justifications": {
-        "unit": "Every handler path has an endpoint execution test through the test server, including the request-context tenant of the assess handler (measured 83%).",
-        "guard": "Guard tests cover the MapDPIAEndpoints null-endpoints and null-prefix checks and a successful mapping; the handlers take no guarded arguments, so the flag cannot reach them (measured 4.3%)."
+        "unit": "Every handler path, the policy and authorization startup checks, the 401 denial of approve and reject without an authenticated request identity, and the recorded actor have TestServer tests; the remaining lines are error branches of the other handlers (measured 85%).",
+        "guard": "Guard tests cover the null-endpoints, null/blank policy and null-prefix checks of MapDPIAEndpoints and a successful mapping; the handlers take no guarded arguments, so the flag cannot reach them (measured 6.2%)."
       }
     },
     "EncinaAspNetCoreOptions.cs": {
