@@ -54,30 +54,9 @@ internal static class PIIPropertyScanner
 
         foreach (var property in properties)
         {
-            if (!property.CanRead)
-            {
-                continue;
-            }
-
-            if (property.PropertyType != typeof(string))
-            {
-                // A masking attribute on a value that cannot be masked must not be dropped silently:
-                // masking fails closed on it (in every context for [PII]/[SensitiveData], in the log
-                // context for [MaskInLogs]).
-                if (FromUnmaskable(property) is { } unmaskable)
-                {
-                    piiProperties.Add(unmaskable);
-                }
-
-                continue;
-            }
-
-            // A property without a usable setter (get-only) is still PII: it is kept and the masker
-            // fails closed when the masked value does not take effect on the copy.
-            var setter = CompileSetter(type, property);
-
-            var metadata = ResolveMetadata(
-                property, setter, classAttribute, classSensitiveAttribute, classLogOnlyAttribute);
+            var metadata = property.CanRead
+                ? ResolveProperty(type, property, classAttribute, classSensitiveAttribute, classLogOnlyAttribute)
+                : null;
             if (metadata is not null)
             {
                 piiProperties.Add(metadata.Value);
@@ -85,6 +64,28 @@ internal static class PIIPropertyScanner
         }
 
         return [.. piiProperties];
+    }
+
+    private static PropertyMaskingMetadata? ResolveProperty(
+        Type type,
+        PropertyInfo property,
+        PIIAttribute? classAttribute,
+        SensitiveDataAttribute? classSensitiveAttribute,
+        MaskInLogsAttribute? classLogOnlyAttribute)
+    {
+        // A masking attribute on a value that cannot be masked must not be dropped silently:
+        // masking fails closed on it (in every context for [PII]/[SensitiveData], in the log
+        // context for [MaskInLogs]).
+        if (property.PropertyType != typeof(string))
+        {
+            return FromUnmaskable(property);
+        }
+
+        // A property without a usable setter (get-only) is still PII: it is kept and the masker
+        // fails closed when the masked value does not take effect on the copy.
+        var setter = CompileSetter(type, property);
+
+        return ResolveMetadata(property, setter, classAttribute, classSensitiveAttribute, classLogOnlyAttribute);
     }
 
     // Precedence: an always-masked attribute ([PII], [SensitiveData]) wins over the log-only
