@@ -39,7 +39,8 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
                 Id = i,
                 Name = $"Item {i:D2}",
                 CreatedAtUtc = new DateTime(2025, 1, i, 12, 0, 0, DateTimeKind.Utc),
-                SortOrder = i
+                SortOrder = i,
+                ExternalId = Guid.NewGuid()
             });
         }
 
@@ -302,6 +303,53 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
         result.Items[0].Name.ShouldBe("Item 01");
     }
 
+    [Fact]
+    public async Task ToCursorPaginatedAsync_StringKey_SecondPageContinuesAfterTheCursor()
+    {
+        // Arrange - string has no comparison operator; the keyset filter used to throw InvalidOperationException (#3201)
+        var query = _context.Items.OrderBy(x => x.Name);
+        var firstPage = await query.ToCursorPaginatedAsync(cursor: null, pageSize: 3, keySelector: x => x.Name, cursorEncoder: _encoder);
+
+        // Act
+        var secondPage = await query.ToCursorPaginatedAsync(cursor: firstPage.NextCursor, pageSize: 3, keySelector: x => x.Name, cursorEncoder: _encoder);
+
+        // Assert
+        secondPage.Items.Select(x => x.Name).ShouldBe(["Item 04", "Item 05", "Item 06"]);
+    }
+
+    [Fact]
+    public async Task ToCursorPaginatedAsync_NullableStringKey_ThrowsNotSupportedExceptionForTheNextPage()
+    {
+        // Arrange - NULL keys skip or repeat rows, and databases order them differently
+        foreach (var item in _context.Items)
+        {
+            item.Nickname = item.Name;
+        }
+
+        await _context.SaveChangesAsync();
+        var query = _context.Items.OrderBy(x => x.Nickname);
+        var firstPage = await query.ToCursorPaginatedAsync(cursor: null, pageSize: 3, keySelector: x => x.Nickname, cursorEncoder: _encoder);
+
+        // Act & Assert
+        await Should.ThrowAsync<NotSupportedException>(
+            () => query.ToCursorPaginatedAsync(cursor: firstPage.NextCursor, pageSize: 3, keySelector: x => x.Nickname, cursorEncoder: _encoder));
+    }
+
+    [Fact]
+    public async Task ToCursorPaginatedDescendingAsync_GuidKey_SecondPageContinuesAfterTheCursor()
+    {
+        // Arrange - Guid has no comparison operator; the keyset filter used to throw InvalidOperationException (#3201)
+        var order = _context.Items.Select(x => x.ExternalId).AsEnumerable().OrderDescending().ToList();
+        var query = _context.Items.OrderByDescending(x => x.ExternalId);
+        var firstPage = await query.ToCursorPaginatedDescendingAsync(cursor: null, pageSize: 3, keySelector: x => x.ExternalId, cursorEncoder: _encoder);
+
+        // Act
+        var secondPage = await query.ToCursorPaginatedDescendingAsync(cursor: firstPage.NextCursor, pageSize: 3, keySelector: x => x.ExternalId, cursorEncoder: _encoder);
+
+        // Assert
+        secondPage.Items.Select(x => x.ExternalId).ShouldBe(order.Skip(3).Take(3));
+    }
+
     #endregion
 
     #region Composite Key Tests
@@ -325,6 +373,64 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
         // Assert
         result.Items.Count.ShouldBe(3);
         result.HasNextPage.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task ToCursorPaginatedCompositeAsync_StringFirstKey_SecondPageContinuesAfterTheCursor()
+    {
+        // Arrange - a string member of a composite key compares through string.Compare too (#3201)
+        var query = _context.Items.OrderBy(x => x.Name).ThenBy(x => x.Id);
+        var firstPage = await query.ToCursorPaginatedCompositeAsync(
+            cursor: null, pageSize: 3, keySelector: x => new { x.Name, x.Id }, cursorEncoder: _encoder, keyDescending: [false, false]);
+
+        // Act
+        var secondPage = await query.ToCursorPaginatedCompositeAsync(
+            cursor: firstPage.NextCursor, pageSize: 3, keySelector: x => new { x.Name, x.Id }, cursorEncoder: _encoder, keyDescending: [false, false]);
+
+        // Assert
+        secondPage.Items.Select(x => x.Name).ShouldBe(["Item 04", "Item 05", "Item 06"]);
+    }
+
+    [Fact]
+    public async Task ToCursorPaginatedCompositeAsync_TiedStringKey_ContinuesThroughTheSecondaryKey()
+    {
+        // Arrange - a tie on the cursor's name with a higher id comes back only through Name == cursor AND Id > cursor;
+        // an earlier name with a higher id stays out only because of that equality chain
+        _context.Items.Add(new CursorTestEntity { Id = 11, Name = "Item 03", SortOrder = 11 });
+        _context.Items.Add(new CursorTestEntity { Id = 12, Name = "Item 02", SortOrder = 12 });
+        await _context.SaveChangesAsync();
+        var query = _context.Items.OrderBy(x => x.Name).ThenBy(x => x.Id);
+        var firstPage = await query.ToCursorPaginatedCompositeAsync(
+            cursor: null, pageSize: 4, keySelector: x => new { x.Name, x.Id }, cursorEncoder: _encoder, keyDescending: [false, false]);
+
+        // Act
+        var secondPage = await query.ToCursorPaginatedCompositeAsync(
+            cursor: firstPage.NextCursor, pageSize: 4, keySelector: x => new { x.Name, x.Id }, cursorEncoder: _encoder, keyDescending: [false, false]);
+
+        // Assert - page 1 ends at ("Item 03", 3)
+        firstPage.Items.Select(x => x.Id).ShouldBe([1, 2, 12, 3]);
+        secondPage.Items.Select(x => x.Id).ShouldBe([11, 4, 5, 6]);
+    }
+
+    [Fact]
+    public async Task ToCursorPaginatedCompositeAsync_CanonicallyEquivalentNames_ContinuesThroughTheSecondaryKey()
+    {
+        // Arrange - a composed and a decomposed e-acute sort as equal, so the next row comes from the secondary key;
+        // the equality chain used to compare them ordinally and skipped it
+        _context.Items.Add(new CursorTestEntity { Id = 101, Name = "\u00e9" });
+        _context.Items.Add(new CursorTestEntity { Id = 102, Name = "e\u0301" });
+        await _context.SaveChangesAsync();
+        var query = _context.Items.Where(x => x.Id > 100).OrderBy(x => x.Name).ThenBy(x => x.Id);
+        var firstPage = await query.ToCursorPaginatedCompositeAsync(
+            cursor: null, pageSize: 1, keySelector: x => new { x.Name, x.Id }, cursorEncoder: _encoder, keyDescending: [false, false]);
+
+        // Act
+        var secondPage = await query.ToCursorPaginatedCompositeAsync(
+            cursor: firstPage.NextCursor, pageSize: 1, keySelector: x => new { x.Name, x.Id }, cursorEncoder: _encoder, keyDescending: [false, false]);
+
+        // Assert
+        firstPage.Items.Select(x => x.Id).ShouldBe([101]);
+        secondPage.Items.Select(x => x.Id).ShouldBe([102]);
     }
 
     #endregion
@@ -438,6 +544,8 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
         public string Name { get; set; } = string.Empty;
         public DateTime CreatedAtUtc { get; set; }
         public int SortOrder { get; set; }
+        public Guid ExternalId { get; set; }
+        public string? Nickname { get; set; }
     }
 
     private sealed record CursorTestDto(int Id, string Name);
