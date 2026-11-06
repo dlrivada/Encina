@@ -19,10 +19,10 @@
     "Internal/PIIPropertyScanner.cs": {
       "defaultTests": ["unit", "property"],
       "reason": "Reflection-based property scanner; its branches are reached through unit tests and generated DTOs. The guard flag is not in defaultTests because the type is internal and has no ThrowIfNull, so there are no guard lines to cover.",
-      "targets": { "unit": 95, "property": 65 },
+      "targets": { "unit": 95, "property": 70 },
       "justifications": {
         "unit": "Every branch (property, class, log-only, precedence, non-string unmaskable for [PII], [SensitiveData] and [MaskInLogs], get-only) is reached through GetProperties by the scanner unit tests; only the ArgumentException catch of CompileSetter is unreachable with a plain DTO (measured 97%).",
-        "property": "Property tests run the scanner through MaskObject and MaskForLog on generated DTOs; the FromUnmaskable branch for non-string members is covered by unit tests only (measured 66%)."
+        "property": "Property tests run the scanner through MaskObject, MaskForAudit and MaskForLog on generated DTOs, including the FromUnmaskable branch for non-string [PII]/[SensitiveData] members (measured 80%); the get-only and class-level log branches are covered by unit tests."
       }
     },
     "Internal/PropertyMaskingMetadata.cs": {
@@ -56,11 +56,11 @@
     "PIIMasker.cs": {
       "defaultTests": ["unit", "guard", "property"],
       "reason": "Core masker with ThrowIfNull guards and masking invariants. Property tests verify round-trip and format invariants.",
-      "targets": { "unit": 90, "guard": 9, "property": 40 },
+      "targets": { "unit": 90, "guard": 9, "property": 50 },
       "justifications": {
         "unit": "MaskForLog, the fail-closed SkipsContext branch for non-string [PII]/[SensitiveData]/[MaskInLogs] members in every context, and the log failure paths are executed by the unit tests with the real masker (measured 92%).",
-        "guard": "Guard tests only exercise the ThrowIfNull lines of the public methods including MaskForLog (measured 9%), the rest of the masking engine is behaviour covered by unit tests.",
-        "property": "Property tests run the object-masking engine through MaskObject and MaskForLog with generated strings (measured 44%); the remaining lines are option and failure branches covered by unit tests."
+        "guard": "Every public method of PIIMasker has its ThrowIfNull guard exercised by PIIMaskerGuardTests (measured 9%); the guard lines are a small share of the masking engine, so a higher guard target is not reachable without testing behaviour that belongs to unit tests.",
+        "property": "Property tests run the object-masking engine through MaskObject, MaskForAudit and MaskForLog with generated strings and with generated values of non-string decorated members that must fail closed (measured 54%); the remaining lines are option and failure branches covered by unit tests."
       }
     },
     "PIIMaskingPipelineBehavior.cs": { "defaultTests": ["unit", "guard"], "reason": "Pipeline behavior with ThrowIfNull guards on constructor" },
