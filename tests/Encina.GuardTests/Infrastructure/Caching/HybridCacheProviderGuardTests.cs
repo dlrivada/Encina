@@ -163,33 +163,40 @@ public sealed class HybridCacheProviderGuardTests : IDisposable
         ex.ParamName.ShouldBe("key");
     }
 
-    [Fact]
-    public async Task EveryOperation_PreCancelledToken_ThrowsOperationCanceledException()
+    [Theory]
+    [InlineData("GetAsync")]
+    [InlineData("SetAsync")]
+    [InlineData("RemoveAsync")]
+    [InlineData("RemoveByPatternAsync")]
+    [InlineData("RemoveByTagAsync")]
+    [InlineData("ExistsAsync")]
+    [InlineData("GetOrSetAsync")]
+    [InlineData("GetOrSetAsyncWithTags")]
+    [InlineData("SetWithSlidingExpirationAsync")]
+    [InlineData("RefreshAsync")]
+    public async Task Operation_PreCancelledToken_ThrowsOperationCanceledException(string operation)
     {
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
-        var token = cts.Token;
-        var tags = new[] { "tag" };
 
-        var calls = new Func<Task>[]
-        {
-            () => _sut.GetAsync<string>("key", token),
-            () => _sut.SetAsync("key", "value", null, token),
-            () => _sut.RemoveAsync("key", token),
-            () => _sut.RemoveByPatternAsync("key*", token),
-            () => _sut.RemoveByTagAsync("tag", token),
-            () => _sut.ExistsAsync("key", token),
-            () => _sut.GetOrSetAsync("key", Factory, null, token),
-            () => _sut.GetOrSetAsync("key", Factory, null, tags, token),
-            () => _sut.SetWithSlidingExpirationAsync("key", "value", TimeSpan.FromMinutes(1), null, token),
-            () => _sut.RefreshAsync("key", token),
-        };
-
-        foreach (var call in calls)
-        {
-            await Should.ThrowAsync<OperationCanceledException>(call);
-        }
+        await Should.ThrowAsync<OperationCanceledException>(() => Invoke(operation, cts.Token));
     }
+
+    private Task Invoke(string operation, CancellationToken token) => operation switch
+    {
+        "GetAsync" => _sut.GetAsync<string>("key", token),
+        "SetAsync" => _sut.SetAsync("key", "value", null, token),
+        "RemoveAsync" => _sut.RemoveAsync("key", token),
+        "RemoveByPatternAsync" => _sut.RemoveByPatternAsync("key*", token),
+        "RemoveByTagAsync" => _sut.RemoveByTagAsync("tag", token),
+        "ExistsAsync" => _sut.ExistsAsync("key", token),
+        "GetOrSetAsync" => _sut.GetOrSetAsync("key", Factory, null, token),
+        "GetOrSetAsyncWithTags" => _sut.GetOrSetAsync("key", Factory, null, ["tag"], token),
+        "SetWithSlidingExpirationAsync" =>
+            _sut.SetWithSlidingExpirationAsync("key", "value", TimeSpan.FromMinutes(1), null, token),
+        "RefreshAsync" => _sut.RefreshAsync("key", token),
+        _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unknown operation."),
+    };
 
     [Fact]
     public async Task RefreshAsync_ValidKey_ReturnsFalseBecauseRefreshIsUnsupported()

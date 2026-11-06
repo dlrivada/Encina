@@ -241,6 +241,32 @@ public sealed class CachedShardedQueryExecutorTests
             Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task ExecuteCachedAsync_InnerReturnsLeft_ReturnsLeftAndDoesNotCache()
+    {
+        _cache.GetAsync<ShardedQueryResult<string>>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns((ShardedQueryResult<string>?)null);
+
+        _inner.ExecuteAsync(
+            Arg.Any<IEnumerable<string>>(),
+            Arg.Any<Func<string, CancellationToken, Task<Either<EncinaError, IReadOnlyList<string>>>>>(),
+            Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, ShardedQueryResult<string>>.Left(EncinaErrors.Create("test.failed", "failed")));
+
+        Func<string, CancellationToken, Task<Either<EncinaError, IReadOnlyList<string>>>> factory =
+            (_, _) => Task.FromResult(Either<EncinaError, IReadOnlyList<string>>.Right(
+                (IReadOnlyList<string>)new List<string>()));
+
+        var result = await CreateExecutor().ExecuteCachedAsync(["shard-1"], "failing-query", factory);
+
+        result.IsLeft.ShouldBeTrue();
+        await _cache.DidNotReceive().SetAsync(
+            Arg.Any<string>(),
+            Arg.Any<ShardedQueryResult<string>>(),
+            Arg.Any<TimeSpan?>(),
+            Arg.Any<CancellationToken>());
+    }
+
     // ────────────────────────────────────────────────────────────
     //  ExecuteCachedAsync — null guards
     // ────────────────────────────────────────────────────────────
