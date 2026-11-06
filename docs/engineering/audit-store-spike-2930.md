@@ -117,9 +117,14 @@ flowchart LR
 
 **How the second store is registered in the harness** (the part that matters):
 
-```csharp
-public interface IAuditStore : IDocumentStore { }
+The marker is a public type declared in its own file (or after the top-level statements); the registration below is an excerpt of the harness (`b` is its host application builder; the connection strings, `Mode` and the stand-in projection and event types are defined elsewhere in the harness):
 
+```csharp
+// In its own file (or after the top-level statements of Program.cs)
+public interface IAuditStore : IDocumentStore { }
+```
+
+```csharp
 b.Services.AddMarten(o =>
 {
     o.Connection(appCs);
@@ -139,6 +144,8 @@ b.Services.AddMartenStore<IAuditStore>(o =>
     o.Projections.RebuildErrors.SkipApplyErrors = false;
 }).ApplyAllDatabaseChangesOnStartup().AddAsyncDaemon(Mode);
 ```
+
+The harness sets only the two `SkipApplyErrors` flags to `false`; `Errors.SkipSerializationErrors` stays at Marten's default (skip, M4) and `RebuildErrors.SkipSerializationErrors` keeps its own default (`false` per M4). Encina's guard lists four flags: `Errors.SkipApplyErrors`, `Errors.SkipSerializationErrors`, `RebuildErrors.SkipApplyErrors` and `RebuildErrors.SkipSerializationErrors` (`AuditProjectionErrorPolicyStartupGuard.cs:68-71`). Scenario E therefore proves the fail-closed behaviour for apply errors only (the poison event throws in `Apply`); a serialization error in the live projection would still be skipped with the harness configuration (a rebuild would not, by M4). The production configuration must set all four flags to `false` (D2). The recorded harness configuration is kept as it was run.
 
 **Scenarios.** A: one store with both projections. B: two stores (schemas `app` and `audit`, two connection strings, audit flags `false`). C: both stores through one shared `NpgsqlDataSource`. D: one store, default flags, one poison audit event. E: two stores, audit flags `false`, one poison audit event. F: two stores, application flags `false`, one poison application event. G: which store a non-generic `IConfigureMarten` reaches, and the stream identity per store. H: a business write in one store and an audit write in the other.
 
@@ -175,8 +182,8 @@ LOG Error Marten.Events.Daemon.Coordination.ProjectionCoordinator: Error trying 
 
 1. **Isolation delivers what G4 asks.** The flags, the daemon, the schema and the stream identity are per store (M3, M4, M13; E and F show a poison event stopping only its own store). Scenario E is the intended fail-closed behaviour: once the audit flags are `false`, one unreadable audit event stops the audit shard and every later audit event until an operator resolves it. That makes the daemon health signal (D21) and the resolution workflow ([#3049](https://github.com/dlrivada/Encina/issues/3049)) load-bearing.
 2. **The cost is small and measurable.** About two more idle connections and one more daemon per store, startup inside the run-to-run noise (section 5). A shared `NpgsqlDataSource` gives one pool but loses pool isolation (D11).
-3. **Atomicity is not worse for relational business data.** The operation-audit write already commits separately after the handler, in its own DI scope (`AuditPipelineBehavior.cs:307-309`), and EF Core or Dapper business data never shared a transaction with Marten ([spike #1225](efcore-marten-consistency-spike-1225.md)). Isolation removes only the possibility that a Marten-only business write and the audit write share one session. That possibility exists today only for the callers that take the audit store by constructor in the request scope: read audit and break-the-glass (section 4). Break-the-glass records the evidence of an emergency access, so it is the strongest case for keeping D9(b) open. A failed audit write after the business commit is returned as `WriteFailedCode` today (D10, settled; [ADR-050](../architecture/adr/050-modules-may-require-modules.md) sub-decision 5).
-4. **ADR-050 line 69 cannot be met by an isolated store.** The Audit stores row requires a persistent store and an awaited write, and adds a conditional requirement: "same transaction as the data for evidence reads" ([SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) REQ-007, read audit as evidence of access). An isolated store cannot satisfy that condition, because Marten has no cross-store transaction (M11, H). The condition applies to the readers who treat read audit as evidence tied to a data read in a Marten-only application. For a business store in EF Core or Dapper the condition was never satisfiable with a Marten audit store. If isolation is approved, the ADR for this spike has to amend or narrow that row.
+3. **Atomicity is not worse for relational business data in the pipeline path.** The operation-audit write already commits separately after the handler, in its own DI scope (`AuditPipelineBehavior.cs:307-309`), so it does not share a session with the request. EF Core or Dapper business data did not share a transaction with the Marten session by default ([spike #1225](efcore-marten-consistency-spike-1225.md)); whether a caller-supplied Marten session can join a PostgreSQL transaction opened for a relational write, so that both commit together, was not tested here and is **[unconfirmed]**. If it is possible, an isolated store in a separate database or connection removes that option too. Isolation removes the possibility that a Marten-only business write and the audit write share one session. That possibility exists today only for the callers that take the audit store by constructor in the request scope: read audit and break-the-glass (section 4). Break-the-glass records the evidence of an emergency access, so it is the strongest case for keeping D9(b) open. A failed audit write after the business commit is returned as `WriteFailedCode` today (D10, settled; [ADR-050](../architecture/adr/050-modules-may-require-modules.md) sub-decision 5).
+4. **ADR-050 line 69 cannot be met by an isolated store.** The Audit stores row requires a persistent store and an awaited write, and adds a conditional requirement: "same transaction as the data for evidence reads" ([SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) REQ-007, read audit as evidence of access). An isolated store cannot satisfy that condition through a shared Marten session, because Marten has no cross-store transaction (M11, H). Two sessions of different stores on the same PostgreSQL database could in principle take part in an externally managed transaction (one connection or `NpgsqlDataSource` and one `NpgsqlTransaction` handed to both); that is **[unconfirmed]**, was not tested, and would need the application to own the transaction. The condition applies to the readers who treat read audit as evidence tied to a data read in a Marten-only application. For a business store in EF Core or Dapper the condition was never satisfiable with a Marten audit store. If isolation is approved, the ADR for this spike has to amend or narrow that row.
 5. **Moving only the events is not enough.** The projections read keys and markers from the store that holds the events (`OperationAuditEntryProjection.cs:172-190`), and key destruction writes the marker in the same commit as the deletions. Events, keys and markers move together unless the projection takes a cross-store read (M7).
 6. **No daemon is hosted by Encina today.** An isolated store without an Encina-hosted daemon would leave the audit read models empty with no error. The same hazard exists today for an application that forgets its daemon.
 7. **Skipping is not silent in Marten** (M12, D). The integrity argument for `false` still stands: the audit query reads the read model, and a skipped event is absent from it.
@@ -229,10 +236,10 @@ Each entry has the question, the options, where each option wins, what the evide
 
 ### D9. Atomicity of the business write and the audit write
 
-- **Options.** (a) Two independent commits, as today. (b) The same Marten session (possible only in the shared store, never with EF Core or Dapper). (c) Write-ahead audit: the intent first, the outcome after (the model chosen for the admin surface, [#2972](https://github.com/dlrivada/Encina/issues/2972) D18). (d) Outbox-style relay to the audit store (the Marten outbox is planned, [#2383](https://github.com/dlrivada/Encina/issues/2383)). (e) (a) plus a reconciliation job.
+- **Options.** (a) Two independent commits, as today. (b) The same transaction: today the same Marten session in the shared store (merely sharing a session object is not enough; both writes must be saved in one commit), and possibly a caller-supplied session joining a PostgreSQL transaction that also carries a relational write, which is **[unconfirmed]** (section 6, point 3). (c) Write-ahead audit: the intent first, the outcome after (the model chosen for the admin surface, [#2972](https://github.com/dlrivada/Encina/issues/2972) D18). (d) Outbox-style relay to the audit store (the Marten outbox is planned, [#2383](https://github.com/dlrivada/Encina/issues/2383)). (e) (a) plus a reconciliation job.
 - **Where each wins.** (a) simplicity, and when the business data is outside Marten. (b) a Marten-only application needing atomicity of an event-sourced change and its audit event. (c) evidence-first commands, where a missing record must stop the action. (d) when audit must never be lost and a delayed entry is acceptable. (e) as a safety net.
 - **Evidence.** Section 6, points 3 and 4; scenario H.
-- **Recommendation (not a decision).** Record that isolation does not worsen atomicity for relational business stores and removes the shared-session option that read audit and break-the-glass have today for Marten-only business data. Keep (c) for the commands already decided write-ahead, treat (d) as a follow-up of #2383, and (e) as an optional safety net.
+- **Recommendation (not a decision).** Record that isolation does not worsen atomicity for the pipeline path and, unless the unconfirmed shared-transaction option holds, for relational business stores, and removes the shared-session option that read audit and break-the-glass have today for Marten-only business data. Keep (c) for the commands already decided write-ahead, treat (d) as a follow-up of #2383, and (e) as an optional safety net.
 
 ### D11. Connection pool
 
@@ -259,8 +266,8 @@ Each entry has the question, the options, where each option wins, what the evide
 
 - **Options.** (a) `TenantId` stays a data field. (b) Marten conjoined tenancy on the audit store. (c) Schema or database per tenant.
 - **Where each wins.** (a) single-tenant applications and the status quo. (b) multi-tenant applications that want Marten to enforce the filter; needs a tenant per session and a rule for audited platform-operator reads across tenants. (c) strict per-tenant backup and erasure, at high operating cost.
-- **Evidence.** Tenancy is per store (M8). An application policy such as `AllDocumentsAreMultiTenanted()` stops applying to audit documents in an ancillary store. Schema per tenant is not a Marten strategy. Conjoined tenancy on an ancillary store was not tested. Whether temporal keys become tenant-scoped (SPEC-002 REQ-061) is a separate question that this spike only records.
-- **Recommendation (not a decision).** (a) in 1.0; (b) as a later decision together with the tenant-scoped keys question. Isolation by itself does not change tenancy.
+- **Evidence.** Tenancy is per store (M8). An application policy such as `AllDocumentsAreMultiTenanted()` stops applying to audit documents in an ancillary store, so moving the audit documents removes the tenant-scoped session filtering they have today; a multi-tenant application that moves them must choose an explicit tenant-isolation strategy for the audit store (options (b) or (c) above, or an enforced `TenantId` predicate in every audit query) in the same decision. Schema per tenant is not a Marten strategy. Conjoined tenancy on an ancillary store was not tested. Whether temporal keys become tenant-scoped (SPEC-002 REQ-061) is a separate question that this spike only records.
+- **Recommendation (not a decision).** (a) in 1.0; (b) as a later decision together with the tenant-scoped keys question. Isolation by itself does not preserve tenancy: the ADR must require an explicit tenant-isolation strategy for the audit store before multi-tenant applications adopt it.
 
 ### D17. Schema creation and migration
 
@@ -271,7 +278,7 @@ Each entry has the question, the options, where each option wins, what the evide
 
 ### D20. What "log protection" must mean
 
-- **Options.** (a) Documentation only. (b) A supported least-privilege role pattern (a writer that appends only, a daemon role with projection write, a reader role). (c) Tamper evidence (a hash chain). (d) Backup and restore consistency.
+- **Options.** (a) Documentation only. (b) A supported least-privilege role pattern (a writer that appends only, a daemon role with projection write, a reader role; the retention service also needs a role that deletes expired temporal key documents and writes the destroyed markers, `MartenTemporalKeyProvider.cs:261-264`, without delete rights on audit events). (c) Tamper evidence (a hash chain). (d) Backup and restore consistency.
 - **Where each wins.** (a) inside the time box. (b) when the ENS or ISO evidence has to show that nobody can alter audit data. (c) when a third party must verify the evidence; a new feature, likely its own issue. (d) in every option.
 - **Evidence.** No regulation text was read. [SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) lines 109 (ENS activity logging) and 123 (ISO/IEC 27001:2022 A.8.15) only map the frameworks to existing modules, and [ADR-036](../architecture/adr/036-three-audit-stores.md) records that no standard cited by spike #1674 prescribes one store or several. A separate store enables a separate schema or database, role and pool, and a separate backup scope only with its own database (option C). Restoring events without keys or markers pauses the shard on every event with a missing key ([audit-marten](../features/audit-marten.md), line 186). Whether the Marten daemon needs more than write access to its own tables is unconfirmed.
 - **Recommendation (not a decision).** (b) as a documented pattern on top of B or C; do not claim that ENS or ISO 27001 requires a separate store; tamper evidence stays a separate issue; (d) is mandatory and follows from D5(a): events, keys and markers in one store and one backup unit.
@@ -316,6 +323,7 @@ The change is not built here. If it is approved, each function is evaluated as f
 - Marten's daemon health check on an ancillary store.
 - Least-privilege DDL roles for the audit store, and whether the daemon needs more than write access to its own tables.
 - Any Marten-native cross-store atomicity.
+- A caller-supplied Marten session joining an externally owned PostgreSQL transaction (one connection or `NpgsqlTransaction` shared by two stores or by a relational write).
 - HotCold behaviour per ancillary store beyond the advisory-lock count.
 - `AssertDatabaseMatchesConfigurationAsync` on an ancillary store.
 - The real encrypting projections, and a cross-store key read, on an ancillary store.
