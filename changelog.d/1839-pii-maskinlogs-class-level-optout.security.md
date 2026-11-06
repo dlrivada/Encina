@@ -1,4 +1,4 @@
 - Encina.Security.PII: a class-level `[MaskInLogs]` now masks every string property of the type in the log context (#1839, #3029).
 - Encina.Security.PII: when a property has both `[MaskInLogs]` and `[PII]`/`[SensitiveData]` (property or class level), the always-masked attribute wins in every context, so adding `[MaskInLogs]` never stops masking in responses or audit entries (#1839, #3029).
 - Encina.Security.PII: a `[MaskInLogs]` property that is not a `string` now fails closed in the log context (the log line becomes `[MASKING FAILED]`) instead of being logged in clear; response and audit masking are unchanged (#1839, #3029).
-- Encina.Security.PII: setting `PIIOptions.MaskInLogs = false` is now a logged opt-out: the options validator writes one warning per process with EventId 8024 that names the option and never a value (#1839, #3029).
+- Encina.Security.PII: setting `PIIOptions.MaskInLogs = false` is now a logged opt-out: the options validator writes one warning per service provider with EventId 8024 that names the option and never a value (#1839, #3029).

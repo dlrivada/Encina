@@ -1,5 +1,6 @@
 using Encina.MongoDB;
 using Encina.MongoDB.Auditing;
+using Encina.MongoDB.DeadLetter;
 using Encina.MongoDB.Inbox;
 using Encina.MongoDB.Outbox;
 using Encina.MongoDB.Sagas;
@@ -102,6 +103,41 @@ public sealed class MongoDbIndexCreatorTests
         ]);
         created.Where(m => m.Options.Sparse == true).Select(m => m.Options.Name).ShouldBe(
             ["IX_OperationAuditEntries_UserId", "IX_OperationAuditEntries_TenantId"]);
+    }
+
+    [Fact]
+    public async Task StartAsync_InboxEnabled_CreatesNoTtlIndexAndKeepsTheOrdinaryExpiryIndex()
+    {
+        var inbox = Indexes<InboxMessage>();
+        IReadOnlyList<CreateIndexModel<InboxMessage>>? created = null;
+        _ = inbox.CreateManyAsync(
+            Arg.Do<IEnumerable<CreateIndexModel<InboxMessage>>>(models => created = models.ToList()),
+            Arg.Any<CancellationToken>());
+        var sut = CreateSut(new EncinaMongoDbOptions { UseInbox = true });
+
+        await sut.StartAsync(CancellationToken.None);
+
+        created.ShouldNotBeNull();
+        created.Where(m => m.Options.ExpireAfter is not null).ShouldBeEmpty();
+        created.Select(m => m.Options.Name).ShouldBe(["IX_Inbox_Expires", "IX_Inbox_RequestType"]);
+    }
+
+    [Fact]
+    public async Task StartAsync_DeadLetterQueueEnabled_CreatesTheSixIndexesWithoutTtl()
+    {
+        var deadLetters = Indexes<DeadLetterMessage>();
+        List<CreateIndexModel<DeadLetterMessage>>? created = null;
+        _ = deadLetters.CreateManyAsync(
+            Arg.Do<IEnumerable<CreateIndexModel<DeadLetterMessage>>>(models => created = models.ToList()),
+            Arg.Any<CancellationToken>());
+        var sut = CreateSut(new EncinaMongoDbOptions { UseDeadLetterQueue = true });
+
+        await sut.StartAsync(CancellationToken.None);
+
+        created.ShouldNotBeNull();
+        created.Count.ShouldBe(6);
+        created.Where(m => m.Options.ExpireAfter is not null).ShouldBeEmpty();
+        created.Where(m => m.Options.Unique == true).Select(m => m.Options.Name).ShouldBe(["UX_DeadLetterMessages_Source"]);
     }
 
     [Fact]

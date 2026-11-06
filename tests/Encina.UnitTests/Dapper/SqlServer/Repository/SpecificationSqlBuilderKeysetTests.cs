@@ -102,6 +102,65 @@ public class SpecificationSqlBuilderKeysetTests
         sql.ShouldContain("[Total] < @p");
         sql.ShouldContain("ORDER BY [Total] DESC");
     }
+
+    [Fact]
+    public void BuildSelectStatement_QuerySpecificationPassedAsSpecification_KeepsOrderingAndPaging()
+    {
+        // Arrange - ListAsync receives a query specification typed as Specification (#3151)
+        var builder = new SpecificationSqlBuilder<KeysetOrder>(_columnMappings);
+        Specification<KeysetOrder> spec = new TotalPageSpec(skip: 1, take: 2, ordered: true);
+
+        // Act
+        var (sql, _) = builder.BuildSelectStatement("Orders", spec);
+
+        // Assert
+        sql.ShouldContain("ORDER BY [Total] DESC");
+        sql.ShouldContain("OFFSET 1 ROWS FETCH NEXT 2 ROWS ONLY");
+    }
+
+    [Fact]
+    public void BuildSelectStatement_KeysetSpecificationPassedAsSpecification_KeepsTheKeysetAndOrdering()
+    {
+        // Arrange - ListAsync receives a query specification typed as Specification (#3151)
+        var builder = new SpecificationSqlBuilder<KeysetOrder>(_columnMappings);
+        Specification<KeysetOrder> spec = new TotalKeysetPageSpec(descending: true, lastTotal: 50m);
+
+        // Act
+        var (sql, _) = builder.BuildSelectStatement("Orders", spec);
+
+        // Assert
+        sql.ShouldContain("[Total] < @p");
+        sql.ShouldContain("ORDER BY [Total] DESC");
+    }
+
+    [Fact]
+    public void BuildSelectStatement_PagingWithoutOrdering_OrdersBySelectNull()
+    {
+        // Arrange - SQL Server rejects OFFSET and FETCH without an ORDER BY
+        var builder = new SpecificationSqlBuilder<KeysetOrder>(_columnMappings);
+        Specification<KeysetOrder> spec = new TotalPageSpec(skip: 1, take: 2, ordered: false);
+
+        // Act
+        var (sql, _) = builder.BuildSelectStatement("Orders", spec);
+
+        // Assert
+        sql.ShouldContain("ORDER BY (SELECT NULL) OFFSET 1 ROWS FETCH NEXT 2 ROWS ONLY");
+    }
+
+    [Fact]
+    public void BuildSelectStatement_KeysetWithoutOrdering_OrdersBySelectNull()
+    {
+        // Arrange - SQL Server rejects FETCH without an ORDER BY; with no ordering the keyset stays ascending
+        var builder = new SpecificationSqlBuilder<KeysetOrder>(_columnMappings);
+        Specification<KeysetOrder> spec = new TotalKeysetWithoutOrderingSpec(lastTotal: 50m);
+
+        // Act
+        var (sql, _) = builder.BuildSelectStatement("Orders", spec);
+
+        // Assert
+        sql.ShouldContain("[Total] > @p");
+        sql.ShouldContain("ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY");
+    }
 }
 
 /// <summary>
@@ -153,4 +212,28 @@ public class TotalKeysetThenBySpec : QuerySpecification<KeysetOrder>
 public class TotalOrderedWithoutKeysetSpec : QuerySpecification<KeysetOrder>
 {
     public TotalOrderedWithoutKeysetSpec() => ApplyOrderByDescending(o => o.Total);
+}
+
+/// <summary>
+/// One page of orders, sorted by total in descending order, or not sorted at all.
+/// </summary>
+public class TotalPageSpec : QuerySpecification<KeysetOrder>
+{
+    public TotalPageSpec(int skip, int take, bool ordered)
+    {
+        if (ordered)
+        {
+            ApplyOrderByDescending(o => o.Total);
+        }
+
+        ApplyPaging(skip, take);
+    }
+}
+
+/// <summary>
+/// Keyset page on total with no ordering, after <c>lastTotal</c>.
+/// </summary>
+public class TotalKeysetWithoutOrderingSpec : QuerySpecification<KeysetOrder>
+{
+    public TotalKeysetWithoutOrderingSpec(decimal lastTotal) => ApplyKeysetPagination(o => o.Total, lastTotal, 10);
 }

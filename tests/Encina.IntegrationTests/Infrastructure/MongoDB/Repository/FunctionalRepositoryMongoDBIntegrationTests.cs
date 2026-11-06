@@ -382,25 +382,36 @@ public class FunctionalRepositoryMongoDBIntegrationTests : IAsyncLifetime
     private static readonly decimal[] KeysetValues = [100m, 200m, 300m, 400m];
 
     [Fact]
-    public async Task QuerySpecificationFilter_KeysetSortedDescending_ReturnsTheKeysBelowTheLastOne()
+    public async Task ListAsync_KeysetSortedDescending_ReturnsTheKeysBelowTheLastOne()
     {
         SkipIfNotAvailable();
+        // Arrange - the next page of a descending keyset holds the smaller keys (#3154); ListAsync applies the
+        // query specification's keyset and ordering (#3151)
         await ClearDataAsync();
-
-        // Arrange - the next page of a descending keyset holds the smaller keys (#3154). ListAsync does not
-        // apply a QuerySpecification's keyset or sort yet (#3151), so this runs the builder's filter and sort.
-        await _repository!.AddRangeAsync(KeysetValues.Select(a => CreateTestDocument($"Document {a}", amount: a)).ToArray());
-        var builder = new SpecificationFilterBuilder<TestDocument>();
-        var spec = new DescendingAmountKeysetDocumentSpec(lastAmount: 300m);
+        await _repository!.AddRangeAsync(KeysetValues.Select(v => CreateTestDocument($"Document {v}", amount: v)).ToArray());
 
         // Act
-        var documents = await _collection!
-            .Find(builder.BuildFilter(spec))
-            .Sort(builder.BuildSortDefinition(spec)!)
-            .ToListAsync();
+        var result = await _repository!.ListAsync(new DescendingAmountKeysetDocumentSpec(lastAmount: 300m));
 
         // Assert
-        documents.Select(d => d.Amount).ShouldBe([200m, 100m]);
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Amount).ShouldBe([200m, 100m]));
+    }
+
+    [Fact]
+    public async Task ListAsync_QuerySpecificationOrderedAndPaged_ReturnsThatPageInOrder()
+    {
+        SkipIfNotAvailable();
+        // Arrange - ListAsync used to ignore the ordering and paging and return every row in engine order (#3151)
+        await ClearDataAsync();
+        await _repository!.AddRangeAsync(KeysetValues.Select(v => CreateTestDocument($"Document {v}", amount: v)).ToArray());
+
+        // Act
+        var result = await _repository!.ListAsync(new AmountPageDocumentSpec(skip: 1, take: 2));
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Amount).ShouldBe([300m, 200m]));
     }
 
     #endregion
@@ -472,6 +483,18 @@ public class DescendingAmountKeysetDocumentSpec : QuerySpecification<TestDocumen
     {
         ApplyOrderByDescending(d => d.Amount);
         ApplyKeysetPagination(d => d.Amount, lastAmount, 10);
+    }
+}
+
+/// <summary>
+/// One page of TestDocument rows by amount, sorted in descending order.
+/// </summary>
+public class AmountPageDocumentSpec : QuerySpecification<TestDocument>
+{
+    public AmountPageDocumentSpec(int skip, int take)
+    {
+        ApplyOrderByDescending(d => d.Amount);
+        ApplyPaging(skip, take);
     }
 }
 

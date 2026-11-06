@@ -221,6 +221,10 @@ public sealed class SpecificationSqlBuilder<TEntity>
     /// <summary>
     /// Builds a complete SELECT statement with a WHERE clause from a specification.
     /// </summary>
+    /// <remarks>
+    /// A query specification (<see cref="IQuerySpecification{T}"/>) also gets its <c>ORDER BY</c>, pagination and keyset
+    /// filter, the same statement as the <see cref="QuerySpecification{T}"/> overload builds.
+    /// </remarks>
     /// <param name="tableName">The validated table name.</param>
     /// <param name="specification">The specification for filtering.</param>
     /// <returns>A tuple containing the SQL statement and an action to add parameters to a command.</returns>
@@ -229,6 +233,13 @@ public sealed class SpecificationSqlBuilder<TEntity>
         Specification<TEntity> specification)
     {
         ArgumentNullException.ThrowIfNull(specification);
+
+        // A query specification passed as a Specification, as ListAsync receives it, keeps its ordering, paging
+        // and keyset, as EF Core's SpecificationEvaluator does (#3151)
+        if (specification is IQuerySpecification<TEntity> querySpecification)
+        {
+            return BuildSelectStatementInternal(tableName, querySpecification);
+        }
 
         var validatedTableName = SqlIdentifierValidator.ValidateTableName(tableName);
         var columns = string.Join(", ", _columnMappings.Values.Select(c => $"`{c}`"));
