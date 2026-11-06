@@ -9,7 +9,7 @@ namespace Encina.UnitTests.Security.PII;
 
 /// <summary>
 /// <c>PIIOptions.MaskInLogs = false</c> is an explicit, logged opt-out (#1839, EventId 8024): the options
-/// validator warns once per process, names the option and never a value.
+/// validator warns once per service provider, names the option and never a value.
 /// </summary>
 public sealed class PIIMaskInLogsOptOutTests
 {

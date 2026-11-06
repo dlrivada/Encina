@@ -79,7 +79,7 @@ public sealed class PIIAttribute : Attribute
     /// <remarks>
     /// Default is <see cref="MaskingMode.Partial"/>. Override to use
     /// <see cref="MaskingMode.Full"/>, <see cref="MaskingMode.Hash"/>,
-    /// <see cref="MaskingMode.Tokenize"/>, or <see cref="MaskingMode.Redact"/>.
+    /// or <see cref="MaskingMode.Redact"/>.
     /// <see cref="MaskingMode.Hash"/> needs a usable <see cref="PIIOptions.HashKey"/> (or the explicit
     /// <see cref="PIIOptions.AllowUnkeyedHash"/> opt-out); without one the value becomes <c>[REDACTED]</c>.
     /// </remarks>

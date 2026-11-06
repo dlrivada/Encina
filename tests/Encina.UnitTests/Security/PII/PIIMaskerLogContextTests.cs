@@ -30,12 +30,6 @@ public sealed class PIIMaskerLogContextTests : IDisposable
 
     private sealed class HashDto { [MaskInLogs(MaskingMode.Hash)] public string Id { get; set; } = Sentinel; }
 
-    private sealed class PiiTokenizeDto
-    {
-        [PII(PIIType.Email, Mode = MaskingMode.Tokenize)]
-        public string Email { get; set; } = "john@example.com";
-    }
-
     private sealed class MixedDto
     {
         [PII(PIIType.Email)]
@@ -95,17 +89,6 @@ public sealed class PIIMaskerLogContextTests : IDisposable
 
         result.Id.ShouldBe("[REDACTED]");
         logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 8020);
-    }
-
-    [Fact]
-    public void MaskObject_TokenizeMode_NeverReturnsTheRawValue()
-    {
-        var sut = CreateMasker(null);
-
-        var email = sut.MaskObject(new PiiTokenizeDto()).Email;
-
-        email.ShouldNotBe("john@example.com");
-        email.ShouldContain("*");
     }
 
     [Fact]

@@ -51,6 +51,7 @@ public sealed class FunctionalRepositoryMongoDB<TEntity, TId> : IFunctionalRepos
     private readonly Expression<Func<TEntity, TId>> _idSelector;
     private readonly Func<TEntity, TId> _compiledIdSelector;
     private readonly SpecificationFilterBuilder<TEntity> _filterBuilder;
+    private readonly SpecificationEvaluatorMongoDB<TEntity> _evaluator;
     private readonly IRequestContext? _requestContext;
     private readonly TimeProvider _timeProvider;
 
@@ -74,6 +75,7 @@ public sealed class FunctionalRepositoryMongoDB<TEntity, TId> : IFunctionalRepos
         _idSelector = idSelector;
         _compiledIdSelector = idSelector.Compile();
         _filterBuilder = new SpecificationFilterBuilder<TEntity>();
+        _evaluator = new SpecificationEvaluatorMongoDB<TEntity>(collection);
         _requestContext = requestContext;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
@@ -128,8 +130,11 @@ public sealed class FunctionalRepositoryMongoDB<TEntity, TId> : IFunctionalRepos
 
         try
         {
-            var filter = _filterBuilder.BuildFilter(specification);
-            var entities = await _collection.Find(filter)
+            // A query specification keeps its ordering, paging and keyset, as EF Core's evaluator does (#3151)
+            var find = specification is IQuerySpecification<TEntity> querySpecification
+                ? _evaluator.GetFindFluent(querySpecification)
+                : _collection.Find(_filterBuilder.BuildFilter(specification));
+            var entities = await find
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 

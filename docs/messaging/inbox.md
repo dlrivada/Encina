@@ -143,9 +143,36 @@ Limits:
 |---|---|---|---|
 | `MaxRetries` | `int` | 3 | Maximum handler attempts for one message. |
 | `MessageRetentionPeriod` | `TimeSpan` | 30 days | How long a message stays in the inbox so that delayed duplicates are still recognised. Set it longer than your longest expected duplicate delay. |
-| `PurgeInterval` | `TimeSpan` | 24 hours | How often expired messages are purged. |
-| `EnableAutomaticPurge` | `bool` | `true` | Whether expired messages are purged automatically. |
-| `PurgeBatchSize` | `int` | 100 | How many expired messages one purge pass removes. |
+| `EnableAutomaticPurge` | `bool` | `true` | Whether the purge service deletes processed, expired messages. With `false` the service is not registered. |
+| `PurgeInterval` | `TimeSpan` | 24 hours | Pause between two purge cycles. Greater than zero and at most `uint.MaxValue - 1` milliseconds (about 49.7 days, the `Task.Delay` limit). |
+| `PurgeBatchSize` | `int` | 100 | Maximum number of messages one purge batch removes. 1 or more, no upper limit (the stores split a batch that exceeds a database limit). |
+
+`MessageRetentionPeriod` must be greater than zero. Setting `MessageRetentionPeriod`, `PurgeInterval` or `PurgeBatchSize` outside its valid range throws `ArgumentOutOfRangeException` at configuration time.
+
+### Purge of processed messages
+
+When `UseInbox` and `EnableAutomaticPurge` are on, the internal hosted service `MessagePurgeService` deletes processed inbox rows whose `ExpiresAtUtc` has passed, on all 10 database providers. An unprocessed or dead-lettered row is never deleted, whatever its age.
+
+```csharp
+services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseInbox = true;
+    config.InboxOptions.MessageRetentionPeriod = TimeSpan.FromDays(14);
+    config.InboxOptions.PurgeInterval = TimeSpan.FromHours(6);
+    config.InboxOptions.PurgeBatchSize = 500;
+});
+```
+
+| Aspect | Behavior |
+|---|---|
+| Schedule | One cycle after a random start-up pause (1 ms to 30 s), then one every `PurgeInterval`. |
+| Cycle | Deletes in batches of `PurgeBatchSize` until a batch comes back shorter than the batch size. A cycle where the store returns only ids it already tried ends with a warning (EventId 2112, no progress). |
+| Hosts | No distributed lock: the deletes are bounded and idempotent, so several hosts may run the service. It does not depend on any processor being enabled. |
+| Failure | A store `Left` or an exception fails that cycle only. It is logged by error code (2110) or exception type (2111), never by message text, counted in `encina.messaging.purge.cycle_failures_total`, and the next cycle still runs. |
+| Log events | 2107 loop started, 2108 nothing to purge, 2109 messages purged, 2110 cycle failed (error code), 2111 cycle threw (exception type), 2112 no progress. Range `EventIdRanges.MessagingInbox` (2100-2199). |
+| Metrics | `encina.messaging.purge.messages_deleted_total` (dimension `pattern`) and `encina.messaging.purge.cycle_failures_total` (dimensions `pattern`, `error_code`) on the `Encina` meter. |
+
+MongoDB creates an ordinary index `IX_Inbox_Expires` on `ExpiresAtUtc` and no TTL index, so the purge service is the only thing that deletes expired inbox documents. A database created by an earlier build still has the old TTL index `IX_Inbox_Expires_TTL` on the same key: MongoDB rejects the new index (`IndexOptionsConflict`), the host fails to start with `UseInbox = true` until the old index is dropped by hand, and until then it keeps deleting rows, unprocessed ones included; see the [MongoDB package README](https://github.com/dlrivada/Encina/blob/main/src/Encina.MongoDB/README.md#inbox-indexes-and-purge).
 
 ### InboxErrorCodes
 

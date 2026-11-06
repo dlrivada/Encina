@@ -628,6 +628,22 @@ public class FunctionalRepositoryEFIntegrationTests : IAsyncLifetime
         result.IfRight(list => list.Select(e => e.Amount).ShouldBe([200m, 100m]));
     }
 
+    [Fact]
+    public async Task ListAsync_QuerySpecificationOrderedAndPaged_ReturnsThatPageInOrder()
+    {
+        // Arrange - the reference behaviour every provider must match (#3151)
+        _dbContext.TestEntities.AddRange(KeysetValues.Select(a => CreateTestEntity($"Entity {a}", amount: a)));
+        await _dbContext.SaveChangesAsync();
+        _dbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _repository.ListAsync(new AmountPageSpec(skip: 1, take: 2));
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Select(e => e.Amount).ShouldBe([300m, 200m]));
+    }
+
     #endregion
 
     #region Helper Methods
@@ -700,6 +716,18 @@ public class DescendingAmountKeysetSpec : QuerySpecification<TestEntity>
     {
         ApplyOrderByDescending(e => e.Amount);
         ApplyKeysetPagination(e => e.Amount, lastAmount, 10);
+    }
+}
+
+/// <summary>
+/// One page of entities by amount, sorted in descending order.
+/// </summary>
+public class AmountPageSpec : QuerySpecification<TestEntity>
+{
+    public AmountPageSpec(int skip, int take)
+    {
+        ApplyOrderByDescending(e => e.Amount);
+        ApplyPaging(skip, take);
     }
 }
 

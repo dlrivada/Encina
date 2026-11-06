@@ -364,7 +364,7 @@ services.AddTransient<IDbConnection>(_ =>
 
 2. **Review indexes** (already optimized):
    - `ix_outboxmessages_processedat_retrycount`
-   - `ix_inboxmessages_expiresat`
+   - `ix_inboxmessages_expiresat` (partial index on processed rows, which the inbox purge deletes; see [Automatic purge of processed messages](../Encina.Messaging/README.md#automatic-purge-of-processed-messages))
    - `ix_sagastates_status_lastupdated`
    - `ix_scheduledmessages_scheduledat_processed`
 

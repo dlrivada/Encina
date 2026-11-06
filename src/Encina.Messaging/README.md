@@ -107,6 +107,39 @@ var result1 = await Encina.Send(command); // Processes
 var result2 = await Encina.Send(command); // Returns cached result
 ```
 
+#### Automatic purge of processed messages
+
+When `UseInbox` is `true` and `InboxOptions.EnableAutomaticPurge` is `true` (the default), a hosted service (`MessagePurgeService`, internal; there is nothing to register yourself) deletes processed inbox messages whose retention period has passed. With `EnableAutomaticPurge = false` nothing is registered or run. The purge runs on all 10 database providers, and only processed, expired rows are deleted; an unprocessed or dead-lettered row is never removed.
+
+```csharp
+services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseInbox = true;
+    config.InboxOptions.MessageRetentionPeriod = TimeSpan.FromDays(14);
+    config.InboxOptions.PurgeInterval = TimeSpan.FromHours(6);
+    config.InboxOptions.PurgeBatchSize = 500;
+    // To disable automatic purge:
+    // config.InboxOptions.EnableAutomaticPurge = false;
+});
+```
+
+| Option | Default | Valid values |
+| :--- | :--- | :--- |
+| `EnableAutomaticPurge` | `true` | `true` or `false` |
+| `MessageRetentionPeriod` | 30 days | greater than zero |
+| `PurgeInterval` | 24 hours | greater than zero and at most `uint.MaxValue - 1` milliseconds (about 49.7 days, the limit of `Task.Delay`) |
+| `PurgeBatchSize` | 100 | 1 or more, no upper limit (the stores split a batch that exceeds a database limit) |
+
+A value outside the valid range throws `ArgumentOutOfRangeException` when you set it, so a misconfiguration fails at configuration time.
+
+- **Schedule**: one cycle after a random start-up pause (1 ms to 30 s), then one every `PurgeInterval`.
+- **Cycle**: deletes expired processed messages through `IInboxStore` in batches of `PurgeBatchSize` until a batch comes back shorter than the batch size. If the store returns only ids that the cycle already tried to remove, the cycle ends with a warning (EventId 2112, no progress) and the next interval runs normally.
+- **Scope**: no distributed lock, because the deletes are bounded and idempotent, so several hosts may run the purge at the same time. There is no tenant filter: the purge covers the whole deployment. It does not depend on any processor being enabled.
+- **Failures**: a `Left` from the store or an exception fails that cycle only. It is logged by error code (EventId 2110) or by exception type (EventId 2111), never by message text, and counted in `encina.messaging.purge.cycle_failures_total` (dimensions `pattern` and `error_code`, which carries the exception type name for an exception) on the `Encina` meter. The next cycle still runs. Deleted rows are counted in `encina.messaging.purge.messages_deleted_total` (dimension `pattern`).
+- **Log events** (range 2100-2199, `EventIdRanges.MessagingInbox`): 2107 loop started, 2108 nothing to purge, 2109 messages purged in a cycle, 2110 cycle failed with an error code, 2111 cycle threw an exception, 2112 no progress.
+
+Reference: [Inbox Pattern](../../docs/messaging/inbox.md#purge-of-processed-messages).
+
 ### 3. **Saga Pattern** (Distributed Transactions)
 
 **Problem**: Multi-step business processes spanning services/aggregates can fail mid-way.

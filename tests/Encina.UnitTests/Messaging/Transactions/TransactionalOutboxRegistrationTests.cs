@@ -64,7 +64,7 @@ public sealed class TransactionalOutboxRegistrationTests
 
     // Registration completeness for UseOutbox only, UseTransactions only and both, on the six relational
     // providers: every one builds with ValidateOnBuild + ValidateScopes and registers the transactional outbox
-    // behavior, never the post-processor (#718, #719).
+    // behavior and no request post-processor (#718, #719).
     [Theory]
     [MemberData(nameof(RelationalFamiliesWithEveryOutboxAndTransactionsCombination))]
     public void Relational_BuildsWithValidationAndSharesOneAccessor(Family family, bool useOutbox, bool useTransactions)
@@ -93,12 +93,11 @@ public sealed class TransactionalOutboxRegistrationTests
         }
 
         (behaviors.Any(b => b is TransactionalOutboxPipelineBehavior<ProbeRequest, string>)).ShouldBe(useOutbox);
-        sp.GetServices<IRequestPostProcessor<ProbeRequest, string>>()
-            .ShouldNotContain(p => p is OutboxPostProcessor<ProbeRequest, string>);
+        sp.GetServices<IRequestPostProcessor<ProbeRequest, string>>().ShouldBeEmpty();
     }
 
     // MongoDB (#718 Phase 8): one scoped session accessor shared as the neutral lease source, the
-    // transactional outbox behavior instead of the post-processor, and no relational accessor.
+    // transactional outbox behavior, and no relational accessor.
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -128,8 +127,7 @@ public sealed class TransactionalOutboxRegistrationTests
 
         sp.GetServices<IPipelineBehavior<ProbeRequest, string>>()
             .Any(b => b is TransactionalOutboxPipelineBehavior<ProbeRequest, string>).ShouldBe(useOutbox);
-        sp.GetServices<IRequestPostProcessor<ProbeRequest, string>>()
-            .ShouldNotContain(p => p is OutboxPostProcessor<ProbeRequest, string>);
+        sp.GetServices<IRequestPostProcessor<ProbeRequest, string>>().ShouldBeEmpty();
     }
 
     // The tenancy entry point (#718): it builds with ValidateOnBuild + ValidateScopes and shares one scoped
