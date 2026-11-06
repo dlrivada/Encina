@@ -222,14 +222,116 @@ public sealed class PIIPropertyScannerTests : IDisposable
     }
 
     [Fact]
-    public void GetProperties_SkipsNonStringProperties()
+    public void GetProperties_NonStringPiiProperty_IsKeptAsAlwaysMaskedUnmaskable()
     {
-        // Act
         var properties = PIIPropertyScanner.GetProperties(typeof(NonStringPropertyDto));
 
-        // Assert - int property with [PII] should be skipped (only string properties supported)
-        properties.ShouldNotBeNull();
-        properties.ShouldBeEmpty();
+        // The int [PII] property is kept (never dropped silently); the plain string is not decorated.
+        var code = properties.ShouldHaveSingleItem();
+        code.Property.Name.ShouldBe(nameof(NonStringPropertyDto.Code));
+        code.Unmaskable.ShouldBeTrue();
+        code.LogOnly.ShouldBeFalse();
+        code.Type.ShouldBe(PIIType.Custom);
+    }
+
+    private sealed class NonStringAlwaysMaskedDto
+    {
+        [PII(PIIType.Email, Mode = MaskingMode.Redact)]
+        public int Number { get; set; }
+
+        [SensitiveData(MaskingMode.Redact)]
+        public Guid Secret { get; set; }
+
+        [PII(PIIType.Phone)]
+        public DateTime When { get; set; }
+
+        [PII(PIIType.Name)]
+        public List<string> Names { get; set; } = [];
+    }
+
+    [Fact]
+    public void GetProperties_NonStringPiiAndSensitiveData_AreKeptWithAttributeModeAndType()
+    {
+        var properties = PIIPropertyScanner.GetProperties(typeof(NonStringAlwaysMaskedDto));
+
+        properties.Length.ShouldBe(4);
+        properties.ShouldAllBe(p => p.Unmaskable && !p.LogOnly && p.Setter == null);
+        var number = properties.Single(p => p.Property.Name == nameof(NonStringAlwaysMaskedDto.Number));
+        number.Type.ShouldBe(PIIType.Email);
+        number.Mode.ShouldBe(MaskingMode.Redact);
+        var secret = properties.Single(p => p.Property.Name == nameof(NonStringAlwaysMaskedDto.Secret));
+        secret.Type.ShouldBe(PIIType.Custom);
+        secret.Mode.ShouldBe(MaskingMode.Redact);
+        properties.Single(p => p.Property.Name == nameof(NonStringAlwaysMaskedDto.When)).Type.ShouldBe(PIIType.Phone);
+    }
+
+    private sealed class NonStringPrecedenceDto
+    {
+        [PII(PIIType.Custom)]
+        [MaskInLogs]
+        public int PiiAndLog { get; set; }
+
+        [SensitiveData]
+        [MaskInLogs]
+        public int SensitiveAndLog { get; set; }
+
+        [PII(PIIType.Email)]
+        [SensitiveData]
+        public int PiiAndSensitive { get; set; }
+    }
+
+    [Fact]
+    public void GetProperties_NonStringWithSeveralAttributes_AlwaysMaskedWinsAndPiiBeatsSensitiveData()
+    {
+        var properties = PIIPropertyScanner.GetProperties(typeof(NonStringPrecedenceDto));
+
+        properties.Length.ShouldBe(3);
+        properties.ShouldAllBe(p => p.Unmaskable && !p.LogOnly);
+        properties.Single(p => p.Property.Name == nameof(NonStringPrecedenceDto.PiiAndSensitive))
+            .Type.ShouldBe(PIIType.Email);
+    }
+
+    [PII(PIIType.Email)]
+    private sealed class ClassLevelWithNonStringDto
+    {
+        public string Mail { get; set; } = "";
+
+        public int Count { get; set; }
+
+        public Guid Id { get; set; }
+    }
+
+    [SensitiveData]
+    private sealed class ClassLevelSensitiveWithNonStringDto
+    {
+        public string Note { get; set; } = "";
+
+        public DateTime Moment { get; set; }
+    }
+
+    [Fact]
+    public void GetProperties_ClassLevelAttributes_LeaveNonStringMembersUntouched()
+    {
+        var pii = PIIPropertyScanner.GetProperties(typeof(ClassLevelWithNonStringDto)).ShouldHaveSingleItem();
+        pii.Property.Name.ShouldBe(nameof(ClassLevelWithNonStringDto.Mail));
+        pii.Unmaskable.ShouldBeFalse();
+
+        var sensitive = PIIPropertyScanner.GetProperties(typeof(ClassLevelSensitiveWithNonStringDto)).ShouldHaveSingleItem();
+        sensitive.Property.Name.ShouldBe(nameof(ClassLevelSensitiveWithNonStringDto.Note));
+        sensitive.Unmaskable.ShouldBeFalse();
+    }
+
+    private sealed class NonStringUndecoratedDto
+    {
+        public int Count { get; set; }
+
+        public Guid Id { get; set; }
+    }
+
+    [Fact]
+    public void GetProperties_UndecoratedNonStringMembers_AreNotKept()
+    {
+        PIIPropertyScanner.GetProperties(typeof(NonStringUndecoratedDto)).ShouldBeEmpty();
     }
 
     [Fact]
@@ -354,10 +456,15 @@ public sealed class PIIPropertyScannerTests : IDisposable
     {
         var properties = PIIPropertyScanner.GetProperties(typeof(NonStringLogOnlyDto));
 
-        var tracking = properties.ShouldHaveSingleItem();
-        tracking.Property.Name.ShouldBe(nameof(NonStringLogOnlyDto.TrackingId));
+        properties.Length.ShouldBe(2);
+        var tracking = properties.Single(p => p.Property.Name == nameof(NonStringLogOnlyDto.TrackingId));
         tracking.Unmaskable.ShouldBeTrue();
         tracking.LogOnly.ShouldBeTrue();
+
+        // The non-string [PII] member is unmaskable in every context, not log-only.
+        var always = properties.Single(p => p.Property.Name == nameof(NonStringLogOnlyDto.Ignored));
+        always.Unmaskable.ShouldBeTrue();
+        always.LogOnly.ShouldBeFalse();
     }
 
     [Fact]
