@@ -270,6 +270,34 @@ builder.Services.AddEncinaAspNetCore(options =>
 
 `MapDPIAEndpoints` no longer reads `X-Tenant-Id`, and the `DPIAEndpointExtensions.TenantIdHeader` constant is removed: the tenant is the one `UseEncinaContext()` bound (the claim, or the trusted header). `X-Module-Id` is unchanged.
 
+#### DPIA management endpoints (fail closed)
+
+`MapDPIAEndpoints(string authorizationPolicy, string prefix = "/api/dpia")` maps seven endpoints (list, get, assess, approve, reject, templates, expired) and applies `RequireAuthorization(authorizationPolicy)` to the whole group. The policy name is required: there is no anonymous mode and no overload without a policy. The application owns the policy (who may act as the DPO); Encina defines no role.
+
+| Condition | Result |
+| --- | --- |
+| `authorizationPolicy` is `null` | `ArgumentNullException` |
+| `authorizationPolicy` is empty or whitespace | `ArgumentException` |
+| `AddAuthorization()` was not called, or the policy is not registered in `AuthorizationOptions` | `InvalidOperationException` at startup |
+| Approve or reject without a request context, or with an unauthenticated identity | 401 Problem Details, code `encina.authorization.unauthenticated`; the service is not called |
+
+Approve and reject record `IRequestContextAccessor.RequestContext.Identity.UserId` (bound by `UseEncinaContext()`) as the approver or rejector. The former `"DPO"` fallback is gone, and `DPOName` and `DPOEmail` are never the actor. A denial logs only the code (Warning, EventId 8896); the log messages 8872 and 8873 no longer carry the user id.
+
+Pipeline order matters: `UseAuthentication()`, `UseAuthorization()`, `UseEncinaContext()`, then `MapDPIAEndpoints`.
+
+```csharp
+builder.Services.AddEncinaDPIA();
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy("DPOPolicy", policy => policy.RequireRole("dpo")));
+
+var app = builder.Build();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseEncinaContext();
+
+app.MapDPIAEndpoints("DPOPolicy");
+```
+
 ### 3. Authorization Behavior
 
 The `AuthorizationPipelineBehavior` enforces declarative authorization on requests using ASP.NET Core's native authorization system. It supports standard attributes, CQRS-aware default policies, and resource-based authorization.
