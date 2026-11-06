@@ -232,6 +232,20 @@ public sealed class CachedShardedQueryExecutorGuardTests
     }
 
     [Fact]
+    public async Task ExecuteCachedAsync_InnerReturnsLeft_ReturnsLeftAndDoesNotCache()
+    {
+        _cache.GetAsync<ShardedQueryResult<int>>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ShardedQueryResult<int>?>(null));
+        _inner.ExecuteAsync(Arg.Any<IEnumerable<string>>(), QueryFactory, Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, ShardedQueryResult<int>>.Left(EncinaErrors.Create("test.failed", "failed")));
+
+        var result = await CreateSut().ExecuteCachedAsync(["shard-1"], "orders", QueryFactory);
+
+        result.IsLeft.ShouldBeTrue();
+        await _cache.DidNotReceiveWithAnyArgs().SetAsync<ShardedQueryResult<int>>(default!, default!, default, default);
+    }
+
+    [Fact]
     public async Task ExecuteAllCachedAsync_CacheHit_ReturnsCachedWithoutExecutingInner()
     {
         _cache.GetAsync<ShardedQueryResult<int>>(Arg.Any<string>(), Arg.Any<CancellationToken>())

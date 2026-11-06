@@ -208,16 +208,57 @@ public sealed class HybridCacheProviderGuardTests : IDisposable
     }
 
     [Fact]
-    public async Task GetOrSetAsyncWithTags_ValidArguments_ReturnsFactoryValueAndTagInvalidationAcceptsIt()
+    public async Task GetOrSetAsyncWithTags_ValidArguments_ReturnsFactoryValue()
     {
         var value = await _sut.GetOrSetAsync(
             "tagged-key", Factory, TimeSpan.FromMinutes(1), ["products"], CancellationToken.None);
 
         value.ShouldBe("value");
-        await _sut.RemoveByTagAsync("products", CancellationToken.None);
-        await _sut.RemoveByPatternAsync("tag:products", CancellationToken.None);
-        await _sut.RemoveByPatternAsync("tagged-*", CancellationToken.None);
-        await _sut.RemoveAsync("tagged-key", CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task GetOrSetAsync_WithoutTags_ReturnsFactoryValue()
+    {
+        var value = await _sut.GetOrSetAsync("plain-key", Factory, null, CancellationToken.None);
+
+        value.ShouldBe("value");
+    }
+
+    [Fact]
+    public async Task GetAsync_AfterSetAsync_ReturnsStoredValue()
+    {
+        await _sut.SetAsync("stored-key", "stored", TimeSpan.FromMinutes(1), CancellationToken.None);
+
+        var value = await _sut.GetAsync<string>("stored-key", CancellationToken.None);
+
+        value.ShouldBe("stored");
+    }
+
+    [Theory]
+    [InlineData("tag:products")]
+    [InlineData("#products")]
+    [InlineData("track-*")]
+    public async Task RemoveByPatternAsync_AfterTrackingTaggedKey_AcceptsTagAndGlobPatterns(string pattern)
+    {
+        await _sut.GetOrSetAsync("track-key", Factory, null, ["products"], CancellationToken.None);
+
+        await Should.NotThrowAsync(() => _sut.RemoveByPatternAsync(pattern, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RemoveAsync_AfterTrackingTaggedKey_AcceptsTheKey()
+    {
+        await _sut.GetOrSetAsync("removable-key", Factory, null, ["orders"], CancellationToken.None);
+
+        await Should.NotThrowAsync(() => _sut.RemoveAsync("removable-key", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RemoveByTagAsync_AfterTrackingTaggedKey_AcceptsTheTag()
+    {
+        await _sut.GetOrSetAsync("tag-removed-key", Factory, null, ["customers"], CancellationToken.None);
+
+        await Should.NotThrowAsync(() => _sut.RemoveByTagAsync("customers", CancellationToken.None));
     }
 
     [Fact]
