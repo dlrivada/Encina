@@ -140,10 +140,17 @@
     },
     "Configuration/CachingOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "guard": 85
+      },
+      "justifications": {
+        "guard": "Guard tests construct CachingOptions as a dependency of the query-caching and invalidation behavior guard tests, so its property initializers run; the options class has no argument validation of its own."
+      }
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
