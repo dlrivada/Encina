@@ -108,6 +108,25 @@ public sealed class PIINonStringFailClosedTests : IDisposable
         ex.Message.ShouldContain(nameof(PiiGuidDto));
     }
 
+    public class PiiBaseDto
+    {
+        [PII(PIIType.Custom)]
+        public virtual int Number { get; set; }
+    }
+
+    public sealed class PiiOverrideDto : PiiBaseDto
+    {
+        public override int Number { get; set; }
+    }
+
+    [Fact]
+    public void MaskObject_InheritedPiiOnOverriddenProperty_NamesPii()
+    {
+        var ex = Should.Throw<InvalidOperationException>(() => CreateMasker().MaskObject(new PiiOverrideDto()));
+
+        AssertSafeFailure(ex, nameof(PiiBaseDto.Number), "PII");
+    }
+
     [Fact]
     public void MaskObject_SensitiveDataInt_Throws()
     {

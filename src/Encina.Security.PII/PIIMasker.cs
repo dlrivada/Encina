@@ -454,7 +454,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
             return "MaskInLogs";
         }
 
-        return prop.Property.IsDefined(typeof(Attributes.PIIAttribute), inherit: true) ? "PII" : "SensitiveData";
+        return Attribute.IsDefined(prop.Property, typeof(Attributes.PIIAttribute), inherit: true) ? "PII" : "SensitiveData";
     }
 
     private string ResolveJsonPropertyName(PropertyMaskingMetadata prop) =>
