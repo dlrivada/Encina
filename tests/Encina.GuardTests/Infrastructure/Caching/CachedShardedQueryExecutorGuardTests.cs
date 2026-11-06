@@ -19,6 +19,10 @@ public sealed class CachedShardedQueryExecutorGuardTests
     private static readonly Func<string, CancellationToken, Task<Either<EncinaError, IReadOnlyList<int>>>> QueryFactory =
         (_, _) => Task.FromResult(Either<EncinaError, IReadOnlyList<int>>.Right(new List<int> { 1 }));
 
+    private static readonly int[] ItemsOneTwo = [1, 2];
+    private static readonly int[] ItemsFour = [4];
+    private static readonly int[] ItemsOneTwoThree = [1, 2, 3];
+
     private CachedShardedQueryExecutor CreateSut(IPubSubProvider? pubSub = null) =>
         new(_inner, _cache, Options.Create(_options), NullLogger<CachedShardedQueryExecutor>.Instance, pubSub);
 
@@ -181,8 +185,8 @@ public sealed class CachedShardedQueryExecutorGuardTests
         var one = await sut.ExecuteAsync(["shard-1"], QueryFactory);
         var all = await sut.ExecuteAllAsync(QueryFactory);
 
-        one.IsRight.ShouldBeTrue();
-        all.IsRight.ShouldBeTrue();
+        one.ShouldBe(expected);
+        all.ShouldBe(expected);
         _cache.ReceivedCalls().ShouldBeEmpty();
     }
 
@@ -197,22 +201,44 @@ public sealed class CachedShardedQueryExecutorGuardTests
         var result = await CreateSut().ExecuteCachedAsync(["shard-1"], "orders", QueryFactory);
 
         result.IsRight.ShouldBeTrue();
+        result.IfRight(r => r.Results.ShouldBe(ItemsOneTwo));
         await _cache.Received(1).SetAsync(
             "shard:scatter:orders",
-            Arg.Any<ShardedQueryResult<int>>(),
+            Arg.Is<ShardedQueryResult<int>>(r => r.Results.SequenceEqual(ItemsOneTwo)),
             _options.DefaultCacheDuration,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAllCachedAsync_CacheMissWithExplicitDuration_StoresResultWithThatDuration()
+    {
+        var duration = TimeSpan.FromSeconds(7);
+        _cache.GetAsync<ShardedQueryResult<int>>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ShardedQueryResult<int>?>(null));
+        _inner.ExecuteAllAsync(QueryFactory, Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, ShardedQueryResult<int>>.Right(ResultOf(4)));
+
+        var result = await CreateSut().ExecuteAllCachedAsync("all-orders", QueryFactory, duration);
+
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(r => r.Results.ShouldBe(ItemsFour));
+        await _cache.Received(1).SetAsync(
+            "shard:scatter:all-orders",
+            Arg.Is<ShardedQueryResult<int>>(r => r.Results.SequenceEqual(ItemsFour)),
+            duration,
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteCachedAsync_CacheHit_ReturnsCachedWithoutExecutingInner()
     {
-        _cache.GetAsync<ShardedQueryResult<int>>(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<ShardedQueryResult<int>?>(ResultOf(9)));
+        var cached = ResultOf(9);
+        _cache.GetAsync<ShardedQueryResult<int>>("shard:scatter:orders", Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ShardedQueryResult<int>?>(cached));
 
         var result = await CreateSut().ExecuteCachedAsync(["shard-1"], "orders", QueryFactory);
 
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBe(Either<EncinaError, ShardedQueryResult<int>>.Right(cached));
         await _inner.DidNotReceiveWithAnyArgs().ExecuteAsync<int>(default!, default!, default);
     }
 
@@ -228,6 +254,7 @@ public sealed class CachedShardedQueryExecutorGuardTests
         var result = await CreateSut().ExecuteAllCachedAsync("big", QueryFactory);
 
         result.IsRight.ShouldBeTrue();
+        result.IfRight(r => r.Results.ShouldBe(ItemsOneTwoThree));
         await _cache.DidNotReceiveWithAnyArgs().SetAsync<ShardedQueryResult<int>>(default!, default!, default, default);
     }
 
@@ -248,12 +275,13 @@ public sealed class CachedShardedQueryExecutorGuardTests
     [Fact]
     public async Task ExecuteAllCachedAsync_CacheHit_ReturnsCachedWithoutExecutingInner()
     {
-        _cache.GetAsync<ShardedQueryResult<int>>(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<ShardedQueryResult<int>?>(ResultOf(9)));
+        var cached = ResultOf(9);
+        _cache.GetAsync<ShardedQueryResult<int>>("shard:scatter:all", Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ShardedQueryResult<int>?>(cached));
 
         var result = await CreateSut().ExecuteAllCachedAsync("all", QueryFactory);
 
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBe(Either<EncinaError, ShardedQueryResult<int>>.Right(cached));
         await _inner.DidNotReceiveWithAnyArgs().ExecuteAllAsync<int>(default!, default);
     }
 
@@ -265,9 +293,14 @@ public sealed class CachedShardedQueryExecutorGuardTests
         await sut.InvalidateAsync("orders:*");
         await sut.InvalidateShardAsync("shard-1");
 
-        await _cache.Received(2).RemoveByPatternAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
-        await _pubSub.Received(2).PublishAsync(
-            _options.InvalidationChannel, Arg.Any<string>(), Arg.Any<CancellationToken>());
+        var shardPattern = ShardCacheKeyGenerator.InvalidationPattern("shard:scatter", "shard-1");
+        shardPattern.ShouldContain("shard-1");
+        await _cache.Received(1).RemoveByPatternAsync("shard:scatter:orders:*", Arg.Any<CancellationToken>());
+        await _cache.Received(1).RemoveByPatternAsync(shardPattern, Arg.Any<CancellationToken>());
+        await _pubSub.Received(1).PublishAsync(
+            _options.InvalidationChannel, "shard:scatter:orders:*", Arg.Any<CancellationToken>());
+        await _pubSub.Received(1).PublishAsync(
+            _options.InvalidationChannel, shardPattern, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -278,7 +311,9 @@ public sealed class CachedShardedQueryExecutorGuardTests
         await sut.InvalidateAsync("orders:*");
         await sut.InvalidateShardAsync("shard-1");
 
-        await _cache.Received(2).RemoveByPatternAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _cache.Received(1).RemoveByPatternAsync("shard:scatter:orders:*", Arg.Any<CancellationToken>());
+        await _cache.Received(1).RemoveByPatternAsync(
+            ShardCacheKeyGenerator.InvalidationPattern("shard:scatter", "shard-1"), Arg.Any<CancellationToken>());
         _pubSub.ReceivedCalls().ShouldBeEmpty();
     }
 }

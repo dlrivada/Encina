@@ -11,14 +11,22 @@ public sealed class HybridCacheProviderGuardTests : IDisposable
 {
     private readonly ServiceProvider _services;
     private readonly HybridCache _cache;
+
+    // _sut sits on a substituted HybridCache that accepts anything, so a missing guard clause cannot be
+    // masked by the underlying cache rejecting the argument itself; _real sits on a real HybridCache.
     private readonly HybridCacheProvider _sut;
+    private readonly HybridCacheProvider _real;
 
     public HybridCacheProviderGuardTests()
     {
         _services = new ServiceCollection().AddHybridCache().Services.BuildServiceProvider();
         _cache = _services.GetRequiredService<HybridCache>();
-        _sut = new HybridCacheProvider(
+        _real = new HybridCacheProvider(
             _cache,
+            Options.Create(new HybridCacheProviderOptions()),
+            NullLogger<HybridCacheProvider>.Instance);
+        _sut = new HybridCacheProvider(
+            Substitute.For<HybridCache>(),
             Options.Create(new HybridCacheProviderOptions()),
             NullLogger<HybridCacheProvider>.Instance);
     }
@@ -209,73 +217,128 @@ public sealed class HybridCacheProviderGuardTests : IDisposable
     [Fact]
     public async Task GetAsync_KeyNeverStored_ReturnsDefault()
     {
-        var value = await _sut.GetAsync<string>("missing-key", CancellationToken.None);
+        var value = await _real.GetAsync<string>("missing-key", CancellationToken.None);
 
         value.ShouldBeNull();
     }
 
     [Fact]
-    public async Task GetOrSetAsyncWithTags_ValidArguments_ReturnsFactoryValue()
+    public async Task ExistsAsync_StoredAndMissingKeys_ReportsPresence()
     {
-        var value = await _sut.GetOrSetAsync(
-            "tagged-key", Factory, TimeSpan.FromMinutes(1), ["products"], CancellationToken.None);
+        // Stored as object because ExistsAsync reads through GetAsync<object>; see the follow-up issue about
+        // ExistsAsync missing entries stored under a concrete type.
+        await _real.SetAsync<object>("present-key", "v", TimeSpan.FromMinutes(1), CancellationToken.None);
 
-        value.ShouldBe("value");
+        (await _real.ExistsAsync("present-key", CancellationToken.None)).ShouldBeTrue();
+        (await _real.ExistsAsync("absent-key", CancellationToken.None)).ShouldBeFalse();
     }
 
     [Fact]
-    public async Task GetOrSetAsync_WithoutTags_ReturnsFactoryValue()
+    public async Task GetOrSetAsyncWithTags_RunsFactoryOnceAndServesTheCachedValue()
     {
-        var value = await _sut.GetOrSetAsync("plain-key", Factory, null, CancellationToken.None);
+        var calls = 0;
+        Task<string> CountingFactory(CancellationToken _) => Task.FromResult($"value-{Interlocked.Increment(ref calls)}");
 
-        value.ShouldBe("value");
+        var first = await _real.GetOrSetAsync(
+            "tagged-key", CountingFactory, TimeSpan.FromMinutes(1), ["products"], CancellationToken.None);
+        var second = await _real.GetOrSetAsync(
+            "tagged-key", CountingFactory, TimeSpan.FromMinutes(1), ["products"], CancellationToken.None);
+
+        first.ShouldBe("value-1");
+        second.ShouldBe("value-1");
+        calls.ShouldBe(1);
     }
 
     [Fact]
-    public async Task GetAsync_AfterSetAsync_ReturnsStoredValue()
+    public async Task GetOrSetAsync_WithoutTags_RunsFactoryOnceAndServesTheCachedValue()
     {
-        await _sut.SetAsync("stored-key", "stored", TimeSpan.FromMinutes(1), CancellationToken.None);
+        var calls = 0;
+        Task<string> CountingFactory(CancellationToken _) => Task.FromResult($"value-{Interlocked.Increment(ref calls)}");
 
-        var value = await _sut.GetAsync<string>("stored-key", CancellationToken.None);
+        var first = await _real.GetOrSetAsync("plain-key", CountingFactory, null, CancellationToken.None);
+        var second = await _real.GetOrSetAsync("plain-key", CountingFactory, null, CancellationToken.None);
 
-        value.ShouldBe("stored");
+        first.ShouldBe("value-1");
+        second.ShouldBe("value-1");
+        calls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task SetAsync_StoresTheValueReadableByKey()
+    {
+        await _real.SetAsync("set-key", "stored", TimeSpan.FromMinutes(1), CancellationToken.None);
+
+        (await _real.GetAsync<string>("set-key", CancellationToken.None)).ShouldBe("stored");
+    }
+
+    [Fact]
+    public async Task SetAsync_NullExpiration_StoresTheValueWithTheDefaultExpiration()
+    {
+        await _real.SetAsync("default-expiration-key", "stored", null, CancellationToken.None);
+
+        (await _real.GetAsync<string>("default-expiration-key", CancellationToken.None)).ShouldBe("stored");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SetWithSlidingExpirationAsync_StoresTheValueReadableByKey(bool withAbsoluteExpiration)
+    {
+        var key = withAbsoluteExpiration ? "sliding-absolute-key" : "sliding-key";
+        TimeSpan? absolute = withAbsoluteExpiration ? TimeSpan.FromMinutes(1) : null;
+
+        await _real.SetWithSlidingExpirationAsync(key, "stored", TimeSpan.FromMinutes(2), absolute, CancellationToken.None);
+
+        (await _real.GetAsync<string>(key, CancellationToken.None)).ShouldBe("stored");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task EmptyOrWhitespaceKey_IsAcceptedBecauseOnlyNullIsRejected(string key)
+    {
+        // The provider only rejects null; whether the underlying HybridCache stores an empty key is its own
+        // business, so the pin is that every operation accepts the key instead of throwing.
+        await Should.NotThrowAsync(() => _real.SetAsync(key, "stored", TimeSpan.FromMinutes(1), CancellationToken.None));
+        await Should.NotThrowAsync(() => _real.GetAsync<string>(key, CancellationToken.None));
+        await Should.NotThrowAsync(() => _real.ExistsAsync(key, CancellationToken.None));
+        await Should.NotThrowAsync(() => _real.RemoveAsync(key, CancellationToken.None));
+        await Should.NotThrowAsync(() => _real.GetOrSetAsync(key, Factory, null, CancellationToken.None));
     }
 
     [Theory]
     [InlineData("tag:products")]
     [InlineData("#products")]
     [InlineData("track-*")]
-    public async Task RemoveByPatternAsync_AfterTrackingTaggedKey_AcceptsTagAndGlobPatterns(string pattern)
+    public async Task RemoveByPatternAsync_AfterTrackingTaggedKey_EvictsTheEntry(string pattern)
     {
-        await _sut.GetOrSetAsync("track-key", Factory, null, ["products"], CancellationToken.None);
-
-        await Should.NotThrowAsync(() => _sut.RemoveByPatternAsync(pattern, CancellationToken.None));
+        await TrackAndRemoveAsync("track-key", "products", () => _real.RemoveByPatternAsync(pattern, CancellationToken.None));
     }
 
     [Fact]
-    public async Task RemoveAsync_AfterTrackingTaggedKey_AcceptsTheKey()
+    public async Task RemoveAsync_AfterTrackingTaggedKey_EvictsTheEntry()
     {
-        await _sut.GetOrSetAsync("removable-key", Factory, null, ["orders"], CancellationToken.None);
-
-        await Should.NotThrowAsync(() => _sut.RemoveAsync("removable-key", CancellationToken.None));
+        await TrackAndRemoveAsync("removable-key", "orders", () => _real.RemoveAsync("removable-key", CancellationToken.None));
     }
 
     [Fact]
-    public async Task RemoveByTagAsync_AfterTrackingTaggedKey_AcceptsTheTag()
+    public async Task RemoveByTagAsync_AfterTrackingTaggedKey_EvictsTheEntry()
     {
-        await _sut.GetOrSetAsync("tag-removed-key", Factory, null, ["customers"], CancellationToken.None);
-
-        await Should.NotThrowAsync(() => _sut.RemoveByTagAsync("customers", CancellationToken.None));
+        await TrackAndRemoveAsync("tag-removed-key", "customers", () => _real.RemoveByTagAsync("customers", CancellationToken.None));
     }
 
-    [Fact]
-    public async Task SetAsyncAndSliding_ValidArguments_AreAccepted()
+    // Stores a tagged entry, proves it is served from the cache, runs the removal and proves the entry is gone
+    // (the factory runs again), so a removal that does nothing makes the test fail.
+    private async Task TrackAndRemoveAsync(string key, string tag, Func<Task> remove)
     {
-        await _sut.SetAsync("k1", "v", null, CancellationToken.None);
-        await _sut.SetWithSlidingExpirationAsync(
-            "k2", "v", TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(1), CancellationToken.None);
-        await _sut.SetWithSlidingExpirationAsync("k3", "v", TimeSpan.FromMinutes(2), null, CancellationToken.None);
+        var calls = 0;
+        Task<string> CountingFactory(CancellationToken _) => Task.FromResult($"value-{Interlocked.Increment(ref calls)}");
 
-        (await _sut.ExistsAsync("never-stored", CancellationToken.None)).ShouldBeFalse();
+        (await _real.GetOrSetAsync(key, CountingFactory, TimeSpan.FromMinutes(1), [tag], CancellationToken.None)).ShouldBe("value-1");
+        (await _real.GetOrSetAsync(key, CountingFactory, TimeSpan.FromMinutes(1), [tag], CancellationToken.None)).ShouldBe("value-1");
+
+        await remove();
+
+        (await _real.GetOrSetAsync(key, CountingFactory, TimeSpan.FromMinutes(1), [tag], CancellationToken.None)).ShouldBe("value-2");
     }
 }
