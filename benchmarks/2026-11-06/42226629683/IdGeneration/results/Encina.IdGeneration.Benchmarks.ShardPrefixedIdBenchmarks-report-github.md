@@ -1,0 +1,25 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 7763 2.61GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v3
+
+WarmupCount=3  
+
+```
+| Method                         | Job        | IterationCount | LaunchCount | Mean       | Error     | StdDev  | Ratio | Gen0   | Allocated | Alloc Ratio |
+|------------------------------- |----------- |--------------- |------------ |-----------:|----------:|--------:|------:|-------:|----------:|------------:|
+| Generate_TimestampRandomFormat | Job-YFEFPZ | 10             | Default     | 1,084.3 ns |   2.05 ns | 1.36 ns |  1.11 | 0.0076 |     151 B |        1.26 |
+| Generate_ToString              | Job-YFEFPZ | 10             | Default     | 1,044.4 ns |  11.49 ns | 7.60 ns |  1.07 | 0.0114 |     216 B |        1.80 |
+| Generate_UlidFormat            | Job-YFEFPZ | 10             | Default     |   977.4 ns |   5.75 ns | 3.81 ns |  1.00 | 0.0057 |     120 B |        1.00 |
+| Generate_UuidV7Format          | Job-YFEFPZ | 10             | Default     |   903.0 ns |   3.87 ns | 2.30 ns |  0.92 | 0.0057 |      96 B |        0.80 |
+| ExtractShardId_Ulid            | Job-YFEFPZ | 10             | Default     |   957.4 ns |   4.30 ns | 2.56 ns |  0.98 | 0.0057 |     120 B |        1.00 |
+|                                |            |                |             |            |           |         |       |        |           |             |
+| Generate_TimestampRandomFormat | ShortRun   | 3              | 1           | 1,079.9 ns |  23.33 ns | 1.28 ns |  1.11 | 0.0076 |     151 B |        1.26 |
+| Generate_ToString              | ShortRun   | 3              | 1           | 1,037.4 ns | 137.97 ns | 7.56 ns |  1.06 | 0.0114 |     216 B |        1.80 |
+| Generate_UlidFormat            | ShortRun   | 3              | 1           |   974.8 ns |  81.25 ns | 4.45 ns |  1.00 | 0.0057 |     120 B |        1.00 |
+| Generate_UuidV7Format          | ShortRun   | 3              | 1           |   920.4 ns |  44.02 ns | 2.41 ns |  0.94 | 0.0057 |      96 B |        0.80 |
+| ExtractShardId_Ulid            | ShortRun   | 3              | 1           |   952.6 ns |  24.64 ns | 1.35 ns |  0.98 | 0.0067 |     120 B |        1.00 |

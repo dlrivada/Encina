@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Audit.Marten.Benchmarks.EncryptedFieldBenchmarks-20261106-145647</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 7763 2.74GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]   : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                </th><th>Mean     </th><th>Error  </th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Gen2</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Encrypt_Medium_256B</td><td>5,060.1082 ns</td><td>173.4725 ns</td><td>9.5086 ns</td><td>1.126</td><td>0.00</td><td>2</td><td>0.4501</td><td>0.0076</td><td>-</td><td>7568 B</td><td>5.06</td>
+</tr><tr><td>Encrypt_VeryLong_64KB</td><td>144,977.1361 ns</td><td>8,273.1118 ns</td><td>453.4772 ns</td><td>32.273</td><td>0.10</td><td>4</td><td>137.6953</td><td>137.6953</td><td>137.6953</td><td>569669 B</td><td>380.79</td>
+</tr><tr><td>Decrypt_Medium_256B</td><td>4,325.0642 ns</td><td>229.5937 ns</td><td>12.5848 ns</td><td>0.963</td><td>0.00</td><td>2</td><td>0.1068</td><td>-</td><td>-</td><td>1792 B</td><td>1.20</td>
+</tr><tr><td>Decrypt_Long_4KB</td><td>7,740.6178 ns</td><td>797.0886 ns</td><td>43.6911 ns</td><td>1.723</td><td>0.01</td><td>3</td><td>1.3275</td><td>-</td><td>-</td><td>22272 B</td><td>14.89</td>
+</tr><tr><td>DecryptOrPlaceholder_NullKey</td><td>0.6016 ns</td><td>0.0282 ns</td><td>0.0015 ns</td><td>0.000</td><td>0.00</td><td>1</td><td>-</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>Decrypt_Short_16B</td><td>4,065.7606 ns</td><td>184.6766 ns</td><td>10.1227 ns</td><td>0.905</td><td>0.00</td><td>2</td><td>0.0229</td><td>-</td><td>-</td><td>504 B</td><td>0.34</td>
+</tr><tr><td>Decrypt_VeryLong_64KB</td><td>168,466.2334 ns</td><td>2,499.8381 ns</td><td>137.0246 ns</td><td>37.502</td><td>0.06</td><td>4</td><td>68.8477</td><td>68.8477</td><td>68.8477</td><td>350037 B</td><td>233.98</td>
+</tr><tr><td>Encrypt_Long_4KB</td><td>8,459.0275 ns</td><td>708.0892 ns</td><td>38.8128 ns</td><td>1.883</td><td>0.01</td><td>3</td><td>2.2125</td><td>0.0763</td><td>-</td><td>37112 B</td><td>24.81</td>
+</tr><tr><td>Encrypt_Short_16B</td><td>4,492.2200 ns</td><td>139.9467 ns</td><td>7.6710 ns</td><td>1.000</td><td>0.00</td><td>2</td><td>0.0839</td><td>-</td><td>-</td><td>1496 B</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>
