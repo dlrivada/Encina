@@ -183,7 +183,9 @@ function Test-ScriptHasWriteApi([string]$Text) {
 #            denied only when the script's text (for an unresolved target also the launching command, script path
 #            removed, or a launching cwd under src/ or tests/) mentions src/ or tests/; an opaque construct or a
 #            parameter-bound target with no such word is not analysed and is allowed (#2892 follow-ups B1, B3,
-#            B4). Evasions still open under B1: a wildcard in a parent segment, 's'+'rc' built in the launching
+#            B4). Evasions still open under B1: a wildcard in a parent segment, a target longer than 8192 characters built
+#            without a literal src/tests word (unresolved and allowed; the cap extends to -f, Join-Path, Combine and
+#            .Replace the exposure SwCross already had), 's'+'rc' built in the launching
 #            command, splatting, an environment variable, a cwd that is a junction to src/. Every resolved value
 #            longer than 8192 characters is unresolved (SwEval), so a doubling chain cannot stall the hook.
 # A text mention of src/ or tests/ inside a string, comment or here-string is never a target by itself.

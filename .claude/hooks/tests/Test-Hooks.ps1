@@ -513,6 +513,11 @@ foreach ($shape in @(
         @('Replace', { param($n) "`$v$n = `$v$($n - 1).Replace('x', 'xx')" }))) {
     $ps1Scripts["ExpChain$($shape[0])Src"] = (@('$v0 = "x"') + @(1..26 | ForEach-Object { & $shape[1] $_ }) + @("Set-Content -Path ('$main\src\' + `$v26) -Value 1")) -join "`n"
 }
+# Pins the 8192-character cap itself: 14 doublings give 16384 characters, so the target is unresolved under the cap
+# (uncapped it would resolve to <main>\src\xxx... and be Guarded). The text and the launch name no src/tests word
+# (the folder is built from 's' + 'rc'), so today the verdict is Unknown without a mention: ALLOWED. That is a known
+# B1 limit, pinned here on purpose so a change of behaviour is noticed.
+$ps1Scripts['CapProofNoWord'] = (@('$v0 = "x"') + @(1..14 | ForEach-Object { "`$v$_ = '{0}{0}' -f `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\s' + 'rc\' + `$v14) -Value 1")) -join "`n"
 $ps1Scripts['ExpChainLongSrc'] = (@('$v0 = "x"') + @(1..26 | ForEach-Object { "`$v$_ = `$v$($_ - 1) + `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\src\' + `$v26) -Value 1")) -join "`n"
 $ps1Scripts['TypedArraySrc'] = "[string[]]`$a = '$main\artifacts\'`nSet-Content -Path (`$a + 'src\q') -Value 1`n"
 $ps1Scripts['ExpChainCycleSrc'] = (@('$v0 = "x"', '$v0 = $v0 + "y"') + $expLines[1..($expLines.Count - 1)] -join "`n") + "`n"
@@ -1159,15 +1164,19 @@ function Get-FlatOutput([object[]]$Lines) {
 }
 
 # Runs one hook: $Json on stdin, -Agent when given; checks the exit code and, when given, a regex on stdout.
-function Invoke-HookCase([string]$Hook, [string]$Json, [int]$Expected, [string]$Label, [string]$HookAgent, [string]$StdoutPattern) {
+function Invoke-HookCase([string]$Hook, [string]$Json, [int]$Expected, [string]$Label, [string]$HookAgent, [string]$StdoutPattern, [double]$MaxSeconds = 0, [string]$StderrPattern) {
     $arguments = @('-NoProfile', '-File', $Hook)
     if ($HookAgent) { $arguments += @('-Agent', $HookAgent) }
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
     $output = $Json | pwsh @arguments 2>&1
     $code = $LASTEXITCODE
+    $elapsed = $watch.Elapsed.TotalSeconds
     $stdout = @($output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }) -join "`n"
     $stderr = @($output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }) -join ' '
     $ok = $code -eq $Expected
     if ($ok -and $StdoutPattern) { $ok = $stdout -match $StdoutPattern }
+    if ($ok -and $StderrPattern) { $ok = ($stderr -match $StderrPattern) -or ($stdout -match $StderrPattern) }
+    if ($ok -and $MaxSeconds -gt 0 -and $elapsed -gt $MaxSeconds) { $ok = $false; $Label = "$Label (took $([math]::Round($elapsed, 1)) s, limit $MaxSeconds s)" }
     $script:total++
     if (-not $ok) { $script:failed++ }
     $expectation = if ($StdoutPattern) { "$Expected, stdout /$StdoutPattern/" } else { "$Expected" }
@@ -1739,6 +1748,15 @@ try {
         $json = if ($toolInput.command -eq 'not json') { 'not json' } else { $payload | ConvertTo-Json -Compress }
         Invoke-HookCase $orchestrator $json $expected $label
     }
+
+    # #2892 value cap: each 26-level doubling chain to a src/ target must be judged UNRESOLVED (the message says the
+    # hook cannot resolve the path; an uncapped run would be Guarded) and well inside the 15 s hook timeout.
+    foreach ($shape in 'Fmt', 'Join', 'Combine', 'Replace') {
+        $json = @{ tool_name = 'PowerShell'; cwd = $main; tool_input = @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath["ExpChain${shape}Src"])'" } } | ConvertTo-Json -Compress
+        Invoke-HookCase $orchestrator $json 2 "main session (#2892): the 26-level $shape chain is unresolved (value cap) and judged within 10 s" $null $null 10 'cannot resolve'
+    }
+    $json = @{ tool_name = 'PowerShell'; cwd = $main; tool_input = @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.CapProofNoWord)'" } } | ConvertTo-Json -Compress
+    Invoke-HookCase $orchestrator $json 0 "main session (#2892): a >8192-character target built from 's'+'rc' with no src/tests word anywhere is unresolved and ALLOWED (known B1 limit, pinned)"
 
     # The Stop gate needs git; a machine without git skips these cases.
     if (Get-Command git -ErrorAction SilentlyContinue) {

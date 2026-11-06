@@ -32,7 +32,9 @@
 #     names src/ or tests/, or the launching cwd is under them. An unresolved target with NO such mention in the
 #     script, the command or the cwd is ALLOWED, and so is any other construct the analysis cannot finish when
 #     the text has no src/tests word: the gate does not fail closed for them. Open evasions (follow-up B1, B3,
-#     B4): a wildcard in a parent segment (`[s]rc\...`), targets built in the launching command from 's'+'rc',
+#     B4): a wildcard in a parent segment (`[s]rc\...`), a target longer than 8192 characters built without a
+#     literal src/tests word (unresolved and allowed; the value cap SwEval extends to -f, Join-Path, Combine and
+#     .Replace the exposure SwCross already had), targets built in the launching command from 's'+'rc',
 #     splatting, an environment variable, a cwd that is a junction to src/ (GetFullPath does not resolve reparse
 #     points), Invoke-Expression, computed command names, nested launches and native copiers. A mention of
 #     src/ or tests/ in a string, comment or here-string is never a target by itself. Any other script (`dotnet run <file>.cs`)
@@ -373,19 +375,19 @@ try {
             # case below); a parameter-driven repo script that never mentions them runs as it did before (#2892).
             $commandWithoutScript = if ([string]::IsNullOrEmpty($s.Raw)) { $command } else { $command.Replace([string]$s.Raw, ' ') }
             if ($null -ne $analysis -and $analysis.Verdict -eq 'Unknown' -and $analysis.Unresolved -and ((Test-ScriptReferencesPath $candidate $guardedTokens) -or $candidate -match '(?i)(^|\W)(src|tests)(\W|$)' -or $commandWithoutScript -match '(?i)(^|\W)(src|tests)(\W|$)' -or (-not [string]::IsNullOrWhiteSpace($s.Base) -and (Test-Guarded (Get-FullPath ([string]$s.Base) $null))))) {
-                Write-Block "runs '$($s.Full)' ($($s.Kind)), which writes to a path the hook cannot resolve while the script or the launching command names src/ or tests/, so it cannot rule out writes there (fail closed)$note"
+                Write-Block "runs '$($s.Full)' ($($s.Kind)), which writes to a path the hook cannot resolve while the script text, the launching command or the launching cwd names src/ or tests/, so it cannot rule out writes there$note"
             }
             # An analysis it could not finish (a command or call it does not know, a nested launch, a script that does
             # not parse) is denied only when the script's text names src/ or tests/. An unfinished analysis whose text
             # has no src/tests word is NOT denied: opaque constructs (Invoke-Expression, computed command names, nested
             # launches, native copiers) are not analysed (#2892 follow-ups B1, B3, B4).
             if ($null -ne $analysis -and $analysis.Verdict -eq 'Unknown' -and ((Test-ScriptReferencesPath $candidate $guardedTokens) -or $candidate -match '(?i)(^|\W)(src|tests)(\W|$)')) {
-                Write-Block "runs '$($s.Full)' ($($s.Kind)), which references src/ or tests/ and contains something the hook cannot analyse ($($analysis.Detail)), so it cannot rule out writes there (fail closed)$note"
+                Write-Block "runs '$($s.Full)' ($($s.Kind)), which references src/ or tests/ and contains something the hook cannot analyse ($($analysis.Detail)), so it cannot rule out writes there$note"
             }
             # $env:NAME in the script resolves from the hook's own environment; a launching command that changes the
             # environment (or the script itself, which the analysis treats as opaque) makes that value unreliable.
             if ($null -ne $analysis -and $analysis.Verdict -eq 'Safe' -and $candidate -match '(?i)\$env:' -and $command -match '(?i)\$env:\w+\s*[-+*/.]?=|SetEnvironmentVariable|\bset-item\b|\bsi\b[^\r\n]*env:|\bsetx?\s+\w+=') {
-                Write-Block "runs '$($s.Full)' ($($s.Kind)), which reads an environment variable that the launching command changes, so the hook cannot resolve its write targets (fail closed)$note"
+                Write-Block "runs '$($s.Full)' ($($s.Kind)), which reads an environment variable that the launching command changes, so the hook cannot resolve its write targets$note"
             }
             if ((Test-ScriptHasWriteApi $candidate) -and (Test-ScriptReferencesPath $candidate $guardedTokens) -and ($null -eq $analysis -or $analysis.Verdict -ne 'Safe')) {
                 Write-Block "runs '$($s.Full)' ($($s.Kind)), which references src/ or tests/ and writes files$note$(if ($null -ne $analysis -and $analysis.Detail) { " (the hook could not show that every write target is outside them: $($analysis.Detail))" })"
