@@ -36,9 +36,11 @@ public class OrderRepositoryTests : IClassFixture<SqlServerContainerFixture>
 |---------|----------|---------------|
 | `SqlServerContainerFixture` | SQL Server | `mcr.microsoft.com/mssql/server:2022-latest` |
 | `PostgreSqlContainerFixture` | PostgreSQL | `postgres:17-alpine` |
-| `MySqlContainerFixture` | MySQL | `mysql:9.1` |
+| `MySqlContainerFixture` | MySQL | `mysql:8.4` |
 | `MongoDbContainerFixture` | MongoDB | `mongo:7` |
 | `RedisContainerFixture` | Redis | `redis:7-alpine` |
+
+The default MySQL image is the vendor LTS line (`mysql:8.4`), defined once and shared by `MySqlContainerFixture` and both `EncinaContainers.MySql` overloads.
 
 ## Factory Methods
 
