@@ -1,7 +1,7 @@
 {
   "package": "Encina.Testing.Testcontainers",
   "generated": "2026-04-13T00:00:00Z",
-  "totalFiles": 12,
+  "totalFiles": 13,
   "targets": {
     "unit": 40,
     "guard": 15
@@ -37,7 +37,30 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Factory methods with ThrowIfNull(configure) guards on every custom-config overload + default factory methods that create fixtures without Docker"
+      "reason": "Factory methods with ThrowIfNull(configure) guards on every custom-config overload + default factory methods that create fixtures without Docker",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "Every factory overload is built without Docker and the MySql ones are checked against the default image.",
+        "guard": "Every configure overload's ThrowIfNull is tested."
+      }
+    },
+    "ContainerDefaultImages.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal constant holder; no executable lines",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "The file only declares a const, which the compiler inlines and produces no coverable lines.",
+        "guard": "No members with parameters."
+      }
     },
     "MongoDbContainerFixture.cs": {
       "defaultTests": [
@@ -51,7 +74,15 @@
         "unit"
       ],
       "defaultRule": "*Fixture.cs",
-      "reason": "Concrete fixture with BuildContainer() — exercised by construction; no guard clauses of its own"
+      "reason": "Concrete fixture with BuildContainer() — exercised by construction; no guard clauses of its own",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "BuildContainer is executed by a test that reads the built container image.",
+        "guard": "The class has no parameterised public member to guard."
+      }
     },
     "MySqlIntegrationTestBase.cs": {
       "defaultTests": [
