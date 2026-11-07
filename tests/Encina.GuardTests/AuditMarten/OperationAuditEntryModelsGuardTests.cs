@@ -90,14 +90,12 @@ public class OperationAuditEntryModelsGuardTests
             RequestPayload = "req",
             ResponsePayload = "resp",
             MetadataJson = "{}",
-            MetadataJsonMasked = true,
             IsShredded = true,
             TemporalKeyPeriod = "2026-03"
         };
 
         model.Id.ShouldBe(id);
         model.IsShredded.ShouldBeTrue();
-        model.MetadataJsonMasked.ShouldBeTrue();
     }
 
     [Fact]
@@ -108,7 +106,6 @@ public class OperationAuditEntryModelsGuardTests
         model.TemporalKeyPeriod.ShouldBe(string.Empty);
         model.EntityCount.ShouldBe(0);
         model.IsShredded.ShouldBeFalse();
-        model.MetadataJsonMasked.ShouldBeFalse();
     }
 
     [Fact]
@@ -130,13 +127,11 @@ public class OperationAuditEntryModelsGuardTests
             UserId = "u",
             Purpose = "p",
             MetadataJson = "{}",
-            MetadataJsonMasked = true,
             IsShredded = false,
             TemporalKeyPeriod = "2026-03"
         };
 
         model.Id.ShouldBe(id);
-        model.MetadataJsonMasked.ShouldBeTrue();
         model.AccessMethod.ShouldBe(ReadAccessMethod.Repository);
         model.EntityCount.ShouldBe(2);
     }

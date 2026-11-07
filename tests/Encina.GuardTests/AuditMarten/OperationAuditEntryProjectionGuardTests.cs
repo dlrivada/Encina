@@ -123,6 +123,22 @@ public class OperationAuditEntryProjectionGuardTests
     }
 
     [Fact]
+    public void ReadModels_MetadataJsonMasked_DefaultsToFalseAndRoundTrips()
+    {
+        var operation = new OperationAuditEntryReadModel();
+        var read = new ReadAuditEntryReadModel();
+
+        operation.MetadataJsonMasked.ShouldBeFalse();
+        read.MetadataJsonMasked.ShouldBeFalse();
+
+        operation.MetadataJsonMasked = true;
+        read.MetadataJsonMasked = true;
+
+        operation.MetadataJsonMasked.ShouldBeTrue();
+        read.MetadataJsonMasked.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task ReadAuditEntryProjection_Create_NullOperations_Throws()
     {
         var projection = new ReadAuditEntryProjection();
