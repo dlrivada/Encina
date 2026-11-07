@@ -249,8 +249,7 @@ public sealed class OrchestrationContextExtensionsOnTestHostIntegrationTests
 
     [Fact(Skip = "The in-process test host (InProcessTestHost 0.2.3-preview.1) leaves an orchestration that "
         + "combines a pending timer with a received external event in Running for 60 s or more in about a third "
-        + "of the runs, even with plain SDK calls and no Encina code. Follow-up issue file: "
-        + "durable-testhost-timer-event-hang; tracked by #3344.")]
+        + "of the runs, even with plain SDK calls and no Encina code; tracked by #3344.")]
     public async Task WaitForEncinaExternalEventAsync_EventArrivesBeforeTheTimeout_ReturnsRightWithThePayload()
     {
         var outcome = await RaiseAsync(registry =>
@@ -258,7 +257,7 @@ public sealed class OrchestrationContextExtensionsOnTestHostIntegrationTests
                 async (c, _) =>
                 {
                     c.SetCustomStatus(DurableTestHostSupport.WaitingStatus);
-                    return ToOutcome(await c.WaitForEncinaExternalEventAsync<string>("go", TimeSpan.FromSeconds(2)));
+                    return ToOutcome(await c.WaitForEncinaExternalEventAsync<string>("go", TimeSpan.FromSeconds(5)));
                 }),
             "ExtThEvFirst_Orch");
 
