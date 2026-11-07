@@ -241,6 +241,8 @@ try {
     $scan = Get-ShellWrites -Command $command -Bash:($tool -eq 'Bash') -Cwd $cwd
     foreach ($w in $scan.Writes) {
         if (Test-Guarded $w.Full $w.Directory) { Write-Block "Target: $($w.Full) ($($w.What))" }
+        # A move removes its source, so a source under src/ or tests/ is a write there too.
+        if ($w.PSObject.Properties['MoveSource'] -and $w.MoveSource -and (Test-Guarded $w.MoveSource)) { Write-Block "Source of a move: $($w.MoveSource) ($($w.What))" }
     }
 
     foreach ($g in $scan.Git) {

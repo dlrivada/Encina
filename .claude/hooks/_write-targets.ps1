@@ -1325,8 +1325,11 @@ function Get-ShellWrites {
                 elseif ($method -match '^(Write|Append|Create|OpenWrite)') { $index = 0 }
                 elseif ($method -in 'Copy', 'Move', 'Replace') { $index = 1 }
                 if ($index -ge 0 -and $index -lt $arguments.Count) { Add-Write ($method -notin 'Copy', 'Move', 'Replace') (ConvertTo-ArgumentToken $arguments[$index]) $Cwd "[IO.$($io.Groups['type'].Value)]::$method" $Bash }
-                # A move removes its source, so a source under a guarded folder is a write there too.
-                if ($method -ieq 'Move' -and $io.Groups['type'].Value -ieq 'File' -and $arguments.Count -gt 0) { Add-Write $false (ConvertTo-ArgumentToken $arguments[0]) $Cwd "[IO.File]::Move (source)" $Bash }
+                # A move removes its source: MoveSource (full path, or $null when unresolved) lets a caller that guards
+                # removals (guard-orchestrator-writes) judge it; callers that only judge destinations ignore it.
+                if ($method -ieq 'Move' -and $io.Groups['type'].Value -ieq 'File' -and $arguments.Count -gt 0 -and $index -ge 0 -and $index -lt $arguments.Count) {
+                    $writes[$writes.Count - 1] | Add-Member -NotePropertyName MoveSource -NotePropertyValue (Resolve-TargetPath (ConvertTo-ArgumentToken $arguments[0]) $Cwd $Bash) -Force
+                }
                 continue
             }
             # > file, >> file, 2> file, *> file, >&file and &>file (Bash); not 2>&1 / >&2 / >&- (stream merges),
