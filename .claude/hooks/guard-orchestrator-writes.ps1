@@ -386,7 +386,7 @@ try {
             }
             # $env:NAME in the script resolves from the hook's own environment; a launching command that changes the
             # environment (or the script itself, which the analysis treats as opaque) makes that value unreliable.
-            if ($null -ne $analysis -and $analysis.Verdict -eq 'Safe' -and $candidate -match '(?i)\$env:' -and $command -match '(?i)\$env:\w+\s*[-+*/.]?=|SetEnvironmentVariable|\bset-item\b|\bsi\b[^\r\n]*env:|\bsetx?\s+\w+=') {
+            if ($null -ne $analysis -and $analysis.Verdict -eq 'Safe' -and $candidate -match '(?i)\$env:|GetEnvironmentVariable' -and $command -match '(?i)\$env:\w+\s*[-+*/.]?=|SetEnvironmentVariable|\bset-item\b|\bsi\b[^\r\n]*env:|\bsetx?\s+\w+=') {
                 Write-Block "runs '$($s.Full)' ($($s.Kind)), which reads an environment variable that the launching command changes, so the hook cannot resolve its write targets$note"
             }
             if ((Test-ScriptHasWriteApi $candidate) -and (Test-ScriptReferencesPath $candidate $guardedTokens) -and ($null -eq $analysis -or $analysis.Verdict -ne 'Safe')) {

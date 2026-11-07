@@ -498,6 +498,13 @@ $ps1Scripts = [ordered]@{
     MoveSourceSrc       = "Move-Item -Path '$main\src\Encina\Foo.cs' -Destination '$main\artifacts\Foo.cs'`n"
     UnknownWithSrc      = "& 'Set-Content' 'src/x.cs' 'y'`n"
     UnresolvedPlusGit   = "# writes under src/ when the variable is set`nSet-Content `$env:ENCINA_HOOK_TEST_UNSET_VARIABLE 'x'`ngit status`n"
+    # PR #3236 review threads: each script is wordless (no src/tests word) so only the target analysis can deny it.
+    NewObjectWordless   = "`$w = New-Object -TypeName System.IO.StreamWriter -ArgumentList ('s' + 'rc/X.cs')`n"
+    MoveSrcWordless     = "[IO.File]::Move(('$main\s' + 'rc\A.cs'), '$main\artifacts\A.cs')`n"
+    DirMoveSrcWordless  = "[IO.Directory]::Move(('$main\s' + 'rc\Dir'), '$main\artifacts\Dir')`n"
+    OpenWriteWordless   = "`$f = [IO.File]::Open(('$main\s' + 'rc\a.cs'), [IO.FileMode]::OpenOrCreate)`n"
+    OpenReadOnly        = "`$f = [IO.File]::Open('$main\src\a.cs', [IO.FileMode]::Open, [IO.FileAccess]::Read)`n"
+    EnvAccessor         = "Set-Content -Path ([Environment]::GetEnvironmentVariable('ENCINA_HOOK_TEST_OUT')) -Value 1`n"
     # Modelled on tools/ai/priority/collect-issues.ps1: param()-bound output path, git call, no src/tests word.
     ParamDrivenTool     = "param([string]`$Out = (Join-Path (git rev-parse --show-toplevel) 'artifacts/priority/issues.json'), [string]`$Repo = 'dlrivada/Encina')`n`$outDir = Split-Path -Parent `$Out`nif (-not (Test-Path `$outDir)) { New-Item -ItemType Directory -Force -Path `$outDir | Out-Null }`n[ordered]@{ repo = `$Repo } | ConvertTo-Json | Set-Content -Path `$Out -Encoding utf8`n"
     ParamDrivenMention  = "# Output goes next to the tests of the board.`nparam([string]`$Out = (Join-Path (git rev-parse --show-toplevel) 'artifacts/priority/issues.json'))`nSet-Content -Path `$Out -Value 'x' -Encoding utf8`n"
@@ -522,6 +529,7 @@ $ps1Scripts['CapProofNoWord'] = (@('$v0 = "x"') + @(1..14 | ForEach-Object { "`$
 $ps1Scripts['ExpChainLongSrc'] = (@('$v0 = "x"') + @(1..26 | ForEach-Object { "`$v$_ = `$v$($_ - 1) + `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\src\' + `$v26) -Value 1")) -join "`n"
 $ps1Scripts['TypedArraySrc'] = "[string[]]`$a = '$main\artifacts\'`nSet-Content -Path (`$a + 'src\q') -Value 1`n"
 $ps1Scripts['ExpChainCycleSrc'] = (@('$v0 = "x"', '$v0 = $v0 + "y"') + $expLines[1..($expLines.Count - 1)] -join "`n") + "`n"
+$env:ENCINA_HOOK_TEST_OUT = "$main\artifacts\env-out.txt"
 $ps1ScriptPath = @{}
 foreach ($name in $ps1Scripts.Keys) {
     $ps1ScriptPath[$name] = Join-Path $work "ps1-$name.ps1"
@@ -1087,6 +1095,15 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out 'x.json'" }, ($main.Replace('\', '/') + '/src'), $null, 2, 'main session (#2892): a forward-slash cwd under src/ with a param-bound relative target: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainCycleSrc)'" }, $main, $null, 2, 'main session (#2892): a 14-level chain with a self-referencing accumulator at the bottom is judged and denied (B2, cycle)'),
     @('PowerShell', @{ command = "pwsh -NoProfile -WorkingDirectory '$main\src' -File '$($ps1ScriptPath.WorkingDirectoryRel)'" }, $main, $null, 2, 'main session (#2892): -WorkingDirectory src with a relative target: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.NewObjectWordless)'" }, $main, $null, 2, 'main session (#2892): New-Object StreamWriter with a wordless src target is judged, not opaque: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.MoveSrcWordless)'" }, $main, $null, 2, 'main session (#2892): [IO.File]::Move whose SOURCE is under src/ is a write there: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.DirMoveSrcWordless)'" }, $main, $null, 2, 'main session (#2892): [IO.Directory]::Move whose SOURCE is under src/ is a write there: denied'),
+    @('PowerShell', @{ command = "[IO.File]::Move('$main\src\A.cs', '$main\artifacts\A.cs')" }, $main, $null, 2, 'main session (#2892): a command-level [IO.File]::Move out of src/ is denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.OpenWriteWordless)'" }, $main, $null, 2, 'main session (#2892): [IO.File]::Open for write on a wordless src target: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.OpenReadOnly)'" }, $main, $null, 0, 'main session (#2892): [IO.File]::Open with FileAccess.Read is read-only: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -co 'Write-Output x.ps1'" }, $main, $null, 0, 'main session (#2892): pwsh -co (a -Command prefix) with a quoted .ps1 text is no script launch: allowed'),
+    @('PowerShell', @{ command = "`$env:ENCINA_HOOK_TEST_OUT = '$main\src\x.txt'; pwsh -NoProfile -File '$($ps1ScriptPath.EnvAccessor)'" }, $main, $null, 2, 'main session (#2892): a launch that changes the environment variable read through GetEnvironmentVariable: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.EnvAccessor)'" }, $main, $null, 0, 'main session (#2892): GetEnvironmentVariable resolving to artifacts/ with no environment change: allowed'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)'" }, $main, $null, 0, 'main session (#2892): a param()-driven tool that never names src/ or tests/ is allowed'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainSrc)'" }, $main, $null, 2, 'main session (#2892): a 14-level chain of reused variables writing src/ is judged and denied within the hook timeout (B2)'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Repo x" }, $main, $null, 0, 'main session (#2892): the same tool with an unrelated argument is allowed'),

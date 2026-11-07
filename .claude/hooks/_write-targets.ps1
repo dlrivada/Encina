@@ -537,7 +537,7 @@ function Test-ScriptWritesAreSafe {
     }
 
     # Cmdlet parameters: the ones that take a value and the switches, so a value is never taken for a path.
-    $valueParams = 'path', 'literalpath', 'pspath', 'lp', 'filepath', 'destination', 'destinationpath', 'outfile', 'value', 'encoding', 'inputobject', 'itemtype', 'type', 'name', 'stream', 'filter', 'include', 'exclude', 'width', 'newname', 'credential', 'delimiter', 'erroraction', 'ea', 'warningaction', 'wa', 'informationaction', 'ia', 'errorvariable', 'ev', 'outvariable', 'ov', 'pipelinevariable', 'pv', 'outbuffer', 'ob', 'uri', 'method', 'body', 'contenttype', 'headers', 'totalcount', 'tail', 'compressionlevel', 'variable', 'depth', 'property'
+    $valueParams = 'path', 'literalpath', 'pspath', 'lp', 'filepath', 'destination', 'destinationpath', 'outfile', 'value', 'encoding', 'inputobject', 'itemtype', 'type', 'name', 'stream', 'filter', 'include', 'exclude', 'width', 'newname', 'credential', 'delimiter', 'erroraction', 'ea', 'warningaction', 'wa', 'informationaction', 'ia', 'errorvariable', 'ev', 'outvariable', 'ov', 'pipelinevariable', 'pv', 'outbuffer', 'ob', 'uri', 'method', 'body', 'contenttype', 'headers', 'totalcount', 'tail', 'compressionlevel', 'variable', 'depth', 'property', 'typename', 'argumentlist', 'comobject'
     $switchParams = 'force', 'nonewline', 'passthru', 'whatif', 'confirm', 'append', 'noclobber', 'recurse', 'verbose', 'debug', 'usebasicparsing', 'noheader', 'notypeinformation', 'raw', 'update', 'quotefields'
     $allParams = @($valueParams) + @($switchParams)
     $aliases = @{ sc = 'set-content'; ac = 'add-content'; clc = 'clear-content'; tee = 'tee-object'; ni = 'new-item'; mkdir = 'new-item'; md = 'new-item'; cpi = 'copy-item'; copy = 'copy-item'; cp = 'copy-item'; mi = 'move-item'; move = 'move-item'; mv = 'move-item'; ren = 'rename-item'; rni = 'rename-item'; iwr = 'invoke-webrequest'; irm = 'invoke-restmethod' }
@@ -813,15 +813,23 @@ function Test-ScriptWritesAreSafe {
             $indexes = $null
             if ($type -in 'io.file', 'file') {
                 if ($member -match '^(exists|readall\w*|readlines\w*|openread|opentext|getlastwritetime\w*|getcreationtime\w*|getlastaccesstime\w*|getattributes|delete|setattributes|setlastwritetime\w*|setlastaccesstime\w*|setcreationtime\w*|resolvelinktarget|getunixfilemode)$') { }
-                elseif ($member -in 'copy', 'move') { $indexes = @(1) }
+                elseif ($member -eq 'copy') { $indexes = @(1) }
+                # A move removes its source, so a source under src/ or tests/ is a write there too.
+                elseif ($member -eq 'move') { $indexes = @(0, 1) }
                 elseif ($member -eq 'replace') { $indexes = @(1, 2) }
-                elseif ($member -match '^(write\w*|appendall\w*|appendtext|create\w*|open|openwrite|openhandle|encrypt|decrypt|setunixfilemode)$') { $indexes = @(0) }
+                elseif ($member -eq 'open') {
+                    # File.Open(path, mode, FileAccess.Read[, share]) only reads; any other shape may write.
+                    $openRest = @($callArgs | Select-Object -Skip 1)
+                    $readOnlyOpen = $openRest.Count -gt 0 -and @($openRest | Where-Object { $_.Extent.Text -match '^(\[(System\.)?(IO\.)?FileAccess\]::|(System\.)?(IO\.)?FileAccess\.)Read$' }).Count -gt 0 -and @($openRest | Where-Object { $_.Extent.Text -notmatch '^(\[(System\.)?(IO\.)?(FileMode\]::Open|FileAccess\]::Read|FileShare\]::\w+)|(System\.)?(IO\.)?(FileMode\.Open|FileAccess\.Read|FileShare\.\w+))$' }).Count -eq 0
+                    if (-not $readOnlyOpen) { $indexes = @(0) }
+                }
+                elseif ($member -match '^(write\w*|appendall\w*|appendtext|create\w*|openwrite|openhandle|encrypt|decrypt|setunixfilemode)$') { $indexes = @(0) }
                 else { $opaque.Add("[IO.File]::$($m.Member.Value)") }
             }
             elseif ($type -in 'io.directory', 'directory') {
                 if ($member -eq 'setcurrentdirectory') { $state.CwdChanged = $true }
                 elseif ($member -in 'createdirectory') { $indexes = @(0) }
-                elseif ($member -eq 'move') { $indexes = @(1) }
+                elseif ($member -eq 'move') { $indexes = @(0, 1) }
                 elseif ($member -match '^(exists|get\w*|enumerate\w*|delete|createtempsubdirectory)$') { }
                 else { $opaque.Add("[IO.Directory]::$($m.Member.Value)") }
             }
@@ -1235,7 +1243,16 @@ function Get-ShellWrites {
         }
         elseif ($name -in 'pwsh', 'powershell', 'pwsh-preview') {
             $fileToken = Get-NamedArgument $tokens ($k + 1) @('-file', '-f', '-fi', '-fil')
-            if ($null -eq $fileToken -and -not (Test-NamedArgument $tokens ($k + 1) @('-command', '-c', '-commandwithargs', '-cwa', '-encodedcommand', '-ec', '-e'))) {
+            # -Command / -CommandWithArgs / -EncodedCommand by any prefix (`-co`, `-comm`, `-enc`), as pwsh accepts them.
+            $hasCommandSwitch = $false
+            for ($ci = $k + 1; $ci -lt $tokens.Count; $ci++) {
+                $ct = $tokens[$ci]
+                if ($ct.Quoted -or -not $ct.Value.StartsWith('-')) { continue }
+                $cn = $ct.Value.Substring(1).ToLowerInvariant()
+                $cc = $cn.IndexOf(':'); if ($cc -ge 0) { $cn = $cn.Substring(0, $cc) }
+                if ($cn.Length -ge 1 -and ('command'.StartsWith($cn) -or ($cn.Length -ge 2 -and ('commandwithargs'.StartsWith($cn) -or 'encodedcommand'.StartsWith($cn))) -or $cn -in 'cwa', 'ec', 'e')) { $hasCommandSwitch = $true; break }
+            }
+            if ($null -eq $fileToken -and -not $hasCommandSwitch) {
                 # `pwsh [options] script.ps1`: the first positional argument is the script (skip values of the options that take one).
                 for ($pi = $k + 1; $pi -lt $tokens.Count; $pi++) {
                     $pt = $tokens[$pi]
@@ -1308,6 +1325,8 @@ function Get-ShellWrites {
                 elseif ($method -match '^(Write|Append|Create|OpenWrite)') { $index = 0 }
                 elseif ($method -in 'Copy', 'Move', 'Replace') { $index = 1 }
                 if ($index -ge 0 -and $index -lt $arguments.Count) { Add-Write ($method -notin 'Copy', 'Move', 'Replace') (ConvertTo-ArgumentToken $arguments[$index]) $Cwd "[IO.$($io.Groups['type'].Value)]::$method" $Bash }
+                # A move removes its source, so a source under a guarded folder is a write there too.
+                if ($method -ieq 'Move' -and $io.Groups['type'].Value -ieq 'File' -and $arguments.Count -gt 0) { Add-Write $false (ConvertTo-ArgumentToken $arguments[0]) $Cwd "[IO.File]::Move (source)" $Bash }
                 continue
             }
             # > file, >> file, 2> file, *> file, >&file and &>file (Bash); not 2>&1 / >&2 / >&- (stream merges),
