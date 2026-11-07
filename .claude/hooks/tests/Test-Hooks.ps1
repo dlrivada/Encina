@@ -5098,8 +5098,11 @@ The fluent builder chain described in the documentation is fictional. The parame
     New-Item -ItemType Directory -Force $stubDir | Out-Null
     # The gate reads the issue over REST (#2568): `api repos/dlrivada/Encina/issues/<n> --jq ...`, so the number is the tail of args[1].
     Set-Content (Join-Path $stubDir 'gh-stub.ps1') '$f = Join-Path $env:ENCINA_STUB_DIR "$(($args[1] -split ''/'')[-1]).json"; if ($args[0] -ne ''api'') { exit 1 }; if (Test-Path -LiteralPath $f) { Get-Content -LiteralPath $f -Raw; exit 0 } else { exit 1 }'
-    function Write-StubIssue([int]$Number, [string]$Title, [string]$Body) {
-        [IO.File]::WriteAllText((Join-Path $stubDir "$Number.json"), (@{ title = $Title; body = $Body } | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+    function Write-StubIssue([int]$Number, [string]$Title, [string]$Body, [string[]]$Labels) {
+        # #3336: the REST read also returns the label names; $Labels = $null leaves the field out (a lookup without labels).
+        $stub = @{ title = $Title; body = $Body }
+        if ($null -ne $Labels) { $stub.labels = @($Labels) }
+        [IO.File]::WriteAllText((Join-Path $stubDir "$Number.json"), ($stub | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
     }
     function Get-TemplateBody([string]$TemplateFile, [string[]]$Skip = @(), [switch]$Reverse) {
         $hs = @(Get-Content -LiteralPath (Join-Path $repo ".github/ISSUE_TEMPLATE/$TemplateFile") | Where-Object { $_ -cmatch '^## \S' } | ForEach-Object { $_.Trim() } | Where-Object { $Skip -notcontains $_ })
@@ -5136,6 +5139,11 @@ The fluent builder chain described in the documentation is fictional. The parame
     Write-StubIssue 9017 '[INFRA] dotted token' ((Get-TemplateBody 'infrastructure.md') -replace '(?m)^(## Component Affected\r?\n)text', ('$1' + "- **File(s)**: ``Foo.Bar``, ``src/A.cs``"))
     # A section without a File(s) bullet: paths in plain prose are not counted, so the check is skipped.
     Write-StubIssue 9014 '[INFRA] no File(s) bullet' ((Get-TemplateBody 'infrastructure.md') -replace '(?m)^(## Component Affected\r?\n)text', ('$1' + ((1..20 | ForEach-Object { "- ``src/B/F$_.cs``" }) -join "`n")))
+    # #3336: size-exception-approved. 9020 carries it, 9021 another label, 9022 no labels field (lookup failure), 9023 carries it and lists 17 paths.
+    Write-StubIssue 9020 '[DEBT] size exception' (Get-TemplateBody 'technical_debt.md') @('bug', 'size-exception-approved')
+    Write-StubIssue 9021 '[DEBT] other labels' (Get-TemplateBody 'technical_debt.md') @('bug', 'p1-recommended')
+    Write-StubIssue 9022 '[DEBT] labels unavailable' (Get-TemplateBody 'technical_debt.md')
+    Write-StubIssue 9023 '[INFRA] 17 paths, exception' (Get-PathBody 'infrastructure.md' '## Component Affected' (1..17 | ForEach-Object { "src/Pkg/File$_.cs" })) @('size-exception-approved')
     # The stub returns no state: the hook reads only title and body, so a closed issue is checked the same way.
     $savedStubGh = $env:ENCINA_ISSUE_GH; $savedStubDir = $env:ENCINA_STUB_DIR
     $env:ENCINA_ISSUE_GH = Join-Path $stubDir 'gh-stub.ps1'; $env:ENCINA_STUB_DIR = $stubDir
@@ -5179,6 +5187,22 @@ The fluent builder chain described in the documentation is fictional. The parame
         Invoke-TargetCase 'issue-worker' "Context: follows up Issue #9001.`nImplement the thing." 2 'spawn gate: an issue number that is not on the first line is not taken'
         Invoke-TargetCase 'issue-worker' "`nIssue #9001 (leading blank line)`nmore" 0 'spawn gate: the first non-empty line names the issue'
 
+        # ---- #3336: size exception ----
+        Invoke-TargetCase 'issue-worker' "Issue #9020 go.`nSize: 22 files, 1000 lines" 0 'size exception: the label lets 22 files pass' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9020 go.`nSize: 22 files, 1501 lines" 2 'size exception: the line limit still denies' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9020 go.`nSize: 0 files, 10 lines" 2 'size exception: 0 files is still denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9020 go.`nSize: 22 files, 1000 lines`nSize: 3 files, 10 lines" 2 'size exception: a second Size line is still denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9021 go.`nSize: 22 files, 1000 lines" 2 'size exception: without the label 22 files are denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9022 go.`nSize: 22 files, 1000 lines" 2 'size exception: a lookup without labels keeps denying (fail closed)' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9023 go.`nSize: 17 files, 1000 lines" 0 'size exception: an issue listing 17 paths passes when the brief declares 17' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9023 go.`nSize: 16 files, 1000 lines" 2 'size exception: declaring fewer files than the issue lists is still denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9009 go.`nSize: 20 files, 100 lines" 2 'size exception: an issue listing 16 paths without the label is still denied' -NoSize
+        Invoke-TargetMessage 'issue-worker' "Issue #9021 go.`nSize: 22 files, 1000 lines" 'declares 22 files and 1000 lines.*at most 15 files' 'size exception: the denial message is unchanged without the label'
+        $exceptionOut = (@{ tool_name = 'Agent'; cwd = $work; tool_input = @{ subagent_type = 'issue-worker'; prompt = "Issue #9020 go.`nSize: 22 files, 1000 lines" } } | ConvertTo-Json -Compress | pwsh -NoProfile -File $targetGate 2>&1) -join ' '
+        $script:total++
+        $exceptionNoted = ($LASTEXITCODE -eq 0) -and ($exceptionOut -match 'size-exception-approved.*22 files')
+        if (-not $exceptionNoted) { $script:failed++ }
+        "{0} check-target-issue-template.ps1: size exception: the output notes the exception" -f $(if ($exceptionNoted) { 'PASS' } else { 'FAIL' })
         # ---- #2900: size gate ----
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 15 files, 1500 lines" 0 'size gate: 15 files and 1500 lines (the limits) pass' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 16 files, 100 lines" 2 'size gate: 16 files is denied' -NoSize
