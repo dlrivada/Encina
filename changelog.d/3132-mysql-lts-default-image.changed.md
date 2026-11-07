@@ -1,0 +1,1 @@
+- **MySQL default image is the LTS line** (#3132). The default MySQL image of `Encina.Testing.Testcontainers` (`MySqlContainerFixture` and both `EncinaContainers.MySql` overloads) is now `mysql:8.4` (MySQL LTS), defined once in an internal class; it was `mysql:9.1` for the fixture and `mysql:8.0` for `EncinaContainers.MySql(configure)`.
