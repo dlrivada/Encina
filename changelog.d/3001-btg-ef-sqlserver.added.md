@@ -1,0 +1,1 @@
+- **EF Core SQL Server break-the-glass store** (#3001). `BreakTheGlassStoreEF<TContext>` and `ApplyBreakTheGlassConfiguration()` add the emergency-access store on EF Core for SQL Server; it is opt-in through `MessagingConfiguration.UseBreakTheGlassStore`.
