@@ -30,10 +30,7 @@ public class TenancyDapperWriteAndPagingIntegrationTests : IAsyncLifetime
     private ITenantEntityMapping<TenantTestEntity, Guid> _mapping = null!;
     private ITenantEntityMapping<VersionedTenantItem, Guid> _versionedMapping = null!;
 
-    public TenancyDapperWriteAndPagingIntegrationTests(SqlServerFixture fixture)
-    {
-        _fixture = fixture;
-    }
+    public TenancyDapperWriteAndPagingIntegrationTests(SqlServerFixture fixture) => _fixture = fixture;
 
     public async ValueTask InitializeAsync()
     {
@@ -52,29 +49,16 @@ public class TenancyDapperWriteAndPagingIntegrationTests : IAsyncLifetime
             """);
 
         _connection = _fixture.CreateConnection();
-
         _mapping = new TenantEntityMappingBuilder<TenantTestEntity, Guid>()
-            .ToTable("TenantTestEntities")
-            .HasId(e => e.Id)
-            .HasTenantId(e => e.TenantId)
-            .MapProperty(e => e.Name, "Name")
-            .MapProperty(e => e.Description, "Description")
-            .MapProperty(e => e.Amount, "Amount")
-            .MapProperty(e => e.IsActive, "IsActive")
-            .MapProperty(e => e.CreatedAtUtc, "CreatedAtUtc")
-            .MapProperty(e => e.UpdatedAtUtc, "UpdatedAtUtc")
-            .Build()
-            .ShouldBeSuccess();
-
+            .ToTable("TenantTestEntities").HasId(e => e.Id).HasTenantId(e => e.TenantId)
+            .MapProperty(e => e.Name, "Name").MapProperty(e => e.Description, "Description")
+            .MapProperty(e => e.Amount, "Amount").MapProperty(e => e.IsActive, "IsActive")
+            .MapProperty(e => e.CreatedAtUtc, "CreatedAtUtc").MapProperty(e => e.UpdatedAtUtc, "UpdatedAtUtc")
+            .Build().ShouldBeSuccess();
         _versionedMapping = new TenantEntityMappingBuilder<VersionedTenantItem, Guid>()
-            .ToTable("VersionedTenantItems")
-            .HasId(e => e.Id)
-            .HasTenantId(e => e.TenantId)
-            .MapProperty(e => e.Name, "Name")
-            .MapProperty(e => e.Version, "Version")
-            .Build()
-            .ShouldBeSuccess();
-
+            .ToTable("VersionedTenantItems").HasId(e => e.Id).HasTenantId(e => e.TenantId)
+            .MapProperty(e => e.Name, "Name").MapProperty(e => e.Version, "Version")
+            .Build().ShouldBeSuccess();
         await TenancySchema.ClearTenancyDataAsync((SqlConnection)_connection);
     }
 
@@ -84,374 +68,182 @@ public class TenancyDapperWriteAndPagingIntegrationTests : IAsyncLifetime
         await _fixture.ClearAllDataAsync();
     }
 
-    #region GetById
-
     [Fact]
-    public async Task GetByIdAsync_FindsTheEntityOfTheCurrentTenant()
+    public async Task GetByIdAsync_FindsOwnEntity_AndSeesOtherTenantsOnlyWithTheFilterDisabled()
     {
-        // Arrange
         var repository = CreateRepository();
-        var entity = NewEntity("found");
-        await repository.AddAsync(entity);
+        var entity = await SeedAsync(repository, "found");
+        (await repository.GetByIdAsync(entity.Id)).ShouldBeSuccess().Name.ShouldBe("found");
 
-        // Act
-        var result = await repository.GetByIdAsync(entity.Id);
-
-        // Assert
-        result.ShouldBeSuccess().Name.ShouldBe("found");
-    }
-
-    [Fact]
-    public async Task GetByIdAsync_WithTenantFilterDisabled_SeesEntitiesOfOtherTenants()
-    {
-        // Arrange
-        var entity = NewEntity("other-tenant");
-        await CreateRepository().AddAsync(entity);
         _tenantProvider.SetCurrentTenant(Tenant2);
-        var repository = CreateRepository(new DapperTenancyOptions { AutoFilterTenantQueries = false });
-
-        // Act
-        var result = await repository.GetByIdAsync(entity.Id);
-
-        // Assert
-        result.ShouldBeSuccess().TenantId.ShouldBe(Tenant1);
+        CodeOf(await CreateRepository().GetByIdAsync(entity.Id)).ShouldBe(RepositoryErrors.NotFoundErrorCode);
+        var unfiltered = CreateRepository(new DapperTenancyOptions { AutoFilterTenantQueries = false });
+        (await unfiltered.GetByIdAsync(entity.Id)).ShouldBeSuccess().TenantId.ShouldBe(Tenant1);
     }
 
-    #endregion
-
-    #region Update
-
     [Fact]
-    public async Task UpdateAsync_OwnEntity_PersistsTheChange()
+    public async Task UpdateAsync_PersistsOwnEntity_AndReturnsNotFoundForOneNeverStored()
     {
-        // Arrange
         var repository = CreateRepository();
-        var entity = NewEntity("before");
-        await repository.AddAsync(entity);
+        var entity = await SeedAsync(repository, "before");
         entity.Name = "after";
 
-        // Act
-        var result = await repository.UpdateAsync(entity);
+        (await repository.UpdateAsync(entity)).ShouldBeSuccess();
 
-        // Assert
-        result.ShouldBeSuccess();
         (await repository.GetByIdAsync(entity.Id)).ShouldBeSuccess().Name.ShouldBe("after");
-    }
-
-    [Fact]
-    public async Task UpdateAsync_EntityThatWasNeverStored_ReturnsNotFound()
-    {
-        // Arrange
-        var repository = CreateRepository();
-        var entity = NewEntity("ghost");
-        entity.TenantId = Tenant1;
-
-        // Act
-        var result = await repository.UpdateAsync(entity);
-
-        // Assert
-        CodeOf(result).ShouldBe(RepositoryErrors.NotFoundErrorCode);
+        var ghost = NewEntity("ghost");
+        ghost.TenantId = Tenant1;
+        CodeOf(await repository.UpdateAsync(ghost)).ShouldBe(RepositoryErrors.NotFoundErrorCode);
     }
 
     [Fact]
     public async Task UpdateAsync_WithTenantFilterDisabled_UpdatesWithoutTenantScope()
     {
-        // Arrange
-        var entity = NewEntity("before");
-        await CreateRepository().AddAsync(entity);
+        var entity = await SeedAsync(CreateRepository(), "before");
         entity.Name = "after";
         var repository = CreateRepository(UnscopedOptions());
 
-        // Act
-        var result = await repository.UpdateAsync(entity);
-        var ghost = await repository.UpdateAsync(NewEntity("ghost"));
-
-        // Assert
-        result.ShouldBeSuccess();
-        CodeOf(ghost).ShouldBe(RepositoryErrors.NotFoundErrorCode);
-    }
-
-    #endregion
-
-    #region Versioned update
-
-    [Fact]
-    public async Task UpdateAsync_Versioned_BumpsTheVersion()
-    {
-        // Arrange
-        var repository = CreateVersionedRepository();
-        var item = NewItem("v0");
-        await repository.AddAsync(item);
-        item.Name = "v1";
-
-        // Act
-        var result = await repository.UpdateAsync(item);
-
-        // Assert
-        result.ShouldBeSuccess().Version.ShouldBe(1);
-        var stored = (await repository.GetByIdAsync(item.Id)).ShouldBeSuccess();
-        stored.Name.ShouldBe("v1");
-        stored.Version.ShouldBe(1);
+        (await repository.UpdateAsync(entity)).ShouldBeSuccess();
+        CodeOf(await repository.UpdateAsync(NewEntity("ghost"))).ShouldBe(RepositoryErrors.NotFoundErrorCode);
     }
 
     [Fact]
-    public async Task UpdateAsync_Versioned_StaleVersion_ReturnsConcurrencyConflict()
+    public async Task UpdateAsync_Versioned_BumpsTheVersion_AndRejectsStaleAndMissingRows()
     {
-        // Arrange
         var repository = CreateVersionedRepository();
         var item = NewItem("v0");
         await repository.AddAsync(item);
         var stale = new VersionedTenantItem { Id = item.Id, TenantId = Tenant1, Name = "stale", Version = 0 };
-        item.Name = "winner";
-        (await repository.UpdateAsync(item)).ShouldBeSuccess();
+        item.Name = "v1";
 
-        // Act
-        var result = await repository.UpdateAsync(stale);
+        (await repository.UpdateAsync(item)).ShouldBeSuccess().Version.ShouldBe(1);
 
-        // Assert
-        CodeOf(result).ShouldBe(RepositoryErrors.ConcurrencyConflictErrorCode);
-    }
-
-    [Fact]
-    public async Task UpdateAsync_Versioned_EntityThatWasNeverStored_ReturnsNotFound()
-    {
-        // Arrange
-        var repository = CreateVersionedRepository();
+        var stored = (await repository.GetByIdAsync(item.Id)).ShouldBeSuccess();
+        stored.Name.ShouldBe("v1");
+        stored.Version.ShouldBe(1);
+        CodeOf(await repository.UpdateAsync(stale)).ShouldBe(RepositoryErrors.ConcurrencyConflictErrorCode);
         var ghost = NewItem("ghost");
         ghost.TenantId = Tenant1;
-
-        // Act
-        var result = await repository.UpdateAsync(ghost);
-
-        // Assert
-        CodeOf(result).ShouldBe(RepositoryErrors.NotFoundErrorCode);
+        CodeOf(await repository.UpdateAsync(ghost)).ShouldBe(RepositoryErrors.NotFoundErrorCode);
     }
 
     [Fact]
     public async Task UpdateAsync_Versioned_WithTenantFilterDisabled_StillDetectsConflictsAndMissingRows()
     {
-        // Arrange
         var item = NewItem("v0");
         await CreateVersionedRepository().AddAsync(item);
         var repository = CreateVersionedRepository(UnscopedOptions());
         var stale = new VersionedTenantItem { Id = item.Id, TenantId = Tenant1, Name = "stale", Version = 7 };
-
-        // Act
-        var conflict = await repository.UpdateAsync(stale);
-        var missing = await repository.UpdateAsync(NewItem("ghost"));
         item.Name = "ok";
-        var updated = await repository.UpdateAsync(item);
 
-        // Assert
-        CodeOf(conflict).ShouldBe(RepositoryErrors.ConcurrencyConflictErrorCode);
-        CodeOf(missing).ShouldBe(RepositoryErrors.NotFoundErrorCode);
-        updated.ShouldBeSuccess();
+        CodeOf(await repository.UpdateAsync(stale)).ShouldBe(RepositoryErrors.ConcurrencyConflictErrorCode);
+        CodeOf(await repository.UpdateAsync(NewItem("ghost"))).ShouldBe(RepositoryErrors.NotFoundErrorCode);
+        (await repository.UpdateAsync(item)).ShouldBeSuccess();
     }
 
-    #endregion
-
-    #region UpdateRange
-
     [Fact]
-    public async Task UpdateRangeAsync_OwnEntities_PersistsEveryChange()
+    public async Task UpdateRangeAsync_PersistsOwnEntities_RejectsForeignOnesAndReturnsNotFoundForMissingOnes()
     {
-        // Arrange
         var repository = CreateRepository();
-        var first = NewEntity("a");
-        var second = NewEntity("b");
-        await repository.AddRangeAsync([first, second]);
+        var first = await SeedAsync(repository, "a");
+        var second = await SeedAsync(repository, "b");
         first.Name = "a2";
         second.Name = "b2";
 
-        // Act
-        var result = await repository.UpdateRangeAsync([first, second]);
+        (await repository.UpdateRangeAsync([first, second])).ShouldBeSuccess();
 
-        // Assert
-        result.ShouldBeSuccess();
         (await repository.GetByIdAsync(first.Id)).ShouldBeSuccess().Name.ShouldBe("a2");
         (await repository.GetByIdAsync(second.Id)).ShouldBeSuccess().Name.ShouldBe("b2");
-    }
-
-    [Fact]
-    public async Task UpdateRangeAsync_WithAnEntityOfAnotherTenant_ReturnsInvalidOperationAndChangesNothing()
-    {
-        // Arrange
-        var repository = CreateRepository();
-        var mine = NewEntity("mine");
-        await repository.AddAsync(mine);
         var foreign = NewEntity("foreign");
         foreign.TenantId = Tenant2;
-        mine.Name = "changed";
-
-        // Act
-        var result = await repository.UpdateRangeAsync([mine, foreign]);
-
-        // Assert
-        CodeOf(result).ShouldBe(RepositoryErrors.InvalidOperationErrorCode);
-        (await repository.GetByIdAsync(mine.Id)).ShouldBeSuccess().Name.ShouldBe("mine");
-    }
-
-    [Fact]
-    public async Task UpdateRangeAsync_NonVersionedEntityThatWasNeverStored_ReturnsNotFound()
-    {
-        // Arrange
-        var repository = CreateRepository();
+        first.Name = "changed";
+        CodeOf(await repository.UpdateRangeAsync([first, foreign])).ShouldBe(RepositoryErrors.InvalidOperationErrorCode);
+        (await repository.GetByIdAsync(first.Id)).ShouldBeSuccess().Name.ShouldBe("a2");
         var ghost = NewEntity("ghost");
         ghost.TenantId = Tenant1;
-
-        // Act
-        var result = await repository.UpdateRangeAsync([ghost]);
-
-        // Assert
-        CodeOf(result).ShouldBe(RepositoryErrors.NotFoundErrorCode);
+        CodeOf(await repository.UpdateRangeAsync([ghost])).ShouldBe(RepositoryErrors.NotFoundErrorCode);
     }
 
     [Fact]
-    public async Task UpdateRangeAsync_Versioned_BumpsEveryVersion()
+    public async Task UpdateRangeAsync_Versioned_BumpsEveryVersion_AndRejectsStaleVersions()
     {
-        // Arrange
         var repository = CreateVersionedRepository();
         var first = NewItem("a");
         var second = NewItem("b");
         await repository.AddRangeAsync([first, second]);
+        var stale = new VersionedTenantItem { Id = first.Id, TenantId = Tenant1, Name = "stale", Version = 5 };
         first.Name = "a2";
         second.Name = "b2";
 
-        // Act
-        var result = await repository.UpdateRangeAsync([first, second]);
+        (await repository.UpdateRangeAsync([first, second])).ShouldBeSuccess();
 
-        // Assert
-        result.ShouldBeSuccess();
         (await repository.GetByIdAsync(first.Id)).ShouldBeSuccess().Version.ShouldBe(1);
         (await repository.GetByIdAsync(second.Id)).ShouldBeSuccess().Name.ShouldBe("b2");
-    }
-
-    [Fact]
-    public async Task UpdateRangeAsync_Versioned_StaleVersions_ReturnsConcurrencyConflict()
-    {
-        // Arrange
-        var repository = CreateVersionedRepository();
-        var item = NewItem("a");
-        await repository.AddAsync(item);
-        var stale = new VersionedTenantItem { Id = item.Id, TenantId = Tenant1, Name = "stale", Version = 5 };
-
-        // Act
-        var result = await repository.UpdateRangeAsync([stale]);
-
-        // Assert
-        CodeOf(result).ShouldBe(RepositoryErrors.ConcurrencyConflictErrorCode);
+        CodeOf(await repository.UpdateRangeAsync([stale])).ShouldBe(RepositoryErrors.ConcurrencyConflictErrorCode);
     }
 
     [Fact]
     public async Task UpdateRangeAsync_Versioned_WithTenantFilterDisabled_UpdatesWithoutTenantScope()
     {
-        // Arrange
         var item = NewItem("a");
         await CreateVersionedRepository().AddAsync(item);
         item.Name = "a2";
-        var repository = CreateVersionedRepository(UnscopedOptions());
 
-        // Act
-        var result = await repository.UpdateRangeAsync([item]);
-
-        // Assert
-        result.ShouldBeSuccess();
-    }
-
-    #endregion
-
-    #region GetPaged
-
-    [Fact]
-    public async Task GetPagedAsync_WithoutRows_ReturnsAnEmptyPage()
-    {
-        // Arrange
-        var repository = CreateRepository();
-
-        // Act
-        var result = await repository.GetPagedAsync(new PaginationOptions(1, 2));
-
-        // Assert
-        var page = result.ShouldBeSuccess();
-        page.Items.ShouldBeEmpty();
-        page.TotalCount.ShouldBe(0);
+        (await CreateVersionedRepository(UnscopedOptions()).UpdateRangeAsync([item])).ShouldBeSuccess();
     }
 
     [Fact]
-    public async Task GetPagedAsync_ReturnsOnlyTheCurrentTenantPage()
+    public async Task GetPagedAsync_ReturnsEmptyPage_ThenOnlyTheCurrentTenantPage()
     {
-        // Arrange
         var repository = CreateRepository();
+        var empty = (await repository.GetPagedAsync(new PaginationOptions(1, 2))).ShouldBeSuccess();
+        empty.Items.ShouldBeEmpty();
+        empty.TotalCount.ShouldBe(0);
+
         await repository.AddRangeAsync([NewEntity("a"), NewEntity("b"), NewEntity("c")]);
         _tenantProvider.SetCurrentTenant(Tenant2);
         await CreateRepository().AddAsync(NewEntity("other"));
         _tenantProvider.SetCurrentTenant(Tenant1);
 
-        // Act
-        var result = await repository.GetPagedAsync(new PaginationOptions(1, 2));
-
-        // Assert
-        var page = result.ShouldBeSuccess();
+        var page = (await repository.GetPagedAsync(new PaginationOptions(1, 2))).ShouldBeSuccess();
         page.Items.Count.ShouldBe(2);
         page.TotalCount.ShouldBe(3);
         page.Items.ShouldAllBe(e => e.TenantId == Tenant1);
-    }
-
-    [Fact]
-    public async Task GetPagedAsync_WithTenantFilterDisabled_CountsEveryTenant()
-    {
-        // Arrange
-        await CreateRepository().AddAsync(NewEntity("a"));
-        _tenantProvider.SetCurrentTenant(Tenant2);
-        var repository = CreateRepository(new DapperTenancyOptions { AutoFilterTenantQueries = false });
-        await repository.AddAsync(NewEntity("b"));
-
-        // Act
-        var result = await repository.GetPagedAsync(new PaginationOptions(1, 10));
-
-        // Assert
-        result.ShouldBeSuccess().TotalCount.ShouldBe(2);
+        var unfiltered = CreateRepository(new DapperTenancyOptions { AutoFilterTenantQueries = false });
+        (await unfiltered.GetPagedAsync(new PaginationOptions(1, 10))).ShouldBeSuccess().TotalCount.ShouldBe(4);
     }
 
     [Fact]
     public async Task GetPagedAsync_WithSpecification_ReturnsEmptyAndFilledPages()
     {
-        // Arrange
         var repository = CreateRepository();
         var spec = new IsActiveTenantSpec();
 
-        // Act
         var empty = await repository.GetPagedAsync(spec, new PaginationOptions(1, 2));
         await repository.AddRangeAsync([NewEntity("a"), NewEntity("b"), NewEntity("c", isActive: false)]);
-        var filled = await repository.GetPagedAsync(spec, new PaginationOptions(1, 10));
+        var filled = (await repository.GetPagedAsync(spec, new PaginationOptions(1, 10))).ShouldBeSuccess();
 
-        // Assert
         empty.ShouldBeSuccess().Items.ShouldBeEmpty();
-        var page = filled.ShouldBeSuccess();
-        page.Items.Count.ShouldBe(2);
-        page.TotalCount.ShouldBe(2);
+        filled.Items.Count.ShouldBe(2);
+        filled.TotalCount.ShouldBe(2);
     }
 
-    #endregion
-
     private static string CodeOf<T>(Either<EncinaError, T> result)
-        => result.Match(
-            Right: _ => string.Empty,
-            Left: error => error.GetCode().IfNone(string.Empty));
+        => result.Match(Right: _ => string.Empty, Left: error => error.GetCode().IfNone(string.Empty));
 
     private static DapperTenancyOptions UnscopedOptions()
         => new() { AutoFilterTenantQueries = false, ValidateTenantOnModify = false };
 
+    private static async Task<TenantTestEntity> SeedAsync(
+        TenantAwareFunctionalRepositoryDapper<TenantTestEntity, Guid> repository, string name)
+    {
+        var entity = NewEntity(name);
+        await repository.AddAsync(entity);
+        return entity;
+    }
+
     private static TenantTestEntity NewEntity(string name, bool isActive = true)
-        => new()
-        {
-            Id = Guid.NewGuid(),
-            TenantId = string.Empty,
-            Name = name,
-            Amount = 10m,
-            IsActive = isActive,
-            CreatedAtUtc = DateTime.UtcNow
-        };
+        => new() { Id = Guid.NewGuid(), TenantId = string.Empty, Name = name, Amount = 10m, IsActive = isActive, CreatedAtUtc = DateTime.UtcNow };
 
     private static VersionedTenantItem NewItem(string name)
         => new() { Id = Guid.NewGuid(), TenantId = string.Empty, Name = name };
@@ -465,13 +257,9 @@ public class TenancyDapperWriteAndPagingIntegrationTests : IAsyncLifetime
     public sealed class VersionedTenantItem : ITenantEntity, IVersionedEntity
     {
         public Guid Id { get; set; }
-
         public string TenantId { get; set; } = string.Empty;
-
         public string Name { get; set; } = string.Empty;
-
         public int Version { get; set; }
-
         long IVersioned.Version => Version;
     }
 }

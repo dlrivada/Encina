@@ -158,42 +158,24 @@ public sealed class TenantAwareFunctionalRepositoryDapperTenantRequiredTests
     };
 
     private static TenantAwareFunctionalRepositoryDapper<AuditedTenantOrder, Guid> CreateAuditedRepository(
-        IDbConnection connection,
-        string? tenantId,
-        DapperTenancyOptions options)
-    {
-        var tenantProvider = Substitute.For<ITenantProvider>();
-        tenantProvider.GetCurrentTenantId().Returns(tenantId);
-
-        var mapping = new TenantEntityMappingBuilder<AuditedTenantOrder, Guid>()
-            .ToTable("Orders")
-            .HasId(o => o.Id)
-            .HasTenantId(o => o.TenantId)
-            .Build()
-            .ShouldBeSuccess();
-
-        return new TenantAwareFunctionalRepositoryDapper<AuditedTenantOrder, Guid>(connection, mapping, tenantProvider, options);
-    }
+        IDbConnection connection, string? tenantId, DapperTenancyOptions options)
+        => new(connection, new TenantEntityMappingBuilder<AuditedTenantOrder, Guid>()
+            .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).Build().ShouldBeSuccess(),
+            TenantProviderFor(tenantId), options);
 
     private static TenantAwareFunctionalRepositoryDapper<TenantTestOrder, Guid> CreateRepository(
-        IDbConnection connection,
-        string? tenantId,
-        DapperTenancyOptions options)
+        IDbConnection connection, string? tenantId, DapperTenancyOptions options)
+        => new(connection, new TenantEntityMappingBuilder<TenantTestOrder, Guid>()
+            .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId)
+            .MapProperty(o => o.CustomerId).MapProperty(o => o.Total).MapProperty(o => o.IsActive)
+            .Build().ShouldBeSuccess(),
+            TenantProviderFor(tenantId), options);
+
+    private static ITenantProvider TenantProviderFor(string? tenantId)
     {
         var tenantProvider = Substitute.For<ITenantProvider>();
         tenantProvider.GetCurrentTenantId().Returns(tenantId);
-
-        var mapping = new TenantEntityMappingBuilder<TenantTestOrder, Guid>()
-            .ToTable("Orders")
-            .HasId(o => o.Id)
-            .HasTenantId(o => o.TenantId)
-            .MapProperty(o => o.CustomerId)
-            .MapProperty(o => o.Total)
-            .MapProperty(o => o.IsActive)
-            .Build()
-            .ShouldBeSuccess();
-
-        return new TenantAwareFunctionalRepositoryDapper<TenantTestOrder, Guid>(connection, mapping, tenantProvider, options);
+        return tenantProvider;
     }
 
     private static async Task<EncinaError?> RunAsync(
