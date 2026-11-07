@@ -3,7 +3,7 @@
   "generated": "2026-03-27T12:05:17Z",
   "totalFiles": 9,
   "targets": {
-    "guard": 15,
+    "guard": 85,
     "unit": 55
   },
   "files": {
@@ -14,23 +14,24 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "Error mapper converting EncinaError to ApiGatewayResponse; unit tests cover all code paths, guard tests cover null-parameter checks",
-      "targets": { "unit": 100, "guard": 25, "integration": 100 },
+      "targets": { "unit": 100, "guard": 95, "integration": 100 },
       "justifications": {
         "unit": "Every error code and HTTP status mapping, including each encina.authorization.* code, has a unit test.",
-        "guard": "Only the null guards on the public error and request parameters need guard tests.",
+        "guard": "Guard tests pass null, default (bottom-state) and boundary arguments to every public method and convert each error-code family, so every line runs; the margin covers future branches.",
         "integration": "Integration tests convert the results of a real Encina pipeline (success, validation, conflict, missing handler and each error family) to REST, HTTP API v2, created and no-content responses and read the wire JSON back, so every line runs."
       }
     },
     "EncinaAwsLambdaOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Options.cs",
       "reason": "Configuration POCO with defaults and validation",
-      "targets": { "unit": 100, "guard": 65, "integration": 90 },
+      "targets": { "unit": 100, "guard": 85, "integration": 90 },
       "justifications": {
         "unit": "Every option property is read and set in tests, including its defaults.",
-        "guard": "The options are auto-properties with no setter logic; guard tests execute the file only by instantiating the options while guarding the consuming APIs (the Lambda context extensions and handlers), so the target covers those lines.",
+        "guard": "Guard tests instantiate the options and set the correlation-id, tenant-trust and user-id properties while exercising the context extensions and the health check; one property initializer is never read by a guard test.",
         "integration": "Integration tests configure the options through AddEncinaAwsLambda and the handlers and health check read them; one property initializer is never read by these tests."
       }
     },
@@ -42,9 +43,11 @@
       "defaultRule": "*Handler.cs",
       "reason": "Handler with mockeable dependencies",
       "targets": {
+        "guard": 95,
         "integration": 100
       },
       "justifications": {
+        "guard": "Guard tests pass null events, null detail, malformed or null raw JSON and throwing delegates to every public method, so every line runs.",
         "integration": "Integration tests process EventBridge events deserialized by the Lambda serializer through a real handler, covering success, error, null detail, a throwing delegate, raw JSON and metadata."
       }
     },
@@ -61,9 +64,11 @@
       "defaultRule": "*HealthCheck.cs",
       "reason": "Health check with mockeable service dependencies",
       "targets": {
+        "guard": 80,
         "integration": 80
       },
       "justifications": {
+        "guard": "Guard tests construct the health check with valid and null-valued options and read its result; the in-Lambda branch needs the process-global AWS_LAMBDA_FUNCTION_NAME variable, which parallel tests must not change.",
         "integration": "Integration tests resolve the health check from a validated provider and read its status and data outside Lambda; the in-Lambda branch needs the process-global AWS_LAMBDA_FUNCTION_NAME variable, which parallel tests must not change."
       }
     },
@@ -74,10 +79,10 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 94, "guard": 8, "integration": 95 },
+      "targets": { "unit": 94, "guard": 95, "integration": 95 },
       "justifications": {
         "unit": "Every ResolveTenantId rule is unit-tested, with the logger asserted through a fake.",
-        "guard": "Guard tests cover only the null checks of the public parameters.",
+        "guard": "Guard tests pass null contexts, null or empty headers, empty, non-string and mismatching tenant claims and absent authorizer entries, so nearly every line runs; the successful JSON-element user-id claim path is left to the unit flag (#3075).",
         "integration": "Integration tests resolve correlation, tenant and user ids from API Gateway requests deserialized by the Lambda serializer; the remaining lines are the absent-claim-property branch, string-valued authorizer entries and the plain string claim and principalId paths of GetUserId, left to the unit flag."
       }
     },
@@ -100,9 +105,11 @@
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
       "targets": {
+        "guard": 85,
         "integration": 100
       },
       "justifications": {
+        "guard": "Guard tests pass a null collection and a null configure delegate to both overloads and register through both overloads, once and twice, with a validated provider, so every line runs; the margin covers future branches.",
         "integration": "Integration tests build providers with ValidateOnBuild and ValidateScopes through both AddEncinaAwsLambda overloads and resolve the options and the health check."
       }
     },
@@ -114,9 +121,11 @@
       "defaultRule": "*Handler.cs",
       "reason": "Handler with mockeable dependencies",
       "targets": {
+        "guard": 95,
         "integration": 95
       },
       "justifications": {
+        "guard": "Guard tests pass null events and processors, null records, empty and malformed bodies, throwing delegates and cancelled tokens to every public method; the one unreached line is the unreachable Right branch inside ProcessAllAsync.",
         "integration": "Integration tests process SQS events deserialized by the Lambda serializer with a real handler, covering partial batch failures, malformed bodies, a throwing delegate, cancellation, ProcessAllAsync and DeserializeMessage; the one unreached line is the unreachable Right branch inside ProcessAllAsync."
       }
     }
