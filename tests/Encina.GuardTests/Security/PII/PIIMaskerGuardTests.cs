@@ -131,6 +131,54 @@ public sealed class PIIMaskerGuardTests
 
     #endregion
 
+    #region Empty Input Guards
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    public void Mask_ByType_NullOrEmptyValue_ReturnsTheInputUnchanged(string? value)
+    {
+        var sut = CreateSut();
+
+        sut.Mask(value!, PIIType.Email).ShouldBe(value);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    public void Mask_ByPattern_NullOrEmptyValue_ReturnsTheInputUnchanged(string? value)
+    {
+        var sut = CreateSut();
+
+        sut.Mask(value!, "x").ShouldBe(value);
+    }
+
+    [Fact]
+    public void Mask_ByPattern_MasksOnlyTheMatchingParts()
+    {
+        var sut = CreateSut();
+
+        sut.Mask("abc123", @"\d+").ShouldBe("abc***");
+    }
+
+    [Fact]
+    public void Mask_ByPattern_InvalidPattern_MasksTheWholeValueInsteadOfReturningIt()
+    {
+        var sut = CreateSut();
+
+        sut.Mask("abc123", "[").ShouldBe("******");
+    }
+
+    [Fact]
+    public void Mask_ByType_NonEmptyValue_IsNotReturnedInClear()
+    {
+        var sut = CreateSut();
+
+        sut.Mask("john@example.com", PIIType.Email).ShouldNotBe("john@example.com");
+    }
+
+    #endregion
+
     #region Test Types
 
     private sealed class TestDto

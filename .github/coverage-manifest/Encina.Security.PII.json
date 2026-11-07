@@ -56,10 +56,10 @@
     "PIIMasker.cs": {
       "defaultTests": ["unit", "guard", "property"],
       "reason": "Core masker with ThrowIfNull guards and masking invariants. Property tests verify round-trip and format invariants.",
-      "targets": { "unit": 90, "guard": 9, "property": 50 },
+      "targets": { "unit": 90, "guard": 20, "property": 50 },
       "justifications": {
         "unit": "MaskForLog, the fail-closed SkipsContext branch for non-string [PII]/[SensitiveData]/[MaskInLogs] members in every context, and the log failure paths are executed by the unit tests with the real masker (measured 92%).",
-        "guard": "Every public method of PIIMasker has its ThrowIfNull guard exercised by PIIMaskerGuardTests (measured 9%); the guard lines are a small share of the masking engine, so a higher guard target is not reachable without testing behaviour that belongs to unit tests.",
+        "guard": "Guard tests execute the ThrowIfNull lines of every public method and the empty-input, pattern-masking and invalid-pattern fail-closed paths of Mask with the real masker (measured 21%); the rest of the masking engine is behaviour covered by unit tests.",
         "property": "Property tests run the object-masking engine through MaskObject, MaskForAudit and MaskForLog with generated strings and with generated values of non-string decorated members that must fail closed (measured 54%); the remaining lines are option and failure branches covered by unit tests."
       }
     },
