@@ -46,6 +46,7 @@ public sealed class MessageHandlersInvalidInputGuardTests
         (await Should.ThrowAsync<ArgumentNullException>(action)).ParamName.ShouldBe("processMessage");
     }
 
+    // Pins accidental behaviour, not a contract: update this test when a production guard clause is added (see src/Encina.AwsLambda/SqsMessageHandler.cs:64).
     [Fact]
     public async Task ProcessBatchAsync_NullRecords_ThrowsNullReference()
     {
@@ -200,8 +201,9 @@ public sealed class MessageHandlersInvalidInputGuardTests
         result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe("sqs.deserialization_failed"));
     }
 
+    // Pins accidental behaviour, not a contract: update this test when a production guard clause is added (see src/Encina.AwsLambda/SqsMessageHandler.cs:197).
     [Fact]
-    public void DeserializeMessage_NullBody_Throws()
+    public void DeserializeMessage_NullBody_CurrentlyThrowsBclArgumentNull_AccidentalBehaviour()
     {
         Action action = () => _ = SqsMessageHandler.DeserializeMessage<Msg>(new SQSEvent.SQSMessage { Body = null! });
 

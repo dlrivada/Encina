@@ -246,6 +246,7 @@ public sealed class LambdaContextAndRegistrationInvalidInputGuardTests
         result.Data.ShouldContainKey("isInLambdaEnvironment");
     }
 
+    // Pins accidental behaviour, not a contract: update this test when a production guard clause is added (see src/Encina.AwsLambda/Health/AwsLambdaHealthCheck.cs:42).
     [Fact]
     public void HealthCheck_OptionsWrapperWithNullValue_ThrowsNullReferenceOnCheck()
     {
