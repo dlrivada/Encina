@@ -48,6 +48,7 @@ for (int i = 0; i < args.Length; i++)
     if (args[i] == "--manifest-dir" && i + 1 < args.Length) manifestDir = args[++i];
     if (args[i] == "--fingerprints-file" && i + 1 < args.Length) fingerprintsFile = args[++i];
     if (args[i] == "--carry-forward-from" && i + 1 < args.Length) carryForwardFrom = args[++i];
+    if (args[i] == "--self-test") Environment.Exit(RunSelfTest());
 }
 
 if (string.IsNullOrEmpty(inputDir)) inputDir = kind == "benchmarks" ? "artifacts/performance" : "artifacts/load-metrics";
@@ -546,7 +547,10 @@ static void InjectDocRefsFromManifests(
 {
     if (string.IsNullOrEmpty(manifestDir) || !Directory.Exists(manifestDir)) return;
 
-    // Build a lookup: "ClassName.MethodName" → DocRef
+    // Build a lookup: "Namespace.ClassName.MethodName" → DocRef. The namespace-qualified
+    // key matters because several benchmark projects share class and method names
+    // (for example the five CDC projects); the manifest's class fullName is
+    // "<namespace>.<class>", which equals BDN's Namespace + "." + Type.
     var docRefLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
     foreach (var file in Directory.GetFiles(manifestDir, "*.json"))
@@ -559,7 +563,8 @@ static void InjectDocRefsFromManifests(
 
             foreach (var cls in classes)
             {
-                var className = cls?["name"]?.GetValue<string>() ?? "";
+                var classFullName = cls?["fullName"]?.GetValue<string>();
+                if (string.IsNullOrEmpty(classFullName)) classFullName = cls?["name"]?.GetValue<string>() ?? "";
                 var methods = cls?["methods"] as JsonArray;
                 if (methods is null) continue;
 
@@ -568,7 +573,7 @@ static void InjectDocRefsFromManifests(
                     var methodName = m?["name"]?.GetValue<string>() ?? "";
                     var docRef = m?["docRef"]?.GetValue<string?>();
                     if (!string.IsNullOrEmpty(methodName) && !string.IsNullOrEmpty(docRef))
-                        docRefLookup[$"{className}.{methodName}"] = docRef!;
+                        docRefLookup[$"{classFullName}.{methodName}"] = docRef!;
                 }
             }
         }
@@ -583,7 +588,8 @@ static void InjectDocRefsFromManifests(
         foreach (var b in module.Benchmarks)
         {
             if (!string.IsNullOrEmpty(b.DocRef)) continue; // already set (from BDN Categories fallback)
-            if (docRefLookup.TryGetValue($"{b.Class}.{b.Method}", out var dr))
+            var key = string.IsNullOrEmpty(b.Namespace) ? $"{b.Class}.{b.Method}" : $"{b.Namespace}.{b.Class}.{b.Method}";
+            if (docRefLookup.TryGetValue(key, out var dr))
             {
                 b.DocRef = dr;
                 injected++;
@@ -592,6 +598,60 @@ static void InjectDocRefsFromManifests(
     }
 
     Console.WriteLine($"  DocRefs injected from manifests: {injected} (lookup has {docRefLookup.Count} entries)");
+}
+
+/// <summary>
+/// Regression test for InjectDocRefsFromManifests (#3331): two projects share class and
+/// method names; each benchmark must get the docRef of its own project's manifest.
+/// Run with: dotnet run --file .github/scripts/perf-report.cs -- --self-test
+/// </summary>
+static int RunSelfTest()
+{
+    var dir = Path.Combine(Path.GetTempPath(), "perf-report-selftest-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(dir);
+    try
+    {
+        static string Manifest(string ns, string docRef) =>
+            "{\"classes\":[{\"name\":\"ConnectorBenchmarks\",\"fullName\":\"" + ns + ".ConnectorBenchmarks\"," +
+            "\"methods\":[{\"name\":\"GetCurrentPositionAsync\",\"docRef\":\"" + docRef + "\"}]}]}";
+        File.WriteAllText(Path.Combine(dir, "A.json"), Manifest("Encina.Cdc.MySql.Benchmarks.Benchmarks", "bench:cdc-mysql/get-current-position"));
+        File.WriteAllText(Path.Combine(dir, "B.json"), Manifest("Encina.Cdc.SqlServer.Benchmarks.Benchmarks", "bench:cdc-sqlserver/get-current-position"));
+
+        var module = new BenchmarkModule { Name = "selftest" };
+        string[] namespaces =
+        {
+            "Encina.Cdc.MySql.Benchmarks.Benchmarks",
+            "Encina.Cdc.SqlServer.Benchmarks.Benchmarks",
+            "Encina.Cdc.Other.Benchmarks.Benchmarks"
+        };
+        foreach (var ns in namespaces)
+            module.Benchmarks.Add(new BenchmarkEntry { Namespace = ns, Class = "ConnectorBenchmarks", Method = "GetCurrentPositionAsync" });
+
+        InjectDocRefsFromManifests(new SortedDictionary<string, BenchmarkModule> { ["selftest"] = module }, dir);
+
+        var expected = new string?[]
+        {
+            "bench:cdc-mysql/get-current-position",
+            "bench:cdc-sqlserver/get-current-position",
+            null
+        };
+        var failures = 0;
+        for (int i = 0; i < expected.Length; i++)
+        {
+            var actual = module.Benchmarks[i].DocRef;
+            if (actual != expected[i])
+            {
+                failures++;
+                Console.Error.WriteLine($"SELF-TEST FAILED: {namespaces[i]} expected '{expected[i] ?? "<none>"}' got '{actual ?? "<none>"}'");
+            }
+        }
+        Console.WriteLine(failures == 0 ? "Self-test OK." : $"{failures} self-test case(s) failed.");
+        return failures == 0 ? 0 : 1;
+    }
+    finally
+    {
+        Directory.Delete(dir, recursive: true);
+    }
 }
 
 /// <summary>
@@ -697,6 +757,7 @@ static BenchmarkEntry? ParseBenchmarkEntry(JsonNode node)
 
     var entry = new BenchmarkEntry
     {
+        Namespace = node["Namespace"]?.GetValue<string>() ?? "",
         Class = type ?? "",
         Method = method,
         FullName = node["FullName"]?.GetValue<string>() ?? $"{type}.{method}",
@@ -1142,6 +1203,8 @@ sealed class BenchmarkModule
 
 sealed class BenchmarkEntry
 {
+    /// <summary>BDN type namespace; used only to key the manifest docRef lookup, not persisted.</summary>
+    public string Namespace { get; set; } = "";
     public string Class { get; set; } = "";
     public string Method { get; set; } = "";
     public string FullName { get; set; } = "";
