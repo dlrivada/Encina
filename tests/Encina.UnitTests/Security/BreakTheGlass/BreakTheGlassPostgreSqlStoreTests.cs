@@ -1,0 +1,178 @@
+using System.Data;
+using Encina.ADO.PostgreSQL;
+using Encina.ADO.PostgreSQL.BreakTheGlass;
+using Encina.Dapper.PostgreSQL;
+using Encina.Dapper.PostgreSQL.BreakTheGlass;
+using Encina.Security.Audit;
+using Encina.Security.BreakTheGlass;
+using LanguageExt;
+using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
+using Shouldly;
+
+namespace Encina.UnitTests.Security.BreakTheGlass;
+
+/// <summary>Registration completeness (both orders, validated) and error handling of the PostgreSQL break-the-glass stores.</summary>
+[Trait("Category", "Unit")]
+[Trait("Feature", "BreakTheGlass")]
+public sealed class BreakTheGlassPostgreSqlStoreTests
+{
+    private static readonly ServiceProviderOptions Validated = new() { ValidateOnBuild = true, ValidateScopes = true };
+
+    private static readonly BreakTheGlassElevation Elevation = new()
+    {
+        ElevationId = Guid.NewGuid(),
+        UserId = "clin-1",
+        SubjectId = "patient-1",
+        Scope = "clinical-record",
+        Justification = "Emergency.",
+        OpenedAtUtc = new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero),
+        ExpiresAtUtc = new DateTimeOffset(2026, 10, 28, 13, 0, 0, TimeSpan.Zero)
+    };
+
+    private static readonly IBreakTheGlassStore ApplicationStore = Substitute.For<IBreakTheGlassStore>();
+
+    public static TheoryData<string, bool> Providers => new()
+    {
+        { "ADO", true },
+        { "ADO", false },
+        { "Dapper", true },
+        { "Dapper", false }
+    };
+
+    private static ServiceCollection Base()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IOperationAuditStore, InMemoryOperationAuditStore>();
+        services.AddEncina();
+        return services;
+    }
+
+    private static void AddBreakTheGlass(IServiceCollection services) =>
+        services.AddEncinaBreakTheGlass(options =>
+        {
+            options.DeclareScope("clinical-record", scope => scope.OpenerRoles.Add("clinician"));
+            options.ReviewerRoles.Add("reviewer");
+        });
+
+    private static void AddProvider(IServiceCollection services, string provider, bool enabled)
+    {
+        const string ConnectionString = "Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x";
+        Func<IServiceProvider, IDbConnection> factory = _ => new NpgsqlConnection(ConnectionString);
+        if (provider == "ADO")
+        {
+            services.AddEncinaADO(factory, config => config.UseBreakTheGlassStore = enabled);
+        }
+        else
+        {
+            services.AddEncinaDapper(factory, config => config.UseBreakTheGlassStore = enabled);
+        }
+    }
+
+    private static Type DatabaseStoreOf(string provider) =>
+        provider == "ADO" ? typeof(BreakTheGlassStoreADO) : typeof(BreakTheGlassStoreDapper);
+
+    private static IBreakTheGlassStore NewStore(string provider, IDbConnection connection) =>
+        provider == "ADO" ? new BreakTheGlassStoreADO(connection) : new BreakTheGlassStoreDapper(connection);
+
+    [Theory]
+    [MemberData(nameof(Providers))]
+    public void DatabaseStore_WinsOverTheInMemoryDefault_InEitherRegistrationOrder(string provider, bool breakTheGlassFirst)
+    {
+        var services = Base();
+        if (breakTheGlassFirst)
+        {
+            AddBreakTheGlass(services);
+            AddProvider(services, provider, enabled: true);
+        }
+        else
+        {
+            AddProvider(services, provider, enabled: true);
+            AddBreakTheGlass(services);
+        }
+
+        using var serviceProvider = services.BuildServiceProvider(Validated);
+        using var scope = serviceProvider.CreateScope();
+
+        scope.ServiceProvider.GetRequiredService<IBreakTheGlassStore>().ShouldBeOfType(DatabaseStoreOf(provider));
+        services.Count(d => d.ServiceType == typeof(IBreakTheGlassStore)).ShouldBe(1);
+    }
+
+    [Theory]
+    [MemberData(nameof(Providers))]
+    public void ApplicationStore_IsNeverOverridden(string provider, bool applicationStoreFirst)
+    {
+        var services = Base();
+        if (applicationStoreFirst)
+        {
+            services.AddScoped(_ => ApplicationStore);
+            AddBreakTheGlass(services);
+            AddProvider(services, provider, enabled: true);
+        }
+        else
+        {
+            AddBreakTheGlass(services);
+            AddProvider(services, provider, enabled: true);
+            services.AddScoped(_ => ApplicationStore);
+        }
+
+        using var serviceProvider = services.BuildServiceProvider(Validated);
+        using var scope = serviceProvider.CreateScope();
+
+        // A store registered by the application before the provider is kept; one registered after it is the last registration.
+        scope.ServiceProvider.GetRequiredService<IBreakTheGlassStore>().ShouldBeSameAs(ApplicationStore);
+    }
+
+    [Theory]
+    [InlineData("ADO")]
+    [InlineData("Dapper")]
+    public void WithoutTheFlag_TheInMemoryDefaultStays(string provider)
+    {
+        var services = Base();
+        AddBreakTheGlass(services);
+        AddProvider(services, provider, enabled: false);
+
+        using var serviceProvider = services.BuildServiceProvider(Validated);
+
+        serviceProvider.GetRequiredService<IBreakTheGlassStore>().ShouldBeOfType<InMemoryBreakTheGlassStore>();
+    }
+
+    [Theory]
+    [InlineData("ADO")]
+    [InlineData("Dapper")]
+    public async Task AnUnusableConnection_ReturnsStoreFailed_NeverThrows(string provider)
+    {
+        // A closed connection that is not a DbConnection cannot be opened asynchronously.
+        var store = NewStore(provider, Substitute.For<IDbConnection>());
+
+        var results = new[]
+        {
+            (await store.AddAsync(Elevation)).Map(_ => 0),
+            (await store.GetByIdAsync("t", Guid.NewGuid())).Map(_ => 0),
+            (await store.FindEffectiveAsync(null, "u", "s", "c", DateTimeOffset.UnixEpoch)).Map(_ => 0),
+            (await store.TryCloseAsync(null, Guid.NewGuid(), BreakTheGlassStatus.Revoked, "r", DateTimeOffset.UnixEpoch)).Map(_ => 0),
+            (await store.GetExpiredUnrecordedAsync(DateTimeOffset.UnixEpoch, 5)).Map(_ => 0),
+            (await store.MarkExpiryRecordedAsync(null, Guid.NewGuid(), DateTimeOffset.UnixEpoch)).Map(_ => 0),
+            (await store.TryRecordReviewAsync(null, Guid.NewGuid(), BreakTheGlassReviewOutcome.Justified, "r", null, DateTimeOffset.UnixEpoch)).Map(_ => 0),
+            (await store.QueryReviewQueueAsync(null, new BreakTheGlassReviewQuery { Scope = "c", Status = BreakTheGlassStatus.Active, OpenedFromUtc = DateTimeOffset.UnixEpoch, OpenedToUtc = DateTimeOffset.UnixEpoch })).Map(_ => 0),
+            (await store.PurgeAsync(DateTimeOffset.UnixEpoch)).Map(_ => 0),
+            (await store.ProbeAsync()).Map(_ => 0)
+        };
+
+        results.ShouldAllBe(result => result.IsLeft);
+        results.ShouldAllBe(result => result.Match(Right: _ => string.Empty, Left: error => error.GetCode().IfNone(string.Empty)) == BreakTheGlassErrors.StoreFailedCode);
+    }
+
+    [Theory]
+    [InlineData("ADO")]
+    [InlineData("Dapper")]
+    public async Task ACancelledCall_Throws_InsteadOfReturningStoreFailed(string provider)
+    {
+        using var connection = new NpgsqlConnection("Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x");
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(async () => await NewStore(provider, connection).ProbeAsync(cts.Token));
+    }
+}
