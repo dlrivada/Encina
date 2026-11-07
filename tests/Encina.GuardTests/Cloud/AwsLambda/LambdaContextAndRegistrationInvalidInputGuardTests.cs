@@ -122,6 +122,7 @@ public sealed class LambdaContextAndRegistrationInvalidInputGuardTests
 
         var result = Context().ResolveTenantId(request, new EncinaAwsLambdaOptions(), NullLogger.Instance);
 
+        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(LambdaContextExtensions.InvalidTenantClaimErrorCode));
         result.IsLeft.ShouldBeTrue();
     }
 
@@ -174,6 +175,7 @@ public sealed class LambdaContextAndRegistrationInvalidInputGuardTests
 
         var result = Context().ResolveTenantId(request, new EncinaAwsLambdaOptions(), NullLogger.Instance);
 
+        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(LambdaContextExtensions.InvalidTenantClaimErrorCode));
         result.IsLeft.ShouldBeTrue();
     }
 
@@ -259,6 +261,17 @@ public sealed class LambdaContextAndRegistrationInvalidInputGuardTests
     #endregion
 
     #region AddEncinaAwsLambda
+
+    [Fact]
+    public void AddEncinaAwsLambda_ParameterlessOverload_RegistersTheHealthCheck()
+    {
+        var services = new ServiceCollection();
+
+        services.AddEncinaAwsLambda();
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        provider.GetServices<IEncinaHealthCheck>().OfType<AwsLambdaHealthCheck>().Count().ShouldBe(1);
+    }
 
     [Fact]
     public void AddEncinaAwsLambda_CalledTwice_RegistersOneHealthCheckAndLastOptionsWin()

@@ -117,6 +117,7 @@ public sealed class ApiGatewayResponseInvalidInputGuardTests
     [InlineData("encina.authorization.unauthenticated", 401)]
     [InlineData("encina.authorization.denied", 403)]
     [InlineData("order.not_found", 404)]
+    [InlineData("order.missing", 404)]
     [InlineData("encina.request.handler_missing", 404)]
     [InlineData("order.conflict", 409)]
     [InlineData("order.already_exists", 409)]
