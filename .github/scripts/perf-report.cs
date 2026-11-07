@@ -549,7 +549,7 @@ static void InjectDocRefsFromManifests(
 
     // Build a lookup: "Namespace.ClassName.MethodName" → DocRef. The namespace-qualified
     // key matters because several benchmark projects share class and method names
-    // (for example the five CDC projects); the manifest's class fullName is
+    // (for example the CDC projects); the manifest's class fullName is
     // "<namespace>.<class>", which equals BDN's Namespace + "." + Type.
     var docRefLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
