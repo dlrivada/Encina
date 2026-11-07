@@ -600,11 +600,11 @@
       "reason": "Dapper repository — needs real database",
       "targets": {
         "unit": 35,
-        "integration": 35
+        "integration": 65
       },
       "justifications": {
         "unit": "The repository unit tests drive every operation without a tenant context and assert Repository.TenantRequired with no database call, so the early-return paths run; the database paths need a real SQL Server.",
-        "integration": "The Dapper repository needs a real SQL Server: the tenancy integration tests reach the read, add and missing-tenant paths; the update, update range, delete and paging paths are covered by a follow-up integration suite that raises this target, and the remaining lines are the duplicate-key mapping and the specification overloads that other suites cover."
+        "integration": "The Dapper repository needs a real SQL Server: the tenancy integration tests reach the read, add, update, versioned update, update range, delete and paging paths; the remaining lines are the duplicate-key mapping and the specification overloads that other suites cover."
       }
     },
     "Tenancy/TenantAwareSpecificationSqlBuilder.cs": {
