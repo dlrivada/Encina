@@ -170,6 +170,739 @@ function Test-ScriptHasWriteApi([string]$Text) {
     return $Text -match $script:ScriptWriteApiPattern
 }
 
+# #2892: judges where a PowerShell script writes instead of what its text mentions. Parses $Text and finds every
+# write site (Set-Content, Add-Content, Out-File, New-Item, Copy-Item, ... with their path parameters, `>`
+# redirections, [IO.File]:: and StreamWriter/FileStream calls), resolves each target against the literal
+# variables, Join-Path, string concatenation and `foreach` over literal arrays of the script (and the literal
+# arguments of the calls of its own functions), and answers:
+#   Guarded  a target resolves under a checkout's src/ or tests/ (or is a relative path with a src or tests segment);
+#   Safe     every write site was understood, every target resolved outside src/ and tests/, and no write API is
+#            left in the text once strings, comments and the understood sites are removed;
+#   Unknown  anything else (a command the analysis does not know, a dynamic call, an unresolved target, ...):
+#            the caller keeps its text heuristic: an unresolvable target or anything else it could not analyse is
+#            denied only when the script's text (for an unresolved target also the launching command, script path
+#            removed, or a launching cwd under src/ or tests/) mentions src/ or tests/; an opaque construct or a
+#            parameter-bound target with no such word is not analysed and is allowed (#2892 follow-ups B1, B3,
+#            B4). Evasions still open under B1: a wildcard in a parent segment, a target longer than 8192 characters built
+#            without a literal src/tests word (unresolved and allowed; the cap extends to -f, Join-Path, Combine and
+#            .Replace the exposure SwCross already had), 's'+'rc' built in the launching
+#            command, splatting, an environment variable, a cwd that is a junction to src/. Every resolved value
+#            longer than 8192 characters is unresolved (SwEval), so a doubling chain cannot stall the hook.
+# A text mention of src/ or tests/ inside a string, comment or here-string is never a target by itself.
+function Test-ScriptWritesAreSafe {
+    param([string]$Text, [string]$ScriptFull, [string]$Base, $Layout)
+
+    $opaque = [System.Collections.Generic.List[string]]::new()
+    $guarded = [System.Collections.Generic.List[string]]::new()
+    $sites = [System.Collections.Generic.List[object]]::new()
+    $ranges = [System.Collections.Generic.List[object]]::new()
+    $assign = @{}
+    $typedArrays = @{}
+    $state =@{ CwdChanged = $false }
+    $memo = @{}
+    $visiting = @{}
+
+    function SwR([string[]]$V) { return [pscustomobject]@{ V = $V } }
+    function SwKind($Ast, [string]$Name) { return $null -ne $Ast -and $Ast.GetType().Name -eq $Name }
+    function SwKey($VariableAst) { return (([string]$VariableAst.VariablePath.UserPath) -replace '^(?i)(script|global|local|private):', '').ToLowerInvariant() }
+    function SwAdd([string]$Key, $Ast) {
+        if (-not $assign.ContainsKey($Key)) { $assign[$Key] = [System.Collections.Generic.List[object]]::new() }
+        $assign[$Key].Add($Ast)
+    }
+    function SwTaint($Ast) {
+        if ($null -eq $Ast) { return }
+        $found = if (SwKind $Ast 'VariableExpressionAst') { @($Ast) } else { @($Ast.FindAll({ param($a) $a.GetType().Name -eq 'VariableExpressionAst' }, $true)) }
+        foreach ($v in $found) { SwAdd (SwKey $v) $null }
+    }
+    function SwCross($Parts) {
+        $acc = @('')
+        foreach ($p in $Parts) {
+            $next = [System.Collections.Generic.List[string]]::new()
+            foreach ($a in $acc) { foreach ($b in $p) { $next.Add($a + $b) } }
+            if ($next.Count -gt 64) { return $null }
+            # A string that doubles per assignment (2^n characters) would stall the hook: treat it as unresolved.
+            foreach ($candidate in $next) { if ($candidate.Length -gt 8192) { return $null } }
+            $acc = $next.ToArray()
+        }
+        return , $acc
+    }
+    function SwUnion($Asts) {
+        $set = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        foreach ($a in $Asts) {
+            $r = SwEval $a
+            if ($null -eq $r) { return $null }
+            foreach ($v in $r.V) { [void]$set.Add($v) }
+        }
+        if ($set.Count -gt 64) { return $null }
+        return (SwR ([string[]]@($set)))
+    }
+    function SwBaseKnown { return -not $state.CwdChanged -and -not [string]::IsNullOrWhiteSpace($Base) }
+    function SwConst($Ast) {
+        $r = SwEval $Ast
+        if ($null -ne $r -and @($r.V).Count -eq 1) { return [string]$r.V[0] }
+        return $null
+    }
+
+    function SwVar($Ast) {
+        if ($Ast.Splatted) { return $null }
+        $raw = [string]$Ast.VariablePath.UserPath
+        if ($raw -match '^(?i)env:(?<n>.+)$') {
+            $value = [Environment]::GetEnvironmentVariable($Matches['n'])
+            if ([string]::IsNullOrEmpty($value)) { return $null }
+            return (SwR @($value))
+        }
+        $key = SwKey $Ast
+        switch ($key) {
+            'psscriptroot' { if ([string]::IsNullOrEmpty($ScriptFull)) { return $null }; return (SwR @([IO.Path]::GetDirectoryName($ScriptFull))) }
+            'pscommandpath' { if ([string]::IsNullOrEmpty($ScriptFull)) { return $null }; return (SwR @($ScriptFull)) }
+            'home' { return (SwR @(Get-HomeDirectory)) }
+            'pwd' { if (SwBaseKnown) { return (SwR @($Base)) }; return $null }
+            'null' { return (SwR @('')) }
+            'true' { return (SwR @('True')) }
+            'false' { return (SwR @('False')) }
+        }
+        if ($key.Contains(':') -or -not $assign.ContainsKey($key)) { return $null }
+        if ($memo.ContainsKey($key)) { return $memo[$key] }
+        if ($visiting.ContainsKey($key)) { return $null }
+        $visiting[$key] = $true
+        $result = $null
+        $entries = @($assign[$key])
+        if ($entries.Count -gt 0 -and @($entries | Where-Object { $null -eq $_ }).Count -eq 0) { $result = SwUnion $entries }
+        $visiting.Remove($key)
+        $memo[$key] = $result
+        return $result
+    }
+
+    function SwExpand($Ast) {
+        $raw = $Ast.Extent.Text
+        if ($raw.Contains('`')) { return $null }
+        $start = 0
+        $end = $raw.Length
+        switch ([string]$Ast.StringConstantType) {
+            'DoubleQuoted' { $start = 1; $end = $raw.Length - 1; if ($raw.Contains('""')) { return $null } }
+            'DoubleQuotedHereString' {
+                $start = $raw.IndexOf("`n") + 1
+                $end = $raw.LastIndexOf('"@')
+                if ($start -le 0 -or $end -lt $start) { return $null }
+                while ($end -gt $start -and $raw[$end - 1] -in "`n", "`r") { $end-- }
+            }
+            'BareWord' { }
+            default { return $null }
+        }
+        $parts = [System.Collections.Generic.List[object]]::new()
+        $cursor = $start
+        foreach ($n in @($Ast.NestedExpressions | Sort-Object { $_.Extent.StartOffset })) {
+            $s = $n.Extent.StartOffset - $Ast.Extent.StartOffset
+            $e = $n.Extent.EndOffset - $Ast.Extent.StartOffset
+            if ($s -lt $cursor -or $e -gt $end) { return $null }
+            $parts.Add([string[]]@($raw.Substring($cursor, $s - $cursor)))
+            $r = SwEval $n
+            if ($null -eq $r) { return $null }
+            $parts.Add([string[]]@($r.V))
+            $cursor = $e
+        }
+        $parts.Add([string[]]@($raw.Substring($cursor, $end - $cursor)))
+        $crossed = SwCross $parts
+        if ($null -eq $crossed) { return $null }
+        return (SwR ([string[]]$crossed))
+    }
+
+    function SwTypeName($Ast) {
+        if (-not (SwKind $Ast 'TypeExpressionAst')) { return $null }
+        $name = ([string]$Ast.TypeName.FullName).ToLowerInvariant()
+        return ($name -replace '^system\.', '')
+    }
+
+    function SwInvokeValue($Ast) {
+        if (-not (SwKind $Ast.Member 'StringConstantExpressionAst')) { return $null }
+        $member = ([string]$Ast.Member.Value).ToLowerInvariant()
+        $argAsts = @($Ast.Arguments)
+        $type = SwTypeName $Ast.Expression
+        if ($Ast.Static -and $type -in 'io.path', 'path') {
+            $values = @(foreach ($a in $argAsts) { $r = SwEval $a; if ($null -eq $r) { return $null }; , @($r.V) })
+            if ($member -in 'combine', 'join') {
+                if ($values.Count -eq 0) { return $null }
+                $acc = @($values[0])
+                foreach ($next in @($values | Select-Object -Skip 1)) {
+                    $list = [System.Collections.Generic.List[string]]::new()
+                    foreach ($a in $acc) { foreach ($b in $next) { $list.Add([IO.Path]::Combine($a, $b)) } }
+                    if ($list.Count -gt 64) { return $null }
+                    $acc = $list.ToArray()
+                }
+                return (SwR ([string[]]$acc))
+            }
+            if ($member -eq 'gettemppath' -and $values.Count -eq 0) { return (SwR @([IO.Path]::GetTempPath())) }
+            if ($member -in 'getdirectoryname', 'getfilename', 'getfullpath' -and $values.Count -eq 1) {
+                if ($member -eq 'getfullpath' -and -not (SwBaseKnown)) { return $null }
+                $out = foreach ($v in $values[0]) {
+                    switch ($member) {
+                        'getdirectoryname' { [IO.Path]::GetDirectoryName($v) }
+                        'getfilename' { [IO.Path]::GetFileName($v) }
+                        default { Get-FullPath $v $Base }
+                    }
+                }
+                if (@($out | Where-Object { $null -eq $_ }).Count -gt 0) { return $null }
+                return (SwR ([string[]]@($out)))
+            }
+            return $null
+        }
+        if ($Ast.Static -and $type -eq 'environment') {
+            if ($member -eq 'getenvironmentvariable' -and $argAsts.Count -eq 1) {
+                $name = SwConst $argAsts[0]
+                $value = if ($null -ne $name) { [Environment]::GetEnvironmentVariable($name) } else { $null }
+                if ([string]::IsNullOrEmpty($value)) { return $null }
+                return (SwR @($value))
+            }
+            return $null
+        }
+        if (-not $Ast.Static) {
+            $receiver = SwEval $Ast.Expression
+            if ($null -eq $receiver) { return $null }
+            $constants = @(foreach ($a in $argAsts) { $c = SwConst $a; if ($null -eq $c) { return $null }; $c })
+            $out = foreach ($v in $receiver.V) {
+                switch ($member) {
+                    'tostring' { if ($constants.Count -eq 0) { $v } else { return $null } }
+                    'trim' { if ($constants.Count -eq 0) { $v.Trim() } else { $v.Trim(([string]$constants[0]).ToCharArray()) } }
+                    'trimend' { if ($constants.Count -eq 0) { $v.TrimEnd() } else { $v.TrimEnd(([string]$constants[0]).ToCharArray()) } }
+                    'trimstart' { if ($constants.Count -eq 0) { $v.TrimStart() } else { $v.TrimStart(([string]$constants[0]).ToCharArray()) } }
+                    'replace' { if ($constants.Count -eq 2) { $v.Replace([string]$constants[0], [string]$constants[1]) } else { return $null } }
+                    default { return $null }
+                }
+            }
+            return (SwR ([string[]]@($out)))
+        }
+        return $null
+    }
+
+    # Whether an expression is or may hold an array. Cycle-safe and linear: the variables that may hold an array are
+    # computed once as a fixpoint over the assignment table (a variable may hold one when an assignment contains an
+    # array literal/expression or reads a variable that may), then each expression is a direct scan.
+    $arrayInfoMemo = @{}
+    $arrayHolder = @{ Set = $null }
+    function SwArrayInfo($Ast) {
+        $memoKey = "$($Ast.Extent.StartOffset):$($Ast.Extent.EndOffset):$($Ast.GetType().Name)"
+        if ($arrayInfoMemo.ContainsKey($memoKey)) { return $arrayInfoMemo[$memoKey] }
+        $direct = $false
+        $vars = [System.Collections.Generic.HashSet[string]]::new()
+        foreach ($n in (@($Ast) + @($Ast.FindAll({ param($a) $true }, $true)))) {
+            $t = $n.GetType().Name
+            if ($t -in 'ArrayLiteralAst', 'ArrayExpressionAst') { $direct = $true }
+            elseif ($t -eq 'VariableExpressionAst') { [void]$vars.Add((SwKey $n)) }
+        }
+        $info = [pscustomobject]@{ Direct = $direct; Vars = $vars }
+        $arrayInfoMemo[$memoKey] = $info
+        return $info
+    }
+    function SwMayBeArray($Ast) {
+        if ($null -eq $Ast) { return $false }
+        if ($null -eq $arrayHolder.Set) {
+            $set = [System.Collections.Generic.HashSet[string]]::new()
+            foreach ($k in @($typedArrays.Keys)) { [void]$set.Add([string]$k) }
+            $changed = $true
+            while ($changed) {
+                $changed = $false
+                foreach ($key in @($assign.Keys)) {
+                    if ($set.Contains($key)) { continue }
+                    foreach ($entry in @($assign[$key])) {
+                        if ($null -eq $entry) { continue }
+                        $i = SwArrayInfo $entry
+                        $hit = $i.Direct
+                        if (-not $hit) { foreach ($v in $i.Vars) { if ($set.Contains($v)) { $hit = $true; break } } }
+                        if ($hit) { [void]$set.Add($key); $changed = $true; break }
+                    }
+                }
+            }
+            $arrayHolder.Set = $set
+        }
+        $info = SwArrayInfo $Ast
+        if ($info.Direct) { return $true }
+        foreach ($v in $info.Vars) { if ($arrayHolder.Set.Contains($v)) { return $true } }
+        return $false
+    }
+
+    function SwBinary($Ast) {
+        $op = [string]$Ast.Operator
+        if ($op -eq 'Plus') {
+            # Array + value appends in PowerShell; only a string concatenation can be modelled, so an operand that
+            # is or may hold an array (or several values) is not evaluated.
+            if ((SwMayBeArray $Ast.Left) -or (SwMayBeArray $Ast.Right)) { return $null }
+            $l = SwEval $Ast.Left
+            $r = SwEval $Ast.Right
+            if ($null -eq $l -or $null -eq $r) { return $null }
+            if (@($l.V).Count -gt 1 -or @($r.V).Count -gt 1) { return $null }
+            $parts = [System.Collections.Generic.List[object]]::new()
+            $parts.Add([string[]]@($l.V)); $parts.Add([string[]]@($r.V))
+            $crossed = SwCross $parts
+            if ($null -eq $crossed) { return $null }
+            return (SwR ([string[]]$crossed))
+        }
+        if ($op -eq 'Format') {
+            $format = SwConst $Ast.Left
+            if ($null -eq $format) { return $null }
+            $argAsts = if (SwKind $Ast.Right 'ArrayLiteralAst') { @($Ast.Right.Elements) } else { @($Ast.Right) }
+            $values = @(foreach ($a in $argAsts) { $c = SwConst $a; if ($null -eq $c) { return $null }; $c })
+            try { return (SwR @([string]::Format($format, [object[]]$values))) } catch { return $null }
+        }
+        return $null
+    }
+
+    function SwCommandValue($Ast) {
+        $name = $Ast.GetCommandName()
+        if ($null -eq $name -or $Ast.InvocationOperator -ne 'Unknown') { return $null }
+        $lname = $name.ToLowerInvariant()
+        if ($lname -eq 'join-path') {
+            $named = @{}
+            $positional = [System.Collections.Generic.List[object]]::new()
+            $elements = @($Ast.CommandElements | Select-Object -Skip 1)
+            for ($i = 0; $i -lt $elements.Count; $i++) {
+                $e = $elements[$i]
+                if (SwKind $e 'CommandParameterAst') {
+                    $p = $e.ParameterName.ToLowerInvariant()
+                    $slot = if ($p.Length -ge 2 -and 'path'.StartsWith($p)) { 'path' } elseif ($p.Length -ge 2 -and 'childpath'.StartsWith($p)) { 'childpath' } elseif ($p.Length -ge 2 -and 'additionalchildpath'.StartsWith($p)) { 'additional' } else { return $null }
+                    if ($null -ne $e.Argument) { $named[$slot] = $e.Argument }
+                    elseif ($i + 1 -lt $elements.Count) { $named[$slot] = $elements[$i + 1]; $i++ }
+                    else { return $null }
+                }
+                else { $positional.Add($e) }
+            }
+            $order = [System.Collections.Generic.List[object]]::new()
+            $p = 0
+            foreach ($slot in 'path', 'childpath') {
+                if ($named.ContainsKey($slot)) { $order.Add($named[$slot]) }
+                elseif ($p -lt $positional.Count) { $order.Add($positional[$p]); $p++ }
+                else { return $null }
+            }
+            foreach ($extra in @($positional | Select-Object -Skip $p)) { $order.Add($extra) }
+            if ($named.ContainsKey('additional')) { $order.Add($named['additional']) }
+            $acc = $null
+            foreach ($o in $order) {
+                $r = SwEval $o
+                if ($null -eq $r) { return $null }
+                if ($null -eq $acc) { $acc = @($r.V); continue }
+                $list = [System.Collections.Generic.List[string]]::new()
+                $sep = [string][IO.Path]::DirectorySeparatorChar
+                foreach ($a in $acc) { foreach ($b in $r.V) { $list.Add($(if ($a -eq '') { $b } else { $a.TrimEnd('\', '/') + $sep + $b.TrimStart('\', '/') })) } }
+                if ($list.Count -gt 64) { return $null }
+                $acc = $list.ToArray()
+            }
+            return (SwR ([string[]]$acc))
+        }
+        return $null
+    }
+
+    # Every resolved value passes through here: a value longer than 8192 characters (a string that doubles per
+    # assignment through -f, Join-Path, Combine, .Replace, ...) is unresolved, so no site can stall the hook.
+    function SwEval($Ast) {
+        $result = SwEvalCore $Ast
+        if ($null -eq $result) { return $null }
+        foreach ($v in $result.V) { if ($null -ne $v -and $v.Length -gt 8192) { return $null } }
+        return $result
+    }
+    function SwEvalCore($Ast) {
+        if ($null -eq $Ast) { return $null }
+        switch ($Ast.GetType().Name) {
+            'StringConstantExpressionAst' { return (SwR @([string]$Ast.Value)) }
+            'ConstantExpressionAst' { return (SwR @([string]$Ast.Value)) }
+            'ExpandableStringExpressionAst' { return (SwExpand $Ast) }
+            'VariableExpressionAst' { return (SwVar $Ast) }
+            'ParenExpressionAst' { return (SwEval $Ast.Pipeline) }
+            'SubExpressionAst' { if ($Ast.SubExpression.Statements.Count -eq 1) { return (SwEval $Ast.SubExpression.Statements[0]) }; return $null }
+            'PipelineAst' { if ($Ast.PipelineElements.Count -eq 1) { return (SwEval $Ast.PipelineElements[0]) }; return $null }
+            'CommandExpressionAst' { if ($Ast.Redirections.Count -gt 0) { return $null }; return (SwEval $Ast.Expression) }
+            'ArrayLiteralAst' { return (SwUnion @($Ast.Elements)) }
+            'ArrayExpressionAst' { return (SwUnion @($Ast.SubExpression.Statements)) }
+            'BinaryExpressionAst' { return (SwBinary $Ast) }
+            'ConvertExpressionAst' { if (([string]$Ast.Type.TypeName.FullName) -in 'string', 'System.String') { return (SwEval $Ast.Child) }; return $null }
+            'InvokeMemberExpressionAst' {
+                if ($Ast.Static -and (SwTypeName $Ast.Expression) -in 'io.directory', 'directory' -and ([string]$Ast.Member.Value) -ieq 'GetCurrentDirectory' -and (SwBaseKnown)) { return (SwR @($Base)) }
+                return (SwInvokeValue $Ast)
+            }
+            'MemberExpressionAst' {
+                if (-not (SwKind $Ast.Member 'StringConstantExpressionAst')) { return $null }
+                $member = ([string]$Ast.Member.Value).ToLowerInvariant()
+                if ($member -eq 'path' -and (SwBaseKnown)) {
+                    $inner = $Ast.Expression
+                    if (SwKind $inner 'ParenExpressionAst') {
+                        $cmd = $inner.Pipeline.PipelineElements | Select-Object -First 1
+                        if ($inner.Pipeline.PipelineElements.Count -eq 1 -and (SwKind $cmd 'CommandAst') -and $cmd.GetCommandName() -in 'Get-Location', 'pwd', 'gl') { return (SwR @($Base)) }
+                    }
+                    if ((SwKind $inner 'VariableExpressionAst') -and (SwKey $inner) -eq 'pwd') { return (SwR @($Base)) }
+                }
+                if ($member -eq 'currentdirectory' -and $Ast.Static -and (SwTypeName $Ast.Expression) -eq 'environment' -and (SwBaseKnown)) { return (SwR @($Base)) }
+                return $null
+            }
+            'CommandAst' { return (SwCommandValue $Ast) }
+            default { return $null }
+        }
+    }
+
+    # Cmdlet parameters: the ones that take a value and the switches, so a value is never taken for a path.
+    $valueParams = 'path', 'literalpath', 'pspath', 'lp', 'filepath', 'destination', 'destinationpath', 'outfile', 'value', 'encoding', 'inputobject', 'itemtype', 'type', 'name', 'stream', 'filter', 'include', 'exclude', 'width', 'newname', 'credential', 'delimiter', 'erroraction', 'ea', 'warningaction', 'wa', 'informationaction', 'ia', 'errorvariable', 'ev', 'outvariable', 'ov', 'pipelinevariable', 'pv', 'outbuffer', 'ob', 'uri', 'method', 'body', 'contenttype', 'headers', 'totalcount', 'tail', 'compressionlevel', 'variable', 'depth', 'property', 'typename', 'argumentlist', 'comobject'
+    $switchParams = 'force', 'nonewline', 'passthru', 'whatif', 'confirm', 'append', 'noclobber', 'recurse', 'verbose', 'debug', 'usebasicparsing', 'noheader', 'notypeinformation', 'raw', 'update', 'quotefields'
+    $allParams = @($valueParams) + @($switchParams)
+    $aliases = @{ sc = 'set-content'; ac = 'add-content'; clc = 'clear-content'; tee = 'tee-object'; ni = 'new-item'; mkdir = 'new-item'; md = 'new-item'; cpi = 'copy-item'; copy = 'copy-item'; cp = 'copy-item'; mi = 'move-item'; move = 'move-item'; mv = 'move-item'; ren = 'rename-item'; rni = 'rename-item'; iwr = 'invoke-webrequest'; irm = 'invoke-restmethod' }
+    $pathSlot = @('path', 'literalpath', 'pspath', 'lp')
+    $specs = @{
+        'set-content'        = @{ Slots = @($pathSlot, @('value')); Want = 0 }
+        'add-content'        = @{ Slots = @($pathSlot, @('value')); Want = 0 }
+        'clear-content'      = @{ Slots = @(, $pathSlot); Want = 0 }
+        'out-file'           = @{ Slots = @((@('filepath') + $pathSlot), @('encoding')); Want = 0 }
+        'tee-object'         = @{ Slots = @(, @('filepath', 'literalpath', 'lp')); Want = 0; OptionalWhenNamed = 'variable' }
+        'export-csv'         = @{ Slots = @(, $pathSlot); Want = 0 }
+        'export-clixml'      = @{ Slots = @(, $pathSlot); Want = 0 }
+        'new-item'           = @{ Slots = @(@('path'), @('name')); Want = 0; Join = 'name' }
+        'copy-item'          = @{ Slots = @($pathSlot, @('destination')); Want = 1 }
+        'move-item'          = @{ Slots = @($pathSlot, @('destination')); Want = 1 }
+        'rename-item'        = @{ Slots = @($pathSlot, @('newname')); Want = 0; Rename = $true }
+        'invoke-webrequest'  = @{ Slots = @(, @('uri')); Named = 'outfile' }
+        'invoke-restmethod'  = @{ Slots = @(, @('uri')); Named = 'outfile' }
+        'expand-archive'     = @{ Slots = @($pathSlot, @('destinationpath')); Want = 1; DefaultCurrent = $true }
+        'compress-archive'   = @{ Slots = @($pathSlot, @('destinationpath')); Want = 1 }
+    }
+    $cwdCommands = 'set-location', 'cd', 'sl', 'chdir', 'push-location', 'pushd', 'pop-location', 'popd'
+    $safeNames = 'foreach-object', '%', 'where-object', '?', 'resolve-path', 'convert-path', 'start-sleep', 'sleep', 'set-strictmode', 'add-member', 'remove-item', 'ri', 'rm', 'del', 'erase', 'rd', 'rmdir', 'read-host', 'clear-host', 'cls', 'clear', 'new-guid', 'new-timespan', 'import-csv', 'import-clixml', 'echo', 'cat', 'type', 'ls', 'dir', 'gci', 'gc', 'gi', 'gl', 'pwd', 'select', 'where', 'sort', 'measure', 'ft', 'fl', 'fw', 'gm', 'group', 'compare-object', 'join-path', 'split-path'
+    $safePattern = '^(get|test|write|select|where|format|measure|sort|group|compare|convertto|convertfrom)-|^out-(string|null|host|default)$'
+    $safeNew = '^(system\.)?(management\.automation\.)?(psobject|pscustomobject)$|stringbuilder|^(system\.)?collections\.|^hashtable$|^(system\.)?(version|datetime|timespan|uri)$|stringreader|stringwriter|memorystream|utf8encoding|cryptography\.'
+    $safeStatic = '^(io\.path|path|math|string|convert|guid|datetime|datetimeoffset|environment|(text\.)?regularexpressions\.regex|regex|text\..+|uri|array|char|int|int32|int64|double|bitconverter|console|timespan|version|globalization\..+|collections\..+|linq\..+|security\.cryptography\..+|io\.streamreader|io\.stringreader|io\.stringwriter|io\.memorystream|pscustomobject|psobject|hashtable|ordered|bool|byte|decimal|stringcomparison)$'
+    $safeInstance = 'append', 'appendline', 'appendformat', 'add', 'addrange', 'contains', 'containskey', 'containsvalue', 'startswith', 'endswith', 'trim', 'trimend', 'trimstart', 'split', 'substring', 'replace', 'tostring', 'tolower', 'tolowerinvariant', 'toupper', 'toupperinvariant', 'indexof', 'lastindexof', 'insert', 'remove', 'removeat', 'padleft', 'padright', 'normalize', 'equals', 'gettype', 'getenumerator', 'clone', 'toarray', 'tolist', 'where', 'foreach', 'first', 'match', 'ismatch', 'matches', 'gethashcode', 'compareto', 'sort', 'reverse', 'join', 'write', 'writeline', 'flush', 'close', 'dispose', 'getbytes', 'getstring', 'tochararray', 'elementat', 'select', 'any', 'all', 'readtoend', 'readline', 'read', 'peek', 'getvalue'
+
+    # The bound arguments of a cmdlet call: named parameters (canonical, unique prefixes) and positional ones.
+    function SwBind($Command) {
+        $b = @{ Ok = $true; Named = @{}; Pos = [System.Collections.Generic.List[object]]::new() }
+        $elements = @($Command.CommandElements | Select-Object -Skip 1)
+        for ($i = 0; $i -lt $elements.Count; $i++) {
+            $e = $elements[$i]
+            if (SwKind $e 'VariableExpressionAst') { if ($e.Splatted) { $b.Ok = $false; continue } }
+            if (-not (SwKind $e 'CommandParameterAst')) { $b.Pos.Add($e); continue }
+            $p = $e.ParameterName.ToLowerInvariant()
+            $matched = @($allParams | Where-Object { $_ -eq $p })
+            if ($matched.Count -eq 0 -and $p.Length -ge 2) { $matched = @($allParams | Where-Object { $_.StartsWith($p) }) }
+            if ($matched.Count -ne 1) { $b.Ok = $false; continue }
+            $canonical = [string]$matched[0]
+            if ($null -ne $e.Argument) { $b.Named[$canonical] = $e.Argument }
+            elseif ($canonical -in $switchParams) { $b.Named[$canonical] = $true }
+            elseif ($i + 1 -lt $elements.Count -and -not (SwKind $elements[$i + 1] 'CommandParameterAst')) { $b.Named[$canonical] = $elements[$i + 1]; $i++ }
+            else { $b.Ok = $false }
+        }
+        return $b
+    }
+    function SwSlot($Bound, $Slots, [int]$Want) {
+        $p = 0
+        for ($i = 0; $i -lt $Slots.Count; $i++) {
+            $named = $null
+            foreach ($alias in $Slots[$i]) { if ($Bound.Named.ContainsKey($alias)) { $named = $Bound.Named[$alias]; break } }
+            if ($null -ne $named) { if ($i -eq $Want) { return $named }; continue }
+            if ($p -lt $Bound.Pos.Count) { if ($i -eq $Want) { return $Bound.Pos[$p] }; $p++ }
+        }
+        return $null
+    }
+    function SwAddSite($Extent, $Candidates, [string]$What) {
+        $sites.Add([pscustomobject]@{ Candidates = $Candidates; What = $What })
+        $ranges.Add($Extent)
+    }
+    function SwJoinLeaf($Parents, $Leaves) {
+        $list = [System.Collections.Generic.List[string]]::new()
+        foreach ($a in $Parents) { foreach ($b in $Leaves) { $list.Add($(if ($a -eq '') { $b } else { $a.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar + $b.TrimStart('\', '/') })) } }
+        if ($list.Count -gt 64) { return $null }
+        return $list.ToArray()
+    }
+
+    try {
+        $parseErrors = $null
+        $parseTokens = $null
+        $root = [System.Management.Automation.Language.Parser]::ParseInput($Text, [ref]$parseTokens, [ref]$parseErrors)
+        if ($null -eq $root -or $parseErrors.Count -gt 0) { return [pscustomobject]@{ Verdict = 'Unknown'; Detail = 'the script does not parse' } }
+        $nodes = @($root.FindAll({ param($a) $true }, $true))
+        $commands = @($nodes | Where-Object { $_.GetType().Name -eq 'CommandAst' })
+        $functions = @{}
+        foreach ($f in @($nodes | Where-Object { $_.GetType().Name -eq 'FunctionDefinitionAst' })) { $functions[$f.Name.ToLowerInvariant()] = $f }
+
+        if (@($nodes | Where-Object { $_.GetType().Name -in 'UsingStatementAst', 'TypeDefinitionAst' }).Count -gt 0) { $opaque.Add('a using statement or a class') }
+        if ($Text -match '(?i)\bCurrentDirectory\b') { $state.CwdChanged = $true }
+        # $env:NAME resolves from the hook's own environment, so a script that changes the environment is not analysable.
+        if ($Text -match '(?i)SetEnvironmentVariable|\$env:\w+\s*[-+*/.]?=|\b(Set-Item|si|New-Item|ni|Set-Variable|sv|New-Variable|nv)\b[^\r\n]*\benv:') { $opaque.Add('a script that changes the environment') }
+        # A function that shadows a command the analysis models (Join-Path) makes its value rules wrong.
+        if ($functions.ContainsKey('join-path')) { $opaque.Add('a function named Join-Path') }
+        if ($functions.Keys | Where-Object { $_ -in $aliases.Keys -or $_ -in $specs.Keys }) { $opaque.Add('a function that shadows a cmdlet') }
+        foreach ($c in $commands) {
+            $n = $c.GetCommandName()
+            if ($null -ne $n -and $n.ToLowerInvariant() -in $cwdCommands) { $state.CwdChanged = $true }
+        }
+
+        # Variable table: every assignment, flow-insensitive; a variable the analysis cannot follow is tainted ($null entry).
+        foreach ($a in @($nodes | Where-Object { $_.GetType().Name -eq 'AssignmentStatementAst' })) {
+            $left = $a.Left
+            while ((SwKind $left 'ConvertExpressionAst') -or (SwKind $left 'AttributedExpressionAst')) { $left = $left.Child }
+            if (SwKind $left 'VariableExpressionAst') {
+                # A variable declared with an array type ([string[]]$a = ...) holds an array whatever its value looks like.
+                $declared = $a.Left
+                while ((SwKind $declared 'ConvertExpressionAst') -or (SwKind $declared 'AttributedExpressionAst')) {
+                    if ((SwKind $declared 'ConvertExpressionAst') -and ([string]$declared.Type.TypeName.FullName) -match '\[\]$|^(?i)array$|collection|list') { $typedArrays[(SwKey $left)] = $true }
+                    $declared = $declared.Child
+                }
+                if ([string]$a.Operator -eq 'Equals') {
+                    $right = $a.Right
+                    SwAdd (SwKey $left) $right
+                }
+                else { SwAdd (SwKey $left) $null }
+            }
+            else { SwTaint $left }
+        }
+        foreach ($f in @($nodes | Where-Object { $_.GetType().Name -eq 'ForEachStatementAst' })) { SwAdd (SwKey $f.Variable) $f.Condition }
+        foreach ($u in @($nodes | Where-Object { $_.GetType().Name -eq 'UnaryExpressionAst' -and [string]$_.TokenKind -in 'PlusPlus', 'MinusMinus', 'PostfixPlusPlus', 'PostfixMinusMinus' })) { SwTaint $u.Child }
+        foreach ($r in @($nodes | Where-Object { $_.GetType().Name -eq 'ConvertExpressionAst' -and $_.StaticType -eq [ref] })) { SwTaint $r.Child }
+        foreach ($c in $commands) {
+            $elements = @($c.CommandElements)
+            for ($i = 0; $i -lt $elements.Count; $i++) {
+                if ((SwKind $elements[$i] 'CommandParameterAst') -and $elements[$i].ParameterName -match '^(?i)(ov|ev|wv|iv|pv|outv\w*|errorv\w*|warningv\w*|informationv\w*|pipelinev\w*|variable)$') {
+                    $target = if ($null -ne $elements[$i].Argument) { $elements[$i].Argument } elseif ($i + 1 -lt $elements.Count) { $elements[$i + 1] } else { $null }
+                    if ($null -ne $target) { SwAdd (([string]$target.Extent.Text).Trim('''"$ ').ToLowerInvariant()) $null }
+                }
+            }
+        }
+
+        # Parameters: a function's come from the literal arguments of its calls in this script (and their defaults);
+        # every other parameter (script or script-block param block, class method) is tainted.
+        $functionParams = [System.Collections.Generic.HashSet[object]]::new()
+        $tainted = @{}
+        foreach ($name in $functions.Keys) {
+            $fn = $functions[$name]
+            $params = @(if ($null -ne $fn.Parameters) { $fn.Parameters } elseif ($null -ne $fn.Body.ParamBlock) { $fn.Body.ParamBlock.Parameters })
+            foreach ($p in $params) { [void]$functionParams.Add($p) }
+            $fnText = $fn.Extent.Text
+            $pipeline = $fnText -match '(?i)ValueFromPipeline|\$input\b|\$args\b|\bprocess\s*\{|\bdynamicparam\b|PSBoundParameters'
+            foreach ($p in $params) {
+                if ($pipeline) { SwAdd (SwKey $p.Name) $null }
+                elseif ($null -ne $p.DefaultValue) { SwAdd (SwKey $p.Name) $p.DefaultValue }
+            }
+            foreach ($call in @($commands | Where-Object { $null -ne $_.GetCommandName() -and $_.GetCommandName().ToLowerInvariant() -eq $name -and $_.InvocationOperator -eq 'Unknown' })) {
+                $elements = @($call.CommandElements | Select-Object -Skip 1)
+                $positionalParams = @($params)
+                $bound = [System.Collections.Generic.HashSet[object]]::new()
+                $ok = $true
+                $position = 0
+                for ($i = 0; $i -lt $elements.Count -and $ok; $i++) {
+                    $e = $elements[$i]
+                    if ((SwKind $e 'VariableExpressionAst') -and $e.Splatted) { $ok = $false; break }
+                    if (SwKind $e 'CommandParameterAst') {
+                        $found = @($params | Where-Object { (SwKey $_.Name) -eq $e.ParameterName.ToLowerInvariant() })
+                        if ($found.Count -eq 0) { $found = @($params | Where-Object { (SwKey $_.Name).StartsWith($e.ParameterName.ToLowerInvariant()) }) }
+                        if ($found.Count -ne 1) { $ok = $false; break }
+                        $param = $found[0]
+                        [void]$bound.Add($param)
+                        if ($null -ne $e.Argument) { SwAdd (SwKey $param.Name) $e.Argument }
+                        elseif ($param.StaticType -eq [switch]) { SwAdd (SwKey $param.Name) $null }
+                        elseif ($i + 1 -lt $elements.Count -and -not (SwKind $elements[$i + 1] 'CommandParameterAst')) { SwAdd (SwKey $param.Name) $elements[$i + 1]; $i++ }
+                        else { $ok = $false }
+                        continue
+                    }
+                    while ($position -lt $positionalParams.Count -and $bound.Contains($positionalParams[$position])) { $position++ }
+                    if ($position -ge $positionalParams.Count) { $ok = $false; break }
+                    [void]$bound.Add($positionalParams[$position])
+                    SwAdd (SwKey $positionalParams[$position].Name) $e
+                    $position++
+                }
+                if (-not $ok) { foreach ($p in $params) { SwAdd (SwKey $p.Name) $null } }
+            }
+        }
+        foreach ($p in @($nodes | Where-Object { $_.GetType().Name -eq 'ParameterAst' })) { if (-not $functionParams.Contains($p)) { SwAdd (SwKey $p.Name) $null } }
+
+        # Write sites.
+        foreach ($c in $commands) {
+            if ($c.InvocationOperator -ne 'Unknown') { $opaque.Add('a call-operator or dot-source launch'); continue }
+            $name = $c.GetCommandName()
+            if ($null -eq $name) { $opaque.Add('a command named by an expression'); continue }
+            $lname = $name.ToLowerInvariant()
+            $canonical = if ($aliases.ContainsKey($lname)) { $aliases[$lname] } else { $lname }
+            if ($specs.ContainsKey($canonical)) {
+                $spec = $specs[$canonical]
+                $bound = SwBind $c
+                if ($canonical -eq 'new-item' -and $bound.Named.ContainsKey('itemtype')) {
+                    $itemType = if ($bound.Named['itemtype'] -is [bool]) { $null } else { SwConst $bound.Named['itemtype'] }
+                    # A link's -Value is its target, so later writes through it land elsewhere.
+                    if ($null -eq $itemType -or $itemType -notmatch '^(?i)(file|directory)$') { $opaque.Add('New-Item of a link or an unknown item type') }
+                }
+                $targetAst = $null
+                if ($spec.ContainsKey('Named')) { if ($bound.Named.ContainsKey($spec.Named)) { $targetAst = $bound.Named[$spec.Named] } else { continue } }
+                else { $targetAst = SwSlot $bound $spec.Slots $spec.Want }
+                if ($spec.ContainsKey('OptionalWhenNamed') -and $null -eq $targetAst -and $bound.Named.ContainsKey($spec.OptionalWhenNamed)) { continue }
+                $candidates = $null
+                if ($bound.Ok) {
+                    if ($null -eq $targetAst -and $spec.ContainsKey('DefaultCurrent')) { $candidates = [string[]]@('.') }
+                    elseif ($null -eq $targetAst -and $spec.ContainsKey('Join')) { $candidates = [string[]]@('.') }
+                    elseif ($null -ne $targetAst -and $targetAst -isnot [bool]) { $r = SwEval $targetAst; if ($null -ne $r) { $candidates = [string[]]@($r.V) } }
+                    if ($null -ne $candidates -and $spec.ContainsKey('Join') -and $bound.Named.ContainsKey($spec.Join)) {
+                        $leaf = SwEval $bound.Named[$spec.Join]
+                        $candidates = if ($null -eq $leaf) { $null } else { SwJoinLeaf $candidates $leaf.V }
+                    }
+                    if ($null -ne $candidates -and $canonical -eq 'move-item') {
+                        # The source is removed by the move, so a source under src/ or tests/ is a write there too.
+                        $sourceAst = SwSlot $bound $spec.Slots 0
+                        $sourceValue = if ($null -ne $sourceAst -and $sourceAst -isnot [bool]) { SwEval $sourceAst } else { $null }
+                        $candidates = if ($null -eq $sourceValue) { $null } else { [string[]]@($candidates) + [string[]]@($sourceValue.V) }
+                    }
+                    if ($null -ne $candidates -and $spec.ContainsKey('Rename')) {
+                        $newName = SwSlot $bound $spec.Slots 1
+                        $leaf = if ($null -ne $newName) { SwEval $newName } else { $null }
+                        if ($null -eq $leaf) { $candidates = $null }
+                        else {
+                            $moved = foreach ($old in $candidates) { $dir = [IO.Path]::GetDirectoryName($old); SwJoinLeaf @($(if ($null -eq $dir) { '' } else { $dir })) $leaf.V }
+                            $candidates = [string[]]@($candidates) + [string[]]@($moved)
+                        }
+                    }
+                }
+                SwAddSite $c.Extent $candidates $canonical
+                continue
+            }
+            if ($lname -eq 'new-object') {
+                $bound = SwBind $c
+                if ($bound.Named.ContainsKey('comobject') -or -not $bound.Ok) { $opaque.Add('New-Object with an unknown shape'); continue }
+                $typeAst = if ($bound.Named.ContainsKey('typename')) { $bound.Named['typename'] } elseif ($bound.Pos.Count -gt 0) { $bound.Pos[0] } else { $null }
+                $typeName = if ($null -ne $typeAst) { SwConst $typeAst } else { $null }
+                if ($null -eq $typeName) { $opaque.Add('New-Object of an unknown type'); continue }
+                $tl = ($typeName.ToLowerInvariant() -replace '^system\.', '')
+                if ($tl -match 'streamwriter|filestream|binarywriter') {
+                    $argList = if ($bound.Named.ContainsKey('argumentlist')) { $bound.Named['argumentlist'] } elseif ($bound.Pos.Count -gt 1) { $bound.Pos[1] } else { $null }
+                    $first = if (SwKind $argList 'ArrayLiteralAst') { $argList.Elements[0] } else { $argList }
+                    $r = if ($null -ne $first) { SwEval $first } else { $null }
+                    SwAddSite $c.Extent $(if ($null -ne $r) { [string[]]@($r.V) } else { $null }) 'New-Object'
+                }
+                elseif ($tl -match $safeNew) { }
+                else { $opaque.Add("New-Object $typeName") }
+                continue
+            }
+            if ($lname -in $cwdCommands) { continue }
+            if ($lname -in 'foreach-object', '%') {
+                $elements = @($c.CommandElements | Select-Object -Skip 1)
+                $firstValue = @($elements | Where-Object { -not (SwKind $_ 'CommandParameterAst') } | Select-Object -First 1)
+                if ($firstValue.Count -gt 0 -and -not (SwKind $firstValue[0] 'ScriptBlockExpressionAst') -and @($elements | Where-Object { (SwKind $_ 'CommandParameterAst') -and $_.ParameterName -match '^(?i)(b|begin|p|process|e|end|r|remaining)' }).Count -eq 0) { $opaque.Add('ForEach-Object with a member name') }
+                continue
+            }
+            if ($lname -in $safeNames -or $lname -match $safePattern -or $functions.ContainsKey($lname)) {
+                if ($lname -in 'get-variable', 'gv') { $opaque.Add('Get-Variable') }
+                continue
+            }
+            $opaque.Add("a command the analysis does not know ($name)")
+        }
+
+        # Redirections.
+        foreach ($r in @($nodes | Where-Object { $_.GetType().Name -in 'FileRedirectionAst', 'MergingRedirectionAst' })) {
+            $ranges.Add($r.Extent)
+            if ($r.GetType().Name -ne 'FileRedirectionAst') { continue }
+            $loc = $r.Location
+            if ((SwKind $loc 'VariableExpressionAst') -and (SwKey $loc) -eq 'null') { continue }
+            $value = SwConst $loc
+            if ($null -ne $value -and $value -in 'nul', '/dev/null', '$null') { continue }
+            $candidates = $null
+            $resolved = SwEval $loc
+            if ($null -ne $resolved) { $candidates = [string[]]@($resolved.V) }
+            $sites.Add([pscustomobject]@{ Candidates = $candidates; What = 'redirection' })
+        }
+
+        # Static and instance method calls.
+        foreach ($m in @($nodes | Where-Object { $_.GetType().Name -eq 'InvokeMemberExpressionAst' })) {
+            if (-not (SwKind $m.Member 'StringConstantExpressionAst')) { $opaque.Add('a method named by an expression'); continue }
+            $member = ([string]$m.Member.Value).ToLowerInvariant()
+            $callArgs = @($m.Arguments)
+            $type = SwTypeName $m.Expression
+            if (-not $m.Static) {
+                if ($member -notin $safeInstance) { $opaque.Add("the method .$($m.Member.Value)()") }
+                continue
+            }
+            if ($null -eq $type) { $opaque.Add("a static call through $($m.Expression.Extent.Text)"); continue }
+            $indexes = $null
+            if ($type -in 'io.file', 'file') {
+                if ($member -match '^(exists|readall\w*|readlines\w*|openread|opentext|getlastwritetime\w*|getcreationtime\w*|getlastaccesstime\w*|getattributes|delete|setattributes|setlastwritetime\w*|setlastaccesstime\w*|setcreationtime\w*|resolvelinktarget|getunixfilemode)$') { }
+                elseif ($member -eq 'copy') { $indexes = @(1) }
+                # A move removes its source, so a source under src/ or tests/ is a write there too.
+                elseif ($member -eq 'move') { $indexes = @(0, 1) }
+                elseif ($member -eq 'replace') { $indexes = @(1, 2) }
+                elseif ($member -eq 'open') {
+                    # File.Open(path, mode, FileAccess.Read[, share]) only reads; any other shape may write.
+                    $openRest = @($callArgs | Select-Object -Skip 1)
+                    $readOnlyOpen = $openRest.Count -gt 0 -and @($openRest | Where-Object { $_.Extent.Text -match '^(\[(System\.)?(IO\.)?FileAccess\]::|(System\.)?(IO\.)?FileAccess\.)Read$' }).Count -gt 0 -and @($openRest | Where-Object { $_.Extent.Text -notmatch '^(\[(System\.)?(IO\.)?(FileMode\]::Open|FileAccess\]::Read|FileShare\]::\w+)|(System\.)?(IO\.)?(FileMode\.Open|FileAccess\.Read|FileShare\.\w+))$' }).Count -eq 0
+                    if (-not $readOnlyOpen) { $indexes = @(0) }
+                }
+                elseif ($member -match '^(write\w*|appendall\w*|appendtext|create\w*|openwrite|openhandle|encrypt|decrypt|setunixfilemode)$') { $indexes = @(0) }
+                else { $opaque.Add("[IO.File]::$($m.Member.Value)") }
+            }
+            elseif ($type -in 'io.directory', 'directory') {
+                if ($member -eq 'setcurrentdirectory') { $state.CwdChanged = $true }
+                elseif ($member -in 'createdirectory') { $indexes = @(0) }
+                elseif ($member -eq 'move') { $indexes = @(0, 1) }
+                elseif ($member -match '^(exists|get\w*|enumerate\w*|delete|createtempsubdirectory)$') { }
+                else { $opaque.Add("[IO.Directory]::$($m.Member.Value)") }
+            }
+            elseif ($type -in 'io.streamwriter', 'streamwriter', 'io.filestream', 'filestream', 'io.binarywriter') {
+                if ($member -eq 'new') {
+                    $readOnly = $type -match 'filestream' -and $callArgs.Count -gt 1 -and @($callArgs | Select-Object -Skip 1 | Where-Object { $_.Extent.Text -notmatch '^\[?(System\.)?(IO\.)?(FileMode\.Open|FileAccess\.Read|FileShare\.\w+)\]?$' }).Count -eq 0
+                    if (-not $readOnly) { $indexes = @(0) }
+                }
+                else { $opaque.Add("[$type]::$($m.Member.Value)") }
+            }
+            elseif ($type -notmatch $safeStatic) { $opaque.Add("[$type]::$($m.Member.Value)") }
+            if ($null -ne $indexes) {
+                $candidates = [System.Collections.Generic.List[string]]::new()
+                $resolvedAll = $true
+                foreach ($ix in $indexes) {
+                    $r = if ($ix -lt $callArgs.Count) { SwEval $callArgs[$ix] } else { $null }
+                    if ($null -eq $r) { $resolvedAll = $false; break }
+                    foreach ($v in $r.V) { $candidates.Add($v) }
+                }
+                SwAddSite $m.Extent $(if ($resolvedAll) { $candidates.ToArray() } else { $null }) "[$type]::$($m.Member.Value)"
+            }
+        }
+
+        # Judge the targets.
+        $unresolved = $false
+        $layoutGuarded = {
+            param([string]$Full)
+            $location = Get-RepoLocation $Full $Layout
+            if ($null -ne $location -and $location.Relative -match '^(src|tests)(/|$)') { return $true }
+            $dir = [IO.Path]::GetDirectoryName($Full)
+            while (-not [string]::IsNullOrEmpty($dir)) {
+                if (Test-Path -LiteralPath (Join-Path $dir '.git')) {
+                    $relative = $Full.Substring([Math]::Min($dir.TrimEnd('\', '/').Length, $Full.Length)).TrimStart('\', '/').Replace('\', '/')
+                    if ($relative -match '^(src|tests)(/|$)') { return $true }
+                }
+                $dir = [IO.Path]::GetDirectoryName($dir)
+            }
+            return $false
+        }
+        foreach ($site in $sites) {
+            if ($null -eq $site.Candidates) { $unresolved = $true; continue }
+            foreach ($value in $site.Candidates) {
+                if ([string]::IsNullOrWhiteSpace($value) -or $value -match '::|^\\\\|^[A-Za-z0-9_.]{2,}:|[*?\[]') { $unresolved = $true; continue }
+                $native = ConvertTo-NativePath $value
+                $rooted = [IO.Path]::IsPathRooted($native) -or $value.StartsWith('~')
+                if (-not $rooted -and $value -match '(^|[\\/])(src|tests)([\\/]|$)') { $guarded.Add("$($site.What) -> $value"); continue }
+                if (-not $rooted -and -not (SwBaseKnown)) { $unresolved = $true; continue }
+                $full = Get-FullPath $value $Base
+                if ($null -eq $full) { $unresolved = $true; continue }
+                if (& $layoutGuarded $full) { $guarded.Add("$($site.What) -> $full") }
+            }
+        }
+        if ($guarded.Count -gt 0) { return [pscustomobject]@{ Verdict = 'Guarded'; Detail = $guarded[0] } }
+        if ($opaque.Count -gt 0) { return [pscustomobject]@{ Verdict = 'Unknown'; Detail = $opaque[0]; Unresolved = $unresolved } }
+        if ($unresolved) { return [pscustomobject]@{ Verdict = 'Unknown'; Detail = 'a write target the hook cannot resolve'; Unresolved = $true } }
+
+        # Residual: no write API may be left once the strings, comments and understood sites are removed.
+        $chars = $Text.ToCharArray()
+        $blank = {
+            param($Start, $End)
+            for ($i = [Math]::Max(0, $Start); $i -lt [Math]::Min($chars.Length, $End); $i++) { $chars[$i] = ' ' }
+        }
+        foreach ($r in $ranges) { & $blank $r.StartOffset $r.EndOffset }
+        foreach ($s in @($nodes | Where-Object { $_.GetType().Name -in 'StringConstantExpressionAst', 'ExpandableStringExpressionAst' -and [string]$_.StringConstantType -ne 'BareWord' })) { & $blank $s.Extent.StartOffset $s.Extent.EndOffset }
+        foreach ($t in @($parseTokens | Where-Object { [string]$_.Kind -eq 'Comment' })) { & $blank $t.Extent.StartOffset $t.Extent.EndOffset }
+        if (Test-ScriptHasWriteApi (-join $chars)) { return [pscustomobject]@{ Verdict = 'Unknown'; Detail = 'a write API the analysis did not account for' } }
+        return [pscustomobject]@{ Verdict = 'Safe'; Detail = '' }
+    }
+    catch {
+        return [pscustomobject]@{ Verdict = 'Unknown'; Detail = "the analysis failed ($($_.Exception.GetType().Name))" }
+    }
+}
+
 # Sanctioned scripts (#1368, #1380): the audit pipeline's and the test suite's own tooling legitimately
 # mentions src/ and tests/ (in template guidance, search regexes, or test-case fixtures) while writing only
 # under artifacts/ or its own temp workspace, so it never trips Test-ScriptHasWriteApi/Test-ScriptReferencesPath
@@ -509,8 +1242,35 @@ function Get-ShellWrites {
             }
         }
         elseif ($name -in 'pwsh', 'powershell', 'pwsh-preview') {
-            $fileToken = Get-NamedArgument $tokens ($k + 1) @('-file')
-            if ($null -ne $fileToken) { $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'pwsh -File'; Base = $current }) }
+            $fileToken = Get-NamedArgument $tokens ($k + 1) @('-file', '-f', '-fi', '-fil')
+            # -Command / -CommandWithArgs / -EncodedCommand by any prefix (`-co`, `-comm`, `-enc`), as pwsh accepts them.
+            $hasCommandSwitch = $false
+            for ($ci = $k + 1; $ci -lt $tokens.Count; $ci++) {
+                $ct = $tokens[$ci]
+                if ($ct.Quoted -or -not $ct.Value.StartsWith('-')) { continue }
+                $cn = $ct.Value.Substring(1).ToLowerInvariant()
+                $cc = $cn.IndexOf(':'); if ($cc -ge 0) { $cn = $cn.Substring(0, $cc) }
+                if ($cn.Length -ge 1 -and ('command'.StartsWith($cn) -or ($cn.Length -ge 2 -and ('commandwithargs'.StartsWith($cn) -or 'encodedcommand'.StartsWith($cn))) -or $cn -in 'cwa', 'ec', 'e')) { $hasCommandSwitch = $true; break }
+            }
+            if ($null -eq $fileToken -and -not $hasCommandSwitch) {
+                # `pwsh [options] script.ps1`: the first positional argument is the script (skip values of the options that take one).
+                for ($pi = $k + 1; $pi -lt $tokens.Count; $pi++) {
+                    $pt = $tokens[$pi]
+                    if (-not $pt.Quoted -and $pt.Value.StartsWith('-')) {
+                        if ($pt.Value -match '^(?i)-(workingdirectory|wd|executionpolicy|ep|configurationname|config|custompipename|settingsfile|settings|inputformat|if|outputformat|of|windowstyle|w)$') { $pi++ }
+                        continue
+                    }
+                    if ($pt.Value -match '(?i)\.ps1$') { $fileToken = $pt }
+                    break
+                }
+            }
+            if ($null -ne $fileToken) {
+                # #2892: -WorkingDirectory changes where the script's relative targets resolve; an unresolvable one leaves Base unknown.
+                $scriptBase = $current
+                $wdToken = Get-NamedArgument $tokens ($k + 1) @('-workingdirectory', '-wd')
+                if ($null -ne $wdToken) { $scriptBase = Resolve-TargetPath $wdToken $current $Bash }
+                $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'pwsh -File'; Base = $scriptBase })
+            }
         }
         elseif ($name -eq 'git') {
             $dir = $current
@@ -565,6 +1325,11 @@ function Get-ShellWrites {
                 elseif ($method -match '^(Write|Append|Create|OpenWrite)') { $index = 0 }
                 elseif ($method -in 'Copy', 'Move', 'Replace') { $index = 1 }
                 if ($index -ge 0 -and $index -lt $arguments.Count) { Add-Write ($method -notin 'Copy', 'Move', 'Replace') (ConvertTo-ArgumentToken $arguments[$index]) $Cwd "[IO.$($io.Groups['type'].Value)]::$method" $Bash }
+                # A move removes its source: MoveSource (full path, or $null when unresolved) lets a caller that guards
+                # removals (guard-orchestrator-writes) judge it; callers that only judge destinations ignore it.
+                if ($method -ieq 'Move' -and $io.Groups['type'].Value -ieq 'File' -and $arguments.Count -gt 0 -and $index -ge 0 -and $index -lt $arguments.Count) {
+                    $writes[$writes.Count - 1] | Add-Member -NotePropertyName MoveSource -NotePropertyValue (Resolve-TargetPath (ConvertTo-ArgumentToken $arguments[0]) $Cwd $Bash) -Force
+                }
                 continue
             }
             # > file, >> file, 2> file, *> file, >&file and &>file (Bash); not 2>&1 / >&2 / >&- (stream merges),
