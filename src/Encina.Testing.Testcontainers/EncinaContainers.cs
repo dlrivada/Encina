@@ -113,7 +113,7 @@ public static class EncinaContainers
     public static ConfiguredContainerFixture<MySqlContainer> MySql(Action<MySqlBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
-        var builder = new MySqlBuilder("mysql:8.0")
+        var builder = new MySqlBuilder(ContainerDefaultImages.MySql)
             .WithCleanUp(true);
         configure(builder);
         return new ConfiguredContainerFixture<MySqlContainer>(builder.Build());

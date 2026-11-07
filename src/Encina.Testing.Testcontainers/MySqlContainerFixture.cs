@@ -44,7 +44,7 @@ public class MySqlContainerFixture : ContainerFixtureBase<MySqlContainer>
     /// <returns>A pre-configured MySQL container.</returns>
     protected override MySqlContainer BuildContainer()
     {
-        return new MySqlBuilder("mysql:9.1")
+        return new MySqlBuilder(ContainerDefaultImages.MySql)
             .WithDatabase("encina_test")
             .WithUsername("encina")
             .WithPassword("StrongP@ssw0rd!")
