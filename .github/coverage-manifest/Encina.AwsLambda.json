@@ -31,7 +31,7 @@
       "targets": { "unit": 100, "guard": 85, "integration": 90 },
       "justifications": {
         "unit": "Every option property is read and set in tests, including its defaults.",
-        "guard": "Guard tests instantiate the options and set every property while exercising the correlation-id, tenant and user-id guards; one property initializer is never read by a guard test.",
+        "guard": "Guard tests instantiate the options and set the correlation-id, tenant-trust and user-id properties while exercising the context extensions and the health check; one property initializer is never read by a guard test.",
         "integration": "Integration tests configure the options through AddEncinaAwsLambda and the handlers and health check read them; one property initializer is never read by these tests."
       }
     },
@@ -109,7 +109,7 @@
         "integration": 100
       },
       "justifications": {
-        "guard": "Guard tests pass a null collection and a null configure delegate to both overloads and register twice; the null-guard throw of the second overload is covered by the framework Configure call.",
+        "guard": "Guard tests pass a null collection and a null configure delegate to both overloads and register through both overloads, once and twice, with a validated provider, so every line runs; the margin covers future branches.",
         "integration": "Integration tests build providers with ValidateOnBuild and ValidateScopes through both AddEncinaAwsLambda overloads and resolve the options and the health check."
       }
     },
