@@ -203,7 +203,7 @@
       },
       "justifications": {
         "unit": "BreakTheGlassStoreEFTests.Model_MapsTheShippedTable builds the SQL Server model and checks the table, collation, length, computed column and unique index.",
-        "guard": "Only the argument checks are guard-coverable and are covered by the guard tests in the follow-up PR for #3001 (null builder check); the mapping lines are reached only by the unit and integration flags.",
+        "guard": "Only the argument checks are guard-coverable and are covered by the guard test class BreakTheGlassStoreGuardTests (Configure(null) throws ArgumentNullException naming builder); the mapping lines are reached only by the unit and integration flags.",
         "integration": "BreakTheGlassEFSchemaParityIntegrationTests compares the model with the shipped table and the contract facts run through it."
       }
     },
@@ -220,7 +220,7 @@
       },
       "justifications": {
         "unit": "BreakTheGlassStoreEFTests builds a context whose OnModelCreating calls ApplyBreakTheGlassConfiguration.",
-        "guard": "Only the argument checks are guard-coverable and are covered by the guard tests in the follow-up PR for #3001 (null builder check); the model registration lines are reached only by the unit flag."
+        "guard": "Only the argument checks are guard-coverable and are covered by the guard test class BreakTheGlassStoreGuardTests (ApplyBreakTheGlassConfiguration(null) throws ArgumentNullException naming modelBuilder); the model registration lines are reached only by the unit flag."
       }
     },
     "BreakTheGlass/BreakTheGlassStoreEF.cs": {
@@ -236,7 +236,7 @@
       },
       "justifications": {
         "unit": "BreakTheGlassStoreEFTests covers the registration in both orders, the failure paths that return store_failed, cancellation, the active-key hash and the error classifier; the SQL itself needs a real database and is covered by the integration flag.",
-        "guard": "Only the argument checks are guard-coverable and are covered by the guard tests in the follow-up PR for #3001 (null and range checks of the constructor and of each method); the SQL and failure paths are reached only by the unit and integration flags.",
+        "guard": "Only the argument checks are guard-coverable and are covered by the guard test class BreakTheGlassStoreGuardTests (null contextFactory in the constructor; null and range arguments of AddAsync, FindEffectiveAsync, TryCloseAsync, TryRecordReviewAsync, QueryReviewQueueAsync and GetExpiredUnrecordedAsync); the SQL and failure paths are reached only by the unit and integration flags.",
         "integration": "The shared BreakTheGlassStoreContract runs on the EFCore-SqlServer collection fixture through BreakTheGlassStoreEFSqlServerIntegrationTests, executing every method against a real SQL Server."
       }
     },
