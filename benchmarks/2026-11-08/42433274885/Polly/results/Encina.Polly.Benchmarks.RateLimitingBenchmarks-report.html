@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Polly.Benchmarks.RateLimitingBenchmarks-20261108-014719</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 7763 3.16GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v3
+  Job-IAMMPO : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>InvocationCount=1  IterationCount=15  UnrollFactor=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                       </th><th>Job </th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>RecordFailure</td><td>Job-IAMMPO</td><td>Default</td><td>5</td><td>372.2 ns</td><td>22.63 ns</td><td>17.67 ns</td><td>380.5 ns</td><td>0.09</td><td>0.01</td><td>-</td><td>0.00</td>
+</tr><tr><td>GetState</td><td>Job-IAMMPO</td><td>Default</td><td>5</td><td>538.6 ns</td><td>44.80 ns</td><td>41.91 ns</td><td>545.5 ns</td><td>0.13</td><td>0.01</td><td>-</td><td>0.00</td>
+</tr><tr><td>AcquireAndRecordSuccess_Combined</td><td>Job-IAMMPO</td><td>Default</td><td>5</td><td>3,831.9 ns</td><td>285.31 ns</td><td>252.92 ns</td><td>3,758.0 ns</td><td>0.91</td><td>0.07</td><td>336 B</td><td>0.76</td>
+</tr><tr><td>AcquireAndRecordFailure_Combined</td><td>Job-IAMMPO</td><td>Default</td><td>5</td><td>3,885.4 ns</td><td>108.91 ns</td><td>90.94 ns</td><td>3,907.0 ns</td><td>0.93</td><td>0.04</td><td>336 B</td><td>0.76</td>
+</tr><tr><td>AcquireAsync_WithAdaptiveThrottling</td><td>Job-IAMMPO</td><td>Default</td><td>5</td><td>3,615.5 ns</td><td>332.69 ns</td><td>311.20 ns</td><td>3,491.5 ns</td><td>0.86</td><td>0.08</td><td>440 B</td><td>1.00</td>
+</tr><tr><td>RecordSuccess</td><td>Job-IAMMPO</td><td>Default</td><td>5</td><td>512.5 ns</td><td>52.35 ns</td><td>46.41 ns</td><td>510.0 ns</td><td>0.12</td><td>0.01</td><td>-</td><td>0.00</td>
+</tr><tr><td>AcquireAsync_SimpleRateLimiting</td><td>Job-IAMMPO</td><td>Default</td><td>5</td><td>4,197.9 ns</td><td>217.75 ns</td><td>181.83 ns</td><td>4,137.0 ns</td><td>1.00</td><td>0.06</td><td>440 B</td><td>1.00</td>
+</tr><tr><td>RecordFailure</td><td>MediumRun</td><td>2</td><td>10</td><td>460.9 ns</td><td>38.61 ns</td><td>55.37 ns</td><td>466.0 ns</td><td>0.13</td><td>0.02</td><td>-</td><td>0.00</td>
+</tr><tr><td>GetState</td><td>MediumRun</td><td>2</td><td>10</td><td>596.7 ns</td><td>151.01 ns</td><td>211.69 ns</td><td>481.0 ns</td><td>0.17</td><td>0.06</td><td>-</td><td>0.00</td>
+</tr><tr><td>AcquireAndRecordSuccess_Combined</td><td>MediumRun</td><td>2</td><td>10</td><td>4,013.6 ns</td><td>216.01 ns</td><td>302.81 ns</td><td>4,073.0 ns</td><td>1.15</td><td>0.10</td><td>336 B</td><td>0.76</td>
+</tr><tr><td>AcquireAndRecordFailure_Combined</td><td>MediumRun</td><td>2</td><td>10</td><td>3,786.0 ns</td><td>87.66 ns</td><td>122.89 ns</td><td>3,747.0 ns</td><td>1.08</td><td>0.07</td><td>336 B</td><td>0.76</td>
+</tr><tr><td>AcquireAsync_WithAdaptiveThrottling</td><td>MediumRun</td><td>2</td><td>10</td><td>3,480.5 ns</td><td>84.35 ns</td><td>115.45 ns</td><td>3,469.5 ns</td><td>0.99</td><td>0.06</td><td>440 B</td><td>1.00</td>
+</tr><tr><td>RecordSuccess</td><td>MediumRun</td><td>2</td><td>10</td><td>614.0 ns</td><td>147.56 ns</td><td>196.98 ns</td><td>502.0 ns</td><td>0.18</td><td>0.06</td><td>-</td><td>0.00</td>
+</tr><tr><td>AcquireAsync_SimpleRateLimiting</td><td>MediumRun</td><td>2</td><td>10</td><td>3,513.2 ns</td><td>132.65 ns</td><td>194.44 ns</td><td>3,496.0 ns</td><td>1.00</td><td>0.08</td><td>440 B</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>
