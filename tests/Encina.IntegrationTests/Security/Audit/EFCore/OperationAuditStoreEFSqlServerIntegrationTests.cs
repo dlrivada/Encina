@@ -23,6 +23,9 @@ public class OperationAuditStoreEFSqlServerIntegrationTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         await _fixture.EnsureSchemaCreatedAsync<AuditTestDbContext>();
+
+        // Rows left by other classes of the collection must not leak into the exact-count assertions.
+        await _fixture.ClearAllDataAsync();
     }
 
     [Fact]
