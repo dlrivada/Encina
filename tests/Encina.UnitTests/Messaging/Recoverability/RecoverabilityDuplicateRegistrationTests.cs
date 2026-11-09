@@ -281,6 +281,28 @@ public sealed class RecoverabilityDuplicateRegistrationTests
     }
 
     [Fact]
+    public async Task Host_WhenTheBehaviorIsRemovedAndAnOptionsInstanceIsAddedRaw_FailsToStartAndLogsCritical()
+    {
+        var log = new CapturingLoggerProvider();
+        using var host = BuildHost(
+            services =>
+            {
+                services.AddEncinaRecoverability();
+                var behavior = services.Single(d =>
+                    d.ServiceType == typeof(IPipelineBehavior<,>)
+                    && d.ImplementationType == typeof(RecoverabilityPipelineBehavior<,>));
+                services.Remove(behavior);
+                services.AddSingleton(new RecoverabilityOptions());
+            },
+            log);
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => host.StartAsync());
+
+        ShouldNameTheDuplicate(ex, "RecoverabilityOptions instance");
+        log.Entries.ShouldContain(e => e.EventId.Id == 5458 && e.Level == LogLevel.Critical);
+    }
+
+    [Fact]
     public async Task Host_WithDelayedRetriesOff_StillRunsTheDuplicateCheck()
     {
         using var host = BuildHost(services =>

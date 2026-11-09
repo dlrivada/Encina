@@ -24,7 +24,7 @@ internal sealed class RecoverabilityDescriptorSnapshot(IServiceCollection servic
 /// <summary>
 /// Checks, when the host starts, that Recoverability is registered once: the behavior
 /// (<see cref="RecoverabilityPipelineBehavior{TRequest, TResponse}"/>) exactly once and no
-/// <see cref="RecoverabilityOptions"/> instance next to it
+/// <see cref="RecoverabilityOptions"/> instance registered directly
 /// (ADR-050, Critical log with EventId 5458, see EventIdRanges.MessagingRecoverability).
 /// </summary>
 /// <remarks>
@@ -93,9 +93,7 @@ internal sealed class RecoverabilityRegistrationCheck : IHostedService
             return $"RecoverabilityPipelineBehavior is registered {behaviors} times";
         }
 
-        return behaviors > 0 && services.Any(IsOptionsInstance)
-            ? "a RecoverabilityOptions instance is registered directly"
-            : null;
+        return services.Any(IsOptionsInstance) ? "a RecoverabilityOptions instance is registered directly" : null;
     }
 
     private static bool IsRecoverabilityBehavior(ServiceDescriptor descriptor)
