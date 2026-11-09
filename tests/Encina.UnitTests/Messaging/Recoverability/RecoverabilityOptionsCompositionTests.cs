@@ -264,6 +264,107 @@ public sealed class RecoverabilityOptionsCompositionTests
         scope.ServiceProvider.GetRequiredService<IErrorClassifier>().ShouldBeOfType<MarkerClassifier>();
     }
 
+    private sealed class DisposableClassifier : IErrorClassifier, IDisposable, IAsyncDisposable
+    {
+        public int DisposeCount { get; private set; }
+
+        public ErrorClassification Classify(EncinaError encinaError, Exception? exception) => ErrorClassification.Permanent;
+
+        public void Dispose() => DisposeCount++;
+
+        public ValueTask DisposeAsync()
+        {
+            DisposeCount++;
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public void OptionsClassifier_ThatIsDisposable_IsNotDisposedWithAScopeAndStillClassifiesInTheNext()
+    {
+        // The options own the instance; a scoped registration must not make the container dispose it with the first scope.
+        var external = new DisposableClassifier();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddScoped<IErrorClassifier, MarkerClassifier>();
+        services.AddEncinaRecoverability(o => o.ErrorClassifier = external);
+
+        using var provider = services.BuildServiceProvider(Validate);
+        using (var first = provider.CreateScope())
+        {
+            first.ServiceProvider.GetRequiredService<IErrorClassifier>().Classify(EncinaErrors.Create("x", "y"), null)
+                .ShouldBe(ErrorClassification.Permanent);
+        }
+
+        external.DisposeCount.ShouldBe(0);
+        using var second = provider.CreateScope();
+        second.ServiceProvider.GetRequiredService<IErrorClassifier>().Classify(EncinaErrors.Create("x", "y"), null)
+            .ShouldBe(ErrorClassification.Permanent);
+    }
+
+    [Fact]
+    public void EarlierInstance_ThatIsDisposable_IsNotDisposedWithTheProvider()
+    {
+        var instance = new DisposableClassifier();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IErrorClassifier>(instance);
+        services.AddEncinaRecoverability();
+
+        var provider = services.BuildServiceProvider(Validate);
+        provider.GetRequiredService<IErrorClassifier>();
+        provider.Dispose();
+
+        instance.DisposeCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public void Classifier_CreatedByTheContainer_IsStillDisposedWithTheProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IErrorClassifier, DisposableClassifier>();
+        services.AddEncinaRecoverability();
+
+        var provider = services.BuildServiceProvider(Validate);
+        var created = provider.GetRequiredService<IErrorClassifier>().ShouldBeOfType<DisposableClassifier>();
+        provider.Dispose();
+
+        created.DisposeCount.ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public void ConfigureAction_InjectingTheClassifier_ReceivesTheEarlierRegistrationWithoutACycle()
+    {
+        var earlier = new MarkerClassifier();
+        IErrorClassifier? received = null;
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IErrorClassifier>(earlier);
+        services.AddOptions<RecoverabilityOptions>().Configure<IErrorClassifier>((_, c) => received = c);
+        services.AddEncinaRecoverability();
+
+        using var provider = services.BuildServiceProvider(Validate);
+
+        provider.GetRequiredService<IErrorClassifier>().ShouldBeSameAs(earlier);
+        received.ShouldBeSameAs(earlier);
+    }
+
+    [Fact]
+    public void ConfigureAction_InjectingTheClassifier_WithNoEarlierRegistration_ReceivesTheDefault()
+    {
+        IErrorClassifier? received = null;
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaRecoverability();
+        services.AddOptions<RecoverabilityOptions>().Configure<IErrorClassifier>((_, c) => received = c);
+
+        using var provider = services.BuildServiceProvider(Validate);
+
+        provider.GetRequiredService<IErrorClassifier>().ShouldBeOfType<DefaultErrorClassifier>();
+        received.ShouldBeOfType<DefaultErrorClassifier>();
+    }
+
     [Fact]
     public void ConfigureDelegate_IsAppliedWhenTheOptionsAreResolved_NotWhenRegistered()
     {

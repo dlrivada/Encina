@@ -168,18 +168,48 @@ public static class RecoverabilityServiceCollectionExtensions
     // else the default. A scoped or transient earlier registration keeps its lifetime.
     private sealed class OptionsClassifierFactory(ServiceDescriptor? previous)
     {
+        // An options configure action may itself inject IErrorClassifier: resolving the options from inside the
+        // factory would recurse, so a re-entrant call skips the options and answers from the earlier registration.
+        private readonly AsyncLocal<bool> _creating = new();
+
         public IErrorClassifier Create(IServiceProvider provider)
-            => provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.ErrorClassifier
-                ?? FromPrevious(provider);
+        {
+            if (_creating.Value)
+            {
+                return FromPrevious(provider);
+            }
+
+            _creating.Value = true;
+            try
+            {
+                var fromOptions = provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.ErrorClassifier;
+                return fromOptions is null ? FromPrevious(provider) : External(fromOptions);
+            }
+            finally
+            {
+                _creating.Value = false;
+            }
+        }
+
+        // Instances the options or an earlier registration own must not be disposed by the container.
+        private static IErrorClassifier External(IErrorClassifier instance)
+            => instance is IDisposable or IAsyncDisposable ? new NonDisposingClassifier(instance) : instance;
 
         // crap-exempt: single-question switch — which earlier registration supplies the classifier
         private IErrorClassifier FromPrevious(IServiceProvider provider) => previous switch
         {
             null => new DefaultErrorClassifier(),
-            { ImplementationInstance: IErrorClassifier instance } => instance,
+            { ImplementationInstance: IErrorClassifier instance } => External(instance),
             { ImplementationFactory: { } factory } => (IErrorClassifier)factory(provider),
             _ => (IErrorClassifier)ActivatorUtilities.CreateInstance(provider, previous.ImplementationType!)
         };
+    }
+
+    // Forwards to an instance somebody else owns, without being disposable itself so the container leaves it alone.
+    private sealed class NonDisposingClassifier(IErrorClassifier inner) : IErrorClassifier
+    {
+        public ErrorClassification Classify(EncinaError encinaError, Exception? exception)
+            => inner.Classify(encinaError, exception);
     }
 
     /// <summary>
