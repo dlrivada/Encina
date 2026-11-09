@@ -124,6 +124,58 @@ public sealed class MessagingServiceCollectionExtensionsRecoverabilityTests
         hosted.IndexOf(typeof(DelayedRetryStartupCheck)).ShouldBeLessThan(hosted.IndexOf(typeof(DelayedRetryProcessor)));
     }
 
+    [Fact]
+    public void AddMessagingServices_UseRecoverabilityNextToAddEncinaRecoverability_ThrowsInBothOrders()
+    {
+        var config = new MessagingConfiguration { UseRecoverability = true };
+
+        var useFirst = AddMessagingServices(config);
+        var afterUse = Should.Throw<InvalidOperationException>(() => useFirst.AddEncinaRecoverability());
+
+        var addFirst = new ServiceCollection();
+        addFirst.AddEncinaRecoverability();
+        var afterAdd = Should.Throw<InvalidOperationException>(() => addFirst.AddMessagingServices<
+            FakeOutboxStore, FakeOutboxMessageFactory,
+            FakeInboxStore, StubInboxFactory,
+            FakeSagaStore, StubSagaFactory,
+            FakeScheduledMessageStore, StubScheduledFactory,
+            StubOutboxProcessor>(config));
+
+        foreach (var message in new[] { afterUse.Message, afterAdd.Message })
+        {
+            message.ShouldContain("RecoverabilityPipelineBehavior");
+            message.ShouldContain("ADR-050");
+            message.ShouldContain("UseRecoverability");
+        }
+    }
+
+    [Fact]
+    public void AddMessagingServicesCore_UseRecoverabilityNextToAddEncinaRecoverability_ThrowsInBothOrders()
+    {
+        var config = new MessagingConfiguration { UseRecoverability = true };
+
+        var useFirst = new ServiceCollection();
+        useFirst.AddMessagingServicesCore<
+            FakeOutboxStore, FakeOutboxMessageFactory,
+            FakeInboxStore, StubInboxFactory,
+            StubOutboxProcessor>(config);
+        var afterUse = Should.Throw<InvalidOperationException>(() => useFirst.AddEncinaRecoverability());
+
+        var addFirst = new ServiceCollection();
+        addFirst.AddEncinaRecoverability();
+        var afterAdd = Should.Throw<InvalidOperationException>(() => addFirst.AddMessagingServicesCore<
+            FakeOutboxStore, FakeOutboxMessageFactory,
+            FakeInboxStore, StubInboxFactory,
+            StubOutboxProcessor>(config));
+
+        foreach (var message in new[] { afterUse.Message, afterAdd.Message })
+        {
+            message.ShouldContain("RecoverabilityPipelineBehavior");
+            message.ShouldContain("ADR-050");
+            message.ShouldContain("UseRecoverability");
+        }
+    }
+
     #region Stub Types (minimal implementations for generic constraints)
 
     private sealed class StubInboxFactory : IInboxMessageFactory

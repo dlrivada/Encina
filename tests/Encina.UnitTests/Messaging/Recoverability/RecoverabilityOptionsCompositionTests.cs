@@ -9,9 +9,10 @@ using NSubstitute;
 namespace Encina.UnitTests.Messaging.Recoverability;
 
 /// <summary>
-/// One <see cref="RecoverabilityOptions"/> value for every recoverability path (#3262): <c>AddEncinaRecoverability</c>
-/// and <c>UseRecoverability</c> compose through <c>Configure</c> in registration order, and the scheduler, the
-/// processor and the startup check decide from that single value when the container resolves them.
+/// One <see cref="RecoverabilityOptions"/> value for the recoverability registration (#3262): the options pattern
+/// (<c>Configure</c>) holds it, and the scheduler, the processor and the startup check decide from that single
+/// value when the container resolves them. Recoverability is registered once per host (#3263), so each test
+/// registers one path: <c>AddEncinaRecoverability</c> or <c>UseRecoverability</c>.
 /// </summary>
 [Trait("Category", "Unit")]
 public sealed class RecoverabilityOptionsCompositionTests
@@ -20,10 +21,10 @@ public sealed class RecoverabilityOptionsCompositionTests
 
     public sealed record ProbeCommand(int Value) : IRequest<int>;
 
-    public enum Order
+    public enum RegistrationPath
     {
-        AddEncinaRecoverabilityFirst,
-        UseRecoverabilityFirst
+        AddEncinaRecoverability,
+        UseRecoverability
     }
 
     private sealed class MarkerClassifier : IErrorClassifier
@@ -38,10 +39,17 @@ public sealed class RecoverabilityOptionsCompositionTests
         MessagingServiceCollectionExtensions.RegisterRecoverability(services, config);
     }
 
+    private static void Register(IServiceCollection services, RegistrationPath path, Action<RecoverabilityOptions> configure)
+    {
+        if (path == RegistrationPath.AddEncinaRecoverability)
+            services.AddEncinaRecoverability(configure);
+        else
+            UseRecoverability(services, configure);
+    }
+
     private static ServiceCollection Compose(
-        Order order,
-        Action<RecoverabilityOptions> viaAddEncina,
-        Action<RecoverabilityOptions> viaUse,
+        RegistrationPath path,
+        Action<RecoverabilityOptions> configure,
         bool withStore,
         bool withEncina = true)
     {
@@ -50,16 +58,7 @@ public sealed class RecoverabilityOptionsCompositionTests
         if (withEncina)
             services.AddSingleton(Substitute.For<IEncina>());
 
-        if (order == Order.AddEncinaRecoverabilityFirst)
-        {
-            services.AddEncinaRecoverability(viaAddEncina);
-            UseRecoverability(services, viaUse);
-        }
-        else
-        {
-            UseRecoverability(services, viaUse);
-            services.AddEncinaRecoverability(viaAddEncina);
-        }
+        Register(services, path, configure);
 
         if (withStore)
         {
@@ -72,65 +71,57 @@ public sealed class RecoverabilityOptionsCompositionTests
     }
 
     [Theory]
-    [InlineData(Order.AddEncinaRecoverabilityFirst, true)]
-    [InlineData(Order.AddEncinaRecoverabilityFirst, false)]
-    [InlineData(Order.UseRecoverabilityFirst, true)]
-    [InlineData(Order.UseRecoverabilityFirst, false)]
-    public void BothPaths_GiveOneEffectiveValueAndTheLastRegistrationWinsInOrder(Order order, bool delayedRetries)
+    [InlineData(RegistrationPath.AddEncinaRecoverability, true)]
+    [InlineData(RegistrationPath.AddEncinaRecoverability, false)]
+    [InlineData(RegistrationPath.UseRecoverability, true)]
+    [InlineData(RegistrationPath.UseRecoverability, false)]
+    public void EachPath_GivesOneEffectiveValueThroughTheOptionsPattern(RegistrationPath path, bool delayedRetries)
     {
-        // The two paths set the same flag differently: the later registration is the effective one in either order.
         var services = Compose(
-            order,
-            viaAddEncina: o => { o.EnableDelayedRetries = delayedRetries; o.ImmediateRetries = 7; },
-            viaUse: o => { o.EnableDelayedRetries = !delayedRetries; o.ImmediateRetries = 9; },
+            path,
+            o => { o.EnableDelayedRetries = delayedRetries; o.ImmediateRetries = 7; },
             withStore: true);
 
         using var provider = services.BuildServiceProvider(Validate);
 
         var options = provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value;
-        var lastWriter = order == Order.AddEncinaRecoverabilityFirst ? !delayedRetries : delayedRetries;
-        options.EnableDelayedRetries.ShouldBe(lastWriter);
-        options.ImmediateRetries.ShouldBe(order == Order.AddEncinaRecoverabilityFirst ? 9 : 7);
+        options.EnableDelayedRetries.ShouldBe(delayedRetries);
+        options.ImmediateRetries.ShouldBe(7);
         provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.ShouldBeSameAs(options);
         provider.GetService<RecoverabilityOptions>().ShouldBeNull();
     }
 
-    [Theory]
-    [InlineData(Order.AddEncinaRecoverabilityFirst)]
-    [InlineData(Order.UseRecoverabilityFirst)]
-    public void ConsumersAgree_WhenOneTrueAndOneFalse_TheSchedulerFollowsTheEffectiveFlag(Order order)
+    [Fact]
+    public void UseRecoverability_OverwritesAConfigureMadeBeforeIt()
     {
-        // Reported bug: the first path said "on", the last "off" (or the reverse); the consumers read different values.
-        var services = Compose(
-            order,
-            viaAddEncina: o => o.EnableDelayedRetries = true,
-            viaUse: o => o.EnableDelayedRetries = false,
-            withStore: true);
+        // The only remaining composition: an application Configure made before UseRecoverability is overwritten
+        // as a whole, including the settings left at their default.
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.Configure<RecoverabilityOptions>(o => { o.ImmediateRetries = 11; o.UseJitter = false; });
+        UseRecoverability(services, o => o.ImmediateRetries = 2);
 
         using var provider = services.BuildServiceProvider(Validate);
-        using var scope = provider.CreateScope();
 
-        var effective = provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.EnableDelayedRetries;
-        (scope.ServiceProvider.GetService<IDelayedRetryScheduler>() is not null).ShouldBe(effective);
-        scope.ServiceProvider.GetServices<IPipelineBehavior<ProbeCommand, int>>()
-            .ShouldContain(b => b is RecoverabilityPipelineBehavior<ProbeCommand, int>);
+        var options = provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value;
+        options.ImmediateRetries.ShouldBe(2);
+        options.UseJitter.ShouldBeTrue();
     }
 
     [Theory]
-    [InlineData(Order.AddEncinaRecoverabilityFirst, true, true)]
-    [InlineData(Order.AddEncinaRecoverabilityFirst, true, false)]
-    [InlineData(Order.AddEncinaRecoverabilityFirst, false, true)]
-    [InlineData(Order.AddEncinaRecoverabilityFirst, false, false)]
-    [InlineData(Order.UseRecoverabilityFirst, true, true)]
-    [InlineData(Order.UseRecoverabilityFirst, true, false)]
-    [InlineData(Order.UseRecoverabilityFirst, false, true)]
-    [InlineData(Order.UseRecoverabilityFirst, false, false)]
-    public void Matrix_BuildsWithValidationAndResolvesWhatTheFlagAndTheStoreAllow(Order order, bool delayedRetries, bool withStore)
+    [InlineData(RegistrationPath.AddEncinaRecoverability, true, true)]
+    [InlineData(RegistrationPath.AddEncinaRecoverability, true, false)]
+    [InlineData(RegistrationPath.AddEncinaRecoverability, false, true)]
+    [InlineData(RegistrationPath.AddEncinaRecoverability, false, false)]
+    [InlineData(RegistrationPath.UseRecoverability, true, true)]
+    [InlineData(RegistrationPath.UseRecoverability, true, false)]
+    [InlineData(RegistrationPath.UseRecoverability, false, true)]
+    [InlineData(RegistrationPath.UseRecoverability, false, false)]
+    public void Matrix_BuildsWithValidationAndResolvesWhatTheFlagAndTheStoreAllow(RegistrationPath path, bool delayedRetries, bool withStore)
     {
         var services = Compose(
-            order,
-            viaAddEncina: o => o.EnableDelayedRetries = delayedRetries,
-            viaUse: o => o.EnableDelayedRetries = delayedRetries,
+            path,
+            o => o.EnableDelayedRetries = delayedRetries,
             withStore: withStore);
 
         using var provider = services.BuildServiceProvider(Validate);
@@ -155,14 +146,14 @@ public sealed class RecoverabilityOptionsCompositionTests
     }
 
     [Theory]
-    [InlineData(Order.AddEncinaRecoverabilityFirst)]
-    [InlineData(Order.UseRecoverabilityFirst)]
-    public async Task Host_WithDelayedRetriesOnAndNoStore_FailsToStart(Order order)
+    [InlineData(RegistrationPath.AddEncinaRecoverability)]
+    [InlineData(RegistrationPath.UseRecoverability)]
+    public async Task Host_WithDelayedRetriesOnAndNoStore_FailsToStart(RegistrationPath path)
     {
         using var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                var composed = Compose(order, o => o.EnableDelayedRetries = true, o => o.EnableDelayedRetries = true, withStore: false);
+                var composed = Compose(path, o => o.EnableDelayedRetries = true, withStore: false);
                 foreach (var descriptor in composed)
                     services.Add(descriptor);
             })
@@ -174,14 +165,14 @@ public sealed class RecoverabilityOptionsCompositionTests
     }
 
     [Theory]
-    [InlineData(Order.AddEncinaRecoverabilityFirst)]
-    [InlineData(Order.UseRecoverabilityFirst)]
-    public async Task Host_WithDelayedRetriesOffAndNoStore_StartsAndTheProcessorStaysIdle(Order order)
+    [InlineData(RegistrationPath.AddEncinaRecoverability)]
+    [InlineData(RegistrationPath.UseRecoverability)]
+    public async Task Host_WithDelayedRetriesOffAndNoStore_StartsAndTheProcessorStaysIdle(RegistrationPath path)
     {
         using var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                var composed = Compose(order, o => o.EnableDelayedRetries = false, o => o.EnableDelayedRetries = false, withStore: false);
+                var composed = Compose(path, o => o.EnableDelayedRetries = false, withStore: false);
                 foreach (var descriptor in composed)
                     services.Add(descriptor);
             })
@@ -195,38 +186,19 @@ public sealed class RecoverabilityOptionsCompositionTests
     }
 
     [Theory]
-    [InlineData(Order.AddEncinaRecoverabilityFirst)]
-    [InlineData(Order.UseRecoverabilityFirst)]
-    public void CustomClassifier_SetByEitherPath_ReplacesTheRegisteredOneInAnyOrder(Order order)
+    [InlineData(RegistrationPath.AddEncinaRecoverability)]
+    [InlineData(RegistrationPath.UseRecoverability)]
+    public void CustomClassifier_SetByEitherPath_ReplacesTheRegisteredOneInAnyOrder(RegistrationPath path)
     {
         var custom = new MarkerClassifier();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IErrorClassifier>(new DefaultErrorClassifier());
-        if (order == Order.AddEncinaRecoverabilityFirst)
-            services.AddEncinaRecoverability(o => o.ErrorClassifier = custom);
-        else
-            UseRecoverability(services, o => o.ErrorClassifier = custom);
+        Register(services, path, o => o.ErrorClassifier = custom);
 
         using var provider = services.BuildServiceProvider(Validate);
 
         provider.GetRequiredService<IErrorClassifier>().ShouldBeSameAs(custom);
-    }
-
-    [Fact]
-    public void ClassifierRegisteredByBothPaths_IsDecidedOnceAndKeepsTheEarlierRegistrationWithoutACustomOne()
-    {
-        var earlier = new MarkerClassifier();
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton<IErrorClassifier>(earlier);
-        services.AddEncinaRecoverability();
-        UseRecoverability(services, _ => { });
-
-        using var provider = services.BuildServiceProvider(Validate);
-
-        services.Count(d => d.ServiceType == typeof(IErrorClassifier)).ShouldBe(1);
-        provider.GetRequiredService<IErrorClassifier>().ShouldBeSameAs(earlier);
     }
 
     [Fact]
