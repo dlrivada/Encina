@@ -87,35 +87,24 @@ internal sealed class RecoverabilityRegistrationCheck : IHostedService
     /// </summary>
     internal static string? DescribeDuplicate(IServiceCollection services, int pending)
     {
-        var behaviors = pending;
-        var hasInstance = false;
-        foreach (var descriptor in services)
-        {
-            if (descriptor.IsKeyedService)
-            {
-                continue;
-            }
-
-            if (descriptor.ServiceType == typeof(RecoverabilityOptions))
-            {
-                hasInstance = true;
-            }
-            else if (descriptor.ServiceType == typeof(IPipelineBehavior<,>)
-                && descriptor.ImplementationType == typeof(RecoverabilityPipelineBehavior<,>))
-            {
-                behaviors++;
-            }
-        }
-
+        var behaviors = pending + services.Count(IsRecoverabilityBehavior);
         if (behaviors > 1)
         {
             return $"RecoverabilityPipelineBehavior is registered {behaviors} times";
         }
 
-        return hasInstance && behaviors > 0
+        return behaviors > 0 && services.Any(IsOptionsInstance)
             ? "a RecoverabilityOptions instance is registered directly"
             : null;
     }
+
+    private static bool IsRecoverabilityBehavior(ServiceDescriptor descriptor)
+        => !descriptor.IsKeyedService
+            && descriptor.ServiceType == typeof(IPipelineBehavior<,>)
+            && descriptor.ImplementationType == typeof(RecoverabilityPipelineBehavior<,>);
+
+    private static bool IsOptionsInstance(ServiceDescriptor descriptor)
+        => !descriptor.IsKeyedService && descriptor.ServiceType == typeof(RecoverabilityOptions);
 
     /// <summary>
     /// Builds the message of the failure: the module, the duplicate, the requirement, ADR-050 and how to fix it.
