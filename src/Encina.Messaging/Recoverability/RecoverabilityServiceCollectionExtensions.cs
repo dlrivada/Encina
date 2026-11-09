@@ -142,46 +142,44 @@ public static class RecoverabilityServiceCollectionExtensions
     /// </summary>
     internal static void RegisterErrorClassifier(IServiceCollection services)
     {
-        var previous = services.LastOrDefault(
-            descriptor => descriptor.ServiceType == typeof(IErrorClassifier) && !descriptor.IsKeyedService);
-        if (previous?.ImplementationFactory?.Target is OptionsClassifierFactory)
+        var previous = services.LastOrDefault(IsClassifierDescriptor);
+        if (previous is not null && IsOptionsClassifierFactory(previous))
         {
             return;
         }
 
+        var lifetime = ServiceLifetime.Singleton;
         if (previous is not null)
         {
+            lifetime = previous.Lifetime;
             services.Remove(previous);
         }
 
-        var factory = new OptionsClassifierFactory(previous);
-        services.Add(new ServiceDescriptor(
-            typeof(IErrorClassifier),
-            factory.Create,
-            previous?.Lifetime ?? ServiceLifetime.Singleton));
+        services.Add(new ServiceDescriptor(typeof(IErrorClassifier), new OptionsClassifierFactory(previous).Create, lifetime));
     }
+
+    private static bool IsClassifierDescriptor(ServiceDescriptor descriptor)
+        => descriptor.ServiceType == typeof(IErrorClassifier) && !descriptor.IsKeyedService;
+
+    private static bool IsOptionsClassifierFactory(ServiceDescriptor descriptor)
+        => descriptor.ImplementationFactory?.Target is OptionsClassifierFactory;
 
     // Resolves the classifier: the one the options carry, else the registration that was in place before,
     // else the default. A scoped or transient earlier registration keeps its lifetime.
     private sealed class OptionsClassifierFactory(ServiceDescriptor? previous)
     {
         public IErrorClassifier Create(IServiceProvider provider)
-        {
-            var custom = provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.ErrorClassifier;
-            if (custom is not null)
-            {
-                return custom;
-            }
+            => provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.ErrorClassifier
+                ?? FromPrevious(provider);
 
-            return previous switch
-            {
-                null => new DefaultErrorClassifier(),
-                { ImplementationInstance: IErrorClassifier instance } => instance,
-                { ImplementationFactory: { } factory } => (IErrorClassifier)factory(provider),
-                { ImplementationType: { } type } => (IErrorClassifier)ActivatorUtilities.CreateInstance(provider, type),
-                _ => new DefaultErrorClassifier()
-            };
-        }
+        // crap-exempt: single-question switch — which earlier registration supplies the classifier
+        private IErrorClassifier FromPrevious(IServiceProvider provider) => previous switch
+        {
+            null => new DefaultErrorClassifier(),
+            { ImplementationInstance: IErrorClassifier instance } => instance,
+            { ImplementationFactory: { } factory } => (IErrorClassifier)factory(provider),
+            _ => (IErrorClassifier)ActivatorUtilities.CreateInstance(provider, previous.ImplementationType!)
+        };
     }
 
     /// <summary>

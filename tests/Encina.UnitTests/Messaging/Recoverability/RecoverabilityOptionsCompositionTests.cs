@@ -250,6 +250,34 @@ public sealed class RecoverabilityOptionsCompositionTests
     }
 
     [Fact]
+    public void Classifier_KeptFromAScopedRegistration_KeepsItsLifetime()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddScoped<IErrorClassifier, MarkerClassifier>();
+        services.AddEncinaRecoverability();
+
+        using var provider = services.BuildServiceProvider(Validate);
+        using var scope = provider.CreateScope();
+
+        services.Single(d => d.ServiceType == typeof(IErrorClassifier)).Lifetime.ShouldBe(ServiceLifetime.Scoped);
+        scope.ServiceProvider.GetRequiredService<IErrorClassifier>().ShouldBeOfType<MarkerClassifier>();
+    }
+
+    [Fact]
+    public void ConfigureDelegate_IsAppliedWhenTheOptionsAreResolved_NotWhenRegistered()
+    {
+        var services = new ServiceCollection();
+        var invoked = false;
+        services.AddEncinaRecoverability(_ => invoked = true);
+
+        invoked.ShouldBeFalse();
+        using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.ShouldNotBeNull();
+        invoked.ShouldBeTrue();
+    }
+
+    [Fact]
     public void CopyTo_CopiesEverySetting()
     {
         var source = new RecoverabilityOptions
