@@ -95,6 +95,11 @@ public sealed class RecoverabilityOptions
     /// <remarks>
     /// The classifier determines whether an error is transient (retriable)
     /// or permanent (should go directly to DLQ).
+    /// <para>
+    /// Injecting <c>IErrorClassifier</c> into a configuration action for <see cref="RecoverabilityOptions"/>
+    /// (for example <c>services.AddOptions&lt;RecoverabilityOptions&gt;().Configure&lt;IErrorClassifier&gt;(...)</c>)
+    /// is not supported, because the registered classifier is itself decided from these options.
+    /// </para>
     /// </remarks>
     public IErrorClassifier? ErrorClassifier { get; set; }
 

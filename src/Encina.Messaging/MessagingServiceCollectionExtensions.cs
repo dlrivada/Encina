@@ -129,8 +129,8 @@ public static class MessagingServiceCollectionExtensions
     {
         if (!config.UseRecoverability) return;
 
-        // The options pattern: the configured values compose with any AddEncinaRecoverability delegate, in
-        // registration order, into the one RecoverabilityOptions every consumer reads through IOptions.
+        // The options pattern: this registration applies every setting as a whole, so the later registration
+        // wins. Every consumer reads the one RecoverabilityOptions through IOptions.
         services.Configure<RecoverabilityOptions>(options => config.RecoverabilityOptions.CopyTo(options));
         RecoverabilityServiceCollectionExtensions.RegisterErrorClassifier(services);
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(RecoverabilityPipelineBehavior<,>));

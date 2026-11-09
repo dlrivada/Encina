@@ -37,6 +37,10 @@ public static class RecoverabilityServiceCollectionExtensions
     /// </list>
     /// An empty <see cref="RecoverabilityOptions.DelayedRetries"/> array with the flag on still requires the store.
     /// </para>
+    /// <para>
+    /// Injecting <c>IErrorClassifier</c> into a configuration action for <see cref="RecoverabilityOptions"/> is not
+    /// supported, because the registered classifier is itself decided from these options.
+    /// </para>
     /// </remarks>
     /// <example>
     /// <code>
@@ -168,8 +172,8 @@ public static class RecoverabilityServiceCollectionExtensions
     // else the default. A scoped or transient earlier registration keeps its lifetime.
     private sealed class OptionsClassifierFactory(ServiceDescriptor? previous)
     {
-        // An options configure action may itself inject IErrorClassifier: resolving the options from inside the
-        // factory would recurse, so a re-entrant call skips the options and answers from the earlier registration.
+        // Guards only against recursion: a configure action that injects IErrorClassifier re-enters this factory,
+        // and the re-entrant call answers from the earlier registration. That pattern is not supported.
         private readonly AsyncLocal<bool> _creating = new();
 
         public IErrorClassifier Create(IServiceProvider provider)
