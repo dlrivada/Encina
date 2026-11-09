@@ -199,6 +199,7 @@ public sealed class DelayedRetryChainTests
         var failed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var options = new RecoverabilityOptions
         {
+            EnableDelayedRetries = true,
             DelayedRetries = [TimeSpan.FromMilliseconds(1)],
             OnPermanentFailure = (message, _) => { failures.Add(message); failed.TrySetResult(); return Task.CompletedTask; }
         };
@@ -213,7 +214,7 @@ public sealed class DelayedRetryChainTests
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         scopeFactory.CreateScope().Returns(scope);
         var processor = new DelayedRetryProcessor(
-            scopeFactory, options, NullLogger<DelayedRetryProcessor>.Instance, deadLetterCapture: deadLetterCapture)
+            scopeFactory, Options.Create(options), NullLogger<DelayedRetryProcessor>.Instance, deadLetterCapture: deadLetterCapture)
         {
             ProcessingInterval = TimeSpan.FromMilliseconds(5)
         };
@@ -426,7 +427,7 @@ public sealed class DelayedRetryChainTests
         RecoverabilityOptions options,
         IDelayedRetryScheduler? scheduler)
         where TRequest : IRequest<int> =>
-        new(options, NullLogger<RecoverabilityPipelineBehavior<TRequest, int>>.Instance, scheduler);
+        new(Options.Create(options), NullLogger<RecoverabilityPipelineBehavior<TRequest, int>>.Instance, scheduler);
 
     private static IRequestContext CreateRequestContext()
     {
@@ -600,6 +601,7 @@ public sealed class DelayedRetryChainTests
         var failures = new List<FailedMessage>();
         var options = new RecoverabilityOptions
         {
+            EnableDelayedRetries = true,
             DelayedRetries = [TimeSpan.FromMilliseconds(1)],
             OnPermanentFailure = (failed, _) => { failures.Add(failed); return Task.CompletedTask; }
         };
@@ -613,7 +615,7 @@ public sealed class DelayedRetryChainTests
         scope.ServiceProvider.Returns(serviceProvider);
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         scopeFactory.CreateScope().Returns(scope);
-        var processor = new DelayedRetryProcessor(scopeFactory, options, NullLogger<DelayedRetryProcessor>.Instance)
+        var processor = new DelayedRetryProcessor(scopeFactory, Options.Create(options), NullLogger<DelayedRetryProcessor>.Instance)
         {
             ProcessingInterval = TimeSpan.FromMilliseconds(5)
         };
@@ -992,6 +994,7 @@ public sealed class DelayedRetryChainTests
         var failures = new List<FailedMessage>();
         var options = new RecoverabilityOptions
         {
+            EnableDelayedRetries = true,
             DelayedRetries = [TimeSpan.FromMilliseconds(1)],
             OnPermanentFailure = (message, _) => { failures.Add(message); return Task.CompletedTask; }
         };
@@ -1005,7 +1008,7 @@ public sealed class DelayedRetryChainTests
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         scopeFactory.CreateScope().Returns(scope);
         var processor = new DelayedRetryProcessor(
-            scopeFactory, options, NullLogger<DelayedRetryProcessor>.Instance, deadLetterCapture: host.Capture)
+            scopeFactory, Options.Create(options), NullLogger<DelayedRetryProcessor>.Instance, deadLetterCapture: host.Capture)
         {
             ProcessingInterval = TimeSpan.FromMilliseconds(5)
         };
@@ -1039,6 +1042,7 @@ public sealed class DelayedRetryChainTests
         var called = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var options = new RecoverabilityOptions
         {
+            EnableDelayedRetries = true,
             DelayedRetries = [TimeSpan.FromMilliseconds(1)],
             OnPermanentFailure = (_, _) =>
             {
@@ -1055,7 +1059,7 @@ public sealed class DelayedRetryChainTests
         scope.ServiceProvider.Returns(serviceProvider);
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         scopeFactory.CreateScope().Returns(scope);
-        var processor = new DelayedRetryProcessor(scopeFactory, options, NullLogger<DelayedRetryProcessor>.Instance)
+        var processor = new DelayedRetryProcessor(scopeFactory, Options.Create(options), NullLogger<DelayedRetryProcessor>.Instance)
         {
             ProcessingInterval = TimeSpan.FromMilliseconds(5)
         };
@@ -1192,7 +1196,7 @@ public sealed class DelayedRetryChainTests
                 Scheduled);
 
             _behavior = new RecoverabilityPipelineBehavior<ChainCommand, int>(
-                _options,
+                Options.Create(_options),
                 BehaviorLogger,
                 Scheduler,
                 deadLetterCapture: deadLetterCapture);
@@ -1249,7 +1253,7 @@ public sealed class DelayedRetryChainTests
             scopeFactory.CreateScope().Returns(scope);
 
             var processor = new DelayedRetryProcessor(
-                scopeFactory, _options, ProcessorLogger, deadLetterCapture: _deadLetterCapture)
+                scopeFactory, Options.Create(_options), ProcessorLogger, deadLetterCapture: _deadLetterCapture)
             {
                 ProcessingInterval = TimeSpan.FromMilliseconds(5)
             };

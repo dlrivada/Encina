@@ -46,7 +46,7 @@ public sealed class ServiceCollectionExtensionsRecoverabilityRoutersTests
         services.ShouldContain(d =>
             d.ServiceType == typeof(IPipelineBehavior<,>) &&
             d.ImplementationType == typeof(RecoverabilityPipelineBehavior<,>));
-        provider.GetRequiredService<RecoverabilityOptions>().ShouldNotBeNull();
+        provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.ShouldNotBeNull();
         provider.GetRequiredService<IErrorClassifier>().ShouldNotBeNull();
         scope.ServiceProvider.GetServices<IPipelineBehavior<TestRequest, string>>()
             .ShouldContain(b => b is RecoverabilityPipelineBehavior<TestRequest, string>);
@@ -58,7 +58,7 @@ public sealed class ServiceCollectionExtensionsRecoverabilityRoutersTests
         var services = Register(_ => { });
 
         services.ShouldNotContain(d => d.ImplementationType == typeof(RecoverabilityPipelineBehavior<,>));
-        services.ShouldNotContain(d => d.ServiceType == typeof(RecoverabilityOptions));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IConfigureOptions<RecoverabilityOptions>));
     }
 
     [Fact]

@@ -26,7 +26,7 @@ public class RecoverabilityGuardTests
     public void PipelineBehavior_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(
-            new RecoverabilityOptions(),
+            Options.Create(new RecoverabilityOptions()),
             null!);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
@@ -36,7 +36,7 @@ public class RecoverabilityGuardTests
     public void PipelineBehavior_NullDelayedRetryScheduler_Succeeds()
     {
         var act = () => new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(
-            new RecoverabilityOptions(),
+            Options.Create(new RecoverabilityOptions()),
             NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance,
             delayedRetryScheduler: null);
 
@@ -47,7 +47,7 @@ public class RecoverabilityGuardTests
     public void PipelineBehavior_NullTimeProvider_UsesSystemDefault()
     {
         var act = () => new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(
-            new RecoverabilityOptions(),
+            Options.Create(new RecoverabilityOptions()),
             NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance,
             null,
             timeProvider: null);
@@ -59,7 +59,7 @@ public class RecoverabilityGuardTests
     public void PipelineBehavior_ValidParameters_CreatesInstance()
     {
         var sut = new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(
-            new RecoverabilityOptions(),
+            Options.Create(new RecoverabilityOptions()),
             NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance);
 
         sut.ShouldNotBeNull();
@@ -71,7 +71,7 @@ public class RecoverabilityGuardTests
         var options = new RecoverabilityOptions { ErrorClassifier = null };
 
         var act = () => new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(
-            options,
+            Options.Create(options),
             NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance);
 
         Should.NotThrow(act);
@@ -130,7 +130,7 @@ public class RecoverabilityGuardTests
     {
         var act = () => new DelayedRetryProcessor(
             null!,
-            new RecoverabilityOptions(),
+            Options.Create(new RecoverabilityOptions()),
             NullLogger<DelayedRetryProcessor>.Instance);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("scopeFactory");
@@ -152,7 +152,7 @@ public class RecoverabilityGuardTests
     {
         var act = () => new DelayedRetryProcessor(
             Substitute.For<IServiceScopeFactory>(),
-            new RecoverabilityOptions(),
+            Options.Create(new RecoverabilityOptions()),
             null!);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
@@ -163,7 +163,7 @@ public class RecoverabilityGuardTests
     {
         var sut = new DelayedRetryProcessor(
             Substitute.For<IServiceScopeFactory>(),
-            new RecoverabilityOptions(),
+            Options.Create(new RecoverabilityOptions()),
             NullLogger<DelayedRetryProcessor>.Instance);
 
         sut.ShouldNotBeNull();
@@ -174,7 +174,7 @@ public class RecoverabilityGuardTests
     {
         var sut = new DelayedRetryProcessor(
             Substitute.For<IServiceScopeFactory>(),
-            new RecoverabilityOptions(),
+            Options.Create(new RecoverabilityOptions()),
             NullLogger<DelayedRetryProcessor>.Instance);
 
         sut.ProcessingInterval.ShouldBeGreaterThan(TimeSpan.Zero);
@@ -185,7 +185,7 @@ public class RecoverabilityGuardTests
     {
         var sut = new DelayedRetryProcessor(
             Substitute.For<IServiceScopeFactory>(),
-            new RecoverabilityOptions(),
+            Options.Create(new RecoverabilityOptions()),
             NullLogger<DelayedRetryProcessor>.Instance);
 
         sut.BatchSize.ShouldBeGreaterThan(0);
@@ -196,7 +196,7 @@ public class RecoverabilityGuardTests
     {
         var sut = new DelayedRetryProcessor(
             Substitute.For<IServiceScopeFactory>(),
-            new RecoverabilityOptions(),
+            Options.Create(new RecoverabilityOptions()),
             NullLogger<DelayedRetryProcessor>.Instance);
 
         sut.ProcessingInterval = TimeSpan.FromSeconds(10);
@@ -208,7 +208,7 @@ public class RecoverabilityGuardTests
     {
         var sut = new DelayedRetryProcessor(
             Substitute.For<IServiceScopeFactory>(),
-            new RecoverabilityOptions(),
+            Options.Create(new RecoverabilityOptions()),
             NullLogger<DelayedRetryProcessor>.Instance);
 
         sut.BatchSize = 50;
@@ -228,7 +228,7 @@ public class RecoverabilityGuardTests
         // DefaultErrorClassifier classifies most errors as Transient
         // Verify the default is created and constructor does not throw
         var act = () => new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(
-            options,
+            Options.Create(options),
             NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance);
 
         Should.NotThrow(act);
@@ -241,7 +241,7 @@ public class RecoverabilityGuardTests
         var options = new RecoverabilityOptions { ErrorClassifier = customClassifier };
 
         var act = () => new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(
-            options,
+            Options.Create(options),
             NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance);
 
         Should.NotThrow(act);

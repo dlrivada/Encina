@@ -1,6 +1,7 @@
 using Encina.Messaging.Recoverability;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
 
@@ -72,7 +73,7 @@ public sealed class RecoverabilityPipelineBehaviorContractTests
     {
         var options = new RecoverabilityOptions { ImmediateRetries = immediateRetries };
         var logger = NullLogger<RecoverabilityPipelineBehavior<TestRecoverableCommand, string>>.Instance;
-        return new RecoverabilityPipelineBehavior<TestRecoverableCommand, string>(options, logger);
+        return new RecoverabilityPipelineBehavior<TestRecoverableCommand, string>(Options.Create(options), logger);
     }
 
     private static IRequestContext CreateContext()
