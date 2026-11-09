@@ -1,6 +1,9 @@
+using Encina.EntityFrameworkCore;
 using Encina.Messaging;
 using Encina.Messaging.Recoverability;
 using Encina.Recoverability;
+using Encina.UnitTests.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -307,5 +310,35 @@ public sealed class RecoverabilityDuplicateRegistrationTests
 
         await check.StartAsync(CancellationToken.None);
         await check.StopAsync(CancellationToken.None);
+    }
+
+    private static ServiceCollection RegisterEntityFramework(Action<MessagingConfiguration> configure)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<TestDbContext>(options => options.UseInMemoryDatabase("RecoverabilityRoutersDb"));
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(configure);
+        return services;
+    }
+
+    [Fact]
+    public void AddEncinaEntityFrameworkCore_UseRecoverabilityNextToAddEncinaRecoverability_ThrowsInBothOrders()
+    {
+        var afterEfCore = RegisterEntityFramework(config => config.UseRecoverability = true);
+        var first = Should.Throw<InvalidOperationException>(() => afterEfCore.AddEncinaRecoverability());
+
+        var efCoreAfter = new ServiceCollection();
+        efCoreAfter.AddLogging();
+        efCoreAfter.AddDbContext<TestDbContext>(options => options.UseInMemoryDatabase("RecoverabilityDuplicateDb"));
+        efCoreAfter.AddEncinaRecoverability();
+        var second = Should.Throw<InvalidOperationException>(
+            () => efCoreAfter.AddEncinaEntityFrameworkCore<TestDbContext>(config => config.UseRecoverability = true));
+
+        foreach (var message in new[] { first.Message, second.Message })
+        {
+            message.ShouldContain("RecoverabilityPipelineBehavior");
+            message.ShouldContain("ADR-050");
+            message.ShouldContain("UseRecoverability");
+        }
     }
 }

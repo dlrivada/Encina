@@ -191,26 +191,5 @@ public sealed class ServiceCollectionExtensionsRecoverabilityRoutersTests
         await Should.ThrowAsync<InvalidOperationException>(() => check.StartAsync(CancellationToken.None));
     }
 
-    [Fact]
-    public void AddEncinaEntityFrameworkCore_UseRecoverabilityNextToAddEncinaRecoverability_ThrowsInBothOrders()
-    {
-        var afterEfCore = Register(config => config.UseRecoverability = true);
-        var first = Should.Throw<InvalidOperationException>(() => afterEfCore.AddEncinaRecoverability());
-
-        var efCoreAfter = new ServiceCollection();
-        efCoreAfter.AddLogging();
-        efCoreAfter.AddDbContext<TestDbContext>(options => options.UseInMemoryDatabase("RecoverabilityDuplicateDb"));
-        efCoreAfter.AddEncinaRecoverability();
-        var second = Should.Throw<InvalidOperationException>(
-            () => efCoreAfter.AddEncinaEntityFrameworkCore<TestDbContext>(config => config.UseRecoverability = true));
-
-        foreach (var message in new[] { first.Message, second.Message })
-        {
-            message.ShouldContain("RecoverabilityPipelineBehavior");
-            message.ShouldContain("ADR-050");
-            message.ShouldContain("UseRecoverability");
-        }
-    }
-
     public sealed record TestRequest : IRequest<string>;
 }
