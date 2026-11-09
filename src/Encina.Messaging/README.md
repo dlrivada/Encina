@@ -226,34 +226,35 @@ public class OrderHandler : ICommandHandler<CreateOrderCommand, Order>
 services.AddEncinaMessaging(config =>
 {
     config.UseRecoverability = true;
-    config.RecoverabilityOptions = new RecoverabilityOptions
+    // RecoverabilityOptions is get-only on the configuration: assign its members
+    var recoverability = config.RecoverabilityOptions;
+
+    // Immediate retries (in-memory, fast)
+    recoverability.ImmediateRetries = 3;
+    recoverability.ImmediateRetryDelay = TimeSpan.FromMilliseconds(100);
+    recoverability.UseExponentialBackoffForImmediateRetries = true;
+
+    // Delayed retries (persistent, scheduled). Off by default; turning them on
+    // requires an IDelayedRetryStore, an IDelayedRetryMessageFactory and IEncina (registered below)
+    recoverability.EnableDelayedRetries = true;
+    recoverability.DelayedRetries =
+    [
+        TimeSpan.FromSeconds(30),
+        TimeSpan.FromMinutes(5),
+        TimeSpan.FromMinutes(30),
+        TimeSpan.FromHours(2)
+    ];
+
+    // Jitter to prevent thundering herd
+    recoverability.UseJitter = true;
+    recoverability.MaxJitterPercent = 20;
+
+    // Dead letter queue callback
+    recoverability.OnPermanentFailure = async (failedMessage, ct) =>
     {
-        // Immediate retries (in-memory, fast)
-        ImmediateRetries = 3,
-        ImmediateRetryDelay = TimeSpan.FromMilliseconds(100),
-        UseExponentialBackoffForImmediateRetries = true,
-
-        // Delayed retries (persistent, scheduled). Off by default; turning them on
-        // requires an IDelayedRetryStore, an IDelayedRetryMessageFactory and IEncina (registered below)
-        EnableDelayedRetries = true,
-        DelayedRetries = [
-            TimeSpan.FromSeconds(30),
-            TimeSpan.FromMinutes(5),
-            TimeSpan.FromMinutes(30),
-            TimeSpan.FromHours(2)
-        ],
-
-        // Jitter to prevent thundering herd
-        UseJitter = true,
-        MaxJitterPercent = 20,
-
-        // Dead letter queue callback
-        OnPermanentFailure = async (failedMessage, ct) =>
-        {
-            await _deadLetterQueue.SendAsync(failedMessage, ct);
-            _logger.LogError("Message {Id} moved to DLQ after {Attempts} attempts",
-                failedMessage.Id, failedMessage.TotalAttempts);
-        }
+        await _deadLetterQueue.SendAsync(failedMessage, ct);
+        _logger.LogError("Message {Id} moved to DLQ after {Attempts} attempts",
+            failedMessage.Id, failedMessage.TotalAttempts);
     };
 });
 
@@ -270,13 +271,23 @@ services.AddEncinaDelayedRetryStore<MyDelayedRetryStore, MyDelayedRetryMessageFa
 services.AddEncinaMessaging(config =>
 {
     config.UseRecoverability = true;
-    config.RecoverabilityOptions = new RecoverabilityOptions
-    {
-        ImmediateRetries = 3,
-        // EnableDelayedRetries stays false: immediate retries + dead letter only
-    };
+    config.RecoverabilityOptions.ImmediateRetries = 3;
+    // EnableDelayedRetries stays false: immediate retries + dead letter only
 });
 ```
+
+#### Register Recoverability once
+
+Recoverability is registered once per host ([ADR-050](../../docs/architecture/adr/050-modules-may-require-modules.md)). Each of these combinations fails by design, in either order:
+
+- `AddEncinaRecoverability()` (or `AddEncinaRecoverability<TClassifier>()`) together with `UseRecoverability = true`.
+- The same registration called twice.
+- Two provider registrations with `UseRecoverability = true`, for example `AddEncinaEntityFrameworkCore` and an ADO.NET or Dapper `AddMessagingServices`.
+- A `RecoverabilityOptions` instance registered with `AddSingleton` next to either path.
+
+The registration call throws an `InvalidOperationException` that names the duplicate, the module, ADR-050 and the fix. A duplicate added directly to the service collection after every Encina call (a raw `AddScoped(typeof(IPipelineBehavior<,>), typeof(RecoverabilityPipelineBehavior<,>))` or `AddSingleton(RecoverabilityOptions)`) fails the host start with a Critical log (EventId 5458). Without a generic host that start check never runs; the registration-time error still does. Only the open generic registration of the behavior is checked: a closed registration for one request type is not detected.
+
+Configure the options with `AddEncinaRecoverability(options => ...)` or the `config.RecoverabilityOptions` members, and read them through `IOptions<RecoverabilityOptions>`. The one supported composition is an application `services.Configure<RecoverabilityOptions>(...)` made before `UseRecoverability`: `UseRecoverability` overwrites it as a whole, so it does not merge with the two paths above.
 
 When `EnableDelayedRetries` is `true`, an `IDelayedRetryStore`, an `IDelayedRetryMessageFactory` and `IEncina` (registered with `AddEncina()`) must be registered, even if `DelayedRetries` is empty: the flag alone decides. Otherwise the application fails at startup with an `InvalidOperationException` that names what is missing, [ADR-050](../../docs/architecture/adr/050-modules-may-require-modules.md) and the fix. Without a generic host the startup check never runs: a missing store or factory fails when the scheduler is resolved, while a missing `IEncina` is caught only by the startup check (neither the scheduler nor the behavior needs it), so each processor cycle fails and logs `ProcessingError` (EventId 2847) while the processor keeps running. The startup check is interim and moves into the requirements validator of [#2382](https://github.com/dlrivada/Encina/issues/2382).
 
