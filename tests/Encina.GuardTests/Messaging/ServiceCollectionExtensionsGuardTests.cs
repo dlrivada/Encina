@@ -1,6 +1,7 @@
 using Encina.Messaging;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
+using Encina.Messaging.Recoverability;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Testing.Fakes.Factories;
@@ -46,6 +47,30 @@ public class ServiceCollectionExtensionsGuardTests
             StubOutboxProcessor>(null!);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("config");
+    }
+
+    [Fact]
+    public void AddMessagingServices_UseRecoverability_ComposesTheConfiguredOptionsIntoTheOptionsValue()
+    {
+        // The guarded path copies every configured setting, so a rejected MaxRetryAfter never reaches the value
+        // and a valid one arrives intact.
+        var config = new MessagingConfiguration { UseRecoverability = true };
+        config.RecoverabilityOptions.MaxRetryAfter = TimeSpan.FromHours(3);
+        config.RecoverabilityOptions.ImmediateRetries = 5;
+        var services = new ServiceCollection();
+        services.AddMessagingServices<
+            FakeOutboxStore, FakeOutboxMessageFactory,
+            FakeInboxStore, StubInboxFactory,
+            FakeSagaStore, StubSagaFactory,
+            FakeScheduledMessageStore, StubScheduledFactory,
+            StubOutboxProcessor>(config);
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value;
+
+        options.MaxRetryAfter.ShouldBe(TimeSpan.FromHours(3));
+        options.ImmediateRetries.ShouldBe(5);
+        Should.Throw<ArgumentOutOfRangeException>(() => options.MaxRetryAfter = TimeSpan.Zero);
     }
 
     #endregion

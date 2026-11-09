@@ -30,7 +30,7 @@ public sealed class DelayedRetryProcessorTests
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new DelayedRetryProcessor(null!, options, logger));
+            new DelayedRetryProcessor(null!, Options.Create(options), logger));
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class DelayedRetryProcessorTests
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new DelayedRetryProcessor(scopeFactory, options, null!));
+            new DelayedRetryProcessor(scopeFactory, Options.Create(options), null!));
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class DelayedRetryProcessorTests
         var logger = NullLogger<DelayedRetryProcessor>.Instance;
 
         // Act
-        var processor = new DelayedRetryProcessor(scopeFactory, options, logger);
+        var processor = new DelayedRetryProcessor(scopeFactory, Options.Create(options), logger);
 
         // Assert
         processor.ShouldNotBeNull();
@@ -84,7 +84,7 @@ public sealed class DelayedRetryProcessorTests
         var services = new ServiceCollection();
         using var provider = services.BuildServiceProvider();
         var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<DelayedRetryProcessor>();
-        var processor = new DelayedRetryProcessor(provider.GetRequiredService<IServiceScopeFactory>(), new RecoverabilityOptions(), logger)
+        var processor = new DelayedRetryProcessor(provider.GetRequiredService<IServiceScopeFactory>(), Options.Create(new RecoverabilityOptions { EnableDelayedRetries = true }), logger)
         {
             ProcessingInterval = TimeSpan.FromMilliseconds(10)
         };
@@ -124,7 +124,7 @@ public sealed class DelayedRetryProcessorTests
         services.AddSingleton<IMessageSerializer>(new JsonMessageSerializer());
         using var provider = services.BuildServiceProvider();
         var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<DelayedRetryProcessor>();
-        var processor = new DelayedRetryProcessor(provider.GetRequiredService<IServiceScopeFactory>(), new RecoverabilityOptions(), logger)
+        var processor = new DelayedRetryProcessor(provider.GetRequiredService<IServiceScopeFactory>(), Options.Create(new RecoverabilityOptions { EnableDelayedRetries = true }), logger)
         {
             ProcessingInterval = TimeSpan.FromMilliseconds(10)
         };
@@ -163,10 +163,10 @@ public sealed class DelayedRetryProcessorTests
     {
         // Arrange
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
-        var options = new RecoverabilityOptions();
+        var options = new RecoverabilityOptions { EnableDelayedRetries = true };
         var logger = NullLogger<DelayedRetryProcessor>.Instance;
 
-        var processor = new DelayedRetryProcessor(scopeFactory, options, logger)
+        var processor = new DelayedRetryProcessor(scopeFactory, Options.Create(options), logger)
         {
             ProcessingInterval = TimeSpan.FromSeconds(1)
         };
@@ -214,10 +214,10 @@ public sealed class DelayedRetryProcessorTests
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         scopeFactory.CreateScope().Returns(scope);
 
-        var options = new RecoverabilityOptions();
+        var options = new RecoverabilityOptions { EnableDelayedRetries = true };
         var logger = NullLogger<DelayedRetryProcessor>.Instance;
 
-        var processor = new DelayedRetryProcessor(scopeFactory, options, logger)
+        var processor = new DelayedRetryProcessor(scopeFactory, Options.Create(options), logger)
         {
             ProcessingInterval = TimeSpan.FromMilliseconds(10)
         };
@@ -267,10 +267,10 @@ public sealed class DelayedRetryProcessorTests
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         scopeFactory.CreateScope().Returns(scope);
 
-        var options = new RecoverabilityOptions();
+        var options = new RecoverabilityOptions { EnableDelayedRetries = true };
         var logger = NullLogger<DelayedRetryProcessor>.Instance;
 
-        var processor = new DelayedRetryProcessor(scopeFactory, options, logger)
+        var processor = new DelayedRetryProcessor(scopeFactory, Options.Create(options), logger)
         {
             ProcessingInterval = TimeSpan.FromMilliseconds(10)
         };
@@ -315,7 +315,7 @@ public sealed class DelayedRetryProcessorTests
         encina.Send(Arg.Any<IRequest<int>>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, int>>(Right<EncinaError, int>(7)));
 
-        var processor = CreateProcessor(store, encina, new RecoverabilityOptions());
+        var processor = CreateProcessor(store, encina, new RecoverabilityOptions { EnableDelayedRetries = true });
         using var cts = new CancellationTokenSource();
 
         // Act
@@ -355,6 +355,7 @@ public sealed class DelayedRetryProcessorTests
         FailedMessage? permanentFailure = null;
         var options = new RecoverabilityOptions
         {
+            EnableDelayedRetries = true,
             DelayedRetries = [],
             OnPermanentFailure = (failedMessage, _) => { permanentFailure = failedMessage; return Task.CompletedTask; }
         };
@@ -397,7 +398,7 @@ public sealed class DelayedRetryProcessorTests
         encina.Send(Arg.Any<IRequest<int>>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, int>>(Right<EncinaError, int>(7)));
 
-        var processor = CreateProcessor(store, encina, new RecoverabilityOptions());
+        var processor = CreateProcessor(store, encina, new RecoverabilityOptions { EnableDelayedRetries = true });
         using var cts = new CancellationTokenSource();
 
         // Act
@@ -433,6 +434,7 @@ public sealed class DelayedRetryProcessorTests
         var reported = new TaskCompletionSource<FailedMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
         var options = new RecoverabilityOptions
         {
+            EnableDelayedRetries = true,
             DelayedRetries = [TimeSpan.FromMilliseconds(1), TimeSpan.FromMilliseconds(1)],
             OnPermanentFailure = (failedMessage, _) => { reported.TrySetResult(failedMessage); return Task.CompletedTask; }
         };
@@ -471,7 +473,7 @@ public sealed class DelayedRetryProcessorTests
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         scopeFactory.CreateScope().Returns(scope);
 
-        return new DelayedRetryProcessor(scopeFactory, options, NullLogger<DelayedRetryProcessor>.Instance)
+        return new DelayedRetryProcessor(scopeFactory, Options.Create(options), NullLogger<DelayedRetryProcessor>.Instance)
         {
             ProcessingInterval = TimeSpan.FromMilliseconds(10)
         };
@@ -496,7 +498,7 @@ public sealed class DelayedRetryProcessorTests
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         var options = new RecoverabilityOptions();
         var logger = NullLogger<DelayedRetryProcessor>.Instance;
-        var processor = new DelayedRetryProcessor(scopeFactory, options, logger);
+        var processor = new DelayedRetryProcessor(scopeFactory, Options.Create(options), logger);
 
         // Act
         processor.ProcessingInterval = TimeSpan.FromMinutes(5);
@@ -512,7 +514,7 @@ public sealed class DelayedRetryProcessorTests
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         var options = new RecoverabilityOptions();
         var logger = NullLogger<DelayedRetryProcessor>.Instance;
-        var processor = new DelayedRetryProcessor(scopeFactory, options, logger);
+        var processor = new DelayedRetryProcessor(scopeFactory, Options.Create(options), logger);
 
         // Act
         processor.BatchSize = 50;

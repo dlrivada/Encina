@@ -145,6 +145,10 @@ public sealed class MessagingConfiguration
     /// Errors are classified to determine retry behavior. Permanent errors skip retries
     /// and go directly to the Dead Letter Queue (DLQ).
     /// </para>
+    /// <para>
+    /// The <see cref="RecoverabilityOptions"/> of this configuration are applied as a whole, so the later
+    /// registration wins over a <c>services.Configure&lt;RecoverabilityOptions&gt;(...)</c> made before it.
+    /// </para>
     /// </remarks>
     /// <value>Default: false (opt-in)</value>
     public bool UseRecoverability { get; set; }
@@ -756,6 +760,11 @@ public sealed class MessagingConfiguration
     /// <summary>
     /// Gets the configuration options for the Recoverability Pipeline.
     /// </summary>
+    /// <remarks>
+    /// With <see cref="UseRecoverability"/> every setting of this instance is applied as a whole, including those
+    /// left at their default, so the later registration wins: a <c>services.Configure&lt;RecoverabilityOptions&gt;(...)</c>
+    /// made before it is overwritten.
+    /// </remarks>
     public RecoverabilityOptions RecoverabilityOptions { get; } = new();
 
     /// <summary>

@@ -69,7 +69,7 @@ public sealed class MessagingServiceCollectionExtensionsRecoverabilityTests
     {
         var services = AddMessagingServices(new MessagingConfiguration { UseRecoverability = true });
 
-        services.ShouldContain(sd => sd.ServiceType == typeof(RecoverabilityOptions));
+        services.ShouldContain(sd => sd.ServiceType == typeof(IConfigureOptions<RecoverabilityOptions>));
         services.ShouldContain(sd => sd.ServiceType == typeof(IErrorClassifier));
         services.ShouldContain(sd =>
             sd.ServiceType == typeof(IPipelineBehavior<,>) &&
@@ -90,18 +90,21 @@ public sealed class MessagingServiceCollectionExtensionsRecoverabilityTests
     }
 
     [Fact]
-    public void AddMessagingServices_UseRecoverabilityTrueWithDefaults_DoesNotRegisterDelayedRetryProcessorNorScheduler()
+    public void AddMessagingServices_UseRecoverabilityTrueWithDefaults_ProcessorAndCheckIdleAndNoScheduler()
     {
-        // Delayed retries are off by default (#2248): only the (no-op) startup check is registered.
+        // Delayed retries are off by default (#2248): the check and the processor are registered but idle,
+        // and the scheduler resolves to null.
         var services = AddMessagingServices(new MessagingConfiguration { UseRecoverability = true });
+        services.AddLogging();
 
-        services.ShouldNotContain(sd =>
-            sd.ServiceType == typeof(IHostedService) &&
-            sd.ImplementationType == typeof(DelayedRetryProcessor));
-        services.ShouldNotContain(sd => sd.ServiceType == typeof(IDelayedRetryScheduler));
-        services.ShouldContain(sd =>
-            sd.ServiceType == typeof(IHostedService) &&
-            sd.ImplementationType == typeof(DelayedRetryStartupCheck));
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+
+        scope.ServiceProvider.GetService<IDelayedRetryScheduler>().ShouldBeNull();
+        var hosted = provider.GetServices<IHostedService>().Select(h => h.GetType()).ToList();
+        hosted.ShouldContain(typeof(DelayedRetryStartupCheck));
+        hosted.ShouldContain(typeof(DelayedRetryProcessor));
+        provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.EnableDelayedRetries.ShouldBeFalse();
     }
 
     [Fact]

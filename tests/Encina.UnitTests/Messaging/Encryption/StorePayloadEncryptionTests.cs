@@ -215,7 +215,7 @@ public sealed class StorePayloadEncryptionTests
 
         var processor = new DelayedRetryProcessor(
             provider.GetRequiredService<IServiceScopeFactory>(),
-            new RecoverabilityOptions { DelayedRetries = [TimeSpan.Zero, TimeSpan.Zero] },
+            Options.Create(new RecoverabilityOptions { EnableDelayedRetries = true, DelayedRetries = [TimeSpan.Zero, TimeSpan.Zero] }),
             NullLogger<DelayedRetryProcessor>.Instance)
         {
             ProcessingInterval = TimeSpan.FromMinutes(5)

@@ -130,7 +130,7 @@ public sealed class ErrorMessageLeakTests
 
         var processor = new DelayedRetryProcessor(
             scopeFactory,
-            new RecoverabilityOptions { DelayedRetries = [] },
+            Options.Create(new RecoverabilityOptions { EnableDelayedRetries = true, DelayedRetries = [] }),
             NullLogger<DelayedRetryProcessor>.Instance)
         {
             ProcessingInterval = TimeSpan.FromMinutes(5)
@@ -275,7 +275,7 @@ public sealed class ErrorMessageLeakTests
         // Arrange
         var logger = new FakeLogger<RecoverabilityPipelineBehavior<SensitiveRequest, string>>();
         var options = new RecoverabilityOptions { ImmediateRetries = 0, EnableDelayedRetries = false };
-        var behavior = new RecoverabilityPipelineBehavior<SensitiveRequest, string>(options, logger);
+        var behavior = new RecoverabilityPipelineBehavior<SensitiveRequest, string>(Options.Create(options), logger);
         var context = Substitute.For<IRequestContext>();
         context.CorrelationId.Returns("corr-1");
 

@@ -74,15 +74,25 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
     }
 
     [Fact]
-    public void AddMessagingServicesCore_RecoverabilityWithoutDelayedRetries_AddsTheStartupCheckOnly()
+    public void AddMessagingServicesCore_RecoverabilityWithoutDelayedRetries_RegistersCheckAndProcessorThatIdle()
     {
+        // The options are only known at resolution, so the check and the processor are always registered;
+        // the scheduler resolves to null while delayed retries are off (#3262).
         var config = new MessagingConfiguration { UseRecoverability = true };
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddMessagingServicesCore<
+            FakeOutboxStore, FakeOutboxMessageFactory,
+            FakeInboxStore, StubInboxFactory,
+            StubOutboxProcessor>(config);
 
-        var snapshot = Snapshot(config);
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
 
-        snapshot.ShouldContain("Microsoft.Extensions.Hosting.IHostedService|Encina.Messaging.Recoverability.DelayedRetryStartupCheck|Singleton");
-        snapshot.ShouldNotContain(d => d.Contains("IDelayedRetryScheduler", StringComparison.Ordinal));
-        snapshot.ShouldNotContain(d => d.Contains("DelayedRetryProcessor", StringComparison.Ordinal));
+        var hosted = provider.GetServices<IHostedService>().Select(h => h.GetType()).ToList();
+        hosted.ShouldContain(typeof(DelayedRetryStartupCheck));
+        hosted.ShouldContain(typeof(DelayedRetryProcessor));
+        scope.ServiceProvider.GetService<IDelayedRetryScheduler>().ShouldBeNull();
     }
 
     [Fact]
@@ -143,8 +153,14 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
         "Encina.Messaging.Transactions.IDbTransactionAccessor|Encina.Messaging.Transactions.DbTransactionAccessor|Scoped",
         "Encina.Messaging.Transactions.ITransactionLeaseSource|factory|Scoped",
         // Recoverability is registered before the transaction so it runs OUTSIDE it (ADR-050).
-        "Encina.Messaging.Recoverability.RecoverabilityOptions|Encina.Messaging.Recoverability.RecoverabilityOptions|Singleton",
-        "Encina.Recoverability.IErrorClassifier|Encina.Recoverability.DefaultErrorClassifier|Singleton",
+        // The options pattern (#3262): AddOptions infrastructure plus the configure registration, no instance.
+        "Microsoft.Extensions.Options.IOptions`1[TOptions]|Microsoft.Extensions.Options.UnnamedOptionsManager`1[TOptions]|Singleton",
+        "Microsoft.Extensions.Options.IOptionsSnapshot`1[TOptions]|Microsoft.Extensions.Options.OptionsManager`1[TOptions]|Scoped",
+        "Microsoft.Extensions.Options.IOptionsMonitor`1[TOptions]|Microsoft.Extensions.Options.OptionsMonitor`1[TOptions]|Singleton",
+        "Microsoft.Extensions.Options.IOptionsFactory`1[TOptions]|Microsoft.Extensions.Options.OptionsFactory`1[TOptions]|Transient",
+        "Microsoft.Extensions.Options.IOptionsMonitorCache`1[TOptions]|Microsoft.Extensions.Options.OptionsCache`1[TOptions]|Singleton",
+        "Microsoft.Extensions.Options.IConfigureOptions`1[Encina.Messaging.Recoverability.RecoverabilityOptions]|Microsoft.Extensions.Options.ConfigureNamedOptions`1[Encina.Messaging.Recoverability.RecoverabilityOptions]|Singleton",
+        "Encina.Recoverability.IErrorClassifier|factory|Singleton",
         "Encina.IPipelineBehavior`2[TRequest,TResponse]|Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior`2[TRequest,TResponse]|Scoped",
         "Microsoft.Extensions.Hosting.IHostedService|Encina.Messaging.Recoverability.DelayedRetryStartupCheck|Singleton",
         "Encina.Messaging.Recoverability.IDelayedRetryScheduler|factory|Scoped",

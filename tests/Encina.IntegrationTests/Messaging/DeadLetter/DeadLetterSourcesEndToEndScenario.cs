@@ -129,7 +129,7 @@ internal static class DeadLetterSourcesEndToEndScenario
     private static async Task RecoverabilityAsync(IServiceProvider provider, FakeTimeProvider clock)
     {
         var behavior = new RecoverabilityPipelineBehavior<SourceCommand, int>(
-            new RecoverabilityOptions { ImmediateRetries = 1, ImmediateRetryDelay = TimeSpan.Zero, UseJitter = false, EnableDelayedRetries = false },
+            Options.Create(new RecoverabilityOptions { ImmediateRetries = 1, ImmediateRetryDelay = TimeSpan.Zero, UseJitter = false, EnableDelayedRetries = false }),
             NullLogger<RecoverabilityPipelineBehavior<SourceCommand, int>>.Instance,
             delayedRetryScheduler: null,
             timeProvider: clock,

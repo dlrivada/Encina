@@ -48,7 +48,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(options, null!));
+            new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(Options.Create(options), null!));
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
         var logger = NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance;
 
         // Act
-        var behavior = new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(options, logger);
+        var behavior = new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(Options.Create(options), logger);
 
         // Assert
         behavior.ShouldNotBeNull();
@@ -75,7 +75,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
 
         // Act
         var behavior = new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(
-            options, logger, scheduler);
+            Options.Create(options), logger, scheduler);
 
         // Assert
         behavior.ShouldNotBeNull();
@@ -742,7 +742,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
         var logger = NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance;
 
         return new RecoverabilityPipelineBehavior<TestRequest, TestResponse>(
-            opts, logger, scheduler, timeProvider: null, deadLetterCapture: null, errorClassifier: null, jitterSource);
+            Options.Create(opts), logger, scheduler, timeProvider: null, deadLetterCapture: null, errorClassifier: null, jitterSource);
     }
 
     private static IDelayedRetryScheduler CreateScheduler(Action<TimeSpan> captureDelay)
