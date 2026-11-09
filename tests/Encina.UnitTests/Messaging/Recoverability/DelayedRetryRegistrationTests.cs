@@ -125,12 +125,14 @@ public sealed class DelayedRetryRegistrationTests
     }
 
     [Fact]
-    public void RegisteringTwice_AddsTheStartupCheckOnce()
+    public void RegisteringTwice_IsRejectedAndTheStartupCheckStaysRegisteredOnce()
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddEncinaRecoverability(o => o.EnableDelayedRetries = true);
-        services.AddEncinaRecoverability(o => o.EnableDelayedRetries = true);
+
+        Should.Throw<InvalidOperationException>(
+            () => services.AddEncinaRecoverability(o => o.EnableDelayedRetries = true));
 
         services.Count(d => d.ImplementationType == typeof(DelayedRetryStartupCheck)).ShouldBe(1);
     }

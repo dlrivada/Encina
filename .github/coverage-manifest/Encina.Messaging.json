@@ -1082,6 +1082,21 @@
         "guard": "The type is internal and the guard test project has no access to internals; its constructor null checks are asserted in the unit project (DelayedRetryRegistrationTests.StartupCheck_WithNullArguments_Throws)."
       }
     },
+    "Recoverability/RecoverabilityRegistrationCheck.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal hosted startup check that Recoverability is registered once (ADR-050) and the duplicate-detection rule shared with the registration methods",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "RecoverabilityDuplicateRegistrationTests cover the registration-time rule for the behavior, the options instance, the closed and keyed registrations that are not counted, and the hosted check through a real host (clean start, raw duplicate of the behavior or the instance failing the start with EventId 5458).",
+        "guard": "The type is internal and the guard test project has no access to internals; its constructor null checks are asserted in the unit project (RecoverabilityDuplicateRegistrationTests.Check_WithoutAServiceCollection_RejectsNullArguments)."
+      }
+    },
     "Recoverability/FailedMessage.cs": {
       "defaultTests": [
         "unit",
@@ -1152,7 +1167,7 @@
       "reason": "ServiceCollection extensions with conditional registration",
       "targets": { "unit": 95 },
       "justifications": {
-        "unit": "RegisterErrorClassifier is asserted by ErrorClassifierRegistrationTests; RegisterDelayedRetries and the scheduler factory by DelayedRetryRegistrationTests (store before and after the registration, missing store or factory, flag off) (measured 100%)."
+        "unit": "RegisterErrorClassifier is asserted by ErrorClassifierRegistrationTests; RegisterDelayedRetries and the scheduler factory by DelayedRetryRegistrationTests (store before and after the registration, missing store or factory, flag off), and the one-registration rule by RecoverabilityDuplicateRegistrationTests (second registration in any combination, instance before, nothing added by a rejected call) (measured 100%)."
       }
     },
     "RoutingSlip/IRoutingSlipRunner.cs": {

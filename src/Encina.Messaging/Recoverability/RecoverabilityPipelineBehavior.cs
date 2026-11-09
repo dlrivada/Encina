@@ -49,7 +49,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     /// <summary>
     /// Initializes a new instance of the <see cref="RecoverabilityPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
-    /// <param name="options">The recoverability options, the one value every registration path composes.</param>
+    /// <param name="options">The recoverability options, the one value the single Recoverability registration configures.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="delayedRetryScheduler">Optional scheduler for delayed retries.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>

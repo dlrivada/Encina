@@ -162,6 +162,8 @@ public sealed class MessagingServiceCollectionExtensionsCoreEquivalenceTests
         "Microsoft.Extensions.Options.IConfigureOptions`1[Encina.Messaging.Recoverability.RecoverabilityOptions]|Microsoft.Extensions.Options.ConfigureNamedOptions`1[Encina.Messaging.Recoverability.RecoverabilityOptions]|Singleton",
         "Encina.Recoverability.IErrorClassifier|factory|Singleton",
         "Encina.IPipelineBehavior`2[TRequest,TResponse]|Encina.Messaging.Recoverability.RecoverabilityPipelineBehavior`2[TRequest,TResponse]|Scoped",
+        "Encina.Messaging.Recoverability.RecoverabilityDescriptorSnapshot|Encina.Messaging.Recoverability.RecoverabilityDescriptorSnapshot|Singleton",
+        "Microsoft.Extensions.Hosting.IHostedService|Encina.Messaging.Recoverability.RecoverabilityRegistrationCheck|Singleton",
         "Microsoft.Extensions.Hosting.IHostedService|Encina.Messaging.Recoverability.DelayedRetryStartupCheck|Singleton",
         "Encina.Messaging.Recoverability.IDelayedRetryScheduler|factory|Scoped",
         "Microsoft.Extensions.Hosting.IHostedService|Encina.Messaging.Recoverability.DelayedRetryProcessor|Singleton",

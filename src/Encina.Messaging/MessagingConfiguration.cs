@@ -146,8 +146,10 @@ public sealed class MessagingConfiguration
     /// and go directly to the Dead Letter Queue (DLQ).
     /// </para>
     /// <para>
-    /// The <see cref="RecoverabilityOptions"/> of this configuration are applied as a whole, so the later
-    /// registration wins over a <c>services.Configure&lt;RecoverabilityOptions&gt;(...)</c> made before it.
+    /// The <see cref="RecoverabilityOptions"/> of this configuration are applied as a whole, so they overwrite a
+    /// <c>services.Configure&lt;RecoverabilityOptions&gt;(...)</c> made before the registration. Recoverability can
+    /// be registered once per host: <c>AddEncinaRecoverability</c> next to this flag, or this flag in two provider
+    /// registrations, fails with an <see cref="InvalidOperationException"/> (ADR-050).
     /// </para>
     /// </remarks>
     /// <value>Default: false (opt-in)</value>
@@ -762,8 +764,8 @@ public sealed class MessagingConfiguration
     /// </summary>
     /// <remarks>
     /// With <see cref="UseRecoverability"/> every setting of this instance is applied as a whole, including those
-    /// left at their default, so the later registration wins: a <c>services.Configure&lt;RecoverabilityOptions&gt;(...)</c>
-    /// made before it is overwritten.
+    /// left at their default, so a <c>services.Configure&lt;RecoverabilityOptions&gt;(...)</c> made before the
+    /// registration is overwritten. The property is get-only: assign its members.
     /// </remarks>
     public RecoverabilityOptions RecoverabilityOptions { get; } = new();
 
