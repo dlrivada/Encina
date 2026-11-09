@@ -129,8 +129,11 @@ public static class MessagingServiceCollectionExtensions
     {
         if (!config.UseRecoverability) return;
 
-        // The options pattern: this registration applies every setting as a whole, so the later registration
-        // wins. Every consumer reads the one RecoverabilityOptions through IOptions.
+        // Registering Recoverability a second time is an error (ADR-050): fail before adding anything.
+        RecoverabilityRegistrationCheck.ThrowIfAlreadyRegistered(services);
+
+        // The options pattern: this registration overwrites a Configure<RecoverabilityOptions> made before it.
+        // Every consumer reads the one RecoverabilityOptions through IOptions.
         services.Configure<RecoverabilityOptions>(options => config.RecoverabilityOptions.CopyTo(options));
         RecoverabilityServiceCollectionExtensions.RegisterErrorClassifier(services);
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(RecoverabilityPipelineBehavior<,>));

@@ -21,10 +21,18 @@ public static class RecoverabilityServiceCollectionExtensions
     /// <para>
     /// This method registers:
     /// <list type="bullet">
-    /// <item><description><see cref="RecoverabilityOptions"/> through the options pattern (<c>Configure</c>; read it with <c>IOptions&lt;RecoverabilityOptions&gt;</c>), so every registration path composes into one value</description></item>
+    /// <item><description><see cref="RecoverabilityOptions"/> through the options pattern (<c>Configure</c>; read it with <c>IOptions&lt;RecoverabilityOptions&gt;</c>), so an application <c>Configure</c> made before this call composes into one value</description></item>
     /// <item><description><see cref="RecoverabilityPipelineBehavior{TRequest, TResponse}"/> as scoped pipeline behavior</description></item>
     /// <item><description><see cref="DefaultErrorClassifier"/> as <see cref="IErrorClassifier"/> if not already registered</description></item>
     /// </list>
+    /// </para>
+    /// <para>
+    /// Recoverability can be registered once per host (ADR-050): a second call, a
+    /// <see cref="MessagingConfiguration.UseRecoverability"/> registration next to this one, or a
+    /// <see cref="RecoverabilityOptions"/> instance registered directly throws an
+    /// <see cref="InvalidOperationException"/> that names the duplicate and the fix. A duplicate added directly to the
+    /// service collection after this call fails the host start instead. Only the open generic registration of
+    /// <see cref="RecoverabilityPipelineBehavior{TRequest, TResponse}"/> is checked.
     /// </para>
     /// <para>
     /// Delayed retries are off by default. When <see cref="RecoverabilityOptions.EnableDelayedRetries"/> is on, you
@@ -67,6 +75,9 @@ public static class RecoverabilityServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // Registering Recoverability a second time is an error (ADR-050): fail before adding anything.
+        RecoverabilityRegistrationCheck.ThrowIfAlreadyRegistered(services);
+
         if (configure is not null)
         {
             services.Configure(configure);
@@ -104,7 +115,10 @@ public static class RecoverabilityServiceCollectionExtensions
     /// </remarks>
     internal static void RegisterDelayedRetries(IServiceCollection services)
     {
-        // The check goes before the processor so a failed start keeps the processor from running.
+        // The checks go before the processor so a failed start keeps the processor from running. The duplicate
+        // check always runs; it sees registrations added after this call because it holds the live collection.
+        services.TryAddSingleton(new RecoverabilityDescriptorSnapshot(services));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, RecoverabilityRegistrationCheck>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, DelayedRetryStartupCheck>());
 
         // DelayedRetryScheduler and DelayedRetryProcessor serialize the request payload
@@ -147,11 +161,6 @@ public static class RecoverabilityServiceCollectionExtensions
     internal static void RegisterErrorClassifier(IServiceCollection services)
     {
         var previous = services.LastOrDefault(IsClassifierDescriptor);
-        if (previous is not null && IsOptionsClassifierFactory(previous))
-        {
-            return;
-        }
-
         var lifetime = ServiceLifetime.Singleton;
         if (previous is not null)
         {
@@ -164,9 +173,6 @@ public static class RecoverabilityServiceCollectionExtensions
 
     private static bool IsClassifierDescriptor(ServiceDescriptor descriptor)
         => descriptor.ServiceType == typeof(IErrorClassifier) && !descriptor.IsKeyedService;
-
-    private static bool IsOptionsClassifierFactory(ServiceDescriptor descriptor)
-        => descriptor.ImplementationFactory?.Target is OptionsClassifierFactory;
 
     // Resolves the classifier: the one the options carry, else the registration that was in place before,
     // else the default. A scoped or transient earlier registration keeps its lifetime.
@@ -228,6 +234,11 @@ public static class RecoverabilityServiceCollectionExtensions
         Action<RecoverabilityOptions>? configure = null)
         where TClassifier : class, IErrorClassifier
     {
+        ArgumentNullException.ThrowIfNull(services);
+
+        // Fail before the classifier is added, so a rejected call leaves the collection unchanged.
+        RecoverabilityRegistrationCheck.ThrowIfAlreadyRegistered(services);
+
         services.AddSingleton<IErrorClassifier, TClassifier>();
         return services.AddEncinaRecoverability(configure);
     }
