@@ -161,4 +161,22 @@ public sealed class RecoverabilityOptions
     /// Gets the total number of retry attempts (immediate + delayed).
     /// </summary>
     public int TotalRetryAttempts => ImmediateRetries + (EnableDelayedRetries ? DelayedRetries.Length : 0);
+
+    /// <summary>
+    /// Copies every setting onto <paramref name="target"/>, the way <c>UseRecoverability</c> composes its
+    /// configured options into the single options value.
+    /// </summary>
+    internal void CopyTo(RecoverabilityOptions target)
+    {
+        target.ImmediateRetries = ImmediateRetries;
+        target.ImmediateRetryDelay = ImmediateRetryDelay;
+        target.UseExponentialBackoffForImmediateRetries = UseExponentialBackoffForImmediateRetries;
+        target.DelayedRetries = DelayedRetries;
+        target.OnPermanentFailure = OnPermanentFailure;
+        target.ErrorClassifier = ErrorClassifier;
+        target.EnableDelayedRetries = EnableDelayedRetries;
+        target.UseJitter = UseJitter;
+        target.MaxJitterPercent = MaxJitterPercent;
+        target.MaxRetryAfter = MaxRetryAfter;
+    }
 }

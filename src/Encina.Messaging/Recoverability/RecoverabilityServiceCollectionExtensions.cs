@@ -2,6 +2,7 @@ using Encina.Recoverability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Messaging.Recoverability;
 
@@ -20,7 +21,7 @@ public static class RecoverabilityServiceCollectionExtensions
     /// <para>
     /// This method registers:
     /// <list type="bullet">
-    /// <item><description><see cref="RecoverabilityOptions"/> as singleton</description></item>
+    /// <item><description><see cref="RecoverabilityOptions"/> through the options pattern (<c>Configure</c>; read it with <c>IOptions&lt;RecoverabilityOptions&gt;</c>), so every registration path composes into one value</description></item>
     /// <item><description><see cref="RecoverabilityPipelineBehavior{TRequest, TResponse}"/> as scoped pipeline behavior</description></item>
     /// <item><description><see cref="DefaultErrorClassifier"/> as <see cref="IErrorClassifier"/> if not already registered</description></item>
     /// </list>
@@ -62,50 +63,63 @@ public static class RecoverabilityServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        var options = new RecoverabilityOptions();
-        configure?.Invoke(options);
+        if (configure is not null)
+        {
+            services.Configure(configure);
+        }
+        else
+        {
+            services.AddOptions<RecoverabilityOptions>();
+        }
 
-        services.AddSingleton(options);
-
-        RegisterErrorClassifier(services, options);
+        RegisterErrorClassifier(services);
 
         // Register the pipeline behavior
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(RecoverabilityPipelineBehavior<,>));
 
-        RegisterDelayedRetries(services, options);
+        RegisterDelayedRetries(services);
 
         return services;
     }
 
     /// <summary>
-    /// Registers the delayed retry startup check always and, when
-    /// <see cref="RecoverabilityOptions.EnableDelayedRetries"/> is on, the scheduler and the processor.
+    /// Registers the delayed retry startup check, the scheduler and the processor, whatever the flag says.
     /// Shared by <c>AddEncinaRecoverability</c> and <c>UseRecoverability</c> so the two paths never drift.
     /// </summary>
     /// <remarks>
-    /// The store and its factory may be registered before or after this call: the scheduler is built by a
-    /// factory that fails with a clear message when either is missing, and the startup check
+    /// <para>
+    /// The options are only known when the container resolves them, so each piece decides then: with
+    /// <see cref="RecoverabilityOptions.EnableDelayedRetries"/> off the scheduler factory yields no scheduler, the
+    /// processor does no work and the startup check does nothing.
+    /// </para>
+    /// <para>
+    /// The store and its factory may be registered before or after this call: with the flag on, the scheduler is
+    /// built by a factory that fails with a clear message when either is missing, and the startup check
     /// (<see cref="DelayedRetryStartupCheck"/>) fails the host start for the same reason.
+    /// </para>
     /// </remarks>
-    internal static void RegisterDelayedRetries(IServiceCollection services, RecoverabilityOptions options)
+    internal static void RegisterDelayedRetries(IServiceCollection services)
     {
         // The check goes before the processor so a failed start keeps the processor from running.
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, DelayedRetryStartupCheck>());
 
-        if (!options.EnableDelayedRetries)
-        {
-            return;
-        }
-
         // DelayedRetryScheduler and DelayedRetryProcessor serialize the request payload
         // through IMessageSerializer (so encryption applies to delayed-retry content).
         services.TryAddDefaultMessageSerializer();
-        services.TryAddScoped<IDelayedRetryScheduler>(CreateScheduler);
+
+        // The factory yields null (no scheduler) while delayed retries are off: the behavior takes the scheduler
+        // as an optional constructor parameter and the container passes the null through; nothing requires it then.
+        services.TryAddScoped<IDelayedRetryScheduler>(provider => CreateScheduler(provider)!);
         services.AddHostedService<DelayedRetryProcessor>();
     }
 
-    private static DelayedRetryScheduler CreateScheduler(IServiceProvider provider)
+    private static DelayedRetryScheduler? CreateScheduler(IServiceProvider provider)
     {
+        if (!provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.EnableDelayedRetries)
+        {
+            return null;
+        }
+
         var missing = DelayedRetryStartupCheck.DescribeMissing(
             provider.GetService<IDelayedRetryStore>() is not null,
             provider.GetService<IDelayedRetryMessageFactory>() is not null,
@@ -119,20 +133,55 @@ public static class RecoverabilityServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers the error classifier: a custom <see cref="RecoverabilityOptions.ErrorClassifier"/> replaces any
-    /// registered one (the application's own choice wins over a default registered earlier, for example by
-    /// <c>AddEncinaPolly</c>); without one the default is added only when none is registered, so registration
-    /// order never matters.
+    /// Registers the error classifier, decided when the container resolves it: a custom
+    /// <see cref="RecoverabilityOptions.ErrorClassifier"/> replaces any registered one (the application's own
+    /// choice wins over a default registered earlier, for example by <c>AddEncinaPolly</c>); without one the
+    /// classifier registered earlier is kept, or <see cref="DefaultErrorClassifier"/> when there is none. A
+    /// registration made later by <c>TryAdd</c> finds this one and does nothing, so registration order never
+    /// matters.
     /// </summary>
-    internal static void RegisterErrorClassifier(IServiceCollection services, RecoverabilityOptions options)
+    internal static void RegisterErrorClassifier(IServiceCollection services)
     {
-        if (options.ErrorClassifier is { } custom)
+        var previous = services.LastOrDefault(
+            descriptor => descriptor.ServiceType == typeof(IErrorClassifier) && !descriptor.IsKeyedService);
+        if (previous?.ImplementationFactory?.Target is OptionsClassifierFactory)
         {
-            services.Replace(ServiceDescriptor.Singleton(custom));
             return;
         }
 
-        services.TryAddSingleton<IErrorClassifier>(new DefaultErrorClassifier());
+        if (previous is not null)
+        {
+            services.Remove(previous);
+        }
+
+        var factory = new OptionsClassifierFactory(previous);
+        services.Add(new ServiceDescriptor(
+            typeof(IErrorClassifier),
+            factory.Create,
+            previous?.Lifetime ?? ServiceLifetime.Singleton));
+    }
+
+    // Resolves the classifier: the one the options carry, else the registration that was in place before,
+    // else the default. A scoped or transient earlier registration keeps its lifetime.
+    private sealed class OptionsClassifierFactory(ServiceDescriptor? previous)
+    {
+        public IErrorClassifier Create(IServiceProvider provider)
+        {
+            var custom = provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.ErrorClassifier;
+            if (custom is not null)
+            {
+                return custom;
+            }
+
+            return previous switch
+            {
+                null => new DefaultErrorClassifier(),
+                { ImplementationInstance: IErrorClassifier instance } => instance,
+                { ImplementationFactory: { } factory } => (IErrorClassifier)factory(provider),
+                { ImplementationType: { } type } => (IErrorClassifier)ActivatorUtilities.CreateInstance(provider, type),
+                _ => new DefaultErrorClassifier()
+            };
+        }
     }
 
     /// <summary>

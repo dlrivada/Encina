@@ -129,11 +129,13 @@ public static class MessagingServiceCollectionExtensions
     {
         if (!config.UseRecoverability) return;
 
-        services.AddSingleton(config.RecoverabilityOptions);
-        RecoverabilityServiceCollectionExtensions.RegisterErrorClassifier(services, config.RecoverabilityOptions);
+        // The options pattern: the configured values compose with any AddEncinaRecoverability delegate, in
+        // registration order, into the one RecoverabilityOptions every consumer reads through IOptions.
+        services.Configure<RecoverabilityOptions>(options => config.RecoverabilityOptions.CopyTo(options));
+        RecoverabilityServiceCollectionExtensions.RegisterErrorClassifier(services);
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(RecoverabilityPipelineBehavior<,>));
 
-        RecoverabilityServiceCollectionExtensions.RegisterDelayedRetries(services, config.RecoverabilityOptions);
+        RecoverabilityServiceCollectionExtensions.RegisterDelayedRetries(services);
     }
 
     /// <summary>
