@@ -48,10 +48,19 @@ while ($hasNext) {
     $ghArgs = @('api', 'graphql', '-f', "query=$query", '-f', "owner=$owner", '-f', "name=$name", '-F', "pageSize=$PageSize")
     if ($cursor) { $ghArgs += @('-f', "cursor=$cursor") } else { $ghArgs += @('-F', 'cursor=null') }
     # #2568: GraphQL-only bulk read: wait for the shared quota (until resetAt when low), then record the call.
-    [void](Wait-GhGraphQLQuota -Caller 'collect-issues' -MinRemaining 200)
-    $raw = & gh @ghArgs 2>&1
-    $ghCode = $LASTEXITCODE
-    Write-GhQuotaUsage -Caller 'collect-issues' -Operation "issues page $page"
+    # #3329: a page refused for a rate limit is retried (up to 3 times) after the back-off of its kind, not abandoned.
+    $attempt = 0
+    while ($true) {
+        [void](Wait-GhGraphQLQuota -Caller 'collect-issues' -MinRemaining 200)
+        $raw = & gh @ghArgs 2>&1
+        $ghCode = $LASTEXITCODE
+        Write-GhQuotaUsage -Caller 'collect-issues' -Operation "issues page $page"
+        if ($ghCode -eq 0 -or $attempt -ge 3) { break }
+        $kind = Get-GhRateLimitKind -Text ($raw -join "`n")
+        if ($kind -eq 'none') { break }
+        $attempt++
+        [void](Invoke-GhRateLimitBackoff -Caller 'collect-issues' -Kind $kind -Attempt $attempt)
+    }
     if ($ghCode -ne 0) { throw "gh api graphql failed on page $page`: $raw" }
     $resp = $raw | ConvertFrom-Json
     $conn = $resp.data.repository.issues
