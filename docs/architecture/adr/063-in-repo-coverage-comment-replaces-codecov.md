@@ -1,3 +1,10 @@
+---
+title: "ADR-063: An In-Repository Coverage Comment Replaces Codecov"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-063: An In-Repository Coverage Comment Replaces Codecov (Accepted)
 
 ## Status
@@ -41,8 +48,8 @@ Two workflows, split at the trust boundary:
 
 ## Consequences
 
-- The comment is informational and never a gate. Merge gating stays with `crap-gate`, `target-ratchet` and the per-file targets.
-- Pull request CI measures only the flags whose inputs the pull request touches. It does not run the Observability integration shard nor the SQLite EF Core job that CI Full runs, so the table says "no data" and names the flags present.
+- The comment is informational and never a gate. `coverage-report.cs` reports target attainment without an exit code, and `target-ratchet` only checks changes to targets, so reviewers check the attainment against the targets manually. `crap-gate` remains the blocking gate for the methods a pull request touches.
+- Pull request CI measures only the flags whose inputs the pull request touches. It does not run the Observability integration shard nor the SQLite EF Core job that CI Full runs. The table says "no data" only when the file and the flag have no recorded lines; a percentage can still exclude an omitted shard (a shard that did not run in pull request CI), so a measured value is not proof that every shard ran.
 - The Cobertura data comes from the pull request, so a malicious pull request could falsify its own numbers in an informational comment. The gates (`crap-gate`, `target-ratchet`) run in the pull request's own CI, as before.
 - A `workflow_run` workflow only runs from the default branch, so the comment appears only after this change is merged.
 - After the merge the maintainer removes the Codecov GitHub app and the `CODECOV_TOKEN` secret.
